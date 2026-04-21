@@ -4,4 +4,5 @@ dist/
 *.log
 .spark-spawner-missions.json
 .spark-telegram-webhook-state.json
+.spark-telegram-inbox.json
 nul

@@ -4,6 +4,8 @@
 
 It owns Telegram ingress, routes operator commands into `Spawner UI`, and relays mission lifecycle updates back into Telegram.
 
+Webhook ingress is now queue-backed inside the gateway, so validated Telegram updates are persisted locally before command handling runs. That reduces message loss risk if the gateway restarts after acknowledging a webhook.
+
 ## What It Does
 
 - receives Telegram updates through one gateway process

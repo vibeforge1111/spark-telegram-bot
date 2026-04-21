@@ -149,6 +149,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: `ops/cloudflared/check.ps1` now detects the local `cloudflared` install, checks for an origin cert, and tells the operator whether named-tunnel cutover is blocked on `cloudflared tunnel login`
 
+### Phase 10. Queue-Backed Ingress
+
+1. Persist validated webhook updates before command handling
+   status: done
+   verify: webhook updates are now written to `.spark-telegram-inbox.json` before `200 OK`, so a restart after acknowledgement does not silently drop the update
+2. Drain inbound Telegram updates through one internal processor
+   status: done
+   verify: queued Telegram updates are processed sequentially through one gateway-owned inbox processor instead of direct inline `bot.handleUpdate()` calls from the webhook route
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

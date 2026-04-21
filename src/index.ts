@@ -11,6 +11,7 @@ import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
+import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 
 // Validate environment
 if (!process.env.BOT_TOKEN) {
@@ -215,11 +216,15 @@ async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'):
         return;
       }
 
-      writeJson(res, 200, { ok: true });
+      try {
+        await enqueueTelegramUpdate(payload as Record<string, unknown>);
+      } catch (error) {
+        console.error('Telegram webhook enqueue failed:', error);
+        writeJson(res, 500, { ok: false, error: 'enqueue_failed' });
+        return;
+      }
 
-      void bot.handleUpdate(payload as any).catch((error) => {
-        console.error('Telegram webhook update failed:', error);
-      });
+      writeJson(res, 200, { ok: true });
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -643,6 +648,7 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
+  await startTelegramInboxProcessor(bot);
   const gatewayMode = getGatewayMode();
   const relay = await startMissionRelay(bot);
   const webhook = await startTelegramWebhookServer(gatewayMode);
