@@ -12,6 +12,7 @@ import { llm } from './llm';
 import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
+import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 
 // Validate environment
 if (!process.env.BOT_TOKEN) {
@@ -634,6 +635,7 @@ bot.on(message('text'), async (ctx) => {
 process.once('SIGINT', () => {
   console.log('Shutting down...');
   telegramWebhookServer?.close();
+  void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
@@ -641,6 +643,7 @@ process.once('SIGINT', () => {
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
   telegramWebhookServer?.close();
+  void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
@@ -650,6 +653,11 @@ process.once('SIGTERM', () => {
 async function start() {
   await startTelegramInboxProcessor(bot);
   const gatewayMode = getGatewayMode();
+  await acquireGatewayOwnership({
+    botToken: process.env.BOT_TOKEN!,
+    mode: gatewayMode,
+    webhookUrl: process.env.TELEGRAM_WEBHOOK_URL?.trim() || null
+  });
   const relay = await startMissionRelay(bot);
   const webhook = await startTelegramWebhookServer(gatewayMode);
 
@@ -693,6 +701,7 @@ async function start() {
 }
 
 start().catch((err) => {
+  void releaseGatewayOwnership();
   console.error('Failed to start bot:', err);
   process.exit(1);
 });

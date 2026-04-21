@@ -158,6 +158,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: queued Telegram updates are processed sequentially through one gateway-owned inbox processor instead of direct inline `bot.handleUpdate()` calls from the webhook route
 
+### Phase 11. Durable Ownership Lease
+
+1. Add a durable gateway ownership lease
+   status: done
+   verify: startup now writes a token-scoped ownership lease with pid/hostname/heartbeat and refuses to start when another live local gateway instance already owns the same bot token
+2. Recover from stale ownership after crashes
+   status: done
+   verify: the ownership lease expires after a short TTL, so a crashed gateway does not permanently block restart on the same host
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

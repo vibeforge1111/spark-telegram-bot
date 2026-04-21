@@ -5,4 +5,5 @@ dist/
 .spark-spawner-missions.json
 .spark-telegram-webhook-state.json
 .spark-telegram-inbox.json
+.spark-telegram-owner-lock-*.json
 nul
