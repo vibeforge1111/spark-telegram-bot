@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
+import { runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
@@ -578,10 +579,20 @@ bot.on(message('text'), async (ctx) => {
   const user = ctx.from;
   const text = ctx.message.text;
 
+  if (text.startsWith('/')) {
+    return;
+  }
+
   // Show typing indicator
   await ctx.sendChatAction('typing');
 
   try {
+    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    if (builderReply.used) {
+      await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
+      return;
+    }
+
     // Store the message as a memory
     await conversation.remember(user, text).catch(() => {});
 

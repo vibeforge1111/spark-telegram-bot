@@ -76,6 +76,20 @@ Important rule:
 - one Telegram token
 - one active gateway owner
 
+## Builder Bridge
+
+Normal chat messages can be routed into `spark-intelligence-builder` so the real Telegram webhook bot uses Builder's researcher and persistent memory path instead of the local fallback conversation memory.
+
+Bridge env:
+
+- `SPARK_BUILDER_BRIDGE_MODE=auto|off|required`
+- `SPARK_BUILDER_REPO`
+- `SPARK_BUILDER_HOME`
+- `SPARK_BUILDER_PYTHON`
+- `SPARK_BUILDER_TIMEOUT_MS`
+
+Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and its `.tmp-home-live-telegram-real` home. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+
 See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webhook setup and rollback.
 
 ## Setup
