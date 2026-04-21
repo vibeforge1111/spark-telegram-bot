@@ -195,6 +195,16 @@ async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'):
   if (!telegramWebhookServer) {
     telegramWebhookServer = createServer(async (req, res) => {
       const reqUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      if (req.method === 'GET' && reqUrl.pathname === '/healthz') {
+        writeJson(res, 200, {
+          ok: true,
+          service: 'spark-telegram-bot',
+          mode,
+          webhookPath: webhook.path
+        });
+        return;
+      }
+
       if (req.method !== 'POST' || reqUrl.pathname !== webhook.path) {
         writeJson(res, 404, { ok: false, error: 'not_found' });
         return;

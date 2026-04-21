@@ -107,6 +107,11 @@ Operator check:
 npm run health:webhook
 ```
 
+Public ingress intentionally exposes only:
+
+- `POST <webhook path>`
+- `GET /healthz`
+
 Named tunnel readiness check:
 
 ```powershell

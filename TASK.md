@@ -167,6 +167,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: the ownership lease expires after a short TTL, so a crashed gateway does not permanently block restart on the same host
 
+### Phase 12. Thin Public Ingress
+
+1. Keep the local/public webhook server surface explicit
+   status: done
+   verify: the gateway HTTP server now intentionally exposes only the Telegram webhook path plus `GET /healthz`
+2. Align health checks with the explicit ingress boundary
+   status: done
+   verify: `npm run health:webhook` now checks the local `GET /healthz` route instead of relying on a generic 404 response from the webhook listener
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

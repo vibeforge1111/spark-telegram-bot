@@ -42,15 +42,27 @@ function webhookConfig():
 }
 
 async function probeUrl(label: string, url: string): Promise<CheckResult> {
+  return probeUrlStatus(label, url, null);
+}
+
+async function probeUrlStatus(
+  label: string,
+  url: string,
+  expectedStatus: number | null
+): Promise<CheckResult> {
   try {
     const response = await axios.get(url, {
       timeout: 4000,
       validateStatus: () => true
     });
+    const ok = expectedStatus === null ? true : response.status === expectedStatus;
     return {
-      ok: true,
+      ok,
       label,
-      detail: `${response.status} ${response.statusText || 'response'}`
+      detail:
+        expectedStatus === null
+          ? `${response.status} ${response.statusText || 'response'}`
+          : `expected ${expectedStatus}, got ${response.status} ${response.statusText || 'response'}`
     };
   } catch (error) {
     const detail =
@@ -120,7 +132,11 @@ async function main(): Promise<void> {
   if (webhook) {
     results.push(await probeUrl('Public webhook URL', webhook.url));
     results.push(
-      await probeUrl('Local webhook listener', `http://127.0.0.1:${webhook.port}${webhook.path}`)
+      await probeUrlStatus(
+        'Local webhook health route',
+        `http://127.0.0.1:${webhook.port}/healthz`,
+        200
+      )
     );
   }
 

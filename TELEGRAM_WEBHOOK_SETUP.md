@@ -173,6 +173,7 @@ The gateway should behave like this:
 Operator-level checks:
 
 - `npm run health:webhook`
+- `GET /healthz` on the local webhook listener
 - `/board`
 - `/mission status <missionId>`
 - Spawner mission board/status endpoints
