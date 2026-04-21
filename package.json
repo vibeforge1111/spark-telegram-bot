@@ -1,0 +1,33 @@
+{
+  "name": "spark-telegram-bot",
+  "version": "1.0.0",
+  "description": "Spark - Self-improving Telegram bot powered by Mind V5",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "spark",
+    "mind",
+    "memory",
+    "ai"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
