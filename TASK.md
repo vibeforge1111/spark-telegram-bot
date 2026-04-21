@@ -108,8 +108,8 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 ### Phase 6. Single-Owner Enforcement
 
 1. Block polling startup when webhook mode is configured
-   status: pending
-   verify: a second local process cannot steal `@SparkAGI_bot` by starting `getUpdates`
+   status: done
+   verify: forced `TELEGRAM_GATEWAY_MODE=polling` refused startup when webhook env was present, and polling startup now checks Telegram webhook ownership before `getUpdates`
 2. Keep outbound Telegram sending inside the gateway only
    status: pending
    verify: mission relay and command replies still come from one process

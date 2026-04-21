@@ -25,6 +25,15 @@ const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
 let telegramWebhookServer: Server | null = null;
 let pollingActive = false;
 
+function getGatewayMode(): 'auto' | 'polling' | 'webhook' {
+  const raw = process.env.TELEGRAM_GATEWAY_MODE?.trim().toLowerCase() || 'auto';
+  if (raw === 'auto' || raw === 'polling' || raw === 'webhook') {
+    return raw;
+  }
+
+  throw new Error('TELEGRAM_GATEWAY_MODE must be one of: auto, polling, webhook');
+}
+
 function getWebhookConfig() {
   const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
   if (!webhookUrl) {
@@ -106,8 +115,19 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | n
   });
 }
 
-async function startTelegramWebhookServer(): Promise<{ port: number; path: string } | null> {
+async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'): Promise<{ port: number; path: string } | null> {
   const webhook = getWebhookConfig();
+  if (mode === 'polling') {
+    if (webhook) {
+      throw new Error('Polling mode refused because TELEGRAM_WEBHOOK_URL is configured. Clear webhook env or use TELEGRAM_GATEWAY_MODE=webhook.');
+    }
+    return null;
+  }
+
+  if (mode === 'webhook' && !webhook) {
+    throw new Error('Webhook mode requires TELEGRAM_WEBHOOK_URL and TELEGRAM_WEBHOOK_SECRET.');
+  }
+
   if (!webhook) {
     return null;
   }
@@ -158,6 +178,15 @@ async function startTelegramWebhookServer(): Promise<{ port: number; path: strin
   });
 
   return { port: webhook.port, path: webhook.path };
+}
+
+async function ensurePollingAllowed(): Promise<void> {
+  const webhookInfo = await bot.telegram.getWebhookInfo();
+  if (webhookInfo.url) {
+    throw new Error(
+      `Polling mode refused because Telegram webhook ownership is active at ${webhookInfo.url}. Use TELEGRAM_GATEWAY_MODE=webhook or clear the webhook first.`
+    );
+  }
 }
 
 function requireAdmin(ctx: any): boolean {
@@ -545,8 +574,9 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
+  const gatewayMode = getGatewayMode();
   const relay = await startMissionRelay(bot);
-  const webhook = await startTelegramWebhookServer();
+  const webhook = await startTelegramWebhookServer(gatewayMode);
 
   // Check connections
   const [mindHealthy, sparkHealthy, ollamaHealthy] = await Promise.all([
@@ -580,6 +610,8 @@ async function start() {
     console.log('Spark bot is running in webhook mode. Press Ctrl+C to stop.');
     return;
   }
+
+  await ensurePollingAllowed();
   await bot.launch();
   pollingActive = true;
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
