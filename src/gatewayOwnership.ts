@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
-import { readFile, unlink, writeFile } from 'node:fs/promises';
+import { unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
+import { readJsonFile, writeJsonAtomic } from './jsonState';
 
 const HEARTBEAT_MS = 15_000;
 const STALE_AFTER_MS = 45_000;
@@ -53,8 +54,7 @@ async function readLease(filePath: string): Promise<OwnershipLease | null> {
   }
 
   try {
-    const raw = await readFile(filePath, 'utf-8');
-    return JSON.parse(raw) as OwnershipLease;
+    return await readJsonFile<OwnershipLease>(filePath);
   } catch (error) {
     console.warn('[GatewayOwnership] Failed to read lease:', error);
     return null;
@@ -62,7 +62,7 @@ async function readLease(filePath: string): Promise<OwnershipLease | null> {
 }
 
 async function writeLease(filePath: string, lease: OwnershipLease): Promise<void> {
-  await writeFile(filePath, JSON.stringify(lease, null, 2), 'utf-8');
+  await writeJsonAtomic(filePath, lease);
 }
 
 async function heartbeat(): Promise<void> {

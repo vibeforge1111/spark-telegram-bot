@@ -176,6 +176,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: `npm run health:webhook` now checks the local `GET /healthz` route instead of relying on a generic 404 response from the webhook listener
 
+### Phase 13. Atomic Gateway State
+
+1. Make gateway state writes atomic
+   status: done
+   verify: webhook dedupe state, relay registry state, inbound inbox state, and ownership leases now write through an atomic temp-file rename path instead of direct JSON overwrite
+2. Create a cleaner seam for a future shared store
+   status: done
+   verify: gateway state read/write logic now goes through one small JSON-state helper instead of being duplicated across the gateway modules
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

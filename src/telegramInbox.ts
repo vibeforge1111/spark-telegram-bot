@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Telegraf } from 'telegraf';
+import { readJsonFile, writeJsonAtomic } from './jsonState';
 
 interface QueuedTelegramUpdate {
   updateId: number | null;
@@ -30,8 +30,7 @@ async function loadQueue(): Promise<void> {
   }
 
   try {
-    const raw = await readFile(INBOX_PATH, 'utf-8');
-    const parsed = JSON.parse(raw) as QueuedTelegramUpdate[];
+    const parsed = await readJsonFile<QueuedTelegramUpdate[]>(INBOX_PATH);
     queue = Array.isArray(parsed) ? parsed : [];
   } catch (error) {
     console.warn('[TelegramInbox] Failed to load inbox:', error);
@@ -40,7 +39,7 @@ async function loadQueue(): Promise<void> {
 }
 
 async function persistQueue(): Promise<void> {
-  await writeFile(INBOX_PATH, JSON.stringify(queue, null, 2), 'utf-8');
+  await writeJsonAtomic(INBOX_PATH, queue);
 }
 
 function scheduleProcessor(delayMs = 0): void {

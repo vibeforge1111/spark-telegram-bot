@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Telegraf } from 'telegraf';
+import { readJsonFile, writeJsonAtomic } from './jsonState';
 
 type RelayEventType =
   | 'mission_created'
@@ -76,8 +76,10 @@ async function loadRegistry(): Promise<void> {
   if (!existsSync(REGISTRY_PATH)) return;
 
   try {
-    const raw = await readFile(REGISTRY_PATH, 'utf-8');
-    const entries = JSON.parse(raw) as MissionSubscription[];
+    const entries = await readJsonFile<MissionSubscription[]>(REGISTRY_PATH);
+    if (!entries) {
+      return;
+    }
     for (const entry of entries) {
       if (entry?.missionId && entry.chatId) {
         registry.set(entry.missionId, entry);
@@ -96,11 +98,7 @@ async function refreshRegistry(): Promise<void> {
 
 async function persistRegistry(): Promise<void> {
   try {
-    await writeFile(
-      REGISTRY_PATH,
-      JSON.stringify(Array.from(registry.values()), null, 2),
-      'utf-8'
-    );
+    await writeJsonAtomic(REGISTRY_PATH, Array.from(registry.values()));
   } catch (error) {
     console.warn('[MissionRelay] Failed to persist registry:', error);
   }

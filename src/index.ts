@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
@@ -13,6 +12,7 @@ import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
+import { readJsonFile, writeJsonAtomic } from './jsonState';
 
 // Validate environment
 if (!process.env.BOT_TOKEN) {
@@ -100,8 +100,10 @@ async function loadWebhookState(): Promise<void> {
   }
 
   try {
-    const raw = await readFile(WEBHOOK_STATE_PATH, 'utf-8');
-    const parsed = JSON.parse(raw) as PersistedWebhookState;
+    const parsed = await readJsonFile<PersistedWebhookState>(WEBHOOK_STATE_PATH);
+    if (!parsed) {
+      return;
+    }
     for (const entry of parsed.seenUpdateIds || []) {
       if (typeof entry?.updateId === 'number' && typeof entry?.timestamp === 'number') {
         webhookUpdateCache.set(entry.updateId, entry.timestamp);
@@ -122,7 +124,7 @@ async function persistWebhookState(): Promise<void> {
         .slice(0, 1000)
         .map(([updateId, timestamp]) => ({ updateId, timestamp }))
     };
-    await writeFile(WEBHOOK_STATE_PATH, JSON.stringify(state, null, 2), 'utf-8');
+    await writeJsonAtomic(WEBHOOK_STATE_PATH, state);
   } catch (error) {
     console.warn('[TelegramWebhook] Failed to persist webhook state:', error);
   }
