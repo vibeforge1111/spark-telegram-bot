@@ -23,6 +23,7 @@ interface MissionSubscription {
   requestId: string;
   goal: string;
   createdAt: string;
+  updateId?: number;
 }
 
 interface RelayWebhookPayload {

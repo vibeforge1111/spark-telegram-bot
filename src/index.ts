@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { existsSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
@@ -22,8 +25,17 @@ const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
 const webhookUpdateCache = new Map<number, number>();
 const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
+const WEBHOOK_STATE_PATH = path.join(process.cwd(), '.spark-telegram-webhook-state.json');
 let telegramWebhookServer: Server | null = null;
 let pollingActive = false;
+let webhookStateLoaded = false;
+
+interface PersistedWebhookState {
+  seenUpdateIds: Array<{
+    updateId: number;
+    timestamp: number;
+  }>;
+}
 
 function getGatewayMode(): 'auto' | 'polling' | 'webhook' {
   const raw = process.env.TELEGRAM_GATEWAY_MODE?.trim().toLowerCase() || 'auto';
@@ -65,7 +77,56 @@ function writeJson(res: ServerResponse, statusCode: number, body: Record<string,
   res.end(JSON.stringify(body));
 }
 
-function shouldSkipWebhookUpdate(updateId: unknown): boolean {
+function pruneWebhookUpdateCache(now = Date.now()): void {
+  const cutoff = now - WEBHOOK_UPDATE_TTL_MS;
+  for (const [cachedId, timestamp] of webhookUpdateCache.entries()) {
+    if (timestamp < cutoff) {
+      webhookUpdateCache.delete(cachedId);
+    }
+  }
+}
+
+async function loadWebhookState(): Promise<void> {
+  if (webhookStateLoaded) {
+    return;
+  }
+
+  webhookStateLoaded = true;
+  if (!existsSync(WEBHOOK_STATE_PATH)) {
+    return;
+  }
+
+  try {
+    const raw = await readFile(WEBHOOK_STATE_PATH, 'utf-8');
+    const parsed = JSON.parse(raw) as PersistedWebhookState;
+    for (const entry of parsed.seenUpdateIds || []) {
+      if (typeof entry?.updateId === 'number' && typeof entry?.timestamp === 'number') {
+        webhookUpdateCache.set(entry.updateId, entry.timestamp);
+      }
+    }
+    pruneWebhookUpdateCache();
+  } catch (error) {
+    console.warn('[TelegramWebhook] Failed to load webhook state:', error);
+  }
+}
+
+async function persistWebhookState(): Promise<void> {
+  try {
+    pruneWebhookUpdateCache();
+    const state: PersistedWebhookState = {
+      seenUpdateIds: Array.from(webhookUpdateCache.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 1000)
+        .map(([updateId, timestamp]) => ({ updateId, timestamp }))
+    };
+    await writeFile(WEBHOOK_STATE_PATH, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (error) {
+    console.warn('[TelegramWebhook] Failed to persist webhook state:', error);
+  }
+}
+
+async function shouldSkipWebhookUpdate(updateId: unknown): Promise<boolean> {
+  await loadWebhookState();
   if (typeof updateId !== 'number' || !Number.isFinite(updateId)) {
     return false;
   }
@@ -77,12 +138,8 @@ function shouldSkipWebhookUpdate(updateId: unknown): boolean {
   }
 
   webhookUpdateCache.set(updateId, now);
-  const cutoff = now - WEBHOOK_UPDATE_TTL_MS;
-  for (const [cachedId, timestamp] of webhookUpdateCache.entries()) {
-    if (timestamp < cutoff) {
-      webhookUpdateCache.delete(cachedId);
-    }
-  }
+  pruneWebhookUpdateCache(now);
+  await persistWebhookState();
 
   return false;
 }
@@ -152,7 +209,7 @@ async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'):
         return;
       }
 
-      if (shouldSkipWebhookUpdate(payload.update_id)) {
+      if (await shouldSkipWebhookUpdate(payload.update_id)) {
         writeJson(res, 202, { ok: true, duplicate: true });
         return;
       }
@@ -479,7 +536,8 @@ bot.command('run', async (ctx) => {
     userId: String(ctx.from.id),
     requestId: result.requestId || requestId,
     goal,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
   });
 });
 

@@ -117,8 +117,8 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 ### Phase 7. Persistence + Recovery
 
 1. Persist webhook dedupe and mission correlation safely
-   status: pending
-   verify: restart does not orphan active mission notifications
+   status: done
+   verify: webhook `update_id=910001` was persisted to `.spark-telegram-webhook-state.json` and replayed as `duplicate: true` after restart; mission relay subscriptions persist `missionId/requestId/chatId/userId/updateId`
 2. Document production webhook setup and local debug fallback
    status: pending
    verify: production uses webhook mode and local-only debugging can still use polling intentionally
