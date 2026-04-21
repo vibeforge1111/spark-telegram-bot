@@ -95,6 +95,12 @@ Default behavior is `auto`, which looks for a sibling `spark-intelligence-builde
 See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webhook setup and rollback.
 See [TELEGRAM_GATEWAY_HARDENING.md](./TELEGRAM_GATEWAY_HARDENING.md) for the current hardening checklist and temporary operational gaps.
 
+Operator check:
+
+```bash
+npm run health:webhook
+```
+
 ## Setup
 
 1. Copy `.env.example` to `.env`.
@@ -113,6 +119,12 @@ For webhook mode, configure:
 - `TELEGRAM_WEBHOOK_URL`
 - `TELEGRAM_WEBHOOK_SECRET`
 - `TELEGRAM_WEBHOOK_PORT`
+
+Then verify:
+
+```bash
+npm run health:webhook
+```
 
 ## Related Docs
 

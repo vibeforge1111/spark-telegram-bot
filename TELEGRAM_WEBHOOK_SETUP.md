@@ -137,7 +137,7 @@ What is still temporary:
 
 - public webhook ingress may still depend on a temporary tunnel
 - local JSON files are still used for some recovery state
-- there is not yet a dedicated health-check command or monitor
+- there is not yet a dedicated external monitor
 
 ## Recommended Recovery Order
 
@@ -170,6 +170,7 @@ The gateway should behave like this:
 
 Operator-level checks:
 
+- `npm run health:webhook`
 - `/board`
 - `/mission status <missionId>`
 - Spawner mission board/status endpoints
