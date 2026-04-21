@@ -53,7 +53,8 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 - [x] `/run <goal>` exists
 - [x] `/mission <status|pause|resume|kill> <missionId>` exists
 - [x] bot and Spawner build for the current bridge
-- [ ] Telegram ingress is stable under multi-process contention
+- [x] Telegram ingress is stable under multi-process contention
+  verify: with a webhook-mode owner active, a second forced polling process refused startup before `getUpdates` and could not steal the bot token
 
 ## Phases
 
