@@ -44,8 +44,22 @@ Telegram
 
 - example tunnel config:
   - [ops/cloudflared/config.example.yml](./ops/cloudflared/config.example.yml)
+- readiness check:
+  - [ops/cloudflared/check.ps1](./ops/cloudflared/check.ps1)
 - webhook setup guide:
   - [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md)
+
+Before doing account-side setup, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ops\cloudflared\check.ps1
+```
+
+If it reports `Named tunnel readiness: BLOCKED`, the expected next step is:
+
+```powershell
+cloudflared tunnel login
+```
 
 ## Cutover Steps
 

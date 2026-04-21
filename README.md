@@ -102,6 +102,12 @@ Operator check:
 npm run health:webhook
 ```
 
+Named tunnel readiness check:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ops\cloudflared\check.ps1
+```
+
 ## Setup
 
 1. Copy `.env.example` to `.env`.

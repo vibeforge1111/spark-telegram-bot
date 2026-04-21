@@ -145,6 +145,9 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 2. Prepare named-tunnel cutover docs and config
    status: done
    verify: `TELEGRAM_NAMED_TUNNEL_SETUP.md` and `ops/cloudflared/config.example.yml` define the stable-hostname cutover path away from the temporary quick tunnel
+3. Add a named-tunnel readiness check
+   status: done
+   verify: `ops/cloudflared/check.ps1` now detects the local `cloudflared` install, checks for an origin cert, and tells the operator whether named-tunnel cutover is blocked on `cloudflared tunnel login`
 
 ## Success Criteria
 
