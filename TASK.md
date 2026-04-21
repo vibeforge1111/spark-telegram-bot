@@ -7,6 +7,10 @@ Date: 2026-04-21
 
 Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goal, controlling the resulting mission, and receiving mission updates back from Spawner.
 
+Follow-on goal:
+
+Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local terminals cannot steal Telegram updates from each other.
+
 ## Principles
 
 - No features beyond the requested bridge.
@@ -19,9 +23,11 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 
 - Mirror Spawner mission states exactly in Telegram.
 - Carry `missionId`, `requestId`, `chatId`, and `userId` together.
+- Carry Telegram `update_id` through webhook handling and dedupe.
 - Keep Telegram updates short and meaningful.
 - Keep admin-only mission control strict.
 - Make failures say where the bridge broke.
+- Keep one Telegram token owner in production mode.
 
 ## Scope
 
@@ -40,12 +46,14 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 - approval workflows
 - recursive agent planning
 - any Paperclip work
+- multi-bot gateway orchestration
 
 ## Current State
 
 - [x] `/run <goal>` exists
 - [x] `/mission <status|pause|resume|kill> <missionId>` exists
 - [x] bot and Spawner build for the current bridge
+- [ ] Telegram ingress is stable under multi-process contention
 
 ## Phases
 
@@ -85,6 +93,36 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
    status: done
    verify: Spawner accepted `requestId/chatId/userId`, mission `spark-1776766317580` completed, and the mission board reflected the terminal `completed` state
 
+### Phase 5. Webhook Gateway
+
+1. Add webhook mode for Telegram ingress
+   status: pending
+   verify: Telegram updates hit one HTTP receiver instead of `getUpdates`
+2. Validate webhook secret and dedupe `update_id`
+   status: pending
+   verify: invalid requests are rejected and duplicate deliveries do not create duplicate missions
+3. Reuse existing command handlers through the webhook path
+   status: pending
+   verify: `/run`, `/mission`, `/board`, and normal chat still work without a second router
+
+### Phase 6. Single-Owner Enforcement
+
+1. Block polling startup when webhook mode is configured
+   status: pending
+   verify: a second local process cannot steal `@SparkAGI_bot` by starting `getUpdates`
+2. Keep outbound Telegram sending inside the gateway only
+   status: pending
+   verify: mission relay and command replies still come from one process
+
+### Phase 7. Persistence + Recovery
+
+1. Persist webhook dedupe and mission correlation safely
+   status: pending
+   verify: restart does not orphan active mission notifications
+2. Document production webhook setup and local debug fallback
+   status: pending
+   verify: production uses webhook mode and local-only debugging can still use polling intentionally
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.
@@ -92,3 +130,4 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 - Admin can run `/mission pause|resume|kill <missionId>`.
 - Telegram can receive mission lifecycle updates without inventing a second control path.
 - Bot and Spawner both build after the changes.
+- Telegram update ownership stays stable even while other local terminals and agents are running.
