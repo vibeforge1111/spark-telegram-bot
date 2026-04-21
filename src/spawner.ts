@@ -19,6 +19,15 @@ interface RunGoalResult {
   error?: string;
 }
 
+interface BoardEntry {
+  missionId: string;
+  status: 'created' | 'running' | 'paused' | 'completed' | 'failed';
+  lastEventType: string;
+  lastUpdated: string;
+  lastSummary: string;
+  taskName: string | null;
+}
+
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
@@ -89,6 +98,45 @@ export const spawner = {
       return {
         success: Boolean(res.data?.ok),
         message: res.data?.message || `${action} sent for ${missionId}`
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async board(): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 10000 });
+      const board = res.data?.board || {};
+      const sections: Array<[string, BoardEntry[]]> = [
+        ['Running', Array.isArray(board.running) ? board.running : []],
+        ['Paused', Array.isArray(board.paused) ? board.paused : []],
+        ['Completed', Array.isArray(board.completed) ? board.completed : []],
+        ['Failed', Array.isArray(board.failed) ? board.failed : []],
+        ['Created', Array.isArray(board.created) ? board.created : []]
+      ];
+
+      const lines = ['Spawner Board'];
+      for (const [label, entries] of sections) {
+        lines.push('');
+        lines.push(`${label}: ${entries.length}`);
+        if (entries.length === 0) {
+          lines.push('- none');
+          continue;
+        }
+
+        for (const entry of entries.slice(0, 5)) {
+          const task = entry.taskName ? ` | ${entry.taskName}` : '';
+          lines.push(`- ${entry.missionId}${task}`);
+        }
+      }
+
+      return {
+        success: true,
+        message: lines.join('\n')
       };
     } catch (err: any) {
       return {

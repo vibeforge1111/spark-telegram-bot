@@ -70,8 +70,10 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 ### Phase 3. Telegram Board
 
 1. Add `/board`
+   status: done
    verify: real missions are grouped by `running`, `paused`, `completed`, `failed`, and optionally `draft`
 2. Keep it message-native
+   status: done
    verify: no second workflow state is introduced
 
 ### Phase 4. Smoke Test

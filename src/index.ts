@@ -84,6 +84,7 @@ bot.start(async (ctx) => {
     (conversation.isAdmin(user)
       ? `Spawner Control:\n` +
         `/run <goal> - Start a mission in Spawner\n` +
+        `/board - Mission state report\n` +
         `/mission <status|pause|resume|kill> <missionId> - Control a mission\n\n`
       : '') +
     `Or just chat!` +
@@ -311,6 +312,14 @@ bot.command('run', async (ctx) => {
     goal,
     createdAt: new Date().toISOString()
   });
+});
+
+bot.command('board', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  await ctx.sendChatAction('typing');
+  const result = await spawner.board();
+  await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
 });
 
 bot.command('mission', async (ctx) => {
