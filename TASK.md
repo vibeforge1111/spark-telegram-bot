@@ -203,6 +203,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: the hosted architecture doc explicitly removes tunnel/webhook complexity from end users and keeps that complexity inside Spark-owned infrastructure
 
+### Phase 16. Transactional Gateway State Store
+
+1. Consolidate gateway state into one transactional local store
+   status: done
+   verify: webhook dedupe state, relay state, inbox state, and ownership leases now persist through one SQLite-backed gateway state store instead of scattered JSON files
+2. Preserve existing local state during migration
+   status: done
+   verify: the gateway state helper lazily imports existing JSON state files into the SQLite store on first read, so restart does not discard the current local gateway state
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

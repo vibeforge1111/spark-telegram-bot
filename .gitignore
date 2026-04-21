@@ -6,4 +6,5 @@ dist/
 .spark-telegram-webhook-state.json
 .spark-telegram-inbox.json
 .spark-telegram-owner-lock-*.json
+.spark-gateway-state.db
 nul

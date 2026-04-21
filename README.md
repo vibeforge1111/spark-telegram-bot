@@ -6,7 +6,7 @@ It owns Telegram ingress, routes operator commands into `Spawner UI`, and relays
 
 Webhook ingress is now queue-backed inside the gateway, so validated Telegram updates are persisted locally before command handling runs. That reduces message loss risk if the gateway restarts after acknowledging a webhook.
 Gateway startup now also acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
-Gateway state persistence now uses atomic JSON writes for webhook dedupe, mission relay state, inbox state, and ownership leases, which reduces corruption risk during crash or restart.
+Gateway state persistence now uses a single local SQLite-backed state store for webhook dedupe, mission relay state, inbox state, and ownership leases, with lazy migration from older JSON state files.
 Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a hosted deployment can mount persistent state outside the repo working tree.
 
 ## What It Does
