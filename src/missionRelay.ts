@@ -60,8 +60,13 @@ let registryLoaded = false;
 let relayServer: Server | null = null;
 
 function getRelayPort(): number {
-  const parsed = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 8788;
+	const parsed = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : 8788;
+}
+
+function getRelaySecret(): string | null {
+	const value = process.env.TELEGRAM_RELAY_SECRET?.trim();
+	return value ? value : null;
 }
 
 async function loadRegistry(): Promise<void> {
@@ -250,13 +255,22 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
   const port = getRelayPort();
 
-  relayServer = createServer(async (req, res) => {
-    if (req.method !== 'POST' || req.url !== '/spawner-events') {
-      writeJson(res, 404, { ok: false, error: 'not_found' });
-      return;
-    }
+	relayServer = createServer(async (req, res) => {
+		if (req.method !== 'POST' || req.url !== '/spawner-events') {
+			writeJson(res, 404, { ok: false, error: 'not_found' });
+			return;
+		}
 
-    const payload = await readJsonBody(req);
+		const relaySecret = getRelaySecret();
+		if (relaySecret) {
+			const secretHeader = req.headers['x-spark-telegram-relay-secret'];
+			if (secretHeader !== relaySecret) {
+				writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
+				return;
+			}
+		}
+
+		const payload = await readJsonBody(req);
     const event = payload?.event;
     if (!payload || !shouldDeliverEvent(event)) {
       writeJson(res, 400, { ok: false, error: 'invalid_event' });

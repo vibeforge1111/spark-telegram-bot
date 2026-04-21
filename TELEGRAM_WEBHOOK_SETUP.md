@@ -59,6 +59,7 @@ TELEGRAM_WEBHOOK_URL=https://your-domain.example/telegram
 TELEGRAM_WEBHOOK_PORT=8443
 TELEGRAM_WEBHOOK_SECRET=generate-a-random-secret
 TELEGRAM_RELAY_PORT=8788
+TELEGRAM_RELAY_SECRET=generate-a-second-random-secret
 SPAWNER_UI_URL=http://127.0.0.1:4174
 ```
 
@@ -84,6 +85,13 @@ Only `spark-telegram-bot` should:
 - call `setWebhook`
 - call `deleteWebhook`
 - send Telegram replies
+
+`spawner-ui` should know only:
+
+- `MISSION_CONTROL_WEBHOOK_URLS`
+- `TELEGRAM_RELAY_SECRET`
+
+It should not hold the Telegram bot token.
 
 ## Deployment Steps
 
@@ -179,6 +187,7 @@ Cause:
 
 Fix:
 - verify `MISSION_CONTROL_WEBHOOK_URLS`
+- verify the same `TELEGRAM_RELAY_SECRET` is configured in both repos
 - verify local relay receiver is running
 - verify the mission exists in `.spark-spawner-missions.json`
 
