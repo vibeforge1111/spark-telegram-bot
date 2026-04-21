@@ -1,6 +1,6 @@
 # Spark Telegram Webhook Gateway
 
-Status: proposed
+Status: implemented
 Date: 2026-04-21
 
 ## Product Change
@@ -246,3 +246,11 @@ Verify:
 3. Confirm one mission is created in Spawner.
 4. Confirm a completion update arrives automatically.
 5. Start another local process with the same bot token and confirm it does not take over Telegram updates.
+
+## Verified Result
+
+- Telegram webhook ownership was registered on a public HTTPS ingress.
+- A real Telegram user sent `/start` and `/run say exactly OK` to `@SparkAGI_bot`.
+- Spawner created mission `spark-1776772275057`.
+- Telegram received the start reply and the terminal completion update with provider state.
+- A forced second local polling process was previously blocked from taking over the same token.
