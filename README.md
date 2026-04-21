@@ -126,3 +126,4 @@ For webhook mode, configure:
 - `Spawner UI` is the source of truth for mission state.
 - Telegram is the summary and control surface, not a second workflow system.
 - Current live webhook ingress may be backed by a temporary tunnel until a named tunnel or fixed HTTPS endpoint is installed.
+- This repo is the current production Telegram ingress owner. If Telegram ingress later moves into `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.

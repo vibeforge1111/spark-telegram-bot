@@ -19,6 +19,12 @@ Keep this system shape:
 - `spawner-ui` = mission execution backend
 - Spawner relay = local event feed into the gateway
 
+Migration posture:
+
+- `spark-telegram-bot` remains the live Telegram ingress owner now
+- any future move of Telegram ingress into Builder must preserve the same single-owner webhook contract
+- do not run Builder and `spark-telegram-bot` as dual active Telegram ingress owners
+
 ## Hardening Priorities
 
 ### 1. Stable Public HTTPS Endpoint
