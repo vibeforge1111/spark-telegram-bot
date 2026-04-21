@@ -80,6 +80,9 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 
 1. Run one full smoke test
    verify: `/run say exactly OK` completes end to end and reports back to Telegram
+2. Run one localhost bridge smoke test before the live Telegram check
+   status: done
+   verify: Spawner accepted `requestId/chatId/userId`, mission `spark-1776766317580` completed, and the mission board reflected the terminal `completed` state
 
 ## Success Criteria
 
