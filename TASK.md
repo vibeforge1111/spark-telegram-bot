@@ -137,6 +137,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: `TELEGRAM_GATEWAY_HARDENING.md` tracks stable endpoint, startup path, secret hygiene, health checks, and recovery order
 
+### Phase 9. Health + Stable Tunnel Cutover
+
+1. Add an operator webhook health command
+   status: done
+   verify: `npm run health:webhook` checked Telegram ownership, public webhook reachability, local webhook listener reachability, and local relay reachability against the live webhook setup and returned `Webhook health: OK`
+2. Prepare named-tunnel cutover docs and config
+   status: done
+   verify: `TELEGRAM_NAMED_TUNNEL_SETUP.md` and `ops/cloudflared/config.example.yml` define the stable-hostname cutover path away from the temporary quick tunnel
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

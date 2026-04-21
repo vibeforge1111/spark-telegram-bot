@@ -139,6 +139,8 @@ What is still temporary:
 - local JSON files are still used for some recovery state
 - there is not yet a dedicated external monitor
 
+For the next cutover step, use [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md).
+
 ## Recommended Recovery Order
 
 If Telegram stops responding, inspect in this order:
