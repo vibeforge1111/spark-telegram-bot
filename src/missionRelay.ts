@@ -185,6 +185,23 @@ function formatRelayMessage(
     lines.push(event.message);
   }
 
+  if (event.type === 'mission_completed' || event.type === 'mission_failed') {
+    const providers = event.data?.providers;
+    if (providers && typeof providers === 'object') {
+      const providerLines = Object.entries(providers)
+        .map(([providerId, value]) => {
+          if (value && typeof value === 'object' && 'status' in value) {
+            return `${providerId}: ${String((value as { status?: unknown }).status || 'unknown')}`;
+          }
+          return `${providerId}: ${String(value)}`;
+        });
+      if (providerLines.length > 0) {
+        lines.push('Providers:');
+        lines.push(...providerLines);
+      }
+    }
+  }
+
   lines.push(`Check: /mission status ${event.missionId}`);
   return lines.join('\n');
 }
