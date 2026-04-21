@@ -194,6 +194,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: atomic state writes now create the target state directory automatically, so hosted deployments can mount a dedicated persistent state path without changing gateway code
 
+### Phase 15. Hosted Architecture Lock-In
+
+1. Define the hosted public gateway target
+   status: done
+   verify: `HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md` defines the public ingress plane, control plane, execution plane, and data plane
+2. Define the non-technical-user-safe onboarding target
+   status: done
+   verify: the hosted architecture doc explicitly removes tunnel/webhook complexity from end users and keeps that complexity inside Spark-owned infrastructure
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.
