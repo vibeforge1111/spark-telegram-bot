@@ -61,8 +61,10 @@ Ship and harden one thin Telegram-to-Spawner bridge for running a plain-text goa
 ### Phase 2. Event Relay
 
 1. Accept event updates back from Spawner
+   status: done
    verify: normal mission progress does not require manual polling to be visible in Telegram
 2. Keep mission control on existing Spawner endpoints
+   status: done
    verify: `status/pause/resume/kill` still round-trip against localhost
 
 ### Phase 3. Telegram Board

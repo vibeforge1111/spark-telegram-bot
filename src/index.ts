@@ -5,6 +5,7 @@ import { conversation } from './conversation';
 import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
+import { registerMissionRelay, startMissionRelay } from './missionRelay';
 
 // Validate environment
 if (!process.env.BOT_TOKEN) {
@@ -301,6 +302,15 @@ bot.command('run', async (ctx) => {
       `Check: /mission status ${result.missionId}`
     ].join('\n')
   );
+
+  await registerMissionRelay({
+    missionId: result.missionId,
+    chatId: String(ctx.chat.id),
+    userId: String(ctx.from.id),
+    requestId: result.requestId || requestId,
+    goal,
+    createdAt: new Date().toISOString()
+  });
 });
 
 bot.command('mission', async (ctx) => {
@@ -376,6 +386,8 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
+  const relay = await startMissionRelay(bot);
+
   // Check connections
   const [mindHealthy, sparkHealthy, ollamaHealthy] = await Promise.all([
     conversation.isAvailable(),
@@ -402,6 +414,7 @@ async function start() {
 
   // Start polling
   console.log('Starting Spark Telegram bot...');
+  console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
   await bot.launch();
   console.log('⚡ Spark bot is running! Press Ctrl+C to stop.');
 }
