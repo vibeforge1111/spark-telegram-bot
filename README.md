@@ -96,6 +96,7 @@ See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webh
 See [TELEGRAM_GATEWAY_HARDENING.md](./TELEGRAM_GATEWAY_HARDENING.md) for the current hardening checklist and temporary operational gaps.
 See [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md) for the stable-hostname cutover from the temporary quick tunnel.
 See [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md) for the long-term single-owner ingress model with internal worker fan-out.
+See [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md) for the OpenClaw/Hermes tradeoff review and Spark target design.
 
 Operator check:
 
@@ -140,6 +141,7 @@ npm run health:webhook
 - [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md)
 - [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md)
 - [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md)
+- [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md)
 - [TASK.md](./TASK.md)
 
 ## Notes
