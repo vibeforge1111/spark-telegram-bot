@@ -56,7 +56,9 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 - [x] Telegram ingress is stable under multi-process contention
   verify: with a webhook-mode owner active, a second forced polling process refused startup before `getUpdates` and could not steal the bot token
 - [x] public webhook ingress works end to end
-  verify: `@SparkAGI_bot` received `/start` and `/run say exactly OK` through `https://clever-jeans-shop.loca.lt/telegram-live`, created mission `spark-1776772275057`, and delivered the terminal completion update back to Telegram
+  verify: `@SparkAGI_bot` received `/start` and `/run say exactly OK` through live webhook ingress, created mission `spark-1776772275057`, and delivered the terminal completion update back to Telegram
+- [x] webhook mode restored after tunnel failure
+  verify: broken `localtunnel` ingress was replaced, Telegram webhook ownership was re-established on `https://assumption-nickname-tested-atlas.trycloudflare.com/telegram-live`, and live Telegram commands worked again
 
 ## Phases
 
@@ -123,8 +125,17 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: webhook `update_id=910001` was persisted to `.spark-telegram-webhook-state.json` and replayed as `duplicate: true` after restart; mission relay subscriptions persist `missionId/requestId/chatId/userId/updateId`
 2. Document production webhook setup and local debug fallback
+  status: done
+  verify: `TELEGRAM_WEBHOOK_SETUP.md` documents production webhook env, startup mode rules, webhook deletion, and local polling fallback
+
+### Phase 8. Hardening Docs
+
+1. Document single-owner operational hardening
    status: done
-   verify: `TELEGRAM_WEBHOOK_SETUP.md` documents production webhook env, startup mode rules, webhook deletion, and local polling fallback
+   verify: README, webhook setup, and feature docs all call webhook mode canonical and explain the remaining temporary tunnel gap
+2. Publish a focused hardening checklist
+   status: done
+   verify: `TELEGRAM_GATEWAY_HARDENING.md` tracks stable endpoint, startup path, secret hygiene, health checks, and recovery order
 
 ## Success Criteria
 
