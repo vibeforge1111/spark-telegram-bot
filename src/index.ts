@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
@@ -19,6 +20,145 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
+const webhookUpdateCache = new Map<number, number>();
+const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
+let telegramWebhookServer: Server | null = null;
+let pollingActive = false;
+
+function getWebhookConfig() {
+  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+  if (!webhookUrl) {
+    return null;
+  }
+
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (!webhookSecret) {
+    throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
+  }
+
+  const parsedUrl = new URL(webhookUrl);
+  const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || '8443');
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error('TELEGRAM_WEBHOOK_PORT must be a positive integer');
+  }
+
+  return {
+    url: webhookUrl,
+    path: parsedUrl.pathname || '/',
+    port,
+    secret: webhookSecret
+  };
+}
+
+function writeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(body));
+}
+
+function shouldSkipWebhookUpdate(updateId: unknown): boolean {
+  if (typeof updateId !== 'number' || !Number.isFinite(updateId)) {
+    return false;
+  }
+
+  const now = Date.now();
+  const previous = webhookUpdateCache.get(updateId);
+  if (typeof previous === 'number' && now - previous < WEBHOOK_UPDATE_TTL_MS) {
+    return true;
+  }
+
+  webhookUpdateCache.set(updateId, now);
+  const cutoff = now - WEBHOOK_UPDATE_TTL_MS;
+  for (const [cachedId, timestamp] of webhookUpdateCache.entries()) {
+    if (timestamp < cutoff) {
+      webhookUpdateCache.delete(cachedId);
+    }
+  }
+
+  return false;
+}
+
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > 256 * 1024) {
+        resolve(null);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as Record<string, unknown>;
+        resolve(parsed);
+      } catch {
+        resolve(null);
+      }
+    });
+
+    req.on('error', () => resolve(null));
+  });
+}
+
+async function startTelegramWebhookServer(): Promise<{ port: number; path: string } | null> {
+  const webhook = getWebhookConfig();
+  if (!webhook) {
+    return null;
+  }
+
+  if (!telegramWebhookServer) {
+    telegramWebhookServer = createServer(async (req, res) => {
+      const reqUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      if (req.method !== 'POST' || reqUrl.pathname !== webhook.path) {
+        writeJson(res, 404, { ok: false, error: 'not_found' });
+        return;
+      }
+
+      const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
+      if (secretHeader !== webhook.secret) {
+        writeJson(res, 401, { ok: false, error: 'invalid_secret' });
+        return;
+      }
+
+      const payload = await readJsonBody(req);
+      if (!payload) {
+        writeJson(res, 400, { ok: false, error: 'invalid_payload' });
+        return;
+      }
+
+      if (shouldSkipWebhookUpdate(payload.update_id)) {
+        writeJson(res, 202, { ok: true, duplicate: true });
+        return;
+      }
+
+      writeJson(res, 200, { ok: true });
+
+      void bot.handleUpdate(payload as any).catch((error) => {
+        console.error('Telegram webhook update failed:', error);
+      });
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      telegramWebhookServer!.once('error', reject);
+      telegramWebhookServer!.listen(webhook.port, '0.0.0.0', () => {
+        telegramWebhookServer!.off('error', reject);
+        resolve();
+      });
+    });
+  }
+
+  await bot.telegram.setWebhook(webhook.url, {
+    secret_token: webhook.secret
+  });
+
+  return { port: webhook.port, path: webhook.path };
+}
 
 function requireAdmin(ctx: any): boolean {
   if (conversation.isAdmin(ctx.from)) {
@@ -390,16 +530,23 @@ bot.on(message('text'), async (ctx) => {
 // Graceful shutdown
 process.once('SIGINT', () => {
   console.log('Shutting down...');
-  bot.stop('SIGINT');
+  telegramWebhookServer?.close();
+  if (pollingActive) {
+    bot.stop('SIGINT');
+  }
 });
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
-  bot.stop('SIGTERM');
+  telegramWebhookServer?.close();
+  if (pollingActive) {
+    bot.stop('SIGTERM');
+  }
 });
 
 // Start bot
 async function start() {
   const relay = await startMissionRelay(bot);
+  const webhook = await startTelegramWebhookServer();
 
   // Check connections
   const [mindHealthy, sparkHealthy, ollamaHealthy] = await Promise.all([
@@ -428,8 +575,14 @@ async function start() {
   // Start polling
   console.log('Starting Spark Telegram bot...');
   console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
+  if (webhook) {
+    console.log(`Telegram ingress: webhook ${webhook.path} on port ${webhook.port}`);
+    console.log('Spark bot is running in webhook mode. Press Ctrl+C to stop.');
+    return;
+  }
   await bot.launch();
-  console.log('⚡ Spark bot is running! Press Ctrl+C to stop.');
+  pollingActive = true;
+  console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
 }
 
 start().catch((err) => {

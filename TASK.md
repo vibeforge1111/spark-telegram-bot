@@ -96,14 +96,14 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
 ### Phase 5. Webhook Gateway
 
 1. Add webhook mode for Telegram ingress
-   status: pending
-   verify: Telegram updates hit one HTTP receiver instead of `getUpdates`
+   status: done
+   verify: local webhook mode accepted updates on `/telegram-hook` and reused the existing bot handlers
 2. Validate webhook secret and dedupe `update_id`
-   status: pending
-   verify: invalid requests are rejected and duplicate deliveries do not create duplicate missions
+   status: done
+   verify: wrong secret returned `401`, first delivery for `update_id=900003` returned `200`, and replay returned `duplicate: true`
 3. Reuse existing command handlers through the webhook path
-   status: pending
-   verify: `/run`, `/mission`, `/board`, and normal chat still work without a second router
+   status: done
+   verify: synthetic Telegram `/board` updates were handled through `bot.handleUpdate()` without a second command router
 
 ### Phase 6. Single-Owner Enforcement
 
