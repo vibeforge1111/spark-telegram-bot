@@ -254,3 +254,14 @@ Verify:
 - Spawner created mission `spark-1776772275057`.
 - Telegram received the start reply and the terminal completion update with provider state.
 - A forced second local polling process was previously blocked from taking over the same token.
+
+## Current Hardening Gaps
+
+The gateway architecture is correct, but a few operational pieces are still softer than the final target:
+
+- public ingress may still rely on a temporary tunnel instead of a named tunnel or fixed domain
+- recovery state still uses local JSON files instead of a more durable shared store
+- health checks and operator monitoring are still manual
+- polling remains available for emergency recovery and local debugging, so operators still need discipline
+
+These are hardening gaps, not reasons to reopen the webhook architecture itself.

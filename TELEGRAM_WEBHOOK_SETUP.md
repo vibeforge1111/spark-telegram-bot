@@ -108,6 +108,58 @@ It should not hold the Telegram bot token.
    - mission starts
    - completion message arrives automatically
 
+## Hardening Priorities
+
+Move through these in order:
+
+1. Replace quick tunnels with a named tunnel or fixed HTTPS domain.
+2. Keep exactly one canonical startup path for the gateway.
+3. Rotate and document webhook and relay secrets.
+4. Add health checks that verify:
+   - public webhook reachability
+   - local gateway process health
+   - Telegram webhook registration state
+5. Treat polling as emergency-only recovery, not a normal fallback mode.
+
+## Current Operational Reality
+
+This system is now stable in webhook mode, but it is not fully hardened yet.
+
+What is already solid:
+
+- single-owner Telegram ingress
+- startup guard against accidental polling takeover
+- secret-validated webhook receiver
+- authenticated Spawner relay
+- real end-to-end `/run`, `/mission`, and `/board` flow
+
+What is still temporary:
+
+- public webhook ingress may still depend on a temporary tunnel
+- local JSON files are still used for some recovery state
+- there is not yet a dedicated health-check command or monitor
+
+## Recommended Recovery Order
+
+If Telegram stops responding, inspect in this order:
+
+1. Public HTTPS endpoint
+   - does the webhook URL respond at all
+   - does it return quickly
+   - does TLS still terminate correctly
+2. Local gateway process
+   - is `spark-telegram-bot` running
+   - is the webhook listener bound on the expected local port
+3. Telegram webhook ownership
+   - check `getWebhookInfo`
+   - verify the configured URL matches the intended gateway
+4. Relay path
+   - check the local relay receiver
+   - verify Spawner relay secret alignment
+5. Only then consider polling fallback
+
+Do not jump straight to polling when webhook health is unknown. That recreates token-ownership conflicts.
+
 ## Verification
 
 The gateway should behave like this:
@@ -172,11 +224,13 @@ Cause:
 - unreachable public URL
 - wrong path
 - reverse proxy not forwarding requests
+- broken or degraded temporary tunnel
 
 Fix:
 - verify the public HTTPS endpoint externally
 - verify the exact configured path
 - verify the reverse proxy forwards the secret header
+- if a temporary tunnel is in use, verify the tunnel process before touching bot mode
 
 ### Completion messages do not arrive
 

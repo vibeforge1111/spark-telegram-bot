@@ -65,7 +65,7 @@ Admin-only mission control:
 
 ### Polling
 
-Use for local debugging when no webhook is active for the bot token.
+Use for local debugging or emergency recovery only when no webhook is active for the bot token.
 
 ### Webhook
 
@@ -75,6 +75,8 @@ Important rule:
 
 - one Telegram token
 - one active gateway owner
+
+For `@SparkAGI_bot`, webhook mode is the canonical live mode. Only `spark-telegram-bot` may own the Telegram token or receive inbound Telegram updates.
 
 ## Builder Bridge
 
@@ -91,6 +93,7 @@ Bridge env:
 Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and its `.tmp-home-live-telegram-real` home. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
 See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webhook setup and rollback.
+See [TELEGRAM_GATEWAY_HARDENING.md](./TELEGRAM_GATEWAY_HARDENING.md) for the current hardening checklist and temporary operational gaps.
 
 ## Setup
 
@@ -122,3 +125,4 @@ For webhook mode, configure:
 - Memory and Spark intelligence can be offline without breaking the mission-control path.
 - `Spawner UI` is the source of truth for mission state.
 - Telegram is the summary and control surface, not a second workflow system.
+- Current live webhook ingress may be backed by a temporary tunnel until a named tunnel or fixed HTTPS endpoint is installed.
