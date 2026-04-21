@@ -337,6 +337,10 @@ bot.command('mission', async (ctx) => {
     return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
   }
 
+  if (missionId.includes('<') || missionId.includes('>')) {
+    return ctx.reply('Use the real mission ID from /run, for example: /mission status spark-1776768300668');
+  }
+
   await ctx.sendChatAction('typing');
   const result = await spawner.missionCommand(action, missionId);
   await ctx.reply(result.success ? result.message : `Mission command failed: ${result.message}`);

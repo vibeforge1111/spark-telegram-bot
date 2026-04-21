@@ -28,6 +28,8 @@ interface BoardEntry {
   taskName: string | null;
 }
 
+const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
+
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
@@ -111,8 +113,12 @@ export const spawner = {
     try {
       const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 10000 });
       const board = res.data?.board || {};
+      const runningEntries = (Array.isArray(board.running) ? board.running : []).filter((entry: BoardEntry) => {
+        const ageMs = Date.now() - Date.parse(entry.lastUpdated);
+        return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
+      });
       const sections: Array<[string, BoardEntry[]]> = [
-        ['Running', Array.isArray(board.running) ? board.running : []],
+        ['Running', runningEntries],
         ['Paused', Array.isArray(board.paused) ? board.paused : []],
         ['Completed', Array.isArray(board.completed) ? board.completed : []],
         ['Failed', Array.isArray(board.failed) ? board.failed : []],
