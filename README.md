@@ -95,6 +95,7 @@ Default behavior is `auto`, which looks for a sibling `spark-intelligence-builde
 See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webhook setup and rollback.
 See [TELEGRAM_GATEWAY_HARDENING.md](./TELEGRAM_GATEWAY_HARDENING.md) for the current hardening checklist and temporary operational gaps.
 See [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md) for the stable-hostname cutover from the temporary quick tunnel.
+See [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md) for the long-term single-owner ingress model with internal worker fan-out.
 
 Operator check:
 
@@ -138,6 +139,7 @@ npm run health:webhook
 - [FEATURE_TELEGRAM_WEBHOOK_GATEWAY.md](./FEATURE_TELEGRAM_WEBHOOK_GATEWAY.md)
 - [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md)
 - [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md)
+- [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md)
 - [TASK.md](./TASK.md)
 
 ## Notes
