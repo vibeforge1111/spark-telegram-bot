@@ -1,8 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import type { Telegraf } from 'telegraf';
-import { readJsonFile, writeJsonAtomic } from './jsonState';
+import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 type RelayEventType =
   | 'mission_created'
@@ -53,7 +52,7 @@ interface DeliverableRelayEvent {
   data?: Record<string, unknown>;
 }
 
-const REGISTRY_PATH = path.join(process.cwd(), '.spark-spawner-missions.json');
+const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const deliveryCache = new Map<string, number>();
 const registry = new Map<string, MissionSubscription>();
 let registryLoaded = false;

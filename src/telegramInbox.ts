@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import type { Telegraf } from 'telegraf';
-import { readJsonFile, writeJsonAtomic } from './jsonState';
+import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 interface QueuedTelegramUpdate {
   updateId: number | null;
@@ -9,7 +8,7 @@ interface QueuedTelegramUpdate {
   payload: Record<string, unknown>;
 }
 
-const INBOX_PATH = path.join(process.cwd(), '.spark-telegram-inbox.json');
+const INBOX_PATH = resolveStatePath('.spark-telegram-inbox.json');
 
 let queueLoaded = false;
 let queue: QueuedTelegramUpdate[] = [];

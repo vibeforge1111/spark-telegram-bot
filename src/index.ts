@@ -12,7 +12,7 @@ import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
-import { readJsonFile, writeJsonAtomic } from './jsonState';
+import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 // Validate environment
 if (!process.env.BOT_TOKEN) {
@@ -28,7 +28,7 @@ const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
 const webhookUpdateCache = new Map<number, number>();
 const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
-const WEBHOOK_STATE_PATH = path.join(process.cwd(), '.spark-telegram-webhook-state.json');
+const WEBHOOK_STATE_PATH = resolveStatePath('.spark-telegram-webhook-state.json');
 let telegramWebhookServer: Server | null = null;
 let pollingActive = false;
 let webhookStateLoaded = false;

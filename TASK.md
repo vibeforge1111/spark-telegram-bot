@@ -185,6 +185,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: gateway state read/write logic now goes through one small JSON-state helper instead of being duplicated across the gateway modules
 
+### Phase 14. Configurable Gateway State Directory
+
+1. Make gateway state location explicit
+   status: done
+   verify: gateway webhook state, relay state, inbox state, and ownership leases now resolve through `SPARK_GATEWAY_STATE_DIR` instead of assuming the repo working directory
+2. Prepare hosted persistence mounts
+   status: done
+   verify: atomic state writes now create the target state directory automatically, so hosted deployments can mount a dedicated persistent state path without changing gateway code
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

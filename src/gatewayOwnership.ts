@@ -2,8 +2,7 @@ import { existsSync } from 'node:fs';
 import { unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
-import path from 'node:path';
-import { readJsonFile, writeJsonAtomic } from './jsonState';
+import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 const HEARTBEAT_MS = 15_000;
 const STALE_AFTER_MS = 45_000;
@@ -28,7 +27,7 @@ function tokenHash(token: string): string {
 }
 
 function leaseFilePath(token: string): string {
-  return path.join(process.cwd(), `.spark-telegram-owner-lock-${tokenHash(token)}.json`);
+  return resolveStatePath(`.spark-telegram-owner-lock-${tokenHash(token)}.json`);
 }
 
 function nowIso(): string {
