@@ -242,3 +242,14 @@ It is:
 - one separate execution plane
 - one durable data plane
 - one bot token owner at a time
+
+## Cloudflare Deployment Note
+
+If Cloudflare Tunnel is used as part of the hosted ingress path, Spark should distinguish clearly between:
+
+- tunnel administration credentials
+- steady-state runtime credentials
+
+The long-term production target should avoid relying on a developer workstation plus a broad account-management `cert.pem` as the permanent Telegram ingress owner.
+
+See [CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md](./CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md) for the Cloudflare-specific deployment guidance.

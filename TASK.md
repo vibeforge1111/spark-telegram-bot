@@ -212,6 +212,15 @@ Move `@SparkAGI_bot` to a single-owner webhook gateway so multiple local termina
    status: done
    verify: the gateway state helper lazily imports existing JSON state files into the SQLite store on first read, so restart does not discard the current local gateway state
 
+### Phase 17. Cloudflare Deployment Boundary
+
+1. Distinguish internal tunnel admin from production runtime posture
+   status: done
+   verify: `CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md` now documents why account-wide `cert.pem` management is acceptable for development but not the desired steady-state production runtime model
+2. Tie hosted architecture to the Cloudflare deployment recommendation
+   status: done
+   verify: the hosted gateway architecture now explicitly points to the Cloudflare deployment note instead of leaving tunnel administration and runtime posture ambiguous
+
 ## Success Criteria
 
 - Admin can run `/run <goal>` and get back a mission ID.

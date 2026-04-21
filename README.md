@@ -103,6 +103,7 @@ See [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md) for the s
 See [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md) for the long-term single-owner ingress model with internal worker fan-out.
 See [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md) for the OpenClaw/Hermes tradeoff review and Spark target design.
 See [HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md](./HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md) for the hosted product architecture, control-plane split, and non-technical onboarding target.
+See [CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md](./CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md) for the Cloudflare-specific ingress recommendation and why local tunnel management should not become the final production model.
 
 Operator check:
 
@@ -154,6 +155,7 @@ npm run health:webhook
 - [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md)
 - [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md)
 - [HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md](./HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md)
+- [CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md](./CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md)
 - [TASK.md](./TASK.md)
 
 ## Notes
