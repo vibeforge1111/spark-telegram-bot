@@ -1,7 +1,7 @@
 {
   "name": "spark-telegram-bot",
   "version": "1.0.0",
-  "description": "Spark - Self-improving Telegram bot powered by Mind V5",
+  "description": "Spark Telegram ingress gateway for Builder and Spawner",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
@@ -14,7 +14,6 @@
     "telegram",
     "bot",
     "spark",
-    "mind",
     "memory",
     "ai"
   ],

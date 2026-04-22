@@ -1,0 +1,89 @@
+[module]
+name = "spark-telegram-bot"
+version = "1.0.0"
+kind = "service"
+plane = "ingress"
+description = "Spark Telegram ingress gateway for Builder and Spawner"
+homepage = "https://github.com/spark/spark-telegram-bot"
+license = "ISC"
+
+[runtime]
+kind = "node"
+version = ">=22"
+package_manager = "npm"
+lockfile = "package-lock.json"
+
+[install.dev]
+commands = ["npm ci"]
+
+[provides]
+capabilities = [
+  "telegram.ingress",
+  "telegram.reply",
+  "telegram.mission-control",
+]
+
+[needs]
+modules = ["spark-intelligence-builder", "spawner-ui"]
+capabilities = ["spark.runtime", "mission.execution"]
+secrets = [
+  "telegram.bot_token",
+  "telegram.admin_ids",
+  "telegram.webhook_secret",
+]
+
+[claims]
+secrets = ["telegram.bot_token", "telegram.webhook_secret"]
+ports = [8443, 8788]
+routes = ["http.healthz", "http.spawner-events"]
+
+[secrets.telegram_bot_token]
+prompt = "Telegram bot token from @BotFather"
+required = true
+storage = "keychain"
+env_var = "BOT_TOKEN"
+
+[secrets.telegram_admin_ids]
+prompt = "Comma-separated Telegram admin IDs allowed to run orchestration commands"
+required = true
+storage = "file"
+env_var = "ADMIN_TELEGRAM_IDS"
+
+[secrets.telegram_webhook_secret]
+prompt = "Telegram webhook secret token for webhook mode"
+required = false
+storage = "keychain"
+env_var = "TELEGRAM_WEBHOOK_SECRET"
+
+[run.default]
+command = "npm run dev"
+cwd = "."
+ready_check = "http://127.0.0.1:8443/healthz"
+
+[healthcheck]
+command = "npm run health:webhook"
+timeout_seconds = 20
+success_hint = "Telegram ingress owner is healthy."
+failure_hint = "Run `npm run health:webhook` in the module home for the repair detail."
+
+[config]
+format = "env"
+output = ".env"
+installer_owned = true
+
+[paths]
+home = "~/.spark/modules/spark-telegram-bot"
+state = "~/.spark/state/spark-telegram-bot"
+logs = "~/.spark/logs/spark-telegram-bot"
+
+[profiles.telegram_starter]
+role = "telegram-ingress-owner"
+owns = [
+  "telegram.ingress",
+  "telegram.reply",
+  "telegram.bot_token",
+]
+depends_on = [
+  "spark-intelligence-builder",
+  "spawner-ui",
+]

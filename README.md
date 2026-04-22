@@ -4,6 +4,13 @@
 
 It owns Telegram ingress, routes operator commands into `Spawner UI`, and relays mission lifecycle updates back into Telegram.
 
+Current installer rule:
+
+- this module is the current Telegram ingress owner
+- this module gets the Telegram bot token
+- `spark-intelligence-builder` and `spawner-ui` sit behind it
+- the same Telegram bot token must not also be configured as a live ingress token in another module
+
 Webhook ingress is now queue-backed inside the gateway, so validated Telegram updates are persisted locally before command handling runs. That reduces message loss risk if the gateway restarts after acknowledging a webhook.
 Gateway startup now also acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
 Gateway state persistence now uses a single local SQLite-backed state store for webhook dedupe, mission relay state, inbox state, and ownership leases, with lazy migration from older JSON state files.
@@ -124,11 +131,17 @@ powershell -ExecutionPolicy Bypass -File .\ops\cloudflared\check.ps1
 
 ## Setup
 
+In the current supported split architecture, only this repo should receive the
+Telegram bot token. Builder is the Spark runtime behind the gateway. Spawner UI
+is the execution plane behind the gateway.
+
 1. Copy `.env.example` to `.env`.
 2. Set `BOT_TOKEN`.
 3. Set `ADMIN_TELEGRAM_IDS`.
 4. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work.
-5. Start the bot:
+5. Start `spark-intelligence-builder` if you want the Builder bridge instead of
+   the local fallback conversation path.
+6. Start the bot:
 
 ```bash
 npm run dev
