@@ -646,31 +646,39 @@ bot.command('loop', async (ctx) => {
       'Example: /loop startup-yc 3');
   }
 
+  const chatId = ctx.chat.id;
   await ctx.sendChatAction('typing');
-  await ctx.reply(`Starting autoloop on ${chipKey} for ${rounds} round(s). This may take a minute or two...`);
+  await ctx.reply(`Starting autoloop on ${chipKey} for ${rounds} round(s). This may take several minutes - I'll post the summary when it finishes.`);
 
-  const result = await runChipLoop(chipKey, rounds, 3);
-
-  if (!result.ok) {
-    return ctx.reply(`Loop failed: ${result.error || 'unknown error'}`);
-  }
-
-  const lines = [
-    `Loop complete: ${result.chipKey}`,
-    `Rounds: ${result.roundsCompleted}/${result.totalRounds}`,
-  ];
-  if (result.history && result.history.length > 0) {
-    lines.push('Per-round summary:');
-    for (const r of result.history) {
-      const verdict = r.best_verdict ?? '-';
-      const metric = r.best_metric !== null && r.best_metric !== undefined ? r.best_metric.toFixed(3) : '-';
-      lines.push(`  round ${r.round_index}: candidates=${r.suggestions_count} best_verdict=${verdict} best_metric=${metric}`);
+  // Detach the heavy work so the Telegraf handler returns instantly;
+  // the loop can exceed the handler timeout without failing the turn.
+  void (async () => {
+    try {
+      const result = await runChipLoop(chipKey, rounds, 3);
+      if (!result.ok) {
+        await ctx.telegram.sendMessage(chatId, `Loop failed: ${result.error || 'unknown error'}`);
+        return;
+      }
+      const lines = [
+        `Loop complete: ${result.chipKey}`,
+        `Rounds: ${result.roundsCompleted}/${result.totalRounds}`,
+      ];
+      if (result.history && result.history.length > 0) {
+        lines.push('Per-round summary:');
+        for (const r of result.history) {
+          const verdict = r.best_verdict ?? '-';
+          const metric = r.best_metric !== null && r.best_metric !== undefined ? r.best_metric.toFixed(3) : '-';
+          lines.push(`  round ${r.round_index}: candidates=${r.suggestions_count} best_verdict=${verdict} best_metric=${metric}`);
+        }
+      } else {
+        lines.push('No rounds executed.');
+      }
+      if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
+      await ctx.telegram.sendMessage(chatId, lines.join('\n'));
+    } catch (err: any) {
+      await ctx.telegram.sendMessage(chatId, `Loop crashed: ${err?.message || String(err)}`);
     }
-  } else {
-    lines.push('No rounds executed.');
-  }
-  if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
-  await ctx.reply(lines.join('\n'));
+  })();
 });
 
 bot.command('mission', async (ctx) => {
