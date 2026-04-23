@@ -11,7 +11,7 @@ import { llm } from './llm';
 import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
-import { createSchedule, deleteSchedule, listSchedules } from './schedule';
+import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -704,7 +704,9 @@ bot.command('schedule', async (ctx) => {
       chatId: String(ctx.chat.id),
     });
     if (!res.ok || !res.schedule) return ctx.reply(`Schedule failed: ${res.error || 'unknown error'}`);
-    return ctx.reply(`Schedule created.\nId: ${res.schedule.id}\nCron: ${res.schedule.cron}\nAction: mission\nGoal: ${goal}\nNext fire: ${res.schedule.nextFireAt}`);
+    return ctx.reply(
+      `Schedule created.\nSchedule: ${humanizeCron(res.schedule.cron)}\nWhat it does: Run mission "${goal}"\nNext: ${formatNextFireLocal(res.schedule.nextFireAt)}\nId: ${res.schedule.id}`
+    );
   }
   if (action === 'loop') {
     const chipKey = rest.shift();
@@ -717,7 +719,9 @@ bot.command('schedule', async (ctx) => {
       chatId: String(ctx.chat.id),
     });
     if (!res.ok || !res.schedule) return ctx.reply(`Schedule failed: ${res.error || 'unknown error'}`);
-    return ctx.reply(`Schedule created.\nId: ${res.schedule.id}\nCron: ${res.schedule.cron}\nAction: loop ${chipKey} rounds=${rounds}\nNext fire: ${res.schedule.nextFireAt}`);
+    return ctx.reply(
+      `Schedule created.\nSchedule: ${humanizeCron(res.schedule.cron)}\nWhat it does: Run ${rounds} loop round${rounds === 1 ? '' : 's'} on ${chipKey}\nNext: ${formatNextFireLocal(res.schedule.nextFireAt)}\nId: ${res.schedule.id}`
+    );
   }
   return ctx.reply(`Unknown schedule action '${action}'. Use mission or loop.`);
 });
@@ -735,13 +739,7 @@ bot.command('schedules', async (ctx) => {
   }
   const res = await listSchedules();
   if (!res.ok) return ctx.reply(`List failed: ${res.error}`);
-  if (!res.schedules || res.schedules.length === 0) return ctx.reply('No schedules.');
-  const lines = [`Schedules (${res.schedules.length}):`];
-  for (const s of res.schedules) {
-    const tag = s.action === 'mission' ? (s.payload as any).goal : `${(s.payload as any).chipKey} r=${(s.payload as any).rounds}`;
-    lines.push(`  ${s.id} [${s.cron}] ${s.action} ${tag} fires=${s.fireCount} next=${s.nextFireAt || '-'} last=${s.lastStatus || '-'}`);
-  }
-  await ctx.reply(lines.join('\n'));
+  await ctx.reply(formatScheduleList(res.schedules ?? []));
 });
 
 bot.command('mission', async (ctx) => {
