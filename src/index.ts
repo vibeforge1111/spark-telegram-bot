@@ -9,6 +9,7 @@ import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridg
 import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
+import { createChipFromPrompt } from './chipCreate';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -594,6 +595,40 @@ bot.command('board', async (ctx) => {
   await ctx.sendChatAction('typing');
   const result = await spawner.board();
   await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+});
+
+bot.command('chip', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/chip', '').trim();
+  const parts = raw.split(/\s+/);
+  const action = parts.shift()?.toLowerCase() || '';
+  const prompt = parts.join(' ').trim();
+
+  if (action !== 'create' || !prompt) {
+    return ctx.reply('Usage: /chip create <natural language description>');
+  }
+
+  await ctx.sendChatAction('typing');
+  await ctx.reply('Scaffolding new domain chip from your brief...');
+
+  const result = await createChipFromPrompt(prompt);
+
+  if (!result.ok) {
+    return ctx.reply(`Chip create failed: ${result.error || 'unknown error'}`);
+  }
+
+  const lines = [
+    'Chip created successfully.',
+    `Key: ${result.chipKey}`,
+    `Path: ${result.chipPath}`,
+    `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
+  ];
+  if (result.warnings && result.warnings.length > 0) {
+    lines.push('Warnings:');
+    for (const w of result.warnings) lines.push(`- ${w}`);
+  }
+  await ctx.reply(lines.join('\n'));
 });
 
 bot.command('mission', async (ctx) => {
