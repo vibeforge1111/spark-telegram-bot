@@ -11,6 +11,7 @@ import { llm } from './llm';
 import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
+import { createSchedule, deleteSchedule, listSchedules } from './schedule';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -679,6 +680,68 @@ bot.command('loop', async (ctx) => {
       await ctx.telegram.sendMessage(chatId, `Loop crashed: ${err?.message || String(err)}`);
     }
   })();
+});
+
+bot.command('schedule', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/schedule', '').trim();
+  // Expect: "<cron>" mission <goal>   OR   "<cron>" loop <chipKey> [rounds]
+  const quoteMatch = raw.match(/^"([^"]+)"\s+(.*)$/);
+  if (!quoteMatch) {
+    return ctx.reply('Usage: /schedule "<cron>" mission <goal>\n       /schedule "<cron>" loop <chipKey> [rounds]\nExample: /schedule "*/5 * * * *" loop startup-yc 2');
+  }
+  const cron = quoteMatch[1].trim();
+  const rest = quoteMatch[2].trim().split(/\s+/);
+  const action = rest.shift()?.toLowerCase();
+  if (action === 'mission') {
+    const goal = rest.join(' ').trim();
+    if (!goal) return ctx.reply('Missing mission goal.');
+    const res = await createSchedule({
+      cron,
+      action: 'mission',
+      payload: { goal },
+      chatId: String(ctx.chat.id),
+    });
+    if (!res.ok || !res.schedule) return ctx.reply(`Schedule failed: ${res.error || 'unknown error'}`);
+    return ctx.reply(`Schedule created.\nId: ${res.schedule.id}\nCron: ${res.schedule.cron}\nAction: mission\nGoal: ${goal}\nNext fire: ${res.schedule.nextFireAt}`);
+  }
+  if (action === 'loop') {
+    const chipKey = rest.shift();
+    const rounds = Math.max(1, Math.min(10, Number.parseInt(rest[0] ?? '2', 10) || 2));
+    if (!chipKey) return ctx.reply('Missing chipKey.');
+    const res = await createSchedule({
+      cron,
+      action: 'loop',
+      payload: { chipKey, rounds },
+      chatId: String(ctx.chat.id),
+    });
+    if (!res.ok || !res.schedule) return ctx.reply(`Schedule failed: ${res.error || 'unknown error'}`);
+    return ctx.reply(`Schedule created.\nId: ${res.schedule.id}\nCron: ${res.schedule.cron}\nAction: loop ${chipKey} rounds=${rounds}\nNext fire: ${res.schedule.nextFireAt}`);
+  }
+  return ctx.reply(`Unknown schedule action '${action}'. Use mission or loop.`);
+});
+
+bot.command('schedules', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+  const raw = ctx.message.text.replace('/schedules', '').trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const sub = parts.shift()?.toLowerCase();
+  if (sub === 'delete') {
+    const id = parts.shift();
+    if (!id) return ctx.reply('Usage: /schedules delete <id>');
+    const res = await deleteSchedule(id);
+    return ctx.reply(res.ok ? `Deleted ${id}` : `Delete failed: ${res.error || 'not found'}`);
+  }
+  const res = await listSchedules();
+  if (!res.ok) return ctx.reply(`List failed: ${res.error}`);
+  if (!res.schedules || res.schedules.length === 0) return ctx.reply('No schedules.');
+  const lines = [`Schedules (${res.schedules.length}):`];
+  for (const s of res.schedules) {
+    const tag = s.action === 'mission' ? (s.payload as any).goal : `${(s.payload as any).chipKey} r=${(s.payload as any).rounds}`;
+    lines.push(`  ${s.id} [${s.cron}] ${s.action} ${tag} fires=${s.fireCount} next=${s.nextFireAt || '-'} last=${s.lastStatus || '-'}`);
+  }
+  await ctx.reply(lines.join('\n'));
 });
 
 bot.command('mission', async (ctx) => {
