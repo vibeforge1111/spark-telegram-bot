@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
-import { runBuilderTelegramBridge } from './builderBridge';
+import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
@@ -274,6 +274,25 @@ function requireAdmin(ctx: any): boolean {
   return false;
 }
 
+function buildUpdateWithText(update: Record<string, unknown>, text: string): Record<string, unknown> {
+  const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
+  const messagePayload = cloned.message;
+  if (!messagePayload || typeof messagePayload !== 'object') {
+    throw new Error('Telegram update is missing a message payload.');
+  }
+  (messagePayload as Record<string, unknown>).text = text;
+  return cloned;
+}
+
+async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
+  const builderReply = await runBuilderTelegramBridge(buildUpdateWithText(ctx.update as Record<string, unknown>, text));
+  if (!builderReply.used || builderReply.bridgeMode === 'bridge_error') {
+    return false;
+  }
+  await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
+  return true;
+}
+
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
@@ -299,12 +318,7 @@ bot.start(async (ctx) => {
   const name = user.first_name || user.username || 'friend';
 
   // Check if Mind is available
-  const mindAvailable = await conversation.isAvailable();
-
-  if (mindAvailable) {
-    // Remember this user started
-    await conversation.learnAboutUser(user, `Started using bot on ${new Date().toISOString()}`);
-  }
+  const builderBridge = await getBuilderBridgeStatus();
 
   const [sparkAvailable, spawnerAvailable] = await Promise.all([
     spark.isAvailable(),
@@ -313,11 +327,12 @@ bot.start(async (ctx) => {
 
   await ctx.reply(
     `Hey ${name}! I'm Spark ⚡\n\n` +
-    `I remember conversations and learn over time.\n\n` +
+    `I remember conversations through the Builder memory path.\n\n` +
     `Memory Commands:\n` +
-    `/remember <text> - Store a memory\n` +
-    `/recall <topic> - Search memories\n` +
-    `/about - What I know about you\n\n` +
+    `/remember <text> - Save something important\n` +
+    `/recall <topic> - Ask what I remember about a topic\n` +
+    `/about - Ask what I know about you\n` +
+    `/forget <text> - Ask me to forget a saved detail\n\n` +
     `Spark Intelligence:\n` +
     `/spark - System status\n` +
     `/resonance - Our sync level\n` +
@@ -333,7 +348,7 @@ bot.start(async (ctx) => {
         `/mission <status|pause|resume|kill> <missionId> - Control a mission\n\n`
       : '') +
     `Or just chat!` +
-    (mindAvailable ? '' : '\n⚠️ Memory offline') +
+    (builderBridge.available ? '' : '\n⚠️ Builder memory bridge unavailable; local fallback may be used') +
     (sparkAvailable ? '' : '\n⚠️ Spark offline')
   );
   if (!spawnerAvailable && conversation.isAdmin(user)) {
@@ -345,20 +360,15 @@ bot.start(async (ctx) => {
 bot.command('status', async (ctx) => {
   await ctx.sendChatAction('typing');
 
-  const [mindHealthy, sparkHealthy] = await Promise.all([
-    conversation.isAvailable(),
+  const [builderBridge, sparkHealthy] = await Promise.all([
+    getBuilderBridgeStatus(),
     spark.isAvailable()
   ]);
   const isAdmin = conversation.isAdmin(ctx.from);
 
   let status = '⚡ System Status\n\n';
 
-  if (mindHealthy) {
-    const count = await conversation.getMemoryCount(ctx.from);
-    status += `🧠 Mind: ONLINE (${count} memories)\n`;
-  } else {
-    status += '🧠 Mind: OFFLINE\n';
-  }
+  status += `🧠 Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
   if (sparkHealthy) {
     const dashboard = await spark.getDashboardStatus();
@@ -399,11 +409,14 @@ bot.command('remember', async (ctx) => {
   }
 
   try {
+    if (await replyViaBuilder(ctx, `Please remember this: ${text}`)) {
+      return;
+    }
     await conversation.storePreference(ctx.from, text);
     await ctx.reply(`Got it! I'll remember: "${text}"`);
   } catch (err) {
     console.error('Failed to remember:', err);
-    await ctx.reply('Sorry, I couldn\'t save that. Mind might be offline.');
+    await ctx.reply('Sorry, I couldn\'t save that right now.');
   }
 });
 
@@ -416,6 +429,9 @@ bot.command('recall', async (ctx) => {
   }
 
   try {
+    if (await replyViaBuilder(ctx, `What do you remember about ${query}?`)) {
+      return;
+    }
     const memories = await conversation.recall(ctx.from, query, 5);
 
     if (memories.length === 0) {
@@ -429,13 +445,16 @@ bot.command('recall', async (ctx) => {
     await ctx.reply(`Here's what I remember about "${query}":\n\n${list}`);
   } catch (err) {
     console.error('Failed to recall:', err);
-    await ctx.reply('Sorry, I couldn\'t search my memories. Mind might be offline.');
+    await ctx.reply('Sorry, I couldn\'t search my memories right now.');
   }
 });
 
 // /about command - what do I know about you
 bot.command('about', async (ctx) => {
   try {
+    if (await replyViaBuilder(ctx, 'What do you know about me?')) {
+      return;
+    }
     const memories = await conversation.recallRecent(ctx.from, 10);
 
     if (memories.length === 0) {
@@ -453,12 +472,21 @@ bot.command('about', async (ctx) => {
   }
 });
 
-// /forget command - show what would be forgotten (for safety)
+// /forget command - prefer Builder deletion flow
 bot.command('forget', async (ctx) => {
+  const target = ctx.message.text.replace('/forget', '').trim();
+  if (target) {
+    try {
+      if (await replyViaBuilder(ctx, `Forget ${target}.`)) {
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to forget via Builder bridge:', err);
+    }
+  }
   await ctx.reply(
-    'To protect your data, please use the Mind V5 dashboard to manage memories:\n' +
-    'http://localhost:8501\n\n' +
-    'Or contact the bot admin.'
+    'Usage: /forget <thing to forget>\n\n' +
+    'If the Builder memory bridge is unavailable, try again once it is back or contact the bot admin.'
   );
 });
 
@@ -606,7 +634,7 @@ bot.on(message('text'), async (ctx) => {
 
   try {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
-    if (builderReply.used) {
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
       return;
     }

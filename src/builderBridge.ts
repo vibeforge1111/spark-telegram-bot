@@ -17,6 +17,13 @@ interface BuilderBridgeConfig {
   timeoutMs: number;
 }
 
+export interface BuilderBridgeStatus {
+  mode: BuilderBridgeMode;
+  available: boolean;
+  builderRepo: string;
+  builderHome: string;
+}
+
 export interface BuilderBridgeReply {
   used: boolean;
   responseText: string;
@@ -64,6 +71,16 @@ async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boole
     pathExists(config.builderHome),
   ]);
   return repoExists && homeExists;
+}
+
+export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
+  const config = resolveBridgeConfig();
+  return {
+    mode: config.mode,
+    available: await ensureBridgeAvailable(config),
+    builderRepo: config.builderRepo,
+    builderHome: config.builderHome,
+  };
 }
 
 export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
