@@ -10,6 +10,7 @@ import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
+import { runChipLoop } from './chipLoop';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -628,6 +629,47 @@ bot.command('chip', async (ctx) => {
     lines.push('Warnings:');
     for (const w of result.warnings) lines.push(`- ${w}`);
   }
+  await ctx.reply(lines.join('\n'));
+});
+
+bot.command('loop', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/loop', '').trim();
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const chipKey = parts[0];
+  const rounds = Math.max(1, Math.min(10, Number.parseInt(parts[1] ?? '3', 10) || 3));
+
+  if (!chipKey) {
+    return ctx.reply('Usage: /loop <chip_key> [rounds]\n' +
+      'Runs a recursive self-improving loop: each round calls the chip\'s suggest hook for candidates, then evaluates them.\n' +
+      'Example: /loop startup-yc 3');
+  }
+
+  await ctx.sendChatAction('typing');
+  await ctx.reply(`Starting autoloop on ${chipKey} for ${rounds} round(s). This may take a minute or two...`);
+
+  const result = await runChipLoop(chipKey, rounds, 3);
+
+  if (!result.ok) {
+    return ctx.reply(`Loop failed: ${result.error || 'unknown error'}`);
+  }
+
+  const lines = [
+    `Loop complete: ${result.chipKey}`,
+    `Rounds: ${result.roundsCompleted}/${result.totalRounds}`,
+  ];
+  if (result.history && result.history.length > 0) {
+    lines.push('Per-round summary:');
+    for (const r of result.history) {
+      const verdict = r.best_verdict ?? '-';
+      const metric = r.best_metric !== null && r.best_metric !== undefined ? r.best_metric.toFixed(3) : '-';
+      lines.push(`  round ${r.round_index}: candidates=${r.suggestions_count} best_verdict=${verdict} best_metric=${metric}`);
+    }
+  } else {
+    lines.push('No rounds executed.');
+  }
+  if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
   await ctx.reply(lines.join('\n'));
 });
 
