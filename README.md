@@ -1,6 +1,6 @@
-# Spark AGI Telegram Gateway
+# Spark Telegram Gateway
 
-`spark-telegram-bot` is the Telegram gateway for `@SparkAGI_bot`.
+`spark-telegram-bot` is the Telegram gateway for Spark.
 
 It owns Telegram ingress, routes operator commands into `Spawner UI`, and relays mission lifecycle updates back into Telegram.
 
