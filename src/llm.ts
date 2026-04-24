@@ -2,7 +2,6 @@ import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
 import os from 'node:os';
 import path from 'node:path';
-import { spark } from './spark';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
@@ -58,29 +57,6 @@ export const llm = {
   },
 
   /**
-   * Get Spark context for the conversation
-   */
-  async getSparkContext(): Promise<string> {
-    const dashboard = await spark.getDashboardStatus();
-    if (!dashboard) return '';
-
-    const voice = dashboard.voice;
-    const opinions = voice.opinions
-      .slice(0, 5)
-      .map(o => `- ${o.topic}: ${o.preference}`)
-      .join('\n');
-
-    return `
-## User Preferences (from Spark)
-${opinions || 'Still learning about this user.'}
-
-## Resonance
-${dashboard.resonance.icon} ${dashboard.resonance.name} (${dashboard.resonance.score.toFixed(0)}%)
-${dashboard.resonance.description}
-`.trim();
-  },
-
-  /**
    * Chat with the LLM
    */
   async chat(
@@ -88,13 +64,9 @@ ${dashboard.resonance.description}
     conversationHistory: string = '',
     memories: string = ''
   ): Promise<string> {
-    const sparkContext = await this.getSparkContext();
-
     const systemPrompt = `You are Spark, a helpful AI assistant that learns and remembers.
 You have access to the user's preferences and conversation history through Spark Intelligence.
 Be concise, friendly, and helpful. Respond naturally like a knowledgeable friend.
-
-${sparkContext}
 
 ${memories ? `## Relevant Memories\n${memories}` : ''}
 ${conversationHistory ? `## Recent Conversation\n${conversationHistory}` : ''}
