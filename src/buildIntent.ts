@@ -5,6 +5,8 @@ export interface BuildIntent {
   projectPath: string | null;
   prd: string;
   projectName: string;
+  buildMode: BuildMode;
+  buildModeReason: string;
 }
 
 const DEFAULT_WORKSPACE_ROOT = 'C:\\Users\\USER\\Desktop';
@@ -12,9 +14,15 @@ const WORKSPACE_ROOT = (process.env.SPARK_PROJECT_ROOT || DEFAULT_WORKSPACE_ROOT
   .replace(/\//g, '\\')
   .replace(/[\\/]$/, '');
 
-function inferProjectName(prd: string): string {
+export type BuildMode = 'direct' | 'advanced_prd';
+
+function inferProjectName(prd: string, projectPath: string | null): string {
   const nameMatch = prd.match(/called\s+([A-Z][\w\s-]{2,60})/i);
   if (nameMatch) return nameMatch[1].trim();
+  if (projectPath) {
+    const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();
+    if (pathName) return pathName.replace(/[-_]/g, ' ').trim();
+  }
   const atMatch = prd.match(/(?:at|in)\s+[A-Z]:[\\/][\w\\/:\-. ]+[\\/]([\w.-]+)/);
   if (atMatch) return atMatch[1].replace(/[-_]/g, ' ').trim();
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
@@ -34,8 +42,70 @@ function extractPath(text: string): string | null {
   return null;
 }
 
+function removeLeadingPathPrefix(text: string): string {
+  return text
+    .replace(/^(?:at|in|into)\s+[A-Z]:[\\/][^\n]*?:\s*/i, '')
+    .replace(/\s+(?:at|in|into)\s+[A-Z]:[\\/][^\n]*?:\s*/i, ' ')
+    .trim();
+}
+
+function inferBuildMode(text: string, prd: string, projectPath: string | null): { mode: BuildMode; reason: string } {
+  const lower = text.toLowerCase();
+
+  if (/\b(?:use\s+)?advanced\s+prd\s+mode\b/.test(lower)) {
+    return {
+      mode: 'advanced_prd',
+      reason: 'User explicitly requested advanced PRD mode.'
+    };
+  }
+
+  if (/\b(?:use\s+)?direct\s+(?:build\s+)?mode\b/.test(lower)) {
+    return {
+      mode: 'direct',
+      reason: 'User explicitly requested direct build mode.'
+    };
+  }
+
+  if (/\b(?:quick|simple|direct|no\s+prd|skip\s+prd|just\s+build)\b/.test(lower)) {
+    return {
+      mode: 'direct',
+      reason: 'User asked for a quick/direct build path.'
+    };
+  }
+
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+    return {
+      mode: 'advanced_prd',
+      reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
+    };
+  }
+
+  const requestedFiles = (text.match(/\b[\w.-]+\.(?:html|css|js|ts|tsx|jsx|json|md|py|svelte|vue|go|rs)\b/gi) || []).length;
+  const featureWords = (text.match(/\b(?:shows?|supports?|persists?|updates?|editable|animated|dashboard|form|localstorage|api|auth|database|deploy|integrat(?:e|ion))\b/gi) || []).length;
+
+  if (projectPath && (prd.length > 260 || requestedFiles >= 4 || featureWords >= 5)) {
+    return {
+      mode: 'advanced_prd',
+      reason: 'Project has enough scope to plan before execution.'
+    };
+  }
+
+  return {
+    mode: 'direct',
+    reason: 'Small explicit build request; direct execution is enough.'
+  };
+}
+
+function normalizeBuildCommandText(text: string): string {
+  return text
+    .replace(/^\s*(?:use\s+)?advanced\s+prd\s+mode\.?\s*/i, '')
+    .replace(/^\s*(?:use\s+)?direct\s+(?:build\s+)?mode\.?\s*/i, '')
+    .trim();
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
-  const trimmed = text.trim();
+  const original = text.trim();
+  const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
 
   // Anchor patterns: the message must start with a project-trigger verb.
@@ -54,9 +124,16 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (stripped === null) return null;
   if (stripped.length < 12) return null;
 
-  const projectPath = extractPath(trimmed);
-  const prd = stripped.trim();
-  const projectName = inferProjectName(prd);
+  const projectPath = extractPath(original);
+  const prd = removeLeadingPathPrefix(stripped.trim());
+  const projectName = inferProjectName(prd, projectPath);
+  const buildMode = inferBuildMode(original, prd, projectPath);
 
-  return { projectPath, prd, projectName };
+  return {
+    projectPath,
+    prd,
+    projectName,
+    buildMode: buildMode.mode,
+    buildModeReason: buildMode.reason
+  };
 }

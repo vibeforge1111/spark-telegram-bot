@@ -12,9 +12,17 @@ import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridg
 import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
-import { registerMissionRelay, startMissionRelay } from './missionRelay';
+import {
+  describeTelegramRelayVerbosity,
+  getTelegramRelayVerbosity,
+  normalizeTelegramRelayVerbosity,
+  registerMissionRelay,
+  setTelegramRelayVerbosity,
+  startMissionRelay
+} from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { parseBuildIntent } from './buildIntent';
+import { buildIdeationSystemHint, shouldPreferConversationalIdeation } from './conversationIntent';
 import axios from 'axios';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
@@ -133,25 +141,38 @@ bot.start(async (ctx) => {
 
   const spawnerAvailable = await spawner.isAvailable();
 
-  await ctx.reply(
-    `Hey ${name}! I'm Spark âš¡\n\n` +
-    `I remember conversations through the Builder memory path.\n\n` +
-    `Memory Commands:\n` +
-    `/remember <text> - Save something important\n` +
-    `/recall <topic> - Ask what I remember about a topic\n` +
-    `/about - Ask what I know about you\n` +
-    `/forget <text> - Ask me to forget a saved detail\n\n` +
-    `Spark Intelligence:\n` +
-    `/spark - System status\n` +
-    (conversation.isAdmin(user)
-      ? `Spawner Control:\n` +
-        `/run <goal> - Start a mission in Spawner\n` +
-        `/board - Mission state report\n` +
-        `/mission <status|pause|resume|kill> <missionId> - Control a mission\n\n`
-      : '') +
-    `Or just chat!` +
-    (builderBridge.available ? '' : '\nâš ï¸ Builder memory bridge unavailable; local fallback may be used')
-  );
+  const lines = [
+    `Hey ${name}! I'm Spark.`,
+    '',
+    'I remember conversations through the Builder memory path.',
+    '',
+    'Memory Commands:',
+    '/remember <text> - Save something important',
+    '/recall <topic> - Ask what I remember about a topic',
+    '/about - Ask what I know about you',
+    '/forget <text> - Ask me to forget a saved detail',
+    '',
+    'Spark Intelligence:',
+    '/spark - System status'
+  ];
+
+  if (conversation.isAdmin(user)) {
+    lines.push(
+      '',
+      'Spawner Control:',
+      '/run <goal> - Start a mission in Spawner',
+      '/board - Mission state report',
+      '/updates <minimal|normal|verbose> - Tune live mission updates',
+      '/mission <status|pause|resume|kill> <missionId> - Control a mission'
+    );
+  }
+
+  lines.push('', 'Or just chat!');
+  if (!builderBridge.available) {
+    lines.push('', 'Builder memory bridge unavailable; local fallback may be used.');
+  }
+
+  await ctx.reply(lines.join('\n'));
   if (!spawnerAvailable && conversation.isAdmin(user)) {
     await ctx.reply('Spawner orchestration is offline.');
   }
@@ -164,14 +185,14 @@ bot.command('status', async (ctx) => {
   const builderBridge = await getBuilderBridgeStatus();
   const isAdmin = conversation.isAdmin(ctx.from);
 
-  let status = 'âš¡ System Status\n\n';
+  let status = 'System Status\n\n';
 
-  status += `ðŸ§  Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
+  status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
   status += 'Spark launch core: ONLINE\n';
   status += 'Dashboard/resonance: deferred\n';
 
-  if (isAdmin) status += '\nðŸ”‘ Admin access';
+  if (isAdmin) status += '\nAdmin access';
 
   await ctx.reply(status);
 });
@@ -180,7 +201,7 @@ bot.command('status', async (ctx) => {
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   await ctx.sendChatAction('typing');
-  await ctx.reply('Running diagnostics â€” pings 4 providers, takes ~30s...');
+  await ctx.reply('Running diagnostics - pings 4 providers, takes ~30s...');
   try {
     const report = await buildDiagnoseReport(ctx.from.id);
     // Telegram limit is 4096 chars; diagnose is always well under.
@@ -197,7 +218,7 @@ bot.command('myid', async (ctx) => {
   await ctx.reply(
     `Your Telegram ID: ${user.id}\n` +
     `Username: @${user.username || 'none'}\n` +
-    (isAdmin ? 'ðŸ”‘ You are an admin' : 'â„¹ï¸ Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
+    (isAdmin ? 'You are an admin' : 'Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
   );
 });
 
@@ -297,14 +318,14 @@ bot.command('forget', async (ctx) => {
 bot.command('spark', async (ctx) => {
   await ctx.sendChatAction('typing');
   const status = await spark.getQuickStatus();
-  await ctx.reply(`âš¡ Spark Intelligence\n\n${status}`);
+  await ctx.reply(`Spark Intelligence\n\n${status}`);
 });
 
 // /resonance - resonance state
 bot.command('resonance', async (ctx) => {
   await ctx.sendChatAction('typing');
   const resonance = await spark.getResonance();
-  await ctx.reply(`ðŸŒŸ Resonance\n\n${resonance}`);
+  await ctx.reply(`Resonance\n\n${resonance}`);
 });
 
 // /insights - cognitive insights
@@ -331,7 +352,7 @@ bot.command('lessons', async (ctx) => {
 // /process - process pending events
 bot.command('process', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('â³ Processing queue...');
+  await ctx.reply('Processing queue...');
   const result = await spark.processQueue();
   await ctx.reply(result);
 });
@@ -339,7 +360,7 @@ bot.command('process', async (ctx) => {
 // /reflect - trigger deep reflection
 bot.command('reflect', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('ðŸ”® Starting deep reflection...');
+  await ctx.reply('Starting deep reflection...');
   const result = await spark.reflect();
   await ctx.reply(result);
 });
@@ -409,8 +430,8 @@ function humanProviderList(providers: string[]): string {
 
 function humanAck(providers: string[]): string {
   const who = humanProviderList(providers);
-  if (providers.length === 1) return `On it â€” asking ${who}, give me a moment.`;
-  return `On it â€” checking with ${who} in parallel. Hang on.`;
+  if (providers.length === 1) return `On it - asking ${who}, give me a moment.`;
+  return `On it - checking with ${who} in parallel. Hang on.`;
 }
 
 async function handleRunCommand(
@@ -431,7 +452,7 @@ async function handleRunCommand(
   });
 
   if (!result.success || !result.missionId) {
-    await ctx.reply(`Hit a snag starting that â€” ${result.error || 'something went wrong'}. Want me to retry?`);
+    await ctx.reply(`Hit a snag starting that - ${result.error || 'something went wrong'}. Want me to retry?`);
     return;
   }
 
@@ -452,7 +473,9 @@ async function handleBuildIntent(
   ctx: any,
   prd: string,
   projectName: string,
-  projectPath: string | null
+  projectPath: string | null,
+  buildMode: 'direct' | 'advanced_prd',
+  buildModeReason: string
 ): Promise<void> {
   await ctx.sendChatAction('typing');
 
@@ -461,8 +484,8 @@ async function handleBuildIntent(
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
 
   const prdContent = projectPath
-    ? `# ${projectName}\n\nTarget workspace: \`${projectPath}\`\n\n${prd}`
-    : `# ${projectName}\n\n${prd}`;
+    ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget workspace: \`${projectPath}\`\n\n${prd}`
+    : `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\n\n${prd}`;
 
   try {
     const res = await axios.post(
@@ -471,6 +494,8 @@ async function handleBuildIntent(
         content: prdContent,
         requestId,
         projectName,
+        buildMode,
+        buildModeReason,
         chatId: String(chatId),
         userId: String(ctx.from.id),
         options: { includeSkills: true, includeMCPs: false }
@@ -479,16 +504,17 @@ async function handleBuildIntent(
     );
 
     if (!res.data?.success) {
-      await ctx.reply(`Couldn't queue the PRD — ${res.data?.error || 'unknown error'}.`);
+      await ctx.reply(`Couldn't queue the PRD - ${res.data?.error || 'unknown error'}.`);
       return;
     }
 
     const ackLines = [
-      `Got it. Project: *${projectName}*`,
+      `Got it. Project: ${projectName}`,
+      `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
       projectPath ? `Target folder: ${projectPath}` : null,
       `Request ID: ${requestId}`,
       '',
-      `Analyzing PRD with Codex. I'll DM you when the canvas is ready (usually 30-90 seconds).`
+      `Spark is turning this into a build plan. I'll DM you when the canvas is ready, then keep posting progress here.`
     ].filter(Boolean);
     await ctx.reply(ackLines.join('\n'));
 
@@ -497,9 +523,21 @@ async function handleBuildIntent(
       const started = Date.now();
       const deadline = started + 180_000;
       const resultUrl = `${spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(requestId)}`;
+      const heartbeatThresholds = [25_000, 75_000, 135_000];
+      let heartbeatIndex = 0;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 4000));
         try {
+          const elapsedMs = Date.now() - started;
+          if (heartbeatIndex < heartbeatThresholds.length && elapsedMs >= heartbeatThresholds[heartbeatIndex]) {
+            const elapsedSec = Math.round(elapsedMs / 1000);
+            await bot.telegram.sendMessage(
+              chatId,
+              `Still working on ${projectName}. Spark is shaping the PRD and preparing the canvas (${elapsedSec}s elapsed).`
+            ).catch(() => {});
+            heartbeatIndex += 1;
+          }
+
           const poll = await axios.get(resultUrl, { timeout: 3000 });
           if (poll.data?.found && poll.data?.result?.success) {
             try {
@@ -512,7 +550,7 @@ async function handleBuildIntent(
               const elapsed = Math.round((Date.now() - started) / 1000);
               await bot.telegram.sendMessage(
                 chatId,
-                `Canvas ready for *${projectName}* — ${taskCount} tasks queued (${elapsed}s).\n\nOpen ${spawnerUrl}/canvas and it will start automatically. I'll post live progress and results here.`
+                `Canvas ready for ${projectName}. ${taskCount} tasks queued in ${elapsed}s.\n\nOpen ${spawnerUrl}/canvas and it will start automatically. I'll post live progress and results here.`
               );
             } catch (queueErr: any) {
               await bot.telegram.sendMessage(
@@ -528,12 +566,12 @@ async function handleBuildIntent(
       }
       await bot.telegram.sendMessage(
         chatId,
-        `Analysis timed out (>180s) for *${projectName}*. The PRD is written at .spawner/pending-prd.md. Want me to retry?`
+        `Analysis timed out after 180s for ${projectName}. The PRD is written at .spawner/pending-prd.md. Want me to retry?`
       );
     })();
   } catch (err: any) {
     const detail = err.response?.data?.error || err.message || 'unknown error';
-    await ctx.reply(`Couldn't reach Spawner PRD bridge — ${detail}. Is spawner-ui running on ${spawnerUrl}?`);
+    await ctx.reply(`Couldn't reach Spawner PRD bridge - ${detail}. Is spawner-ui running on ${spawnerUrl}?`);
   }
 }
 
@@ -579,6 +617,30 @@ bot.command('board', async (ctx) => {
   await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
 });
 
+bot.command('updates', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/updates', '').trim();
+  if (!raw) {
+    const current = await getTelegramRelayVerbosity(ctx.chat.id);
+    await ctx.reply(
+      `Live mission updates are set to ${current}.\n` +
+      `${describeTelegramRelayVerbosity(current)}\n\n` +
+      'Usage: /updates minimal | /updates normal | /updates verbose'
+    );
+    return;
+  }
+
+  const next = normalizeTelegramRelayVerbosity(raw);
+  if (!next) {
+    await ctx.reply('Choose one of: /updates minimal, /updates normal, or /updates verbose.');
+    return;
+  }
+
+  await setTelegramRelayVerbosity(ctx.chat.id, next);
+  await ctx.reply(`Live mission updates set to ${next}.\n${describeTelegramRelayVerbosity(next)}`);
+});
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -613,12 +675,28 @@ bot.on(message('text'), async (ctx) => {
   }
 
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
-  // Routes to Spawner UI's PRD bridge so the canvas auto-loads and codex/claude
-  // can execute a multi-task project.
+  // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
+  // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
+    if (shouldPreferConversationalIdeation(text)) {
+      await ctx.sendChatAction('typing');
+      await conversation.remember(user, text).catch(() => {});
+      const memories = await conversation.getContext(user, text);
+      const response = await llm.chat(text, buildIdeationSystemHint(text), memories);
+      await ctx.reply(response);
+      return;
+    }
+
     const buildIntent = parseBuildIntent(text);
     if (buildIntent) {
-      await handleBuildIntent(ctx, buildIntent.prd, buildIntent.projectName, buildIntent.projectPath);
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
       return;
     }
 

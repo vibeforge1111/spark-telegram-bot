@@ -31,6 +31,12 @@ interface MissionSubscription {
   updateId?: number;
 }
 
+export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
+
+interface TelegramRelayPreferences {
+  relayVerbosityByChatId?: Record<string, TelegramRelayVerbosity>;
+}
+
 interface RelayWebhookPayload {
   type?: string;
   timestamp?: string;
@@ -59,7 +65,9 @@ interface DeliverableRelayEvent {
 }
 
 const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
+const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
+const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const registry = new Map<string, MissionSubscription>();
 let registryLoaded = false;
 let relayServer: Server | null = null;
@@ -71,6 +79,55 @@ function getRelayPort(): number {
 
 function getRelaySecret(): string | null {
 	return requireRelaySecret();
+}
+
+export function normalizeTelegramRelayVerbosity(value: unknown): TelegramRelayVerbosity | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (['minimal', 'bare', 'barebones', 'quiet'].includes(normalized)) return 'minimal';
+  if (['normal', 'default', 'standard'].includes(normalized)) return 'normal';
+  if (['verbose', 'detailed', 'full'].includes(normalized)) return 'verbose';
+  return null;
+}
+
+function defaultRelayVerbosity(): TelegramRelayVerbosity {
+  return normalizeTelegramRelayVerbosity(process.env.TELEGRAM_RELAY_VERBOSITY) || 'normal';
+}
+
+async function readTelegramRelayPreferences(): Promise<TelegramRelayPreferences> {
+  return (await readJsonFile<TelegramRelayPreferences>(PREFERENCES_PATH)) || {};
+}
+
+export async function getTelegramRelayVerbosity(chatId: string | number): Promise<TelegramRelayVerbosity> {
+  const preferences = await readTelegramRelayPreferences();
+  const configured = preferences.relayVerbosityByChatId?.[String(chatId)];
+  return normalizeTelegramRelayVerbosity(configured) || defaultRelayVerbosity();
+}
+
+export async function setTelegramRelayVerbosity(
+  chatId: string | number,
+  verbosity: TelegramRelayVerbosity
+): Promise<void> {
+  const preferences = await readTelegramRelayPreferences();
+  await writeJsonAtomic(PREFERENCES_PATH, {
+    ...preferences,
+    relayVerbosityByChatId: {
+      ...(preferences.relayVerbosityByChatId || {}),
+      [String(chatId)]: verbosity
+    }
+  });
+}
+
+export function describeTelegramRelayVerbosity(verbosity: TelegramRelayVerbosity): string {
+  switch (verbosity) {
+    case 'minimal':
+      return 'Minimal sends start, completion, and failures only.';
+    case 'verbose':
+      return 'Verbose sends task starts, progress notes, completions, and failures.';
+    case 'normal':
+    default:
+      return 'Normal sends mission starts, task starts, readable completions, and failures.';
+  }
 }
 
 async function loadRegistry(): Promise<void> {
@@ -193,12 +250,231 @@ function extractProviderResponse(event: DeliverableRelayEvent): { providerLabel:
   return { providerLabel: providerLabelFrom(event), response };
 }
 
+function compactWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function clipText(text: string, maxLength: number): string {
+  const compact = compactWhitespace(text);
+  if (compact.length <= maxLength) return compact;
+  return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    return asRecord(JSON.parse(text));
+  } catch {
+    return null;
+  }
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => typeof entry === 'string' ? compactWhitespace(entry) : '')
+    .filter(Boolean);
+}
+
+function providerStatusVerb(status: string | null): string {
+  const normalized = status?.toLowerCase();
+  if (normalized === 'completed' || normalized === 'success' || normalized === 'passed') {
+    return 'finished the build';
+  }
+  if (normalized === 'blocked') {
+    return 'reported a blocker';
+  }
+  if (normalized === 'failed' || normalized === 'error') {
+    return 'reported a failure';
+  }
+  return 'finished';
+}
+
+function formatChangedFiles(files: string[], limit: number): string[] {
+  if (files.length === 0) return [];
+  const visible = files.slice(0, limit);
+  const lines = [`Changed files: ${visible.join(', ')}`];
+  if (files.length > visible.length) {
+    lines.push(`Plus ${files.length - visible.length} more file(s).`);
+  }
+  return lines;
+}
+
+export function formatProviderCompletionForTelegram(input: {
+  providerLabel: string;
+  response: string;
+  missionId: string;
+  requestId?: string;
+  goal?: string;
+  verbosity?: TelegramRelayVerbosity;
+}): string {
+  const provider = humanizeProviderLabel(input.providerLabel);
+  const verbosity = input.verbosity || 'normal';
+  const parsed = parseJsonObject(input.response);
+
+  if (!parsed) {
+    const clean = stripThinkingAndMeta(input.response);
+    const looksStructured = clean.trim().startsWith('{') || clean.trim().startsWith('[');
+    if (looksStructured) {
+      return [
+        `${provider} finished, but returned a structured result I could not summarize cleanly.`,
+        `Mission: ${input.missionId}`,
+        'Use the canvas or mission board for the full raw record.'
+      ].join('\n');
+    }
+    return [
+      `${provider} says:`,
+      '',
+      clean,
+      '',
+      `Mission: ${input.missionId}`
+    ].join('\n').trim();
+  }
+
+  const status = stringField(parsed, 'status');
+  const summary = stringField(parsed, 'summary') || stringField(parsed, 'message');
+  const projectPath = stringField(parsed, 'project_path') || stringField(parsed, 'projectPath');
+  const changedFiles = stringArray(parsed.changed_files || parsed.changedFiles);
+  const verification = stringArray(parsed.verification);
+  const nextActions = stringArray(parsed.next_actions || parsed.nextActions);
+  const exactCommands = stringArray(parsed.exact_commands || parsed.exactCommands);
+
+  if (verbosity === 'minimal') {
+    return [
+      `${provider} ${providerStatusVerb(status)}.`,
+      summary ? clipText(summary, 240) : null,
+      projectPath ? `Project: ${projectPath}` : null,
+      changedFiles.length ? `Files changed: ${changedFiles.length}` : null,
+      `Mission: ${input.missionId}`
+    ].filter(Boolean).join('\n');
+  }
+
+  const lines: string[] = [`${provider} ${providerStatusVerb(status)}.`];
+  if (summary) {
+    lines.push('', clipText(summary, verbosity === 'verbose' ? 700 : 420));
+  } else if (input.goal) {
+    lines.push('', `Goal: ${clipText(input.goal, 260)}`);
+  }
+
+  if (projectPath) {
+    lines.push('', `Project: ${projectPath}`);
+  }
+
+  lines.push(...formatChangedFiles(changedFiles, verbosity === 'verbose' ? 12 : 6));
+
+  if (verification.length > 0) {
+    const visible = verification.slice(0, verbosity === 'verbose' ? 6 : 3);
+    lines.push('', 'Checks:');
+    lines.push(...visible.map((item) => `- ${clipText(item, 180)}`));
+    if (verification.length > visible.length) {
+      lines.push(`- ${verification.length - visible.length} more check(s) passed.`);
+    }
+  }
+
+  if (verbosity === 'verbose' && exactCommands.length > 0) {
+    lines.push('', `Verification commands run: ${exactCommands.length}`);
+  }
+
+  if (nextActions.length > 0) {
+    lines.push('', 'Next:');
+    lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
+  }
+
+  lines.push('', `Mission: ${input.missionId}`);
+  if (input.requestId) {
+    lines.push(`Request: ${input.requestId}`);
+  }
+  return lines.join('\n');
+}
+
 function extractProviderFailure(event: DeliverableRelayEvent): { providerLabel: string; error: string } {
   const data = event.data;
   const error = data && typeof data === 'object' && typeof data.error === 'string' && data.error.trim()
     ? data.error.trim()
     : event.message?.trim() || 'unknown error';
   return { providerLabel: providerLabelFrom(event), error };
+}
+
+function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: TelegramRelayVerbosity): boolean {
+  if (event.type === 'mission_failed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
+    return true;
+  }
+  if (verbosity === 'minimal') {
+    return event.type === 'mission_started' || event.type === 'mission_completed';
+  }
+  if (verbosity === 'normal') {
+    return ['mission_started', 'task_started', 'mission_completed'].includes(event.type);
+  }
+  return [
+    'mission_created',
+    'mission_started',
+    'dispatch_started',
+    'task_started',
+    'task_progress',
+    'progress',
+    'provider_feedback',
+    'log',
+    'mission_completed'
+  ].includes(event.type);
+}
+
+function formatProgressMessage(
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription,
+  verbosity: TelegramRelayVerbosity,
+  summary?: string
+): string | null {
+  if (!shouldDeliverProgressEvent(event, verbosity)) return null;
+  const taskLabel = clipText(event.taskName || event.taskId || 'task', 120);
+  const message = event.message || summary || '';
+
+  switch (event.type) {
+    case 'mission_created':
+      return [
+        'Spark picked up your request.',
+        `Goal: ${clipText(subscription.goal, 260)}`,
+        `Mission: ${event.missionId}`
+      ].join('\n');
+    case 'mission_started':
+      return [
+        'Spark started the run.',
+        verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
+        `Mission: ${event.missionId}`
+      ].filter(Boolean).join('\n');
+    case 'dispatch_started':
+      return `Spark is assigning the work.\nMission: ${event.missionId}`;
+    case 'task_started':
+      return `Started: ${taskLabel}\nMission: ${event.missionId}`;
+    case 'task_progress':
+    case 'progress':
+    case 'provider_feedback':
+    case 'log':
+      return [
+        `Update: ${taskLabel}`,
+        message ? clipText(stripThinkingAndMeta(message), 500) : null,
+        `Mission: ${event.missionId}`
+      ].filter(Boolean).join('\n');
+    case 'mission_completed':
+      return `Mission completed.\nCheck the latest build summary above or open the canvas.\nMission: ${event.missionId}`;
+    case 'mission_failed':
+      return [
+        'Mission failed.',
+        message ? clipText(message, 500) : null,
+        `Mission: ${event.missionId}`
+      ].filter(Boolean).join('\n');
+    default:
+      return null;
+  }
 }
 
 function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
@@ -223,6 +499,57 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   }
 
   return false;
+}
+
+function heartbeatKey(event: DeliverableRelayEvent): string {
+  return event.missionId;
+}
+
+function heartbeatIntervalMs(verbosity: TelegramRelayVerbosity): number {
+  if (verbosity === 'verbose') return 45_000;
+  if (verbosity === 'normal') return 90_000;
+  return 0;
+}
+
+function scheduleHeartbeat(
+  bot: Telegraf,
+  chatId: number,
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription,
+  verbosity: TelegramRelayVerbosity
+): void {
+  const interval = heartbeatIntervalMs(verbosity);
+  if (!interval || !['mission_started', 'task_started'].includes(event.type)) return;
+
+  const key = heartbeatKey(event);
+  if (heartbeatTimers.has(key)) return;
+
+  const startedAt = Date.now();
+  const taskLabel = clipText(event.taskName || 'the build', 120);
+  const timer = setInterval(() => {
+    const elapsed = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+    const message = [
+      `Still working on ${taskLabel}.`,
+      `Elapsed: ${elapsed}s`,
+      verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 220)}` : null,
+      `Mission: ${event.missionId}`
+    ].filter(Boolean).join('\n');
+
+    bot.telegram.sendMessage(chatId, message).catch((error) => {
+      console.warn('[MissionRelay] Failed to send heartbeat:', error);
+    });
+  }, interval);
+
+  heartbeatTimers.set(key, timer);
+}
+
+function clearHeartbeatForMission(missionId: string): void {
+  for (const [key, timer] of heartbeatTimers.entries()) {
+    if (key === missionId || key.startsWith(`${missionId}:`)) {
+      clearInterval(timer);
+      heartbeatTimers.delete(key);
+    }
+  }
 }
 
 async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise<void> {
@@ -408,15 +735,24 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
     try {
       const chatId = Number(subscription.chatId);
+      const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
 
       if (event.type === 'task_completed') {
+        clearHeartbeatForMission(event.missionId);
         const extracted = extractProviderResponse(event);
         if (!extracted) {
           writeJson(res, 202, { ok: true, ignored: 'no_response_text' });
           return;
         }
-        const header = `${humanizeProviderLabel(extracted.providerLabel)} says:`;
-        const chunks = chunkForTelegram(`${header}\n\n${extracted.response}`);
+        const message = formatProviderCompletionForTelegram({
+          providerLabel: extracted.providerLabel,
+          response: extracted.response,
+          missionId: event.missionId,
+          requestId: subscription.requestId,
+          goal: subscription.goal,
+          verbosity
+        });
+        const chunks = chunkForTelegram(message);
         for (let i = 0; i < chunks.length; i++) {
           const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
           await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
@@ -426,17 +762,35 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
 
       if (event.type === 'task_failed' || event.type === 'task_cancelled') {
+        clearHeartbeatForMission(event.missionId);
         const failure = extractProviderFailure(event);
         const label = humanizeProviderLabel(failure.providerLabel);
         await bot.telegram.sendMessage(
           chatId,
-          `${label} couldn't finish this one — ${failure.error.slice(0, 500)}`
+          `${label} couldn't finish this one - ${failure.error.slice(0, 500)}`
         );
         writeJson(res, 200, { ok: true });
         return;
       }
 
-      writeJson(res, 202, { ok: true, ignored: 'event_type_not_delivered' });
+      if (event.type === 'mission_failed' || event.type === 'mission_completed') {
+        clearHeartbeatForMission(event.missionId);
+      } else {
+        scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
+      }
+
+      const progressMessage = formatProgressMessage(event, subscription, verbosity, payload.summary);
+      if (!progressMessage) {
+        writeJson(res, 202, { ok: true, ignored: 'event_type_not_delivered' });
+        return;
+      }
+
+      const chunks = chunkForTelegram(progressMessage);
+      for (let i = 0; i < chunks.length; i++) {
+        const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
+        await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
+      }
+      writeJson(res, 200, { ok: true, chunks: chunks.length });
     } catch (error) {
       console.error('[MissionRelay] Failed to deliver Telegram update:', error);
       writeJson(res, 500, { ok: false, error: 'delivery_failed' });
