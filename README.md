@@ -19,6 +19,7 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 
 - receives Telegram updates through one long-polling gateway process
 - refuses webhook mode and webhook env in this launch build
+- routes normal chat to Builder memory/research when the Builder bridge is available
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
 - relays mission status and terminal updates back to Telegram
@@ -61,6 +62,8 @@ General:
 
 - `/start`
 - `/myid`
+- `/status`
+- `/diagnose`
 - `/spark`
 - `/remember <text>`
 - `/recall <topic>`
@@ -100,6 +103,8 @@ Bridge env:
 - `SPARK_BUILDER_TIMEOUT_MS`
 
 Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and its `.tmp-home-live-telegram-real` home. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+
+Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 
 Operator check:
 
@@ -142,7 +147,8 @@ npm run health:polling
 ## Related Docs
 
 - [TELEGRAM_WEBHOOK_FUTURE.md](./TELEGRAM_WEBHOOK_FUTURE.md)
-- [TASK.md](./TASK.md)
+
+Historical webhook/tunnel architecture notes were removed from the public launch docs because they are not part of this release.
 
 ## Notes
 
