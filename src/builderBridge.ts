@@ -126,6 +126,8 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         updatePath,
         '--home',
         config.builderHome,
+        '--origin',
+        'telegram-runtime',
         '--json',
       ],
       {
