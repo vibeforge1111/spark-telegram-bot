@@ -9,6 +9,8 @@ interface RunGoalInput {
   chatId: string;
   userId: string;
   requestId: string;
+  providers?: string[];
+  promptMode?: 'simple' | 'orchestrator';
 }
 
 interface RunGoalResult {
@@ -49,7 +51,9 @@ export const spawner = {
           chatId: input.chatId,
           userId: input.userId,
           requestId: input.requestId,
-          projectPath: 'C:/Users/USER/Desktop'
+          projectPath: 'C:/Users/USER/Desktop',
+          ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
+          ...(input.promptMode ? { promptMode: input.promptMode } : {})
         },
         { timeout: 15000 }
       );

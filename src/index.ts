@@ -1,8 +1,11 @@
 import 'dotenv/config';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
+import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 import { Telegraf } from 'telegraf';
+
+// Load .env.override LAST with override=true. Wins over anything spark-cli
+// rewrites in .env. Never committed (.gitignored).
+loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
 import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridge';
@@ -12,259 +15,52 @@ import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
-import { registerMissionRelay, startMissionRelay } from './missionRelay';
-import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
+import {
+  describeTelegramRelayVerbosity,
+  getTelegramRelayVerbosity,
+  normalizeTelegramRelayVerbosity,
+  registerMissionRelay,
+  setTelegramRelayVerbosity,
+  startMissionRelay
+} from './missionRelay';
+import { buildDiagnoseReport } from './diagnose';
+import { parseBuildIntent } from './buildIntent';
+import { buildIdeationSystemHint, shouldPreferConversationalIdeation } from './conversationIntent';
+import axios from 'axios';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
-import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
+
+const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
 // Validate environment
-if (!process.env.BOT_TOKEN) {
+if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
   console.error('ERROR: BOT_TOKEN not set in .env');
   console.error('Get one from @BotFather on Telegram');
   process.exit(1);
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
+const bot = new Telegraf(botToken);
 
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
-const webhookUpdateCache = new Map<number, number>();
-const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
-const WEBHOOK_STATE_PATH = resolveStatePath('.spark-telegram-webhook-state.json');
-let telegramWebhookServer: Server | null = null;
+const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 let pollingActive = false;
-let webhookStateLoaded = false;
 
-interface PersistedWebhookState {
-  seenUpdateIds: Array<{
-    updateId: number;
-    timestamp: number;
-  }>;
-}
-
-function getGatewayMode(): 'auto' | 'polling' | 'webhook' {
-  const raw = process.env.TELEGRAM_GATEWAY_MODE?.trim().toLowerCase() || 'auto';
-  if (raw === 'auto' || raw === 'polling' || raw === 'webhook') {
-    return raw;
-  }
-
-  throw new Error('TELEGRAM_GATEWAY_MODE must be one of: auto, polling, webhook');
-}
-
-function getWebhookConfig() {
-  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
-  if (!webhookUrl) {
+function extractCommandName(text: string | undefined): string | null {
+  if (!text?.startsWith('/')) {
     return null;
   }
-
-  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
-  if (!webhookSecret) {
-    throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
-  }
-
-  const parsedUrl = new URL(webhookUrl);
-  const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || '8443');
-  if (!Number.isFinite(port) || port <= 0) {
-    throw new Error('TELEGRAM_WEBHOOK_PORT must be a positive integer');
-  }
-
-  return {
-    url: webhookUrl,
-    path: parsedUrl.pathname || '/',
-    port,
-    secret: webhookSecret
-  };
+  const command = text.split(/\s+/, 1)[0].split('@', 1)[0].toLowerCase();
+  return command || null;
 }
 
-function writeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(body));
-}
-
-function pruneWebhookUpdateCache(now = Date.now()): void {
-  const cutoff = now - WEBHOOK_UPDATE_TTL_MS;
-  for (const [cachedId, timestamp] of webhookUpdateCache.entries()) {
-    if (timestamp < cutoff) {
-      webhookUpdateCache.delete(cachedId);
-    }
-  }
-}
-
-async function loadWebhookState(): Promise<void> {
-  if (webhookStateLoaded) {
-    return;
-  }
-
-  webhookStateLoaded = true;
-  if (!existsSync(WEBHOOK_STATE_PATH)) {
-    return;
-  }
-
-  try {
-    const parsed = await readJsonFile<PersistedWebhookState>(WEBHOOK_STATE_PATH);
-    if (!parsed) {
-      return;
-    }
-    for (const entry of parsed.seenUpdateIds || []) {
-      if (typeof entry?.updateId === 'number' && typeof entry?.timestamp === 'number') {
-        webhookUpdateCache.set(entry.updateId, entry.timestamp);
-      }
-    }
-    pruneWebhookUpdateCache();
-  } catch (error) {
-    console.warn('[TelegramWebhook] Failed to load webhook state:', error);
-  }
-}
-
-async function persistWebhookState(): Promise<void> {
-  try {
-    pruneWebhookUpdateCache();
-    const state: PersistedWebhookState = {
-      seenUpdateIds: Array.from(webhookUpdateCache.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 1000)
-        .map(([updateId, timestamp]) => ({ updateId, timestamp }))
-    };
-    await writeJsonAtomic(WEBHOOK_STATE_PATH, state);
-  } catch (error) {
-    console.warn('[TelegramWebhook] Failed to persist webhook state:', error);
-  }
-}
-
-async function shouldSkipWebhookUpdate(updateId: unknown): Promise<boolean> {
-  await loadWebhookState();
-  if (typeof updateId !== 'number' || !Number.isFinite(updateId)) {
-    return false;
-  }
-
-  const now = Date.now();
-  const previous = webhookUpdateCache.get(updateId);
-  if (typeof previous === 'number' && now - previous < WEBHOOK_UPDATE_TTL_MS) {
-    return true;
-  }
-
-  webhookUpdateCache.set(updateId, now);
-  pruneWebhookUpdateCache(now);
-  await persistWebhookState();
-
-  return false;
-}
-
-function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-
-    req.on('data', (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 256 * 1024) {
-        resolve(null);
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as Record<string, unknown>;
-        resolve(parsed);
-      } catch {
-        resolve(null);
-      }
-    });
-
-    req.on('error', () => resolve(null));
-  });
-}
-
-async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'): Promise<{ port: number; path: string } | null> {
-  const webhook = getWebhookConfig();
-  if (mode === 'polling') {
-    if (webhook) {
-      throw new Error('Polling mode refused because TELEGRAM_WEBHOOK_URL is configured. Clear webhook env or use TELEGRAM_GATEWAY_MODE=webhook.');
-    }
-    return null;
-  }
-
-  if (mode === 'webhook' && !webhook) {
-    throw new Error('Webhook mode requires TELEGRAM_WEBHOOK_URL and TELEGRAM_WEBHOOK_SECRET.');
-  }
-
-  if (!webhook) {
-    return null;
-  }
-
-  if (!telegramWebhookServer) {
-    telegramWebhookServer = createServer(async (req, res) => {
-      const reqUrl = new URL(req.url || '/', 'http://127.0.0.1');
-      if (req.method === 'GET' && reqUrl.pathname === '/healthz') {
-        writeJson(res, 200, {
-          ok: true,
-          service: 'spark-telegram-bot',
-          mode,
-          webhookPath: webhook.path
-        });
-        return;
-      }
-
-      if (req.method !== 'POST' || reqUrl.pathname !== webhook.path) {
-        writeJson(res, 404, { ok: false, error: 'not_found' });
-        return;
-      }
-
-      const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
-      if (secretHeader !== webhook.secret) {
-        writeJson(res, 401, { ok: false, error: 'invalid_secret' });
-        return;
-      }
-
-      const payload = await readJsonBody(req);
-      if (!payload) {
-        writeJson(res, 400, { ok: false, error: 'invalid_payload' });
-        return;
-      }
-
-      if (await shouldSkipWebhookUpdate(payload.update_id)) {
-        writeJson(res, 202, { ok: true, duplicate: true });
-        return;
-      }
-
-      try {
-        await enqueueTelegramUpdate(payload as Record<string, unknown>);
-      } catch (error) {
-        console.error('Telegram webhook enqueue failed:', error);
-        writeJson(res, 500, { ok: false, error: 'enqueue_failed' });
-        return;
-      }
-
-      writeJson(res, 200, { ok: true });
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      telegramWebhookServer!.once('error', reject);
-      telegramWebhookServer!.listen(webhook.port, '0.0.0.0', () => {
-        telegramWebhookServer!.off('error', reject);
-        resolve();
-      });
-    });
-  }
-
-  await bot.telegram.setWebhook(webhook.url, {
-    secret_token: webhook.secret
-  });
-
-  return { port: webhook.port, path: webhook.path };
-}
-
-async function ensurePollingAllowed(): Promise<void> {
+async function ensurePollingReady(): Promise<void> {
   const webhookInfo = await bot.telegram.getWebhookInfo();
   if (webhookInfo.url) {
-    throw new Error(
-      `Polling mode refused because Telegram webhook ownership is active at ${webhookInfo.url}. Use TELEGRAM_GATEWAY_MODE=webhook or clear the webhook first.`
-    );
+    console.warn(`Telegram webhook was active at ${webhookInfo.url}; deleting it before long polling.`);
+    await bot.telegram.deleteWebhook({ drop_pending_updates: false });
   }
 }
 
@@ -315,45 +111,71 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
+// Private-by-default access gate. Keep /start and /myid open so a new user can
+// identify themselves to the operator without getting access to LLM or agent actions.
+bot.use(async (ctx, next) => {
+  const user = ctx.from;
+  if (!user) {
+    return next();
+  }
+
+  const text = 'text' in (ctx.message || {}) ? (ctx.message as any).text as string | undefined : undefined;
+  const commandName = extractCommandName(text);
+  if (commandName && PUBLIC_ONBOARDING_COMMANDS.has(commandName)) {
+    return next();
+  }
+
+  if (conversation.isAllowed(user)) {
+    return next();
+  }
+
+  const setupHint = conversation.hasAnyOperatorConfigured()
+    ? 'Send /myid to the operator so they can add you to ALLOWED_TELEGRAM_IDS.'
+    : 'Owner setup is not complete yet. Send /myid and add that ID to ADMIN_TELEGRAM_IDS.';
+  await ctx.reply(`This Spark bot is private right now. ${setupHint}`);
+});
+
 // /start command
 bot.start(async (ctx) => {
   const user = ctx.from;
   const name = user.first_name || user.username || 'friend';
 
-  // Check if Mind is available
   const builderBridge = await getBuilderBridgeStatus();
 
-  const [sparkAvailable, spawnerAvailable] = await Promise.all([
-    spark.isAvailable(),
-    spawner.isAvailable()
-  ]);
+  const spawnerAvailable = await spawner.isAvailable();
 
-  await ctx.reply(
-    `Hey ${name}! I'm Spark ⚡\n\n` +
-    `I remember conversations through the Builder memory path.\n\n` +
-    `Memory Commands:\n` +
-    `/remember <text> - Save something important\n` +
-    `/recall <topic> - Ask what I remember about a topic\n` +
-    `/about - Ask what I know about you\n` +
-    `/forget <text> - Ask me to forget a saved detail\n\n` +
-    `Spark Intelligence:\n` +
-    `/spark - System status\n` +
-    `/resonance - Our sync level\n` +
-    `/insights - What I'm learning\n` +
-    `/voice - Your preferences\n` +
-    `/lessons - Surprise lessons\n` +
-    `/process - Process event queue\n` +
-    `/reflect - Deep reflection\n\n` +
-    (conversation.isAdmin(user)
-      ? `Spawner Control:\n` +
-        `/run <goal> - Start a mission in Spawner\n` +
-        `/board - Mission state report\n` +
-        `/mission <status|pause|resume|kill> <missionId> - Control a mission\n\n`
-      : '') +
-    `Or just chat!` +
-    (builderBridge.available ? '' : '\n⚠️ Builder memory bridge unavailable; local fallback may be used') +
-    (sparkAvailable ? '' : '\n⚠️ Spark offline')
-  );
+  const lines = [
+    `Hey ${name}! I'm Spark.`,
+    '',
+    'I remember conversations through the Builder memory path.',
+    '',
+    'Memory Commands:',
+    '/remember <text> - Save something important',
+    '/recall <topic> - Ask what I remember about a topic',
+    '/about - Ask what I know about you',
+    '/forget <text> - Ask me to forget a saved detail',
+    '',
+    'Spark Intelligence:',
+    '/spark - System status'
+  ];
+
+  if (conversation.isAdmin(user)) {
+    lines.push(
+      '',
+      'Spawner Control:',
+      '/run <goal> - Start a mission in Spawner',
+      '/board - Mission state report',
+      '/updates <minimal|normal|verbose> - Tune live mission updates',
+      '/mission <status|pause|resume|kill> <missionId> - Control a mission'
+    );
+  }
+
+  lines.push('', 'Or just chat!');
+  if (!builderBridge.available) {
+    lines.push('', 'Builder memory bridge unavailable; local fallback may be used.');
+  }
+
+  await ctx.reply(lines.join('\n'));
   if (!spawnerAvailable && conversation.isAdmin(user)) {
     await ctx.reply('Spawner orchestration is offline.');
   }
@@ -363,33 +185,33 @@ bot.start(async (ctx) => {
 bot.command('status', async (ctx) => {
   await ctx.sendChatAction('typing');
 
-  const [builderBridge, sparkHealthy] = await Promise.all([
-    getBuilderBridgeStatus(),
-    spark.isAvailable()
-  ]);
+  const builderBridge = await getBuilderBridgeStatus();
   const isAdmin = conversation.isAdmin(ctx.from);
 
-  let status = '⚡ System Status\n\n';
+  let status = 'System Status\n\n';
 
-  status += `🧠 Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
+  status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
-  if (sparkHealthy) {
-    const dashboard = await spark.getDashboardStatus();
-    if (dashboard) {
-      const r = dashboard.resonance;
-      status += `⚡ Spark: ONLINE\n`;
-      status += `${r.icon} Resonance: ${r.name} (${r.score.toFixed(0)}%)\n`;
-      status += `📊 Insights: ${dashboard.cognitive.total}\n`;
-    } else {
-      status += '⚡ Spark: ONLINE (dashboard offline)\n';
-    }
-  } else {
-    status += '⚡ Spark: OFFLINE\n';
-  }
+  status += 'Spark launch core: ONLINE\n';
+  status += 'Dashboard/resonance: deferred\n';
 
-  if (isAdmin) status += '\n🔑 Admin access';
+  if (isAdmin) status += '\nAdmin access';
 
   await ctx.reply(status);
+});
+
+// /diagnose command â€” one-shot full-stack health + per-provider ping test
+bot.command('diagnose', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+  await ctx.sendChatAction('typing');
+  await ctx.reply('Running diagnostics - pings 4 providers, takes ~30s...');
+  try {
+    const report = await buildDiagnoseReport(ctx.from.id);
+    // Telegram limit is 4096 chars; diagnose is always well under.
+    await ctx.reply(report);
+  } catch (err: any) {
+    await ctx.reply(`Diagnose failed: ${err.message || err}`);
+  }
 });
 
 // /myid command - get your secure Telegram ID (for admin setup)
@@ -399,7 +221,7 @@ bot.command('myid', async (ctx) => {
   await ctx.reply(
     `Your Telegram ID: ${user.id}\n` +
     `Username: @${user.username || 'none'}\n` +
-    (isAdmin ? '🔑 You are an admin' : 'ℹ️ Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
+    (isAdmin ? 'You are an admin' : 'Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
   );
 });
 
@@ -499,14 +321,14 @@ bot.command('forget', async (ctx) => {
 bot.command('spark', async (ctx) => {
   await ctx.sendChatAction('typing');
   const status = await spark.getQuickStatus();
-  await ctx.reply(`⚡ Spark Intelligence\n\n${status}`);
+  await ctx.reply(`Spark Intelligence\n\n${status}`);
 });
 
 // /resonance - resonance state
 bot.command('resonance', async (ctx) => {
   await ctx.sendChatAction('typing');
   const resonance = await spark.getResonance();
-  await ctx.reply(`🌟 Resonance\n\n${resonance}`);
+  await ctx.reply(`Resonance\n\n${resonance}`);
 });
 
 // /insights - cognitive insights
@@ -533,7 +355,7 @@ bot.command('lessons', async (ctx) => {
 // /process - process pending events
 bot.command('process', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('⏳ Processing queue...');
+  await ctx.reply('Processing queue...');
   const result = await spark.processQueue();
   await ctx.reply(result);
 });
@@ -541,44 +363,103 @@ bot.command('process', async (ctx) => {
 // /reflect - trigger deep reflection
 bot.command('reflect', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('🔮 Starting deep reflection...');
+  await ctx.reply('Starting deep reflection...');
   const result = await spark.reflect();
   await ctx.reply(result);
 });
 
-bot.command('run', async (ctx) => {
-  if (!requireAdmin(ctx)) return;
+const PROVIDER_LABELS: Record<string, string> = {
+  minimax: 'MiniMax',
+  zai: 'Z.AI GLM',
+  claude: 'Claude',
+  codex: 'Codex'
+};
 
-  const goal = ctx.message.text.replace('/run', '').trim();
-  if (!goal) {
-    return ctx.reply('Usage: /run <goal>');
+const PROVIDER_ALIASES: Record<string, string> = {
+  minimax: 'minimax', mini: 'minimax', mm: 'minimax',
+  claude: 'claude', cla: 'claude',
+  glm: 'zai', zai: 'zai', 'z.ai': 'zai',
+  codex: 'codex', cod: 'codex', gpt5: 'codex', 'gpt-5': 'codex'
+};
+
+export function parseNaturalRunIntent(text: string): { providers: string[]; goal: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length < 4) return null;
+
+  const allMatch = trimmed.match(/^(?:ask\s+|use\s+|using\s+|with\s+)?(?:all(?:\s+(?:four|models|of\s+them))?|everyone|everybody|every\s+model)\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (allMatch && allMatch[1]) {
+    return { providers: ['minimax', 'zai', 'claude', 'codex'], goal: allMatch[1].trim() };
   }
 
+  const compareMatch = trimmed.match(/^(?:compare|consensus(?:\s+of)?)\s+(\w[\w.]*)\s+(?:and|vs|versus|with|\+|&)\s+(\w[\w.]*)(?:\s+(?:on|about|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (compareMatch) {
+    const p1 = PROVIDER_ALIASES[compareMatch[1].toLowerCase()];
+    const p2 = PROVIDER_ALIASES[compareMatch[2].toLowerCase()];
+    if (p1 && p2 && p1 !== p2) {
+      return { providers: [p1, p2], goal: compareMatch[3].trim() };
+    }
+  }
+
+  const verbMatch = trimmed.match(/^(?:ask|use|using|with|have|run(?:\s+(?:this|it))?\s+(?:with|on|by))\s+(\w[\w.]*)\s+(?:and|\+|&)\s+(\w[\w.]*)(?:\s+(?:to|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (verbMatch) {
+    const p1 = PROVIDER_ALIASES[verbMatch[1].toLowerCase()];
+    const p2 = PROVIDER_ALIASES[verbMatch[2].toLowerCase()];
+    if (p1 && p2 && p1 !== p2) {
+      return { providers: [p1, p2], goal: verbMatch[3].trim() };
+    }
+  }
+
+  const singleVerbMatch = trimmed.match(/^(?:ask|use|using|with|have|run(?:\s+(?:this|it))?\s+(?:with|on|by))\s+(\w[\w.]*)(?:\s+(?:to|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (singleVerbMatch) {
+    const p = PROVIDER_ALIASES[singleVerbMatch[1].toLowerCase()];
+    if (p) return { providers: [p], goal: singleVerbMatch[2].trim() };
+  }
+
+  const leadMatch = trimmed.match(/^(\w[\w.]*)\s*[,:\-\u2014]\s*(.{3,})$/i);
+  if (leadMatch) {
+    const p = PROVIDER_ALIASES[leadMatch[1].toLowerCase()];
+    if (p) return { providers: [p], goal: leadMatch[2].trim() };
+  }
+
+  return null;
+}
+
+function humanProviderList(providers: string[]): string {
+  const labels = providers.map((id) => PROVIDER_LABELS[id] || id);
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return labels.slice(0, -1).join(', ') + ', and ' + labels[labels.length - 1];
+}
+
+function humanAck(providers: string[]): string {
+  const who = humanProviderList(providers);
+  if (providers.length === 1) return `On it - asking ${who}, give me a moment.`;
+  return `On it - checking with ${who} in parallel. Hang on.`;
+}
+
+async function handleRunCommand(
+  ctx: any,
+  goal: string,
+  providers: string[]
+): Promise<void> {
   await ctx.sendChatAction('typing');
-  await ctx.reply('Launching mission in Spawner...');
 
   const requestId = `tg-${ctx.chat.id}-${ctx.message.message_id}`;
-
   const result = await spawner.runGoal({
     goal,
     chatId: String(ctx.chat.id),
     requestId,
-    userId: String(ctx.from.id)
+    userId: String(ctx.from.id),
+    providers,
+    promptMode: 'simple'
   });
 
   if (!result.success || !result.missionId) {
-    return ctx.reply(`Spawner run failed: ${result.error || 'unknown error'}`);
+    await ctx.reply(`Hit a snag starting that - ${result.error || 'something went wrong'}. Want me to retry?`);
+    return;
   }
 
-  await ctx.reply(
-    [
-      'Mission started',
-      `ID: ${result.missionId}`,
-      `Request: ${result.requestId || requestId}`,
-      `Providers: ${(result.providers || []).join(', ') || 'default'}`,
-      `Check: /mission status ${result.missionId}`
-    ].join('\n')
-  );
+  await ctx.reply(humanAck(result.providers || providers));
 
   await registerMissionRelay({
     missionId: result.missionId,
@@ -589,7 +470,147 @@ bot.command('run', async (ctx) => {
     createdAt: new Date().toISOString(),
     updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
   });
-});
+}
+
+async function handleBuildIntent(
+  ctx: any,
+  prd: string,
+  projectName: string,
+  projectPath: string | null,
+  buildMode: 'direct' | 'advanced_prd',
+  buildModeReason: string
+): Promise<void> {
+  await ctx.sendChatAction('typing');
+
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:4174';
+  const chatId = Number(ctx.chat.id);
+  const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
+
+  const prdContent = projectPath
+    ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget workspace: \`${projectPath}\`\n\n${prd}`
+    : `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\n\n${prd}`;
+
+  try {
+    const res = await axios.post(
+      `${spawnerUrl}/api/prd-bridge/write`,
+      {
+        content: prdContent,
+        requestId,
+        projectName,
+        buildMode,
+        buildModeReason,
+        chatId: String(chatId),
+        userId: String(ctx.from.id),
+        options: { includeSkills: true, includeMCPs: false }
+      },
+      { timeout: 10000 }
+    );
+
+    if (!res.data?.success) {
+      await ctx.reply(`Couldn't queue the PRD - ${res.data?.error || 'unknown error'}.`);
+      return;
+    }
+
+    const ackLines = [
+      `Got it. Project: ${projectName}`,
+      `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
+      projectPath ? `Target folder: ${projectPath}` : null,
+      `Request ID: ${requestId}`,
+      '',
+      `Spark is turning this into a build plan. I'll DM you when the canvas is ready, then keep posting progress here.`
+    ].filter(Boolean);
+    await ctx.reply(ackLines.join('\n'));
+
+    // Fire-and-forget: poll for analysis result, queue to canvas, notify user.
+    void (async () => {
+      const started = Date.now();
+      const deadline = started + 180_000;
+      const resultUrl = `${spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(requestId)}`;
+      const heartbeatThresholds = [25_000, 75_000, 135_000];
+      let heartbeatIndex = 0;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 4000));
+        try {
+          const elapsedMs = Date.now() - started;
+          if (heartbeatIndex < heartbeatThresholds.length && elapsedMs >= heartbeatThresholds[heartbeatIndex]) {
+            const elapsedSec = Math.round(elapsedMs / 1000);
+            await bot.telegram.sendMessage(
+              chatId,
+              `Still working on ${projectName}. Spark is shaping the PRD and preparing the canvas (${elapsedSec}s elapsed).`
+            ).catch(() => {});
+            heartbeatIndex += 1;
+          }
+
+          const poll = await axios.get(resultUrl, { timeout: 3000 });
+          if (poll.data?.found && poll.data?.result?.success) {
+            try {
+              const queue = await axios.post(
+                `${spawnerUrl}/api/prd-bridge/load-to-canvas`,
+                { requestId, autoRun: true },
+                { timeout: 8000 }
+              );
+              const taskCount = queue.data?.taskCount;
+              const elapsed = Math.round((Date.now() - started) / 1000);
+              await bot.telegram.sendMessage(
+                chatId,
+                `Canvas ready for ${projectName}. ${taskCount} tasks queued in ${elapsed}s.\n\nOpen ${spawnerUrl}/canvas and it will start automatically. I'll post live progress and results here.`
+              );
+            } catch (queueErr: any) {
+              await bot.telegram.sendMessage(
+                chatId,
+                `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+              );
+            }
+            return;
+          }
+        } catch {
+          // keep polling
+        }
+      }
+      await bot.telegram.sendMessage(
+        chatId,
+        `Analysis timed out after 180s for ${projectName}. The PRD is written at .spawner/pending-prd.md. Want me to retry?`
+      );
+    })();
+  } catch (err: any) {
+    const detail = err.response?.data?.error || err.message || 'unknown error';
+    await ctx.reply(`Couldn't reach Spawner PRD bridge - ${detail}. Is spawner-ui running on ${spawnerUrl}?`);
+  }
+}
+
+function parseRunCommand(text: string, command: string): string {
+  const idx = text.indexOf(command);
+  if (idx === -1) return text.trim();
+  return text.slice(idx + command.length).trim();
+}
+
+const VALID_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex']);
+const BOT_DEFAULT_PROVIDER = (() => {
+  const raw = (process.env.BOT_DEFAULT_PROVIDER || 'codex').trim().toLowerCase();
+  return VALID_PROVIDER_IDS.has(raw) ? raw : 'codex';
+})();
+
+const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
+  { name: 'run', providers: [BOT_DEFAULT_PROVIDER], usage: `/run <goal>  (default: ${BOT_DEFAULT_PROVIDER})` },
+  { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
+  { name: 'runglm', providers: ['zai'], usage: '/runglm <goal>  (Z.AI GLM)' },
+  { name: 'runzai', providers: ['zai'], usage: '/runzai <goal>' },
+  { name: 'runclaude', providers: ['claude'], usage: '/runclaude <goal>' },
+  { name: 'runcodex', providers: ['codex'], usage: '/runcodex <goal>' },
+  { name: 'run2', providers: ['minimax', 'zai'], usage: '/run2 <goal>  (consensus: minimax + zai)' },
+  { name: 'runall', providers: ['minimax', 'zai', 'claude', 'codex'], usage: '/runall <goal>  (all 4 providers)' }
+];
+
+for (const variant of RUN_VARIANTS) {
+  bot.command(variant.name, async (ctx) => {
+    if (!requireAdmin(ctx)) return;
+    const goal = parseRunCommand(ctx.message.text, `/${variant.name}`);
+    if (!goal) {
+      return ctx.reply(`Usage: ${variant.usage}`);
+    }
+    await handleRunCommand(ctx, goal, variant.providers);
+  });
+}
 
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
@@ -742,6 +763,30 @@ bot.command('schedules', async (ctx) => {
   await ctx.reply(formatScheduleList(res.schedules ?? []));
 });
 
+bot.command('updates', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/updates', '').trim();
+  if (!raw) {
+    const current = await getTelegramRelayVerbosity(ctx.chat.id);
+    await ctx.reply(
+      `Live mission updates are set to ${current}.\n` +
+      `${describeTelegramRelayVerbosity(current)}\n\n` +
+      'Usage: /updates minimal | /updates normal | /updates verbose'
+    );
+    return;
+  }
+
+  const next = normalizeTelegramRelayVerbosity(raw);
+  if (!next) {
+    await ctx.reply('Choose one of: /updates minimal, /updates normal, or /updates verbose.');
+    return;
+  }
+
+  await setTelegramRelayVerbosity(ctx.chat.id, next);
+  await ctx.reply(`Live mission updates set to ${next}.\n${describeTelegramRelayVerbosity(next)}`);
+});
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -775,11 +820,46 @@ bot.on(message('text'), async (ctx) => {
     return;
   }
 
+  // Natural-language project-build intent: "build a ...", "make me a ...", etc.
+  // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
+  // execute the project with the selected build mode.
+  if (conversation.isAdmin(ctx.from)) {
+    if (shouldPreferConversationalIdeation(text)) {
+      await ctx.sendChatAction('typing');
+      await conversation.remember(user, text).catch(() => {});
+      const memories = await conversation.getContext(user, text);
+      const response = await llm.chat(text, buildIdeationSystemHint(text), memories);
+      await ctx.reply(response);
+      return;
+    }
+
+    const buildIntent = parseBuildIntent(text);
+    if (buildIntent) {
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
+      return;
+    }
+
+    // Single-provider run intent: "minimax, draft...", "ask claude to...", "all models: ..."
+    const intent = parseNaturalRunIntent(text);
+    if (intent) {
+      await handleRunCommand(ctx, intent.goal, intent.providers);
+      return;
+    }
+  }
+
   // Show typing indicator
   await ctx.sendChatAction('typing');
 
   try {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
       return;
@@ -820,7 +900,6 @@ bot.on(message('text'), async (ctx) => {
 // Graceful shutdown
 process.once('SIGINT', () => {
   console.log('Shutting down...');
-  telegramWebhookServer?.close();
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGINT');
@@ -828,7 +907,6 @@ process.once('SIGINT', () => {
 });
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
-  telegramWebhookServer?.close();
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGTERM');
@@ -837,51 +915,42 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
-  await startTelegramInboxProcessor(bot);
-  const gatewayMode = getGatewayMode();
-  await acquireGatewayOwnership({
-    botToken: process.env.BOT_TOKEN!,
-    mode: gatewayMode,
-    webhookUrl: process.env.TELEGRAM_WEBHOOK_URL?.trim() || null
-  });
+  const launchConfig = resolveTelegramLaunchConfig();
+  requireRelaySecret();
+
+  if (!TELEGRAM_SMOKE_MODE) {
+    await acquireGatewayOwnership({
+      botToken,
+      mode: launchConfig.mode
+    });
+  }
   const relay = await startMissionRelay(bot);
-  const webhook = await startTelegramWebhookServer(gatewayMode);
 
-  // Check connections
-  const [mindHealthy, sparkHealthy, ollamaHealthy] = await Promise.all([
-    conversation.isAvailable(),
-    spark.isAvailable(),
-    llm.isAvailable()
-  ]);
+  // Check launch-critical connections.
+  const llmHealthy = await llm.isAvailable();
 
-  console.log(`Mind V5: ${mindHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-  console.log(`Spark:   ${sparkHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-  console.log(`Ollama:  ${ollamaHealthy ? 'CONNECTED' : 'OFFLINE'}`);
+  console.log('Spark:  LAUNCH CORE READY');
+  console.log(`LLM:    ${llmHealthy ? 'CONNECTED' : 'OFFLINE'}`);
 
-  if (!mindHealthy) {
-    console.warn('WARNING: Mind V5 is not running. Memories will not persist.');
-  }
-
-  if (!sparkHealthy) {
-    console.warn('WARNING: Spark is not running. Intelligence features disabled.');
-  }
-
-  if (!ollamaHealthy) {
-    console.warn('WARNING: Ollama is not running. Natural language disabled.');
-    console.warn('Start Ollama with: ollama serve');
+  if (!llmHealthy) {
+    console.warn('WARNING: LLM provider is not reachable. Natural language disabled.');
   }
 
   // Start polling
   console.log('Starting Spark Telegram bot...');
   console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
-  if (webhook) {
-    console.log(`Telegram ingress: webhook ${webhook.path} on port ${webhook.port}`);
-    console.log('Spark bot is running in webhook mode. Press Ctrl+C to stop.');
+  if (TELEGRAM_SMOKE_MODE) {
+    console.log('Telegram smoke mode: local relay is running; Telegram API calls are disabled.');
     return;
   }
 
-  await ensurePollingAllowed();
-  await bot.launch();
+  await ensurePollingReady();
+  void bot.launch().catch((err) => {
+    pollingActive = false;
+    void releaseGatewayOwnership();
+    console.error('Failed to start bot:', err);
+    process.exit(1);
+  });
   pollingActive = true;
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
 }

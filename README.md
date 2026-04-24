@@ -11,15 +11,15 @@ Current installer rule:
 - `spark-intelligence-builder` and `spawner-ui` sit behind it
 - the same Telegram bot token must not also be configured as a live ingress token in another module
 
-Webhook ingress is now queue-backed inside the gateway, so validated Telegram updates are persisted locally before command handling runs. That reduces message loss risk if the gateway restarts after acknowledging a webhook.
-Gateway startup now also acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
-Gateway state persistence now uses a single local SQLite-backed state store for webhook dedupe, mission relay state, inbox state, and ownership leases, with lazy migration from older JSON state files.
+Launch v1 uses Telegram long polling only. Webhook ingress is intentionally disabled until the hosted gateway path is hardened and reintroduced behind a deliberate migration.
+Gateway startup acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
 Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a hosted deployment can mount persistent state outside the repo working tree.
 
 ## What It Does
 
-- receives Telegram updates through one gateway process
-- supports local polling for debug and webhook mode for stable multi-process use
+- receives Telegram updates through one long-polling gateway process
+- refuses webhook mode and webhook env in this launch build
+- routes normal chat to Builder memory/research when the Builder bridge is available
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
 - relays mission status and terminal updates back to Telegram
@@ -62,6 +62,8 @@ General:
 
 - `/start`
 - `/myid`
+- `/status`
+- `/diagnose`
 - `/spark`
 - `/remember <text>`
 - `/recall <topic>`
@@ -73,26 +75,24 @@ Admin-only mission control:
 - `/board`
 - `/mission <status|pause|resume|kill> <missionId>`
 
-## Gateway Modes
+## Gateway Mode
 
-### Polling
+Launch v1 supports long polling only:
 
-Use for local debugging or emergency recovery only when no webhook is active for the bot token.
-
-### Webhook
-
-Use for stable ownership in multi-terminal or deployed setups.
+- `TELEGRAM_GATEWAY_MODE=polling`
+- unset or legacy `auto` resolves to polling
+- `TELEGRAM_GATEWAY_MODE=webhook` is refused
+- `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET`, and `TELEGRAM_WEBHOOK_PORT` are refused
 
 Important rule:
 
 - one Telegram token
-- one active gateway owner
-
-For `@SparkAGI_bot`, webhook mode is the canonical live mode. Only `spark-telegram-bot` may own the Telegram token or receive inbound Telegram updates.
+- one active long-polling gateway owner
+- no public Telegram webhook route in this launch build
 
 ## Builder Bridge
 
-Normal chat messages can be routed into `spark-intelligence-builder` so the real Telegram webhook bot uses Builder's researcher and persistent memory path instead of the local fallback conversation memory.
+Normal chat messages can be routed into `spark-intelligence-builder` so the Telegram bot uses Builder's researcher and persistent memory path instead of the local fallback conversation memory.
 
 Bridge env:
 
@@ -104,30 +104,15 @@ Bridge env:
 
 Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and its `.tmp-home-live-telegram-real` home. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
-See [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md) for production webhook setup and rollback.
-See [TELEGRAM_GATEWAY_HARDENING.md](./TELEGRAM_GATEWAY_HARDENING.md) for the current hardening checklist and temporary operational gaps.
-See [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md) for the stable-hostname cutover from the temporary quick tunnel.
-See [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md) for the long-term single-owner ingress model with internal worker fan-out.
-See [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md) for the OpenClaw/Hermes tradeoff review and Spark target design.
-See [HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md](./HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md) for the hosted product architecture, control-plane split, and non-technical onboarding target.
-See [CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md](./CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md) for the Cloudflare-specific ingress recommendation and why local tunnel management should not become the final production model.
+Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 
 Operator check:
 
 ```bash
-npm run health:webhook
+npm run health:polling
 ```
 
-Public ingress intentionally exposes only:
-
-- `POST <webhook path>`
-- `GET /healthz`
-
-Named tunnel readiness check:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\ops\cloudflared\check.ps1
-```
+Public Telegram webhook ingress intentionally exposes nothing in this launch build. The only local HTTP listener is the Spawner mission relay on `127.0.0.1:8788`, protected by `TELEGRAM_RELAY_SECRET`.
 
 ## Setup
 
@@ -135,46 +120,39 @@ In the current supported split architecture, only this repo should receive the
 Telegram bot token. Builder is the Spark runtime behind the gateway. Spawner UI
 is the execution plane behind the gateway.
 
-1. Copy `.env.example` to `.env`.
-2. Set `BOT_TOKEN`.
-3. Set `ADMIN_TELEGRAM_IDS`.
-4. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work.
-5. Start `spark-intelligence-builder` if you want the Builder bridge instead of
+1. Copy `.env.example` to `.env` for manual local development only.
+2. Set `BOT_TOKEN` locally; do not paste it into docs, command arguments, screenshots, or issue reports.
+3. Set `ADMIN_TELEGRAM_IDS`. Run `/myid` in the bot to get your numeric ID.
+   The bot is private by default; non-admin users only get `/start` and `/myid`
+   unless you add them to `ALLOWED_TELEGRAM_IDS` or explicitly set
+   `TELEGRAM_PUBLIC_CHAT_ENABLED=1`.
+4. Set `TELEGRAM_RELAY_SECRET` to a random 24+ character value. Spark CLI
+   generates this for bundled installs.
+5. Keep `TELEGRAM_GATEWAY_MODE=polling`.
+6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work.
+7. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
-6. Start the bot:
+8. Start the bot:
 
 ```bash
 npm run dev
 ```
 
-For webhook mode, configure:
-
-- `TELEGRAM_GATEWAY_MODE=webhook`
-- `TELEGRAM_WEBHOOK_URL`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_WEBHOOK_PORT`
-
-Then verify:
+Then verify local launch config:
 
 ```bash
-npm run health:webhook
+npm run health:polling
 ```
 
 ## Related Docs
 
-- [FEATURE_TELEGRAM_WEBHOOK_GATEWAY.md](./FEATURE_TELEGRAM_WEBHOOK_GATEWAY.md)
-- [TELEGRAM_WEBHOOK_SETUP.md](./TELEGRAM_WEBHOOK_SETUP.md)
-- [TELEGRAM_NAMED_TUNNEL_SETUP.md](./TELEGRAM_NAMED_TUNNEL_SETUP.md)
-- [TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md](./TELEGRAM_GATEWAY_TARGET_ARCHITECTURE.md)
-- [TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md](./TELEGRAM_GATEWAY_COMPARATIVE_ARCHITECTURE_REVIEW.md)
-- [HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md](./HOSTED_TELEGRAM_GATEWAY_ARCHITECTURE.md)
-- [CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md](./CLOUDFLARE_INGRESS_DEPLOYMENT_NOTES.md)
-- [TASK.md](./TASK.md)
+- [TELEGRAM_WEBHOOK_FUTURE.md](./TELEGRAM_WEBHOOK_FUTURE.md)
+
+Historical webhook/tunnel architecture notes were removed from the public launch docs because they are not part of this release.
 
 ## Notes
 
 - Memory and Spark intelligence can be offline without breaking the mission-control path.
 - `Spawner UI` is the source of truth for mission state.
 - Telegram is the summary and control surface, not a second workflow system.
-- Current live webhook ingress may be backed by a temporary tunnel until a named tunnel or fixed HTTPS endpoint is installed.
-- This repo is the current production Telegram ingress owner. If Telegram ingress later moves into `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.
+- This repo is the current production Telegram ingress owner. If Telegram ingress later moves into a hosted gateway or `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.
