@@ -26,22 +26,17 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 
 ## Current Architecture
 
-```text
-Telegram User
-    |
-    v
-Spark Telegram Gateway (src/index.ts)
-    |
-    +--> Spark chat / conversation path
-    |
-    +--> Spawner bridge (src/spawner.ts)
-              |
-              v
-        Spawner UI
-        - /api/spark/run
-        - /api/mission-control/status
-        - /api/mission-control/command
-        - /api/mission-control/board
+```mermaid
+flowchart TD
+  User["Telegram user"] --> Gateway["Spark Telegram Gateway<br/>src/index.ts"]
+  Gateway --> Chat["Spark chat / Builder bridge"]
+  Chat --> Builder["spark-intelligence-builder"]
+  Builder --> Memory["domain-chip-memory"]
+  Builder --> Researcher["spark-researcher"]
+  Gateway --> SpawnerBridge["Spawner bridge<br/>src/spawner.ts"]
+  SpawnerBridge --> Spawner["spawner-ui APIs"]
+  Spawner --> Relay["local mission relay<br/>127.0.0.1:8788"]
+  Relay --> Gateway
 ```
 
 Mission lifecycle events return through the local relay endpoint:
@@ -72,8 +67,23 @@ General:
 Admin-only mission control:
 
 - `/run <goal>`
+- `/runminimax <goal>`
+- `/runglm <goal>`
+- `/runzai <goal>`
+- `/runclaude <goal>`
+- `/runcodex <goal>`
+- `/run2 <goal>`
+- `/runall <goal>`
 - `/board`
+- `/updates <minimal|normal|verbose>`
 - `/mission <status|pause|resume|kill> <missionId>`
+- `/chip create <natural language description>`
+- `/loop <chip_key> [rounds]`
+- `/schedule "<cron>" mission <goal>`
+- `/schedule "<cron>" loop <chipKey> [rounds]`
+- `/schedules`
+
+Natural language build requests also work for admins. For example: "build a landing page for my app" can route into the Spawner PRD/canvas path instead of returning command help.
 
 ## Gateway Mode
 
@@ -143,6 +153,39 @@ Then verify local launch config:
 ```bash
 npm run health:polling
 ```
+
+## First User Flow
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant B as BotFather
+  participant S as Spark CLI
+  participant T as Telegram Bot
+  participant P as Spawner UI
+
+  U->>B: Create bot and copy token
+  U->>S: spark setup
+  S->>U: Ask for bot token, admin ID, LLM provider
+  U->>S: spark start spawner-ui
+  U->>S: spark start spark-telegram-bot
+  U->>T: /start
+  U->>T: /diagnose
+  U->>T: /run Build a small project
+  T->>P: Start mission
+  P->>T: Send progress updates
+```
+
+## Agent Operating Guide
+
+If you are Claude Code, Codex, or another LLM agent operating this repo:
+
+1. Keep launch mode as long polling. Do not enable webhook env for v1.
+2. Only this repo should receive `BOT_TOKEN`.
+3. Put only numeric owner IDs in `ADMIN_TELEGRAM_IDS`.
+4. Use `npm test`, `npm run build`, and `npm run health:polling` before claiming the gateway is healthy.
+5. Use `/diagnose` to verify provider/LLM wiring from Telegram.
+6. Never commit `.env`, `.env.*`, tokens, chat exports, mission logs with secrets, or screenshots containing secrets.
 
 ## Related Docs
 
