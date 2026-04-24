@@ -1,5 +1,5 @@
 tunnel: YOUR_TUNNEL_ID
-credentials-file: C:\Users\USER\.cloudflared\YOUR_TUNNEL_ID.json
+credentials-file: <user-home>\\.cloudflared\YOUR_TUNNEL_ID.json
 
 ingress:
   - hostname: bot.example.com
