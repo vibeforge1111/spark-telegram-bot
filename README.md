@@ -137,7 +137,10 @@ is the execution plane behind the gateway.
 
 1. Copy `.env.example` to `.env`.
 2. Set `BOT_TOKEN`.
-3. Set `ADMIN_TELEGRAM_IDS`.
+3. Set `ADMIN_TELEGRAM_IDS`. Run `/myid` in the bot to get your numeric ID.
+   The bot is private by default; non-admin users only get `/start` and `/myid`
+   unless you add them to `ALLOWED_TELEGRAM_IDS` or explicitly set
+   `TELEGRAM_PUBLIC_CHAT_ENABLED=1`.
 4. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work.
 5. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
@@ -151,7 +154,7 @@ For webhook mode, configure:
 
 - `TELEGRAM_GATEWAY_MODE=webhook`
 - `TELEGRAM_WEBHOOK_URL`
-- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBHOOK_SECRET` (16-256 characters, A-Z/a-z/0-9/_/-)
 - `TELEGRAM_WEBHOOK_PORT`
 
 Then verify:

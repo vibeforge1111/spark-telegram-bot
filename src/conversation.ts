@@ -7,6 +7,17 @@ const ADMIN_IDS: number[] = (process.env.ADMIN_TELEGRAM_IDS || '')
   .map((id) => parseInt(id.trim(), 10))
   .filter((id) => !isNaN(id));
 
+const ALLOWED_IDS: number[] = (
+  process.env.ALLOWED_TELEGRAM_IDS ||
+  process.env.TELEGRAM_ALLOWED_USER_IDS ||
+  ''
+)
+  .split(',')
+  .map((id) => parseInt(id.trim(), 10))
+  .filter((id) => !isNaN(id));
+
+const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+
 interface TelegramUser {
   id: number;
   username?: string;
@@ -25,6 +36,14 @@ export interface Memory {
 export class ConversationMemory {
   isAdmin(user: TelegramUser): boolean {
     return ADMIN_IDS.includes(user.id);
+  }
+
+  isAllowed(user: TelegramUser): boolean {
+    return PUBLIC_CHAT_ENABLED || this.isAdmin(user) || ALLOWED_IDS.includes(user.id);
+  }
+
+  hasAnyOperatorConfigured(): boolean {
+    return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
   }
 
   async remember(_user: TelegramUser, _message: string): Promise<Memory | null> {

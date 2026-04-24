@@ -11,9 +11,14 @@ type RelayEventType =
   | 'mission_completed'
   | 'mission_failed'
   | 'task_started'
+  | 'task_progress'
+  | 'progress'
   | 'task_completed'
   | 'task_failed'
-  | 'task_cancelled';
+  | 'task_cancelled'
+  | 'dispatch_started'
+  | 'provider_feedback'
+  | 'log';
 
 interface MissionSubscription {
   missionId: string;
@@ -112,9 +117,19 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
 function shouldDeliverEvent(event: RelayWebhookPayload['event']): event is DeliverableRelayEvent {
   if (!event?.type || !event.missionId) return false;
   return [
+    'mission_created',
+    'mission_started',
+    'dispatch_started',
+    'task_started',
+    'task_progress',
+    'progress',
+    'provider_feedback',
+    'log',
     'task_completed',
     'task_failed',
-    'task_cancelled'
+    'task_cancelled',
+    'mission_completed',
+    'mission_failed'
   ].includes(event.type);
 }
 
@@ -210,6 +225,24 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   return false;
 }
 
+async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise<void> {
+  if (registry.has(event.missionId)) return;
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+
+  const chatId = typeof data.chatId === 'string' && data.chatId.trim() ? data.chatId.trim() : null;
+  if (!chatId) return;
+
+  await registerMissionRelay({
+    missionId: event.missionId,
+    chatId,
+    userId: typeof data.userId === 'string' && data.userId.trim() ? data.userId.trim() : 'telegram',
+    requestId: typeof data.requestId === 'string' && data.requestId.trim() ? data.requestId.trim() : event.missionId,
+    goal: typeof data.goal === 'string' && data.goal.trim() ? data.goal.trim() : event.message || event.missionId,
+    createdAt: new Date().toISOString()
+  });
+}
+
 function formatRelayMessage(
   event: DeliverableRelayEvent,
   subscription: MissionSubscription,
@@ -233,6 +266,22 @@ function formatRelayMessage(
       break;
     case 'mission_resumed':
       lines.unshift('Spawner mission resumed');
+      break;
+    case 'dispatch_started':
+      lines.unshift('Spawner dispatch started');
+      break;
+    case 'task_started':
+      lines.unshift(`Task started: ${taskLabel}`);
+      break;
+    case 'task_progress':
+    case 'progress':
+      lines.unshift(`Progress: ${taskLabel}`);
+      break;
+    case 'provider_feedback':
+      lines.unshift(`Provider update: ${taskLabel}`);
+      break;
+    case 'log':
+      lines.unshift('Spawner update');
       break;
     case 'mission_completed':
       lines.unshift('Spawner mission completed');
@@ -339,6 +388,8 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       writeJson(res, 400, { ok: false, error: 'invalid_event' });
       return;
     }
+
+    await registerFromEventIfPresent(event);
 
     let subscription = registry.get(event.missionId);
     if (!subscription) {

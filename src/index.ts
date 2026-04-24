@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
 import { Telegraf } from 'telegraf';
@@ -16,6 +17,8 @@ import { llm } from './llm';
 import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
+import { parseBuildIntent } from './buildIntent';
+import axios from 'axios';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
@@ -38,6 +41,7 @@ const RATE_LIMIT_MS = 1000; // 1 second between messages
 const webhookUpdateCache = new Map<number, number>();
 const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
 const WEBHOOK_STATE_PATH = resolveStatePath('.spark-telegram-webhook-state.json');
+const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 let telegramWebhookServer: Server | null = null;
 let pollingActive = false;
 let webhookStateLoaded = false;
@@ -68,6 +72,7 @@ function getWebhookConfig() {
   if (!webhookSecret) {
     throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
   }
+  validateWebhookSecret(webhookSecret);
 
   const parsedUrl = new URL(webhookUrl);
   const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || '8443');
@@ -81,6 +86,32 @@ function getWebhookConfig() {
     port,
     secret: webhookSecret
   };
+}
+
+function validateWebhookSecret(secret: string): void {
+  if (secret.length < 16 || secret.length > 256) {
+    throw new Error('TELEGRAM_WEBHOOK_SECRET must be 16-256 characters.');
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(secret)) {
+    throw new Error('TELEGRAM_WEBHOOK_SECRET may only contain A-Z, a-z, 0-9, _ and -.');
+  }
+}
+
+function constantTimeEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function extractCommandName(text: string | undefined): string | null {
+  if (!text?.startsWith('/')) {
+    return null;
+  }
+  const command = text.split(/\s+/, 1)[0].split('@', 1)[0].toLowerCase();
+  return command || null;
 }
 
 function writeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
@@ -222,7 +253,7 @@ async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'):
       }
 
       const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
-      if (secretHeader !== webhook.secret) {
+      if (typeof secretHeader !== 'string' || !constantTimeEquals(webhook.secret, secretHeader)) {
         writeJson(res, 401, { ok: false, error: 'invalid_secret' });
         return;
       }
@@ -321,6 +352,30 @@ bot.use(async (ctx, next) => {
     userLastAction.set(userId, Date.now());
   }
   return next();
+});
+
+// Private-by-default access gate. Keep /start and /myid open so a new user can
+// identify themselves to the operator without getting access to LLM or agent actions.
+bot.use(async (ctx, next) => {
+  const user = ctx.from;
+  if (!user) {
+    return next();
+  }
+
+  const text = 'text' in (ctx.message || {}) ? (ctx.message as any).text as string | undefined : undefined;
+  const commandName = extractCommandName(text);
+  if (commandName && PUBLIC_ONBOARDING_COMMANDS.has(commandName)) {
+    return next();
+  }
+
+  if (conversation.isAllowed(user)) {
+    return next();
+  }
+
+  const setupHint = conversation.hasAnyOperatorConfigured()
+    ? 'Send /myid to the operator so they can add you to ALLOWED_TELEGRAM_IDS.'
+    : 'Owner setup is not complete yet. Send /myid and add that ID to ADMIN_TELEGRAM_IDS.';
+  await ctx.reply(`This Spark bot is private right now. ${setupHint}`);
 });
 
 // /start command
@@ -647,6 +702,95 @@ async function handleRunCommand(
   });
 }
 
+async function handleBuildIntent(
+  ctx: any,
+  prd: string,
+  projectName: string,
+  projectPath: string | null
+): Promise<void> {
+  await ctx.sendChatAction('typing');
+
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:4174';
+  const chatId = Number(ctx.chat.id);
+  const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
+
+  const prdContent = projectPath
+    ? `# ${projectName}\n\nTarget workspace: \`${projectPath}\`\n\n${prd}`
+    : `# ${projectName}\n\n${prd}`;
+
+  try {
+    const res = await axios.post(
+      `${spawnerUrl}/api/prd-bridge/write`,
+      {
+        content: prdContent,
+        requestId,
+        projectName,
+        chatId: String(chatId),
+        userId: String(ctx.from.id),
+        options: { includeSkills: true, includeMCPs: false }
+      },
+      { timeout: 10000 }
+    );
+
+    if (!res.data?.success) {
+      await ctx.reply(`Couldn't queue the PRD — ${res.data?.error || 'unknown error'}.`);
+      return;
+    }
+
+    const ackLines = [
+      `Got it. Project: *${projectName}*`,
+      projectPath ? `Target folder: ${projectPath}` : null,
+      `Request ID: ${requestId}`,
+      '',
+      `Analyzing PRD with Codex. I'll DM you when the canvas is ready (usually 30-90 seconds).`
+    ].filter(Boolean);
+    await ctx.reply(ackLines.join('\n'));
+
+    // Fire-and-forget: poll for analysis result, queue to canvas, notify user.
+    void (async () => {
+      const started = Date.now();
+      const deadline = started + 180_000;
+      const resultUrl = `${spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(requestId)}`;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 4000));
+        try {
+          const poll = await axios.get(resultUrl, { timeout: 3000 });
+          if (poll.data?.found && poll.data?.result?.success) {
+            try {
+              const queue = await axios.post(
+                `${spawnerUrl}/api/prd-bridge/load-to-canvas`,
+                { requestId, autoRun: true },
+                { timeout: 8000 }
+              );
+              const taskCount = queue.data?.taskCount;
+              const elapsed = Math.round((Date.now() - started) / 1000);
+              await bot.telegram.sendMessage(
+                chatId,
+                `Canvas ready for *${projectName}* — ${taskCount} tasks queued (${elapsed}s).\n\nOpen ${spawnerUrl}/canvas and it will start automatically. I'll post live progress and results here.`
+              );
+            } catch (queueErr: any) {
+              await bot.telegram.sendMessage(
+                chatId,
+                `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+              );
+            }
+            return;
+          }
+        } catch {
+          // keep polling
+        }
+      }
+      await bot.telegram.sendMessage(
+        chatId,
+        `Analysis timed out (>180s) for *${projectName}*. The PRD is written at .spawner/pending-prd.md. Want me to retry?`
+      );
+    })();
+  } catch (err: any) {
+    const detail = err.response?.data?.error || err.message || 'unknown error';
+    await ctx.reply(`Couldn't reach Spawner PRD bridge — ${detail}. Is spawner-ui running on ${spawnerUrl}?`);
+  }
+}
+
 function parseRunCommand(text: string, command: string): string {
   const idx = text.indexOf(command);
   if (idx === -1) return text.trim();
@@ -722,10 +866,17 @@ bot.on(message('text'), async (ctx) => {
     return;
   }
 
-  // Natural-language run intent: "minimax, draft...", "ask claude to...", "all models: ..."
-  // Caught BEFORE the Builder bridge so provider routing wins over chip routing.
-  // Use side-effect-free admin check so non-admin messages fall through to chip router silently.
+  // Natural-language project-build intent: "build a ...", "make me a ...", etc.
+  // Routes to Spawner UI's PRD bridge so the canvas auto-loads and codex/claude
+  // can execute a multi-task project.
   if (conversation.isAdmin(ctx.from)) {
+    const buildIntent = parseBuildIntent(text);
+    if (buildIntent) {
+      await handleBuildIntent(ctx, buildIntent.prd, buildIntent.projectName, buildIntent.projectPath);
+      return;
+    }
+
+    // Single-provider run intent: "minimax, draft...", "ask claude to...", "all models: ..."
     const intent = parseNaturalRunIntent(text);
     if (intent) {
       await handleRunCommand(ctx, intent.goal, intent.providers);
