@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { existsSync } from 'node:fs';
 import type { Telegraf } from 'telegraf';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { requireRelaySecret } from './launchMode';
 
 type RelayEventType =
   | 'mission_created'
@@ -69,8 +70,7 @@ function getRelayPort(): number {
 }
 
 function getRelaySecret(): string | null {
-	const value = process.env.TELEGRAM_RELAY_SECRET?.trim();
-	return value ? value : null;
+	return requireRelaySecret();
 }
 
 async function loadRegistry(): Promise<void> {

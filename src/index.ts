@@ -1,9 +1,6 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
-import { timingSafeEqual } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
 import { Telegraf } from 'telegraf';
 
 // Load .env.override LAST with override=true. Wins over anything spark-cli
@@ -19,9 +16,8 @@ import { registerMissionRelay, startMissionRelay } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { parseBuildIntent } from './buildIntent';
 import axios from 'axios';
-import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
-import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -38,73 +34,8 @@ const bot = new Telegraf(botToken);
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
-const webhookUpdateCache = new Map<number, number>();
-const WEBHOOK_UPDATE_TTL_MS = 5 * 60 * 1000;
-const WEBHOOK_STATE_PATH = resolveStatePath('.spark-telegram-webhook-state.json');
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
-let telegramWebhookServer: Server | null = null;
 let pollingActive = false;
-let webhookStateLoaded = false;
-
-interface PersistedWebhookState {
-  seenUpdateIds: Array<{
-    updateId: number;
-    timestamp: number;
-  }>;
-}
-
-function getGatewayMode(): 'auto' | 'polling' | 'webhook' {
-  const raw = process.env.TELEGRAM_GATEWAY_MODE?.trim().toLowerCase() || 'auto';
-  if (raw === 'auto' || raw === 'polling' || raw === 'webhook') {
-    return raw;
-  }
-
-  throw new Error('TELEGRAM_GATEWAY_MODE must be one of: auto, polling, webhook');
-}
-
-function getWebhookConfig() {
-  const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
-  if (!webhookUrl) {
-    return null;
-  }
-
-  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
-  if (!webhookSecret) {
-    throw new Error('TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_WEBHOOK_URL is set');
-  }
-  validateWebhookSecret(webhookSecret);
-
-  const parsedUrl = new URL(webhookUrl);
-  const port = Number(process.env.TELEGRAM_WEBHOOK_PORT || '8443');
-  if (!Number.isFinite(port) || port <= 0) {
-    throw new Error('TELEGRAM_WEBHOOK_PORT must be a positive integer');
-  }
-
-  return {
-    url: webhookUrl,
-    path: parsedUrl.pathname || '/',
-    port,
-    secret: webhookSecret
-  };
-}
-
-function validateWebhookSecret(secret: string): void {
-  if (secret.length < 16 || secret.length > 256) {
-    throw new Error('TELEGRAM_WEBHOOK_SECRET must be 16-256 characters.');
-  }
-  if (!/^[A-Za-z0-9_-]+$/.test(secret)) {
-    throw new Error('TELEGRAM_WEBHOOK_SECRET may only contain A-Z, a-z, 0-9, _ and -.');
-  }
-}
-
-function constantTimeEquals(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-  return timingSafeEqual(leftBuffer, rightBuffer);
-}
 
 function extractCommandName(text: string | undefined): string | null {
   if (!text?.startsWith('/')) {
@@ -114,196 +45,11 @@ function extractCommandName(text: string | undefined): string | null {
   return command || null;
 }
 
-function writeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json');
-  res.end(JSON.stringify(body));
-}
-
-function pruneWebhookUpdateCache(now = Date.now()): void {
-  const cutoff = now - WEBHOOK_UPDATE_TTL_MS;
-  for (const [cachedId, timestamp] of webhookUpdateCache.entries()) {
-    if (timestamp < cutoff) {
-      webhookUpdateCache.delete(cachedId);
-    }
-  }
-}
-
-async function loadWebhookState(): Promise<void> {
-  if (webhookStateLoaded) {
-    return;
-  }
-
-  webhookStateLoaded = true;
-  if (!existsSync(WEBHOOK_STATE_PATH)) {
-    return;
-  }
-
-  try {
-    const parsed = await readJsonFile<PersistedWebhookState>(WEBHOOK_STATE_PATH);
-    if (!parsed) {
-      return;
-    }
-    for (const entry of parsed.seenUpdateIds || []) {
-      if (typeof entry?.updateId === 'number' && typeof entry?.timestamp === 'number') {
-        webhookUpdateCache.set(entry.updateId, entry.timestamp);
-      }
-    }
-    pruneWebhookUpdateCache();
-  } catch (error) {
-    console.warn('[TelegramWebhook] Failed to load webhook state:', error);
-  }
-}
-
-async function persistWebhookState(): Promise<void> {
-  try {
-    pruneWebhookUpdateCache();
-    const state: PersistedWebhookState = {
-      seenUpdateIds: Array.from(webhookUpdateCache.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 1000)
-        .map(([updateId, timestamp]) => ({ updateId, timestamp }))
-    };
-    await writeJsonAtomic(WEBHOOK_STATE_PATH, state);
-  } catch (error) {
-    console.warn('[TelegramWebhook] Failed to persist webhook state:', error);
-  }
-}
-
-async function shouldSkipWebhookUpdate(updateId: unknown): Promise<boolean> {
-  await loadWebhookState();
-  if (typeof updateId !== 'number' || !Number.isFinite(updateId)) {
-    return false;
-  }
-
-  const now = Date.now();
-  const previous = webhookUpdateCache.get(updateId);
-  if (typeof previous === 'number' && now - previous < WEBHOOK_UPDATE_TTL_MS) {
-    return true;
-  }
-
-  webhookUpdateCache.set(updateId, now);
-  pruneWebhookUpdateCache(now);
-  await persistWebhookState();
-
-  return false;
-}
-
-function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-
-    req.on('data', (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 256 * 1024) {
-        resolve(null);
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as Record<string, unknown>;
-        resolve(parsed);
-      } catch {
-        resolve(null);
-      }
-    });
-
-    req.on('error', () => resolve(null));
-  });
-}
-
-async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'): Promise<{ port: number; path: string } | null> {
-  const webhook = getWebhookConfig();
-  if (mode === 'polling') {
-    if (webhook) {
-      throw new Error('Polling mode refused because TELEGRAM_WEBHOOK_URL is configured. Clear webhook env or use TELEGRAM_GATEWAY_MODE=webhook.');
-    }
-    return null;
-  }
-
-  if (mode === 'webhook' && !webhook) {
-    throw new Error('Webhook mode requires TELEGRAM_WEBHOOK_URL and TELEGRAM_WEBHOOK_SECRET.');
-  }
-
-  if (!webhook) {
-    return null;
-  }
-
-  if (!telegramWebhookServer) {
-    telegramWebhookServer = createServer(async (req, res) => {
-      const reqUrl = new URL(req.url || '/', 'http://127.0.0.1');
-      if (req.method === 'GET' && reqUrl.pathname === '/healthz') {
-        writeJson(res, 200, {
-          ok: true,
-          service: 'spark-telegram-bot',
-          mode,
-          webhookPath: webhook.path
-        });
-        return;
-      }
-
-      if (req.method !== 'POST' || reqUrl.pathname !== webhook.path) {
-        writeJson(res, 404, { ok: false, error: 'not_found' });
-        return;
-      }
-
-      const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
-      if (typeof secretHeader !== 'string' || !constantTimeEquals(webhook.secret, secretHeader)) {
-        writeJson(res, 401, { ok: false, error: 'invalid_secret' });
-        return;
-      }
-
-      const payload = await readJsonBody(req);
-      if (!payload) {
-        writeJson(res, 400, { ok: false, error: 'invalid_payload' });
-        return;
-      }
-
-      if (await shouldSkipWebhookUpdate(payload.update_id)) {
-        writeJson(res, 202, { ok: true, duplicate: true });
-        return;
-      }
-
-      try {
-        await enqueueTelegramUpdate(payload as Record<string, unknown>);
-      } catch (error) {
-        console.error('Telegram webhook enqueue failed:', error);
-        writeJson(res, 500, { ok: false, error: 'enqueue_failed' });
-        return;
-      }
-
-      writeJson(res, 200, { ok: true });
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      telegramWebhookServer!.once('error', reject);
-      telegramWebhookServer!.listen(webhook.port, '0.0.0.0', () => {
-        telegramWebhookServer!.off('error', reject);
-        resolve();
-      });
-    });
-  }
-
-  if (!TELEGRAM_SMOKE_MODE) {
-    await bot.telegram.setWebhook(webhook.url, {
-      secret_token: webhook.secret
-    });
-  }
-
-  return { port: webhook.port, path: webhook.path };
-}
-
-async function ensurePollingAllowed(): Promise<void> {
+async function ensurePollingReady(): Promise<void> {
   const webhookInfo = await bot.telegram.getWebhookInfo();
   if (webhookInfo.url) {
-    throw new Error(
-      `Polling mode refused because Telegram webhook ownership is active at ${webhookInfo.url}. Use TELEGRAM_GATEWAY_MODE=webhook or clear the webhook first.`
-    );
+    console.warn(`Telegram webhook was active at ${webhookInfo.url}; deleting it before long polling.`);
+    await bot.telegram.deleteWebhook({ drop_pending_updates: false });
   }
 }
 
@@ -930,7 +676,6 @@ bot.on(message('text'), async (ctx) => {
 // Graceful shutdown
 process.once('SIGINT', () => {
   console.log('Shutting down...');
-  telegramWebhookServer?.close();
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGINT');
@@ -938,7 +683,6 @@ process.once('SIGINT', () => {
 });
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
-  telegramWebhookServer?.close();
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGTERM');
@@ -947,23 +691,16 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
-  if (TELEGRAM_SMOKE_MODE && getGatewayMode() !== 'webhook') {
-    throw new Error('TELEGRAM_SMOKE_MODE requires TELEGRAM_GATEWAY_MODE=webhook so /healthz can be smoke-tested locally.');
-  }
+  const launchConfig = resolveTelegramLaunchConfig();
+  requireRelaySecret();
 
-  if (!TELEGRAM_SMOKE_MODE) {
-    await startTelegramInboxProcessor(bot);
-  }
-  const gatewayMode = getGatewayMode();
   if (!TELEGRAM_SMOKE_MODE) {
     await acquireGatewayOwnership({
       botToken,
-      mode: gatewayMode,
-      webhookUrl: process.env.TELEGRAM_WEBHOOK_URL?.trim() || null
+      mode: launchConfig.mode
     });
   }
   const relay = await startMissionRelay(bot);
-  const webhook = await startTelegramWebhookServer(gatewayMode);
 
   // Check launch-critical connections.
   const llmHealthy = await llm.isAvailable();
@@ -979,15 +716,11 @@ async function start() {
   console.log('Starting Spark Telegram bot...');
   console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
   if (TELEGRAM_SMOKE_MODE) {
-    console.log('Telegram smoke mode: local relay/webhook are running; Telegram API calls are disabled.');
-  }
-  if (webhook) {
-    console.log(`Telegram ingress: webhook ${webhook.path} on port ${webhook.port}`);
-    console.log('Spark bot is running in webhook mode. Press Ctrl+C to stop.');
+    console.log('Telegram smoke mode: local relay is running; Telegram API calls are disabled.');
     return;
   }
 
-  await ensurePollingAllowed();
+  await ensurePollingReady();
   void bot.launch().catch((err) => {
     pollingActive = false;
     void releaseGatewayOwnership();

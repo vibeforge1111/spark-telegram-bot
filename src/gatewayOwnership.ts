@@ -3,6 +3,7 @@ import { unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import os from 'node:os';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import type { TelegramLaunchMode } from './launchMode';
 
 const HEARTBEAT_MS = 15_000;
 const STALE_AFTER_MS = 45_000;
@@ -12,8 +13,7 @@ interface OwnershipLease {
   ownerId: string;
   pid: number;
   hostname: string;
-  mode: 'auto' | 'polling' | 'webhook';
-  webhookUrl: string | null;
+  mode: TelegramLaunchMode;
   acquiredAt: string;
   updatedAt: string;
 }
@@ -79,8 +79,7 @@ async function heartbeat(): Promise<void> {
 
 export async function acquireGatewayOwnership(input: {
   botToken: string;
-  mode: 'auto' | 'polling' | 'webhook';
-  webhookUrl?: string | null;
+  mode: TelegramLaunchMode;
 }): Promise<void> {
   const filePath = leaseFilePath(input.botToken);
   const existing = await readLease(filePath);
@@ -109,7 +108,6 @@ export async function acquireGatewayOwnership(input: {
     pid: process.pid,
     hostname: os.hostname(),
     mode: input.mode,
-    webhookUrl: input.webhookUrl || null,
     acquiredAt: nowIso(),
     updatedAt: nowIso()
   };

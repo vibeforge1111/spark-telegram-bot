@@ -29,7 +29,7 @@ capabilities = ["spark.runtime", "mission.execution"]
 secrets = [
   "telegram.bot_token",
   "telegram.admin_ids",
-  "telegram.webhook_secret",
+  "telegram.relay_secret",
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
@@ -38,13 +38,13 @@ secrets = [
 [claims]
 secrets = [
   "telegram.bot_token",
-  "telegram.webhook_secret",
+  "telegram.relay_secret",
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
 ]
-ports = [8443, 8788]
-routes = ["http.healthz", "http.spawner-events"]
+ports = [8788]
+routes = ["http.spawner-events"]
 
 [secrets.telegram_bot_token]
 prompt = "Telegram bot token from @BotFather"
@@ -58,11 +58,11 @@ required = true
 storage = "file"
 env_var = "ADMIN_TELEGRAM_IDS"
 
-[secrets.telegram_webhook_secret]
-prompt = "Telegram webhook secret token for webhook mode"
+[secrets.telegram_relay_secret]
+prompt = "Local Spawner-to-Telegram relay secret"
 required = false
 storage = "keychain"
-env_var = "TELEGRAM_WEBHOOK_SECRET"
+env_var = "TELEGRAM_RELAY_SECRET"
 
 [secrets.llm_zai_api_key]
 prompt = "Z.AI API key for GLM coding endpoint"
@@ -85,13 +85,13 @@ env_var = "ANTHROPIC_API_KEY"
 [run.default]
 command = "npm run dev"
 cwd = "."
-ready_check = "http://127.0.0.1:8443/healthz"
+ready_check = "process"
 
 [healthcheck]
-command = "npm run health:webhook"
+command = "npm run health:polling"
 timeout_seconds = 20
-success_hint = "Telegram ingress owner is healthy."
-failure_hint = "Run `npm run health:webhook` in the module home for the repair detail."
+success_hint = "Telegram long-polling ingress owner is configured."
+failure_hint = "Run `npm run health:polling` in the module home for the repair detail."
 
 [config]
 format = "env"
