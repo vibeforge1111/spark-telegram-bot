@@ -330,13 +330,10 @@ bot.start(async (ctx) => {
 
   const builderBridge = await getBuilderBridgeStatus();
 
-  const [sparkAvailable, spawnerAvailable] = await Promise.all([
-    spark.isAvailable(),
-    spawner.isAvailable()
-  ]);
+  const spawnerAvailable = await spawner.isAvailable();
 
   await ctx.reply(
-    `Hey ${name}! I'm Spark ⚡\n\n` +
+    `Hey ${name}! I'm Spark âš¡\n\n` +
     `I remember conversations through the Builder memory path.\n\n` +
     `Memory Commands:\n` +
     `/remember <text> - Save something important\n` +
@@ -345,12 +342,6 @@ bot.start(async (ctx) => {
     `/forget <text> - Ask me to forget a saved detail\n\n` +
     `Spark Intelligence:\n` +
     `/spark - System status\n` +
-    `/resonance - Our sync level\n` +
-    `/insights - What I'm learning\n` +
-    `/voice - Your preferences\n` +
-    `/lessons - Surprise lessons\n` +
-    `/process - Process event queue\n` +
-    `/reflect - Deep reflection\n\n` +
     (conversation.isAdmin(user)
       ? `Spawner Control:\n` +
         `/run <goal> - Start a mission in Spawner\n` +
@@ -358,8 +349,7 @@ bot.start(async (ctx) => {
         `/mission <status|pause|resume|kill> <missionId> - Control a mission\n\n`
       : '') +
     `Or just chat!` +
-    (builderBridge.available ? '' : '\n⚠️ Builder memory bridge unavailable; local fallback may be used') +
-    (sparkAvailable ? '' : '\n⚠️ Spark offline')
+    (builderBridge.available ? '' : '\nâš ï¸ Builder memory bridge unavailable; local fallback may be used')
   );
   if (!spawnerAvailable && conversation.isAdmin(user)) {
     await ctx.reply('Spawner orchestration is offline.');
@@ -370,40 +360,26 @@ bot.start(async (ctx) => {
 bot.command('status', async (ctx) => {
   await ctx.sendChatAction('typing');
 
-  const [builderBridge, sparkHealthy] = await Promise.all([
-    getBuilderBridgeStatus(),
-    spark.isAvailable()
-  ]);
+  const builderBridge = await getBuilderBridgeStatus();
   const isAdmin = conversation.isAdmin(ctx.from);
 
-  let status = '⚡ System Status\n\n';
+  let status = 'âš¡ System Status\n\n';
 
-  status += `🧠 Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
+  status += `ðŸ§  Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
-  if (sparkHealthy) {
-    const dashboard = await spark.getDashboardStatus();
-    if (dashboard) {
-      const r = dashboard.resonance;
-      status += `⚡ Spark: ONLINE\n`;
-      status += `${r.icon} Resonance: ${r.name} (${r.score.toFixed(0)}%)\n`;
-      status += `📊 Insights: ${dashboard.cognitive.total}\n`;
-    } else {
-      status += '⚡ Spark: ONLINE (dashboard offline)\n';
-    }
-  } else {
-    status += '⚡ Spark: OFFLINE\n';
-  }
+  status += 'Spark launch core: ONLINE\n';
+  status += 'Dashboard/resonance: deferred\n';
 
-  if (isAdmin) status += '\n🔑 Admin access';
+  if (isAdmin) status += '\nðŸ”‘ Admin access';
 
   await ctx.reply(status);
 });
 
-// /diagnose command — one-shot full-stack health + per-provider ping test
+// /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   await ctx.sendChatAction('typing');
-  await ctx.reply('Running diagnostics — pings 4 providers, takes ~30s...');
+  await ctx.reply('Running diagnostics â€” pings 4 providers, takes ~30s...');
   try {
     const report = await buildDiagnoseReport(ctx.from.id);
     // Telegram limit is 4096 chars; diagnose is always well under.
@@ -420,7 +396,7 @@ bot.command('myid', async (ctx) => {
   await ctx.reply(
     `Your Telegram ID: ${user.id}\n` +
     `Username: @${user.username || 'none'}\n` +
-    (isAdmin ? '🔑 You are an admin' : 'ℹ️ Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
+    (isAdmin ? 'ðŸ”‘ You are an admin' : 'â„¹ï¸ Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
   );
 });
 
@@ -520,14 +496,14 @@ bot.command('forget', async (ctx) => {
 bot.command('spark', async (ctx) => {
   await ctx.sendChatAction('typing');
   const status = await spark.getQuickStatus();
-  await ctx.reply(`⚡ Spark Intelligence\n\n${status}`);
+  await ctx.reply(`âš¡ Spark Intelligence\n\n${status}`);
 });
 
 // /resonance - resonance state
 bot.command('resonance', async (ctx) => {
   await ctx.sendChatAction('typing');
   const resonance = await spark.getResonance();
-  await ctx.reply(`🌟 Resonance\n\n${resonance}`);
+  await ctx.reply(`ðŸŒŸ Resonance\n\n${resonance}`);
 });
 
 // /insights - cognitive insights
@@ -554,7 +530,7 @@ bot.command('lessons', async (ctx) => {
 // /process - process pending events
 bot.command('process', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('⏳ Processing queue...');
+  await ctx.reply('â³ Processing queue...');
   const result = await spark.processQueue();
   await ctx.reply(result);
 });
@@ -562,7 +538,7 @@ bot.command('process', async (ctx) => {
 // /reflect - trigger deep reflection
 bot.command('reflect', async (ctx) => {
   await ctx.sendChatAction('typing');
-  await ctx.reply('🔮 Starting deep reflection...');
+  await ctx.reply('ðŸ”® Starting deep reflection...');
   const result = await spark.reflect();
   await ctx.reply(result);
 });
@@ -632,8 +608,8 @@ function humanProviderList(providers: string[]): string {
 
 function humanAck(providers: string[]): string {
   const who = humanProviderList(providers);
-  if (providers.length === 1) return `On it — asking ${who}, give me a moment.`;
-  return `On it — checking with ${who} in parallel. Hang on.`;
+  if (providers.length === 1) return `On it â€” asking ${who}, give me a moment.`;
+  return `On it â€” checking with ${who} in parallel. Hang on.`;
 }
 
 async function handleRunCommand(
@@ -654,7 +630,7 @@ async function handleRunCommand(
   });
 
   if (!result.success || !result.missionId) {
-    await ctx.reply(`Hit a snag starting that — ${result.error || 'something went wrong'}. Want me to retry?`);
+    await ctx.reply(`Hit a snag starting that â€” ${result.error || 'something went wrong'}. Want me to retry?`);
     return;
   }
 
@@ -838,18 +814,11 @@ async function start() {
   const relay = await startMissionRelay(bot);
   const webhook = await startTelegramWebhookServer(gatewayMode);
 
-  // Check connections
-  const [sparkHealthy, llmHealthy] = await Promise.all([
-    spark.isAvailable(),
-    llm.isAvailable()
-  ]);
+  // Check launch-critical connections.
+  const llmHealthy = await llm.isAvailable();
 
-  console.log(`Spark:  ${sparkHealthy ? 'CONNECTED' : 'OFFLINE'}`);
+  console.log('Spark:  LAUNCH CORE READY');
   console.log(`LLM:    ${llmHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-
-  if (!sparkHealthy) {
-    console.warn('WARNING: Spark is not running. Intelligence features disabled.');
-  }
 
   if (!llmHealthy) {
     console.warn('WARNING: LLM provider is not reachable. Natural language disabled.');
