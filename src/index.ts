@@ -14,14 +14,17 @@ import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramIn
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
+const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
+
 // Validate environment
-if (!process.env.BOT_TOKEN) {
+if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
   console.error('ERROR: BOT_TOKEN not set in .env');
   console.error('Get one from @BotFather on Telegram');
   process.exit(1);
 }
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
+const bot = new Telegraf(botToken);
 
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
@@ -249,9 +252,11 @@ async function startTelegramWebhookServer(mode: 'auto' | 'polling' | 'webhook'):
     });
   }
 
-  await bot.telegram.setWebhook(webhook.url, {
-    secret_token: webhook.secret
-  });
+  if (!TELEGRAM_SMOKE_MODE) {
+    await bot.telegram.setWebhook(webhook.url, {
+      secret_token: webhook.secret
+    });
+  }
 
   return { port: webhook.port, path: webhook.path };
 }
@@ -691,13 +696,21 @@ process.once('SIGTERM', () => {
 
 // Start bot
 async function start() {
-  await startTelegramInboxProcessor(bot);
+  if (TELEGRAM_SMOKE_MODE && getGatewayMode() !== 'webhook') {
+    throw new Error('TELEGRAM_SMOKE_MODE requires TELEGRAM_GATEWAY_MODE=webhook so /healthz can be smoke-tested locally.');
+  }
+
+  if (!TELEGRAM_SMOKE_MODE) {
+    await startTelegramInboxProcessor(bot);
+  }
   const gatewayMode = getGatewayMode();
-  await acquireGatewayOwnership({
-    botToken: process.env.BOT_TOKEN!,
-    mode: gatewayMode,
-    webhookUrl: process.env.TELEGRAM_WEBHOOK_URL?.trim() || null
-  });
+  if (!TELEGRAM_SMOKE_MODE) {
+    await acquireGatewayOwnership({
+      botToken,
+      mode: gatewayMode,
+      webhookUrl: process.env.TELEGRAM_WEBHOOK_URL?.trim() || null
+    });
+  }
   const relay = await startMissionRelay(bot);
   const webhook = await startTelegramWebhookServer(gatewayMode);
 
@@ -728,6 +741,9 @@ async function start() {
   // Start polling
   console.log('Starting Spark Telegram bot...');
   console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
+  if (TELEGRAM_SMOKE_MODE) {
+    console.log('Telegram smoke mode: local relay/webhook are running; Telegram API calls are disabled.');
+  }
   if (webhook) {
     console.log(`Telegram ingress: webhook ${webhook.path} on port ${webhook.port}`);
     console.log('Spark bot is running in webhook mode. Press Ctrl+C to stop.');

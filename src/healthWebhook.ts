@@ -11,6 +11,10 @@ function gatewayMode(): string {
   return process.env.TELEGRAM_GATEWAY_MODE?.trim().toLowerCase() || 'auto';
 }
 
+function smokeMode(): boolean {
+  return process.env.TELEGRAM_SMOKE_MODE === '1';
+}
+
 function relayPort(): number {
   const parsed = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 8788;
@@ -74,58 +78,68 @@ async function probeUrlStatus(
 async function main(): Promise<void> {
   const results: CheckResult[] = [];
   const mode = gatewayMode();
+  const smoke = smokeMode();
   const token = process.env.BOT_TOKEN?.trim();
   const webhook = webhookConfig();
 
-  if (!token) {
+  if (!token && !smoke) {
     console.error('BOT_TOKEN is required');
     process.exit(1);
   }
 
   console.log(`Gateway mode: ${mode}`);
   console.log(`Webhook configured: ${webhook ? 'yes' : 'no'}`);
+  console.log(`Smoke mode: ${smoke ? 'yes' : 'no'}`);
 
-  const telegramInfo = await axios.get(`https://api.telegram.org/bot${token}/getWebhookInfo`, {
-    timeout: 4000,
-    validateStatus: () => true
-  });
-
-  if (telegramInfo.status !== 200 || !telegramInfo.data?.ok) {
-    results.push({
-      ok: false,
-      label: 'Telegram webhook info',
-      detail: `HTTP ${telegramInfo.status}`
-    });
-  } else {
-    const info = telegramInfo.data.result as {
-      url?: string;
-      pending_update_count?: number;
-      last_error_message?: string;
-      last_error_date?: number;
-    };
-    const url = info.url || '(none)';
-    const pending = Number(info.pending_update_count || 0);
-    const errorSuffix = info.last_error_message
-      ? `, last_error=${info.last_error_message}`
-      : '';
+  if (smoke) {
     results.push({
       ok: true,
       label: 'Telegram webhook info',
-      detail: `url=${url}, pending=${pending}${errorSuffix}`
+      detail: 'skipped in TELEGRAM_SMOKE_MODE'
+    });
+  } else {
+    const telegramInfo = await axios.get(`https://api.telegram.org/bot${token}/getWebhookInfo`, {
+      timeout: 4000,
+      validateStatus: () => true
     });
 
-    if (webhook) {
+    if (telegramInfo.status !== 200 || !telegramInfo.data?.ok) {
       results.push({
-        ok: info.url === webhook.url,
-        label: 'Telegram webhook owner',
-        detail: info.url === webhook.url ? webhook.url : `expected ${webhook.url}, got ${url}`
+        ok: false,
+        label: 'Telegram webhook info',
+        detail: `HTTP ${telegramInfo.status}`
       });
-    } else if (mode === 'polling') {
+    } else {
+      const info = telegramInfo.data.result as {
+        url?: string;
+        pending_update_count?: number;
+        last_error_message?: string;
+        last_error_date?: number;
+      };
+      const url = info.url || '(none)';
+      const pending = Number(info.pending_update_count || 0);
+      const errorSuffix = info.last_error_message
+        ? `, last_error=${info.last_error_message}`
+        : '';
       results.push({
-        ok: !info.url,
-        label: 'Polling ownership check',
-        detail: info.url ? `unexpected webhook ${info.url}` : 'no active webhook'
+        ok: true,
+        label: 'Telegram webhook info',
+        detail: `url=${url}, pending=${pending}${errorSuffix}`
       });
+
+      if (webhook) {
+        results.push({
+          ok: info.url === webhook.url,
+          label: 'Telegram webhook owner',
+          detail: info.url === webhook.url ? webhook.url : `expected ${webhook.url}, got ${url}`
+        });
+      } else if (mode === 'polling') {
+        results.push({
+          ok: !info.url,
+          label: 'Polling ownership check',
+          detail: info.url ? `unexpected webhook ${info.url}` : 'no active webhook'
+        });
+      }
     }
   }
 
