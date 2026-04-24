@@ -31,11 +31,6 @@ interface DashboardStatus {
       validations: number;
     }>;
   };
-  mind: {
-    available: boolean;
-    synced: number;
-    queue: number;
-  };
   queue: {
     events: number;
   };
@@ -131,7 +126,6 @@ export const spark = {
       `${r.icon} Resonance: ${r.name} (${r.score.toFixed(1)}%)`,
       `📊 Insights: ${c.total} (${(c.avg_reliability * 100).toFixed(0)}% reliable)`,
       `📥 Queue: ${q.events} events`,
-      `🧠 Mind: ${dashboard.mind.available ? 'Online' : 'Offline'}`,
     ].join('\n');
   },
 

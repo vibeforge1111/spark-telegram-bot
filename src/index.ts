@@ -322,7 +322,6 @@ bot.start(async (ctx) => {
   const user = ctx.from;
   const name = user.first_name || user.username || 'friend';
 
-  // Check if Mind is available
   const builderBridge = await getBuilderBridgeStatus();
 
   const [sparkAvailable, spawnerAvailable] = await Promise.all([
@@ -548,39 +547,98 @@ bot.command('reflect', async (ctx) => {
   await ctx.reply(result);
 });
 
-bot.command('run', async (ctx) => {
-  if (!requireAdmin(ctx)) return;
+const PROVIDER_LABELS: Record<string, string> = {
+  minimax: 'MiniMax',
+  zai: 'Z.AI GLM',
+  claude: 'Claude',
+  codex: 'Codex'
+};
 
-  const goal = ctx.message.text.replace('/run', '').trim();
-  if (!goal) {
-    return ctx.reply('Usage: /run <goal>');
+const PROVIDER_ALIASES: Record<string, string> = {
+  minimax: 'minimax', mini: 'minimax', mm: 'minimax',
+  claude: 'claude', cla: 'claude',
+  glm: 'zai', zai: 'zai', 'z.ai': 'zai',
+  codex: 'codex', cod: 'codex', gpt5: 'codex', 'gpt-5': 'codex'
+};
+
+export function parseNaturalRunIntent(text: string): { providers: string[]; goal: string } | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length < 4) return null;
+
+  const allMatch = trimmed.match(/^(?:ask\s+|use\s+|using\s+|with\s+)?(?:all(?:\s+(?:four|models|of\s+them))?|everyone|everybody|every\s+model)\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (allMatch && allMatch[1]) {
+    return { providers: ['minimax', 'zai', 'claude', 'codex'], goal: allMatch[1].trim() };
   }
 
+  const compareMatch = trimmed.match(/^(?:compare|consensus(?:\s+of)?)\s+(\w[\w.]*)\s+(?:and|vs|versus|with|\+|&)\s+(\w[\w.]*)(?:\s+(?:on|about|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (compareMatch) {
+    const p1 = PROVIDER_ALIASES[compareMatch[1].toLowerCase()];
+    const p2 = PROVIDER_ALIASES[compareMatch[2].toLowerCase()];
+    if (p1 && p2 && p1 !== p2) {
+      return { providers: [p1, p2], goal: compareMatch[3].trim() };
+    }
+  }
+
+  const verbMatch = trimmed.match(/^(?:ask|use|using|with|have|run(?:\s+(?:this|it))?\s+(?:with|on|by))\s+(\w[\w.]*)\s+(?:and|\+|&)\s+(\w[\w.]*)(?:\s+(?:to|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (verbMatch) {
+    const p1 = PROVIDER_ALIASES[verbMatch[1].toLowerCase()];
+    const p2 = PROVIDER_ALIASES[verbMatch[2].toLowerCase()];
+    if (p1 && p2 && p1 !== p2) {
+      return { providers: [p1, p2], goal: verbMatch[3].trim() };
+    }
+  }
+
+  const singleVerbMatch = trimmed.match(/^(?:ask|use|using|with|have|run(?:\s+(?:this|it))?\s+(?:with|on|by))\s+(\w[\w.]*)(?:\s+(?:to|for))?\s*[,:\-\u2014]?\s*(.+)$/i);
+  if (singleVerbMatch) {
+    const p = PROVIDER_ALIASES[singleVerbMatch[1].toLowerCase()];
+    if (p) return { providers: [p], goal: singleVerbMatch[2].trim() };
+  }
+
+  const leadMatch = trimmed.match(/^(\w[\w.]*)\s*[,:\-\u2014]\s*(.{3,})$/i);
+  if (leadMatch) {
+    const p = PROVIDER_ALIASES[leadMatch[1].toLowerCase()];
+    if (p) return { providers: [p], goal: leadMatch[2].trim() };
+  }
+
+  return null;
+}
+
+function humanProviderList(providers: string[]): string {
+  const labels = providers.map((id) => PROVIDER_LABELS[id] || id);
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return labels.slice(0, -1).join(', ') + ', and ' + labels[labels.length - 1];
+}
+
+function humanAck(providers: string[]): string {
+  const who = humanProviderList(providers);
+  if (providers.length === 1) return `On it — asking ${who}, give me a moment.`;
+  return `On it — checking with ${who} in parallel. Hang on.`;
+}
+
+async function handleRunCommand(
+  ctx: any,
+  goal: string,
+  providers: string[]
+): Promise<void> {
   await ctx.sendChatAction('typing');
-  await ctx.reply('Launching mission in Spawner...');
 
   const requestId = `tg-${ctx.chat.id}-${ctx.message.message_id}`;
-
   const result = await spawner.runGoal({
     goal,
     chatId: String(ctx.chat.id),
     requestId,
-    userId: String(ctx.from.id)
+    userId: String(ctx.from.id),
+    providers,
+    promptMode: 'simple'
   });
 
   if (!result.success || !result.missionId) {
-    return ctx.reply(`Spawner run failed: ${result.error || 'unknown error'}`);
+    await ctx.reply(`Hit a snag starting that — ${result.error || 'something went wrong'}. Want me to retry?`);
+    return;
   }
 
-  await ctx.reply(
-    [
-      'Mission started',
-      `ID: ${result.missionId}`,
-      `Request: ${result.requestId || requestId}`,
-      `Providers: ${(result.providers || []).join(', ') || 'default'}`,
-      `Check: /mission status ${result.missionId}`
-    ].join('\n')
-  );
+  await ctx.reply(humanAck(result.providers || providers));
 
   await registerMissionRelay({
     missionId: result.missionId,
@@ -591,7 +649,41 @@ bot.command('run', async (ctx) => {
     createdAt: new Date().toISOString(),
     updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
   });
-});
+}
+
+function parseRunCommand(text: string, command: string): string {
+  const idx = text.indexOf(command);
+  if (idx === -1) return text.trim();
+  return text.slice(idx + command.length).trim();
+}
+
+const VALID_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex']);
+const BOT_DEFAULT_PROVIDER = (() => {
+  const raw = (process.env.BOT_DEFAULT_PROVIDER || 'codex').trim().toLowerCase();
+  return VALID_PROVIDER_IDS.has(raw) ? raw : 'codex';
+})();
+
+const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
+  { name: 'run', providers: [BOT_DEFAULT_PROVIDER], usage: `/run <goal>  (default: ${BOT_DEFAULT_PROVIDER})` },
+  { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
+  { name: 'runglm', providers: ['zai'], usage: '/runglm <goal>  (Z.AI GLM)' },
+  { name: 'runzai', providers: ['zai'], usage: '/runzai <goal>' },
+  { name: 'runclaude', providers: ['claude'], usage: '/runclaude <goal>' },
+  { name: 'runcodex', providers: ['codex'], usage: '/runcodex <goal>' },
+  { name: 'run2', providers: ['minimax', 'zai'], usage: '/run2 <goal>  (consensus: minimax + zai)' },
+  { name: 'runall', providers: ['minimax', 'zai', 'claude', 'codex'], usage: '/runall <goal>  (all 4 providers)' }
+];
+
+for (const variant of RUN_VARIANTS) {
+  bot.command(variant.name, async (ctx) => {
+    if (!requireAdmin(ctx)) return;
+    const goal = parseRunCommand(ctx.message.text, `/${variant.name}`);
+    if (!goal) {
+      return ctx.reply(`Usage: ${variant.usage}`);
+    }
+    await handleRunCommand(ctx, goal, variant.providers);
+  });
+}
 
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
@@ -632,6 +724,17 @@ bot.on(message('text'), async (ctx) => {
 
   if (text.startsWith('/')) {
     return;
+  }
+
+  // Natural-language run intent: "minimax, draft...", "ask claude to...", "all models: ..."
+  // Caught BEFORE the Builder bridge so provider routing wins over chip routing.
+  // Use side-effect-free admin check so non-admin messages fall through to chip router silently.
+  if (conversation.isAdmin(ctx.from)) {
+    const intent = parseNaturalRunIntent(text);
+    if (intent) {
+      await handleRunCommand(ctx, intent.goal, intent.providers);
+      return;
+    }
   }
 
   // Show typing indicator
@@ -715,27 +818,20 @@ async function start() {
   const webhook = await startTelegramWebhookServer(gatewayMode);
 
   // Check connections
-  const [mindHealthy, sparkHealthy, ollamaHealthy] = await Promise.all([
-    conversation.isAvailable(),
+  const [sparkHealthy, llmHealthy] = await Promise.all([
     spark.isAvailable(),
     llm.isAvailable()
   ]);
 
-  console.log(`Mind V5: ${mindHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-  console.log(`Spark:   ${sparkHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-  console.log(`Ollama:  ${ollamaHealthy ? 'CONNECTED' : 'OFFLINE'}`);
-
-  if (!mindHealthy) {
-    console.warn('WARNING: Mind V5 is not running. Memories will not persist.');
-  }
+  console.log(`Spark:  ${sparkHealthy ? 'CONNECTED' : 'OFFLINE'}`);
+  console.log(`LLM:    ${llmHealthy ? 'CONNECTED' : 'OFFLINE'}`);
 
   if (!sparkHealthy) {
     console.warn('WARNING: Spark is not running. Intelligence features disabled.');
   }
 
-  if (!ollamaHealthy) {
-    console.warn('WARNING: Ollama is not running. Natural language disabled.');
-    console.warn('Start Ollama with: ollama serve');
+  if (!llmHealthy) {
+    console.warn('WARNING: LLM provider is not reachable. Natural language disabled.');
   }
 
   // Start polling

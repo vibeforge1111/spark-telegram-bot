@@ -112,19 +112,85 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
 function shouldDeliverEvent(event: RelayWebhookPayload['event']): event is DeliverableRelayEvent {
   if (!event?.type || !event.missionId) return false;
   return [
-    'mission_created',
-    'mission_started',
-    'mission_paused',
-    'mission_resumed',
-    'mission_completed',
-    'mission_failed',
+    'task_completed',
     'task_failed',
     'task_cancelled'
   ].includes(event.type);
 }
 
+function stripThinkingAndMeta(text: string): string {
+  let out = text;
+  out = out.replace(/<think[\s\S]*?<\/think>/gi, '');
+  out = out.replace(/<thinking[\s\S]*?<\/thinking>/gi, '');
+  out = out.replace(/```(?:bash|shell|sh)?\s*curl\s+-X\s+POST[\s\S]*?\/api\/events[\s\S]*?```/gi, '');
+  out = out.replace(/^\s*\*?\*?Mission ID:?\*?\*?\s*\S+\s*\n+/gim, '');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
+}
+
+const TELEGRAM_MESSAGE_LIMIT = 3800;
+
+function chunkForTelegram(text: string, limit = TELEGRAM_MESSAGE_LIMIT): string[] {
+  if (!text) return [];
+  if (text.length <= limit) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > limit) {
+    let cut = remaining.lastIndexOf('\n', limit);
+    if (cut < limit * 0.5) cut = limit;
+    chunks.push(remaining.slice(0, cut).trimEnd());
+    remaining = remaining.slice(cut).trimStart();
+  }
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  minimax: 'MiniMax',
+  zai: 'Z.AI GLM',
+  'z.ai': 'Z.AI GLM',
+  glm: 'Z.AI GLM',
+  claude: 'Claude',
+  codex: 'Codex'
+};
+
+function humanizeProviderLabel(label: string): string {
+  const key = label.trim().toLowerCase();
+  return PROVIDER_DISPLAY_NAMES[key] || label;
+}
+
+function providerLabelFrom(event: DeliverableRelayEvent): string {
+  const data = event.data;
+  if (data && typeof data === 'object') {
+    if (typeof data.providerLabel === 'string' && data.providerLabel) return data.providerLabel;
+    if (typeof data.provider === 'string' && data.provider) return data.provider;
+    if (typeof data.originalSource === 'string' && data.originalSource) return data.originalSource;
+  }
+  return event.source || event.taskName || 'provider';
+}
+
+function extractProviderResponse(event: DeliverableRelayEvent): { providerLabel: string; response: string } | null {
+  const data = event.data;
+  if (!data || typeof data !== 'object') return null;
+  const raw = typeof data.response === 'string' ? data.response : '';
+  const response = stripThinkingAndMeta(raw);
+  if (!response) return null;
+  return { providerLabel: providerLabelFrom(event), response };
+}
+
+function extractProviderFailure(event: DeliverableRelayEvent): { providerLabel: string; error: string } {
+  const data = event.data;
+  const error = data && typeof data === 'object' && typeof data.error === 'string' && data.error.trim()
+    ? data.error.trim()
+    : event.message?.trim() || 'unknown error';
+  return { providerLabel: providerLabelFrom(event), error };
+}
+
 function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
-  const signature = `${event.missionId}:${event.type}:${event.taskId || 'mission'}`;
+  const providerKey = typeof event.data?.provider === 'string' && event.data.provider
+    ? event.data.provider
+    : event.source || 'none';
+  const signature = `${event.missionId}:${event.type}:${event.taskId || 'mission'}:${providerKey}`;
   const now = Date.now();
   const previous = deliveryCache.get(signature);
   if (typeof previous === 'number' && now - previous < 30_000) {
@@ -290,11 +356,36 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
 
     try {
-      await bot.telegram.sendMessage(
-        Number(subscription.chatId),
-        formatRelayMessage(event, subscription, payload.summary)
-      );
-      writeJson(res, 200, { ok: true });
+      const chatId = Number(subscription.chatId);
+
+      if (event.type === 'task_completed') {
+        const extracted = extractProviderResponse(event);
+        if (!extracted) {
+          writeJson(res, 202, { ok: true, ignored: 'no_response_text' });
+          return;
+        }
+        const header = `${humanizeProviderLabel(extracted.providerLabel)} says:`;
+        const chunks = chunkForTelegram(`${header}\n\n${extracted.response}`);
+        for (let i = 0; i < chunks.length; i++) {
+          const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
+          await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
+        }
+        writeJson(res, 200, { ok: true, chunks: chunks.length });
+        return;
+      }
+
+      if (event.type === 'task_failed' || event.type === 'task_cancelled') {
+        const failure = extractProviderFailure(event);
+        const label = humanizeProviderLabel(failure.providerLabel);
+        await bot.telegram.sendMessage(
+          chatId,
+          `${label} couldn't finish this one — ${failure.error.slice(0, 500)}`
+        );
+        writeJson(res, 200, { ok: true });
+        return;
+      }
+
+      writeJson(res, 202, { ok: true, ignored: 'event_type_not_delivered' });
     } catch (error) {
       console.error('[MissionRelay] Failed to deliver Telegram update:', error);
       writeJson(res, 500, { ok: false, error: 'delivery_failed' });
