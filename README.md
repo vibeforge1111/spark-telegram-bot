@@ -120,8 +120,8 @@ In the current supported split architecture, only this repo should receive the
 Telegram bot token. Builder is the Spark runtime behind the gateway. Spawner UI
 is the execution plane behind the gateway.
 
-1. Copy `.env.example` to `.env`.
-2. Set `BOT_TOKEN`.
+1. Copy `.env.example` to `.env` for manual local development only.
+2. Set `BOT_TOKEN` locally; do not paste it into docs, command arguments, screenshots, or issue reports.
 3. Set `ADMIN_TELEGRAM_IDS`. Run `/myid` in the bot to get your numeric ID.
    The bot is private by default; non-admin users only get `/start` and `/myid`
    unless you add them to `ALLOWED_TELEGRAM_IDS` or explicitly set
@@ -155,4 +155,4 @@ Historical webhook/tunnel architecture notes were removed from the public launch
 - Memory and Spark intelligence can be offline without breaking the mission-control path.
 - `Spawner UI` is the source of truth for mission state.
 - Telegram is the summary and control surface, not a second workflow system.
-- This repo is the current production Telegram ingress owner. If Telegram ingress later moves into a hosted webhook gateway or `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.
+- This repo is the current production Telegram ingress owner. If Telegram ingress later moves into a hosted gateway or `spark-intelligence-builder`, that should happen by deliberate contract-parity migration, not by running both ingress paths at once.
