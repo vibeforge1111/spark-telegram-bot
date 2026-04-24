@@ -30,10 +30,19 @@ secrets = [
   "telegram.bot_token",
   "telegram.admin_ids",
   "telegram.webhook_secret",
+  "llm.zai.api_key",
+  "llm.openai.api_key",
+  "llm.anthropic.api_key",
 ]
 
 [claims]
-secrets = ["telegram.bot_token", "telegram.webhook_secret"]
+secrets = [
+  "telegram.bot_token",
+  "telegram.webhook_secret",
+  "llm.zai.api_key",
+  "llm.openai.api_key",
+  "llm.anthropic.api_key",
+]
 ports = [8443, 8788]
 routes = ["http.healthz", "http.spawner-events"]
 
@@ -54,6 +63,24 @@ prompt = "Telegram webhook secret token for webhook mode"
 required = false
 storage = "keychain"
 env_var = "TELEGRAM_WEBHOOK_SECRET"
+
+[secrets.llm_zai_api_key]
+prompt = "Z.AI API key for GLM coding endpoint"
+required = false
+storage = "keychain"
+env_var = "ZAI_API_KEY"
+
+[secrets.llm_openai_api_key]
+prompt = "OpenAI API key for Spark LLM gateway"
+required = false
+storage = "keychain"
+env_var = "OPENAI_API_KEY"
+
+[secrets.llm_anthropic_api_key]
+prompt = "Anthropic API key for Spark LLM gateway"
+required = false
+storage = "keychain"
+env_var = "ANTHROPIC_API_KEY"
 
 [run.default]
 command = "npm run dev"
