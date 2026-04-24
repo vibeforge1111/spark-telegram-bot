@@ -1,8 +1,13 @@
 import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
+import path from 'node:path';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { Telegraf } from 'telegraf';
+
+// Load .env.override LAST with override=true. Wins over anything spark-cli
+// rewrites in .env. Never committed (.gitignored).
+loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
 import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridge';
@@ -10,6 +15,7 @@ import { spark } from './spark';
 import { llm } from './llm';
 import { spawner } from './spawner';
 import { registerMissionRelay, startMissionRelay } from './missionRelay';
+import { buildDiagnoseReport } from './diagnose';
 import { enqueueTelegramUpdate, startTelegramInboxProcessor } from './telegramInbox';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
@@ -393,6 +399,20 @@ bot.command('status', async (ctx) => {
   await ctx.reply(status);
 });
 
+// /diagnose command — one-shot full-stack health + per-provider ping test
+bot.command('diagnose', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+  await ctx.sendChatAction('typing');
+  await ctx.reply('Running diagnostics — pings 4 providers, takes ~30s...');
+  try {
+    const report = await buildDiagnoseReport(ctx.from.id);
+    // Telegram limit is 4096 chars; diagnose is always well under.
+    await ctx.reply(report);
+  } catch (err: any) {
+    await ctx.reply(`Diagnose failed: ${err.message || err}`);
+  }
+});
+
 // /myid command - get your secure Telegram ID (for admin setup)
 bot.command('myid', async (ctx) => {
   const user = ctx.from;
@@ -742,6 +762,7 @@ bot.on(message('text'), async (ctx) => {
 
   try {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
       return;
