@@ -361,8 +361,7 @@ export function buildMissionSurfaceLinks(
   if (preference === 'none') return [];
   const links: string[] = [];
   if (preference === 'board' || preference === 'both') {
-    links.push(`Mission board/Kanban: ${baseUrl}/missions`);
-    links.push(`Mission detail: ${baseUrl}/missions/${encodeURIComponent(missionId)}`);
+    links.push(`Kanban: ${baseUrl}/kanban`);
   }
   if (preference === 'canvas' || preference === 'both') {
     links.push(`Canvas: ${baseUrl}/canvas`);

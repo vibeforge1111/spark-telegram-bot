@@ -65,15 +65,13 @@ test('supports human verbosity aliases', () => {
 test('builds mission surface links from user preference', () => {
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:5173'), []);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:5173'), [
-    'Mission board/Kanban: http://127.0.0.1:5173/missions',
-    'Mission detail: http://127.0.0.1:5173/missions/spark-123'
+    'Kanban: http://127.0.0.1:5173/kanban'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:5173'), [
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:5173'), [
-    'Mission board/Kanban: http://127.0.0.1:5173/missions',
-    'Mission detail: http://127.0.0.1:5173/missions/spark-123',
+    'Kanban: http://127.0.0.1:5173/kanban',
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
 });
