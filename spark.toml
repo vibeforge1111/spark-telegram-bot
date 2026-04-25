@@ -85,7 +85,7 @@ env_var = "ANTHROPIC_API_KEY"
 [run.default]
 command = "npm run dev"
 cwd = "."
-ready_check = "process"
+ready_check = "npm run health:polling"
 
 [healthcheck]
 command = "npm run health:polling"
