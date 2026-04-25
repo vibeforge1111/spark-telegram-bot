@@ -4,6 +4,7 @@ import {
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildDiagnosticFollowupTestReply,
+  buildExternalResearchGoal,
   buildLocalSparkServiceClarificationReply,
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
@@ -13,6 +14,7 @@ import {
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isAmbiguousLocalSparkServiceRequest,
+  isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
@@ -148,6 +150,22 @@ test('turns explicit contextual improvement requests into diagnostic integration
   assert.match(goal, /Improve the recently built Spark Diagnostic Agent/);
   assert.match(goal, /service discovery/);
   assert.match(goal, /no secret printing/);
+});
+
+test('detects public GitHub inspection requests for agent access routing', () => {
+  assert.equal(
+    isExternalResearchRequest('https://github.com/vibeforge1111/spark-character can you visit this'),
+    true
+  );
+  assert.equal(isExternalResearchRequest('I like this repo idea but no link yet'), false);
+
+  const goal = buildExternalResearchGoal(
+    'https://github.com/vibeforge1111/spark-character can you visit this',
+    ['we were talking about Spark character self-improvement']
+  );
+  assert.match(goal, /Inspect the public GitHub\/web target/);
+  assert.match(goal, /Do not print secrets/);
+  assert.match(goal, /spark-character/);
 });
 
 test('parses natural mission update preferences', () => {

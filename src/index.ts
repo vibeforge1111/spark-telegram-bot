@@ -16,6 +16,14 @@ import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import {
+  describeSparkAccessProfile,
+  getSparkAccessProfile,
+  normalizeSparkAccessProfile,
+  renderSparkAccessStatus,
+  setSparkAccessProfile,
+  sparkAccessAllowsExternalResearch
+} from './accessPolicy';
+import {
   describeTelegramMissionLinkPreference,
   describeTelegramRelayVerbosity,
   getTelegramMissionLinkPreference,
@@ -35,6 +43,7 @@ import {
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildDiagnosticFollowupTestReply,
+  buildExternalResearchGoal,
   buildLocalSparkServiceClarificationReply,
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
@@ -44,6 +53,7 @@ import {
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isAmbiguousLocalSparkServiceRequest,
+  isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
@@ -194,6 +204,7 @@ bot.start(async (ctx) => {
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
+      '/access <chat|builder|agent|developer> - Choose how much tool access Spark has in this chat',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
     );
   }
@@ -808,6 +819,27 @@ bot.command('updates', async (ctx) => {
   await ctx.reply(`Live mission updates set to ${next}.\n${describeTelegramRelayVerbosity(next)}`);
 });
 
+bot.command('access', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/access', '').trim();
+  const current = await getSparkAccessProfile(ctx.chat.id);
+  if (!raw || raw.toLowerCase() === 'status') {
+    await ctx.reply(renderSparkAccessStatus(current));
+    return;
+  }
+
+  const next = normalizeSparkAccessProfile(raw);
+  if (!next) {
+    await ctx.reply('Choose one of: /access chat, /access builder, /access agent, or /access developer.');
+    return;
+  }
+
+  await setSparkAccessProfile(ctx.chat.id, next);
+  await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
+  await ctx.reply(renderSparkAccessStatus(next));
+});
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -906,6 +938,25 @@ bot.on(message('text'), async (ctx) => {
         }
         return;
       }
+    }
+
+    if (isExternalResearchRequest(text)) {
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      if (!sparkAccessAllowsExternalResearch(accessProfile)) {
+        await ctx.reply(
+          [
+            `I can inspect public GitHub/web targets through a Spawner mission, but this chat is in ${accessProfile} access right now.`,
+            'Switch it with `/access agent` for public research/repo inspection, or `/access developer` when you also want workspace build permissions.'
+          ].join('\n')
+        );
+        return;
+      }
+      await conversation.remember(user, text).catch(() => {});
+      const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [MISSION_DEFAULT_PROVIDER]);
+      if (missionId) {
+        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
+      }
+      return;
     }
 
     const inferredMissionGoal = inferMissionGoalFromRecentContext(text, recentMessages);

@@ -248,6 +248,35 @@ export function buildContextualImprovementGoal(currentText: string, recentMessag
   return null;
 }
 
+export function isExternalResearchRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const hasExternalTarget =
+    /https?:\/\/(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+/i.test(text) ||
+    /\bgithub\.com\/[\w.-]+\/[\w.-]+\b/i.test(text) ||
+    /\b[\w.-]+\/[\w.-]+\b/.test(normalized) && /\b(?:github|repo|repository)\b/.test(normalized);
+  if (!hasExternalTarget) return false;
+
+  return /\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|browse|pull up|can you)\b/i.test(text);
+}
+
+export function buildExternalResearchGoal(currentText: string, recentMessages: string[]): string {
+  const context = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .slice(-6)
+    .join('\n');
+
+  return [
+    'Inspect the public GitHub/web target the user just shared and report back in Telegram-friendly language.',
+    'Use only public information unless credentials are already configured by the local user. Do not print secrets or environment values.',
+    'If it is a Spark ecosystem repo, summarize what it does, how it connects to Spark, whether it should be installed or wired into the starter stack, and what tests or manifests are missing.',
+    'If direct network access fails, explain the failure and suggest the safest next check.',
+    context ? `Recent Telegram context:\n${context}` : null,
+    `User request:\n${currentText}`
+  ].filter(Boolean).join('\n\n');
+}
+
 export interface MissionUpdatePreferenceIntent {
   verbosity?: 'minimal' | 'normal' | 'verbose';
   links?: 'none' | 'board' | 'canvas' | 'both';
