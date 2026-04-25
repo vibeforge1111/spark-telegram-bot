@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { codexExecArgs, isCodexProvider } from '../src/llm';
+import { buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -29,4 +29,26 @@ test('builds Codex exec args for non-git Spark workspaces', () => {
     '/tmp/last-message.txt',
     '-',
   ]);
+});
+
+test('system prompt teaches fresh Spark installs their ecosystem', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /What Spark can do in this install/);
+  assert.match(prompt, /Telegram chat/);
+  assert.match(prompt, /Builder/);
+  assert.match(prompt, /domain-chip-memory/);
+  assert.match(prompt, /Spark Researcher/);
+  assert.match(prompt, /Spawner UI/);
+  assert.match(prompt, /\/remember <text>/);
+  assert.match(prompt, /Not a generic assistant/);
+});
+
+test('system prompt includes memory and conversation context when provided', () => {
+  const prompt = buildSparkChatSystemPrompt('Last turn: we discussed onboarding.', 'User likes concise warm replies.');
+
+  assert.match(prompt, /## What I remember/);
+  assert.match(prompt, /User likes concise warm replies/);
+  assert.match(prompt, /## Where we left off/);
+  assert.match(prompt, /we discussed onboarding/);
 });
