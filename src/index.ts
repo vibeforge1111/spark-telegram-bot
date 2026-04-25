@@ -940,12 +940,7 @@ async function start() {
   }
 
   await ensurePollingReady();
-  void bot.launch().catch((err) => {
-    pollingActive = false;
-    void releaseGatewayOwnership();
-    console.error('Failed to start bot:', err);
-    process.exit(1);
-  });
+  await bot.launch();
   pollingActive = true;
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
 }
