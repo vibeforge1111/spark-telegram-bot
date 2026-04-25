@@ -30,6 +30,7 @@ import {
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
   isLowInformationLlmReply,
+  shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import axios from 'axios';
@@ -853,11 +854,11 @@ bot.on(message('text'), async (ctx) => {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      if (!isLowInformationLlmReply(builderReply.responseText)) {
+      if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText)) {
         await ctx.reply(builderReply.responseText);
         return;
       }
-      console.warn(`[Bridge] ignored low-information Builder reply routing=${builderReply.routingDecision}`);
+      console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);
     }
 
     // Store the message as a memory

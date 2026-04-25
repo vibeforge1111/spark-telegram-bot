@@ -55,16 +55,35 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized === 'working memory' ||
     normalized === 'nothing active' ||
     normalized === 'no concrete guidance' ||
+    normalized === 'spark researcher returned no concrete guidance for this message.' ||
     normalized === 'what would you like help with?' ||
     normalized === 'how can i help?' ||
     normalized === 'how can i help you?' ||
     normalized === "i'm here, but i couldn't generate a response right now." ||
     normalized === "i'm having trouble thinking right now. try again in a moment." ||
     normalized.includes('working memory') ||
+    normalized.includes('returned no concrete guidance') ||
     normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking')
   );
+}
+
+export function isMemoryAcknowledgementReply(reply: string): boolean {
+  const normalized = reply.trim().toLowerCase();
+  return (
+    /^noted\s*[:.]/i.test(reply.trim()) ||
+    /^saved\s*[:.]/i.test(reply.trim()) ||
+    /^remembered\s*[:.]/i.test(reply.trim()) ||
+    normalized.startsWith('i have saved memory about ') ||
+    normalized.startsWith('saved memory about ') ||
+    normalized.startsWith('memory saved') ||
+    normalized.startsWith('got it, i will remember')
+  );
+}
+
+export function shouldSuppressBuilderReplyForPlainChat(reply: string): boolean {
+  return isLowInformationLlmReply(reply) || isMemoryAcknowledgementReply(reply);
 }
 
 export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {

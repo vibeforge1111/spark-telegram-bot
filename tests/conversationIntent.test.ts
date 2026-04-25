@@ -3,7 +3,9 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
+  isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
 
@@ -57,9 +59,24 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply(''), true);
   assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
   assert.equal(isLowInformationLlmReply('Working Memory'), true);
+  assert.equal(isLowInformationLlmReply('Spark Researcher returned no concrete guidance for this message.'), true);
   assert.equal(isLowInformationLlmReply('What would you like help with?'), true);
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
   assert.equal(isLowInformationLlmReply('Here is a real idea.'), false);
+});
+
+test('suppresses memory acknowledgements for normal chat replies', () => {
+  assert.equal(isMemoryAcknowledgementReply('Noted: "yes i was wondering how is the chat with you"'), true);
+  assert.equal(
+    isMemoryAcknowledgementReply('I have saved memory about preferred Spark reply style: "concise but warm"'),
+    true
+  );
+  assert.equal(shouldSuppressBuilderReplyForPlainChat('Noted: "yes i was wondering how is the chat with you"'), true);
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat('Spark Researcher returned no concrete guidance for this message.'),
+    true
+  );
+  assert.equal(shouldSuppressBuilderReplyForPlainChat('I am doing well. The chat is working normally.'), false);
 });
 
 test('memory fallback does not claim a no-op save succeeded', () => {
