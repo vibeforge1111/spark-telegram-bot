@@ -186,6 +186,9 @@ async function loadRegistry(): Promise<void> {
     }
     for (const entry of entries) {
       if (entry?.missionId && entry.chatId) {
+        if (!subscriptionBelongsToThisRelay(entry)) {
+          continue;
+        }
         registry.set(entry.missionId, entry);
       }
     }
@@ -210,8 +213,23 @@ async function persistRegistry(): Promise<void> {
 
 export async function registerMissionRelay(input: MissionSubscription): Promise<void> {
   await loadRegistry();
-  registry.set(input.missionId, input);
+  const subscription = {
+    ...input,
+    relayPort: input.relayPort || getRelayPort(),
+    relayProfile: input.relayProfile || getRelayProfile()
+  };
+  registry.set(input.missionId, subscription);
   await persistRegistry();
+}
+
+function subscriptionBelongsToThisRelay(entry: MissionSubscription): boolean {
+  if (entry.relayPort !== undefined && entry.relayPort !== getRelayPort()) {
+    return false;
+  }
+  if (entry.relayProfile !== undefined && entry.relayProfile !== getRelayProfile()) {
+    return false;
+  }
+  return true;
 }
 
 function shouldDeliverEvent(event: RelayWebhookPayload['event']): event is DeliverableRelayEvent {
