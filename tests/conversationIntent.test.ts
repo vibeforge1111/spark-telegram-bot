@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { buildIdeationSystemHint, shouldPreferConversationalIdeation } from '../src/conversationIntent';
+import {
+  buildIdeationFallbackReply,
+  buildIdeationSystemHint,
+  isLowInformationLlmReply,
+  shouldPreferConversationalIdeation
+} from '../src/conversationIntent';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -29,6 +34,15 @@ test('keeps explicit build specs on the build path', () => {
   );
 });
 
+test('keeps mission-control product refinement in conversation', () => {
+  assert.equal(
+    shouldPreferConversationalIdeation(
+      'Solo first. I like Mission Control Dashboard, but make it more playful and game-like, not just tasks. Maybe it should turn daily goals into little missions with status, energy, streaks, and a launch sequence. What would the first version be?'
+    ),
+    true
+  );
+});
+
 test('adds domain chip guidance for chip ideation', () => {
   const hint = buildIdeationSystemHint(
     'I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'
@@ -36,4 +50,22 @@ test('adds domain chip guidance for chip ideation', () => {
 
   assert.match(hint, /advanced Spark domain chip/);
   assert.match(hint, /Do not start a build/);
+});
+
+test('detects empty or generic LLM failures', () => {
+  assert.equal(isLowInformationLlmReply(''), true);
+  assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
+  assert.equal(isLowInformationLlmReply('Working Memory'), true);
+  assert.equal(isLowInformationLlmReply('Nothing active'), true);
+  assert.equal(isLowInformationLlmReply('Here is a real idea.'), false);
+});
+
+test('provides a conversational fallback for mission dashboard refinement', () => {
+  const reply = buildIdeationFallbackReply(
+    'Solo first. I like Mission Control Dashboard, but make it more playful and game-like, not just tasks. What would the first version be?'
+  );
+
+  assert.match(reply, /daily command center/);
+  assert.match(reply, /not a task list/);
+  assert.doesNotMatch(reply, /Nothing active/);
 });

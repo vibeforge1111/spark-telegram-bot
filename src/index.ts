@@ -25,7 +25,12 @@ import {
 } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { parseBuildIntent } from './buildIntent';
-import { buildIdeationSystemHint, shouldPreferConversationalIdeation } from './conversationIntent';
+import {
+  buildIdeationFallbackReply,
+  buildIdeationSystemHint,
+  isLowInformationLlmReply,
+  shouldPreferConversationalIdeation
+} from './conversationIntent';
 import axios from 'axios';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
@@ -88,7 +93,10 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   if (!builderReply.used || builderReply.bridgeMode === 'bridge_error') {
     return false;
   }
-  await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
+  if (isLowInformationLlmReply(builderReply.responseText)) {
+    return false;
+  }
+  await ctx.reply(builderReply.responseText);
   return true;
 }
 
@@ -482,7 +490,7 @@ async function handleBuildIntent(
 ): Promise<void> {
   await ctx.sendChatAction('typing');
 
-  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:4174';
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
   const chatId = Number(ctx.chat.id);
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
 
@@ -825,10 +833,14 @@ bot.on(message('text'), async (ctx) => {
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
     if (shouldPreferConversationalIdeation(text)) {
+      console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await ctx.sendChatAction('typing');
       await conversation.remember(user, text).catch(() => {});
       const memories = await conversation.getContext(user, text);
-      const response = await llm.chat(text, buildIdeationSystemHint(text), memories);
+      const llmResponse = await llm.chat(text, buildIdeationSystemHint(text), memories);
+      const response = isLowInformationLlmReply(llmResponse)
+        ? buildIdeationFallbackReply(text)
+        : llmResponse;
       await ctx.reply(response);
       return;
     }
@@ -861,8 +873,11 @@ bot.on(message('text'), async (ctx) => {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      await ctx.reply(builderReply.responseText || "I'm here, but I couldn't generate a Builder reply right now.");
-      return;
+      if (!isLowInformationLlmReply(builderReply.responseText)) {
+        await ctx.reply(builderReply.responseText);
+        return;
+      }
+      console.warn(`[Bridge] ignored low-information Builder reply routing=${builderReply.routingDecision}`);
     }
 
     // Store the message as a memory

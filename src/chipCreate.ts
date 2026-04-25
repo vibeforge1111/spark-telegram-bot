@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -30,13 +31,13 @@ function resolveConfig(): ChipCreateConfig {
     pythonCommand: (process.env.SPARK_BUILDER_PYTHON || 'python').trim() || 'python',
     builderRepo,
     builderHome: path.resolve(
-      process.env.SPARK_BUILDER_HOME || path.join(builderRepo, '.tmp-home-live-telegram-real')
+      process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
     outputDir: path.resolve(
-      process.env.CHIP_CREATE_OUTPUT_DIR || 'C:/Users/USER/Desktop'
+      process.env.CHIP_CREATE_OUTPUT_DIR || path.join(os.homedir(), '.spark', 'chips')
     ),
     chipLabsRoot: path.resolve(
-      process.env.CHIP_LABS_ROOT || 'C:/Users/USER/Desktop/spark-domain-chip-labs'
+      process.env.CHIP_LABS_ROOT || path.join(os.homedir(), '.spark', 'domain-chip-labs')
     ),
     timeoutMs: Number.parseInt(process.env.CHIP_CREATE_TIMEOUT_MS || '180000', 10) || 180000,
   };

@@ -50,7 +50,7 @@ function resolveBridgeConfig(): BuilderBridgeConfig {
     pythonCommand: (process.env.SPARK_BUILDER_PYTHON || 'python').trim() || 'python',
     builderRepo,
     builderHome: path.resolve(
-      process.env.SPARK_BUILDER_HOME || path.join(builderRepo, '.tmp-home-live-telegram-real')
+      process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
     timeoutMs: Number.parseInt(process.env.SPARK_BUILDER_TIMEOUT_MS || '45000', 10) || 45000,
   };

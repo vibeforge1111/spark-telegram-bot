@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:4174';
+const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 
@@ -51,7 +52,7 @@ export const spawner = {
           chatId: input.chatId,
           userId: input.userId,
           requestId: input.requestId,
-          projectPath: 'C:/Users/USER/Desktop',
+          ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {})
         },

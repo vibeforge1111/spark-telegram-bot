@@ -21,6 +21,7 @@ interface ZaiChatResponse {
   choices?: Array<{
     message?: {
       content?: string;
+      reasoning_content?: string;
     };
   }>;
 }
@@ -84,7 +85,8 @@ Keep responses brief (1-3 sentences) unless the user asks for detail.`;
               { role: 'user', content: userMessage }
             ],
             temperature: 0.7,
-            max_tokens: 256
+            max_tokens: 384,
+            thinking: { type: 'disabled' }
           },
           {
             timeout: 60000,
@@ -96,7 +98,8 @@ Keep responses brief (1-3 sentences) unless the user asks for detail.`;
         );
 
         const content = res.data.choices?.[0]?.message?.content?.trim();
-        return content || "I'm here, but I couldn't generate a response right now.";
+        const reasoningContent = res.data.choices?.[0]?.message?.reasoning_content?.trim();
+        return content || reasoningContent || "I'm here, but I couldn't generate a response right now.";
       }
 
       const res = await axios.post<OllamaResponse>(

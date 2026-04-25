@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -34,7 +35,7 @@ function resolveConfig(): LoopConfig {
     pythonCommand: (process.env.SPARK_BUILDER_PYTHON || 'python').trim() || 'python',
     builderRepo,
     builderHome: path.resolve(
-      process.env.SPARK_BUILDER_HOME || path.join(builderRepo, '.tmp-home-live-telegram-real')
+      process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
     timeoutMs: Number.parseInt(process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
   };

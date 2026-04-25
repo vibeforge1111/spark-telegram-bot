@@ -112,7 +112,7 @@ Bridge env:
 - `SPARK_BUILDER_PYTHON`
 - `SPARK_BUILDER_TIMEOUT_MS`
 
-Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and its `.tmp-home-live-telegram-real` home. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
 Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 

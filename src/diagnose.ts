@@ -4,7 +4,7 @@
 
 import axios from 'axios';
 
-const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:4174';
+const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL || 'http://127.0.0.1:8790';
 const BOT_DEFAULT_PROVIDER = (process.env.BOT_DEFAULT_PROVIDER || 'codex').toLowerCase();
 
@@ -73,7 +73,7 @@ async function getSibChipState(): Promise<{ activeChips: string[]; pinnedChips: 
   // cheaper if available. We just probe via the ask-telegram result metadata.
   try {
     const res = await axios.post(
-      'http://127.0.0.1:4174/api/spark/run',
+      'http://127.0.0.1:5173/api/spark/run',
       {
         goal: 'ping',
         chatId: 'diag',
@@ -105,7 +105,7 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
 
   lines.push('Services');
   lines.push(`• Bot mission relay (:8788): ${botRelay.ok ? '✅' : `❌ ${botRelay.err || botRelay.status}`}`);
-  lines.push(`• Spawner UI (:4174): ${spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`}`);
+  lines.push(`• Spawner UI (:5173): ${spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`}`);
   lines.push(`• Codex shim (:8790): ${shimHealth.ok ? '✅' : `❌ ${shimHealth.err || shimHealth.status}`}`);
   lines.push('');
 
