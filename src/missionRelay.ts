@@ -28,6 +28,8 @@ interface MissionSubscription {
   requestId: string;
   goal: string;
   createdAt: string;
+  relayPort?: number;
+  relayProfile?: string;
   updateId?: number;
 }
 
@@ -79,6 +81,47 @@ function getRelayPort(): number {
 
 function getRelaySecret(): string | null {
 	return requireRelaySecret();
+}
+
+function getRelayProfile(): string {
+  return process.env.SPARK_TELEGRAM_PROFILE?.trim() || 'default';
+}
+
+function normalizeRelayPort(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+  }
+  return null;
+}
+
+function relayTargetFromEvent(event: DeliverableRelayEvent): { port: number | null; profile: string | null } {
+  const data = event.data;
+  if (!data || typeof data !== 'object') {
+    return { port: null, profile: null };
+  }
+
+  const nested = data.telegramRelay && typeof data.telegramRelay === 'object'
+    ? data.telegramRelay as Record<string, unknown>
+    : null;
+  const port = normalizeRelayPort(nested?.port ?? data.telegramRelayPort);
+  const profileRaw = nested?.profile ?? data.telegramRelayProfile;
+  const profile = typeof profileRaw === 'string' && profileRaw.trim() ? profileRaw.trim() : null;
+  return { port, profile };
+}
+
+export function shouldAcceptRelayEventForThisBot(event: DeliverableRelayEvent): boolean {
+  const target = relayTargetFromEvent(event);
+  if (target.port !== null && target.port !== getRelayPort()) {
+    return false;
+  }
+  if (target.profile !== null && target.profile !== getRelayProfile()) {
+    return false;
+  }
+  return true;
 }
 
 export function normalizeTelegramRelayVerbosity(value: unknown): TelegramRelayVerbosity | null {
@@ -566,7 +609,9 @@ async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise
     userId: typeof data.userId === 'string' && data.userId.trim() ? data.userId.trim() : 'telegram',
     requestId: typeof data.requestId === 'string' && data.requestId.trim() ? data.requestId.trim() : event.missionId,
     goal: typeof data.goal === 'string' && data.goal.trim() ? data.goal.trim() : event.message || event.missionId,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    relayPort: relayTargetFromEvent(event).port || undefined,
+    relayProfile: relayTargetFromEvent(event).profile || undefined
   });
 }
 
@@ -713,6 +758,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     const event = payload?.event;
     if (!payload || !shouldDeliverEvent(event)) {
       writeJson(res, 400, { ok: false, error: 'invalid_event' });
+      return;
+    }
+
+    if (!shouldAcceptRelayEventForThisBot(event)) {
+      writeJson(res, 202, { ok: true, ignored: 'foreign_relay_target' });
       return;
     }
 

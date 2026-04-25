@@ -45,6 +45,7 @@ export const spawner = {
 
   async runGoal(input: RunGoalInput): Promise<RunGoalResult> {
     try {
+      const relayPort = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
       const res = await axios.post(
         `${SPAWNER_UI_URL}/api/spark/run`,
         {
@@ -52,6 +53,10 @@ export const spawner = {
           chatId: input.chatId,
           userId: input.userId,
           requestId: input.requestId,
+          telegramRelay: {
+            port: Number.isFinite(relayPort) && relayPort > 0 ? relayPort : 8788,
+            profile: process.env.SPARK_TELEGRAM_PROFILE?.trim() || 'default'
+          },
           ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {})

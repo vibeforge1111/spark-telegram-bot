@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   formatProviderCompletionForTelegram,
-  normalizeTelegramRelayVerbosity
+  normalizeTelegramRelayVerbosity,
+  shouldAcceptRelayEventForThisBot
 } from '../src/missionRelay';
 
 function test(name: string, fn: () => void): void {
@@ -50,4 +51,29 @@ test('supports human verbosity aliases', () => {
   assert.equal(normalizeTelegramRelayVerbosity('bare bones'), 'minimal');
   assert.equal(normalizeTelegramRelayVerbosity('default'), 'normal');
   assert.equal(normalizeTelegramRelayVerbosity('full'), 'verbose');
+});
+
+test('ignores mission relay events targeted at another Telegram profile', () => {
+  const originalPort = process.env.TELEGRAM_RELAY_PORT;
+  const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+  process.env.TELEGRAM_RELAY_PORT = '8788';
+  process.env.SPARK_TELEGRAM_PROFILE = '';
+
+  try {
+    assert.equal(shouldAcceptRelayEventForThisBot({
+      type: 'mission_started',
+      missionId: 'spark-1',
+      data: { telegramRelay: { port: 8789, profile: 'spark-agi' } }
+    }), false);
+    assert.equal(shouldAcceptRelayEventForThisBot({
+      type: 'mission_started',
+      missionId: 'spark-1',
+      data: { telegramRelay: { port: 8788, profile: 'default' } }
+    }), true);
+  } finally {
+    if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+    else process.env.TELEGRAM_RELAY_PORT = originalPort;
+    if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+    else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+  }
 });
