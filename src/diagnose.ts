@@ -134,7 +134,8 @@ async function pingProvider(providerId: string): Promise<PingResult> {
         userId: 'diag',
         requestId: `diag-${providerId}-${started}`,
         providers: [providerId],
-        promptMode: 'simple'
+        promptMode: 'simple',
+        suppressRelay: true
       },
       { timeout: 10000 }
     );
