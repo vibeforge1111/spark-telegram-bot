@@ -8,7 +8,7 @@
     "dev": "ts-node src/index.ts",
     "build": "tsc",
     "health:polling": "ts-node src/healthPolling.ts",
-    "test": "ts-node tests/launchMode.test.ts && ts-node tests/buildIntent.test.ts && ts-node tests/conversationIntent.test.ts && ts-node tests/missionRelayFormatting.test.ts"
+    "test": "ts-node tests/launchMode.test.ts && ts-node tests/buildIntent.test.ts && ts-node tests/conversationIntent.test.ts && ts-node tests/missionRelayFormatting.test.ts && ts-node tests/llmProvider.test.ts"
   },
   "keywords": [
     "telegram",

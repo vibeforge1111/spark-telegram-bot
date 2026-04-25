@@ -1,5 +1,7 @@
 import axios from 'axios';
+import { spawn } from 'node:child_process';
 import { config as loadEnv } from 'dotenv';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -10,6 +12,8 @@ const ZAI_BASE_URL = process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/pa
 const ZAI_MODEL = process.env.ZAI_MODEL || 'glm-5.1';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const MODEL = process.env.OLLAMA_MODEL || 'kimi-k2.5:cloud';
+const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || process.env.OPENAI_MODEL || 'gpt-5.5';
+const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
 
 interface OllamaResponse {
   model: string;
@@ -30,11 +34,91 @@ function joinUrl(baseUrl: string, pathName: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${pathName.replace(/^\/+/, '')}`;
 }
 
+export function isCodexProvider(value: string | undefined = process.env.LLM_PROVIDER || process.env.SPARK_LLM_PROVIDER): boolean {
+  return (value || '').trim().toLowerCase() === 'codex';
+}
+
+export function codexExecArgs(model: string, outputPath: string): string[] {
+  return [
+    'exec',
+    '--skip-git-repo-check',
+    '--model',
+    model,
+    '--sandbox',
+    'read-only',
+    '--output-last-message',
+    outputPath,
+    '-',
+  ];
+}
+
+function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env },
+    });
+    let stdout = '';
+    let stderr = '';
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      child.kill('SIGTERM');
+      resolve({ ok: false, stdout, stderr: `${stderr}\ncommand timed out after ${timeoutMs}ms`.trim() });
+    }, timeoutMs);
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve({ ok: false, stdout, stderr: error.message });
+    });
+    child.on('close', (code) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve({ ok: code === 0, stdout, stderr });
+    });
+    child.stdin?.end(input);
+  });
+}
+
+async function codexAvailable(): Promise<boolean> {
+  const result = await runProcess(CODEX_PATH, ['--version'], '', 5000);
+  return result.ok;
+}
+
+async function codexChat(prompt: string): Promise<string> {
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-chat-'));
+  const outputPath = path.join(tmpDir, 'last-message.txt');
+  try {
+    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, 120000);
+    if (!result.ok) {
+      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
+    }
+    const output = readFileSync(outputPath, 'utf-8').trim();
+    return output || "I'm here, but I couldn't generate a response right now.";
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 export const llm = {
   /**
    * Check if the configured LLM is available.
    */
   async isAvailable(): Promise<boolean> {
+    if (isCodexProvider()) {
+      return await codexAvailable();
+    }
+
     if (ZAI_API_KEY) {
       try {
         const res = await axios.get(joinUrl(ZAI_BASE_URL, '/models'), {
@@ -81,6 +165,10 @@ ${conversationHistory ? `## Where we left off\n${conversationHistory}` : ''}
 Keep responses brief (1-3 sentences) unless the user asks for detail.`;
 
     try {
+      if (isCodexProvider()) {
+        return await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`);
+      }
+
       if (ZAI_API_KEY) {
         const res = await axios.post<ZaiChatResponse>(
           joinUrl(ZAI_BASE_URL, '/chat/completions'),
