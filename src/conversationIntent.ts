@@ -248,6 +248,39 @@ export function buildContextualImprovementGoal(currentText: string, recentMessag
   return null;
 }
 
+export interface MissionUpdatePreferenceIntent {
+  verbosity?: 'minimal' | 'normal' | 'verbose';
+  links?: 'none' | 'board' | 'canvas' | 'both';
+}
+
+export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
+  const normalized = text.trim().toLowerCase();
+  if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
+    return null;
+  }
+
+  const intent: MissionUpdatePreferenceIntent = {};
+  if (/\b(?:verbose|detailed|all updates|everything|frequent)\b/.test(normalized)) {
+    intent.verbosity = 'verbose';
+  } else if (/\b(?:only\s+)?(?:start\s+and\s+end|start\s+\/\s+end|beginning\s+and\s+end|minimal|quiet|less noisy)\b/.test(normalized)) {
+    intent.verbosity = 'minimal';
+  } else if (/\b(?:middle\s+too|progress\s+too|normal|standard)\b/.test(normalized)) {
+    intent.verbosity = 'normal';
+  }
+
+  if (/\b(?:no links?|without links?|telegram only|don'?t send links?|do not send links?)\b/.test(normalized)) {
+    intent.links = 'none';
+  } else if (/\b(?:(?:board|kanban)\s+and\s+canvas|canvas\s+and\s+(?:board|kanban)|both links?|both)\b/.test(normalized)) {
+    intent.links = 'both';
+  } else if (/\b(?:canvas link|include canvas|show canvas|open canvas|canvas too)\b/.test(normalized)) {
+    intent.links = 'canvas';
+  } else if (/\b(?:mission board link|board link|kanban link|include board|include kanban|show board|show kanban|spawner link|mission control link)\b/.test(normalized)) {
+    intent.links = 'board';
+  }
+
+  return intent.verbosity || intent.links ? intent : null;
+}
+
 export function buildIdeationSystemHint(text: string): string {
   const domainChip = /\bdomain\s*chip\b/i.test(text);
   const missionControl = /\bmission\s+control\b/i.test(text);

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
+  buildMissionSurfaceLinks,
   formatProviderCompletionForTelegram,
+  normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   shouldAcceptRelayEventForThisBot
 } from '../src/missionRelay';
@@ -51,6 +53,28 @@ test('supports human verbosity aliases', () => {
   assert.equal(normalizeTelegramRelayVerbosity('bare bones'), 'minimal');
   assert.equal(normalizeTelegramRelayVerbosity('default'), 'normal');
   assert.equal(normalizeTelegramRelayVerbosity('full'), 'verbose');
+  assert.equal(normalizeTelegramMissionLinkPreference('telegram only'), 'none');
+  assert.equal(normalizeTelegramMissionLinkPreference('mission board'), 'board');
+  assert.equal(normalizeTelegramMissionLinkPreference('kanban'), 'board');
+  assert.equal(normalizeTelegramMissionLinkPreference('canvas'), 'canvas');
+  assert.equal(normalizeTelegramMissionLinkPreference('board and canvas'), 'both');
+  assert.equal(normalizeTelegramMissionLinkPreference('kanban and canvas'), 'both');
+});
+
+test('builds mission surface links from user preference', () => {
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:5173'), []);
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:5173'), [
+    'Mission board/Kanban: http://127.0.0.1:5173/missions',
+    'Mission detail: http://127.0.0.1:5173/missions/spark-123'
+  ]);
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:5173'), [
+    'Canvas: http://127.0.0.1:5173/canvas'
+  ]);
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:5173'), [
+    'Mission board/Kanban: http://127.0.0.1:5173/missions',
+    'Mission detail: http://127.0.0.1:5173/missions/spark-123',
+    'Canvas: http://127.0.0.1:5173/canvas'
+  ]);
 });
 
 test('ignores mission relay events targeted at another Telegram profile', () => {

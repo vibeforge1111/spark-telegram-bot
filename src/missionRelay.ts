@@ -35,9 +35,11 @@ interface MissionSubscription {
 }
 
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
+export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
 
 interface TelegramRelayPreferences {
   relayVerbosityByChatId?: Record<string, TelegramRelayVerbosity>;
+  missionLinksByChatId?: Record<string, TelegramMissionLinkPreference>;
 }
 
 interface RelayWebhookPayload {
@@ -138,6 +140,22 @@ function defaultRelayVerbosity(): TelegramRelayVerbosity {
   return normalizeTelegramRelayVerbosity(process.env.TELEGRAM_RELAY_VERBOSITY) || 'normal';
 }
 
+export function normalizeTelegramMissionLinkPreference(value: unknown): TelegramMissionLinkPreference | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (['none', 'off', 'no', 'nolinks', 'telegramonly'].includes(normalized)) return 'none';
+  if (['board', 'missionboard', 'missions', 'kanban', 'missionkanban'].includes(normalized)) return 'board';
+  if (['canvas', 'visual', 'visualcanvas'].includes(normalized)) return 'canvas';
+  if (
+    ['both', 'all', 'boardcanvas', 'canvasboard', 'boardandcanvas', 'canvasandboard', 'kanbancanvas', 'canvaskanban', 'kanbanandcanvas', 'canvasandkanban'].includes(normalized)
+  ) return 'both';
+  return null;
+}
+
+function defaultMissionLinkPreference(): TelegramMissionLinkPreference {
+  return normalizeTelegramMissionLinkPreference(process.env.TELEGRAM_MISSION_LINKS) || 'board';
+}
+
 async function readTelegramRelayPreferences(): Promise<TelegramRelayPreferences> {
   return (await readJsonFile<TelegramRelayPreferences>(PREFERENCES_PATH)) || {};
 }
@@ -146,6 +164,12 @@ export async function getTelegramRelayVerbosity(chatId: string | number): Promis
   const preferences = await readTelegramRelayPreferences();
   const configured = preferences.relayVerbosityByChatId?.[String(chatId)];
   return normalizeTelegramRelayVerbosity(configured) || defaultRelayVerbosity();
+}
+
+export async function getTelegramMissionLinkPreference(chatId: string | number): Promise<TelegramMissionLinkPreference> {
+  const preferences = await readTelegramRelayPreferences();
+  const configured = preferences.missionLinksByChatId?.[String(chatId)];
+  return normalizeTelegramMissionLinkPreference(configured) || defaultMissionLinkPreference();
 }
 
 export async function setTelegramRelayVerbosity(
@@ -162,6 +186,20 @@ export async function setTelegramRelayVerbosity(
   });
 }
 
+export async function setTelegramMissionLinkPreference(
+  chatId: string | number,
+  preference: TelegramMissionLinkPreference
+): Promise<void> {
+  const preferences = await readTelegramRelayPreferences();
+  await writeJsonAtomic(PREFERENCES_PATH, {
+    ...preferences,
+    missionLinksByChatId: {
+      ...(preferences.missionLinksByChatId || {}),
+      [String(chatId)]: preference
+    }
+  });
+}
+
 export function describeTelegramRelayVerbosity(verbosity: TelegramRelayVerbosity): string {
   switch (verbosity) {
     case 'minimal':
@@ -171,6 +209,20 @@ export function describeTelegramRelayVerbosity(verbosity: TelegramRelayVerbosity
     case 'normal':
     default:
       return 'Normal sends mission starts, task starts, readable completions, and failures.';
+  }
+}
+
+export function describeTelegramMissionLinkPreference(preference: TelegramMissionLinkPreference): string {
+  switch (preference) {
+    case 'none':
+      return 'No Spawner links are added to mission updates.';
+    case 'canvas':
+      return 'Mission updates include the Spawner canvas link.';
+    case 'both':
+      return 'Mission updates include both the Mission board/Kanban and canvas links.';
+    case 'board':
+    default:
+      return 'Mission updates include the Mission board/Kanban link.';
   }
 }
 
@@ -287,6 +339,27 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   claude: 'Claude',
   codex: 'Codex'
 };
+
+function spawnerUiUrl(): string {
+  return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173').replace(/\/+$/, '');
+}
+
+export function buildMissionSurfaceLinks(
+  missionId: string,
+  preference: TelegramMissionLinkPreference,
+  baseUrl = spawnerUiUrl()
+): string[] {
+  if (preference === 'none') return [];
+  const links: string[] = [];
+  if (preference === 'board' || preference === 'both') {
+    links.push(`Mission board/Kanban: ${baseUrl}/missions`);
+    links.push(`Mission detail: ${baseUrl}/missions/${encodeURIComponent(missionId)}`);
+  }
+  if (preference === 'canvas' || preference === 'both') {
+    links.push(`Canvas: ${baseUrl}/canvas`);
+  }
+  return links;
+}
 
 function humanizeProviderLabel(label: string): string {
   const key = label.trim().toLowerCase();
@@ -494,24 +567,28 @@ function formatProgressMessage(
   event: DeliverableRelayEvent,
   subscription: MissionSubscription,
   verbosity: TelegramRelayVerbosity,
+  linkPreference: TelegramMissionLinkPreference,
   summary?: string
 ): string | null {
   if (!shouldDeliverProgressEvent(event, verbosity)) return null;
   const taskLabel = clipText(event.taskName || event.taskId || 'task', 120);
   const message = event.message || summary || '';
+  const links = buildMissionSurfaceLinks(event.missionId, linkPreference);
 
   switch (event.type) {
     case 'mission_created':
       return [
         'Spark picked up your request.',
         `Goal: ${clipText(subscription.goal, 260)}`,
-        `Mission: ${event.missionId}`
+        `Mission: ${event.missionId}`,
+        ...links
       ].join('\n');
     case 'mission_started':
       return [
         'Spark started the run.',
         verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
-        `Mission: ${event.missionId}`
+        `Mission: ${event.missionId}`,
+        ...links
       ].filter(Boolean).join('\n');
     case 'dispatch_started':
       return `Spark is assigning the work.\nMission: ${event.missionId}`;
@@ -527,12 +604,18 @@ function formatProgressMessage(
         `Mission: ${event.missionId}`
       ].filter(Boolean).join('\n');
     case 'mission_completed':
-      return `Mission completed.\nCheck the latest build summary above or open the canvas.\nMission: ${event.missionId}`;
+      return [
+        'Mission completed.',
+        links.length > 0 ? 'Open the mission surface below or check the latest build summary above.' : 'Check the latest build summary above.',
+        `Mission: ${event.missionId}`,
+        ...links
+      ].join('\n');
     case 'mission_failed':
       return [
         'Mission failed.',
         message ? clipText(message, 500) : null,
-        `Mission: ${event.missionId}`
+        `Mission: ${event.missionId}`,
+        ...links
       ].filter(Boolean).join('\n');
     default:
       return null;
@@ -829,6 +912,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     try {
       const chatId = Number(subscription.chatId);
       const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
+      const linkPreference = await getTelegramMissionLinkPreference(subscription.chatId);
 
       if (event.type === 'task_completed') {
         clearHeartbeatForMission(event.missionId);
@@ -873,7 +957,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }
 
-      const progressMessage = formatProgressMessage(event, subscription, verbosity, payload.summary);
+      const progressMessage = formatProgressMessage(event, subscription, verbosity, linkPreference, payload.summary);
       if (!progressMessage) {
         writeJson(res, 202, { ok: true, ignored: 'event_type_not_delivered' });
         return;

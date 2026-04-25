@@ -16,10 +16,14 @@ import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import {
+  describeTelegramMissionLinkPreference,
   describeTelegramRelayVerbosity,
+  getTelegramMissionLinkPreference,
   getTelegramRelayVerbosity,
+  normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   registerMissionRelay,
+  setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
   startMissionRelay
 } from './missionRelay';
@@ -43,6 +47,7 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseMissionUpdatePreferenceIntent,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
@@ -768,17 +773,34 @@ bot.command('updates', async (ctx) => {
   const raw = ctx.message.text.replace('/updates', '').trim();
   if (!raw) {
     const current = await getTelegramRelayVerbosity(ctx.chat.id);
+    const links = await getTelegramMissionLinkPreference(ctx.chat.id);
     await ctx.reply(
       `Live mission updates are set to ${current}.\n` +
-      `${describeTelegramRelayVerbosity(current)}\n\n` +
-      'Usage: /updates minimal | /updates normal | /updates verbose'
+      `${describeTelegramRelayVerbosity(current)}\n` +
+      `Mission links are set to ${links}.\n` +
+      `${describeTelegramMissionLinkPreference(links)}\n\n` +
+      'Usage:\n' +
+      '/updates minimal | /updates normal | /updates verbose\n' +
+      '/updates links none | kanban | canvas | both'
     );
+    return;
+  }
+
+  const linkMatch = raw.match(/^links?\s+(.+)$/i);
+  if (linkMatch) {
+    const nextLinks = normalizeTelegramMissionLinkPreference(linkMatch[1]);
+    if (!nextLinks) {
+      await ctx.reply('Choose one of: /updates links none, /updates links kanban, /updates links canvas, or /updates links both.');
+      return;
+    }
+    await setTelegramMissionLinkPreference(ctx.chat.id, nextLinks);
+    await ctx.reply(`Mission links set to ${nextLinks}.\n${describeTelegramMissionLinkPreference(nextLinks)}`);
     return;
   }
 
   const next = normalizeTelegramRelayVerbosity(raw);
   if (!next) {
-    await ctx.reply('Choose one of: /updates minimal, /updates normal, or /updates verbose.');
+    await ctx.reply('Choose one of: /updates minimal, /updates normal, /updates verbose, or /updates links kanban|canvas|both|none.');
     return;
   }
 
@@ -826,6 +848,22 @@ bot.on(message('text'), async (ctx) => {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
+
+    const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);
+    if (missionUpdatePreference) {
+      await conversation.remember(user, text).catch(() => {});
+      const lines: string[] = ['Saved your mission update preference.'];
+      if (missionUpdatePreference.verbosity) {
+        await setTelegramRelayVerbosity(ctx.chat.id, missionUpdatePreference.verbosity);
+        lines.push(`Updates: ${missionUpdatePreference.verbosity} - ${describeTelegramRelayVerbosity(missionUpdatePreference.verbosity)}`);
+      }
+      if (missionUpdatePreference.links) {
+        await setTelegramMissionLinkPreference(ctx.chat.id, missionUpdatePreference.links);
+        lines.push(`Links: ${missionUpdatePreference.links} - ${describeTelegramMissionLinkPreference(missionUpdatePreference.links)}`);
+      }
+      await ctx.reply(lines.join('\n'));
+      return;
+    }
 
     const localServiceContext = contextualTurns.join('\n');
     if (isLocalSparkServiceRequest(text, localServiceContext)) {

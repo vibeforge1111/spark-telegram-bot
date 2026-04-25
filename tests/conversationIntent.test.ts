@@ -18,6 +18,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  parseMissionUpdatePreferenceIntent,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
@@ -147,6 +148,26 @@ test('turns explicit contextual improvement requests into diagnostic integration
   assert.match(goal, /Improve the recently built Spark Diagnostic Agent/);
   assert.match(goal, /service discovery/);
   assert.match(goal, /no secret printing/);
+});
+
+test('parses natural mission update preferences', () => {
+  assert.deepEqual(parseMissionUpdatePreferenceIntent('for missions only send start and end updates'), {
+    verbosity: 'minimal'
+  });
+  assert.deepEqual(parseMissionUpdatePreferenceIntent('include board and canvas links for missions'), {
+    links: 'both'
+  });
+  assert.deepEqual(parseMissionUpdatePreferenceIntent('include kanban and canvas links for missions'), {
+    links: 'both'
+  });
+  assert.deepEqual(parseMissionUpdatePreferenceIntent('telegram only, no links for mission updates'), {
+    links: 'none'
+  });
+  assert.deepEqual(parseMissionUpdatePreferenceIntent('send detailed progress too and the mission board link'), {
+    verbosity: 'verbose',
+    links: 'board'
+  });
+  assert.equal(parseMissionUpdatePreferenceIntent('what do you think about this idea'), null);
 });
 
 test('keeps mission-control product refinement in conversation', () => {
