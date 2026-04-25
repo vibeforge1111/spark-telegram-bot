@@ -10,7 +10,7 @@ loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true, qui
 export function describeTelegramTokenError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes('404') || message.toLowerCase().includes('not found')) {
-    return 'Telegram rejected BOT_TOKEN. Create or rotate the token in BotFather, then run `spark setup --telegram-bot-token <token>` or `spark fix telegram`.';
+    return 'Telegram rejected BOT_TOKEN. Create or rotate the token in BotFather, then run `spark setup --bot-token <token>` or `spark fix telegram`.';
   }
   if (message.includes('401') || message.toLowerCase().includes('unauthorized')) {
     return 'Telegram rejected BOT_TOKEN as unauthorized. Rotate it in BotFather, then update Spark with the new token.';
