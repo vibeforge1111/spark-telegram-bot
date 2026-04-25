@@ -1,12 +1,29 @@
-// /diagnose — one-shot health/trace for the full stack: bot, SIB gateway,
-// codex-shim, spawner-ui, per-provider ping tests, chip state. Designed to be
-// run from Telegram and fit in a single message.
+// /diagnose - one-shot health trace for Telegram, Spawner, routing, and LLM providers.
+// Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
-const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL || 'http://127.0.0.1:8790';
-const BOT_DEFAULT_PROVIDER = (process.env.BOT_DEFAULT_PROVIDER || 'codex').toLowerCase();
+const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
+const BOT_DEFAULT_PROVIDER = normalizeProviderId(process.env.BOT_DEFAULT_PROVIDER) || 'codex';
+
+export interface ProviderStatus {
+  id: string;
+  label: string;
+  model?: string;
+  envKeyConfigured?: boolean;
+  cliConfigured?: boolean;
+  configured?: boolean;
+  configurationMode?: string;
+  kind?: string;
+  requiresApiKey?: boolean;
+  sparkSelected?: boolean;
+}
+
+interface ProvidersPayload {
+  sparkDefaultProvider?: string | null;
+  providers?: ProviderStatus[];
+}
 
 interface PingResult {
   providerId: string;
@@ -15,10 +32,92 @@ interface PingResult {
   error?: string;
 }
 
+interface ProviderDescription {
+  ready: boolean;
+  icon: string;
+  note: string;
+}
+
+export function normalizeProviderId(value: string | undefined | null): string | null {
+  const normalized = value?.trim().toLowerCase();
+  return normalized || null;
+}
+
+function httpPortLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.port ? `:${parsed.port}` : parsed.host;
+  } catch {
+    return url;
+  }
+}
+
 async function httpStatus(url: string, timeoutMs = 3000): Promise<{ ok: boolean; status?: number; err?: string }> {
   try {
     const res = await axios.get(url, { timeout: timeoutMs, validateStatus: () => true });
     return { ok: res.status < 500, status: res.status };
+  } catch (err: any) {
+    return { ok: false, err: err.code || err.message };
+  }
+}
+
+export function describeProviderStatus(provider: ProviderStatus, selectedIds: Set<string> = new Set()): ProviderDescription {
+  const ready =
+    provider.configured === true ||
+    provider.cliConfigured === true ||
+    provider.envKeyConfigured === true ||
+    (provider.requiresApiKey === false && provider.kind === 'custom');
+
+  if (ready) {
+    if (provider.cliConfigured || provider.configurationMode === 'cli') {
+      return { ready, icon: '✅', note: 'cli' };
+    }
+    if (provider.envKeyConfigured || provider.configurationMode === 'api_key') {
+      return { ready, icon: '✅', note: 'api key' };
+    }
+    return { ready, icon: '✅', note: provider.configurationMode || 'configured' };
+  }
+
+  if (selectedIds.has(provider.id)) {
+    const note = provider.requiresApiKey === false ? 'cli missing' : 'key missing';
+    return { ready, icon: '❌', note };
+  }
+
+  const note = provider.requiresApiKey === false ? 'optional cli not found' : 'not configured';
+  return { ready, icon: '⚪', note };
+}
+
+export function selectPingProviderIds(
+  providers: ProviderStatus[],
+  routeProviderIds: Array<string | null | undefined>
+): string[] {
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]));
+  const selected = new Set(routeProviderIds.map(normalizeProviderId).filter((id): id is string => Boolean(id)));
+  const ids = new Set<string>();
+
+  for (const provider of providers) {
+    const description = describeProviderStatus(provider, selected);
+    if (description.ready || selected.has(provider.id)) {
+      ids.add(provider.id);
+    }
+  }
+
+  for (const id of selected) {
+    if (providerById.has(id)) {
+      ids.add(id);
+    }
+  }
+
+  return Array.from(ids);
+}
+
+async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: string; payload?: ProvidersPayload }> {
+  try {
+    const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, {
+      timeout: 3000,
+      validateStatus: () => true
+    });
+    return { ok: res.status < 500, status: res.status, payload: res.data || {} };
   } catch (err: any) {
     return { ok: false, err: err.code || err.message };
   }
@@ -40,11 +139,12 @@ async function pingProvider(providerId: string): Promise<PingResult> {
       { timeout: 10000 }
     );
     const missionId = run.data?.missionId;
-    if (!missionId) return { providerId, ok: false, error: 'no missionId' };
+    if (!missionId) {
+      return { providerId, ok: false, error: 'no missionId' };
+    }
 
-    // poll results endpoint
     for (let i = 0; i < 25; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       try {
         const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/results`, {
           params: { missionId },
@@ -55,10 +155,15 @@ async function pingProvider(providerId: string): Promise<PingResult> {
           return { providerId, ok: true, ms: Date.now() - started };
         }
         if (result?.status === 'failed') {
-          return { providerId, ok: false, ms: Date.now() - started, error: result.error?.slice(0, 120) || 'failed' };
+          return {
+            providerId,
+            ok: false,
+            ms: Date.now() - started,
+            error: result.error?.slice(0, 120) || 'failed'
+          };
         }
       } catch {
-        // keep polling
+        // Keep polling until the mission finishes or times out.
       }
     }
     return { providerId, ok: false, error: 'timeout' };
@@ -67,94 +172,96 @@ async function pingProvider(providerId: string): Promise<PingResult> {
   }
 }
 
-async function getSibChipState(): Promise<{ activeChips: string[]; pinnedChips: string[] } | null> {
-  // Ask the SIB gateway via CLI-simulation endpoint — simplest reliable shape.
-  // Shelling out to python would work too, but the attachments endpoint is
-  // cheaper if available. We just probe via the ask-telegram result metadata.
-  try {
-    const res = await axios.post(
-      'http://127.0.0.1:5173/api/spark/run',
-      {
-        goal: 'ping',
-        chatId: 'diag',
-        userId: 'diag',
-        requestId: `diag-chips-${Date.now()}`,
-        providers: ['codex'],
-        promptMode: 'simple'
-      },
-      { timeout: 5000 }
-    );
-    // This dispatch path doesn't return chip state, so we return null.
-    // Chip state comes from SIB doctor — left to future diagnose enrichment.
-    return null;
-  } catch {
-    return null;
+function providerLabel(providerId: string | null, providers: ProviderStatus[]): string {
+  if (!providerId) {
+    return 'not configured';
   }
+  const provider = providers.find((candidate) => candidate.id === providerId);
+  if (!provider) {
+    return providerId;
+  }
+  return provider.model ? `${provider.id} (${provider.model})` : provider.id;
 }
 
 export async function buildDiagnoseReport(adminId: number): Promise<string> {
   const started = Date.now();
   const lines: string[] = ['🩺 Diagnostic Report', ''];
 
-  // --- Local services ---
-  const [botRelay, shimHealth, spawnerProviders] = await Promise.all([
+  const [botRelay, spawnerProviders, shimHealth] = await Promise.all([
     httpStatus('http://127.0.0.1:8788/', 2000),
-    httpStatus(`${CODEX_SHIM_URL}/health`, 2000),
-    httpStatus(`${SPAWNER_UI_URL}/api/providers`, 3000)
+    fetchProviders(),
+    CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null)
   ]);
+
+  const providers = spawnerProviders.payload?.providers || [];
+  const spawnerDefaultProvider =
+    normalizeProviderId(spawnerProviders.payload?.sparkDefaultProvider) ||
+    normalizeProviderId(process.env.DEFAULT_MISSION_PROVIDER) ||
+    normalizeProviderId(process.env.SPARK_MISSION_LLM_PROVIDER) ||
+    BOT_DEFAULT_PROVIDER;
+  const telegramRunProvider =
+    normalizeProviderId(process.env.SPARK_MISSION_LLM_BOT_PROVIDER) ||
+    normalizeProviderId(process.env.SPARK_BOT_DEFAULT_PROVIDER) ||
+    normalizeProviderId(process.env.BOT_DEFAULT_PROVIDER) ||
+    spawnerDefaultProvider;
+  const chatProvider =
+    normalizeProviderId(process.env.SPARK_CHAT_LLM_PROVIDER) ||
+    normalizeProviderId(process.env.SPARK_CHAT_LLM_BOT_PROVIDER) ||
+    normalizeProviderId(process.env.SPARK_LLM_PROVIDER) ||
+    BOT_DEFAULT_PROVIDER;
+  const selectedIds = new Set([spawnerDefaultProvider, telegramRunProvider, chatProvider].filter(Boolean) as string[]);
 
   lines.push('Services');
   lines.push(`• Bot mission relay (:8788): ${botRelay.ok ? '✅' : `❌ ${botRelay.err || botRelay.status}`}`);
-  lines.push(`• Spawner UI (:5173): ${spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`}`);
-  lines.push(`• Codex shim (:8790): ${shimHealth.ok ? '✅' : `❌ ${shimHealth.err || shimHealth.status}`}`);
-  lines.push('');
-
-  // --- Providers configured on spawner ---
-  let providerList: Array<{ id: string; label: string; model: string; envKeyConfigured: boolean; kind?: string; requiresApiKey?: boolean }> = [];
-  if (spawnerProviders.ok) {
-    try {
-      const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, { timeout: 3000 });
-      providerList = res.data?.providers || [];
-    } catch {
-      // ignore
-    }
+  lines.push(
+    `• Spawner UI (${httpPortLabel(SPAWNER_UI_URL)}): ${
+      spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`
+    }`
+  );
+  if (CODEX_SHIM_URL) {
+    lines.push(
+      `• Codex shim optional (${httpPortLabel(CODEX_SHIM_URL)}): ${
+        shimHealth?.ok ? '✅' : `⚪ ${shimHealth?.err || shimHealth?.status || 'not running'}`
+      }`
+    );
   }
+  lines.push('');
 
   lines.push('Providers (Spawner)');
-  for (const p of providerList) {
-    // terminal_cli providers (claude, codex) use local CLI auth, not API keys.
-    const ready = p.requiresApiKey === false ? true : p.envKeyConfigured;
-    const kindNote = p.kind === 'terminal_cli' ? ' (local CLI)' : '';
-    const icon = ready ? '✅' : '❌ key missing';
-    lines.push(`• ${p.label} [${p.id}] ${p.model}${kindNote} ${icon}`);
+  if (providers.length === 0) {
+    lines.push('• No provider metadata available from Spawner UI.');
+  }
+  for (const provider of providers) {
+    const description = describeProviderStatus(provider, selectedIds);
+    const kindNote = provider.kind === 'terminal_cli' ? ' local CLI' : provider.kind ? ` ${provider.kind}` : '';
+    lines.push(
+      `• ${provider.label} [${provider.id}] ${provider.model || 'default'}${kindNote} ${description.icon} ${description.note}`
+    );
   }
   lines.push('');
 
-  // --- Routing ---
   lines.push('Routing');
-  lines.push(`• Telegram /run default: ${BOT_DEFAULT_PROVIDER}`);
-  lines.push(`• Telegram plain chat: SIB → Codex (via shim :8790)`);
-  lines.push(`• Spawner missions default: ${process.env.DEFAULT_MISSION_PROVIDER || 'codex (in spawner-ui .env)'}`);
-  lines.push(`• Overrides: "claude, ...", "minimax: ...", "glm, ...", "all models: ..."`);
+  lines.push(`• Telegram /run default: ${providerLabel(telegramRunProvider, providers)}`);
+  lines.push(`• Telegram plain chat: SIB → ${providerLabel(chatProvider, providers)}`);
+  lines.push(`• Spawner missions default: ${providerLabel(spawnerDefaultProvider, providers)}`);
+  lines.push('• Overrides: "claude, ...", "minimax: ...", "glm, ...", "all models: ..."');
   lines.push('');
 
-  // --- Live pings per provider ---
   lines.push('Provider ping (PING_OK test)');
-  const pings = await Promise.all([
-    pingProvider('codex'),
-    pingProvider('claude'),
-    pingProvider('zai'),
-    pingProvider('minimax')
-  ]);
-  for (const p of pings) {
-    const icon = p.ok ? '✅' : '❌';
-    const ms = p.ms ? `${(p.ms / 1000).toFixed(1)}s` : '';
-    const err = p.error ? ` (${p.error})` : '';
-    lines.push(`• ${p.providerId} ${icon} ${ms}${err}`);
+  const pingIds = selectPingProviderIds(providers, [telegramRunProvider, chatProvider, spawnerDefaultProvider]);
+  if (pingIds.length === 0) {
+    lines.push('• No configured or selected providers to ping.');
+  } else {
+    const pings = await Promise.all(pingIds.map((providerId) => pingProvider(providerId)));
+    for (const ping of pings) {
+      const icon = ping.ok ? '✅' : '❌';
+      const ms = ping.ms ? `${(ping.ms / 1000).toFixed(1)}s` : '';
+      const err = ping.error ? ` (${ping.error})` : '';
+      lines.push(`• ${ping.providerId} ${icon} ${ms}${err}`);
+    }
   }
   lines.push('');
 
-  // --- Mission board ---
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 3000 });
     const board = res.data?.board || {};
