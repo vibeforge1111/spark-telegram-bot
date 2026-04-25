@@ -31,6 +31,7 @@ import {
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildDiagnosticFollowupTestReply,
+  buildLocalSparkServiceClarificationReply,
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
@@ -38,6 +39,7 @@ import {
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
+  isAmbiguousLocalSparkServiceRequest,
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
@@ -825,9 +827,16 @@ bot.on(message('text'), async (ctx) => {
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
 
-    if (isLocalSparkServiceRequest(text)) {
+    const localServiceContext = contextualTurns.join('\n');
+    if (isLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(buildLocalSparkServiceReply(await spawner.isAvailable()));
+      return;
+    }
+
+    if (isAmbiguousLocalSparkServiceRequest(text, localServiceContext)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(buildLocalSparkServiceClarificationReply());
       return;
     }
 

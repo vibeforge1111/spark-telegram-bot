@@ -150,15 +150,39 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
   return null;
 }
 
-export function isLocalSparkServiceRequest(text: string): boolean {
+function hasKnownLocalSparkSurface(text: string): boolean {
+  return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
+}
+
+export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
+  if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
+    return false;
+  }
+  return !hasKnownLocalSparkSurface(normalized) && !hasKnownLocalSparkSurface(context);
+}
+
+export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
+  const normalized = text.trim().toLowerCase();
+  const contextText = context.toLowerCase();
   return (
-    /\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) ||
+    (/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) &&
+      (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
       /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
     )
   );
+}
+
+export function buildLocalSparkServiceClarificationReply(): string {
+  return [
+    'Which local Spark surface do you mean?',
+    '- Spawner UI / Mission Control: http://127.0.0.1:5173',
+    '- Diagnostic notes: `~/.spark/diagnostics`',
+    '- Telegram bot health: `/diagnose`',
+    '- Full stack check: `spark status`'
+  ].join('\n');
 }
 
 export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {

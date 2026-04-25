@@ -4,6 +4,7 @@ import {
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildDiagnosticFollowupTestReply,
+  buildLocalSparkServiceClarificationReply,
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
@@ -11,6 +12,7 @@ import {
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
+  isAmbiguousLocalSparkServiceRequest,
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
@@ -105,9 +107,21 @@ test('answers what was just built from completed diagnostic mission notes', () =
 });
 
 test('recognizes local Spark service URL requests', () => {
-  assert.equal(isLocalSparkServiceRequest('can you run the localhost for me'), true);
+  assert.equal(
+    isLocalSparkServiceRequest(
+      'can you run the localhost for me',
+      'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.'
+    ),
+    true
+  );
   assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:5173/);
   assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
+});
+
+test('asks for clarification on cold localhost requests', () => {
+  assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
+  assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);
+  assert.match(buildLocalSparkServiceClarificationReply(), /Which local Spark surface/);
 });
 
 test('answers diagnostic follow-up testing questions from mission context', () => {
