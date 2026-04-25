@@ -45,6 +45,7 @@ test('formats structured provider JSON as readable Telegram text', () => {
   assert.match(message, /Project: C:\\Users\\USER\\Desktop\\spark-board/);
   assert.match(message, /Changed files: index\.html, styles\.css, app\.js, README\.md/);
   assert.match(message, /Checks:/);
+  assert.doesNotMatch(message, /Mission: spark-123/);
   assert.doesNotMatch(message, /"goal"/);
   assert.doesNotMatch(message, /exact_commands/);
   assert.doesNotMatch(message, /execution_contract/);
@@ -65,13 +66,13 @@ test('supports human verbosity aliases', () => {
 test('builds mission surface links from user preference', () => {
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:5173'), []);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:5173'), [
-    'Kanban: http://127.0.0.1:5173/kanban'
+    'Mission spark-123: http://127.0.0.1:5173/kanban'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:5173'), [
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:5173'), [
-    'Kanban: http://127.0.0.1:5173/kanban',
+    'Mission spark-123: http://127.0.0.1:5173/kanban',
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
 });
@@ -96,6 +97,7 @@ test('formats mission heartbeat as useful work narration', () => {
   assert.match(message, /reviewing the telemetry relay and writing focused tests/);
   assert.match(message, /Current focus: Review relay updates/);
   assert.doesNotMatch(message, /Elapsed:/);
+  assert.doesNotMatch(message, /Mission: spark-123/);
 });
 
 test('suppresses low-signal mission heartbeat summaries', () => {
@@ -116,6 +118,7 @@ test('suppresses low-signal mission heartbeat summaries', () => {
 
   assert.match(message, /No new high-signal checkpoint/);
   assert.match(message, /Elapsed: about 3 min/);
+  assert.match(message, /Mission: spark-123/);
   assert.doesNotMatch(message, /Z\.AI: Document launch path is running/);
 });
 

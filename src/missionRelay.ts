@@ -361,12 +361,20 @@ export function buildMissionSurfaceLinks(
   if (preference === 'none') return [];
   const links: string[] = [];
   if (preference === 'board' || preference === 'both') {
-    links.push(`Kanban: ${baseUrl}/kanban`);
+    links.push(`Mission ${missionId}: ${baseUrl}/kanban`);
   }
   if (preference === 'canvas' || preference === 'both') {
     links.push(`Canvas: ${baseUrl}/canvas`);
   }
   return links;
+}
+
+function missionIdIsLinked(missionId: string, links: string[]): boolean {
+  return links.some((link) => link.startsWith(`Mission ${missionId}:`));
+}
+
+function missionReferenceLines(missionId: string, links: string[]): string[] {
+  return missionIdIsLinked(missionId, links) ? links : [`Mission: ${missionId}`, ...links];
 }
 
 function findMissionInBoard(board: Record<string, unknown>, missionId: string): MissionBoardEntry | null {
@@ -612,8 +620,10 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
   }
 
-  lines.push('', `Mission: ${input.missionId}`);
-  if (input.requestId) {
+  if (verbosity === 'verbose') {
+    lines.push('', `Mission: ${input.missionId}`);
+  }
+  if (verbosity === 'verbose' && input.requestId) {
     lines.push(`Request: ${input.requestId}`);
   }
   return lines.join('\n');
@@ -667,20 +677,18 @@ function formatProgressMessage(
       return [
         'Spark picked up your request.',
         `Goal: ${clipText(subscription.goal, 260)}`,
-        `Mission: ${event.missionId}`,
-        ...links
+        ...missionReferenceLines(event.missionId, links)
       ].join('\n');
     case 'mission_started':
       return [
         'Spark started the run.',
         verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
-        `Mission: ${event.missionId}`,
-        ...links
+        ...missionReferenceLines(event.missionId, links)
       ].filter(Boolean).join('\n');
     case 'dispatch_started':
-      return `Spark is assigning the work.\nMission: ${event.missionId}`;
+      return 'Spark is assigning the work.';
     case 'task_started':
-      return `Started: ${taskLabel}\nMission: ${event.missionId}`;
+      return `Started: ${taskLabel}`;
     case 'task_progress':
     case 'progress':
     case 'provider_feedback':
@@ -689,22 +697,19 @@ function formatProgressMessage(
       if (!useful) return null;
       return [
         `Update: ${taskLabel}`,
-        useful,
-        `Mission: ${event.missionId}`
+        useful
       ].filter(Boolean).join('\n');
     case 'mission_completed':
       return [
         'Mission completed.',
         links.length > 0 ? 'Open the mission surface below or check the latest build summary above.' : 'Check the latest build summary above.',
-        `Mission: ${event.missionId}`,
-        ...links
+        ...missionReferenceLines(event.missionId, links)
       ].join('\n');
     case 'mission_failed':
       return [
         'Mission failed.',
         message ? clipText(message, 500) : null,
-        `Mission: ${event.missionId}`,
-        ...links
+        ...missionReferenceLines(event.missionId, links)
       ].filter(Boolean).join('\n');
     default:
       return null;
@@ -778,7 +783,9 @@ export function formatMissionHeartbeatForTelegram(input: {
     lines.push('I will send the next note when there is a meaningful checkpoint or the run finishes.');
   }
 
-  lines.push(`Mission: ${input.missionId}`);
+  if (input.verbosity === 'verbose') {
+    lines.push(`Mission: ${input.missionId}`);
+  }
   return lines.join('\n');
 }
 
