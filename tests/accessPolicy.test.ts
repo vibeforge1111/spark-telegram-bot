@@ -8,6 +8,8 @@ import {
   normalizeSparkAccessProfile,
   renderSparkAccessStatus,
   setSparkAccessProfile,
+  sparkAccessLabel,
+  sparkAccessLevel,
   sparkAccessAllowsExternalResearch,
   sparkAccessAllowsWorkspaceBuilds
 } from '../src/accessPolicy';
@@ -25,6 +27,10 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 
 async function main(): Promise<void> {
   await test('normalizes Spark access aliases', () => {
+    assert.equal(normalizeSparkAccessProfile('1'), 'chat');
+    assert.equal(normalizeSparkAccessProfile('level 2'), 'builder');
+    assert.equal(normalizeSparkAccessProfile('L3'), 'agent');
+    assert.equal(normalizeSparkAccessProfile('level-4'), 'developer');
     assert.equal(normalizeSparkAccessProfile('chat'), 'chat');
     assert.equal(normalizeSparkAccessProfile('mission'), 'builder');
     assert.equal(normalizeSparkAccessProfile('github'), 'agent');
@@ -48,8 +54,11 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessAllowsExternalResearch('agent'), true);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('agent'), false);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('developer'), true);
+    assert.equal(sparkAccessLevel('developer'), 4);
+    assert.equal(sparkAccessLabel('agent'), 'Level 3 - Agent');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
-    assert.match(renderSparkAccessStatus('agent'), /\/access developer/);
+    assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Agent/);
+    assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
   });
 }
 

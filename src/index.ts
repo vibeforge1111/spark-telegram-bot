@@ -21,6 +21,7 @@ import {
   normalizeSparkAccessProfile,
   renderSparkAccessStatus,
   setSparkAccessProfile,
+  sparkAccessLabel,
   sparkAccessAllowsExternalResearch
 } from './accessPolicy';
 import {
@@ -204,7 +205,7 @@ bot.start(async (ctx) => {
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
-      '/access <chat|builder|agent|developer> - Choose how much tool access Spark has in this chat',
+      '/access <1|2|3|4> - Choose Spark access level for this chat',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
     );
   }
@@ -831,7 +832,7 @@ bot.command('access', async (ctx) => {
 
   const next = normalizeSparkAccessProfile(raw);
   if (!next) {
-    await ctx.reply('Choose one of: /access chat, /access builder, /access agent, or /access developer.');
+    await ctx.reply('Choose an access level: /access 1, /access 2, /access 3, or /access 4.');
     return;
   }
 
@@ -945,8 +946,8 @@ bot.on(message('text'), async (ctx) => {
       if (!sparkAccessAllowsExternalResearch(accessProfile)) {
         await ctx.reply(
           [
-            `I can inspect public GitHub/web targets through a Spawner mission, but this chat is in ${accessProfile} access right now.`,
-            'Switch it with `/access agent` for public research/repo inspection, or `/access developer` when you also want workspace build permissions.'
+            `I can inspect public GitHub/web targets through a Spawner mission, but this chat is at ${sparkAccessLabel(accessProfile)} right now.`,
+            'Switch to `/access 3` for public research/repo inspection, or `/access 4` when you also want workspace build permissions.'
           ].join('\n')
         );
         return;
