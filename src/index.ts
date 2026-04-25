@@ -28,6 +28,7 @@ import { parseBuildIntent } from './buildIntent';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
+  buildMemoryBridgeUnavailableReply,
   isLowInformationLlmReply,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
@@ -245,8 +246,7 @@ bot.command('remember', async (ctx) => {
     if (await replyViaBuilder(ctx, `Please remember this: ${text}`)) {
       return;
     }
-    await conversation.storePreference(ctx.from, text);
-    await ctx.reply(`Got it! I'll remember: "${text}"`);
+    await ctx.reply(buildMemoryBridgeUnavailableReply('remember'));
   } catch (err) {
     console.error('Failed to remember:', err);
     await ctx.reply('Sorry, I couldn\'t save that right now.');
@@ -265,17 +265,7 @@ bot.command('recall', async (ctx) => {
     if (await replyViaBuilder(ctx, `What do you remember about ${query}?`)) {
       return;
     }
-    const memories = await conversation.recall(ctx.from, query, 5);
-
-    if (memories.length === 0) {
-      return ctx.reply(`I don't have any memories about "${query}".`);
-    }
-
-    const list = memories
-      .map((m, i) => `${i + 1}. ${m.content}`)
-      .join('\n\n');
-
-    await ctx.reply(`Here's what I remember about "${query}":\n\n${list}`);
+    await ctx.reply(buildMemoryBridgeUnavailableReply('recall'));
   } catch (err) {
     console.error('Failed to recall:', err);
     await ctx.reply('Sorry, I couldn\'t search my memories right now.');
@@ -288,17 +278,7 @@ bot.command('about', async (ctx) => {
     if (await replyViaBuilder(ctx, 'What do you know about me?')) {
       return;
     }
-    const memories = await conversation.recallRecent(ctx.from, 10);
-
-    if (memories.length === 0) {
-      return ctx.reply('I don\'t know much about you yet. Keep chatting!');
-    }
-
-    const list = memories
-      .map((m, i) => `${i + 1}. ${m.content}`)
-      .join('\n\n');
-
-    await ctx.reply(`Here's what I remember:\n\n${list}`);
+    await ctx.reply(buildMemoryBridgeUnavailableReply('about'));
   } catch (err) {
     console.error('Failed to recall about user:', err);
     await ctx.reply('Sorry, I couldn\'t access my memories.');

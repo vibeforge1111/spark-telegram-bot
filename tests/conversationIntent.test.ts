@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
+  buildMemoryBridgeUnavailableReply,
   isLowInformationLlmReply,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
@@ -56,8 +57,18 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply(''), true);
   assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
   assert.equal(isLowInformationLlmReply('Working Memory'), true);
+  assert.equal(isLowInformationLlmReply('What would you like help with?'), true);
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
   assert.equal(isLowInformationLlmReply('Here is a real idea.'), false);
+});
+
+test('memory fallback does not claim a no-op save succeeded', () => {
+  const reply = buildMemoryBridgeUnavailableReply('remember');
+
+  assert.match(reply, /could not confirm/i);
+  assert.match(reply, /spark verify --deep/);
+  assert.doesNotMatch(reply, /remember:/i);
+  assert.doesNotMatch(reply, /got it/i);
 });
 
 test('provides a conversational fallback for mission dashboard refinement', () => {

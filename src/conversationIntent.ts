@@ -55,12 +55,26 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized === 'working memory' ||
     normalized === 'nothing active' ||
     normalized === 'no concrete guidance' ||
+    normalized === 'what would you like help with?' ||
+    normalized === 'how can i help?' ||
+    normalized === 'how can i help you?' ||
     normalized === "i'm here, but i couldn't generate a response right now." ||
     normalized === "i'm having trouble thinking right now. try again in a moment." ||
     normalized.includes('working memory') ||
+    normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking')
   );
+}
+
+export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {
+  if (action === 'remember') {
+    return 'I could not confirm that through Spark memory yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';
+  }
+  if (action === 'recall') {
+    return 'I could not get a useful memory answer yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';
+  }
+  return 'I could not inspect Spark memory yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';
 }
 
 export function buildIdeationFallbackReply(text: string): string {
@@ -80,11 +94,11 @@ export function buildIdeationFallbackReply(text: string): string {
     return [
       'Yes, the first version should feel like a tiny daily command center with game feel, not a task list in a costume.',
       '',
-      'I would make v1 around three daily missions. Each mission gets a status, energy cost, streak impact, and a launch/debrief moment. The main screen shows your current “flight state”: Ready, In Orbit, Low Energy, or Mission Complete.',
+      'I would make v1 around three daily missions. Each mission gets a status, energy cost, streak impact, and a launch/debrief moment. The main screen shows your current flight state: Ready, In Orbit, Low Energy, or Mission Complete.',
       '',
       'The fun part: completing a mission triggers a small launch animation and updates your streak/history, so the day feels like progress through a little campaign.',
       '',
-      'For v1, I’d keep it solo and lightweight: no accounts, no backend, just a polished browser app with local persistence. Want it to feel more space-ops, arcade RPG, or cozy sci-fi?'
+      'For v1, I would keep it solo and lightweight: no accounts, no backend, just a polished browser app with local persistence. Want it to feel more space-ops, arcade RPG, or cozy sci-fi?'
     ].join('\n');
   }
 
@@ -93,6 +107,6 @@ export function buildIdeationFallbackReply(text: string): string {
     '',
     'A strong first version should have one clear loop: choose a tiny goal, interact with it in a playful way, get satisfying feedback, and come back later because progress is saved.',
     '',
-    'I’d explore three directions: a mini quest tracker, a playful mission dashboard, or a creative prompt machine. Which one feels most alive to you?'
+    'I would explore three directions: a mini quest tracker, a playful mission dashboard, or a creative prompt machine. Which one feels most alive to you?'
   ].join('\n');
 }
