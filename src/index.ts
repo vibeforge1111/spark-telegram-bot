@@ -11,6 +11,7 @@ import { conversation } from './conversation';
 import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
 import { llm } from './llm';
+import { sanitizeOutbound } from './outboundSanitize';
 import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
@@ -77,6 +78,17 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
 
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken);
+
+// Outbound sanitizer: wrap bot.telegram.sendMessage so every Telegram
+// reply (ctx.reply, ctx.telegram.sendMessage, bot.telegram.sendMessage)
+// runs through the deterministic voice rules before delivery. Persona
+// forbids em dashes; production telemetry showed ~50% leak rate before
+// this shim. Mirrors spark_character.output_sanitizer (Python).
+const _origSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
+bot.telegram.sendMessage = ((chatId: any, text: any, extra?: any) => {
+  const cleaned = typeof text === 'string' ? sanitizeOutbound(text) : text;
+  return _origSendMessage(chatId, cleaned, extra);
+}) as typeof bot.telegram.sendMessage;
 
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
