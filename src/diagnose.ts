@@ -2,10 +2,15 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
+import {
+  normalizeProviderId,
+  resolveChatDefaultProvider,
+  resolveMissionDefaultProvider
+} from './providerRouting';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
-const BOT_DEFAULT_PROVIDER = normalizeProviderId(process.env.BOT_DEFAULT_PROVIDER) || 'codex';
+const BOT_DEFAULT_PROVIDER = resolveChatDefaultProvider();
 
 export interface ProviderStatus {
   id: string;
@@ -36,11 +41,6 @@ interface ProviderDescription {
   ready: boolean;
   icon: string;
   note: string;
-}
-
-export function normalizeProviderId(value: string | undefined | null): string | null {
-  const normalized = value?.trim().toLowerCase();
-  return normalized || null;
 }
 
 function httpPortLabel(url: string): string {
@@ -193,11 +193,7 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
     normalizeProviderId(process.env.DEFAULT_MISSION_PROVIDER) ||
     normalizeProviderId(process.env.SPARK_MISSION_LLM_PROVIDER) ||
     BOT_DEFAULT_PROVIDER;
-  const telegramRunProvider =
-    normalizeProviderId(process.env.SPARK_MISSION_LLM_BOT_PROVIDER) ||
-    normalizeProviderId(process.env.SPARK_BOT_DEFAULT_PROVIDER) ||
-    normalizeProviderId(process.env.BOT_DEFAULT_PROVIDER) ||
-    spawnerDefaultProvider;
+  const telegramRunProvider = resolveMissionDefaultProvider(process.env, spawnerDefaultProvider);
   const chatProvider =
     normalizeProviderId(process.env.SPARK_CHAT_LLM_PROVIDER) ||
     normalizeProviderId(process.env.SPARK_CHAT_LLM_BOT_PROVIDER) ||

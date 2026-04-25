@@ -25,6 +25,7 @@ import {
 } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { parseBuildIntent } from './buildIntent';
+import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
@@ -578,14 +579,10 @@ function parseRunCommand(text: string, command: string): string {
   return text.slice(idx + command.length).trim();
 }
 
-const VALID_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex']);
-const BOT_DEFAULT_PROVIDER = (() => {
-  const raw = (process.env.BOT_DEFAULT_PROVIDER || 'codex').trim().toLowerCase();
-  return VALID_PROVIDER_IDS.has(raw) ? raw : 'codex';
-})();
+const MISSION_DEFAULT_PROVIDER = resolveMissionDefaultProvider();
 
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
-  { name: 'run', providers: [BOT_DEFAULT_PROVIDER], usage: `/run <goal>  (default: ${BOT_DEFAULT_PROVIDER})` },
+  { name: 'run', providers: [MISSION_DEFAULT_PROVIDER], usage: `/run <goal>  (default: ${MISSION_DEFAULT_PROVIDER})` },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
   { name: 'runglm', providers: ['zai'], usage: '/runglm <goal>  (Z.AI GLM)' },
   { name: 'runzai', providers: ['zai'], usage: '/runzai <goal>' },
@@ -831,7 +828,7 @@ bot.on(message('text'), async (ctx) => {
     if (inferredMissionGoal) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);
       await conversation.remember(user, text).catch(() => {});
-      const missionId = await handleRunCommand(ctx, inferredMissionGoal, [BOT_DEFAULT_PROVIDER]);
+      const missionId = await handleRunCommand(ctx, inferredMissionGoal, [MISSION_DEFAULT_PROVIDER]);
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} from Telegram follow-up: ${inferredMissionGoal.slice(0, 220)}`).catch(() => {});
       }
