@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildMissionSurfaceLinks,
+  formatMissionHeartbeatForTelegram,
   formatProviderCompletionForTelegram,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
@@ -75,6 +76,49 @@ test('builds mission surface links from user preference', () => {
     'Mission detail: http://127.0.0.1:5173/missions/spark-123',
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
+});
+
+test('formats mission heartbeat as useful work narration', () => {
+  const message = formatMissionHeartbeatForTelegram({
+    missionId: 'spark-123',
+    goal: 'Build a Spark diagnostic chip.',
+    taskLabel: 'the build',
+    elapsedMs: 180_000,
+    verbosity: 'normal',
+    snapshot: {
+      missionId: 'spark-123',
+      status: 'running',
+      lastEventType: 'task_progress',
+      lastSummary: '[MissionControl] Progress: Codex: reviewing the telemetry relay and writing focused tests (spark-123).',
+      taskName: 'Review relay updates'
+    }
+  });
+
+  assert.match(message, /Still building/);
+  assert.match(message, /reviewing the telemetry relay and writing focused tests/);
+  assert.match(message, /Current focus: Review relay updates/);
+  assert.doesNotMatch(message, /Elapsed:/);
+});
+
+test('suppresses low-signal mission heartbeat summaries', () => {
+  const message = formatMissionHeartbeatForTelegram({
+    missionId: 'spark-123',
+    goal: 'Build a Spark diagnostic chip.',
+    taskLabel: 'Document launch path',
+    elapsedMs: 180_000,
+    verbosity: 'verbose',
+    snapshot: {
+      missionId: 'spark-123',
+      status: 'running',
+      lastEventType: 'task_progress',
+      lastSummary: '[MissionControl] Progress: Z.AI: Document launch path is running (spark-123).',
+      taskName: 'Document launch path'
+    }
+  });
+
+  assert.match(message, /No new high-signal checkpoint/);
+  assert.match(message, /Elapsed: about 3 min/);
+  assert.doesNotMatch(message, /Z\.AI: Document launch path is running/);
 });
 
 test('ignores mission relay events targeted at another Telegram profile', () => {

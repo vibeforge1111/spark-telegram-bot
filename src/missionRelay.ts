@@ -69,6 +69,15 @@ interface DeliverableRelayEvent {
   data?: Record<string, unknown>;
 }
 
+interface MissionBoardEntry {
+  missionId?: string;
+  status?: string;
+  lastEventType?: string;
+  lastUpdated?: string;
+  lastSummary?: string;
+  taskName?: string | null;
+}
+
 const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
@@ -361,6 +370,48 @@ export function buildMissionSurfaceLinks(
   return links;
 }
 
+function findMissionInBoard(board: Record<string, unknown>, missionId: string): MissionBoardEntry | null {
+  for (const [status, value] of Object.entries(board)) {
+    if (!Array.isArray(value)) continue;
+    const match = value.find((entry) => {
+      const record = asRecord(entry);
+      return record && record.missionId === missionId;
+    });
+    const record = asRecord(match);
+    if (record) {
+      return {
+        missionId: typeof record.missionId === 'string' ? record.missionId : missionId,
+        status,
+        lastEventType: typeof record.lastEventType === 'string' ? record.lastEventType : undefined,
+        lastUpdated: typeof record.lastUpdated === 'string' ? record.lastUpdated : undefined,
+        lastSummary: typeof record.lastSummary === 'string' ? record.lastSummary : undefined,
+        taskName: typeof record.taskName === 'string' ? record.taskName : null
+      };
+    }
+  }
+  return null;
+}
+
+async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEntry | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/board`, {
+        signal: controller.signal
+      });
+      if (!response.ok) return null;
+      const payload = asRecord(await response.json());
+      const board = asRecord(payload?.board);
+      return board ? findMissionInBoard(board, missionId) : null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    return null;
+  }
+}
+
 function humanizeProviderLabel(label: string): string {
   const key = label.trim().toLowerCase();
   return PROVIDER_DISPLAY_NAMES[key] || label;
@@ -393,6 +444,43 @@ function clipText(text: string, maxLength: number): string {
   const compact = compactWhitespace(text);
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function stripMissionControlBoilerplate(text: string): string {
+  return stripThinkingAndMeta(text)
+    .replace(/^\[MissionControl\]\s*/i, '')
+    .replace(/^Progress:\s*/i, '')
+    .replace(/\s*\((?:spark|mission|dispatch)-[\w-]+\)\s*$/i, '')
+    .replace(/\b(?:spark|mission|dispatch)-\d{6,}\b/gi, 'this mission')
+    .trim();
+}
+
+function usefulProgressSummary(message: string, taskLabel: string): string | null {
+  const cleaned = compactWhitespace(stripMissionControlBoilerplate(message));
+  if (!cleaned) return null;
+
+  const withoutProvider = cleaned.replace(/^(?:Z\.AI|ZAI|Claude|Codex|MiniMax|GLM)(?:\s+GLM)?\s*:\s*/i, '').trim();
+  const normalized = withoutProvider.toLowerCase();
+  const normalizedTask = taskLabel.toLowerCase();
+
+  if (/^(?:working|still working|running|in progress|processing)\.?$/.test(normalized)) {
+    return null;
+  }
+  if (normalized.includes(normalizedTask) && /\b(?:is\s+)?(?:running|in progress|working)\b/.test(normalized)) {
+    return null;
+  }
+
+  return clipText(withoutProvider, 420);
+}
+
+function humanElapsed(elapsedMs: number): string {
+  const seconds = Math.max(1, Math.round(elapsedMs / 1000));
+  if (seconds < 75) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `about ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `about ${hours}h ${remainingMinutes}m` : `about ${hours}h`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -598,9 +686,11 @@ function formatProgressMessage(
     case 'progress':
     case 'provider_feedback':
     case 'log':
+      const useful = usefulProgressSummary(message, taskLabel);
+      if (!useful) return null;
       return [
         `Update: ${taskLabel}`,
-        message ? clipText(stripThinkingAndMeta(message), 500) : null,
+        useful,
         `Mission: ${event.missionId}`
       ].filter(Boolean).join('\n');
     case 'mission_completed':
@@ -656,6 +746,43 @@ function heartbeatIntervalMs(verbosity: TelegramRelayVerbosity): number {
   return 0;
 }
 
+export function formatMissionHeartbeatForTelegram(input: {
+  missionId: string;
+  goal: string;
+  taskLabel: string;
+  elapsedMs: number;
+  verbosity: TelegramRelayVerbosity;
+  snapshot?: MissionBoardEntry | null;
+}): string {
+  const taskLabel = clipText(input.snapshot?.taskName || input.taskLabel || 'the build', 120);
+  const summary = input.snapshot?.lastSummary
+    ? usefulProgressSummary(input.snapshot.lastSummary, taskLabel)
+    : null;
+  const status = input.snapshot?.status ? compactWhitespace(input.snapshot.status) : null;
+
+  const lines: string[] = [];
+  if (summary) {
+    lines.push('Still building. Here is the latest useful signal I have:', summary);
+  } else {
+    lines.push('Still building. No new high-signal checkpoint has landed yet.');
+  }
+
+  lines.push(`Current focus: ${taskLabel}.`);
+
+  if (input.verbosity === 'verbose') {
+    lines.push(`Elapsed: ${humanElapsed(input.elapsedMs)}.`);
+    if (status && !['running', 'created'].includes(status.toLowerCase())) {
+      lines.push(`Mission state: ${status}.`);
+    }
+    lines.push(`Goal: ${clipText(input.goal, 220)}`);
+  } else {
+    lines.push('I will send the next note when there is a meaningful checkpoint or the run finishes.');
+  }
+
+  lines.push(`Mission: ${input.missionId}`);
+  return lines.join('\n');
+}
+
 function scheduleHeartbeat(
   bot: Telegraf,
   chatId: number,
@@ -671,14 +798,17 @@ function scheduleHeartbeat(
 
   const startedAt = Date.now();
   const taskLabel = clipText(event.taskName || 'the build', 120);
-  const timer = setInterval(() => {
-    const elapsed = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    const message = [
-      `Still working on ${taskLabel}.`,
-      `Elapsed: ${elapsed}s`,
-      verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 220)}` : null,
-      `Mission: ${event.missionId}`
-    ].filter(Boolean).join('\n');
+  const timer = setInterval(async () => {
+    const elapsedMs = Date.now() - startedAt;
+    const snapshot = await fetchMissionBoardEntry(event.missionId);
+    const message = formatMissionHeartbeatForTelegram({
+      missionId: event.missionId,
+      goal: subscription.goal,
+      taskLabel,
+      elapsedMs,
+      verbosity,
+      snapshot
+    });
 
     bot.telegram.sendMessage(chatId, message).catch((error) => {
       console.warn('[MissionRelay] Failed to send heartbeat:', error);
