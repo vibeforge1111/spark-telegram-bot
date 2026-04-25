@@ -4,7 +4,7 @@ version = "1.0.0"
 kind = "service"
 plane = "ingress"
 description = "Spark Telegram ingress gateway for Builder and Spawner"
-homepage = "https://github.com/spark/spark-telegram-bot"
+homepage = "https://github.com/vibeforge1111/spark-telegram-bot"
 license = "ISC"
 
 [runtime]
