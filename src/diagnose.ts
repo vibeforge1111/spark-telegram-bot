@@ -95,13 +95,6 @@ export function selectPingProviderIds(
   const selected = new Set(routeProviderIds.map(normalizeProviderId).filter((id): id is string => Boolean(id)));
   const ids = new Set<string>();
 
-  for (const provider of providers) {
-    const description = describeProviderStatus(provider, selected);
-    if (description.ready || selected.has(provider.id)) {
-      ids.add(provider.id);
-    }
-  }
-
   for (const id of selected) {
     if (providerById.has(id)) {
       ids.add(id);
@@ -248,8 +241,8 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
   lines.push('• Overrides: "claude, ...", "minimax: ...", "glm, ...", "all models: ..."');
   lines.push('');
 
-  lines.push('Provider ping (PING_OK test)');
-  const pingIds = selectPingProviderIds(providers, [telegramRunProvider, chatProvider, spawnerDefaultProvider]);
+  lines.push('Spawner mission ping (PING_OK test)');
+  const pingIds = selectPingProviderIds(providers, [telegramRunProvider, spawnerDefaultProvider]);
   if (pingIds.length === 0) {
     lines.push('• No configured or selected providers to ping.');
   } else {

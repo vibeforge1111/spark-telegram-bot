@@ -54,7 +54,7 @@ test('marks selected API-key providers missing when no key is configured', () =>
   });
 });
 
-test('pings configured providers and selected missing providers only', () => {
+test('pings selected Spawner route providers only', () => {
   const providers: ProviderStatus[] = [
     {
       id: 'codex',
@@ -82,5 +82,5 @@ test('pings configured providers and selected missing providers only', () => {
     }
   ];
 
-  assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['codex', 'zai']);
+  assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
 });
