@@ -49,7 +49,7 @@ function isLowSignalPlanningTurn(text: string): boolean {
 }
 
 export function inferMissionGoalFromRecentContext(currentText: string, recentMessages: string[]): string | null {
-  if (!isMissionExecutionConfirmation(currentText)) return null;
+  if (!isMissionExecutionConfirmation(currentText) && !isExplicitContextualBuildRequest(currentText)) return null;
 
   const usefulTurns = recentMessages
     .map((message) => message.trim())
@@ -91,10 +91,20 @@ export function inferMissionGoalFromRecentContext(currentText: string, recentMes
   ].join('\n\n');
 }
 
+export function isExplicitContextualBuildRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const asksToBuild = /\b(?:build|create|make|scaffold|implement|wire|integrate|improve|expand|upgrade|add)\b/.test(normalized);
+  const contextualObject = /\b(?:this|that|it|those|these|integration points?|connectors?|domain chip|diagnostic agent|bug recognition|what we built)\b/.test(normalized);
+  const executionHint = /\b(?:via|through|using|with|as)\s+(?:codex|mission|spawner|run)\b|\bmission\b|\bcodex\b/.test(normalized);
+  return asksToBuild && contextualObject && executionHint;
+}
+
 export function isBuildContextRecallQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return (
     /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:did|have)\s+(?:you|we)\s+(?:just\s+)?(?:build|make|create|ship)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:were|was)\s+we\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
     /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized)
   );
@@ -111,12 +121,21 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
   const sparkTopic = /\bspark\b/.test(lower);
   const bugTopic = /\b(?:bug|bugs|diagnos|anomal|failure|failures|health|logs?|monitor|troubleshoot|issue|issues)\b/.test(lower);
   const chipTopic = /\bdomain\s*chip\b|\bchip\b/.test(lower);
+  const completedDiagnosticAgent = /\bcompleted spawner mission\b[\s\S]*\bdiagnostic agent\b|\bbuilt the first-pass spark diagnostic agent\b|\bspark-intelligence diagnostics scan\b/i.test(context);
+
+  if (completedDiagnosticAgent) {
+    return [
+      'Yes. The latest completed build was the first-pass Spark Diagnostic Agent.',
+      'It added `spark-intelligence diagnostics scan`, passive log discovery/classification, recurring bug grouping, and Obsidian-friendly diagnostic notes.',
+      'Good next tests: run a fresh diagnostics scan, inspect the generated Markdown, verify it sees Builder/memory/Researcher/Spawner logs, then create a follow-up mission for missing connectors or better integration.'
+    ].join('\n');
+  }
 
   if ((sparkTopic || chipTopic) && bugTopic) {
     return [
-      'Yes. We were shaping a new domain chip for passive Spark bug recognition.',
+      'Yes. We were shaping passive Spark bug recognition.',
       'The idea: analyze Spark systems, spot bugs/silent failures/degraded health, and write Obsidian-friendly diagnostic notes.',
-      'Next step: say "yes create it" and I will start the Spawner mission.'
+      'If it has already run, the next step is testing and improving the diagnostic integration rather than starting from scratch.'
     ].join('\n');
   }
 
@@ -126,6 +145,80 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
       `The latest useful context I have is: ${usefulTurns.slice(-3).join(' | ')}`,
       'Next step: say "yes create it" and I will start the Spawner mission.'
     ].join('\n');
+  }
+
+  return null;
+}
+
+export function isLocalSparkServiceRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return (
+    /\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) ||
+    (
+      /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
+      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+    )
+  );
+}
+
+export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
+  if (spawnerAvailable) {
+    return [
+      'Yes. Spawner UI / Mission Control is running here:',
+      'http://127.0.0.1:5173',
+      '',
+      'For this diagnostic-agent work, open the Mission board there. The diagnostic notes are written under `~/.spark/diagnostics`.'
+    ].join('\n');
+  }
+
+  return [
+    'Spawner UI is not reachable from the Telegram gateway right now.',
+    'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:5173.',
+    'After that, I can use the Spawner API path again through missions.'
+  ].join('\n');
+}
+
+export function isDiagnosticFollowupTestQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return (
+    /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
+    /\b(?:it|this|that|diagnostic|bug recognition|domain chip|agent)\b/.test(normalized)
+  );
+}
+
+export function buildDiagnosticFollowupTestReply(context: string): string | null {
+  const lower = context.toLowerCase();
+  if (!/\bdiagnostic agent\b|\bspark-intelligence diagnostics scan\b|\bbug recognition\b/.test(lower)) {
+    return null;
+  }
+
+  return [
+    'Yes. The useful tests are clear now:',
+    '- run a fresh diagnostics scan with `spark-intelligence diagnostics scan` and confirm it writes a fresh Obsidian note',
+    '- seed fake Builder/memory/Researcher errors and confirm classification catches them',
+    '- verify the note links back to the affected Spark subsystem',
+    '- create one follow-up Codex mission to wire stronger service discovery/connectors into that diagnostic agent',
+    '',
+    'If you want me to improve it from here, say "build the diagnostic integration upgrades via Codex" and I will start that as a mission.'
+  ].join('\n');
+}
+
+export function buildContextualImprovementGoal(currentText: string, recentMessages: string[]): string | null {
+  if (!isExplicitContextualBuildRequest(currentText)) return null;
+  const context = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .join('\n');
+  const lower = context.toLowerCase();
+
+  if (/\bdiagnostic agent\b|\bspark-intelligence diagnostics scan\b|\bbug recognition\b/.test(lower)) {
+    return [
+      'Improve the recently built Spark Diagnostic Agent instead of starting a separate chip from scratch.',
+      'Add integration connectors/service discovery so the diagnostic agent can inspect the local Spark ecosystem more directly: spark-telegram-bot relay/profile health, spawner-ui Mission Control/API health, spark-intelligence-builder runtime/memory bridge status, domain-chip-memory health, and spark-researcher health.',
+      'Keep this passive and secure: no secret printing, no destructive commands, no webhook mode, long polling only for Telegram.',
+      'Add tests for connector discovery, unavailable-service handling, and Obsidian Markdown output.',
+      `Recent Telegram context:\n${context}\n\nLatest user request:\n${currentText}`
+    ].join('\n\n');
   }
 
   return null;

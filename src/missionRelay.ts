@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
 import type { Telegraf } from 'telegraf';
+import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { requireRelaySecret } from './launchMode';
 
@@ -633,6 +634,30 @@ async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise
   });
 }
 
+async function rememberMissionCompletion(
+  subscription: MissionSubscription,
+  event: DeliverableRelayEvent,
+  providerLabel: string,
+  response: string
+): Promise<void> {
+  const userId = Number(subscription.userId);
+  if (!Number.isFinite(userId)) return;
+
+  const summaryLine = response
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith('-')) || response;
+  const note = [
+    `Completed Spawner mission ${event.missionId} via ${humanizeProviderLabel(providerLabel)}.`,
+    `Goal: ${clipText(subscription.goal, 260)}`,
+    `Result: ${clipText(summaryLine, 500)}`
+  ].join(' ');
+
+  await conversation.learnAboutUser({ id: userId }, note).catch((error) => {
+    console.warn('[MissionRelay] Failed to remember mission completion:', error);
+  });
+}
+
 function formatRelayMessage(
   event: DeliverableRelayEvent,
   subscription: MissionSubscription,
@@ -825,6 +850,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
           await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
         }
+        await rememberMissionCompletion(subscription, event, extracted.providerLabel, extracted.response);
         writeJson(res, 200, { ok: true, chunks: chunks.length });
         return;
       }

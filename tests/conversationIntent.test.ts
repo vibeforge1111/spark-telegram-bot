@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
+  buildContextualImprovementGoal,
+  buildDiagnosticFollowupTestReply,
+  buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
+  isDiagnosticFollowupTestQuestion,
+  isExplicitContextualBuildRequest,
+  isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
@@ -83,6 +89,50 @@ test('answers what we were going to build from recent context', () => {
   assert.ok(reply);
   assert.match(reply, /passive Spark bug recognition/);
   assert.match(reply, /Obsidian-friendly diagnostic notes/);
+});
+
+test('answers what was just built from completed diagnostic mission notes', () => {
+  assert.equal(isBuildContextRecallQuestion('do you remember what you just built btw'), true);
+  const reply = buildRecentBuildContextReply([
+    'Completed Spawner mission spark-123 via Codex. Goal: Build Spark Diagnostic Agent. Result: Built the first-pass Spark Diagnostic Agent.',
+    'CLI entry point: `spark-intelligence diagnostics scan`'
+  ]);
+
+  assert.ok(reply);
+  assert.match(reply, /first-pass Spark Diagnostic Agent/);
+  assert.match(reply, /diagnostics scan/);
+  assert.doesNotMatch(reply, /say "yes create it"/);
+});
+
+test('recognizes local Spark service URL requests', () => {
+  assert.equal(isLocalSparkServiceRequest('can you run the localhost for me'), true);
+  assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:5173/);
+  assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
+});
+
+test('answers diagnostic follow-up testing questions from mission context', () => {
+  assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
+  const reply = buildDiagnosticFollowupTestReply(
+    'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent with `spark-intelligence diagnostics scan`.'
+  );
+
+  assert.ok(reply);
+  assert.match(reply, /fresh diagnostics scan/);
+  assert.match(reply, /follow-up Codex mission/);
+});
+
+test('turns explicit contextual improvement requests into diagnostic integration missions', () => {
+  const text = 'build these integration points as another mission via codex';
+  assert.equal(isExplicitContextualBuildRequest(text), true);
+  const goal = buildContextualImprovementGoal(text, [
+    'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.',
+    'It added `spark-intelligence diagnostics scan`.'
+  ]);
+
+  assert.ok(goal);
+  assert.match(goal, /Improve the recently built Spark Diagnostic Agent/);
+  assert.match(goal, /service discovery/);
+  assert.match(goal, /no secret printing/);
 });
 
 test('keeps mission-control product refinement in conversation', () => {

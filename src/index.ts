@@ -29,11 +29,17 @@ import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
+  buildContextualImprovementGoal,
+  buildDiagnosticFollowupTestReply,
+  buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
+  isDiagnosticFollowupTestQuestion,
+  isExplicitContextualBuildRequest,
+  isLocalSparkServiceRequest,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
@@ -816,10 +822,41 @@ bot.on(message('text'), async (ctx) => {
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
     const recentMessages = await conversation.getRecentMessages(user, 8);
+    const sessionContext = await conversation.getContext(user, text);
+    const contextualTurns = [...recentMessages, sessionContext];
+
+    if (isLocalSparkServiceRequest(text)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(buildLocalSparkServiceReply(await spawner.isAvailable()));
+      return;
+    }
+
     if (isBuildContextRecallQuestion(text)) {
-      const recentBuildContext = buildRecentBuildContextReply(recentMessages);
+      const recentBuildContext = buildRecentBuildContextReply(contextualTurns);
       if (recentBuildContext) {
         await ctx.reply(recentBuildContext);
+        return;
+      }
+    }
+
+    if (isDiagnosticFollowupTestQuestion(text)) {
+      const reply = buildDiagnosticFollowupTestReply(sessionContext);
+      if (reply) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply(reply);
+        return;
+      }
+    }
+
+    if (isExplicitContextualBuildRequest(text)) {
+      const improvementGoal = buildContextualImprovementGoal(text, contextualTurns);
+      if (improvementGoal) {
+        console.log(`[ConversationIntent] inferred contextual improvement mission user=${ctx.from?.id} textLen=${text.length}`);
+        await conversation.remember(user, text).catch(() => {});
+        const missionId = await handleRunCommand(ctx, improvementGoal, [MISSION_DEFAULT_PROVIDER]);
+        if (missionId) {
+          await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to improve the Spark Diagnostic Agent integration from Telegram context.`).catch(() => {});
+        }
         return;
       }
     }
