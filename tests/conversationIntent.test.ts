@@ -4,6 +4,8 @@ import {
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
   extractPlainChatMemoryDirective,
+  inferMissionGoalFromRecentContext,
+  isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
@@ -36,6 +38,36 @@ test('keeps explicit build specs on the build path', () => {
     ),
     false
   );
+});
+
+test('detects execution confirmation without treating every reply as a mission', () => {
+  assert.equal(isMissionExecutionConfirmation("yes let's do it create it after analyzing our systems deeply please"), true);
+  assert.equal(isMissionExecutionConfirmation('spin it up'), true);
+  assert.equal(isMissionExecutionConfirmation('sounds good'), true);
+  assert.equal(isMissionExecutionConfirmation('what do you think about this?'), false);
+});
+
+test('infers Spark bug-recognition mission from recent planning context', () => {
+  const goal = inferMissionGoalFromRecentContext(
+    "Yes, let's do it create it after analyzing our systems deeply please",
+    [
+      "let's build something together shall we",
+      'a new domain chip',
+      'build new',
+      "let's build something that can be helpful in recognizing the bugs happening in the systems of Spark",
+      'I do not know where the logs live. All systems. Passive. Obsidian for the logs.'
+    ]
+  );
+
+  assert.ok(goal);
+  assert.match(goal, /passive Spark bug-recognition domain chip/);
+  assert.match(goal, /Obsidian-friendly Markdown/);
+  assert.match(goal, /spark-telegram-bot/);
+});
+
+test('does not infer mission from low-context agreement', () => {
+  assert.equal(inferMissionGoalFromRecentContext('yes sounds good', ['nice', 'cool']), null);
+  assert.equal(inferMissionGoalFromRecentContext('what happened?', ['new domain chip']), null);
 });
 
 test('keeps mission-control product refinement in conversation', () => {

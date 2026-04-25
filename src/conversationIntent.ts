@@ -30,6 +30,67 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   return COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
+export function isMissionExecutionConfirmation(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return [
+    /^(?:yes|yeah|yep|yup|ok|okay|sure|sounds\s+good|perfect)[\s,!.]*(?:let'?s\s+)?(?:do\s+it|build\s+it|create\s+it|make\s+it|spin\s+it\s+up|kick\s+it\s+off|run\s+it|start\s+it)?\b/i,
+    /^(?:let'?s\s+)?(?:do\s+it|build\s+it|create\s+it|make\s+it|spin\s+it\s+up|kick\s+it\s+off|run\s+it|start\s+it)\b/i,
+    /\b(?:create|build|make|run|start|spin\s+up|kick\s+off)\s+(?:it|this|that|the\s+mission)\b/i
+  ].some((pattern) => pattern.test(trimmed));
+}
+
+function isLowSignalPlanningTurn(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return (
+    normalized.length < 5 ||
+    /^(?:yes|yeah|yep|yup|ok|okay|sure|sounds good|perfect|nice|cool|go|go ahead|build new|new)$/i.test(normalized)
+  );
+}
+
+export function inferMissionGoalFromRecentContext(currentText: string, recentMessages: string[]): string | null {
+  if (!isMissionExecutionConfirmation(currentText)) return null;
+
+  const usefulTurns = recentMessages
+    .map((message) => message.trim())
+    .filter((message) => message && !isLowSignalPlanningTurn(message));
+  if (usefulTurns.length === 0) return null;
+
+  const context = usefulTurns.join('\n');
+  const lower = context.toLowerCase();
+  const sparkTopic = /\bspark\b/.test(lower);
+  const bugTopic = /\b(?:bug|bugs|diagnos|anomal|failure|failures|health|logs?|monitor|troubleshoot|issue|issues)\b/.test(lower);
+  const chipTopic = /\bdomain\s*chip\b|\bchip\b/.test(lower);
+  const buildTopic = /\b(?:build|create|make|scaffold|system|agent|monitor)\b/.test(lower);
+
+  if (!(buildTopic || chipTopic) || !(sparkTopic || bugTopic || chipTopic)) {
+    return null;
+  }
+
+  if ((sparkTopic || chipTopic) && bugTopic) {
+    return [
+      'Deeply analyze the local Spark stack, including spark-telegram-bot, spark-intelligence-builder, domain-chip-memory, spark-researcher, and spawner-ui.',
+      'Then design and scaffold a passive Spark bug-recognition domain chip that identifies recurring bugs, silent failures, degraded health, routing issues, memory failures, and mission-control problems.',
+      'The first version should write Obsidian-friendly Markdown diagnostics and include clear setup, usage, and verification steps.',
+      `Recent Telegram planning context:\n${context}`
+    ].join('\n\n');
+  }
+
+  if (chipTopic) {
+    return [
+      'Create a new Spark domain chip from the recent Telegram planning context.',
+      'Analyze the relevant Spark systems first, then produce a concrete v1 chip design, files, setup notes, and tests.',
+      `Recent Telegram planning context:\n${context}`
+    ].join('\n\n');
+  }
+
+  return [
+    'Create a Spawner mission from the recent Telegram planning context.',
+    'Analyze the relevant Spark systems first, then build the smallest useful v1 and include verification steps.',
+    `Recent Telegram planning context:\n${context}`
+  ].join('\n\n');
+}
+
 export function buildIdeationSystemHint(text: string): string {
   const domainChip = /\bdomain\s*chip\b/i.test(text);
   const missionControl = /\bmission\s+control\b/i.test(text);
@@ -43,6 +104,7 @@ export function buildIdeationSystemHint(text: string): string {
   return [
     modeLine,
     'Do not start a build, canvas, mission, or PRD yet.',
+    'If the user later says yes, create it, run it, spin it up, or kick it off, the Telegram gateway can start the mission. Do not claim you started it during ideation.',
     'Reply like a collaborative product partner: propose 2-4 directions, ask one or two useful questions, and offer a next step.',
     'Keep it concise and natural for Telegram.'
   ].join('\n');

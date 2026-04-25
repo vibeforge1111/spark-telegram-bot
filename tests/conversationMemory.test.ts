@@ -36,6 +36,18 @@ async function main(): Promise<void> {
 
   assert.equal(otherContext, 'No prior memories.');
   });
+
+  await test('exposes recent user turns for follow-up mission inference', async () => {
+  const memory = new ConversationMemory();
+
+  await memory.remember(user, "let's build something together shall we");
+  await memory.remember(user, 'a new domain chip');
+  await memory.remember(user, 'recognizing bugs happening in Spark systems');
+
+  const recent = await memory.getRecentMessages(user, 2);
+
+  assert.deepEqual(recent, ['a new domain chip', 'recognizing bugs happening in Spark systems']);
+  });
 }
 
 void main();

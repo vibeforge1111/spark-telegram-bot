@@ -111,6 +111,15 @@ export class ConversationMemory {
     return lines.length > 0 ? lines.join('\n') : 'No prior memories.';
   }
 
+  async getRecentMessages(user: TelegramUser, limit: number = 6): Promise<string[]> {
+    const key = this.userKey(user);
+    const recent = this.recentByUser.get(key) || [];
+    return recent
+      .slice(-Math.max(1, limit))
+      .map((item) => item.replace(/^User:\s*/i, '').trim())
+      .filter(Boolean);
+  }
+
   async getMemoryCount(user: TelegramUser): Promise<number> {
     const key = this.userKey(user);
     return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;

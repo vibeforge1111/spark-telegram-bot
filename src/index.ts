@@ -30,6 +30,7 @@ import {
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
   extractPlainChatMemoryDirective,
+  inferMissionGoalFromRecentContext,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
@@ -431,7 +432,7 @@ async function handleRunCommand(
   ctx: any,
   goal: string,
   providers: string[]
-): Promise<void> {
+): Promise<string | null> {
   await ctx.sendChatAction('typing');
 
   const requestId = `tg-${ctx.chat.id}-${ctx.message.message_id}`;
@@ -446,7 +447,7 @@ async function handleRunCommand(
 
   if (!result.success || !result.missionId) {
     await ctx.reply(`Hit a snag starting that - ${result.error || 'something went wrong'}. Want me to retry?`);
-    return;
+    return null;
   }
 
   await ctx.reply(humanAck(result.providers || providers));
@@ -460,6 +461,7 @@ async function handleRunCommand(
     createdAt: new Date().toISOString(),
     updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
   });
+  return result.missionId;
 }
 
 async function handleBuildIntent(
@@ -814,10 +816,23 @@ bot.on(message('text'), async (ctx) => {
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
+    const recentMessages = await conversation.getRecentMessages(user, 8);
+    const inferredMissionGoal = inferMissionGoalFromRecentContext(text, recentMessages);
+    if (inferredMissionGoal) {
+      console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);
+      await conversation.remember(user, text).catch(() => {});
+      const missionId = await handleRunCommand(ctx, inferredMissionGoal, [BOT_DEFAULT_PROVIDER]);
+      if (missionId) {
+        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} from Telegram follow-up: ${inferredMissionGoal.slice(0, 220)}`).catch(() => {});
+      }
+      return;
+    }
+
+    await conversation.remember(user, text).catch(() => {});
+
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await ctx.sendChatAction('typing');
-      await conversation.remember(user, text).catch(() => {});
       const memories = await conversation.getContext(user, text);
       const llmResponse = await llm.chat(text, buildIdeationSystemHint(text), memories);
       const response = isLowInformationLlmReply(llmResponse)
@@ -869,9 +884,6 @@ bot.on(message('text'), async (ctx) => {
       }
       console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);
     }
-
-    // Store the message as a memory
-    await conversation.remember(user, text).catch(() => {});
 
     // Get context from previous memories
     const memories = await conversation.getContext(user, text);
