@@ -86,6 +86,26 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string): boolean {
   return isLowInformationLlmReply(reply) || isMemoryAcknowledgementReply(reply);
 }
 
+export function extractPlainChatMemoryDirective(text: string): string | null {
+  const trimmed = text.trim();
+  const patterns = [
+    /^(?:please\s+)?(?:can\s+you\s+)?remember\s+that\s+(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:can\s+you\s+)?remember\s*[:,-]\s*(.+?)[.!?]?$/i,
+    /^(?:please\s+)?keep\s+in\s+mind\s+that\s+(.+?)[.!?]?$/i,
+    /^(?:please\s+)?note\s+that\s+(.+?)[.!?]?$/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) {
+      return value.replace(/^["']|["']$/g, '').trim();
+    }
+  }
+
+  return null;
+}
+
 export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {
   if (action === 'remember') {
     return 'I could not confirm that through Spark memory yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';

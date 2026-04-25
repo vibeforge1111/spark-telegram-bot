@@ -3,6 +3,7 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
+  extractPlainChatMemoryDirective,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
@@ -77,6 +78,16 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     true
   );
   assert.equal(shouldSuppressBuilderReplyForPlainChat('I am doing well. The chat is working normally.'), false);
+});
+
+test('extracts explicit plain-chat memory directives', () => {
+  assert.equal(
+    extractPlainChatMemoryDirective('can you remember that you are a QA agent'),
+    'you are a QA agent'
+  );
+  assert.equal(extractPlainChatMemoryDirective('remember: my preferred reply style is concise'), 'my preferred reply style is concise');
+  assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
+  assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
 });
 
 test('memory fallback does not claim a no-op save succeeded', () => {

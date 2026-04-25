@@ -29,6 +29,7 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
+  extractPlainChatMemoryDirective,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
@@ -851,10 +852,18 @@ bot.on(message('text'), async (ctx) => {
   await ctx.sendChatAction('typing');
 
   try {
+    const memoryDirective = extractPlainChatMemoryDirective(text);
+    if (memoryDirective) {
+      await conversation.learnAboutUser(user, `User asked Spark to remember: ${memoryDirective}`).catch(() => {});
+    }
+
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText)) {
+        if (memoryDirective) {
+          await conversation.remember(user, text).catch(() => {});
+        }
         await ctx.reply(builderReply.responseText);
         return;
       }
