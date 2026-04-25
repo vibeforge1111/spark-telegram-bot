@@ -3,8 +3,10 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
+  buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   inferMissionGoalFromRecentContext,
+  isBuildContextRecallQuestion,
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
@@ -68,6 +70,19 @@ test('infers Spark bug-recognition mission from recent planning context', () => 
 test('does not infer mission from low-context agreement', () => {
   assert.equal(inferMissionGoalFromRecentContext('yes sounds good', ['nice', 'cool']), null);
   assert.equal(inferMissionGoalFromRecentContext('what happened?', ['new domain chip']), null);
+});
+
+test('answers what we were going to build from recent context', () => {
+  assert.equal(isBuildContextRecallQuestion('we were gonna build something do you remember what it was'), true);
+  const reply = buildRecentBuildContextReply([
+    'a new domain chip',
+    "let's build something that can be helpful in recognizing the bugs happening in the systems of Spark",
+    'All systems. Passive. Obsidian for the logs.'
+  ]);
+
+  assert.ok(reply);
+  assert.match(reply, /passive Spark bug recognition/);
+  assert.match(reply, /Obsidian-friendly diagnostic notes/);
 });
 
 test('keeps mission-control product refinement in conversation', () => {

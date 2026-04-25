@@ -2,6 +2,7 @@
 // Long-term memory lives in Spark Intelligence Builder (SIB). This module keeps
 // a small in-process context buffer so plain chat can stay coherent immediately
 // after the user says "remember that..." while durable memory catches up.
+import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 const ADMIN_IDS: number[] = (process.env.ADMIN_TELEGRAM_IDS || '')
   .split(',')
@@ -25,6 +26,11 @@ interface TelegramUser {
   first_name?: string;
 }
 
+interface ConversationSnapshot {
+  recentByUser?: Record<string, string[]>;
+  notesByUser?: Record<string, string[]>;
+}
+
 export interface Memory {
   memory_id: string;
   content: string;
@@ -39,6 +45,8 @@ export class ConversationMemory {
   private readonly notesByUser = new Map<number, string[]>();
   private readonly maxRecent = 8;
   private readonly maxNotes = 12;
+  private loaded = false;
+  private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
     return ADMIN_IDS.includes(user.id);
@@ -56,27 +64,66 @@ export class ConversationMemory {
     return user.id;
   }
 
-  private pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): void {
+  private async ensureLoaded(): Promise<void> {
+    if (this.loaded) return;
+    const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
+    if (snapshot?.recentByUser) {
+      for (const [key, value] of Object.entries(snapshot.recentByUser)) {
+        const userId = Number(key);
+        if (Number.isFinite(userId) && Array.isArray(value)) {
+          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
+        }
+      }
+    }
+    if (snapshot?.notesByUser) {
+      for (const [key, value] of Object.entries(snapshot.notesByUser)) {
+        const userId = Number(key);
+        if (Number.isFinite(userId) && Array.isArray(value)) {
+          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
+        }
+      }
+    }
+    this.loaded = true;
+  }
+
+  private recordFromMap(map: Map<number, string[]>): Record<string, string[]> {
+    const record: Record<string, string[]> = {};
+    for (const [key, value] of map.entries()) {
+      record[String(key)] = value;
+    }
+    return record;
+  }
+
+  private async persist(): Promise<void> {
+    await writeJsonAtomic(this.statePath, {
+      recentByUser: this.recordFromMap(this.recentByUser),
+      notesByUser: this.recordFromMap(this.notesByUser)
+    });
+  }
+
+  private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
+    await this.ensureLoaded();
     const normalized = value.trim();
     if (!normalized) return;
     const items = map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
     deduped.push(normalized);
     map.set(key, deduped.slice(-limit));
+    await this.persist();
   }
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
-    this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
+    await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
     return null;
   }
 
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
-    this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
+    await this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
     return null;
   }
 
   async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
-    this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
+    await this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
     return null;
   }
 
@@ -89,6 +136,7 @@ export class ConversationMemory {
   }
 
   async getContext(user: TelegramUser, _currentMessage: string): Promise<string> {
+    await this.ensureLoaded();
     const key = this.userKey(user);
     const notes = this.notesByUser.get(key) || [];
     const recent = this.recentByUser.get(key) || [];
@@ -112,6 +160,7 @@ export class ConversationMemory {
   }
 
   async getRecentMessages(user: TelegramUser, limit: number = 6): Promise<string[]> {
+    await this.ensureLoaded();
     const key = this.userKey(user);
     const recent = this.recentByUser.get(key) || [];
     return recent
@@ -121,6 +170,7 @@ export class ConversationMemory {
   }
 
   async getMemoryCount(user: TelegramUser): Promise<number> {
+    await this.ensureLoaded();
     const key = this.userKey(user);
     return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;
   }

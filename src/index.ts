@@ -29,8 +29,10 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildMemoryBridgeUnavailableReply,
+  buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   inferMissionGoalFromRecentContext,
+  isBuildContextRecallQuestion,
   isLowInformationLlmReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
@@ -817,6 +819,14 @@ bot.on(message('text'), async (ctx) => {
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
     const recentMessages = await conversation.getRecentMessages(user, 8);
+    if (isBuildContextRecallQuestion(text)) {
+      const recentBuildContext = buildRecentBuildContextReply(recentMessages);
+      if (recentBuildContext) {
+        await ctx.reply(recentBuildContext);
+        return;
+      }
+    }
+
     const inferredMissionGoal = inferMissionGoalFromRecentContext(text, recentMessages);
     if (inferredMissionGoal) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);

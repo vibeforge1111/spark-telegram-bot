@@ -68,3 +68,12 @@ export function resolveStatePath(filename: string): string {
   const stateDir = process.env.SPARK_GATEWAY_STATE_DIR?.trim();
   return path.join(stateDir || process.cwd(), filename);
 }
+
+export function resetJsonStateForTests(): void {
+  if (!db) return;
+  try {
+    db.close();
+  } finally {
+    db = null;
+  }
+}

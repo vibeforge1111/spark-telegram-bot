@@ -91,6 +91,46 @@ export function inferMissionGoalFromRecentContext(currentText: string, recentMes
   ].join('\n\n');
 }
 
+export function isBuildContextRecallQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return (
+    /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:were|was)\s+we\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
+    /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized)
+  );
+}
+
+export function buildRecentBuildContextReply(recentMessages: string[]): string | null {
+  const usefulTurns = recentMessages
+    .map((message) => message.trim())
+    .filter((message) => message && !isLowSignalPlanningTurn(message));
+  if (usefulTurns.length === 0) return null;
+
+  const context = usefulTurns.join('\n');
+  const lower = context.toLowerCase();
+  const sparkTopic = /\bspark\b/.test(lower);
+  const bugTopic = /\b(?:bug|bugs|diagnos|anomal|failure|failures|health|logs?|monitor|troubleshoot|issue|issues)\b/.test(lower);
+  const chipTopic = /\bdomain\s*chip\b|\bchip\b/.test(lower);
+
+  if ((sparkTopic || chipTopic) && bugTopic) {
+    return [
+      'Yes. We were shaping a new domain chip for passive Spark bug recognition.',
+      'The idea: analyze Spark systems, spot bugs/silent failures/degraded health, and write Obsidian-friendly diagnostic notes.',
+      'Next step: say "yes create it" and I will start the Spawner mission.'
+    ].join('\n');
+  }
+
+  if (chipTopic) {
+    return [
+      'Yes. We were shaping a new Spark domain chip.',
+      `The latest useful context I have is: ${usefulTurns.slice(-3).join(' | ')}`,
+      'Next step: say "yes create it" and I will start the Spawner mission.'
+    ].join('\n');
+  }
+
+  return null;
+}
+
 export function buildIdeationSystemHint(text: string): string {
   const domainChip = /\bdomain\s*chip\b/i.test(text);
   const missionControl = /\bmission\s+control\b/i.test(text);
