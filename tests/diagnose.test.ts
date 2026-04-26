@@ -159,7 +159,10 @@ test('describes plain chat bridge and provider health', () => {
     }),
     'Builder bridge: ✅ available (auto)'
   );
-  assert.equal(describeChatProviderHealth(false, 'zai (glm-5.1)'), 'Chat provider direct ping: ❌ zai (glm-5.1)');
+  assert.equal(
+    describeChatProviderHealth({ ok: false, detail: 'request failed' }, 'zai (glm-5.1)'),
+    'Chat provider completion: ❌ zai (glm-5.1) (request failed)'
+  );
 });
 
 test('describes access diagnostics without leaking ids', () => {

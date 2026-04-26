@@ -52,6 +52,11 @@ export function codexExecArgs(model: string, outputPath: string): string[] {
   ];
 }
 
+export interface ChatProviderPing {
+  ok: boolean;
+  detail: string;
+}
+
 const SPARK_SYSTEM_PRIMER = `## What Spark can do in this install
 Spark is the user's local agent stack. It has:
 - Telegram chat as the front door for normal messages and commands.
@@ -136,6 +141,69 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
 async function codexAvailable(): Promise<boolean> {
   const result = await runProcess(CODEX_PATH, ['--version'], '', 5000);
   return result.ok;
+}
+
+export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatProviderPing> {
+  if (isCodexProvider()) {
+    return (await codexAvailable())
+      ? { ok: true, detail: 'codex cli available' }
+      : { ok: false, detail: 'codex cli unavailable' };
+  }
+
+  if (ZAI_API_KEY) {
+    try {
+      const res = await axios.post<ZaiChatResponse>(
+        joinUrl(ZAI_BASE_URL, '/chat/completions'),
+        {
+          model: ZAI_MODEL,
+          messages: [
+            { role: 'system', content: 'Health check. Reply with exactly CHAT_OK.' },
+            { role: 'user', content: 'Reply with exactly: CHAT_OK' }
+          ],
+          temperature: 0,
+          max_tokens: 8,
+          thinking: { type: 'disabled' }
+        },
+        {
+          timeout: timeoutMs,
+          headers: {
+            Authorization: `Bearer ${ZAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      const content = res.data.choices?.[0]?.message?.content?.trim() ||
+        res.data.choices?.[0]?.message?.reasoning_content?.trim() ||
+        '';
+      return /CHAT_OK/i.test(content)
+        ? { ok: true, detail: 'completion ok' }
+        : { ok: false, detail: 'unexpected completion' };
+    } catch (err: any) {
+      return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
+    }
+  }
+
+  try {
+    const res = await axios.post<OllamaResponse>(
+      `${OLLAMA_URL}/api/generate`,
+      {
+        model: MODEL,
+        prompt: 'Reply with exactly: CHAT_OK',
+        system: 'Health check. Reply with exactly CHAT_OK.',
+        stream: false,
+        options: {
+          temperature: 0,
+          num_predict: 8,
+        },
+      },
+      { timeout: timeoutMs }
+    );
+    return /CHAT_OK/i.test(res.data.response || '')
+      ? { ok: true, detail: 'completion ok' }
+      : { ok: false, detail: 'unexpected completion' };
+  } catch (err: any) {
+    return { ok: false, detail: err.code || err.message || 'request failed' };
+  }
 }
 
 async function codexChat(prompt: string): Promise<string> {

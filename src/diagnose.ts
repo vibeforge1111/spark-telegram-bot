@@ -4,7 +4,7 @@
 import axios from 'axios';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
-import { llm } from './llm';
+import { pingChatProvider, type ChatProviderPing } from './llm';
 import { parseTelegramUserIds } from './conversation';
 import {
   normalizeProviderId,
@@ -256,8 +256,8 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
   return `Builder bridge: ${icon} unavailable (${status.mode})`;
 }
 
-export function describeChatProviderHealth(ok: boolean, chatProviderLabel: string): string {
-  return `Chat provider direct ping: ${ok ? '✅' : '❌'} ${chatProviderLabel}`;
+export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
+  return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
 }
 
 export function describeAccessDiagnostics(subject: DiagnoseSubject, accessProfile: string, env: NodeJS.ProcessEnv = process.env): string[] {
@@ -311,7 +311,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     isAllowed: subject?.isAllowed ?? true
   };
 
-  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderOk, accessProfile] = await Promise.all([
+  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderPing, accessProfile] = await Promise.all([
     httpStatus(`http://127.0.0.1:${relayIdentity.port}/health`, 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
@@ -321,7 +321,10 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
       builderRepo: '',
       builderHome: ''
     })),
-    llm.isAvailable().catch(() => false),
+    pingChatProvider().catch((error) => ({
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error)
+    })),
     getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
   ]);
 
@@ -370,7 +373,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
 
   lines.push('Plain chat');
   lines.push(`• ${describeBuilderBridgeHealth(builderBridge)}`);
-  lines.push(`• ${describeChatProviderHealth(chatProviderOk, providerLabel(chatProvider, providers))}`);
+  lines.push(`• ${describeChatProviderHealth(chatProviderPing, providerLabel(chatProvider, providers))}`);
   lines.push('');
 
   lines.push('Access');
@@ -420,7 +423,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     botRelayOk: botRelay.ok,
     spawnerOk: spawnerProviders.ok,
     builder: builderBridge,
-    chatProviderOk,
+    chatProviderOk: chatProviderPing.ok,
     missionPingOk
   }));
   lines.push('');
