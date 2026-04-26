@@ -220,6 +220,39 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
+export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider';
+
+export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (
+    /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
+    /\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b.*\b(?:which|what)\s+(?:llm|model|provider|agent)\b/.test(normalized) ||
+    /\b(?:who|what)\s+(?:took|handled|ran|accepted)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized)
+  ) {
+    return 'latest_provider';
+  }
+
+  if (
+    /\b(?:latest|last|recent|newest)\b.*\b(?:canvas|spawner|mission|run|job)\b.*\b(?:show\s+up|appear|visible|saw|seen|landed)\b.*\b(?:kanban|board|mission\s+board)\b/.test(normalized) ||
+    /\b(?:kanban|board|mission\s+board)\b.*\b(?:show|see|saw|seen|visible|have|has)\b.*\b(?:latest|last|recent|newest|same)\b.*\b(?:canvas|spawner|mission|run|job)\b/.test(normalized) ||
+    /\bcanvas\s+event\s+stream\b.*\b(?:kanban|board|mission\s+board)\b/.test(normalized)
+  ) {
+    return 'latest_on_kanban';
+  }
+
+  if (
+    /\b(?:show|display|list|pull\s+up|what'?s|what\s+is|status\s+of|current)\b.*\b(?:spawner|kanban|mission\s+board|mission\s+control)\b.*\b(?:board|kanban|missions?)?\b/.test(normalized) ||
+    /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b.*\b(?:board|status|current|running|completed|failed)\b/.test(normalized) ||
+    /\bwhat'?s\s+running\b/.test(normalized)
+  ) {
+    return 'board';
+  }
+
+  return null;
+}
+
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return (

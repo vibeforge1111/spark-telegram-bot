@@ -25,14 +25,100 @@ interface RunGoalResult {
 
 interface BoardEntry {
   missionId: string;
+  missionName?: string | null;
   status: 'created' | 'running' | 'paused' | 'completed' | 'failed';
   lastEventType: string;
   lastUpdated: string;
   lastSummary: string;
   taskName: string | null;
+  taskNames?: string[];
+  taskCount?: number;
+  telegramRelay?: {
+    port?: number | null;
+    profile?: string | null;
+    url?: string | null;
+  } | null;
+  providerResults?: Array<{
+    providerId?: string;
+    status?: string;
+    summary?: string;
+  }>;
+  providerSummary?: string;
 }
 
 const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
+
+type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
+type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
+
+function normalizeBucket(value: unknown): BoardEntry[] {
+  return Array.isArray(value) ? value as BoardEntry[] : [];
+}
+
+function isFreshRunningEntry(entry: BoardEntry): boolean {
+  const ageMs = Date.now() - Date.parse(entry.lastUpdated);
+  return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
+}
+
+async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
+  const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 10000 });
+  const board = res.data?.board || {};
+  return {
+    running: normalizeBucket(board.running).filter(isFreshRunningEntry),
+    paused: normalizeBucket(board.paused),
+    completed: normalizeBucket(board.completed),
+    failed: normalizeBucket(board.failed),
+    created: normalizeBucket(board.created)
+  };
+}
+
+function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
+  const entries = [
+    ...board.running,
+    ...board.paused,
+    ...board.completed,
+    ...board.failed,
+    ...board.created
+  ];
+  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  return entries[0] || null;
+}
+
+function providerNames(entry: BoardEntry): string {
+  const names = (entry.providerResults || [])
+    .map((provider) => provider.providerId)
+    .filter((name): name is string => Boolean(name?.trim()));
+
+  if (names.length > 0) {
+    return [...new Set(names)].join(', ');
+  }
+
+  const summaryPrefix = entry.providerSummary?.match(/^([^:]+):/)?.[1]?.trim();
+  return summaryPrefix || entry.taskName || 'unknown';
+}
+
+function formatLatestMission(entry: BoardEntry): string[] {
+  const title = entry.missionName || entry.taskName || 'Unnamed mission';
+  const tasks = entry.taskNames && entry.taskNames.length > 0
+    ? entry.taskNames.slice(0, 3).join(', ')
+    : entry.taskName || null;
+  const lines = [
+    `Mission: ${entry.missionId}`,
+    `Status: ${entry.status}`,
+    `Title: ${title}`
+  ];
+
+  if (tasks) lines.push(`Tasks: ${tasks}`);
+  lines.push(`Provider: ${providerNames(entry)}`);
+  if (entry.telegramRelay?.profile || entry.telegramRelay?.port) {
+    const target = [entry.telegramRelay.profile, entry.telegramRelay.port ? `:${entry.telegramRelay.port}` : '']
+      .filter(Boolean)
+      .join('');
+    lines.push(`Relay: ${target}`);
+  }
+  if (entry.providerSummary) lines.push(`Result: ${entry.providerSummary}`);
+  return lines;
+}
 
 export const spawner = {
   async isAvailable(): Promise<boolean> {
@@ -128,18 +214,13 @@ export const spawner = {
 
   async board(): Promise<{ success: boolean; message: string }> {
     try {
-      const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 10000 });
-      const board = res.data?.board || {};
-      const runningEntries = (Array.isArray(board.running) ? board.running : []).filter((entry: BoardEntry) => {
-        const ageMs = Date.now() - Date.parse(entry.lastUpdated);
-        return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
-      });
+      const board = await fetchBoardSnapshot();
       const sections: Array<[string, BoardEntry[]]> = [
-        ['Running', runningEntries],
-        ['Paused', Array.isArray(board.paused) ? board.paused : []],
-        ['Completed', Array.isArray(board.completed) ? board.completed : []],
-        ['Failed', Array.isArray(board.failed) ? board.failed : []],
-        ['Created', Array.isArray(board.created) ? board.created : []]
+        ['Running', board.running],
+        ['Paused', board.paused],
+        ['Completed', board.completed],
+        ['Failed', board.failed],
+        ['Created', board.created]
       ];
 
       const lines = ['Spawner Board'];
@@ -160,6 +241,58 @@ export const spawner = {
       return {
         success: true,
         message: lines.join('\n')
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async latestKanbanSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      if (!latest) {
+        return {
+          success: true,
+          message: 'Kanban has no missions yet.'
+        };
+      }
+
+      return {
+        success: true,
+        message: [
+          'Yes, the latest mission is visible on Kanban.',
+          '',
+          ...formatLatestMission(latest)
+        ].join('\n')
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async latestProviderSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      if (!latest) {
+        return {
+          success: true,
+          message: 'I do not see any Spawner jobs on Kanban yet.'
+        };
+      }
+
+      return {
+        success: true,
+        message: [
+          `The latest Spawner job was handled by: ${providerNames(latest)}`,
+          '',
+          ...formatLatestMission(latest)
+        ].join('\n')
       };
     } catch (err: any) {
       return {

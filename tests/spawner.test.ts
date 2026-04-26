@@ -232,6 +232,100 @@ async function run(): Promise<void> {
     assert.match(result.message, /Paused: 0/);
     assert.match(result.message, /Completed: 0/);
   });
+
+  await test('latestKanbanSummary reports the newest board-visible mission', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-older',
+              missionName: 'Older canvas mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Old task',
+              providerSummary: 'Claude: done'
+            },
+            {
+              missionId: 'mission-newer',
+              missionName: 'Fresh canvas mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Render page',
+              taskNames: ['Render page', 'Write README'],
+              telegramRelay: { port: 8789, profile: 'spark-agi' },
+              providerResults: [{ providerId: 'codex', status: 'completed', summary: 'OK' }],
+              providerSummary: 'Codex: OK'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestKanbanSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /latest mission is visible on Kanban/);
+    assert.match(result.message, /Mission: mission-newer/);
+    assert.match(result.message, /Tasks: Render page, Write README/);
+    assert.match(result.message, /Provider: codex/);
+    assert.match(result.message, /Relay: spark-agi:8789/);
+    assert.doesNotMatch(result.message, /mission-older/);
+  });
+
+  await test('latestProviderSummary reports the provider for the newest Spawner job', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'spark-live',
+              missionName: 'Live smoke',
+              status: 'running',
+              lastEventType: 'task_started',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Working',
+              taskName: 'codex',
+              providerResults: [{ providerId: 'codex', status: 'running' }]
+            }
+          ],
+          paused: [],
+          completed: [
+            {
+              missionId: 'spark-done',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 30_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'zai',
+              providerSummary: 'zai: done'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProviderSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /handled by: codex/);
+    assert.match(result.message, /Mission: spark-live/);
+    assert.doesNotMatch(result.message, /spark-done/);
+  });
 }
 
 run()

@@ -22,6 +22,7 @@ import {
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
   parseMissionUpdatePreferenceIntent,
+  parseSpawnerBoardNaturalIntent,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
@@ -159,6 +160,17 @@ test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);
   assert.match(buildLocalSparkServiceClarificationReply(), /Which local Spark surface/);
+});
+
+test('routes natural Spawner board questions to board reads', () => {
+  assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
+  assert.equal(parseSpawnerBoardNaturalIntent('did the latest canvas run show up on kanban?'), 'latest_on_kanban');
+  assert.equal(parseSpawnerBoardNaturalIntent('which LLM took the latest Spawner job?'), 'latest_provider');
+  assert.equal(
+    parseSpawnerBoardNaturalIntent('the canvas event stream looked good, can you check whether the kanban side saw the same mission?'),
+    'latest_on_kanban'
+  );
+  assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
 });
 
 test('answers diagnostic follow-up testing questions from mission context', () => {

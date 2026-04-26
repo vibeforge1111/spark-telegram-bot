@@ -65,6 +65,7 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
@@ -948,6 +949,19 @@ bot.on(message('text'), async (ctx) => {
     }
 
     const localServiceContext = contextualTurns.join('\n');
+    const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
+    if (spawnerBoardIntent) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.sendChatAction('typing');
+      const result = spawnerBoardIntent === 'latest_provider'
+        ? await spawner.latestProviderSummary()
+        : spawnerBoardIntent === 'latest_on_kanban'
+          ? await spawner.latestKanbanSummary()
+          : await spawner.board();
+      await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+      return;
+    }
+
     if (isLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(buildLocalSparkServiceReply(await spawner.isAvailable()));
