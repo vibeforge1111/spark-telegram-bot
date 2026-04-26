@@ -2,6 +2,10 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
+import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
+import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
+import { llm } from './llm';
+import { parseTelegramUserIds } from './conversation';
 import {
   normalizeProviderId,
   resolveChatDefaultProvider,
@@ -54,6 +58,13 @@ interface HttpStatusResult {
   status?: number;
   err?: string;
   payload?: unknown;
+}
+
+export interface DiagnoseSubject {
+  userId: number;
+  chatId: string | number;
+  isAdmin: boolean;
+  isAllowed: boolean;
 }
 
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
@@ -234,15 +245,84 @@ function providerLabel(providerId: string | null, providers: ProviderStatus[]): 
   return provider.model ? `${provider.id} (${provider.model})` : provider.id;
 }
 
-export async function buildDiagnoseReport(adminId: number): Promise<string> {
+export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string {
+  if (status.mode === 'off') {
+    return 'Builder bridge: ⚪ off';
+  }
+  if (status.available) {
+    return `Builder bridge: ✅ available (${status.mode})`;
+  }
+  const icon = status.mode === 'required' ? '❌' : '⚪';
+  return `Builder bridge: ${icon} unavailable (${status.mode})`;
+}
+
+export function describeChatProviderHealth(ok: boolean, chatProviderLabel: string): string {
+  return `Chat provider direct ping: ${ok ? '✅' : '❌'} ${chatProviderLabel}`;
+}
+
+export function describeAccessDiagnostics(subject: DiagnoseSubject, accessProfile: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  const adminCount = parseTelegramUserIds(env.ADMIN_TELEGRAM_IDS).length;
+  const allowedCount = parseTelegramUserIds(env.ALLOWED_TELEGRAM_IDS || env.TELEGRAM_ALLOWED_USER_IDS).length;
+  const publicChat = env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+  return [
+    `Current user: ${subject.isAllowed ? '✅ allowed' : '❌ not allowed'}${subject.isAdmin ? ' / admin' : ''}`,
+    `Access level: ${accessProfile}`,
+    `Configured operators: admins=${adminCount}, allowed=${allowedCount}, public=${publicChat ? 'on' : 'off'}`
+  ];
+}
+
+export function inferDiagnoseLikelyIssue(args: {
+  subject: DiagnoseSubject;
+  botRelayOk: boolean;
+  spawnerOk: boolean;
+  builder: BuilderBridgeStatus;
+  chatProviderOk: boolean;
+  missionPingOk: boolean | null;
+}): string {
+  if (!args.subject.isAllowed) {
+    return 'Likely issue: this Telegram user is not allowed. Add their /myid value to ALLOWED_TELEGRAM_IDS, or enable TELEGRAM_PUBLIC_CHAT_ENABLED=1.';
+  }
+  if (!args.botRelayOk) {
+    return 'Likely issue: Telegram relay runtime is not reachable or profile/port identity is wrong.';
+  }
+  if (!args.chatProviderOk) {
+    return 'Likely issue: plain chat provider is unhealthy. Check the selected chat model key/base URL, then restart the Telegram gateway.';
+  }
+  if (args.builder.mode === 'required' && !args.builder.available) {
+    return 'Likely issue: Builder bridge is required but unavailable. Check SPARK_BUILDER_REPO, SPARK_BUILDER_HOME, and SPARK_BUILDER_PYTHON.';
+  }
+  if (!args.spawnerOk) {
+    return 'Likely issue: Spawner UI is unreachable, so builds and board checks will fail.';
+  }
+  if (args.missionPingOk === false) {
+    return 'Likely issue: mission provider ping failed. Plain chat may work, but Spawner builds are degraded.';
+  }
+  return 'Likely issue: no obvious fault detected in relay, access, plain chat, or Spawner ping.';
+}
+
+export async function buildDiagnoseReport(adminId: number, subject?: Partial<DiagnoseSubject>): Promise<string> {
   const started = Date.now();
   const lines: string[] = ['🩺 Diagnostic Report', ''];
   const relayIdentity = getRelayIdentityFromEnv();
+  const diagnoseSubject: DiagnoseSubject = {
+    userId: subject?.userId || adminId,
+    chatId: subject?.chatId || adminId,
+    isAdmin: subject?.isAdmin ?? true,
+    isAllowed: subject?.isAllowed ?? true
+  };
 
-  const [botRelay, spawnerProviders, shimHealth] = await Promise.all([
+  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderOk, accessProfile] = await Promise.all([
     httpStatus(`http://127.0.0.1:${relayIdentity.port}/health`, 2000),
     fetchProviders(),
-    CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null)
+    CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
+    getBuilderBridgeStatus().catch(() => ({
+      mode: 'required' as const,
+      available: false,
+      builderRepo: '',
+      builderHome: ''
+    })),
+    llm.isAvailable().catch(() => false),
+    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
   ]);
 
   const providers = spawnerProviders.payload?.providers || [];
@@ -288,6 +368,17 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
   }
   lines.push('');
 
+  lines.push('Plain chat');
+  lines.push(`• ${describeBuilderBridgeHealth(builderBridge)}`);
+  lines.push(`• ${describeChatProviderHealth(chatProviderOk, providerLabel(chatProvider, providers))}`);
+  lines.push('');
+
+  lines.push('Access');
+  for (const line of describeAccessDiagnostics(diagnoseSubject, sparkAccessLabel(accessProfile))) {
+    lines.push(`• ${line}`);
+  }
+  lines.push('');
+
   lines.push('Routing');
   lines.push(`• Telegram /run default: ${providerLabel(telegramRunProvider, providers)}`);
   lines.push(`• Telegram plain chat: SIB → ${providerLabel(chatProvider, providers)}`);
@@ -297,10 +388,12 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
 
   lines.push('Spawner mission ping (PING_OK test)');
   const pingIds = selectPingProviderIds(providers, [telegramRunProvider, spawnerDefaultProvider]);
+  let missionPingOk: boolean | null = null;
   if (pingIds.length === 0) {
     lines.push('• No configured or selected providers to ping.');
   } else {
     const pings = await Promise.all(pingIds.map((providerId) => pingProvider(providerId)));
+    missionPingOk = pings.every((ping) => ping.ok);
     for (const ping of pings) {
       const icon = ping.ok ? '✅' : '❌';
       const ms = ping.ms ? `${(ping.ms / 1000).toFixed(1)}s` : '';
@@ -321,6 +414,15 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
     lines.push('Mission board: ❌ unreachable');
   }
 
+  lines.push('');
+  lines.push(inferDiagnoseLikelyIssue({
+    subject: diagnoseSubject,
+    botRelayOk: botRelay.ok,
+    spawnerOk: spawnerProviders.ok,
+    builder: builderBridge,
+    chatProviderOk,
+    missionPingOk
+  }));
   lines.push('');
   lines.push(`Admin ID: ${adminId}`);
   lines.push(`Total diagnose time: ${((Date.now() - started) / 1000).toFixed(1)}s`);

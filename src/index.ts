@@ -274,9 +274,14 @@ bot.command('status', async (ctx) => {
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   await ctx.sendChatAction('typing');
-  await ctx.reply('Running diagnostics - pings 4 providers, takes ~30s...');
+  await ctx.reply('Running diagnostics - checks chat, access, relay, Spawner, and provider ping. Takes ~30s...');
   try {
-    const report = await buildDiagnoseReport(ctx.from.id);
+    const report = await buildDiagnoseReport(ctx.from.id, {
+      userId: ctx.from.id,
+      chatId: ctx.chat.id,
+      isAdmin: conversation.isAdmin(ctx.from),
+      isAllowed: conversation.isAllowed(ctx.from)
+    });
     // Telegram limit is 4096 chars; diagnose is always well under.
     await ctx.reply(report);
   } catch (err: any) {

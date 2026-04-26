@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import {
+  describeAccessDiagnostics,
+  describeBuilderBridgeHealth,
+  describeChatProviderHealth,
   describeRelayHealth,
   describeProviderStatus,
   getRelayIdentityFromEnv,
+  inferDiagnoseLikelyIssue,
   selectPingProviderIds,
+  type DiagnoseSubject,
   type ProviderStatus
 } from '../src/diagnose';
 
@@ -132,5 +137,95 @@ test('describes HTTP failures as relay errors', () => {
   assert.match(
     describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
     /HTTP 401$/
+  );
+});
+
+test('describes plain chat bridge and provider health', () => {
+  assert.equal(
+    describeBuilderBridgeHealth({
+      mode: 'required',
+      available: false,
+      builderRepo: 'C:\\spark-intelligence-builder',
+      builderHome: 'C:\\spark\\state'
+    }),
+    'Builder bridge: ❌ unavailable (required)'
+  );
+  assert.equal(
+    describeBuilderBridgeHealth({
+      mode: 'auto',
+      available: true,
+      builderRepo: 'C:\\spark-intelligence-builder',
+      builderHome: 'C:\\spark\\state'
+    }),
+    'Builder bridge: ✅ available (auto)'
+  );
+  assert.equal(describeChatProviderHealth(false, 'zai (glm-5.1)'), 'Chat provider direct ping: ❌ zai (glm-5.1)');
+});
+
+test('describes access diagnostics without leaking ids', () => {
+  const subject: DiagnoseSubject = {
+    userId: 123,
+    chatId: 456,
+    isAdmin: false,
+    isAllowed: false
+  };
+  const lines = describeAccessDiagnostics(subject, 'Level 3 - Research + Build', {
+    ADMIN_TELEGRAM_IDS: '111,222',
+    ALLOWED_TELEGRAM_IDS: '333',
+    TELEGRAM_PUBLIC_CHAT_ENABLED: '0'
+  } as NodeJS.ProcessEnv);
+
+  assert.deepEqual(lines, [
+    'Current user: ❌ not allowed',
+    'Access level: Level 3 - Research + Build',
+    'Configured operators: admins=2, allowed=1, public=off'
+  ]);
+});
+
+test('infers likely diagnose issue from user-facing failure class', () => {
+  const base = {
+    subject: {
+      userId: 123,
+      chatId: 456,
+      isAdmin: false,
+      isAllowed: true
+    },
+    botRelayOk: true,
+    spawnerOk: true,
+    builder: {
+      mode: 'auto' as const,
+      available: true,
+      builderRepo: 'repo',
+      builderHome: 'home'
+    },
+    chatProviderOk: true,
+    missionPingOk: true
+  };
+
+  assert.match(
+    inferDiagnoseLikelyIssue({
+      ...base,
+      subject: { ...base.subject, isAllowed: false }
+    }),
+    /not allowed/
+  );
+  assert.match(
+    inferDiagnoseLikelyIssue({
+      ...base,
+      chatProviderOk: false
+    }),
+    /plain chat provider is unhealthy/
+  );
+  assert.match(
+    inferDiagnoseLikelyIssue({
+      ...base,
+      builder: {
+        mode: 'required',
+        available: false,
+        builderRepo: 'repo',
+        builderHome: 'home'
+      }
+    }),
+    /Builder bridge is required/
   );
 });
