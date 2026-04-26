@@ -1,7 +1,9 @@
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
+  /\bhelp\s+me\s+(?:design|plan|scope)\b/i,
   /\b(?:shape|explore|brainstorm|develop)\s+(?:an?\s+)?idea\b/i,
   /\bi\s+(?:do\s+not|don't|dont)\s+know\s+(?:exactly\s+)?(?:what|yet)\b/i,
+  /\b(?:do\s+not|don't|dont)\s+build\s+yet\b/i,
   /\bbefore\s+(?:building|we\s+build|creating|we\s+create|making|we\s+make)\b/i,
   /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
   /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
@@ -301,6 +303,9 @@ export interface MissionUpdatePreferenceIntent {
 export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
+    return null;
+  }
+  if (!/\b(?:updates?|notify|notifications?|links?|send|include|without|verbose|detailed|minimal|quiet|normal|standard|telegram only|start and end|start\s*\/\s*end)\b/.test(normalized)) {
     return null;
   }
 

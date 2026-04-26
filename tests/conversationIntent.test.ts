@@ -219,6 +219,17 @@ test('parses natural mission update preferences', () => {
     links: 'board'
   });
   assert.equal(parseMissionUpdatePreferenceIntent('what do you think about this idea'), null);
+  assert.equal(
+    parseMissionUpdatePreferenceIntent('please help me design a project called Relay Workshop with kanban and canvas, but do not build yet'),
+    null
+  );
+});
+
+test('keeps explicit design-only project prompts in conversation', () => {
+  const prompt = 'please help me design a project called Relay Workshop with kanban and canvas, but do not build yet';
+
+  assert.equal(shouldPreferConversationalIdeation(prompt), true);
+  assert.equal(parseMissionUpdatePreferenceIntent(prompt), null);
 });
 
 test('keeps mission-control product refinement in conversation', () => {
