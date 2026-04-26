@@ -170,6 +170,8 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     `Spark access: ${sparkAccessLabel(profile)}`,
     describeSparkAccessProfile(profile),
     '',
+    renderSparkAccessLevelGuide(),
+    '',
     'Change it with:',
     '/access 1  Chat Only',
     '/access 2  Build When Asked',
@@ -178,9 +180,35 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
   ].join('\n');
 }
 
+export function renderSparkAccessLevelGuide(): string {
+  return [
+    'What each level means:',
+    '',
+    '1. Chat Only',
+    '- Talk with Spark, save memories, recall notes, and run diagnostics.',
+    '- Spark will not start builds or missions.',
+    '',
+    '2. Build When Asked',
+    '- Spark can start a Spawner build only after you clearly ask.',
+    '- Good when you want control before anything gets built.',
+    '',
+    '3. Research + Build (recommended)',
+    '- Spark can research public links, docs, and GitHub repos when you ask.',
+    '- Spark can also start builds and missions you request.',
+    '- Spark will not work across your computer or local project files.',
+    '',
+    '4. Full Access',
+    '- Spark can help with local projects, debugging, files, and deeper build missions.',
+    '- Good when you want Spark to feel like a real local agent.',
+    '- Spark still must not reveal secrets or run destructive actions without clear approval.'
+  ].join('\n');
+}
+
 export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile = 'agent'): string {
   return [
     'Choose how much access this Telegram chat has.',
+    '',
+    renderSparkAccessLevelGuide(),
     '',
     '/access 1  Chat Only',
     '/access 2  Build When Asked',

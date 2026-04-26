@@ -8,6 +8,7 @@ import {
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
   renderSparkAccessDenial,
+  renderSparkAccessLevelGuide,
   renderSparkAccessOnboarding,
   renderSparkAccessStatus,
   setSparkAccessProfile,
@@ -109,10 +110,17 @@ async function main(): Promise<void> {
     assert.match(describeSparkAccessProfile('developer'), /operating-system work/);
     assert.match(describeSparkAccessProfile('agent'), /Default/);
     assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessStatus('agent'), /What each level means/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 3  Research \+ Build \(default\)/);
     assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
+    assert.match(renderSparkAccessLevelGuide(), /Talk with Spark, save memories, recall notes/);
+    assert.match(renderSparkAccessLevelGuide(), /start a Spawner build only after you clearly ask/);
+    assert.match(renderSparkAccessLevelGuide(), /research public links, docs, and GitHub repos/);
+    assert.match(renderSparkAccessLevelGuide(), /local projects, debugging, files/);
+    assert.match(renderSparkAccessLevelGuide(), /must not reveal secrets or run destructive actions/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
+    assert.match(renderSparkAccessOnboarding('agent'), /What each level means/);
     assert.match(renderSparkAccessOnboarding('agent'), /\/access 3  Research \+ Build \(recommended\)/);
     assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Level 3 - Research \+ Build/);
     assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Level 4 - Full Access/);
