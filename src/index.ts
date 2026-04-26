@@ -68,6 +68,7 @@ import {
   isLowInformationLlmReply,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
+  renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
@@ -1077,7 +1078,20 @@ bot.on(message('text'), async (ctx) => {
       await conversation.learnAboutUser(user, `User asked Spark to remember: ${memoryDirective}`).catch(() => {});
     }
 
-    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    let bridgeFailed = false;
+    let builderReply = {
+      used: false,
+      responseText: '',
+      decision: '',
+      bridgeMode: '',
+      routingDecision: ''
+    };
+    try {
+      builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    } catch (bridgeError) {
+      bridgeFailed = true;
+      console.warn('[Bridge] local chat fallback after bridge error:', bridgeError);
+    }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText)) {
@@ -1096,6 +1110,11 @@ bot.on(message('text'), async (ctx) => {
 
     // Get LLM response with Spark context
     const response = await llm.chat(text, '', memories);
+
+    if (isLowInformationLlmReply(response)) {
+      await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));
+      return;
+    }
 
     await ctx.reply(response);
     await conversation.rememberAssistantReply(user, response).catch(() => {});
@@ -1117,7 +1136,7 @@ bot.on(message('text'), async (ctx) => {
 
   } catch (err) {
     console.error('Message handling error:', err);
-    await ctx.reply("I'm having trouble responding right now. Try again in a moment.");
+    await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), true));
   }
 });
 

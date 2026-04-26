@@ -435,6 +435,24 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string): boolean {
   return isLowInformationLlmReply(reply) || isMemoryAcknowledgementReply(reply);
 }
 
+export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
+  const base = bridgeFailed
+    ? 'Spark can see the chat, but its reasoning path is not healthy right now.'
+    : 'Spark can see the chat, but its chat model is not healthy right now.';
+
+  if (isAdmin) {
+    return [
+      base,
+      'Run /diagnose and check the Builder bridge plus the selected chat provider. If the provider key was rotated, restart the Telegram gateway after updating it.'
+    ].join('\n\n');
+  }
+
+  return [
+    base,
+    'Please ask the operator to run /diagnose and check the chat provider setup.'
+  ].join('\n\n');
+}
+
 export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
   const patterns = [

@@ -24,6 +24,7 @@ import {
   isLowInformationLlmReply,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
+  renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
@@ -339,6 +340,17 @@ test('memory fallback does not claim a no-op save succeeded', () => {
   assert.match(reply, /spark verify --deep/);
   assert.doesNotMatch(reply, /remember:/i);
   assert.doesNotMatch(reply, /got it/i);
+});
+
+test('chat runtime failure replies give operators a useful next step', () => {
+  const adminReply = renderChatRuntimeFailureReply(true, true);
+  const userReply = renderChatRuntimeFailureReply(false, false);
+
+  assert.match(adminReply, /reasoning path is not healthy/);
+  assert.match(adminReply, /Run \/diagnose/);
+  assert.match(adminReply, /chat provider/);
+  assert.match(userReply, /chat model is not healthy/);
+  assert.match(userReply, /ask the operator/);
 });
 
 test('provides a conversational fallback for mission dashboard refinement', () => {
