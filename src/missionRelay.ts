@@ -22,7 +22,7 @@ type RelayEventType =
   | 'provider_feedback'
   | 'log';
 
-interface MissionSubscription {
+export interface MissionSubscription {
   missionId: string;
   chatId: string;
   userId: string;
@@ -58,7 +58,7 @@ interface RelayWebhookPayload {
   };
 }
 
-interface DeliverableRelayEvent {
+export interface DeliverableRelayEvent {
   type: RelayEventType;
   missionId: string;
   taskId?: string;
@@ -85,6 +85,9 @@ const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const registry = new Map<string, MissionSubscription>();
 let registryLoaded = false;
 let relayServer: Server | null = null;
+const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
+const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
+const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
 
 function getRelayPort(): number {
 	const parsed = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
@@ -843,16 +846,14 @@ function clearHeartbeatForMission(missionId: string): void {
 
 async function registerFromEventIfPresent(event: DeliverableRelayEvent): Promise<void> {
   if (registry.has(event.missionId)) return;
-  const data = event.data;
-  if (!data || typeof data !== 'object') return;
-
-  const chatId = typeof data.chatId === 'string' && data.chatId.trim() ? data.chatId.trim() : null;
-  if (!chatId) return;
+  const data = event.data && typeof event.data === 'object' ? event.data : {};
+  const identity = relayIdentityFromEvent(event);
+  if (!identity.chatId || !identity.userId) return;
 
   await registerMissionRelay({
     missionId: event.missionId,
-    chatId,
-    userId: typeof data.userId === 'string' && data.userId.trim() ? data.userId.trim() : 'telegram',
+    chatId: identity.chatId,
+    userId: identity.userId,
     requestId: typeof data.requestId === 'string' && data.requestId.trim() ? data.requestId.trim() : event.missionId,
     goal: typeof data.goal === 'string' && data.goal.trim() ? data.goal.trim() : event.message || event.missionId,
     createdAt: new Date().toISOString(),
@@ -1000,6 +1001,43 @@ function writeJson(res: ServerResponse, statusCode: number, body: Record<string,
   res.end(JSON.stringify(body));
 }
 
+function isRelayRateLimited(req: IncomingMessage, now = Date.now()): boolean {
+  const key = req.socket.remoteAddress || 'unknown';
+  const existing = relayRateLimits.get(key);
+  if (!existing || now - existing.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
+    relayRateLimits.set(key, { startedAt: now, count: 1 });
+    return false;
+  }
+  existing.count += 1;
+  return existing.count > RELAY_RATE_LIMIT_MAX_REQUESTS;
+}
+
+function normalizeRelayIdentityValue(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return null;
+}
+
+function relayIdentityFromEvent(event: DeliverableRelayEvent): { chatId: string | null; userId: string | null } {
+  const data = event.data && typeof event.data === 'object' ? event.data : {};
+  return {
+    chatId: normalizeRelayIdentityValue(data.chatId),
+    userId: normalizeRelayIdentityValue(data.userId)
+  };
+}
+
+export function relayEventMatchesSubscription(
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription
+): boolean {
+  const identity = relayIdentityFromEvent(event);
+  return identity.chatId === subscription.chatId && identity.userId === subscription.userId;
+}
+
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
 
@@ -1024,6 +1062,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 			writeJson(res, 404, { ok: false, error: 'not_found' });
 			return;
 		}
+
+    if (isRelayRateLimited(req)) {
+      writeJson(res, 429, { ok: false, error: 'rate_limited' });
+      return;
+    }
 
 		const relaySecret = getRelaySecret();
 		if (relaySecret) {
@@ -1055,6 +1098,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
     if (!subscription) {
       writeJson(res, 202, { ok: true, ignored: 'unknown_mission' });
+      return;
+    }
+
+    if (!relayEventMatchesSubscription(event, subscription)) {
+      writeJson(res, 403, { ok: false, error: 'relay_identity_mismatch' });
       return;
     }
 

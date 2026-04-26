@@ -7,6 +7,7 @@ import {
   formatProviderCompletionForTelegram,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
+  relayEventMatchesSubscription,
   shouldAcceptRelayEventForThisBot
 } from '../src/missionRelay';
 
@@ -278,6 +279,35 @@ test('accepts legacy flat Telegram relay target fields for this bot only', () =>
     if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
     else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
   }
+});
+
+test('requires relay events to match registered Telegram identity', () => {
+  const subscription = {
+    missionId: 'spark-1',
+    chatId: '12345',
+    userId: '67890',
+    requestId: 'req-1',
+    goal: 'Build a safer relay',
+    createdAt: new Date().toISOString()
+  };
+
+  assert.equal(relayEventMatchesSubscription({
+    type: 'task_completed',
+    missionId: 'spark-1',
+    data: { chatId: '12345', userId: '67890' }
+  }, subscription), true);
+
+  assert.equal(relayEventMatchesSubscription({
+    type: 'task_completed',
+    missionId: 'spark-1',
+    data: { chatId: '12345', userId: '67891' }
+  }, subscription), false);
+
+  assert.equal(relayEventMatchesSubscription({
+    type: 'task_completed',
+    missionId: 'spark-1',
+    data: { chatId: '12345' }
+  }, subscription), false);
 });
 
 test('reports this relay identity from env', () => {
