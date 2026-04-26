@@ -75,6 +75,7 @@ import {
 import axios from 'axios';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
+import { renderSparkErrorReply } from './errorExplain';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -157,7 +158,7 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply('Something went wrong. Please try again.').catch(() => {});
+  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
 });
 
 // Rate limit middleware
@@ -315,7 +316,7 @@ bot.command('remember', async (ctx) => {
     await ctx.reply(buildMemoryBridgeUnavailableReply('remember'));
   } catch (err) {
     console.error('Failed to remember:', err);
-    await ctx.reply('Sorry, I couldn\'t save that right now.');
+    await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
   }
 });
 
@@ -334,7 +335,7 @@ bot.command('recall', async (ctx) => {
     await ctx.reply(buildMemoryBridgeUnavailableReply('recall'));
   } catch (err) {
     console.error('Failed to recall:', err);
-    await ctx.reply('Sorry, I couldn\'t search my memories right now.');
+    await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
   }
 });
 
@@ -347,7 +348,7 @@ bot.command('about', async (ctx) => {
     await ctx.reply(buildMemoryBridgeUnavailableReply('about'));
   } catch (err) {
     console.error('Failed to recall about user:', err);
-    await ctx.reply('Sorry, I couldn\'t access my memories.');
+    await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
   }
 });
 
@@ -1141,7 +1142,7 @@ bot.on(message('text'), async (ctx) => {
 
   } catch (err) {
     console.error('Message handling error:', err);
-    await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), true));
+    await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
 });
 

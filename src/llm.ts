@@ -4,6 +4,7 @@ import { config as loadEnv } from 'dotenv';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { renderSparkErrorReply } from './errorExplain';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
@@ -312,7 +313,7 @@ export const llm = {
       return res.data.response.trim();
     } catch (err) {
       console.error('LLM error:', err);
-      return "I'm having trouble thinking right now. Try again in a moment.";
+      return renderSparkErrorReply(err, 'chat', true);
     }
   },
 };

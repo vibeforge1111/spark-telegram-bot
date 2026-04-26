@@ -1,0 +1,49 @@
+import assert from 'node:assert/strict';
+import { explainSparkError, renderSparkErrorReply } from '../src/errorExplain';
+
+function test(name: string, fn: () => void): void {
+  try {
+    fn();
+    console.log(`ok - ${name}`);
+  } catch (err) {
+    console.error(`not ok - ${name}`);
+    throw err;
+  }
+}
+
+test('explains provider auth failures with a repair path', () => {
+  const reply = renderSparkErrorReply(new Error('Request failed with status code 401: invalid api key'), 'chat', true);
+
+  assert.match(reply, /provider authentication is not working/);
+  assert.match(reply, /spark providers status/);
+  assert.match(reply, /spark setup/);
+  assert.doesNotMatch(reply, /Try again in a moment/);
+});
+
+test('explains local service network failures', () => {
+  const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:5173'), 'spawner');
+
+  assert.equal(explanation.category, 'network_or_service');
+  assert.match(explanation.userLine, /local Spark service/);
+  assert.match(explanation.repair, /spark start spawner-ui/);
+});
+
+test('explains builder memory failures', () => {
+  const reply = renderSparkErrorReply(new Error('Builder bridge is required but unavailable'), 'memory', true);
+
+  assert.match(reply, /Builder memory path/);
+  assert.match(reply, /spark fix telegram/);
+  assert.match(reply, /spark verify --onboarding/);
+});
+
+test('redacts secrets from user-facing errors', () => {
+  const reply = renderSparkErrorReply(
+    new Error('BOT_TOKEN=8736683770:AAHP_8S4XEdylUaqOK4yHQscvRPRLk8Km6I failed with sk-live-secret-value'),
+    'telegram',
+    true
+  );
+
+  assert.doesNotMatch(reply, /8736683770:AAHP_8S4XEdylUaqOK4yHQscvRPRLk8Km6I/);
+  assert.doesNotMatch(reply, /sk-live-secret-value/);
+  assert.match(reply, /\[REDACTED\]|\*\*\*/);
+});
