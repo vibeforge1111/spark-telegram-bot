@@ -12,6 +12,7 @@ import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridg
 import { spark } from './spark';
 import { llm } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
+import { installConsoleRedaction } from './redaction';
 import { spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
@@ -75,6 +76,8 @@ import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwner
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
+
+installConsoleRedaction();
 
 // Validate environment
 if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {

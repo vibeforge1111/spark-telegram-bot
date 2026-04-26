@@ -10,7 +10,7 @@
     "health:polling": "ts-node src/healthPolling.ts",
     "health:runtime": "ts-node src/healthRuntime.ts",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
-    "test": "ts-node tests/launchMode.test.ts && ts-node tests/buildIntent.test.ts && ts-node tests/conversationIntent.test.ts && ts-node tests/conversationMemory.test.ts && ts-node tests/accessPolicy.test.ts && ts-node tests/providerRouting.test.ts && ts-node tests/missionRelayFormatting.test.ts && ts-node tests/outboundSanitize.test.ts && ts-node tests/spawner.test.ts && ts-node tests/llmProvider.test.ts && ts-node tests/healthPolling.test.ts && ts-node tests/diagnose.test.ts && ts-node tests/pythonCommand.test.ts"
+    "test": "ts-node tests/launchMode.test.ts && ts-node tests/buildIntent.test.ts && ts-node tests/conversationIntent.test.ts && ts-node tests/conversationMemory.test.ts && ts-node tests/accessPolicy.test.ts && ts-node tests/providerRouting.test.ts && ts-node tests/missionRelayFormatting.test.ts && ts-node tests/outboundSanitize.test.ts && ts-node tests/redaction.test.ts && ts-node tests/spawner.test.ts && ts-node tests/llmProvider.test.ts && ts-node tests/healthPolling.test.ts && ts-node tests/diagnose.test.ts && ts-node tests/pythonCommand.test.ts"
   },
   "keywords": [
     "telegram",

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
 
@@ -140,7 +141,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
 
     const trimmedStdout = stdout.trim();
     if (!trimmedStdout) {
-      throw new Error(`Builder bridge returned empty stdout. stderr=${stderr.trim()}`);
+      throw new Error(`Builder bridge returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
 
     const parsed = JSON.parse(trimmedStdout) as {
