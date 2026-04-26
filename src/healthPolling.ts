@@ -32,7 +32,7 @@ async function validateTelegramToken(token: string): Promise<string> {
   }
 }
 
-async function main(): Promise<void> {
+export async function runTelegramPollingHealth(): Promise<void> {
   const launch = resolveTelegramLaunchConfig();
   requireRelaySecret();
 
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
 if (require.main === module) {
   (async () => {
     try {
-      await main();
+      await runTelegramPollingHealth();
     } catch (error) {
       console.error(`Telegram health: FAILED - ${(error as Error).message}`);
       process.exit(1);
