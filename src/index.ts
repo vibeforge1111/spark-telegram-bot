@@ -18,9 +18,11 @@ import { runChipLoop } from './chipLoop';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import {
   describeSparkAccessProfile,
+  getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
   renderSparkAccessDenial,
+  renderSparkAccessOnboarding,
   renderSparkAccessStatus,
   setSparkAccessProfile,
   sparkAccessAllows,
@@ -234,6 +236,13 @@ bot.start(async (ctx) => {
   await ctx.reply(lines.join('\n'));
   if (!spawnerAvailable && conversation.isAdmin(user)) {
     await ctx.reply('Spawner orchestration is offline.');
+  }
+  if (conversation.isAdmin(user)) {
+    const configuredAccess = await getConfiguredSparkAccessProfile(ctx.chat.id);
+    if (!configuredAccess) {
+      const defaultAccess = await getSparkAccessProfile(ctx.chat.id);
+      await ctx.reply(renderSparkAccessOnboarding(defaultAccess));
+    }
   }
 });
 

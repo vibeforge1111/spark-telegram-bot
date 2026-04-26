@@ -48,6 +48,12 @@ export async function getSparkAccessProfile(chatId: string | number): Promise<Sp
   return normalizeSparkAccessProfile(configured) || defaultSparkAccessProfile();
 }
 
+export async function getConfiguredSparkAccessProfile(chatId: string | number): Promise<SparkAccessProfile | null> {
+  const preferences = await readPreferences();
+  const configured = preferences.accessByChatId?.[String(chatId)];
+  return normalizeSparkAccessProfile(configured);
+}
+
 export async function setSparkAccessProfile(
   chatId: string | number,
   profile: SparkAccessProfile
@@ -169,5 +175,19 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     '/access 2  Build When Asked',
     '/access 3  Research + Build (default)',
     '/access 4  Full Access'
+  ].join('\n');
+}
+
+export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile = 'agent'): string {
+  return [
+    'Choose how much access this Telegram chat has.',
+    '',
+    '/access 1  Chat Only',
+    '/access 2  Build When Asked',
+    '/access 3  Research + Build (recommended)',
+    '/access 4  Full Access',
+    '',
+    `Default right now: ${sparkAccessLabel(defaultProfile)}.`,
+    'You can change this later anytime by sending /access 1, /access 2, /access 3, or /access 4.'
   ].join('\n');
 }

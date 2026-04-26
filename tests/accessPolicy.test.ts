@@ -4,9 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   describeSparkAccessProfile,
+  getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
   renderSparkAccessDenial,
+  renderSparkAccessOnboarding,
   renderSparkAccessStatus,
   setSparkAccessProfile,
   sparkAccessAllows,
@@ -56,9 +58,11 @@ async function main(): Promise<void> {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
 
+    assert.equal(await getConfiguredSparkAccessProfile(123), null);
     assert.equal(await getSparkAccessProfile(123), 'agent');
     await setSparkAccessProfile(123, 'agent');
 
+    assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
     assert.equal(await getSparkAccessProfile(123), 'agent');
     assert.equal(await getSparkAccessProfile(456), 'agent');
   });
@@ -108,6 +112,11 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessStatus('agent'), /\/access 3  Research \+ Build \(default\)/);
     assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
+    assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
+    assert.match(renderSparkAccessOnboarding('agent'), /\/access 3  Research \+ Build \(recommended\)/);
+    assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Level 4 - Full Access/);
+    assert.match(renderSparkAccessOnboarding('agent'), /change this later anytime by sending \/access 1/);
   });
 
   await test('classifies operating-system work and renders denial copy', () => {
