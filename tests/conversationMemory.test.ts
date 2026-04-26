@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ConversationMemory } from '../src/conversation';
+import { ConversationMemory, parseTelegramUserIds } from '../src/conversation';
 import { resetJsonStateForTests } from '../src/jsonState';
 
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -35,6 +35,11 @@ async function withTempState(fn: () => Promise<void>): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await test('parses configured Telegram user ids strictly', () => {
+    assert.deepEqual(parseTelegramUserIds('123, 456'), [123, 456]);
+    assert.deepEqual(parseTelegramUserIds('0, -1, NaN, 12abc, 1.5, 9007199254740992'), []);
+  });
+
   await test('keeps explicit session notes available to the next chat turn', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();

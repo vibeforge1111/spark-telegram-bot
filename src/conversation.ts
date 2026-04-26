@@ -4,19 +4,20 @@
 // after the user says "remember that..." while durable memory catches up.
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
-const ADMIN_IDS: number[] = (process.env.ADMIN_TELEGRAM_IDS || '')
-  .split(',')
-  .map((id) => parseInt(id.trim(), 10))
-  .filter((id) => !isNaN(id));
+export function parseTelegramUserIds(raw: string | undefined): number[] {
+  return (raw || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => /^[1-9]\d*$/.test(id))
+    .map((id) => Number(id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+}
+
+const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
 
 const ALLOWED_IDS: number[] = (
-  process.env.ALLOWED_TELEGRAM_IDS ||
-  process.env.TELEGRAM_ALLOWED_USER_IDS ||
-  ''
-)
-  .split(',')
-  .map((id) => parseInt(id.trim(), 10))
-  .filter((id) => !isNaN(id));
+  parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS)
+);
 
 const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
 
@@ -70,7 +71,7 @@ export class ConversationMemory {
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
         const userId = Number(key);
-        if (Number.isFinite(userId) && Array.isArray(value)) {
+        if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
           this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
         }
       }
@@ -78,7 +79,7 @@ export class ConversationMemory {
     if (snapshot?.notesByUser) {
       for (const [key, value] of Object.entries(snapshot.notesByUser)) {
         const userId = Number(key);
-        if (Number.isFinite(userId) && Array.isArray(value)) {
+        if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
           this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
         }
       }
