@@ -1,6 +1,7 @@
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 
 export type SparkAccessProfile = 'chat' | 'builder' | 'agent' | 'developer';
+export type SparkAccessRequirement = 'spawner_build' | 'external_research' | 'operating_system';
 
 interface SparkAccessPreferences {
   accessByChatId?: Record<string, SparkAccessProfile>;
@@ -54,6 +55,53 @@ export function sparkAccessAllowsWorkspaceBuilds(profile: SparkAccessProfile): b
   return profile === 'developer';
 }
 
+export function sparkAccessAllowsSpawnerBuilds(profile: SparkAccessProfile): boolean {
+  return profile !== 'chat';
+}
+
+export function sparkAccessAllowsOperatingSystemWork(profile: SparkAccessProfile): boolean {
+  return profile === 'developer';
+}
+
+export function sparkAccessAllows(profile: SparkAccessProfile, requirement: SparkAccessRequirement): boolean {
+  switch (requirement) {
+    case 'spawner_build':
+      return sparkAccessAllowsSpawnerBuilds(profile);
+    case 'external_research':
+      return sparkAccessAllowsExternalResearch(profile);
+    case 'operating_system':
+      return sparkAccessAllowsOperatingSystemWork(profile);
+  }
+}
+
+export function sparkMissionNeedsOperatingSystemAccess(goal: string, projectPath?: string | null): boolean {
+  if (projectPath) return true;
+  const normalized = goal.toLowerCase();
+  return (
+    /\b(?:local\s+workspace|local\s+project|local\s+repo|local\s+files?|operating\s+system|my\s+machine|this\s+machine|filesystem|file\s+system)\b/.test(normalized) ||
+    /\b(?:c:\\|\/users\/|\/home\/|~\/|\.spark\\|\.spark\/)\b/i.test(goal)
+  );
+}
+
+export function renderSparkAccessDenial(profile: SparkAccessProfile, requirement: SparkAccessRequirement): string {
+  if (requirement === 'operating_system') {
+    return [
+      `This needs ${sparkAccessLabel('developer')}, but this chat is at ${sparkAccessLabel(profile)}.`,
+      'Use `/access 4` when you want Spark to work across the operating system or local projects.'
+    ].join('\n');
+  }
+  if (requirement === 'external_research') {
+    return [
+      `This needs ${sparkAccessLabel('agent')} or ${sparkAccessLabel('developer')}, but this chat is at ${sparkAccessLabel(profile)}.`,
+      'Use `/access 3` for public links/docs/GitHub research, or `/access 4` for Full Access.'
+    ].join('\n');
+  }
+  return [
+    `This needs ${sparkAccessLabel('builder')} or higher, but this chat is at ${sparkAccessLabel(profile)}.`,
+    'Use `/access 2` when you want Spark to build through Spawner after you ask.'
+  ].join('\n');
+}
+
 export function describeSparkAccessProfile(profile: SparkAccessProfile): string {
   switch (profile) {
     case 'chat':
@@ -61,7 +109,7 @@ export function describeSparkAccessProfile(profile: SparkAccessProfile): string 
     case 'agent':
       return 'Level 3 - Research + Build: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests.';
     case 'developer':
-      return 'Level 4 - Full Access: Spark can use Spawner/Codex for local workspace builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
+      return 'Level 4 - Full Access: Spark can use Spawner/Codex for operating-system work, local project builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
     case 'builder':
     default:
       return 'Level 2 - Build When Asked: Spark can use Spawner only when you clearly ask it to build something or run a mission. Public web/GitHub inspection stays off until Level 3 or 4.';

@@ -20,10 +20,12 @@ import {
   describeSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
+  renderSparkAccessDenial,
   renderSparkAccessStatus,
   setSparkAccessProfile,
-  sparkAccessLabel,
-  sparkAccessAllowsExternalResearch
+  sparkAccessAllows,
+  sparkMissionNeedsOperatingSystemAccess,
+  type SparkAccessRequirement
 } from './accessPolicy';
 import {
   describeTelegramMissionLinkPreference,
@@ -473,9 +475,19 @@ function humanAck(providers: string[]): string {
 async function handleRunCommand(
   ctx: any,
   goal: string,
-  providers: string[]
+  providers: string[],
+  requiredAccess?: SparkAccessRequirement
 ): Promise<string | null> {
   await ctx.sendChatAction('typing');
+
+  const accessRequirement = requiredAccess || (
+    sparkMissionNeedsOperatingSystemAccess(goal) ? 'operating_system' : 'spawner_build'
+  );
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, accessRequirement)) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, accessRequirement));
+    return null;
+  }
 
   const requestId = `tg-${ctx.chat.id}-${ctx.message.message_id}`;
   const result = await spawner.runGoal({
@@ -516,12 +528,21 @@ async function handleBuildIntent(
 ): Promise<void> {
   await ctx.sendChatAction('typing');
 
+  const accessRequirement: SparkAccessRequirement = sparkMissionNeedsOperatingSystemAccess(prd, projectPath)
+    ? 'operating_system'
+    : 'spawner_build';
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, accessRequirement)) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, accessRequirement));
+    return;
+  }
+
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
   const chatId = Number(ctx.chat.id);
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
 
   const prdContent = projectPath
-    ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget workspace: \`${projectPath}\`\n\n${prd}`
+    ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget operating-system folder: \`${projectPath}\`\n\n${prd}`
     : `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\n\n${prd}`;
 
   try {
@@ -962,17 +983,12 @@ bot.on(message('text'), async (ctx) => {
 
     if (isExternalResearchRequest(text)) {
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-      if (!sparkAccessAllowsExternalResearch(accessProfile)) {
-        await ctx.reply(
-          [
-            `I can inspect public GitHub/web targets through a Spawner mission, but this chat is at ${sparkAccessLabel(accessProfile)} right now.`,
-            'Switch to `/access 3` for public research/repo inspection, or `/access 4` when you also want workspace build permissions.'
-          ].join('\n')
-        );
+      if (!sparkAccessAllows(accessProfile, 'external_research')) {
+        await ctx.reply(renderSparkAccessDenial(accessProfile, 'external_research'));
         return;
       }
       await conversation.remember(user, text).catch(() => {});
-      const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [MISSION_DEFAULT_PROVIDER]);
+      const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [MISSION_DEFAULT_PROVIDER], 'external_research');
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
       }

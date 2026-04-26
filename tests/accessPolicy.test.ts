@@ -6,11 +6,16 @@ import {
   describeSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
+  renderSparkAccessDenial,
   renderSparkAccessStatus,
   setSparkAccessProfile,
+  sparkAccessAllows,
   sparkAccessLabel,
   sparkAccessLevel,
   sparkAccessAllowsExternalResearch,
+  sparkAccessAllowsOperatingSystemWork,
+  sparkAccessAllowsSpawnerBuilds,
+  sparkMissionNeedsOperatingSystemAccess,
   sparkAccessAllowsWorkspaceBuilds
 } from '../src/accessPolicy';
 import { resetJsonStateForTests } from '../src/jsonState';
@@ -59,13 +64,36 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessAllowsExternalResearch('agent'), true);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('agent'), false);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('developer'), true);
+    assert.equal(sparkAccessAllowsSpawnerBuilds('chat'), false);
+    assert.equal(sparkAccessAllowsSpawnerBuilds('builder'), true);
+    assert.equal(sparkAccessAllowsOperatingSystemWork('agent'), false);
+    assert.equal(sparkAccessAllowsOperatingSystemWork('developer'), true);
+    assert.equal(sparkAccessAllows('chat', 'spawner_build'), false);
+    assert.equal(sparkAccessAllows('builder', 'spawner_build'), true);
+    assert.equal(sparkAccessAllows('builder', 'external_research'), false);
+    assert.equal(sparkAccessAllows('agent', 'external_research'), true);
+    assert.equal(sparkAccessAllows('agent', 'operating_system'), false);
+    assert.equal(sparkAccessAllows('developer', 'operating_system'), true);
     assert.equal(sparkAccessLevel('developer'), 4);
     assert.equal(sparkAccessLabel('agent'), 'Level 3 - Research + Build');
     assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
+    assert.match(describeSparkAccessProfile('developer'), /operating-system work/);
     assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
     assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
+  });
+
+  await test('classifies operating-system work and renders denial copy', () => {
+    assert.equal(sparkMissionNeedsOperatingSystemAccess('say exactly OK'), false);
+    assert.equal(sparkMissionNeedsOperatingSystemAccess('build this at C:\\Users\\USER\\Desktop\\probe'), true);
+    assert.equal(sparkMissionNeedsOperatingSystemAccess('debug my local project'), true);
+    assert.equal(sparkMissionNeedsOperatingSystemAccess('create a small browser app', '/Users/me/app'), true);
+
+    assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /Build When Asked/);
+    assert.match(renderSparkAccessDenial('builder', 'external_research'), /Research \+ Build/);
+    assert.match(renderSparkAccessDenial('agent', 'operating_system'), /operating system/);
+    assert.match(renderSparkAccessDenial('agent', 'operating_system'), /\/access 4/);
   });
 }
 
