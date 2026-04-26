@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { resolvePythonCommand } from './pythonCommand';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,7 +29,7 @@ function resolveConfig(): ChipCreateConfig {
     process.env.SPARK_BUILDER_REPO || path.join(process.cwd(), '..', 'spark-intelligence-builder')
   );
   return {
-    pythonCommand: (process.env.SPARK_BUILDER_PYTHON || 'python').trim() || 'python',
+    pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON),
     builderRepo,
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')

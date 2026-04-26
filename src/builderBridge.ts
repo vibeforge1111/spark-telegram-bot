@@ -4,6 +4,7 @@ import { constants as fsConstants } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { resolvePythonCommand } from './pythonCommand';
 
 const execFileAsync = promisify(execFile);
 
@@ -47,7 +48,7 @@ function resolveBridgeConfig(): BuilderBridgeConfig {
 
   return {
     mode: parseBridgeMode(),
-    pythonCommand: (process.env.SPARK_BUILDER_PYTHON || 'python').trim() || 'python',
+    pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON),
     builderRepo,
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
