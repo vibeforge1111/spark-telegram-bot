@@ -74,9 +74,18 @@ function httpPortLabel(url: string): string {
 
 async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResult> {
   try {
-    const res = await axios.get(url, { timeout: timeoutMs, validateStatus: () => true });
-    return { ok: res.status < 500, status: res.status, payload: res.data };
+    const res = await axios.get(url, { timeout: timeoutMs });
+    return { ok: true, status: res.status, payload: res.data };
   } catch (err: any) {
+    const status = Number(err.response?.status);
+    if (Number.isFinite(status)) {
+      return {
+        ok: false,
+        status,
+        err: `HTTP ${status}`,
+        payload: err.response?.data
+      };
+    }
     return { ok: false, err: err.code || err.message };
   }
 }
@@ -150,11 +159,19 @@ export function selectPingProviderIds(
 async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: string; payload?: ProvidersPayload }> {
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, {
-      timeout: 3000,
-      validateStatus: () => true
+      timeout: 3000
     });
-    return { ok: res.status < 500, status: res.status, payload: res.data || {} };
+    return { ok: true, status: res.status, payload: res.data || {} };
   } catch (err: any) {
+    const status = Number(err.response?.status);
+    if (Number.isFinite(status)) {
+      return {
+        ok: false,
+        status,
+        err: `HTTP ${status}`,
+        payload: err.response?.data || {}
+      };
+    }
     return { ok: false, err: err.code || err.message };
   }
 }

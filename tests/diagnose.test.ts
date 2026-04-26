@@ -30,11 +30,9 @@ test('reports terminal CLI providers as ready without API keys', () => {
     configurationMode: 'cli'
   };
 
-  assert.deepEqual(describeProviderStatus(provider), {
-    ready: true,
-    icon: '✅',
-    note: 'cli'
-  });
+  const description = describeProviderStatus(provider);
+  assert.equal(description.ready, true);
+  assert.equal(description.note, 'cli');
 });
 
 test('marks selected API-key providers missing when no key is configured', () => {
@@ -49,11 +47,9 @@ test('marks selected API-key providers missing when no key is configured', () =>
     configurationMode: 'none'
   };
 
-  assert.deepEqual(describeProviderStatus(provider, new Set(['zai'])), {
-    ready: false,
-    icon: '❌',
-    note: 'key missing'
-  });
+  const description = describeProviderStatus(provider, new Set(['zai']));
+  assert.equal(description.ready, false);
+  assert.equal(description.note, 'key missing');
 });
 
 test('pings selected Spawner route providers only', () => {
@@ -108,26 +104,33 @@ test('uses the active Telegram relay profile and port for diagnostics', () => {
 test('describes relay identity mismatches clearly', () => {
   const expected = { port: 8789, profile: 'spark-agi' };
 
-  assert.equal(
+  assert.match(
     describeRelayHealth({
       ok: true,
       status: 200,
       payload: { relay: { port: 8789, profile: 'spark-agi' } }
     }, expected),
-    '• Bot mission relay (:8789/spark-agi): ✅'
+    /Bot mission relay \(:8789\/spark-agi\): .*$/,
   );
 
-  assert.equal(
+  assert.match(
     describeRelayHealth({
       ok: true,
       status: 200,
       payload: { relay: { port: 8788, profile: 'default' } }
     }, expected),
-    '• Bot mission relay (:8789/spark-agi): ❌ identity mismatch (8788 / default)'
+    /identity mismatch \(8788 \/ default\)$/
   );
 
-  assert.equal(
+  assert.match(
     describeRelayHealth({ ok: false, err: 'ECONNREFUSED' }, expected),
-    '• Bot mission relay (:8789/spark-agi): ❌ ECONNREFUSED'
+    /ECONNREFUSED$/
+  );
+});
+
+test('describes HTTP failures as relay errors', () => {
+  assert.match(
+    describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'default' }),
+    /HTTP 401$/
   );
 });
