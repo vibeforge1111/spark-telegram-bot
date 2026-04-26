@@ -219,7 +219,7 @@ bot.start(async (ctx) => {
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
-      '/access <1|2|3|4> - Choose Spark access level for this chat',
+      '/access <1|2|3|4> - Choose Chat Only, Build When Asked, Research + Build, or Full Access',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
     );
   }
@@ -847,7 +847,7 @@ bot.command('access', async (ctx) => {
 
   const next = normalizeSparkAccessProfile(raw);
   if (!next) {
-    await ctx.reply('Choose an access level: /access 1, /access 2, /access 3, or /access 4.');
+    await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
     return;
   }
 

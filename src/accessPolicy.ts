@@ -10,11 +10,11 @@ const ACCESS_PATH = resolveStatePath('.spark-access-policy.json');
 
 export function normalizeSparkAccessProfile(value: unknown): SparkAccessProfile | null {
   if (typeof value !== 'string') return null;
-  const normalized = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
-  if (['1', 'level1', 'l1', 'chat', 'private', 'conversation'].includes(normalized)) return 'chat';
-  if (['2', 'level2', 'l2', 'builder', 'mission', 'missions', 'build'].includes(normalized)) return 'builder';
-  if (['3', 'level3', 'l3', 'agent', 'tools', 'research', 'web', 'github'].includes(normalized)) return 'agent';
-  if (['4', 'level4', 'l4', 'developer', 'dev', 'workspace', 'full'].includes(normalized)) return 'developer';
+  const normalized = value.trim().toLowerCase().replace(/[\s_+\-&]+/g, '');
+  if (['1', 'level1', 'l1', 'chat', 'chatonly', 'private', 'conversation'].includes(normalized)) return 'chat';
+  if (['2', 'level2', 'l2', 'builder', 'mission', 'missions', 'build', 'buildwhenasked', 'buildpermission'].includes(normalized)) return 'builder';
+  if (['3', 'level3', 'l3', 'agent', 'tools', 'research', 'researchbuild', 'researchandbuild', 'web', 'github'].includes(normalized)) return 'agent';
+  if (['4', 'level4', 'l4', 'developer', 'dev', 'workspace', 'full', 'fullaccess'].includes(normalized)) return 'developer';
   return null;
 }
 
@@ -57,14 +57,14 @@ export function sparkAccessAllowsWorkspaceBuilds(profile: SparkAccessProfile): b
 export function describeSparkAccessProfile(profile: SparkAccessProfile): string {
   switch (profile) {
     case 'chat':
-      return 'Level 1 - Chat: Spark can talk, remember, recall, diagnose, and answer from configured memory. It will not start missions or inspect external links from natural chat.';
+      return 'Level 1 - Chat Only: Spark can talk, remember, recall, diagnose, and answer from configured memory. It cannot start Spawner builds.';
     case 'agent':
-      return 'Level 3 - Agent: Spark can use Spawner missions for public web/GitHub research, repo inspection, diagnostics, and build planning when you ask.';
+      return 'Level 3 - Research + Build: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests.';
     case 'developer':
-      return 'Level 4 - Developer: Spark can use Spawner/Codex missions for local workspace build work, public web/GitHub research, diagnostics, and repo inspection. It still must not reveal secrets or run destructive actions without explicit approval.';
+      return 'Level 4 - Full Access: Spark can use Spawner/Codex for local workspace builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
     case 'builder':
     default:
-      return 'Level 2 - Builder: Spark can use memory, Builder, Spawner, and explicit build or /run requests. Public web/GitHub inspection from casual chat stays off until you switch to Level 3 or 4.';
+      return 'Level 2 - Build When Asked: Spark can use Spawner only when you clearly ask it to build something or run a mission. Public web/GitHub inspection stays off until Level 3 or 4.';
   }
 }
 
@@ -85,14 +85,14 @@ export function sparkAccessLevel(profile: SparkAccessProfile): number {
 export function sparkAccessLabel(profile: SparkAccessProfile): string {
   switch (profile) {
     case 'chat':
-      return 'Level 1 - Chat';
+      return 'Level 1 - Chat Only';
     case 'agent':
-      return 'Level 3 - Agent';
+      return 'Level 3 - Research + Build';
     case 'developer':
-      return 'Level 4 - Developer';
+      return 'Level 4 - Full Access';
     case 'builder':
     default:
-      return 'Level 2 - Builder';
+      return 'Level 2 - Build When Asked';
   }
 }
 
@@ -102,9 +102,9 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     describeSparkAccessProfile(profile),
     '',
     'Change it with:',
-    '/access 1  Chat only',
-    '/access 2  Builder and explicit missions',
-    '/access 3  Agent web/GitHub research',
-    '/access 4  Developer workspace builds'
+    '/access 1  Chat Only',
+    '/access 2  Build When Asked',
+    '/access 3  Research + Build',
+    '/access 4  Full Access'
   ].join('\n');
 }

@@ -32,9 +32,14 @@ async function main(): Promise<void> {
     assert.equal(normalizeSparkAccessProfile('L3'), 'agent');
     assert.equal(normalizeSparkAccessProfile('level-4'), 'developer');
     assert.equal(normalizeSparkAccessProfile('chat'), 'chat');
+    assert.equal(normalizeSparkAccessProfile('chat only'), 'chat');
     assert.equal(normalizeSparkAccessProfile('mission'), 'builder');
+    assert.equal(normalizeSparkAccessProfile('build when asked'), 'builder');
     assert.equal(normalizeSparkAccessProfile('github'), 'agent');
+    assert.equal(normalizeSparkAccessProfile('research + build'), 'agent');
+    assert.equal(normalizeSparkAccessProfile('research & build'), 'agent');
     assert.equal(normalizeSparkAccessProfile('full'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('full access'), 'developer');
     assert.equal(normalizeSparkAccessProfile('unknown'), null);
   });
 
@@ -55,9 +60,11 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessAllowsWorkspaceBuilds('agent'), false);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('developer'), true);
     assert.equal(sparkAccessLevel('developer'), 4);
-    assert.equal(sparkAccessLabel('agent'), 'Level 3 - Agent');
+    assert.equal(sparkAccessLabel('agent'), 'Level 3 - Research + Build');
+    assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
-    assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Agent/);
+    assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
   });
 }
