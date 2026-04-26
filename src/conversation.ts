@@ -118,6 +118,11 @@ export class ConversationMemory {
     return null;
   }
 
+  async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
+    await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
+    return null;
+  }
+
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
     await this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
     return null;
@@ -165,6 +170,7 @@ export class ConversationMemory {
     const key = this.userKey(user);
     const recent = this.recentByUser.get(key) || [];
     return recent
+      .filter((item) => !/^Spark:\s*/i.test(item))
       .slice(-Math.max(1, limit))
       .map((item) => item.replace(/^User:\s*/i, '').trim())
       .filter(Boolean);

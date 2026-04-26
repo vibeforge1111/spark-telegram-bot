@@ -11,6 +11,7 @@ import {
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
+  hasLocalOptionReference,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
@@ -276,6 +277,17 @@ test('keeps tentative kanban-app v1 questions in conversation', () => {
   );
 });
 
+test('keeps local numbered-option follow-ups in conversation', () => {
+  const prompt = 'no.1 could be handy - how would you think of the no2?';
+
+  assert.equal(hasLocalOptionReference(prompt), true);
+  assert.equal(shouldPreferConversationalIdeation(prompt), true);
+  assert.equal(inferMissionGoalFromRecentContext(prompt, [
+    "I don't know what should we be building",
+    'A few directions: 1. Spark Command Palette 2. Domain Chip Workbench'
+  ]), null);
+});
+
 test('adds domain chip guidance for chip ideation', () => {
   const hint = buildIdeationSystemHint(
     'I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'
@@ -283,6 +295,7 @@ test('adds domain chip guidance for chip ideation', () => {
 
   assert.match(hint, /advanced Spark domain chip/);
   assert.match(hint, /Do not start a build/);
+  assert.match(hint, /most recent list/);
 });
 
 test('detects empty or generic LLM failures', () => {

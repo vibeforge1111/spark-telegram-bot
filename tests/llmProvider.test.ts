@@ -60,3 +60,12 @@ test('system prompt asks for skimmable Telegram formatting', () => {
   assert.match(prompt, /Avoid Markdown bold\/italic emphasis/);
   assert.match(prompt, /plain headings or simple numbered points/);
 });
+
+test('system prompt prioritizes local list references over older memory', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /numbered or listed option/);
+  assert.match(prompt, /most recent list/);
+  assert.match(prompt, /Memory must not override/);
+  assert.match(prompt, /Do not offer to scaffold/);
+});

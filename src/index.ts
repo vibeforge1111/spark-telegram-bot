@@ -1043,6 +1043,7 @@ bot.on(message('text'), async (ctx) => {
         ? buildIdeationFallbackReply(text)
         : llmResponse;
       await ctx.reply(response);
+      await conversation.rememberAssistantReply(user, response).catch(() => {});
       return;
     }
 
@@ -1084,6 +1085,7 @@ bot.on(message('text'), async (ctx) => {
           await conversation.remember(user, text).catch(() => {});
         }
         await ctx.reply(builderReply.responseText);
+        await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         return;
       }
       console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);
@@ -1096,6 +1098,7 @@ bot.on(message('text'), async (ctx) => {
     const response = await llm.chat(text, '', memories);
 
     await ctx.reply(response);
+    await conversation.rememberAssistantReply(user, response).catch(() => {});
 
     // Learn preferences from patterns
     if (text.toLowerCase().includes('i like')) {

@@ -81,6 +81,31 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('keeps assistant replies in chat context without feeding mission inference', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.remember(user, "I don't know what should we be building");
+    await memory.rememberAssistantReply(user, [
+      'A few directions:',
+      '1. Spark Command Palette',
+      '2. Domain Chip Workbench',
+      '3. Spark Timeline'
+    ].join('\n'));
+    await memory.remember(user, 'no.1 could be handy - how would you think of the no2?');
+
+    const context = await memory.getContext(user, 'no.1 could be handy - how would you think of the no2?');
+    const recentUserMessages = await memory.getRecentMessages(user, 4);
+
+    assert.match(context, /Spark: A few directions/);
+    assert.match(context, /2\. Domain Chip Workbench/);
+    assert.deepEqual(recentUserMessages, [
+      "I don't know what should we be building",
+      'no.1 could be handy - how would you think of the no2?'
+    ]);
+  });
+  });
+
   await test('persists recent planning context across ConversationMemory instances', async () => {
   await withTempState(async () => {
     const first = new ConversationMemory();

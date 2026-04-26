@@ -26,13 +26,22 @@ const HARD_EXECUTION_PATTERNS = [
   /\bfiles:\s*[\w.-]+\./i
 ];
 
+const LOCAL_OPTION_REFERENCE_PATTERNS = [
+  /\b(?:no\.?|number|option|#)\s*[1-9]\d*\b/i,
+  /\b(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:one|option|idea|direction|item)\b/i
+];
+
+export function hasLocalOptionReference(text: string): boolean {
+  return LOCAL_OPTION_REFERENCE_PATTERNS.some((pattern) => pattern.test(text.trim()));
+}
+
 export function shouldPreferConversationalIdeation(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return false;
   }
-  return COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
+  return hasLocalOptionReference(trimmed) || COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 export function isMissionExecutionConfirmation(text: string): boolean {
@@ -382,6 +391,7 @@ export function buildIdeationSystemHint(text: string): string {
     modeLine,
     'Do not start a build, canvas, mission, or PRD yet.',
     'If the user later says yes, create it, run it, spin it up, or kick it off, the Telegram gateway can start the mission. Do not claim you started it during ideation.',
+    'If the user refers to no.1, no2, option 2, the second one, or a similar local list reference, resolve it against the most recent list in the conversation before using older memory. If the list is missing, ask one clarifying question instead of guessing.',
     'Reply like a collaborative product partner: propose 2-4 directions, ask one or two useful questions, and offer a next step.',
     'Keep it concise and natural for Telegram.'
   ].join('\n');
