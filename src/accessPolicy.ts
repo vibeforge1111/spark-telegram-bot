@@ -15,7 +15,22 @@ export function normalizeSparkAccessProfile(value: unknown): SparkAccessProfile 
   if (['1', 'level1', 'l1', 'chat', 'chatonly', 'private', 'conversation'].includes(normalized)) return 'chat';
   if (['2', 'level2', 'l2', 'builder', 'mission', 'missions', 'build', 'buildwhenasked', 'buildpermission'].includes(normalized)) return 'builder';
   if (['3', 'level3', 'l3', 'agent', 'tools', 'research', 'researchbuild', 'researchandbuild', 'web', 'github'].includes(normalized)) return 'agent';
-  if (['4', 'level4', 'l4', 'developer', 'dev', 'workspace', 'full', 'fullaccess'].includes(normalized)) return 'developer';
+  if (
+    [
+      '4',
+      'level4',
+      'l4',
+      'developer',
+      'dev',
+      'workspace',
+      'operatingsystem',
+      'os',
+      'localproject',
+      'localrepo',
+      'full',
+      'fullaccess'
+    ].includes(normalized)
+  ) return 'developer';
   return null;
 }
 

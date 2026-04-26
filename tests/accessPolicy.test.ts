@@ -45,6 +45,10 @@ async function main(): Promise<void> {
     assert.equal(normalizeSparkAccessProfile('research & build'), 'agent');
     assert.equal(normalizeSparkAccessProfile('full'), 'developer');
     assert.equal(normalizeSparkAccessProfile('full access'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('operating system'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('OS'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('local project'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('local repo'), 'developer');
     assert.equal(normalizeSparkAccessProfile('unknown'), null);
   });
 
@@ -76,20 +80,24 @@ async function main(): Promise<void> {
   });
 
   await test('describes tool boundaries by access profile', () => {
-    assert.equal(sparkAccessAllowsExternalResearch('builder'), false);
-    assert.equal(sparkAccessAllowsExternalResearch('agent'), true);
+    const matrix = [
+      { profile: 'chat', spawnerBuild: false, externalResearch: false, operatingSystem: false },
+      { profile: 'builder', spawnerBuild: true, externalResearch: false, operatingSystem: false },
+      { profile: 'agent', spawnerBuild: true, externalResearch: true, operatingSystem: false },
+      { profile: 'developer', spawnerBuild: true, externalResearch: true, operatingSystem: true }
+    ] as const;
+
+    for (const row of matrix) {
+      assert.equal(sparkAccessAllowsSpawnerBuilds(row.profile), row.spawnerBuild, `${row.profile} spawner`);
+      assert.equal(sparkAccessAllowsExternalResearch(row.profile), row.externalResearch, `${row.profile} research`);
+      assert.equal(sparkAccessAllowsOperatingSystemWork(row.profile), row.operatingSystem, `${row.profile} os`);
+      assert.equal(sparkAccessAllows(row.profile, 'spawner_build'), row.spawnerBuild, `${row.profile} generic spawner`);
+      assert.equal(sparkAccessAllows(row.profile, 'external_research'), row.externalResearch, `${row.profile} generic research`);
+      assert.equal(sparkAccessAllows(row.profile, 'operating_system'), row.operatingSystem, `${row.profile} generic os`);
+    }
+
     assert.equal(sparkAccessAllowsWorkspaceBuilds('agent'), false);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('developer'), true);
-    assert.equal(sparkAccessAllowsSpawnerBuilds('chat'), false);
-    assert.equal(sparkAccessAllowsSpawnerBuilds('builder'), true);
-    assert.equal(sparkAccessAllowsOperatingSystemWork('agent'), false);
-    assert.equal(sparkAccessAllowsOperatingSystemWork('developer'), true);
-    assert.equal(sparkAccessAllows('chat', 'spawner_build'), false);
-    assert.equal(sparkAccessAllows('builder', 'spawner_build'), true);
-    assert.equal(sparkAccessAllows('builder', 'external_research'), false);
-    assert.equal(sparkAccessAllows('agent', 'external_research'), true);
-    assert.equal(sparkAccessAllows('agent', 'operating_system'), false);
-    assert.equal(sparkAccessAllows('developer', 'operating_system'), true);
     assert.equal(sparkAccessLevel('developer'), 4);
     assert.equal(sparkAccessLabel('agent'), 'Level 3 - Research + Build');
     assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
