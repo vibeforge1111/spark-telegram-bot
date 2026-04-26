@@ -10,6 +10,7 @@ import {
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
+  formatMissionUpdatePreferenceAcknowledgement,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
@@ -222,6 +223,19 @@ test('parses natural mission update preferences', () => {
   assert.equal(
     parseMissionUpdatePreferenceIntent('please help me design a project called Relay Workshop with kanban and canvas, but do not build yet'),
     null
+  );
+});
+
+test('spaces mission preference acknowledgements for Telegram scanning', () => {
+  assert.equal(
+    formatMissionUpdatePreferenceAcknowledgement([
+      'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
+    ]),
+    [
+      'Saved your mission update preference.',
+      '',
+      'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
+    ].join('\n')
   );
 });
 

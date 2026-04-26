@@ -300,6 +300,10 @@ export interface MissionUpdatePreferenceIntent {
   links?: 'none' | 'board' | 'canvas' | 'both';
 }
 
+export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string[]): string {
+  return ['Saved your mission update preference.', ...detailLines.filter((line) => line.trim())].join('\n\n');
+}
+
 export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {

@@ -52,6 +52,7 @@ import {
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
+  formatMissionUpdatePreferenceAcknowledgement,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
@@ -903,16 +904,16 @@ bot.on(message('text'), async (ctx) => {
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);
     if (missionUpdatePreference) {
       await conversation.remember(user, text).catch(() => {});
-      const lines: string[] = ['Saved your mission update preference.'];
+      const detailLines: string[] = [];
       if (missionUpdatePreference.verbosity) {
         await setTelegramRelayVerbosity(ctx.chat.id, missionUpdatePreference.verbosity);
-        lines.push(`Updates: ${missionUpdatePreference.verbosity} - ${describeTelegramRelayVerbosity(missionUpdatePreference.verbosity)}`);
+        detailLines.push(`Updates: ${missionUpdatePreference.verbosity} - ${describeTelegramRelayVerbosity(missionUpdatePreference.verbosity)}`);
       }
       if (missionUpdatePreference.links) {
         await setTelegramMissionLinkPreference(ctx.chat.id, missionUpdatePreference.links);
-        lines.push(`Links: ${missionUpdatePreference.links} - ${describeTelegramMissionLinkPreference(missionUpdatePreference.links)}`);
+        detailLines.push(`Links: ${missionUpdatePreference.links} - ${describeTelegramMissionLinkPreference(missionUpdatePreference.links)}`);
       }
-      await ctx.reply(lines.join('\n'));
+      await ctx.reply(formatMissionUpdatePreferenceAcknowledgement(detailLines));
       return;
     }
 
