@@ -52,11 +52,27 @@ async function main(): Promise<void> {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
 
-    assert.equal(await getSparkAccessProfile(123), 'builder');
+    assert.equal(await getSparkAccessProfile(123), 'agent');
     await setSparkAccessProfile(123, 'agent');
 
     assert.equal(await getSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(456), 'builder');
+    assert.equal(await getSparkAccessProfile(456), 'agent');
+  });
+
+  await test('allows environment override of default access profile', async () => {
+    resetJsonStateForTests();
+    process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-env-test-'));
+    const originalDefault = process.env.SPARK_AGENT_ACCESS_PROFILE;
+    process.env.SPARK_AGENT_ACCESS_PROFILE = 'chat only';
+    try {
+      assert.equal(await getSparkAccessProfile(789), 'chat');
+    } finally {
+      if (originalDefault === undefined) {
+        delete process.env.SPARK_AGENT_ACCESS_PROFILE;
+      } else {
+        process.env.SPARK_AGENT_ACCESS_PROFILE = originalDefault;
+      }
+    }
   });
 
   await test('describes tool boundaries by access profile', () => {
@@ -79,7 +95,9 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
     assert.match(describeSparkAccessProfile('developer'), /operating-system work/);
+    assert.match(describeSparkAccessProfile('agent'), /Default/);
     assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessStatus('agent'), /\/access 3  Research \+ Build \(default\)/);
     assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
   });

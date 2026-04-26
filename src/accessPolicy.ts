@@ -20,7 +20,7 @@ export function normalizeSparkAccessProfile(value: unknown): SparkAccessProfile 
 }
 
 function defaultSparkAccessProfile(): SparkAccessProfile {
-  return normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE) || 'builder';
+  return normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE) || 'agent';
 }
 
 async function readPreferences(): Promise<SparkAccessPreferences> {
@@ -107,7 +107,7 @@ export function describeSparkAccessProfile(profile: SparkAccessProfile): string 
     case 'chat':
       return 'Level 1 - Chat Only: Spark can talk, remember, recall, diagnose, and answer from configured memory. It cannot start Spawner builds.';
     case 'agent':
-      return 'Level 3 - Research + Build: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests.';
+      return 'Level 3 - Research + Build: Default. Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests.';
     case 'developer':
       return 'Level 4 - Full Access: Spark can use Spawner/Codex for operating-system work, local project builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
     case 'builder':
@@ -152,7 +152,7 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     'Change it with:',
     '/access 1  Chat Only',
     '/access 2  Build When Asked',
-    '/access 3  Research + Build',
+    '/access 3  Research + Build (default)',
     '/access 4  Full Access'
   ].join('\n');
 }
