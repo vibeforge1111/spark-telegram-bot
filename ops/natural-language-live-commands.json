@@ -216,6 +216,38 @@
     "expectedOutcome": "Rejects fake mission id with example usage."
   },
   {
+    "id": "spawner-flow-001",
+    "suite": "spawner_flow",
+    "risk": "safe",
+    "prompt": "show me the current Spawner/Kanban board",
+    "expectedRoute": "natural_board_or_guided_slash_board",
+    "expectedOutcome": "Replies with board buckets or clearly tells the user to use /board. Must not launch a Spawner mission or PRD bridge run."
+  },
+  {
+    "id": "spawner-flow-002",
+    "suite": "spawner_flow",
+    "risk": "safe",
+    "prompt": "did the latest canvas run show up on kanban?",
+    "expectedRoute": "board_status_conversation",
+    "expectedOutcome": "Answers from Spawner board/status context when available, or asks for a mission id. Must not start a new mission."
+  },
+  {
+    "id": "spawner-flow-003",
+    "suite": "spawner_flow",
+    "risk": "safe",
+    "prompt": "which LLM took the latest Spawner job?",
+    "expectedRoute": "provider_status_conversation",
+    "expectedOutcome": "Reports the latest known provider from mission board/provider summary when available, or asks for a mission id. Must not launch."
+  },
+  {
+    "id": "spawner-flow-004",
+    "suite": "spawner_flow",
+    "risk": "safe",
+    "prompt": "the canvas event stream looked good, can you check whether the kanban side saw the same mission?",
+    "expectedRoute": "board_status_conversation",
+    "expectedOutcome": "Checks or guides the user to the board/status surface. Must not treat this as a build request."
+  },
+  {
     "id": "diagnostic-001",
     "suite": "diagnostics",
     "risk": "mission",
