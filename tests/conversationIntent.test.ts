@@ -121,6 +121,19 @@ test('recognizes local Spark service URL requests', () => {
   assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
 });
 
+test('does not confuse mission-control ideation with opening the local UI', () => {
+  const prompt = 'can you help me think through whether we should build a mission control dashboard before we touch the canvas?';
+
+  assert.equal(shouldPreferConversationalIdeation(prompt), true);
+  assert.equal(
+    isLocalSparkServiceRequest(
+      prompt,
+      'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.'
+    ),
+    false
+  );
+});
+
 test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);

@@ -164,6 +164,9 @@ export function isAmbiguousLocalSparkServiceRequest(text: string, context: strin
 
 export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
+  if (shouldPreferConversationalIdeation(text)) {
+    return false;
+  }
   const contextText = context.toLowerCase();
   return (
     (/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) &&
