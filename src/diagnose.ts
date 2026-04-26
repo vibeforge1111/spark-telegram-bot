@@ -7,6 +7,7 @@ import {
   resolveChatDefaultProvider,
   resolveMissionDefaultProvider
 } from './providerRouting';
+import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -56,11 +57,7 @@ interface HttpStatusResult {
 }
 
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
-  const parsedPort = Number(env.TELEGRAM_RELAY_PORT || '8788');
-  return {
-    port: Number.isFinite(parsedPort) && parsedPort > 0 ? Math.trunc(parsedPort) : 8788,
-    profile: env.SPARK_TELEGRAM_PROFILE?.trim() || 'default'
-  };
+  return telegramRelayIdentityFromEnv(env);
 }
 
 function httpPortLabel(url: string): string {

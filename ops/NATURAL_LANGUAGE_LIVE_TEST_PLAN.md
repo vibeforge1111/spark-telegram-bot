@@ -22,7 +22,7 @@ This is the running matrix for testing the active Spark Telegram profile as a na
 
 1. Run `npm run health:polling`.
 2. Confirm exactly one `spark-telegram-bot` `src/index.ts` receiver owns Telegram polling.
-3. Confirm the relay port/profile you expect, usually `8788/default` or the named tester profile.
+3. Confirm the relay port/profile you expect, usually `8788/spark-agi` for the primary bot or a named tester profile.
 4. Confirm Spawner is reachable at `SPAWNER_UI_URL`.
 5. Set `/access status`, then raise/lower access intentionally for the suite.
 

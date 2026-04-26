@@ -80,7 +80,7 @@ async function run(): Promise<void> {
     assert.equal(capturedOptions.timeout, 15000);
   });
 
-  await test('runGoal falls back to the default relay target when env values are invalid', async () => {
+  await test('runGoal falls back to the primary relay target when env values are invalid', async () => {
     restoreAxios();
     process.env.TELEGRAM_RELAY_PORT = 'not-a-port';
     process.env.SPARK_TELEGRAM_PROFILE = '   ';
@@ -99,7 +99,7 @@ async function run(): Promise<void> {
     });
 
     assert.equal(result.success, true);
-    assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'default' });
+    assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'spark-agi' });
     assert.equal(capturedBody.providers, undefined);
     assert.equal(capturedBody.promptMode, undefined);
   });

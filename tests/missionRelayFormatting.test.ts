@@ -246,7 +246,7 @@ test('ignores mission relay events targeted at another Telegram profile', () => 
     assert.equal(shouldAcceptRelayEventForThisBot({
       type: 'mission_started',
       missionId: 'spark-1',
-      data: { telegramRelay: { port: 8788, profile: 'default' } }
+      data: { telegramRelay: { port: 8788, profile: 'spark-agi' } }
     }), true);
   } finally {
     if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
@@ -260,13 +260,13 @@ test('accepts legacy flat Telegram relay target fields for this bot only', () =>
   const originalPort = process.env.TELEGRAM_RELAY_PORT;
   const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
   process.env.TELEGRAM_RELAY_PORT = '8788';
-  process.env.SPARK_TELEGRAM_PROFILE = 'default';
+  process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
 
   try {
     assert.equal(shouldAcceptRelayEventForThisBot({
       type: 'mission_started',
       missionId: 'spark-legacy',
-      data: { telegramRelayPort: '8788', telegramRelayProfile: 'default' }
+      data: { telegramRelayPort: '8788', telegramRelayProfile: 'spark-agi' }
     }), true);
     assert.equal(shouldAcceptRelayEventForThisBot({
       type: 'mission_started',

@@ -1,8 +1,8 @@
 import { runTelegramPollingHealth } from './healthPolling';
+import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
 export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const parsed = Number(env.TELEGRAM_RELAY_PORT || '8788');
-  const port = Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 8788;
+  const { port } = telegramRelayIdentityFromEnv(env);
   return `http://127.0.0.1:${port}/health`;
 }
 
@@ -19,7 +19,7 @@ export async function validateRelayRuntime(
       throw new Error(`HTTP ${response.status}`);
     }
     const payload = await response.json() as { relay?: { profile?: string; port?: number }; pid?: number };
-    const profile = payload.relay?.profile || env.SPARK_TELEGRAM_PROFILE || 'default';
+    const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;
     return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}`;
   } catch (error) {

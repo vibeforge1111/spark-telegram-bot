@@ -35,7 +35,7 @@ flowchart TD
   Builder --> Researcher["spark-researcher"]
   Gateway --> SpawnerBridge["Spawner bridge<br/>src/spawner.ts"]
   SpawnerBridge --> Spawner["spawner-ui APIs"]
-  Spawner --> Relay["local mission relay<br/>127.0.0.1:8788"]
+  Spawner --> Relay["local mission relay<br/>127.0.0.1:8788/spark-agi"]
   Relay --> Gateway
 ```
 
@@ -124,6 +124,8 @@ npm run health:polling
 
 Public Telegram webhook ingress intentionally exposes nothing in this launch build. The only local HTTP listener is the Spawner mission relay on `127.0.0.1:8788`, protected by `TELEGRAM_RELAY_SECRET`.
 
+Spark AGI is the canonical main Telegram relay profile. Secondary bots should use named profiles, their own relay ports, and their own `telegram.profiles.<name>.bot_token` secret. The legacy unnamed/default path is only a compatibility alias.
+
 ## Setup
 
 In the current supported split architecture, only this repo should receive the
@@ -186,6 +188,7 @@ If you are Claude Code, Codex, or another LLM agent operating this repo:
 4. Use `npm test`, `npm run build`, and `npm run health:polling` before claiming the gateway is healthy.
 5. Use `/diagnose` to verify provider/LLM wiring from Telegram.
 6. Never commit `.env`, `.env.*`, tokens, chat exports, mission logs with secrets, or screenshots containing secrets.
+7. Keep relay identity named. The main bot should report `spark-agi`; tester bots should report their profile name.
 
 ## Related Docs
 

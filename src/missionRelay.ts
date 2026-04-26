@@ -4,6 +4,7 @@ import type { Telegraf } from 'telegraf';
 import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
+import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
 type RelayEventType =
   | 'mission_created'
@@ -90,8 +91,7 @@ const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
 const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
 
 function getRelayPort(): number {
-	const parsed = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : 8788;
+	return telegramRelayIdentityFromEnv().port;
 }
 
 function getRelaySecret(): string | null {
@@ -99,7 +99,7 @@ function getRelaySecret(): string | null {
 }
 
 function getRelayProfile(): string {
-  return process.env.SPARK_TELEGRAM_PROFILE?.trim() || 'default';
+  return telegramRelayIdentityFromEnv().profile;
 }
 
 export function getTelegramRelayIdentity(): { port: number; profile: string } {

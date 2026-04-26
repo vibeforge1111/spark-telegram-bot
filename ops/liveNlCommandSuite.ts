@@ -61,10 +61,8 @@ function loadSparkProfileEnv(): string | null {
   loadEnvFile(path.join(configDir, 'spark-telegram-bot.env'));
   loadEnvFile(path.join(configDir, `spark-telegram-bot.${profile}.env`));
 
-  const secretId = profile === 'default'
-    ? 'telegram.bot_token'
-    : `telegram.profiles.${profile}.bot_token`;
-  const profileToken = readSparkSecret(secretId);
+  const profileSecretId = `telegram.profiles.${profile}.bot_token`;
+  const profileToken = readSparkSecret(profileSecretId) || (profile === 'default' ? readSparkSecret('telegram.bot_token') : null);
   if (profileToken) {
     process.env.BOT_TOKEN = profileToken;
   }

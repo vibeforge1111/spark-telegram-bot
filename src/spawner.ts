@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
@@ -45,7 +46,7 @@ export const spawner = {
 
   async runGoal(input: RunGoalInput): Promise<RunGoalResult> {
     try {
-      const relayPort = Number(process.env.TELEGRAM_RELAY_PORT || '8788');
+      const relay = telegramRelayIdentityFromEnv();
       const res = await axios.post(
         `${SPAWNER_UI_URL}/api/spark/run`,
         {
@@ -53,10 +54,7 @@ export const spawner = {
           chatId: input.chatId,
           userId: input.userId,
           requestId: input.requestId,
-          telegramRelay: {
-            port: Number.isFinite(relayPort) && relayPort > 0 ? relayPort : 8788,
-            profile: process.env.SPARK_TELEGRAM_PROFILE?.trim() || 'default'
-          },
+          telegramRelay: relay,
           ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {})
