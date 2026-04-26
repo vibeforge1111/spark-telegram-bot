@@ -4,7 +4,7 @@ export interface TelegramRelayIdentity {
 }
 
 export const DEFAULT_TELEGRAM_RELAY_PORT = 8788;
-export const PRIMARY_TELEGRAM_RELAY_PROFILE = 'spark-agi';
+export const PRIMARY_TELEGRAM_RELAY_PROFILE = 'primary';
 
 export function normalizeTelegramRelayPort(value: unknown): number {
   const parsed = Number(value || DEFAULT_TELEGRAM_RELAY_PORT);

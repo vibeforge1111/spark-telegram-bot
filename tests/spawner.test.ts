@@ -99,7 +99,7 @@ async function run(): Promise<void> {
     });
 
     assert.equal(result.success, true);
-    assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'spark-agi' });
+    assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'primary' });
     assert.equal(capturedBody.providers, undefined);
     assert.equal(capturedBody.promptMode, undefined);
   });

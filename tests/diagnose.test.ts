@@ -97,7 +97,7 @@ test('uses the active Telegram relay profile and port for diagnostics', () => {
     SPARK_TELEGRAM_PROFILE: ''
   } as NodeJS.ProcessEnv), {
     port: 8788,
-    profile: 'spark-agi'
+    profile: 'primary'
   });
 });
 
@@ -130,7 +130,7 @@ test('describes relay identity mismatches clearly', () => {
 
 test('describes HTTP failures as relay errors', () => {
   assert.match(
-    describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'spark-agi' }),
+    describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
     /HTTP 401$/
   );
 });

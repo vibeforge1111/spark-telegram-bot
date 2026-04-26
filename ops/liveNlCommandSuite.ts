@@ -136,7 +136,7 @@ async function main(): Promise<void> {
       '  npm run nl:live -- --suite smoke',
       '  npm run nl:live -- --send --case mission-001',
       '  npm run nl:live -- --send --suite smoke',
-      '  npm run nl:live -- --profile spark-agi --send --suite smoke',
+      '  npm run nl:live -- --profile primary --send --suite smoke',
       '',
       'Notes:',
       '  --send only sends prompt cards. It does not start polling or read updates.',
