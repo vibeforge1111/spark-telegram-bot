@@ -276,9 +276,10 @@ async function run(): Promise<void> {
 
     assert.equal(result.success, true);
     assert.match(result.message, /latest mission is visible on Kanban/);
+    assert.doesNotMatch(result.message, /^Yes,/);
     assert.match(result.message, /Mission: mission-newer/);
     assert.match(result.message, /Tasks: Render page, Write README/);
-    assert.match(result.message, /Provider: codex/);
+    assert.match(result.message, /Provider: Codex/);
     assert.match(result.message, /Relay: spark-agi:8789/);
     assert.doesNotMatch(result.message, /mission-older/);
   });
@@ -322,7 +323,7 @@ async function run(): Promise<void> {
     const result = await spawner.latestProviderSummary();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /handled by: codex/);
+    assert.match(result.message, /handled by: Codex/);
     assert.match(result.message, /Mission: spark-live/);
     assert.doesNotMatch(result.message, /spark-done/);
   });

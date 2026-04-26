@@ -47,6 +47,12 @@ interface BoardEntry {
 }
 
 const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
+const PROVIDER_LABELS: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  minimax: 'MiniMax',
+  zai: 'Z.AI'
+};
 
 type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
 type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
@@ -90,11 +96,16 @@ function providerNames(entry: BoardEntry): string {
     .filter((name): name is string => Boolean(name?.trim()));
 
   if (names.length > 0) {
-    return [...new Set(names)].join(', ');
+    return [...new Set(names)].map(formatProviderLabel).join(', ');
   }
 
   const summaryPrefix = entry.providerSummary?.match(/^([^:]+):/)?.[1]?.trim();
-  return summaryPrefix || entry.taskName || 'unknown';
+  return formatProviderLabel(summaryPrefix || entry.taskName || 'unknown');
+}
+
+function formatProviderLabel(providerId: string): string {
+  const normalized = providerId.trim().toLowerCase();
+  return PROVIDER_LABELS[normalized] || providerId.trim();
 }
 
 function formatLatestMission(entry: BoardEntry): string[] {
@@ -263,7 +274,7 @@ export const spawner = {
       return {
         success: true,
         message: [
-          'Yes, the latest mission is visible on Kanban.',
+          'The latest mission is visible on Kanban.',
           '',
           ...formatLatestMission(latest)
         ].join('\n')
