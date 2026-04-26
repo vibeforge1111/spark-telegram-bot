@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import type { Telegraf } from 'telegraf';
 import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
-import { requireRelaySecret } from './launchMode';
+import { relaySecretMatches, requireRelaySecret } from './launchMode';
 
 type RelayEventType =
   | 'mission_created'
@@ -1028,7 +1028,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 		const relaySecret = getRelaySecret();
 		if (relaySecret) {
 			const secretHeader = req.headers['x-spark-telegram-relay-secret'];
-			if (secretHeader !== relaySecret) {
+			if (!relaySecretMatches(secretHeader, relaySecret)) {
 				writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
 				return;
 			}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { requireRelaySecret, resolveTelegramLaunchConfig } from '../src/launchMode';
+import { relaySecretMatches, requireRelaySecret, resolveTelegramLaunchConfig } from '../src/launchMode';
 
 function env(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
   return { ...overrides };
@@ -45,4 +45,12 @@ test('requires a strong local relay secret', () => {
   assert.throws(() => requireRelaySecret(env()), /TELEGRAM_RELAY_SECRET is required/);
   assert.throws(() => requireRelaySecret(env({ TELEGRAM_RELAY_SECRET: 'short' })), /24-256/);
   assert.throws(() => requireRelaySecret(env({ TELEGRAM_RELAY_SECRET: 'bad secret with spaces and enough length' })), /may only contain/);
+});
+
+test('compares relay secrets without accepting malformed header values', () => {
+  const expected = 'abcdefghijklmnopqrstuvwxyz_123456';
+  assert.equal(relaySecretMatches(expected, expected), true);
+  assert.equal(relaySecretMatches('abcdefghijklmnopqrstuvwxyz_123457', expected), false);
+  assert.equal(relaySecretMatches([expected], expected), false);
+  assert.equal(relaySecretMatches(undefined, expected), false);
 });

@@ -1,3 +1,6 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import type { IncomingHttpHeaders } from 'node:http';
+
 export type TelegramLaunchMode = 'polling';
 
 export interface TelegramLaunchConfig {
@@ -41,4 +44,18 @@ export function requireRelaySecret(env: NodeJS.ProcessEnv = process.env): string
     throw new Error('TELEGRAM_RELAY_SECRET may only contain A-Z, a-z, 0-9, _ and -.');
   }
   return value;
+}
+
+function digestSecret(value: string): Buffer {
+  return createHash('sha256').update(value, 'utf8').digest();
+}
+
+export function relaySecretMatches(
+  headerValue: IncomingHttpHeaders['x-spark-telegram-relay-secret'],
+  expectedSecret: string
+): boolean {
+  if (typeof headerValue !== 'string') {
+    return false;
+  }
+  return timingSafeEqual(digestSecret(headerValue), digestSecret(expectedSecret));
 }
