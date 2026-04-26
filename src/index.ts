@@ -286,7 +286,7 @@ bot.command('diagnose', async (ctx) => {
     // Telegram limit is 4096 chars; diagnose is always well under.
     await ctx.reply(report);
   } catch (err: any) {
-    await ctx.reply(`Diagnose failed: ${err.message || err}`);
+    await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
 });
 
@@ -520,7 +520,7 @@ async function handleRunCommand(
   });
 
   if (!result.success || !result.missionId) {
-    await ctx.reply(`Hit a snag starting that - ${result.error || 'something went wrong'}. Want me to retry?`);
+    await ctx.reply(renderSparkErrorReply(new Error(result.error || 'Spawner mission start failed'), 'spawner', conversation.isAdmin(ctx.from)));
     return null;
   }
 
@@ -583,7 +583,7 @@ async function handleBuildIntent(
     );
 
     if (!res.data?.success) {
-      await ctx.reply(`Couldn't queue the PRD - ${res.data?.error || 'unknown error'}.`);
+      await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Spawner PRD queue failed'), 'spawner', conversation.isAdmin(ctx.from)));
       return;
     }
 
@@ -649,8 +649,7 @@ async function handleBuildIntent(
       );
     })();
   } catch (err: any) {
-    const detail = err.response?.data?.error || err.message || 'unknown error';
-    await ctx.reply(`Couldn't reach Spawner PRD bridge - ${detail}. Is spawner-ui running on ${spawnerUrl}?`);
+    await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
   }
 }
 

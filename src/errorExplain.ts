@@ -13,6 +13,7 @@ export interface SparkErrorExplanation {
   category: string;
   userLine: string;
   detail: string;
+  check: string;
   repair: string;
 }
 
@@ -69,7 +70,38 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'provider_auth',
       userLine: 'Spark reached the model path, but the provider authentication is not working.',
       detail,
-      repair: 'Run /diagnose. Operator repair: spark providers status, then spark setup to refresh the provider key.'
+      check: 'Run /diagnose so Spark can check the active chat provider.',
+      repair: 'Operator fix: spark providers status, then spark setup to refresh the provider key.'
+    };
+  }
+
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('too many requests') ||
+    lower.includes('quota') ||
+    lower.includes('429')
+  ) {
+    return {
+      category: 'provider_rate_limit',
+      userLine: 'The selected model provider is rate-limiting Spark right now.',
+      detail,
+      check: 'Run /diagnose so Spark can confirm whether chat or missions are affected.',
+      repair: 'Operator fix: wait a moment, switch providers with spark setup, or check provider billing/quota.'
+    };
+  }
+
+  if (
+    lower.includes('model not found') ||
+    lower.includes('unknown model') ||
+    lower.includes('invalid model') ||
+    lower.includes('does not exist')
+  ) {
+    return {
+      category: 'provider_model',
+      userLine: 'Spark has a provider key, but the configured model name is not available.',
+      detail,
+      check: 'Run /diagnose and check the selected chat, builder, memory, and mission models.',
+      repair: 'Operator fix: spark setup, then choose a model this provider account can use.'
     };
   }
 
@@ -89,9 +121,12 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'network_or_service',
       userLine: `Spark could not reach ${target}.`,
       detail,
+      check: context === 'spawner'
+        ? 'Run /diagnose so Spark can check Spawner and the mission relay.'
+        : 'Run /diagnose so Spark can tell whether the failing target is local or the model provider.',
       repair: context === 'spawner'
-        ? 'Run /diagnose. Operator repair: spark start spawner-ui, then spark verify --onboarding.'
-        : 'Run /diagnose. Operator repair: spark providers status, then check the provider URL or local service.'
+        ? 'Operator fix: spark start spawner-ui, then spark verify --onboarding.'
+        : 'Operator fix: spark providers status, then check the provider URL or local service.'
     };
   }
 
@@ -107,7 +142,8 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'builder_or_memory',
       userLine: 'Spark could not reach the Builder memory path right now.',
       detail,
-      repair: 'Run /diagnose. Operator repair: spark fix telegram, then spark verify --onboarding.'
+      check: 'Run /diagnose so Spark can check Builder, memory, and the selected memory model.',
+      repair: 'Operator fix: spark fix telegram, then spark verify --onboarding.'
     };
   }
 
@@ -122,12 +158,28 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'dependency_or_install',
       userLine: 'Spark is missing a dependency or command it needs.',
       detail,
-      repair: 'Run /diagnose. Operator repair: spark update, then spark verify --onboarding.'
+      check: 'Run /diagnose so Spark can identify which module is unhealthy.',
+      repair: 'Operator fix: spark update, then spark verify --onboarding.'
+    };
+  }
+
+  if (
+    lower.includes('terminated by other getupdates request') ||
+    lower.includes('409') ||
+    lower.includes('conflict')
+  ) {
+    return {
+      category: 'telegram_polling_conflict',
+      userLine: 'Telegram says another Spark process is already polling this bot token.',
+      detail,
+      check: 'Run /diagnose to confirm which Telegram profile and relay port are active.',
+      repair: 'Operator fix: stop duplicate bot processes, then run spark restart spark-telegram-bot for the intended profile.'
     };
   }
 
   if (
     lower.includes('bot token') ||
+    lower.includes('telegram token') ||
     lower.includes('allowed_telegram_ids') ||
     lower.includes('admin_telegram_ids') ||
     context === 'telegram'
@@ -136,7 +188,8 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'telegram_config',
       userLine: 'Spark hit a Telegram configuration problem.',
       detail,
-      repair: 'Run /myid, then operator repair: spark setup and restart the Telegram bot.'
+      check: 'Run /myid if access is the issue, or /diagnose if the bot is already responding.',
+      repair: 'Operator fix: spark setup and restart the Telegram bot.'
     };
   }
 
@@ -144,7 +197,8 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     category: 'unknown',
     userLine: 'Spark hit an internal error before it could answer cleanly.',
     detail,
-    repair: 'Run /diagnose. Operator repair: spark logs spark-telegram-bot --lines 80.'
+    check: 'Run /diagnose so Spark can narrow this down from the live stack.',
+    repair: 'Operator fix: spark logs spark-telegram-bot --lines 80.'
   };
 }
 
@@ -157,6 +211,7 @@ export function renderSparkErrorReply(
   const lines = [
     explanation.userLine,
     `Reason: ${explanation.detail}`,
+    `Check now: ${explanation.check}`,
     isAdmin
       ? explanation.repair
       : 'Please ask the operator to run /diagnose and check the repair hint.'
