@@ -1,0 +1,245 @@
+import assert from 'node:assert/strict';
+import axios from 'axios';
+import { spawner } from '../src/spawner';
+
+type AsyncTest = () => Promise<void> | void;
+
+async function test(name: string, fn: AsyncTest): Promise<void> {
+  try {
+    await fn();
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+}
+
+const originalGet = axios.get;
+const originalPost = axios.post;
+const originalPort = process.env.TELEGRAM_RELAY_PORT;
+const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+
+function restoreAxios(): void {
+  (axios as any).get = originalGet;
+  (axios as any).post = originalPost;
+}
+
+function restoreEnv(): void {
+  if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+  else process.env.TELEGRAM_RELAY_PORT = originalPort;
+  if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+  else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+}
+
+async function run(): Promise<void> {
+  await test('runGoal posts Telegram relay metadata and orchestration options to Spawner', async () => {
+    restoreAxios();
+    process.env.TELEGRAM_RELAY_PORT = '8799';
+    process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
+
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    let capturedOptions: any = null;
+    (axios as any).post = async (url: string, body: unknown, options: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      capturedOptions = options;
+      return {
+        data: {
+          success: true,
+          missionId: 'spark-telegram-1',
+          requestId: 'tg-req-1',
+          providers: ['codex', 'claude']
+        }
+      };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Build a Kanban board from this Telegram message.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-req-1',
+      providers: ['codex', 'claude'],
+      promptMode: 'orchestrator'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.missionId, 'spark-telegram-1');
+    assert.equal(result.requestId, 'tg-req-1');
+    assert.deepEqual(result.providers, ['codex', 'claude']);
+    assert.match(capturedUrl, /\/api\/spark\/run$/);
+    assert.deepEqual(capturedBody, {
+      goal: 'Build a Kanban board from this Telegram message.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-req-1',
+      telegramRelay: { port: 8799, profile: 'spark-agi' },
+      providers: ['codex', 'claude'],
+      promptMode: 'orchestrator'
+    });
+    assert.equal(capturedOptions.timeout, 15000);
+  });
+
+  await test('runGoal falls back to the default relay target when env values are invalid', async () => {
+    restoreAxios();
+    process.env.TELEGRAM_RELAY_PORT = 'not-a-port';
+    process.env.SPARK_TELEGRAM_PROFILE = '   ';
+
+    let capturedBody: any = null;
+    (axios as any).post = async (_url: string, body: unknown) => {
+      capturedBody = body;
+      return { data: { success: true, missionId: 'spark-defaults' } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Build a plain board.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-defaults'
+    });
+
+    assert.equal(result.success, true);
+    assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'default' });
+    assert.equal(capturedBody.providers, undefined);
+    assert.equal(capturedBody.promptMode, undefined);
+  });
+
+  await test('missionCommand formats provider status for Telegram', async () => {
+    restoreAxios();
+    (axios as any).post = async () => ({
+      data: {
+        status: {
+          paused: false,
+          allComplete: true,
+          providers: {
+            codex: 'completed',
+            claude: 'running'
+          }
+        }
+      }
+    });
+
+    const result = await spawner.missionCommand('status', 'spark-status');
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Mission: spark-status/);
+    assert.match(result.message, /Complete: yes/);
+    assert.match(result.message, /codex: completed/);
+    assert.match(result.message, /claude: running/);
+  });
+
+  await test('missionCommand reports not-found status without inventing a mission', async () => {
+    restoreAxios();
+    (axios as any).post = async () => ({
+      data: {
+        ok: false,
+        error: 'Mission spark-not-real was not found. Use /board to pick a current mission ID.'
+      }
+    });
+
+    const result = await spawner.missionCommand('status', 'spark-not-real');
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /not found/i);
+    assert.doesNotMatch(result.message, /Providers:/);
+  });
+
+  await test('missionCommand reports rejected pause without claiming execution', async () => {
+    restoreAxios();
+    (axios as any).post = async () => ({
+      data: {
+        ok: false,
+        error: 'Mission not-spark-id was not found. Use /board to pick a current mission ID.'
+      }
+    });
+
+    const result = await spawner.missionCommand('pause', 'not-spark-id');
+
+    assert.equal(result.success, false);
+    assert.match(result.message, /not found/i);
+    assert.doesNotMatch(result.message, /executed/i);
+  });
+
+  await test('board renders useful Kanban buckets and hides stale running missions', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'spark-fresh',
+              status: 'running',
+              lastEventType: 'task_progress',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Working',
+              taskName: 'Build canvas sync'
+            },
+            {
+              missionId: 'spark-stale',
+              status: 'running',
+              lastEventType: 'task_progress',
+              lastUpdated: new Date(now - 60 * 60_000).toISOString(),
+              lastSummary: 'Old',
+              taskName: 'Old task'
+            }
+          ],
+          paused: [],
+          completed: [
+            {
+              missionId: 'spark-done',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Done',
+              taskName: null
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.board();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Running: 1/);
+    assert.match(result.message, /- spark-fresh \| Build canvas sync/);
+    assert.doesNotMatch(result.message, /spark-stale/);
+    assert.match(result.message, /Completed: 1/);
+    assert.match(result.message, /- spark-done/);
+  });
+
+  await test('board tolerates malformed board buckets from Spawner', async () => {
+    restoreAxios();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: { nope: true },
+          paused: null,
+          completed: 'bad',
+          failed: undefined,
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.board();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Running: 0/);
+    assert.match(result.message, /Paused: 0/);
+    assert.match(result.message, /Completed: 0/);
+  });
+}
+
+run()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    restoreAxios();
+    restoreEnv();
+  });

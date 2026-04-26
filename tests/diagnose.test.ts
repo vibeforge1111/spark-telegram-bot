@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
+  describeRelayHealth,
   describeProviderStatus,
+  getRelayIdentityFromEnv,
   selectPingProviderIds,
   type ProviderStatus
 } from '../src/diagnose';
@@ -83,4 +85,49 @@ test('pings selected Spawner route providers only', () => {
   ];
 
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
+});
+
+test('uses the active Telegram relay profile and port for diagnostics', () => {
+  assert.deepEqual(getRelayIdentityFromEnv({
+    TELEGRAM_RELAY_PORT: '8789',
+    SPARK_TELEGRAM_PROFILE: 'spark-agi'
+  } as NodeJS.ProcessEnv), {
+    port: 8789,
+    profile: 'spark-agi'
+  });
+
+  assert.deepEqual(getRelayIdentityFromEnv({
+    TELEGRAM_RELAY_PORT: 'nope',
+    SPARK_TELEGRAM_PROFILE: ''
+  } as NodeJS.ProcessEnv), {
+    port: 8788,
+    profile: 'default'
+  });
+});
+
+test('describes relay identity mismatches clearly', () => {
+  const expected = { port: 8789, profile: 'spark-agi' };
+
+  assert.equal(
+    describeRelayHealth({
+      ok: true,
+      status: 200,
+      payload: { relay: { port: 8789, profile: 'spark-agi' } }
+    }, expected),
+    '• Bot mission relay (:8789/spark-agi): ✅'
+  );
+
+  assert.equal(
+    describeRelayHealth({
+      ok: true,
+      status: 200,
+      payload: { relay: { port: 8788, profile: 'default' } }
+    }, expected),
+    '• Bot mission relay (:8789/spark-agi): ❌ identity mismatch (8788 / default)'
+  );
+
+  assert.equal(
+    describeRelayHealth({ ok: false, err: 'ECONNREFUSED' }, expected),
+    '• Bot mission relay (:8789/spark-agi): ❌ ECONNREFUSED'
+  );
 });

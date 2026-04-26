@@ -17,7 +17,7 @@ const WORKSPACE_ROOT = (process.env.SPARK_PROJECT_ROOT || DEFAULT_WORKSPACE_ROOT
 export type BuildMode = 'direct' | 'advanced_prd';
 
 function inferProjectName(prd: string, projectPath: string | null): string {
-  const nameMatch = prd.match(/called\s+([A-Z][\w\s-]{2,60})/i);
+  const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;]|\s+(?:with|that|which|where|for|using)\b|$)/i);
   if (nameMatch) return nameMatch[1].trim();
   if (projectPath) {
     const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();

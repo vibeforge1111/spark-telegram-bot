@@ -43,6 +43,26 @@ interface ProviderDescription {
   note: string;
 }
 
+interface RelayIdentity {
+  port: number;
+  profile: string;
+}
+
+interface HttpStatusResult {
+  ok: boolean;
+  status?: number;
+  err?: string;
+  payload?: unknown;
+}
+
+export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
+  const parsedPort = Number(env.TELEGRAM_RELAY_PORT || '8788');
+  return {
+    port: Number.isFinite(parsedPort) && parsedPort > 0 ? Math.trunc(parsedPort) : 8788,
+    profile: env.SPARK_TELEGRAM_PROFILE?.trim() || 'default'
+  };
+}
+
 function httpPortLabel(url: string): string {
   try {
     const parsed = new URL(url);
@@ -52,13 +72,36 @@ function httpPortLabel(url: string): string {
   }
 }
 
-async function httpStatus(url: string, timeoutMs = 3000): Promise<{ ok: boolean; status?: number; err?: string }> {
+async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResult> {
   try {
     const res = await axios.get(url, { timeout: timeoutMs, validateStatus: () => true });
-    return { ok: res.status < 500, status: res.status };
+    return { ok: res.status < 500, status: res.status, payload: res.data };
   } catch (err: any) {
     return { ok: false, err: err.code || err.message };
   }
+}
+
+export function describeRelayHealth(status: HttpStatusResult, expected: RelayIdentity): string {
+  const label = `:${expected.port}/${expected.profile}`;
+  if (!status.ok) {
+    return `• Bot mission relay (${label}): ❌ ${status.err || status.status}`;
+  }
+
+  const payload = status.payload && typeof status.payload === 'object'
+    ? status.payload as Record<string, unknown>
+    : {};
+  const relay = payload.relay && typeof payload.relay === 'object'
+    ? payload.relay as Record<string, unknown>
+    : null;
+  if (relay) {
+    const actualPort = Number(relay.port);
+    const actualProfile = typeof relay.profile === 'string' ? relay.profile : '';
+    if (actualPort !== expected.port || actualProfile !== expected.profile) {
+      return `• Bot mission relay (${label}): ❌ identity mismatch (${actualPort || '?'} / ${actualProfile || '?'})`;
+    }
+  }
+
+  return `• Bot mission relay (${label}): ✅`;
 }
 
 export function describeProviderStatus(provider: ProviderStatus, selectedIds: Set<string> = new Set()): ProviderDescription {
@@ -180,9 +223,10 @@ function providerLabel(providerId: string | null, providers: ProviderStatus[]): 
 export async function buildDiagnoseReport(adminId: number): Promise<string> {
   const started = Date.now();
   const lines: string[] = ['🩺 Diagnostic Report', ''];
+  const relayIdentity = getRelayIdentityFromEnv();
 
   const [botRelay, spawnerProviders, shimHealth] = await Promise.all([
-    httpStatus('http://127.0.0.1:8788/', 2000),
+    httpStatus(`http://127.0.0.1:${relayIdentity.port}/health`, 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null)
   ]);
@@ -202,7 +246,7 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
   const selectedIds = new Set([spawnerDefaultProvider, telegramRunProvider, chatProvider].filter(Boolean) as string[]);
 
   lines.push('Services');
-  lines.push(`• Bot mission relay (:8788): ${botRelay.ok ? '✅' : `❌ ${botRelay.err || botRelay.status}`}`);
+  lines.push(describeRelayHealth(botRelay, relayIdentity));
   lines.push(
     `• Spawner UI (${httpPortLabel(SPAWNER_UI_URL)}): ${
       spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`
@@ -258,7 +302,7 @@ export async function buildDiagnoseReport(adminId: number): Promise<string> {
     const running = (board.running || []).length;
     const completed = (board.completed || []).length;
     const failed = (board.failed || []).length;
-    lines.push(`Mission board: ${running} running / ${completed} completed / ${failed} failed`);
+    lines.push(`Mission board snapshot after ping: ${running} running / ${completed} completed / ${failed} failed`);
   } catch {
     lines.push('Mission board: ❌ unreachable');
   }

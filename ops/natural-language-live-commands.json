@@ -1,0 +1,258 @@
+[
+  {
+    "id": "smoke-001",
+    "suite": "smoke",
+    "risk": "safe",
+    "prompt": "/status",
+    "expectedRoute": "slash_status",
+    "expectedOutcome": "Replies with system status and admin access marker for admin chats."
+  },
+  {
+    "id": "smoke-002",
+    "suite": "smoke",
+    "risk": "safe",
+    "prompt": "/diagnose",
+    "expectedRoute": "slash_diagnose",
+    "expectedOutcome": "Replies with Telegram relay, Spawner providers, selected providers, and diagnose timing."
+  },
+  {
+    "id": "smoke-003",
+    "suite": "smoke",
+    "risk": "safe",
+    "prompt": "/board",
+    "expectedRoute": "slash_board",
+    "expectedOutcome": "Replies with Spawner Board buckets and does not include stale running missions."
+  },
+  {
+    "id": "prefs-001",
+    "suite": "preferences",
+    "risk": "safe",
+    "prompt": "/updates minimal",
+    "expectedRoute": "slash_updates",
+    "expectedOutcome": "Sets mission update verbosity to minimal."
+  },
+  {
+    "id": "prefs-002",
+    "suite": "preferences",
+    "risk": "safe",
+    "prompt": "make mission updates verbose",
+    "expectedRoute": "natural_preferences",
+    "expectedOutcome": "Sets mission update verbosity to verbose without starting a mission."
+  },
+  {
+    "id": "prefs-003",
+    "suite": "preferences",
+    "risk": "safe",
+    "prompt": "show me kanban and canvas links for missions",
+    "expectedRoute": "natural_preferences",
+    "expectedOutcome": "Sets mission link preference to both board and canvas."
+  },
+  {
+    "id": "access-001",
+    "suite": "access",
+    "risk": "safe",
+    "prompt": "/access status",
+    "expectedRoute": "slash_access",
+    "expectedOutcome": "Shows current Spark access level and allowed capabilities."
+  },
+  {
+    "id": "access-002",
+    "suite": "access",
+    "risk": "safe",
+    "prompt": "/access 1",
+    "expectedRoute": "slash_access",
+    "expectedOutcome": "Sets chat-only access; natural missions should not auto-start."
+  },
+  {
+    "id": "access-003",
+    "suite": "access",
+    "risk": "safe",
+    "prompt": "/access 3",
+    "expectedRoute": "slash_access",
+    "expectedOutcome": "Sets agent access; explicit natural missions can start."
+  },
+  {
+    "id": "guard-001",
+    "suite": "guardrails",
+    "risk": "safe",
+    "prompt": "can you help me think through whether we should build a mission control dashboard before we touch the canvas?",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Discusses/plans. Must not create a Spawner mission or PRD bridge run."
+  },
+  {
+    "id": "guard-002",
+    "suite": "guardrails",
+    "risk": "safe",
+    "prompt": "maybe we should build a tiny kanban app, what would be the best first version?",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Ideates on v1. Must not launch a mission."
+  },
+  {
+    "id": "guard-003",
+    "suite": "guardrails",
+    "risk": "safe",
+    "prompt": "that sounds good",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Acknowledges context. Must not infer and launch a mission from low-information agreement."
+  },
+  {
+    "id": "guard-004",
+    "suite": "guardrails",
+    "risk": "safe",
+    "prompt": "what were we going to build again?",
+    "expectedRoute": "context_recall",
+    "expectedOutcome": "Uses recent conversation/memory to summarize the project idea. Must not launch."
+  },
+  {
+    "id": "memory-001",
+    "suite": "memory",
+    "risk": "safe",
+    "prompt": "remember this: my preferred mission updates are concise and outcome-focused",
+    "expectedRoute": "memory_directive",
+    "expectedOutcome": "Stores or routes memory directive without noisy no-op acknowledgement."
+  },
+  {
+    "id": "memory-002",
+    "suite": "memory",
+    "risk": "safe",
+    "prompt": "what do you remember about how I like mission updates?",
+    "expectedRoute": "memory_recall",
+    "expectedOutcome": "Answers from memory if bridge is available, otherwise gives actionable fallback."
+  },
+  {
+    "id": "local-001",
+    "suite": "local_services",
+    "risk": "safe",
+    "prompt": "open the local spawner ui",
+    "expectedRoute": "local_service_reply",
+    "expectedOutcome": "Replies with local Spawner URL/status. Must not claim browser control from Telegram."
+  },
+  {
+    "id": "local-002",
+    "suite": "local_services",
+    "risk": "safe",
+    "prompt": "what localhost app is running?",
+    "expectedRoute": "local_service_clarification",
+    "expectedOutcome": "Asks for clarification or suggests /diagnose instead of hallucinating."
+  },
+  {
+    "id": "mission-001",
+    "suite": "mission",
+    "risk": "mission",
+    "prompt": "/run say exactly OK",
+    "expectedRoute": "slash_run",
+    "expectedOutcome": "Creates Spawner mission, registers relay, replies with mission id, and later relays completion."
+  },
+  {
+    "id": "mission-002",
+    "suite": "mission",
+    "risk": "mission",
+    "prompt": "run a mission to say exactly OK",
+    "expectedRoute": "natural_run",
+    "expectedOutcome": "Creates a Spawner mission only if access level allows missions."
+  },
+  {
+    "id": "mission-003",
+    "suite": "mission",
+    "risk": "mission",
+    "prompt": "kick off a mission that checks whether the kanban board API is healthy and report only the result",
+    "expectedRoute": "natural_run",
+    "expectedOutcome": "Starts mission with a precise health-check goal and returns board/canvas links per preference."
+  },
+  {
+    "id": "mission-004",
+    "suite": "mission",
+    "risk": "mission",
+    "prompt": "start a spawner task to inspect the mission relay and tell me the good, bad, and ugly",
+    "expectedRoute": "natural_run",
+    "expectedOutcome": "Starts mission; provider output should be summarized cleanly without raw JSON or relay plumbing."
+  },
+  {
+    "id": "build-001",
+    "suite": "build",
+    "risk": "writes_files",
+    "prompt": "build a quick vanilla JS page at ./spark-live-direct-probe: Files: index.html, app.js. No build step. Shows hello from Telegram.",
+    "expectedRoute": "build_intent_direct",
+    "expectedOutcome": "Creates direct build PRD/request without leaking the path into the PRD body."
+  },
+  {
+    "id": "build-002",
+    "suite": "build",
+    "risk": "writes_files",
+    "prompt": "build a Mission Control dashboard called Relay Workshop with a kanban board, canvas, Telegram updates, provider result summaries, acceptance checks, task routing, and a persistent project log",
+    "expectedRoute": "build_intent_advanced_prd",
+    "expectedOutcome": "Uses advanced PRD mode; project name should be Relay Workshop."
+  },
+  {
+    "id": "build-003",
+    "suite": "build",
+    "risk": "writes_files",
+    "prompt": "Use advanced PRD mode. Build this at ./spark-live-galaxy-garden: a vanilla-JS app called Spark Galaxy Garden. Files: index.html, styles.css, app.js, README.md. No build step. Users plant seeds, water them, harvest stardust, persist state, and see animated growth stages.",
+    "expectedRoute": "build_intent_advanced_prd",
+    "expectedOutcome": "Writes PRD to Spawner canvas bridge and auto-runs through canvas."
+  },
+  {
+    "id": "build-004",
+    "suite": "build",
+    "risk": "safe",
+    "prompt": "please help me design a project called Relay Workshop with kanban and canvas, but do not build yet",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Plans only. Must not trigger build intent because user explicitly says not to build."
+  },
+  {
+    "id": "mission-control-001",
+    "suite": "mission_control",
+    "risk": "safe",
+    "prompt": "/mission status spark-not-a-real-id",
+    "expectedRoute": "slash_mission_command",
+    "expectedOutcome": "Returns a useful not-found/error message without crashing."
+  },
+  {
+    "id": "mission-control-002",
+    "suite": "mission_control",
+    "risk": "safe",
+    "prompt": "/mission pause not-spark-id",
+    "expectedRoute": "slash_mission_command_guard",
+    "expectedOutcome": "Rejects fake mission id with example usage."
+  },
+  {
+    "id": "diagnostic-001",
+    "suite": "diagnostics",
+    "risk": "mission",
+    "prompt": "test the Telegram to Spawner relay and tell me whether kanban updates arrive",
+    "expectedRoute": "diagnostic_followup_or_mission",
+    "expectedOutcome": "If recent diagnostic context exists, answers/follows up; otherwise starts/asks for an explicit mission depending access."
+  },
+  {
+    "id": "research-001",
+    "suite": "research",
+    "risk": "external",
+    "prompt": "research what people are saying today about AI coding agents and summarize the practical takeaways",
+    "expectedRoute": "external_research",
+    "expectedOutcome": "Requires sufficient access; should not fabricate live web/X results if access is insufficient."
+  },
+  {
+    "id": "links-001",
+    "suite": "links",
+    "risk": "external",
+    "prompt": "inspect https://github.com/openai/codex and tell me what matters for our agent workflow",
+    "expectedRoute": "external_link_agent_access",
+    "expectedOutcome": "Requires agent-level access or asks to raise access instead of pretending to inspect."
+  },
+  {
+    "id": "noise-001",
+    "suite": "noise",
+    "risk": "safe",
+    "prompt": "lol nice",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Short conversational reply. Must not store low-value memory or launch anything."
+  },
+  {
+    "id": "noise-002",
+    "suite": "noise",
+    "risk": "safe",
+    "prompt": "👍",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Graceful acknowledgement. Must not infer mission/build."
+  }
+]

@@ -32,6 +32,7 @@ import {
   getTelegramRelayVerbosity,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
+  getTelegramRelayIdentity,
   registerMissionRelay,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
@@ -533,6 +534,7 @@ async function handleBuildIntent(
         buildModeReason,
         chatId: String(chatId),
         userId: String(ctx.from.id),
+        telegramRelay: getTelegramRelayIdentity(),
         options: { includeSkills: true, includeMCPs: false }
       },
       { timeout: 10000 }
@@ -578,7 +580,7 @@ async function handleBuildIntent(
             try {
               const queue = await axios.post(
                 `${spawnerUrl}/api/prd-bridge/load-to-canvas`,
-                { requestId, autoRun: true },
+                { requestId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
                 { timeout: 8000 }
               );
               const taskCount = queue.data?.taskCount;
@@ -870,6 +872,10 @@ bot.command('mission', async (ctx) => {
 
   if (missionId.includes('<') || missionId.includes('>')) {
     return ctx.reply('Use the real mission ID from /run, for example: /mission status spark-1776768300668');
+  }
+
+  if (!/^spark-[A-Za-z0-9_-]+$/.test(missionId)) {
+    return ctx.reply('Use a real mission ID from /board, for example: /mission status spark-1776768300668');
   }
 
   await ctx.sendChatAction('typing');

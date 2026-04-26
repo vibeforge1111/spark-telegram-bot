@@ -99,6 +99,13 @@ function getRelayProfile(): string {
   return process.env.SPARK_TELEGRAM_PROFILE?.trim() || 'default';
 }
 
+export function getTelegramRelayIdentity(): { port: number; profile: string } {
+  return {
+    port: getRelayPort(),
+    profile: getRelayProfile()
+  };
+}
+
 function normalizeRelayPort(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.trunc(value);
@@ -317,7 +324,8 @@ function stripThinkingAndMeta(text: string): string {
   let out = text;
   out = out.replace(/<think[\s\S]*?<\/think>/gi, '');
   out = out.replace(/<thinking[\s\S]*?<\/thinking>/gi, '');
-  out = out.replace(/```(?:bash|shell|sh)?\s*curl\s+-X\s+POST[\s\S]*?\/api\/events[\s\S]*?```/gi, '');
+  out = out.replace(/```(?:bash|shell|sh)?\s*curl\s+-X\s+POST[\s\S]*?(?:\/api\/events|\/spawner-events)[\s\S]*?```/gi, '');
+  out = out.replace(/^\s*curl\s+-X\s+POST\b.*(?:\/api\/events|\/spawner-events).*(?:\r?\n)?/gim, '');
   out = out.replace(/^\s*\*?\*?Mission ID:?\*?\*?\s*\S+\s*\n+/gim, '');
   out = out.replace(/\n{3,}/g, '\n\n');
   return out.trim();
@@ -999,9 +1007,19 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     return { port: getRelayPort() };
   }
 
-  const port = getRelayPort();
+	const port = getRelayPort();
 
 	relayServer = createServer(async (req, res) => {
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
+      writeJson(res, 200, {
+        ok: true,
+        service: 'spark-telegram-bot',
+        relay: getTelegramRelayIdentity(),
+        pid: process.pid
+      });
+      return;
+    }
+
 		if (req.method !== 'POST' || req.url !== '/spawner-events') {
 			writeJson(res, 404, { ok: false, error: 'not_found' });
 			return;

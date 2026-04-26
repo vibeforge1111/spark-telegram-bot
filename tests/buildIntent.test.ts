@@ -56,3 +56,22 @@ test('ignores paths outside the configured workspace root', () => {
   assert.ok(intent);
   assert.equal(intent.projectPath, null);
 });
+
+test('promotes mission-control canvas and kanban requests to advanced PRD mode', () => {
+  const intent = parseBuildIntent(
+    'build a Mission Control dashboard called Relay Workshop with a kanban board, canvas, Telegram updates, provider result summaries, acceptance checks, task routing, and a persistent project log'
+  );
+
+  assert.ok(intent);
+  assert.equal(intent.buildMode, 'advanced_prd');
+  assert.equal(intent.projectName, 'Relay Workshop');
+  assert.match(intent.prd, /kanban board, canvas, Telegram updates/);
+});
+
+test('does not turn exploratory conversation into an accidental build', () => {
+  const intent = parseBuildIntent(
+    'can you help me think through whether we should build a mission control dashboard before we touch the canvas?'
+  );
+
+  assert.equal(intent, null);
+});

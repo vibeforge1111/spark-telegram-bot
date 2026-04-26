@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildMissionSurfaceLinks,
   formatMissionHeartbeatForTelegram,
+  getTelegramRelayIdentity,
   formatProviderCompletionForTelegram,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
@@ -49,6 +50,61 @@ test('formats structured provider JSON as readable Telegram text', () => {
   assert.doesNotMatch(message, /"goal"/);
   assert.doesNotMatch(message, /exact_commands/);
   assert.doesNotMatch(message, /execution_contract/);
+});
+
+test('keeps minimal structured provider summaries compact', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-minimal',
+    verbosity: 'minimal',
+    response: JSON.stringify({
+      summary: 'Built the mission cards and canvas sync.',
+      status: 'completed',
+      changed_files: ['src/kanban.ts', 'src/canvas.ts', 'README.md'],
+      verification: ['Unit tests pass.', 'Canvas smoke test passes.']
+    })
+  });
+
+  assert.match(message, /Codex finished the build\./);
+  assert.match(message, /Built the mission cards and canvas sync\./);
+  assert.match(message, /Files changed: 3/);
+  assert.doesNotMatch(message, /src\/kanban\.ts/);
+  assert.doesNotMatch(message, /Checks:/);
+});
+
+test('warns cleanly when structured provider output is malformed', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'claude',
+    missionId: 'spark-bad-json',
+    verbosity: 'normal',
+    response: '{ "status": "completed", "summary": "half-written"'
+  });
+
+  assert.match(message, /Claude finished, but returned a structured result I could not summarize cleanly\./);
+  assert.match(message, /Mission: spark-bad-json/);
+  assert.doesNotMatch(message, /"status"/);
+});
+
+test('strips hidden reasoning and relay plumbing from freeform provider results', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-clean',
+    verbosity: 'normal',
+    response: [
+      '<think>private chain of thought</think>',
+      'Mission ID: spark-clean',
+      'Codex created the Kanban cards and synced the canvas.',
+      'curl -X POST http://127.0.0.1:8788/spawner-events',
+      'Final check passed.'
+    ].join('\n')
+  });
+
+  assert.match(message, /Codex says:/);
+  assert.match(message, /created the Kanban cards and synced the canvas/);
+  assert.match(message, /Final check passed/);
+  assert.doesNotMatch(message, /private chain of thought/);
+  assert.doesNotMatch(message, /curl -X POST/);
+  assert.doesNotMatch(message, /Mission ID/);
 });
 
 test('supports human verbosity aliases', () => {
@@ -139,6 +195,47 @@ test('ignores mission relay events targeted at another Telegram profile', () => 
       missionId: 'spark-1',
       data: { telegramRelay: { port: 8788, profile: 'default' } }
     }), true);
+  } finally {
+    if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+    else process.env.TELEGRAM_RELAY_PORT = originalPort;
+    if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+    else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+  }
+});
+
+test('accepts legacy flat Telegram relay target fields for this bot only', () => {
+  const originalPort = process.env.TELEGRAM_RELAY_PORT;
+  const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+  process.env.TELEGRAM_RELAY_PORT = '8788';
+  process.env.SPARK_TELEGRAM_PROFILE = 'default';
+
+  try {
+    assert.equal(shouldAcceptRelayEventForThisBot({
+      type: 'mission_started',
+      missionId: 'spark-legacy',
+      data: { telegramRelayPort: '8788', telegramRelayProfile: 'default' }
+    }), true);
+    assert.equal(shouldAcceptRelayEventForThisBot({
+      type: 'mission_started',
+      missionId: 'spark-legacy',
+      data: { telegramRelayPort: '8788', telegramRelayProfile: 'other-profile' }
+    }), false);
+  } finally {
+    if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+    else process.env.TELEGRAM_RELAY_PORT = originalPort;
+    if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+    else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+  }
+});
+
+test('reports this relay identity from env', () => {
+  const originalPort = process.env.TELEGRAM_RELAY_PORT;
+  const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+  process.env.TELEGRAM_RELAY_PORT = '8789';
+  process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
+
+  try {
+    assert.deepEqual(getTelegramRelayIdentity(), { port: 8789, profile: 'spark-agi' });
   } finally {
     if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
     else process.env.TELEGRAM_RELAY_PORT = originalPort;

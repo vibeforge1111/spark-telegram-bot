@@ -90,21 +90,30 @@ export const spawner = {
         { timeout: 10000 }
       );
 
+      if (res.data?.ok === false) {
+        return {
+          success: false,
+          message: res.data?.error || `Mission ${missionId} command was rejected.`
+        };
+      }
+
       if (action === 'status') {
         const status = res.data?.status;
         const providers = status?.providers
           ? Object.entries(status.providers).map(([id, value]) => `${id}: ${value}`).join('\n')
           : '(none)';
-        return {
-          success: true,
-          message: [
-            `Mission: ${missionId}`,
-            `Paused: ${status?.paused ? 'yes' : 'no'}`,
-            `Complete: ${status?.allComplete ? 'yes' : 'no'}`,
-            'Providers:',
-            providers
-          ].join('\n')
-        };
+        const lines = [
+          `Mission: ${missionId}`,
+          ...(status?.boardStatus ? [`Board: ${status.boardStatus}`] : []),
+          `Paused: ${status?.paused ? 'yes' : 'no'}`,
+          `Complete: ${status?.allComplete ? 'yes' : 'no'}`,
+          'Providers:',
+          providers
+        ];
+        if (status?.lastUpdated) {
+          lines.push(`Updated: ${status.lastUpdated}`);
+        }
+        return { success: true, message: lines.join('\n') };
       }
 
       return {
