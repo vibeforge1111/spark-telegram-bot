@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buildMissionSurfaceLinks,
   formatMissionHeartbeatForTelegram,
+  formatProgressMessageForTelegram,
   getTelegramRelayIdentity,
   formatProviderCompletionForTelegram,
   normalizeTelegramMissionLinkPreference,
@@ -131,6 +132,57 @@ test('builds mission surface links from user preference', () => {
     'Mission spark-123: http://127.0.0.1:5173/kanban',
     'Canvas: http://127.0.0.1:5173/canvas'
   ]);
+});
+
+test('mission start update links the mission once through kanban', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'mission_started',
+      missionId: 'spark-123',
+      taskName: 'Codex',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a tiny board.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Spark started the run/);
+  assert.match(message || '', /useful checkpoints/);
+  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban/);
+  assert.doesNotMatch(message || '', /\/missions/);
+});
+
+test('mission completion avoids repeating the mission id and old missions link', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'mission_completed',
+      missionId: 'spark-123',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a tiny board.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Mission completed/);
+  assert.match(message || '', /start message/);
+  assert.doesNotMatch(message || '', /spark-123/);
+  assert.doesNotMatch(message || '', /\/missions/);
 });
 
 test('formats mission heartbeat as useful work narration', () => {

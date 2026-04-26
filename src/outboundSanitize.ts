@@ -29,6 +29,14 @@ export function replaceEmDashes(text: string, replacement: string = ' - '): stri
   return out;
 }
 
+export function stripMarkdownEmphasis(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*\*([^*\n][\s\S]*?[^*\n])\*\*\*/g, '$1')
+    .replace(/\*\*([^*\n][\s\S]*?[^*\n])\*\*/g, '$1')
+    .replace(/__([^_\n][\s\S]*?[^_\n])__/g, '$1');
+}
+
 export function sanitizeOutbound(text: string): string {
-  return replaceEmDashes(text);
+  return stripMarkdownEmphasis(replaceEmDashes(text));
 }

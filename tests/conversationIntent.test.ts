@@ -106,7 +106,27 @@ test('answers what was just built from completed diagnostic mission notes', () =
   assert.ok(reply);
   assert.match(reply, /first-pass Spark Diagnostic Agent/);
   assert.match(reply, /diagnostics scan/);
+  assert.match(reply, /^The latest completed build/);
+  assert.match(reply, /Agent\.\n\nIt added/);
   assert.doesNotMatch(reply, /say "yes create it"/);
+});
+
+test('prefers current kanban planning over older completed build memory', () => {
+  assert.equal(isBuildContextRecallQuestion('what were we going to build again?'), true);
+  const reply = buildRecentBuildContextReply([
+    'Completed Spawner mission spark-123 via Codex. Goal: Build Spark Diagnostic Agent. Result: Built the first-pass Spark Diagnostic Agent.',
+    'maybe we should build a tiny kanban app, what would be the best first version?',
+    'that sounds good',
+    'Recent Telegram turns:\n- User: maybe we should build a tiny kanban app, what would be the best first version?\n- User: that sounds good'
+  ]);
+
+  assert.ok(reply);
+  assert.match(reply, /^We were shaping a tiny kanban app\./);
+  assert.match(reply, /tiny kanban app/);
+  assert.match(reply, /Backlog, In Progress, and Done/);
+  assert.match(reply, /No mission has been started/);
+  assert.match(reply, /app\.\n\nThe v1 idea/);
+  assert.doesNotMatch(reply, /Diagnostic Agent/);
 });
 
 test('recognizes local Spark service URL requests', () => {
@@ -205,6 +225,15 @@ test('keeps mission-control product refinement in conversation', () => {
   assert.equal(
     shouldPreferConversationalIdeation(
       'Solo first. I like Mission Control Dashboard, but make it more playful and game-like, not just tasks. Maybe it should turn daily goals into little missions with status, energy, streaks, and a launch sequence. What would the first version be?'
+    ),
+    true
+  );
+});
+
+test('keeps tentative kanban-app v1 questions in conversation', () => {
+  assert.equal(
+    shouldPreferConversationalIdeation(
+      'maybe we should build a tiny kanban app, what would be the best first version?'
     ),
     true
   );

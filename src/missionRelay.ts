@@ -668,7 +668,7 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
   ].includes(event.type);
 }
 
-function formatProgressMessage(
+export function formatProgressMessageForTelegram(
   event: DeliverableRelayEvent,
   subscription: MissionSubscription,
   verbosity: TelegramRelayVerbosity,
@@ -690,13 +690,14 @@ function formatProgressMessage(
     case 'mission_started':
       return [
         'Spark started the run.',
+        verbosity === 'normal' ? 'I will send useful checkpoints here and keep the board updated.' : null,
         verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
         ...missionReferenceLines(event.missionId, links)
       ].filter(Boolean).join('\n');
     case 'dispatch_started':
       return 'Spark is assigning the work.';
     case 'task_started':
-      return `Started: ${taskLabel}`;
+      return `${taskLabel} started working on it.`;
     case 'task_progress':
     case 'progress':
     case 'provider_feedback':
@@ -710,8 +711,7 @@ function formatProgressMessage(
     case 'mission_completed':
       return [
         'Mission completed.',
-        links.length > 0 ? 'Open the mission surface below or check the latest build summary above.' : 'Check the latest build summary above.',
-        ...missionReferenceLines(event.missionId, links)
+        links.length > 0 ? 'Open the board/canvas from the start message, or check the latest build summary above.' : 'Check the latest build summary above.'
       ].join('\n');
     case 'mission_failed':
       return [
@@ -1111,7 +1111,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }
 
-      const progressMessage = formatProgressMessage(event, subscription, verbosity, linkPreference, payload.summary);
+      const progressMessage = formatProgressMessageForTelegram(event, subscription, verbosity, linkPreference, payload.summary);
       if (!progressMessage) {
         writeJson(res, 202, { ok: true, ignored: 'event_type_not_delivered' });
         return;

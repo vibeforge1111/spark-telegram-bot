@@ -52,3 +52,11 @@ test('system prompt includes memory and conversation context when provided', () 
   assert.match(prompt, /## Where we left off/);
   assert.match(prompt, /we discussed onboarding/);
 });
+
+test('system prompt asks for skimmable Telegram formatting', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /short paragraphs/);
+  assert.match(prompt, /Avoid Markdown bold\/italic emphasis/);
+  assert.match(prompt, /plain headings or simple numbered points/);
+});

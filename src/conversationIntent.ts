@@ -3,8 +3,11 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\b(?:shape|explore|brainstorm|develop)\s+(?:an?\s+)?idea\b/i,
   /\bi\s+(?:do\s+not|don't|dont)\s+know\s+(?:exactly\s+)?(?:what|yet)\b/i,
   /\bbefore\s+(?:building|we\s+build|creating|we\s+create|making|we\s+make)\b/i,
+  /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
+  /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
   /\bwhat\s+would\s+you\s+(?:build|make|create|suggest)\b/i,
   /\bwhat\s+would\s+(?:the\s+)?(?:first\s+version|mvp|v1)\s+be\b/i,
+  /\bwhat\s+would\s+be\s+(?:the\s+)?(?:best\s+)?(?:first\s+version|mvp|v1)\b/i,
   /\b(?:first\s+version|mvp|v1)\b.*\b(?:be|look|feel|include|work)\b/i,
   /\b(?:make|feel)\s+it\s+(?:more\s+)?(?:playful|game-like|fun|alive)\b/i,
   /\b(?:i\s+like|i\s+love)\s+.+\b(?:idea|dashboard|tool|game|chip)\b/i,
@@ -121,30 +124,40 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
   const sparkTopic = /\bspark\b/.test(lower);
   const bugTopic = /\b(?:bug|bugs|diagnos|anomal|failure|failures|health|logs?|monitor|troubleshoot|issue|issues)\b/.test(lower);
   const chipTopic = /\bdomain\s*chip\b|\bchip\b/.test(lower);
+  const kanbanTopic = /\bkanban\b/.test(lower) &&
+    /\b(?:tiny|app|board|cards?|columns?|backlog|in progress|done|standalone|browser|telegram|spawner|v1|first version)\b/.test(lower);
   const completedDiagnosticAgent = /\bcompleted spawner mission\b[\s\S]*\bdiagnostic agent\b|\bbuilt the first-pass spark diagnostic agent\b|\bspark-intelligence diagnostics scan\b/i.test(context);
+
+  if (kanbanTopic) {
+    return [
+      'We were shaping a tiny kanban app.',
+      'The v1 idea was simple: Backlog, In Progress, and Done columns; lightweight cards; local persistence; and a browser-first standalone app before deeper Spawner or Telegram integration.',
+      'No mission has been started from that yet. The next decision is whether to keep refining the scope or explicitly turn it into a Spawner mission.'
+    ].join('\n\n');
+  }
 
   if (completedDiagnosticAgent) {
     return [
-      'Yes. The latest completed build was the first-pass Spark Diagnostic Agent.',
+      'The latest completed build was the first-pass Spark Diagnostic Agent.',
       'It added `spark-intelligence diagnostics scan`, passive log discovery/classification, recurring bug grouping, and Obsidian-friendly diagnostic notes.',
       'Good next tests: run a fresh diagnostics scan, inspect the generated Markdown, verify it sees Builder/memory/Researcher/Spawner logs, then create a follow-up mission for missing connectors or better integration.'
-    ].join('\n');
+    ].join('\n\n');
   }
 
   if ((sparkTopic || chipTopic) && bugTopic) {
     return [
-      'Yes. We were shaping passive Spark bug recognition.',
+      'We were shaping passive Spark bug recognition.',
       'The idea: analyze Spark systems, spot bugs/silent failures/degraded health, and write Obsidian-friendly diagnostic notes.',
       'If it has already run, the next step is testing and improving the diagnostic integration rather than starting from scratch.'
-    ].join('\n');
+    ].join('\n\n');
   }
 
   if (chipTopic) {
     return [
-      'Yes. We were shaping a new Spark domain chip.',
+      'We were shaping a new Spark domain chip.',
       `The latest useful context I have is: ${usefulTurns.slice(-3).join(' | ')}`,
       'Next step: say "yes create it" and I will start the Spawner mission.'
-    ].join('\n');
+    ].join('\n\n');
   }
 
   return null;
