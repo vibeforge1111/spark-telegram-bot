@@ -53,6 +53,11 @@ function compactDetail(text: string): string {
   return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
 }
 
+function doctorCommand(category: string, context: SparkErrorContext): string {
+  const problem = `Spark ${context} failure: ${category}`;
+  return `spark doctor llm "${problem}" --save-report --upstream-report`;
+}
+
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
   const detail = compactDetail(extractErrorText(error));
   const lower = detail.toLowerCase();
@@ -216,5 +221,9 @@ export function renderSparkErrorReply(
       ? explanation.repair
       : 'Please ask the operator to run /diagnose and check the repair hint.'
   ];
+  if (isAdmin) {
+    lines.push(`Still stuck: ${doctorCommand(explanation.category, context)}`);
+    lines.push('That uses your configured LLM, redacts sensitive data, and creates a local upstream PR draft only if you review/share it.');
+  }
   return lines.join('\n\n');
 }

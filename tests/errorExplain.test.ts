@@ -18,6 +18,8 @@ test('explains provider auth failures with a repair path', () => {
   assert.match(reply, /Check now: Run \/diagnose/);
   assert.match(reply, /spark providers status/);
   assert.match(reply, /spark setup/);
+  assert.match(reply, /spark doctor llm "Spark chat failure: provider_auth" --save-report --upstream-report/);
+  assert.match(reply, /redacts sensitive data/);
   assert.doesNotMatch(reply, /Try again in a moment/);
 });
 
@@ -69,4 +71,12 @@ test('redacts secrets from user-facing errors', () => {
   assert.doesNotMatch(reply, /8736683770:AAHP_8S4XEdylUaqOK4yHQscvRPRLk8Km6I/);
   assert.doesNotMatch(reply, /sk-live-secret-value/);
   assert.match(reply, /\[REDACTED\]|\*\*\*/);
+});
+
+test('does not offer doctor PR drafting to non-admin users', () => {
+  const reply = renderSparkErrorReply(new Error('fetch failed'), 'chat', false);
+
+  assert.match(reply, /Please ask the operator/);
+  assert.doesNotMatch(reply, /spark doctor llm/);
+  assert.doesNotMatch(reply, /upstream PR draft/);
 });
