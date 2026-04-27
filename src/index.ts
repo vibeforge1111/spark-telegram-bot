@@ -1043,7 +1043,19 @@ bot.on(message('text'), async (ctx) => {
       await conversation.remember(user, text).catch(() => {});
       await ctx.sendChatAction('typing');
       try {
-        await ctx.reply(await runBuilderDiagnosticsScan());
+        const scan = await runBuilderDiagnosticsScan();
+        await ctx.reply(scan.replyText);
+        if (scan.markdownPath) {
+          try {
+            await ctx.replyWithDocument({
+              source: scan.markdownPath,
+              filename: path.basename(scan.markdownPath),
+            });
+          } catch (attachError) {
+            console.warn('[Diagnostics] failed to attach markdown note:', attachError);
+            await ctx.reply(`I wrote the Markdown note, but could not attach it here:\n${scan.markdownPath}`);
+          }
+        }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         await ctx.reply(`Diagnostics scan failed: ${detail}`);

@@ -45,6 +45,11 @@ interface BuilderDiagnosticsScanJson {
   markdown_path?: unknown;
 }
 
+export interface BuilderDiagnosticsScanResult {
+  replyText: string;
+  markdownPath: string;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -185,13 +190,25 @@ function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string 
   const sources = Array.isArray(report.sources) ? report.sources.length : 0;
   const markdownPath = String(report.markdown_path || '').trim();
   return [
-    'Diagnostics scan complete.',
-    `Scanned ${numericValue(report.scanned_line_count)} log lines from ${sources} sources.`,
-    `Failure lines: ${numericValue(report.failure_line_count)}. Findings: ${findings}.`,
-    `Subsystems: ${formatTopCounts(report.counts_by_subsystem)}.`,
-    `Failure classes: ${formatTopCounts(report.counts_by_failure_class)}.`,
-    `Connector checks: ${formatServiceCheckCounts(report.service_checks)}.`,
-    markdownPath ? `Obsidian note: ${markdownPath}` : 'Obsidian note: not written.'
+    '✅ Diagnostics scan complete',
+    '',
+    `📊 Log scan`,
+    `• Scanned: ${numericValue(report.scanned_line_count)} lines from ${sources} sources`,
+    `• Failures: ${numericValue(report.failure_line_count)}`,
+    `• Findings: ${findings}`,
+    '',
+    `🧭 Connector health`,
+    `• ${formatServiceCheckCounts(report.service_checks)}`,
+    '',
+    `🧩 Subsystems`,
+    `• ${formatTopCounts(report.counts_by_subsystem)}`,
+    '',
+    `🏷️ Failure classes`,
+    `• ${formatTopCounts(report.counts_by_failure_class)}`,
+    '',
+    markdownPath
+      ? `📝 Markdown note attached below.\n${markdownPath}`
+      : '📝 Markdown note was not written.'
   ].join('\n');
 }
 
@@ -205,7 +222,7 @@ export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   };
 }
 
-export async function runBuilderDiagnosticsScan(): Promise<string> {
+export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsScanResult> {
   const config = await resolveDiagnosticsBridgeConfig(resolveBridgeConfig());
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
@@ -232,7 +249,11 @@ export async function runBuilderDiagnosticsScan(): Promise<string> {
   if (!trimmedStdout) {
     throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
   }
-  return formatDiagnosticsScanReply(JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson);
+  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  return {
+    replyText: formatDiagnosticsScanReply(parsed),
+    markdownPath: String(parsed.markdown_path || '').trim(),
+  };
 }
 
 export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
