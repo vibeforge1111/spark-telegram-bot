@@ -150,6 +150,22 @@ bot.telegram.sendMessage = ((chatId: any, text: any, extra?: any) => {
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
 const RATE_LIMIT_MS = 1000; // 1 second between messages
+
+// Pending clarification state — keyed by `${chatId}-${userId}`. In-memory
+// only for v1; doesn't survive bot restart. /clarify reads + clears.
+interface PendingClarification {
+  requestId: string;
+  prd: string;
+  projectName: string;
+  projectPath: string | null;
+  buildMode: 'direct' | 'advanced_prd';
+  buildModeReason: string;
+  questions: string[];
+  addedAssumptions: string[];
+  timestamp: number;
+}
+const pendingClarifications = new Map<string, PendingClarification>();
+const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 let pollingActive = false;
 
@@ -344,6 +360,75 @@ bot.command('myid', async (ctx) => {
     `Username: @${user.username || 'none'}\n` +
     (isAdmin ? 'You are an admin' : 'Add this ID to ADMIN_TELEGRAM_IDS in .env for admin access')
   );
+});
+
+// /clarify <answers> — re-dispatch a build that was held by the
+// clarification gate. The original brief + user-supplied answers are
+// concatenated and re-sent to spawner-ui with forceDispatch:true.
+bot.command('clarify', async (ctx) => {
+  const key = `${ctx.chat.id}-${ctx.from.id}`;
+  const pending = pendingClarifications.get(key);
+  if (!pending) {
+    await ctx.reply('No pending clarification for you. Send a /build message first.');
+    return;
+  }
+  if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) {
+    pendingClarifications.delete(key);
+    await ctx.reply('Clarification window expired (30 min). Send the build message again.');
+    return;
+  }
+
+  const answersRaw = ctx.message.text.replace(/^\/clarify\b/, '').trim();
+  const skip = answersRaw.toLowerCase() === 'skip';
+  pendingClarifications.delete(key);
+
+  let enrichedPrd = pending.prd;
+  if (!skip && answersRaw) {
+    enrichedPrd = `${pending.prd}\n\n## User clarifications\n\n${pending.questions
+      .map((q, i) => `Q${i + 1}: ${q}`)
+      .join('\n')}\n\nAnswers: ${answersRaw}`;
+  } else if (skip) {
+    await ctx.reply('OK, dispatching with my default assumptions.');
+  }
+
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+  const newRequestId = `${pending.requestId}-clarified-${Date.now()}`;
+  const tier = getTierForUser(ctx.from.id);
+  const prdContent = pending.projectPath
+    ? `# ${pending.projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nTarget operating-system folder: \`${pending.projectPath}\`\n\n${enrichedPrd}`
+    : `# ${pending.projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\n\n${enrichedPrd}`;
+
+  try {
+    const res = await axios.post(
+      `${spawnerUrl}/api/prd-bridge/write`,
+      {
+        content: prdContent,
+        requestId: newRequestId,
+        projectName: pending.projectName,
+        buildMode: pending.buildMode,
+        buildModeReason: pending.buildModeReason,
+        chatId: String(ctx.chat.id),
+        userId: String(ctx.from.id),
+        telegramRelay: getTelegramRelayIdentity(),
+        tier,
+        forceDispatch: true,
+        options: { includeSkills: true, includeMCPs: false }
+      },
+      { timeout: 10000 }
+    );
+
+    if (!res.data?.success) {
+      await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Clarification re-dispatch failed'), 'spawner', conversation.isAdmin(ctx.from)));
+      return;
+    }
+
+    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
+    await ctx.reply(
+      `Re-dispatched with your answers.\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
+    );
+  } catch (err) {
+    await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));
+  }
 });
 
 // /remember command
@@ -632,6 +717,38 @@ export async function handleBuildIntent(
 
     if (!res.data?.success) {
       await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Spawner PRD queue failed'), 'spawner', conversation.isAdmin(ctx.from)));
+      return;
+    }
+
+    // Clarification gate: spawner returns needsClarification:true on vague
+    // briefs. Surface the questions to the user and stash the original
+    // request so /clarify can re-dispatch with forceDispatch.
+    if (res.data?.needsClarification && Array.isArray(res.data.openQuestions)) {
+      pendingClarifications.set(`${ctx.chat.id}-${ctx.from.id}`, {
+        requestId,
+        prd,
+        projectName,
+        projectPath,
+        buildMode,
+        buildModeReason,
+        questions: res.data.openQuestions,
+        addedAssumptions: res.data.addedAssumptions ?? [],
+        timestamp: Date.now()
+      });
+
+      const lines = [
+        `Brief is too thin to plan against confidently. Answer these and I'll dispatch the build:`,
+        '',
+        ...res.data.openQuestions.map((q: string, i: number) => `${i + 1}. ${q}`)
+      ];
+      if (Array.isArray(res.data.addedAssumptions) && res.data.addedAssumptions.length > 0) {
+        lines.push('');
+        lines.push(`Assumptions I'd otherwise default to:`);
+        for (const a of res.data.addedAssumptions) lines.push(`  - ${a}`);
+      }
+      lines.push('');
+      lines.push(`Reply with /clarify <your answers in one message>. Or send /clarify skip to dispatch with my defaults.`);
+      await ctx.reply(lines.join('\n'));
       return;
     }
 
