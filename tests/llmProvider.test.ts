@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider } from '../src/llm';
+import { buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, resolveChatProviderConfig } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -15,6 +15,39 @@ test('recognizes Codex as the local LLM provider', () => {
   assert.equal(isCodexProvider('codex'), true);
   assert.equal(isCodexProvider(' CODEX '), true);
   assert.equal(isCodexProvider('ollama'), false);
+});
+
+test('uses LM Studio as OpenAI-compatible chat provider instead of implicit Ollama', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'openai',
+    OPENAI_BASE_URL: 'http://localhost:1234/v1',
+    OPENAI_MODEL: 'google/gemma-4-04b-2',
+  });
+
+  assert.equal(config.provider, 'openai');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.baseUrl, 'http://localhost:1234/v1');
+  assert.equal(config.model, 'google/gemma-4-04b-2');
+});
+
+test('does not fall back to Ollama unless Ollama is selected or configured', () => {
+  const config = resolveChatProviderConfig({});
+
+  assert.equal(config.provider, 'not_configured');
+  assert.equal(config.kind, 'not_configured');
+});
+
+test('uses explicit Ollama provider when selected', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'ollama',
+    OLLAMA_URL: 'http://localhost:11434',
+    OLLAMA_MODEL: 'llama3.2',
+  });
+
+  assert.equal(config.provider, 'ollama');
+  assert.equal(config.kind, 'ollama');
+  assert.equal(config.baseUrl, 'http://localhost:11434');
+  assert.equal(config.model, 'llama3.2');
 });
 
 test('builds Codex exec args for non-git Spark workspaces', () => {

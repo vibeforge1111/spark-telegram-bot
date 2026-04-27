@@ -8,11 +8,6 @@ import { renderSparkErrorReply } from './errorExplain';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
-const ZAI_API_KEY = process.env.ZAI_API_KEY;
-const ZAI_BASE_URL = process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4/';
-const ZAI_MODEL = process.env.ZAI_MODEL || 'glm-5.1';
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const MODEL = process.env.OLLAMA_MODEL || 'kimi-k2.5:cloud';
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || process.env.OPENAI_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
 
@@ -56,6 +51,103 @@ export function codexExecArgs(model: string, outputPath: string): string[] {
 export interface ChatProviderPing {
   ok: boolean;
   detail: string;
+}
+
+interface ChatProviderConfig {
+  provider: string;
+  kind: 'codex' | 'openai_compat' | 'ollama' | 'unsupported' | 'not_configured';
+  model: string;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
+const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
+const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
+
+function firstEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = env[key]?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function normalizeProvider(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'glm' || normalized === 'z.ai') return 'zai';
+  if (normalized === 'claude') return 'anthropic';
+  return normalized;
+}
+
+export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env): ChatProviderConfig {
+  const roleProvider = normalizeProvider(firstEnv(env, 'SPARK_CHAT_LLM_PROVIDER', 'LLM_PROVIDER', 'SPARK_LLM_PROVIDER'));
+  const botProvider = normalizeProvider(firstEnv(env, 'SPARK_CHAT_LLM_BOT_PROVIDER', 'BOT_DEFAULT_PROVIDER', 'SPARK_BOT_DEFAULT_PROVIDER'));
+
+  let provider = roleProvider || botProvider;
+  if (roleProvider === 'openai') {
+    const openaiBase = firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL');
+    const openaiUsesCustomBase = Boolean(openaiBase && openaiBase.replace(/\/+$/, '') !== OPENAI_DEFAULT_BASE_URL);
+    provider = (env.OPENAI_API_KEY || openaiUsesCustomBase) ? 'openai' : (botProvider || 'openai');
+  } else if (!provider) {
+    if (env.ZAI_API_KEY) provider = 'zai';
+    else if (env.MINIMAX_API_KEY) provider = 'minimax';
+    else if (env.OLLAMA_URL || env.OLLAMA_MODEL) provider = 'ollama';
+  }
+
+  if (provider === 'codex') {
+    return {
+      provider,
+      kind: 'codex',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'CODEX_MODEL', 'SPARK_CODEX_MODEL', 'OPENAI_MODEL') || 'gpt-5.5',
+      baseUrl: '',
+    };
+  }
+  if (provider === 'zai') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'ZAI_MODEL') || 'glm-5.1',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'ZAI_BASE_URL') || ZAI_DEFAULT_BASE_URL,
+      apiKey: env.ZAI_API_KEY,
+    };
+  }
+  if (provider === 'openai') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OPENAI_MODEL') || 'gpt-5.5',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL') || OPENAI_DEFAULT_BASE_URL,
+      apiKey: env.OPENAI_API_KEY,
+    };
+  }
+  if (provider === 'minimax') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'MINIMAX_MODEL') || 'MiniMax-M2.7',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'MINIMAX_BASE_URL') || MINIMAX_DEFAULT_BASE_URL,
+      apiKey: env.MINIMAX_API_KEY,
+    };
+  }
+  if (provider === 'ollama') {
+    return {
+      provider,
+      kind: 'ollama',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OLLAMA_MODEL') || 'kimi-k2.5:cloud',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OLLAMA_URL') || OLLAMA_DEFAULT_BASE_URL,
+    };
+  }
+  if (!provider) {
+    return { provider: 'not_configured', kind: 'not_configured', model: '', baseUrl: '' };
+  }
+  return {
+    provider,
+    kind: 'unsupported',
+    model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL') || '',
+    baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL') || '',
+  };
 }
 
 const SPARK_SYSTEM_PRIMER = `## What Spark can do in this install
@@ -145,18 +237,19 @@ async function codexAvailable(): Promise<boolean> {
 }
 
 export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatProviderPing> {
-  if (isCodexProvider()) {
+  const config = resolveChatProviderConfig();
+  if (config.kind === 'codex') {
     return (await codexAvailable())
       ? { ok: true, detail: 'codex cli available' }
       : { ok: false, detail: 'codex cli unavailable' };
   }
 
-  if (ZAI_API_KEY) {
+  if (config.kind === 'openai_compat') {
     try {
       const res = await axios.post<ZaiChatResponse>(
-        joinUrl(ZAI_BASE_URL, '/chat/completions'),
+        joinUrl(config.baseUrl, '/chat/completions'),
         {
-          model: ZAI_MODEL,
+          model: config.model,
           messages: [
             { role: 'system', content: 'Health check. Reply with exactly CHAT_OK.' },
             { role: 'user', content: 'Reply with exactly: CHAT_OK' }
@@ -168,7 +261,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
         {
           timeout: timeoutMs,
           headers: {
-            Authorization: `Bearer ${ZAI_API_KEY}`,
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
             'Content-Type': 'application/json'
           }
         }
@@ -184,11 +277,19 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
     }
   }
 
+  if (config.kind === 'not_configured') {
+    return { ok: false, detail: 'chat provider is not configured' };
+  }
+
+  if (config.kind === 'unsupported') {
+    return { ok: false, detail: `chat provider ${config.provider} is not supported by the local fallback path` };
+  }
+
   try {
     const res = await axios.post<OllamaResponse>(
-      `${OLLAMA_URL}/api/generate`,
+      `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
       {
-        model: MODEL,
+        model: config.model,
         prompt: 'Reply with exactly: CHAT_OK',
         system: 'Health check. Reply with exactly CHAT_OK.',
         stream: false,
@@ -227,16 +328,17 @@ export const llm = {
    * Check if the configured LLM is available.
    */
   async isAvailable(): Promise<boolean> {
-    if (isCodexProvider()) {
+    const config = resolveChatProviderConfig();
+    if (config.kind === 'codex') {
       return await codexAvailable();
     }
 
-    if (ZAI_API_KEY) {
+    if (config.kind === 'openai_compat') {
       try {
-        const res = await axios.get(joinUrl(ZAI_BASE_URL, '/models'), {
+        const res = await axios.get(joinUrl(config.baseUrl, '/models'), {
           timeout: 5000,
           headers: {
-            Authorization: `Bearer ${ZAI_API_KEY}`
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
           }
         });
         return Array.isArray(res.data?.data) || Array.isArray(res.data?.models);
@@ -245,8 +347,12 @@ export const llm = {
       }
     }
 
+    if (config.kind === 'not_configured' || config.kind === 'unsupported') {
+      return false;
+    }
+
     try {
-      const res = await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 2000 });
+      const res = await axios.get(`${config.baseUrl.replace(/\/+$/, '')}/api/tags`, { timeout: 2000 });
       return Array.isArray(res.data?.models);
     } catch {
       return false;
@@ -264,15 +370,16 @@ export const llm = {
     const systemPrompt = buildSparkChatSystemPrompt(conversationHistory, memories);
 
     try {
-      if (isCodexProvider()) {
+      const config = resolveChatProviderConfig();
+      if (config.kind === 'codex') {
         return await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`);
       }
 
-      if (ZAI_API_KEY) {
+      if (config.kind === 'openai_compat') {
         const res = await axios.post<ZaiChatResponse>(
-          joinUrl(ZAI_BASE_URL, '/chat/completions'),
+          joinUrl(config.baseUrl, '/chat/completions'),
           {
-            model: ZAI_MODEL,
+            model: config.model,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userMessage }
@@ -284,7 +391,7 @@ export const llm = {
           {
             timeout: 60000,
             headers: {
-              Authorization: `Bearer ${ZAI_API_KEY}`,
+              ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
               'Content-Type': 'application/json'
             }
           }
@@ -295,10 +402,17 @@ export const llm = {
         return content || reasoningContent || "I'm here, but I couldn't generate a response right now.";
       }
 
+      if (config.kind === 'not_configured') {
+        throw new Error('Spark chat provider is not configured. Run spark setup to choose chat, builder, memory, and mission providers.');
+      }
+      if (config.kind === 'unsupported') {
+        throw new Error(`Spark chat provider ${config.provider} is not supported by the local fallback path. Run /diagnose or route chat through Builder.`);
+      }
+
       const res = await axios.post<OllamaResponse>(
-        `${OLLAMA_URL}/api/generate`,
+        `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
         {
-          model: MODEL,
+          model: config.model,
           prompt: userMessage,
           system: systemPrompt,
           stream: false,
