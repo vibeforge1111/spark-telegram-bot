@@ -574,7 +574,7 @@ async function handleRunCommand(
   return result.missionId;
 }
 
-async function handleBuildIntent(
+export async function handleBuildIntent(
   ctx: any,
   prd: string,
   projectName: string,
@@ -1236,8 +1236,12 @@ async function start() {
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
 }
 
-start().catch((err) => {
-  void releaseGatewayOwnership();
-  console.error('Failed to start bot:', err);
-  process.exit(1);
-});
+// Guard: only auto-start when run as the main module. Importing this file
+// from a test (e.g. tests/buildE2E.test.ts) should not trigger bot.launch().
+if (process.env.SPARK_BOT_TEST_MODE !== '1' && require.main === module) {
+  start().catch((err) => {
+    void releaseGatewayOwnership();
+    console.error('Failed to start bot:', err);
+    process.exit(1);
+  });
+}
