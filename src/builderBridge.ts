@@ -85,6 +85,35 @@ async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boole
   return repoExists && homeExists;
 }
 
+function candidateDiagnosticsRepos(config: BuilderBridgeConfig): string[] {
+  return [
+    process.env.SPARK_DIAGNOSTICS_BUILDER_REPO || '',
+    config.builderRepo,
+    path.join(os.homedir(), '.spark', 'modules', 'spark-intelligence-builder', 'source'),
+    path.join(os.homedir(), 'Desktop', 'spark-intelligence-builder'),
+  ].filter(Boolean);
+}
+
+async function resolveDiagnosticsBridgeConfig(config: BuilderBridgeConfig): Promise<BuilderBridgeConfig> {
+  const seen = new Set<string>();
+  for (const candidate of candidateDiagnosticsRepos(config)) {
+    const builderRepo = path.resolve(candidate);
+    const key = builderRepo.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const [cliExists, diagnosticsExists] = await Promise.all([
+      pathExists(path.join(builderRepo, 'src', 'spark_intelligence', 'cli.py')),
+      pathExists(path.join(builderRepo, 'src', 'spark_intelligence', 'diagnostics', 'agent.py')),
+    ]);
+    if (cliExists && diagnosticsExists) {
+      return { ...config, builderRepo };
+    }
+  }
+  return config;
+}
+
 function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   const sourcePath = path.join(config.builderRepo, 'src');
   const existingPythonPath = process.env.PYTHONPATH || '';
@@ -154,7 +183,7 @@ export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
 }
 
 export async function runBuilderDiagnosticsScan(): Promise<string> {
-  const config = resolveBridgeConfig();
+  const config = await resolveDiagnosticsBridgeConfig(resolveBridgeConfig());
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
