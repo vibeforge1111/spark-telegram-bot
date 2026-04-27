@@ -202,6 +202,15 @@ test('does not treat explicit current-plan memory saves as diagnostic follow-up 
   );
 });
 
+test('does not treat context survival verification as diagnostic follow-up tests', () => {
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Before we close this, verify whether my focus, plan, latest diagnostics, and maintenance summary survive across a new conversation turn without being collapsed into done.'
+    ),
+    false
+  );
+});
+
 test('turns explicit contextual improvement requests into diagnostic integration missions', () => {
   const text = 'build these integration points as another mission via codex';
   assert.equal(isExplicitContextualBuildRequest(text), true);

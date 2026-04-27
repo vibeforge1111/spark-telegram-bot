@@ -267,6 +267,9 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
+  if (isContextSurvivalVerificationRequest(normalized)) {
+    return false;
+  }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
     /\b(?:it|this|that|diagnostic|bug recognition|domain chip|agent)\b/.test(normalized)
@@ -292,6 +295,16 @@ function isExplicitMemoryWriteLikeRequest(normalized: string): boolean {
     /^memory\s+update\s*:/.test(normalized) ||
     /\b(?:please\s+)?(?:remember|save)\s+(?:this|that)\b/.test(normalized) ||
     /\b(?:my|our|the)\s+current\s+plan\s+is\b/.test(normalized)
+  );
+}
+
+function isContextSurvivalVerificationRequest(normalized: string): boolean {
+  return (
+    /\b(?:survive|survived|survival|preserve|preserved)\b/.test(normalized) &&
+    /\b(?:context|focus|plan|diagnostics?|maintenance|conversation\s+turn|turns?)\b/.test(normalized)
+  ) || (
+    /\b(?:collapsed?|collapse)\s+into\s+(?:done|complete|completed|resolved)\b/.test(normalized) &&
+    /\b(?:focus|plan|context|diagnostics?|maintenance)\b/.test(normalized)
   );
 }
 
