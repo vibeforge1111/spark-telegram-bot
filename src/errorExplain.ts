@@ -119,19 +119,39 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     lower.includes('timeout') ||
     lower.includes('network error')
   ) {
-    const target = context === 'spawner' || lower.includes('5173') || lower.includes('8788')
-      ? 'a local Spark service'
-      : 'the selected model provider';
+    if (context === 'spawner' || lower.includes('5173') || lower.includes('8788')) {
+      if (lower.includes('econnrefused') || lower.includes('connection refused')) {
+        return {
+          category: 'spawner_offline',
+          userLine: 'Mission Control is not reachable right now.',
+          detail,
+          check: 'Most likely Spawner UI is not running on this computer. After starting it, retry your last command.',
+          repair: 'Start it: spark start spawner-ui. If it still fails, run /diagnose and then spark verify --onboarding.'
+        };
+      }
+      if (lower.includes('econnaborted') || lower.includes('timeout') || lower.includes('etimedout')) {
+        return {
+          category: 'spawner_slow',
+          userLine: 'Mission Control is running too slowly or is still waking up.',
+          detail,
+          check: 'Wait a few seconds and retry. If it repeats, run /diagnose to see whether Spawner or the mission relay is stuck.',
+          repair: 'Refresh it: spark restart spawner-ui. Then retry your command and run spark verify --onboarding if needed.'
+        };
+      }
+      return {
+        category: 'spawner_unreachable',
+        userLine: 'Spark could not reach Mission Control.',
+        detail,
+        check: 'Run /diagnose if retrying does not work, so Spark can check Spawner and the mission relay.',
+        repair: 'Operator fix: spark start spawner-ui, then spark verify --onboarding.'
+      };
+    }
     return {
       category: 'network_or_service',
-      userLine: `Spark could not reach ${target}.`,
+      userLine: 'Spark could not reach the selected model provider.',
       detail,
-      check: context === 'spawner'
-        ? 'Run /diagnose so Spark can check Spawner and the mission relay.'
-        : 'Run /diagnose so Spark can tell whether the failing target is local or the model provider.',
-      repair: context === 'spawner'
-        ? 'Operator fix: spark start spawner-ui, then spark verify --onboarding.'
-        : 'Operator fix: spark providers status, then check the provider URL or local service.'
+      check: 'Run /diagnose so Spark can tell whether the failing target is local or the model provider.',
+      repair: 'Operator fix: spark providers status, then check the provider URL or local service.'
     };
   }
 

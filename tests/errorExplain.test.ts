@@ -26,10 +26,19 @@ test('explains provider auth failures with a repair path', () => {
 test('explains local service network failures', () => {
   const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:5173'), 'spawner');
 
-  assert.equal(explanation.category, 'network_or_service');
-  assert.match(explanation.userLine, /local Spark service/);
-  assert.match(explanation.check, /mission relay/);
+  assert.equal(explanation.category, 'spawner_offline');
+  assert.match(explanation.userLine, /Mission Control is not reachable/);
+  assert.match(explanation.check, /Spawner UI is not running/);
   assert.match(explanation.repair, /spark start spawner-ui/);
+});
+
+test('explains slow Spawner handoffs separately from offline Spawner', () => {
+  const reply = renderSparkErrorReply(new Error('ECONNABORTED - timeout of 10000ms exceeded'), 'spawner', true);
+
+  assert.match(reply, /Mission Control is running too slowly/);
+  assert.match(reply, /retry/);
+  assert.match(reply, /spark restart spawner-ui/);
+  assert.match(reply, /Spark spawner failure: spawner_slow/);
 });
 
 test('explains builder memory failures', () => {
