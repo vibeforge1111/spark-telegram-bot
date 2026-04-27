@@ -39,6 +39,7 @@ interface BuilderDiagnosticsScanJson {
   scanned_line_count?: unknown;
   findings?: unknown;
   sources?: unknown;
+  service_checks?: unknown;
   counts_by_failure_class?: unknown;
   counts_by_subsystem?: unknown;
   markdown_path?: unknown;
@@ -158,6 +159,27 @@ function formatTopCounts(value: unknown): string {
   return entries.length ? entries.join(', ') : 'none';
 }
 
+function formatServiceCheckCounts(value: unknown): string {
+  if (!Array.isArray(value)) {
+    return 'none';
+  }
+  const counts = new Map<string, number>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const status = String((item as Record<string, unknown>).status || 'unknown').trim() || 'unknown';
+    counts.set(status, (counts.get(status) || 0) + 1);
+  }
+  if (counts.size === 0) {
+    return 'none';
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([status, count]) => `${status}: ${count}`)
+    .join(', ');
+}
+
 function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string {
   const findings = Array.isArray(report.findings) ? report.findings.length : 0;
   const sources = Array.isArray(report.sources) ? report.sources.length : 0;
@@ -168,6 +190,7 @@ function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string 
     `Failure lines: ${numericValue(report.failure_line_count)}. Findings: ${findings}.`,
     `Subsystems: ${formatTopCounts(report.counts_by_subsystem)}.`,
     `Failure classes: ${formatTopCounts(report.counts_by_failure_class)}.`,
+    `Connector checks: ${formatServiceCheckCounts(report.service_checks)}.`,
     markdownPath ? `Obsidian note: ${markdownPath}` : 'Obsidian note: not written.'
   ].join('\n');
 }
