@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
+import { appendFile, mkdir } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { Telegraf } from 'telegraf';
 
@@ -73,6 +75,7 @@ import {
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import axios from 'axios';
+import { getTierForUser } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 import { renderSparkErrorReply } from './errorExplain';
@@ -91,6 +94,36 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken);
 
+function nodeOutboundAuditPath(): string {
+  return (
+    process.env.SPARK_NODE_OUTBOUND_AUDIT_PATH ||
+    path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot', 'node-outbound-audit.jsonl')
+  );
+}
+
+function previewAuditText(text: string, limit = 240): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return normalized.length > limit ? `${normalized.slice(0, limit - 1)}...` : normalized;
+}
+
+function recordNodeOutboundDelivery(chatId: unknown, deliveredText: unknown): void {
+  const text = typeof deliveredText === 'string' ? deliveredText : String(deliveredText ?? '');
+  const auditPath = nodeOutboundAuditPath();
+  const record = {
+    ts: new Date().toISOString(),
+    event: 'telegram_node_delivered',
+    chat_id: String(chatId ?? ''),
+    text_length: text.length,
+    text_preview: previewAuditText(text),
+    delivered_text: text,
+  };
+  mkdir(path.dirname(auditPath), { recursive: true })
+    .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
+    .catch((error) => {
+      console.warn('[OutboundAudit] failed to write node delivery audit:', error);
+    });
+}
+
 // Outbound sanitizer: wrap bot.telegram.sendMessage so every Telegram
 // reply (ctx.reply, ctx.telegram.sendMessage, bot.telegram.sendMessage)
 // runs through the deterministic voice rules before delivery. Persona
@@ -99,7 +132,9 @@ const bot = new Telegraf(botToken);
 const _origSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
 bot.telegram.sendMessage = ((chatId: any, text: any, extra?: any) => {
   const cleaned = typeof text === 'string' ? sanitizeOutbound(text) : text;
-  return _origSendMessage(chatId, cleaned, extra);
+  const delivery = _origSendMessage(chatId, cleaned, extra);
+  delivery.then(() => recordNodeOutboundDelivery(chatId, cleaned)).catch(() => {});
+  return delivery;
 }) as typeof bot.telegram.sendMessage;
 
 // Rate limiting (simple in-memory)
@@ -515,6 +550,7 @@ async function handleRunCommand(
     chatId: String(ctx.chat.id),
     requestId,
     userId: String(ctx.from.id),
+    tier: getTierForUser(ctx.from.id),
     providers,
     promptMode: 'simple'
   });
@@ -565,6 +601,7 @@ async function handleBuildIntent(
     ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget operating-system folder: \`${projectPath}\`\n\n${prd}`
     : `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\n\n${prd}`;
 
+  const tier = getTierForUser(ctx.from.id);
   try {
     const res = await axios.post(
       `${spawnerUrl}/api/prd-bridge/write`,
@@ -577,6 +614,7 @@ async function handleBuildIntent(
         chatId: String(chatId),
         userId: String(ctx.from.id),
         telegramRelay: getTelegramRelayIdentity(),
+        tier,
         options: { includeSkills: true, includeMCPs: false }
       },
       { timeout: 10000 }

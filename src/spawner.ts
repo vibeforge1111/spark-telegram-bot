@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
@@ -11,6 +12,7 @@ interface RunGoalInput {
   chatId: string;
   userId: string;
   requestId: string;
+  tier?: SkillTier;
   providers?: string[];
   promptMode?: 'simple' | 'orchestrator';
 }
@@ -152,6 +154,7 @@ export const spawner = {
           userId: input.userId,
           requestId: input.requestId,
           telegramRelay: relay,
+          ...(input.tier ? { tier: input.tier } : {}),
           ...(SPARK_RUN_PROJECT_PATH ? { projectPath: SPARK_RUN_PROJECT_PATH } : {}),
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {})
