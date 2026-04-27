@@ -264,9 +264,20 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
 
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  if (isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
     /\b(?:it|this|that|diagnostic|bug recognition|domain chip|agent)\b/.test(normalized)
+  );
+}
+
+function isExplicitMemoryWriteLikeRequest(normalized: string): boolean {
+  return (
+    /^memory\s+update\s*:/.test(normalized) ||
+    /\b(?:please\s+)?(?:remember|save)\s+(?:this|that)\b/.test(normalized) ||
+    /\b(?:my|our|the)\s+current\s+plan\s+is\b/.test(normalized)
   );
 }
 

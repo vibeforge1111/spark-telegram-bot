@@ -186,6 +186,15 @@ test('answers diagnostic follow-up testing questions from mission context', () =
   assert.match(reply, /follow-up Codex mission/);
 });
 
+test('does not treat explicit current-plan memory saves as diagnostic follow-up tests', () => {
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
+    ),
+    false
+  );
+});
+
 test('turns explicit contextual improvement requests into diagnostic integration missions', () => {
   const text = 'build these integration points as another mission via codex';
   assert.equal(isExplicitContextualBuildRequest(text), true);
