@@ -34,7 +34,7 @@ export interface BuilderBridgeReply {
   routingDecision: string;
 }
 
-interface BuilderDiagnosticsScanJson {
+export interface BuilderDiagnosticsScanJson {
   failure_line_count?: unknown;
   scanned_line_count?: unknown;
   findings?: unknown;
@@ -185,30 +185,30 @@ function formatServiceCheckCounts(value: unknown): string {
     .join(', ');
 }
 
-function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string {
+export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string {
   const findings = Array.isArray(report.findings) ? report.findings.length : 0;
   const sources = Array.isArray(report.sources) ? report.sources.length : 0;
   const markdownPath = String(report.markdown_path || '').trim();
   return [
-    '✅ Diagnostics scan complete',
+    'Diagnostics scan complete',
     '',
-    `📊 Log scan`,
-    `• Scanned: ${numericValue(report.scanned_line_count)} lines from ${sources} sources`,
-    `• Failures: ${numericValue(report.failure_line_count)}`,
-    `• Findings: ${findings}`,
+    `Log scan`,
+    `- Scanned: ${numericValue(report.scanned_line_count)} lines from ${sources} sources`,
+    `- Failures: ${numericValue(report.failure_line_count)}`,
+    `- Findings: ${findings}`,
     '',
-    `🧭 Connector health`,
-    `• ${formatServiceCheckCounts(report.service_checks)}`,
+    `Connector health`,
+    `- ${formatServiceCheckCounts(report.service_checks)}`,
     '',
-    `🧩 Subsystems`,
-    `• ${formatTopCounts(report.counts_by_subsystem)}`,
+    `Subsystems`,
+    `- ${formatTopCounts(report.counts_by_subsystem)}`,
     '',
-    `🏷️ Failure classes`,
-    `• ${formatTopCounts(report.counts_by_failure_class)}`,
+    `Failure classes`,
+    `- ${formatTopCounts(report.counts_by_failure_class)}`,
     '',
     markdownPath
-      ? '📝 Markdown note attached below.'
-      : '📝 Markdown note was not written.'
+      ? 'Markdown note attached below.'
+      : 'Markdown note was not written.'
   ].join('\n');
 }
 
