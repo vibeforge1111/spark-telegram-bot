@@ -207,7 +207,7 @@ function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string 
     `• ${formatTopCounts(report.counts_by_failure_class)}`,
     '',
     markdownPath
-      ? `📝 Markdown note attached below.\n${markdownPath}`
+      ? '📝 Markdown note attached below.'
       : '📝 Markdown note was not written.'
   ].join('\n');
 }
