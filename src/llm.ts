@@ -11,6 +11,20 @@ loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: tru
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
 
+function quoteWindowsArg(value: string): string {
+  if (/^[A-Za-z0-9._:/\\@+=,-]+$/.test(value)) return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function spawnHidden(command: string, args: string[], options: Parameters<typeof spawn>[2]) {
+  const spawnOptions = { ...options, shell: false, windowsHide: true };
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+    const commandLine = [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(' ');
+    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], spawnOptions);
+  }
+  return spawn(command, args, spawnOptions);
+}
+
 interface OllamaResponse {
   model: string;
   response: string;
@@ -219,10 +233,9 @@ Keep responses brief (1-3 sentences) unless the user asks for detail. If you nee
 
 function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, {
+    const child = spawnHidden(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
-      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
