@@ -10,7 +10,7 @@ import { Telegraf } from 'telegraf';
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
-import { getBuilderBridgeStatus, runBuilderTelegramBridge } from './builderBridge';
+import { getBuilderBridgeStatus, runBuilderDiagnosticsScan, runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
 import { llm } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
@@ -63,6 +63,7 @@ import {
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
+  isDiagnosticsScanRequest,
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
@@ -1036,6 +1037,18 @@ bot.on(message('text'), async (ctx) => {
         await ctx.reply(reply);
         return;
       }
+    }
+
+    if (isDiagnosticsScanRequest(text)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.sendChatAction('typing');
+      try {
+        await ctx.reply(await runBuilderDiagnosticsScan());
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        await ctx.reply(`Diagnostics scan failed: ${detail}`);
+      }
+      return;
     }
 
     if (isExplicitContextualBuildRequest(text)) {

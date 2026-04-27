@@ -15,6 +15,7 @@ import {
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
+  isDiagnosticsScanRequest,
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
@@ -184,6 +185,12 @@ test('answers diagnostic follow-up testing questions from mission context', () =
   assert.ok(reply);
   assert.match(reply, /fresh diagnostics scan/);
   assert.match(reply, /follow-up Codex mission/);
+});
+
+test('recognizes natural diagnostics scan requests', () => {
+  assert.equal(isDiagnosticsScanRequest('run a fresh diagnostics scan'), true);
+  assert.equal(isDiagnosticsScanRequest('spark-intelligence diagnostics scan'), true);
+  assert.equal(isDiagnosticsScanRequest('Actually, my current plan is run a fresh diagnostics scan.'), false);
 });
 
 test('does not treat explicit current-plan memory saves as diagnostic follow-up tests', () => {

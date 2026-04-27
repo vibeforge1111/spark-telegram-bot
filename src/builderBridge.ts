@@ -34,6 +34,16 @@ export interface BuilderBridgeReply {
   routingDecision: string;
 }
 
+interface BuilderDiagnosticsScanJson {
+  failure_line_count?: unknown;
+  scanned_line_count?: unknown;
+  findings?: unknown;
+  sources?: unknown;
+  counts_by_failure_class?: unknown;
+  counts_by_subsystem?: unknown;
+  markdown_path?: unknown;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -75,6 +85,49 @@ async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boole
   return repoExists && homeExists;
 }
 
+function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
+  const sourcePath = path.join(config.builderRepo, 'src');
+  const existingPythonPath = process.env.PYTHONPATH || '';
+  return {
+    ...process.env,
+    PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
+  };
+}
+
+function numericValue(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function objectEntries(value: unknown): [string, unknown][] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+  return Object.entries(value as Record<string, unknown>);
+}
+
+function formatTopCounts(value: unknown): string {
+  const entries = objectEntries(value)
+    .filter(([, count]) => typeof count === 'number')
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 4)
+    .map(([key, count]) => `${key}: ${count}`);
+  return entries.length ? entries.join(', ') : 'none';
+}
+
+function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string {
+  const findings = Array.isArray(report.findings) ? report.findings.length : 0;
+  const sources = Array.isArray(report.sources) ? report.sources.length : 0;
+  const markdownPath = String(report.markdown_path || '').trim();
+  return [
+    'Diagnostics scan complete.',
+    `Scanned ${numericValue(report.scanned_line_count)} log lines from ${sources} sources.`,
+    `Failure lines: ${numericValue(report.failure_line_count)}. Findings: ${findings}.`,
+    `Subsystems: ${formatTopCounts(report.counts_by_subsystem)}.`,
+    `Failure classes: ${formatTopCounts(report.counts_by_failure_class)}.`,
+    markdownPath ? `Obsidian note: ${markdownPath}` : 'Obsidian note: not written.'
+  ].join('\n');
+}
+
 export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   const config = resolveBridgeConfig();
   return {
@@ -83,6 +136,38 @@ export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
     builderRepo: config.builderRepo,
     builderHome: config.builderHome,
   };
+}
+
+export async function runBuilderDiagnosticsScan(): Promise<string> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    [
+      '-m',
+      'spark_intelligence.cli',
+      'diagnostics',
+      'scan',
+      '--home',
+      config.builderHome,
+      '--json',
+    ],
+    {
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: config.timeoutMs,
+      maxBuffer: 1024 * 1024,
+    }
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+  }
+  return formatDiagnosticsScanReply(JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson);
 }
 
 export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
@@ -134,6 +219,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       ],
       {
         cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
         timeout: config.timeoutMs,
         maxBuffer: 1024 * 1024,
       }

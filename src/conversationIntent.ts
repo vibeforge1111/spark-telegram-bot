@@ -273,6 +273,20 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   );
 }
 
+export function isDiagnosticsScanRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
+  return (
+    /\bspark-intelligence\s+diagnostics\s+scan\b/.test(normalized) ||
+    (
+      /\b(?:run|start|kick\s+off|execute|do)\b/.test(normalized) &&
+      /\b(?:fresh|new|another|the)?\s*diagnostics?\s+scan\b/.test(normalized)
+    )
+  );
+}
+
 function isExplicitMemoryWriteLikeRequest(normalized: string): boolean {
   return (
     /^memory\s+update\s*:/.test(normalized) ||
