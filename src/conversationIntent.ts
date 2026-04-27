@@ -442,7 +442,10 @@ export function isMemoryAcknowledgementReply(reply: string): boolean {
   );
 }
 
-export function shouldSuppressBuilderReplyForPlainChat(reply: string): boolean {
+export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDecision: string = ''): boolean {
+  if (/^memory(?:_|$)/i.test(routingDecision.trim())) {
+    return false;
+  }
   return isLowInformationLlmReply(reply) || isMemoryAcknowledgementReply(reply);
 }
 

@@ -1137,7 +1137,7 @@ bot.on(message('text'), async (ctx) => {
     }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText)) {
+      if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
         if (memoryDirective) {
           await conversation.remember(user, text).catch(() => {});
         }

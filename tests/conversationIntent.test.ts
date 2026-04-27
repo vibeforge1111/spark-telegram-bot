@@ -326,6 +326,13 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
   );
   assert.equal(shouldSuppressBuilderReplyForPlainChat('Noted: "yes i was wondering how is the chat with you"'), true);
   assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      "I'll remember that your current plan is to run a fresh diagnostics scan.",
+      'memory_generic_observation'
+    ),
+    false
+  );
+  assert.equal(
     shouldSuppressBuilderReplyForPlainChat('Spark Researcher returned no concrete guidance for this message.'),
     true
   );
