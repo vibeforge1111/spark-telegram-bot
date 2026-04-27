@@ -4,6 +4,7 @@ import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
+const DEFAULT_LOCAL_SERVICE_TIMEOUT_MS = 30_000;
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 
@@ -58,6 +59,45 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
 type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
+
+export function localServiceTimeoutMs(envKey: string, fallbackMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS): number {
+  const raw = process.env[envKey];
+  if (!raw) return fallbackMs;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 1000 ? parsed : fallbackMs;
+}
+
+function isRetryableLocalServiceError(err: any): boolean {
+  const code = String(err?.code || '').toUpperCase();
+  const message = String(err?.message || '').toLowerCase();
+  return (
+    code === 'ECONNABORTED' ||
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    message.includes('timeout') ||
+    message.includes('socket hang up')
+  );
+}
+
+export async function postLocalServiceWithRetry<T = any>(
+  url: string,
+  body: unknown,
+  timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
+): Promise<{ data: T }> {
+  try {
+    return await axios.post(url, body, { timeout: timeoutMs });
+  } catch (err: any) {
+    if (!isRetryableLocalServiceError(err)) throw err;
+    try {
+      return await axios.post(url, body, { timeout: timeoutMs });
+    } catch (retryErr: any) {
+      const original = err?.message || 'local service request failed';
+      const retry = retryErr?.message || 'retry failed';
+      retryErr.message = `${retry} after retry. First attempt: ${original}`;
+      throw retryErr;
+    }
+  }
+}
 
 function normalizeBucket(value: unknown): BoardEntry[] {
   return Array.isArray(value) ? value as BoardEntry[] : [];
@@ -146,7 +186,7 @@ export const spawner = {
   async runGoal(input: RunGoalInput): Promise<RunGoalResult> {
     try {
       const relay = telegramRelayIdentityFromEnv();
-      const res = await axios.post(
+      const res = await postLocalServiceWithRetry(
         `${SPAWNER_UI_URL}/api/spark/run`,
         {
           goal: input.goal,
@@ -159,7 +199,7 @@ export const spawner = {
           ...(input.providers && input.providers.length > 0 ? { providers: input.providers } : {}),
           ...(input.promptMode ? { promptMode: input.promptMode } : {})
         },
-        { timeout: 15000 }
+        localServiceTimeoutMs('SPARK_SPAWNER_RUN_TIMEOUT_MS')
       );
 
       return {

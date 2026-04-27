@@ -77,7 +77,32 @@ async function run(): Promise<void> {
       providers: ['codex', 'claude'],
       promptMode: 'orchestrator'
     });
-    assert.equal(capturedOptions.timeout, 15000);
+    assert.equal(capturedOptions.timeout, 30000);
+  });
+
+  await test('runGoal retries once when local Spawner request times out', async () => {
+    restoreAxios();
+    let attempts = 0;
+    (axios as any).post = async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        const error: any = new Error('timeout of 10000ms exceeded');
+        error.code = 'ECONNABORTED';
+        throw error;
+      }
+      return { data: { success: true, missionId: 'spark-after-retry' } };
+    };
+
+    const result = await spawner.runGoal({
+      goal: 'Build after one timeout.',
+      chatId: '123',
+      userId: '456',
+      requestId: 'tg-retry'
+    });
+
+    assert.equal(attempts, 2);
+    assert.equal(result.success, true);
+    assert.equal(result.missionId, 'spark-after-retry');
   });
 
   await test('runGoal falls back to the primary relay target when env values are invalid', async () => {

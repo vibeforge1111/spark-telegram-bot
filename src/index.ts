@@ -15,7 +15,7 @@ import { spark } from './spark';
 import { llm } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
-import { spawner } from './spawner';
+import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
@@ -604,7 +604,7 @@ export async function handleBuildIntent(
 
   const tier = getTierForUser(ctx.from.id);
   try {
-    const res = await axios.post(
+    const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
       {
         content: prdContent,
@@ -618,7 +618,7 @@ export async function handleBuildIntent(
         tier,
         options: { includeSkills: true, includeMCPs: false }
       },
-      { timeout: 10000 }
+      localServiceTimeoutMs('SPARK_SPAWNER_PRD_WRITE_TIMEOUT_MS')
     );
 
     if (!res.data?.success) {
