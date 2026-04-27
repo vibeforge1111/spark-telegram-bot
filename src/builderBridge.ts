@@ -94,6 +94,21 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   };
 }
 
+function pythonModuleInvocation(config: BuilderBridgeConfig, moduleName: string, args: string[]): string[] {
+  const sourcePath = path.join(config.builderRepo, 'src');
+  return [
+    '-c',
+    [
+      'import runpy, sys',
+      'sys.path.insert(0, sys.argv[1])',
+      `sys.argv = [${JSON.stringify(moduleName)}, *sys.argv[2:]]`,
+      `runpy.run_module(${JSON.stringify(moduleName)}, run_name="__main__")`,
+    ].join('; '),
+    sourcePath,
+    ...args,
+  ];
+}
+
 function numericValue(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -147,15 +162,13 @@ export async function runBuilderDiagnosticsScan(): Promise<string> {
 
   const { stdout, stderr } = await execFileAsync(
     config.pythonCommand,
-    [
-      '-m',
-      'spark_intelligence.cli',
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
       'diagnostics',
       'scan',
       '--home',
       config.builderHome,
       '--json',
-    ],
+    ]),
     {
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
@@ -205,9 +218,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
 
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
-      [
-        '-m',
-        'spark_intelligence.cli',
+      pythonModuleInvocation(config, 'spark_intelligence.cli', [
         'gateway',
         'simulate-telegram-update',
         updatePath,
@@ -216,7 +227,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         '--origin',
         'telegram-runtime',
         '--json',
-      ],
+      ]),
       {
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
