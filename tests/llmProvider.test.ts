@@ -42,7 +42,10 @@ test('does not let OpenAI-compatible model settings mask Codex chat model', () =
 });
 
 test('does not fall back to Ollama unless Ollama is selected or configured', () => {
-  const config = resolveChatProviderConfig({});
+  const config = resolveChatProviderConfig({
+    OLLAMA_URL: 'http://localhost:11434',
+    OLLAMA_MODEL: 'llama3.2',
+  });
 
   assert.equal(config.provider, 'not_configured');
   assert.equal(config.kind, 'not_configured');
@@ -59,6 +62,36 @@ test('uses explicit Ollama provider when selected', () => {
   assert.equal(config.kind, 'ollama');
   assert.equal(config.baseUrl, 'http://localhost:11434');
   assert.equal(config.model, 'llama3.2');
+});
+
+test('uses explicit OpenRouter provider without being masked by other keys', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'openrouter',
+    OPENROUTER_API_KEY: 'or-key',
+    OPENROUTER_MODEL: 'anthropic/claude-sonnet-4.5',
+    ZAI_API_KEY: 'old-zai-key',
+    OLLAMA_URL: 'http://localhost:11434',
+  });
+
+  assert.equal(config.provider, 'openrouter');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.baseUrl, 'https://openrouter.ai/api/v1');
+  assert.equal(config.model, 'anthropic/claude-sonnet-4.5');
+  assert.equal(config.apiKey, 'or-key');
+});
+
+test('uses explicit Hugging Face router provider', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'huggingface',
+    HF_TOKEN: 'hf-key',
+    HUGGINGFACE_MODEL: 'deepseek-ai/DeepSeek-R1:fastest',
+  });
+
+  assert.equal(config.provider, 'huggingface');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.baseUrl, 'https://router.huggingface.co/v1');
+  assert.equal(config.model, 'deepseek-ai/DeepSeek-R1:fastest');
+  assert.equal(config.apiKey, 'hf-key');
 });
 
 test('builds Codex exec args for non-git Spark workspaces', () => {

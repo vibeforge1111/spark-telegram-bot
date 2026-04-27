@@ -33,6 +33,14 @@ test('recognizes chat-only provider ids without making them mission providers', 
   } as NodeJS.ProcessEnv), 'codex');
 });
 
+test('recognizes OpenAI-compatible gateway providers for chat and mission routing', () => {
+  assert.equal(resolveKnownChatProviderId('openrouter'), 'openrouter');
+  assert.equal(resolveKnownChatProviderId('huggingface'), 'huggingface');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'openrouter'
+  } as NodeJS.ProcessEnv), 'openrouter');
+});
+
 test('uses explicit Telegram mission override before other mission defaults', () => {
   const env = {
     BOT_DEFAULT_PROVIDER: 'zai',
@@ -44,12 +52,12 @@ test('uses explicit Telegram mission override before other mission defaults', ()
   assert.equal(resolveMissionDefaultProvider(env), 'minimax');
 });
 
-test('falls back to codex when provider env values are unknown', () => {
+test('does not invent a chat provider when provider env values are unknown', () => {
   const env = {
     BOT_DEFAULT_PROVIDER: 'mystery',
     SPARK_MISSION_LLM_PROVIDER: 'also-mystery'
   } as NodeJS.ProcessEnv;
 
-  assert.equal(resolveChatDefaultProvider(env), 'codex');
+  assert.equal(resolveChatDefaultProvider(env), 'not_configured');
   assert.equal(resolveMissionDefaultProvider(env), 'codex');
 });

@@ -62,6 +62,8 @@ interface ChatProviderConfig {
 }
 
 const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
+const HUGGINGFACE_DEFAULT_BASE_URL = 'https://router.huggingface.co/v1';
 const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
@@ -78,6 +80,8 @@ function normalizeProvider(value: string): string {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'glm' || normalized === 'z.ai') return 'zai';
   if (normalized === 'claude') return 'anthropic';
+  if (normalized === 'open-router') return 'openrouter';
+  if (normalized === 'hf' || normalized === 'hugging-face') return 'huggingface';
   return normalized;
 }
 
@@ -90,9 +94,11 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     const openaiBase = firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL');
     const openaiUsesCustomBase = Boolean(openaiBase && openaiBase.replace(/\/+$/, '') !== OPENAI_DEFAULT_BASE_URL);
     provider = (env.OPENAI_API_KEY || openaiUsesCustomBase) ? 'openai' : (botProvider || 'openai');
-  } else if (!provider) {
+  } else if (!provider && env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER === '1') {
     if (env.ZAI_API_KEY) provider = 'zai';
     else if (env.MINIMAX_API_KEY) provider = 'minimax';
+    else if (env.OPENROUTER_API_KEY) provider = 'openrouter';
+    else if (env.HF_TOKEN || env.HUGGINGFACE_API_KEY) provider = 'huggingface';
     else if (env.OLLAMA_URL || env.OLLAMA_MODEL) provider = 'ollama';
   }
 
@@ -120,6 +126,24 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
       model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OPENAI_MODEL') || 'gpt-5.5',
       baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL') || OPENAI_DEFAULT_BASE_URL,
       apiKey: env.OPENAI_API_KEY,
+    };
+  }
+  if (provider === 'openrouter') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OPENROUTER_MODEL') || 'openai/gpt-5.5',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENROUTER_BASE_URL') || OPENROUTER_DEFAULT_BASE_URL,
+      apiKey: env.OPENROUTER_API_KEY,
+    };
+  }
+  if (provider === 'huggingface') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'HUGGINGFACE_MODEL') || 'deepseek-ai/DeepSeek-R1:fastest',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'HUGGINGFACE_BASE_URL') || HUGGINGFACE_DEFAULT_BASE_URL,
+      apiKey: env.HF_TOKEN || env.HUGGINGFACE_API_KEY,
     };
   }
   if (provider === 'minimax') {
