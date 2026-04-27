@@ -110,8 +110,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
 
   // Anchor patterns: the message must start with a project-trigger verb,
   // optionally preceded by a slash (slash command shape). "/build me a foo"
-  // and "build me a foo" both qualify.
-  const starters = /^\/?(?:build|make\s+me|create|ship|scaffold|generate)\s+(?:a|an|the|this|me\s+a)\s+/i;
+  // and "build me a foo" both qualify. Includes "me an", "me the", "me this"
+  // and bare "a/an/the/this" so "build me an app" doesn't get parsed as
+  // project="me an app".
+  const starters = /^\/?(?:build|make|create|ship|scaffold|generate)\s+(?:me\s+)?(?:a|an|the|this)\s+/i;
   const rawStarter = /^\/?(?:build|make\s+me|create|ship|scaffold|generate)\s+/i;
 
   let stripped: string | null = null;
@@ -124,12 +126,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   }
 
   if (stripped === null) return null;
-  // Project description can legitimately be short ("tetris game", "todo app",
-  // "blog cms"). Cap at 4 chars to filter "x" / "yo" while still admitting
-  // single-noun project asks. Previously this was 12 which silently dropped
-  // perfectly valid requests like "build me a tetris game" into the chat
-  // route, confusing users.
-  if (stripped.length < 4) return null;
+  // Project description can legitimately be very short ("app", "blog",
+  // "wiki", "cms"). Cap at 3 chars to admit single-noun project asks while
+  // still filtering "x" / "ok" / "yo".
+  if (stripped.length < 3) return null;
 
   const projectPath = extractPath(original);
   const prd = removeLeadingPathPrefix(stripped.trim());
