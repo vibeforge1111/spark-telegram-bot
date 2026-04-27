@@ -626,13 +626,17 @@ export async function handleBuildIntent(
       return;
     }
 
+    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
+    const canvasUrl = `${publicSpawnerUrl}/canvas`;
     const ackLines = [
       `Got it. Project: ${projectName}`,
       `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
       projectPath ? `Target folder: ${projectPath}` : null,
+      `Tier: ${tier}`,
       `Request ID: ${requestId}`,
+      `Canvas: ${canvasUrl}`,
       '',
-      `Spark is turning this into a build plan. I'll DM you when the canvas is ready, then keep posting progress here.`
+      `Spark is turning this into a build plan. The canvas auto-loads the moment analysis finishes — keep that tab open. I'll also DM you here when it's ready, then keep posting progress.`
     ].filter(Boolean);
     await ctx.reply(ackLines.join('\n'));
 
