@@ -59,6 +59,7 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       timeout: config.timeoutMs,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
+      windowsHide: true,
     });
     const parsed = JSON.parse(stdout);
     return {

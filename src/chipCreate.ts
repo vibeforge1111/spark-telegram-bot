@@ -64,6 +64,7 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
       timeout: config.timeoutMs,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
+      windowsHide: true,
     });
     const parsed = JSON.parse(stdout) as {
       ok: boolean;

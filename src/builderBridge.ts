@@ -243,6 +243,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
       env: pythonSourceEnv(config),
       timeout: config.timeoutMs,
       maxBuffer: 1024 * 1024,
+      windowsHide: true,
     }
   );
   const trimmedStdout = stdout.trim();
@@ -306,6 +307,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         env: pythonSourceEnv(config),
         timeout: config.timeoutMs,
         maxBuffer: 1024 * 1024,
+        windowsHide: true,
       }
     );
 
