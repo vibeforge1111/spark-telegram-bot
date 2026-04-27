@@ -222,6 +222,7 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
     const child = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env },
+      windowsHide: true,
     });
     let stdout = '';
     let stderr = '';
