@@ -1107,6 +1107,24 @@ bot.on(message('text'), async (ctx) => {
 
     await conversation.remember(user, text).catch(() => {});
 
+    // Build intent runs FIRST. If the user said "build me X", "create a Y",
+    // "scaffold a Z", we route to handleBuildIntent regardless of how chatty
+    // the message reads. Conversational ideation is the fallback for messages
+    // that don't anchor on a project-trigger verb.
+    const buildIntent = parseBuildIntent(text);
+    if (buildIntent) {
+      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
+      return;
+    }
+
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await ctx.sendChatAction('typing');
@@ -1117,19 +1135,6 @@ bot.on(message('text'), async (ctx) => {
         : llmResponse;
       await ctx.reply(response);
       await conversation.rememberAssistantReply(user, response).catch(() => {});
-      return;
-    }
-
-    const buildIntent = parseBuildIntent(text);
-    if (buildIntent) {
-      await handleBuildIntent(
-        ctx,
-        buildIntent.prd,
-        buildIntent.projectName,
-        buildIntent.projectPath,
-        buildIntent.buildMode,
-        buildIntent.buildModeReason
-      );
       return;
     }
 
