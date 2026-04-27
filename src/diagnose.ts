@@ -4,10 +4,11 @@
 import axios from 'axios';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
-import { pingChatProvider, type ChatProviderPing } from './llm';
+import { pingChatProvider, resolveChatProviderConfig, type ChatProviderPing } from './llm';
 import { parseTelegramUserIds } from './conversation';
 import {
   normalizeProviderId,
+  resolveKnownChatProviderId,
   resolveChatDefaultProvider,
   resolveMissionDefaultProvider
 } from './providerRouting';
@@ -245,6 +246,14 @@ function providerLabel(providerId: string | null, providers: ProviderStatus[]): 
   return provider.model ? `${provider.id} (${provider.model})` : provider.id;
 }
 
+function chatProviderLabel(providerId: string | null, providers: ProviderStatus[]): string {
+  const config = resolveChatProviderConfig();
+  if (config.provider === providerId && config.model) {
+    return `${config.provider} (${config.model})`;
+  }
+  return providerLabel(providerId, providers);
+}
+
 export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string {
   if (status.mode === 'off') {
     return 'Builder bridge: ⚪ off';
@@ -258,6 +267,24 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
   return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
+}
+
+export function resolveDiagnoseRouteProviders(
+  env: NodeJS.ProcessEnv = process.env,
+  spawnerDefaultProvider?: string | null
+): { spawnerDefaultProvider: string; telegramRunProvider: string; chatProvider: string } {
+  const normalizedSpawnerDefault =
+    normalizeProviderId(spawnerDefaultProvider) ||
+    normalizeProviderId(env.DEFAULT_MISSION_PROVIDER) ||
+    normalizeProviderId(env.SPARK_MISSION_LLM_PROVIDER) ||
+    BOT_DEFAULT_PROVIDER;
+  const telegramRunProvider = resolveMissionDefaultProvider(env, normalizedSpawnerDefault);
+  const chatProvider =
+    resolveKnownChatProviderId(env.SPARK_CHAT_LLM_PROVIDER) ||
+    resolveKnownChatProviderId(env.SPARK_CHAT_LLM_BOT_PROVIDER) ||
+    resolveKnownChatProviderId(env.SPARK_LLM_PROVIDER) ||
+    BOT_DEFAULT_PROVIDER;
+  return { spawnerDefaultProvider: normalizedSpawnerDefault, telegramRunProvider, chatProvider };
 }
 
 export function describeAccessDiagnostics(subject: DiagnoseSubject, accessProfile: string, env: NodeJS.ProcessEnv = process.env): string[] {
@@ -329,17 +356,10 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
   ]);
 
   const providers = spawnerProviders.payload?.providers || [];
-  const spawnerDefaultProvider =
-    normalizeProviderId(spawnerProviders.payload?.sparkDefaultProvider) ||
-    normalizeProviderId(process.env.DEFAULT_MISSION_PROVIDER) ||
-    normalizeProviderId(process.env.SPARK_MISSION_LLM_PROVIDER) ||
-    BOT_DEFAULT_PROVIDER;
-  const telegramRunProvider = resolveMissionDefaultProvider(process.env, spawnerDefaultProvider);
-  const chatProvider =
-    normalizeProviderId(process.env.SPARK_CHAT_LLM_PROVIDER) ||
-    normalizeProviderId(process.env.SPARK_CHAT_LLM_BOT_PROVIDER) ||
-    normalizeProviderId(process.env.SPARK_LLM_PROVIDER) ||
-    BOT_DEFAULT_PROVIDER;
+  const { spawnerDefaultProvider, telegramRunProvider, chatProvider } = resolveDiagnoseRouteProviders(
+    process.env,
+    spawnerProviders.payload?.sparkDefaultProvider
+  );
   const selectedIds = new Set([spawnerDefaultProvider, telegramRunProvider, chatProvider].filter(Boolean) as string[]);
 
   lines.push('Services');
@@ -373,7 +393,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
 
   lines.push('Plain chat');
   lines.push(`• ${describeBuilderBridgeHealth(builderBridge)}`);
-  lines.push(`• ${describeChatProviderHealth(chatProviderPing, providerLabel(chatProvider, providers))}`);
+  lines.push(`• ${describeChatProviderHealth(chatProviderPing, chatProviderLabel(chatProvider, providers))}`);
   lines.push('');
 
   lines.push('Access');
@@ -384,7 +404,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
 
   lines.push('Routing');
   lines.push(`• Telegram /run default: ${providerLabel(telegramRunProvider, providers)}`);
-  lines.push(`• Telegram plain chat: SIB → ${providerLabel(chatProvider, providers)}`);
+  lines.push(`• Telegram plain chat: SIB → ${chatProviderLabel(chatProvider, providers)}`);
   lines.push(`• Spawner missions default: ${providerLabel(spawnerDefaultProvider, providers)}`);
   lines.push('• Overrides: "claude, ...", "minimax: ...", "glm, ...", "all models: ..."');
   lines.push('');

@@ -30,6 +30,17 @@ test('uses LM Studio as OpenAI-compatible chat provider instead of implicit Olla
   assert.equal(config.model, 'google/gemma-4-04b-2');
 });
 
+test('does not let OpenAI-compatible model settings mask Codex chat model', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'codex',
+    OPENAI_MODEL: 'google/gemma-4-04b-2',
+  });
+
+  assert.equal(config.provider, 'codex');
+  assert.equal(config.kind, 'codex');
+  assert.equal(config.model, 'gpt-5.5');
+});
+
 test('does not fall back to Ollama unless Ollama is selected or configured', () => {
   const config = resolveChatProviderConfig({});
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   resolveChatDefaultProvider,
+  resolveKnownChatProviderId,
   resolveMissionDefaultProvider
 } from '../src/providerRouting';
 
@@ -22,6 +23,14 @@ test('keeps chat provider separate from mission provider', () => {
 
   assert.equal(resolveChatDefaultProvider(env), 'zai');
   assert.equal(resolveMissionDefaultProvider(env), 'codex');
+});
+
+test('recognizes chat-only provider ids without making them mission providers', () => {
+  assert.equal(resolveKnownChatProviderId('openai'), 'openai');
+  assert.equal(resolveKnownChatProviderId('ollama'), 'ollama');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'ollama'
+  } as NodeJS.ProcessEnv), 'codex');
 });
 
 test('uses explicit Telegram mission override before other mission defaults', () => {

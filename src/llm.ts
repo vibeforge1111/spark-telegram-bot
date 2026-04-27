@@ -8,7 +8,7 @@ import { renderSparkErrorReply } from './errorExplain';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
-const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || process.env.OPENAI_MODEL || 'gpt-5.5';
+const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
 
 interface OllamaResponse {
@@ -100,7 +100,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     return {
       provider,
       kind: 'codex',
-      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'CODEX_MODEL', 'SPARK_CODEX_MODEL', 'OPENAI_MODEL') || 'gpt-5.5',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'CODEX_MODEL', 'SPARK_CODEX_MODEL') || 'gpt-5.5',
       baseUrl: '',
     };
   }

@@ -1,4 +1,10 @@
-export const VALID_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex']);
+export const VALID_MISSION_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex']);
+export const VALID_CHAT_PROVIDER_IDS = new Set([
+  ...VALID_MISSION_PROVIDER_IDS,
+  'anthropic',
+  'ollama',
+  'openai',
+]);
 
 export function normalizeProviderId(value: string | undefined | null): string | null {
   const normalized = value?.trim().toLowerCase();
@@ -7,11 +13,16 @@ export function normalizeProviderId(value: string | undefined | null): string | 
 
 export function resolveKnownProviderId(value: string | undefined | null): string | null {
   const normalized = normalizeProviderId(value);
-  return normalized && VALID_PROVIDER_IDS.has(normalized) ? normalized : null;
+  return normalized && VALID_MISSION_PROVIDER_IDS.has(normalized) ? normalized : null;
+}
+
+export function resolveKnownChatProviderId(value: string | undefined | null): string | null {
+  const normalized = normalizeProviderId(value);
+  return normalized && VALID_CHAT_PROVIDER_IDS.has(normalized) ? normalized : null;
 }
 
 export function resolveChatDefaultProvider(env: NodeJS.ProcessEnv = process.env): string {
-  return resolveKnownProviderId(env.BOT_DEFAULT_PROVIDER) || 'codex';
+  return resolveKnownChatProviderId(env.BOT_DEFAULT_PROVIDER) || 'codex';
 }
 
 export function resolveMissionDefaultProvider(

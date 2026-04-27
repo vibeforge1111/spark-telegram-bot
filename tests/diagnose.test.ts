@@ -7,6 +7,7 @@ import {
   describeProviderStatus,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
+  resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
   type ProviderStatus
@@ -86,6 +87,20 @@ test('pings selected Spawner route providers only', () => {
   ];
 
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
+});
+
+test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
+  const routes = resolveDiagnoseRouteProviders({
+    BOT_DEFAULT_PROVIDER: 'codex',
+    DEFAULT_MISSION_PROVIDER: 'codex',
+    SPARK_CHAT_LLM_PROVIDER: 'openai',
+    SPARK_CHAT_LLM_BASE_URL: 'http://localhost:1234/v1',
+    OPENAI_MODEL: 'google/gemma-4-04b-2',
+  } as NodeJS.ProcessEnv, 'codex');
+
+  assert.equal(routes.chatProvider, 'openai');
+  assert.equal(routes.telegramRunProvider, 'codex');
+  assert.equal(routes.spawnerDefaultProvider, 'codex');
 });
 
 test('uses the active Telegram relay profile and port for diagnostics', () => {
