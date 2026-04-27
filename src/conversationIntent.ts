@@ -270,9 +270,19 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   if (isContextSurvivalVerificationRequest(normalized)) {
     return false;
   }
+  if (isPersistentMemoryQualityEvaluationRequest(normalized)) {
+    return false;
+  }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
     /\b(?:it|this|that|diagnostic|bug recognition|domain chip|agent)\b/.test(normalized)
+  );
+}
+
+function isPersistentMemoryQualityEvaluationRequest(normalized: string): boolean {
+  return (
+    /\b(?:persistent\s+memory\s+quality|memory\s+quality|natural\s+recall|stale\s+context|current-state\s+priority|current\s+state\s+priority)\b/.test(normalized) &&
+    /\b(?:evaluation\s+plan|test\s+natural\s+recall|evaluate|memory\s+sources?|source\s+explanation)\b/.test(normalized)
   );
 }
 

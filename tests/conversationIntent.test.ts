@@ -211,6 +211,15 @@ test('does not treat context survival verification as diagnostic follow-up tests
   );
 });
 
+test('does not treat persistent memory quality plans as diagnostic follow-up tests', () => {
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Good. Give me a concrete evaluation plan for persistent memory quality in Telegram. It should test natural recall, stale context avoidance, current-state priority, and whether you can explain what memory sources you used.'
+    ),
+    false
+  );
+});
+
 test('turns explicit contextual improvement requests into diagnostic integration missions', () => {
   const text = 'build these integration points as another mission via codex';
   assert.equal(isExplicitContextualBuildRequest(text), true);
