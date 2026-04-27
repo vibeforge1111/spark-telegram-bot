@@ -95,6 +95,15 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken);
 
+async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
+  try {
+    await ctx.sendChatAction(action);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[Telegram] ignored sendChatAction failure: ${detail}`);
+  }
+}
+
 function nodeOutboundAuditPath(): string {
   return (
     process.env.SPARK_NODE_OUTBOUND_AUDIT_PATH ||
@@ -290,7 +299,7 @@ bot.start(async (ctx) => {
 
 // /status command
 bot.command('status', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
 
   const builderBridge = await getBuilderBridgeStatus();
   const isAdmin = conversation.isAdmin(ctx.from);
@@ -310,7 +319,7 @@ bot.command('status', async (ctx) => {
 // /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Running diagnostics - checks chat, access, relay, Spawner, and provider ping. Takes ~30s...');
   try {
     const report = await buildDiagnoseReport(ctx.from.id, {
@@ -410,42 +419,42 @@ bot.command('forget', async (ctx) => {
 
 // /spark - quick status
 bot.command('spark', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const status = await spark.getQuickStatus();
   await ctx.reply(`Spark Intelligence\n\n${status}`);
 });
 
 // /resonance - resonance state
 bot.command('resonance', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const resonance = await spark.getResonance();
   await ctx.reply(`Resonance\n\n${resonance}`);
 });
 
 // /insights - cognitive insights
 bot.command('insights', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const insights = await spark.getInsights(5);
   await ctx.reply(insights);
 });
 
 // /voice - what Spark learned about user
 bot.command('voice', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const voice = await spark.getVoice();
   await ctx.reply(voice);
 });
 
 // /lessons - surprise lessons
 bot.command('lessons', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const lessons = await spark.getSurprises();
   await ctx.reply(lessons);
 });
 
 // /process - process pending events
 bot.command('process', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Processing queue...');
   const result = await spark.processQueue();
   await ctx.reply(result);
@@ -453,7 +462,7 @@ bot.command('process', async (ctx) => {
 
 // /reflect - trigger deep reflection
 bot.command('reflect', async (ctx) => {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Starting deep reflection...');
   const result = await spark.reflect();
   await ctx.reply(result);
@@ -534,7 +543,7 @@ async function handleRunCommand(
   providers: string[],
   requiredAccess?: SparkAccessRequirement
 ): Promise<string | null> {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
 
   const accessRequirement = requiredAccess || (
     sparkMissionNeedsOperatingSystemAccess(goal) ? 'operating_system' : 'spawner_build'
@@ -583,7 +592,7 @@ export async function handleBuildIntent(
   buildMode: 'direct' | 'advanced_prd',
   buildModeReason: string
 ): Promise<void> {
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
 
   const accessRequirement: SparkAccessRequirement = sparkMissionNeedsOperatingSystemAccess(prd, projectPath)
     ? 'operating_system'
@@ -729,7 +738,7 @@ for (const variant of RUN_VARIANTS) {
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const result = await spawner.board();
   await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
 });
@@ -746,7 +755,7 @@ bot.command('chip', async (ctx) => {
     return ctx.reply('Usage: /chip create <natural language description>');
   }
 
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Scaffolding new domain chip from your brief...');
 
   const result = await createChipFromPrompt(prompt);
@@ -783,7 +792,7 @@ bot.command('loop', async (ctx) => {
   }
 
   const chatId = ctx.chat.id;
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   await ctx.reply(`Starting autoloop on ${chipKey} for ${rounds} round(s). This may take several minutes - I'll post the summary when it finishes.`);
 
   // Detach the heavy work so the Telegraf handler returns instantly;
@@ -962,7 +971,7 @@ bot.command('mission', async (ctx) => {
     return ctx.reply('Use a real mission ID from /board, for example: /mission status spark-1776768300668');
   }
 
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
   const result = await spawner.missionCommand(action, missionId);
   await ctx.reply(result.success ? result.message : `Mission command failed: ${result.message}`);
 });
@@ -1004,7 +1013,7 @@ bot.on(message('text'), async (ctx) => {
     const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
     if (spawnerBoardIntent) {
       await conversation.remember(user, text).catch(() => {});
-      await ctx.sendChatAction('typing');
+      await safeSendChatAction(ctx, 'typing');
       const result = spawnerBoardIntent === 'latest_provider'
         ? await spawner.latestProviderSummary()
         : spawnerBoardIntent === 'latest_on_kanban'
@@ -1045,7 +1054,7 @@ bot.on(message('text'), async (ctx) => {
 
     if (isDiagnosticsScanRequest(text)) {
       await conversation.remember(user, text).catch(() => {});
-      await ctx.sendChatAction('typing');
+      await safeSendChatAction(ctx, 'typing');
       try {
         const scan = await runBuilderDiagnosticsScan();
         await ctx.reply(scan.replyText);
@@ -1127,7 +1136,7 @@ bot.on(message('text'), async (ctx) => {
 
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
-      await ctx.sendChatAction('typing');
+      await safeSendChatAction(ctx, 'typing');
       const memories = await conversation.getContext(user, text);
       const llmResponse = await llm.chat(text, buildIdeationSystemHint(text), memories);
       const response = isLowInformationLlmReply(llmResponse)
@@ -1147,7 +1156,7 @@ bot.on(message('text'), async (ctx) => {
   }
 
   // Show typing indicator
-  await ctx.sendChatAction('typing');
+  await safeSendChatAction(ctx, 'typing');
 
   try {
     const memoryDirective = extractPlainChatMemoryDirective(text);
