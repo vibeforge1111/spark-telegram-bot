@@ -6,6 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
+import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
 
@@ -238,13 +239,12 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
       config.builderHome,
       '--json',
     ]),
-    {
+    withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
       timeout: config.timeoutMs,
       maxBuffer: 1024 * 1024,
-      windowsHide: true,
-    }
+    })
   );
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
@@ -302,13 +302,12 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         'telegram-runtime',
         '--json',
       ]),
-      {
+      withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
         timeout: config.timeoutMs,
         maxBuffer: 1024 * 1024,
-        windowsHide: true,
-      }
+      })
     );
 
     const trimmedStdout = stdout.trim();

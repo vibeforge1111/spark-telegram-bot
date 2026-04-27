@@ -1,29 +1,15 @@
 import axios from 'axios';
-import { spawn } from 'node:child_process';
 import { config as loadEnv } from 'dotenv';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { renderSparkErrorReply } from './errorExplain';
+import { spawnHidden } from './hiddenProcess';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
-
-function quoteWindowsArg(value: string): string {
-  if (/^[A-Za-z0-9._:/\\@+=,-]+$/.test(value)) return value;
-  return `"${value.replace(/"/g, '\\"')}"`;
-}
-
-function spawnHidden(command: string, args: string[], options: Parameters<typeof spawn>[2]) {
-  const spawnOptions = { ...options, shell: false, windowsHide: true };
-  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
-    const commandLine = [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(' ');
-    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], spawnOptions);
-  }
-  return spawn(command, args, spawnOptions);
-}
 
 interface OllamaResponse {
   model: string;

@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
+import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
 
@@ -59,13 +60,12 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
     '--json',
   ];
   try {
-    const { stdout } = await execFileAsync(config.pythonCommand, args, {
+    const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
-      windowsHide: true,
-    });
+    }));
     const parsed = JSON.parse(stdout) as {
       ok: boolean;
       chip_key?: string | null;
