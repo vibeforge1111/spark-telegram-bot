@@ -311,6 +311,16 @@ test('keeps tentative Spawner Kanban and Canvas improvement questions in convers
   );
 });
 
+test('ideation hint assumes existing Spawner Kanban and Canvas routes', () => {
+  const hint = buildIdeationSystemHint(
+    'maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?'
+  );
+
+  assert.match(hint, /Assume Kanban and Canvas already exist inside spawner-ui/);
+  assert.match(hint, /Do not suggest building a standalone Kanban app/);
+  assert.match(hint, /existing spawner-ui routes, state, and relay behavior/);
+});
+
 test('keeps local numbered-option follow-ups in conversation', () => {
   const prompt = 'no.1 could be handy - how would you think of the no2?';
 

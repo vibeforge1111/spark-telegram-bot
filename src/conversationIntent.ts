@@ -428,21 +428,27 @@ export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdateP
 export function buildIdeationSystemHint(text: string): string {
   const domainChip = /\bdomain\s*chip\b/i.test(text);
   const missionControl = /\bmission\s+control\b/i.test(text);
+  const existingSpawnerSurface = /\bspawner\b/i.test(text) && /\b(?:kanban|canvas|mission\s+board|mission\s+control)\b/i.test(text);
 
   const modeLine = domainChip
     ? 'The user is exploring an advanced Spark domain chip. Help shape the chip before proposing files or execution.'
-    : missionControl
+    : existingSpawnerSurface
+      ? 'The user is improving existing Spawner UI surfaces. Assume Kanban and Canvas already exist inside spawner-ui.'
+      : missionControl
       ? 'The user is exploring a mission-control style idea. Help shape the idea before invoking Mission Control.'
       : 'The user is exploring a build idea. Help shape the concept before turning it into a build request.';
 
   return [
     modeLine,
     'Do not start a build, canvas, mission, or PRD yet.',
+    existingSpawnerSurface
+      ? 'Do not suggest building a standalone Kanban app or ask whether this should be standalone. Frame suggestions as changes to existing spawner-ui routes, state, and relay behavior.'
+      : '',
     'If the user later says yes, create it, run it, spin it up, or kick it off, the Telegram gateway can start the mission. Do not claim you started it during ideation.',
     'If the user refers to no.1, no2, option 2, the second one, or a similar local list reference, resolve it against the most recent list in the conversation before using older memory. If the list is missing, ask one clarifying question instead of guessing.',
     'Reply like a collaborative product partner: propose 2-4 directions, ask one or two useful questions, and offer a next step.',
     'Keep it concise and natural for Telegram.'
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export function isLowInformationLlmReply(reply: string): boolean {

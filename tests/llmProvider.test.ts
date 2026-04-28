@@ -146,3 +146,11 @@ test('system prompt prioritizes local list references over older memory', () => 
   assert.match(prompt, /Memory must not override/);
   assert.match(prompt, /Do not offer to scaffold/);
 });
+
+test('system prompt treats Spawner Kanban and Canvas as existing surfaces', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /Kanban, Canvas, Mission Control/);
+  assert.match(prompt, /already exist in spawner-ui/);
+  assert.match(prompt, /Do not suggest a standalone app/);
+});
