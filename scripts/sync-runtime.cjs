@@ -27,10 +27,12 @@ const RUNTIME_ROOT = path.join(os.homedir(), '.spark', 'modules', 'spark-telegra
 // compiled output.
 const SYNCED_PATHS = [
 	'src/buildIntent.ts',
+	'src/conversationIntent.ts',
 	'src/userTier.ts',
 	'src/index.ts',
 	'src/spawner.ts',
 	'dist/buildIntent.js',
+	'dist/conversationIntent.js',
 	'dist/userTier.js',
 	'dist/index.js',
 	'dist/spawner.js'

@@ -136,14 +136,14 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
   const bugTopic = /\b(?:bug|bugs|diagnos|anomal|failure|failures|health|logs?|monitor|troubleshoot|issue|issues)\b/.test(lower);
   const chipTopic = /\bdomain\s*chip\b|\bchip\b/.test(lower);
   const kanbanTopic = /\bkanban\b/.test(lower) &&
-    /\b(?:tiny|app|board|cards?|columns?|backlog|in progress|done|standalone|browser|telegram|spawner|v1|first version)\b/.test(lower);
+    /\b(?:canvas|mission|control|board|cards?|columns?|telegram|spawner|ui|v1|first version|improve|workflow|state|status)\b/.test(lower);
   const completedDiagnosticAgent = /\bcompleted spawner mission\b[\s\S]*\bdiagnostic agent\b|\bbuilt the first-pass spark diagnostic agent\b|\bspark-intelligence diagnostics scan\b/i.test(context);
 
   if (kanbanTopic) {
     return [
-      'We were shaping a tiny kanban app.',
-      'The v1 idea was simple: Backlog, In Progress, and Done columns; lightweight cards; local persistence; and a browser-first standalone app before deeper Spawner or Telegram integration.',
-      'No mission has been started from that yet. The next decision is whether to keep refining the scope or explicitly turn it into a Spawner mission.'
+      'We were shaping improvements to the existing Spawner Kanban and Canvas.',
+      'The current direction is to make mission state easier to trust: Canvas execution should map cleanly to Kanban status, provider ownership, task progress, logs, and completion summaries.',
+      'No new product needs to be invented here. The next decision is which existing Spawner surface to tighten first: Kanban visibility, Canvas execution state, or Telegram relay messaging.'
     ].join('\n\n');
   }
 

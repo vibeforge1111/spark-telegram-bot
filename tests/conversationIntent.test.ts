@@ -116,21 +116,20 @@ test('answers what was just built from completed diagnostic mission notes', () =
   assert.doesNotMatch(reply, /say "yes create it"/);
 });
 
-test('prefers current kanban planning over older completed build memory', () => {
+test('prefers current Spawner Kanban and Canvas planning over older completed build memory', () => {
   assert.equal(isBuildContextRecallQuestion('what were we going to build again?'), true);
   const reply = buildRecentBuildContextReply([
     'Completed Spawner mission spark-123 via Codex. Goal: Build Spark Diagnostic Agent. Result: Built the first-pass Spark Diagnostic Agent.',
-    'maybe we should build a tiny kanban app, what would be the best first version?',
+    'maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?',
     'that sounds good',
-    'Recent Telegram turns:\n- User: maybe we should build a tiny kanban app, what would be the best first version?\n- User: that sounds good'
+    'Recent Telegram turns:\n- User: maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?\n- User: that sounds good'
   ]);
 
   assert.ok(reply);
-  assert.match(reply, /^We were shaping a tiny kanban app\./);
-  assert.match(reply, /tiny kanban app/);
-  assert.match(reply, /Backlog, In Progress, and Done/);
-  assert.match(reply, /No mission has been started/);
-  assert.match(reply, /app\.\n\nThe v1 idea/);
+  assert.match(reply, /^We were shaping improvements to the existing Spawner Kanban and Canvas\./);
+  assert.match(reply, /Canvas execution should map cleanly to Kanban status/);
+  assert.match(reply, /No new product needs to be invented/);
+  assert.match(reply, /Kanban visibility, Canvas execution state, or Telegram relay messaging/);
   assert.doesNotMatch(reply, /Diagnostic Agent/);
 });
 
@@ -303,10 +302,10 @@ test('keeps mission-control product refinement in conversation', () => {
   );
 });
 
-test('keeps tentative kanban-app v1 questions in conversation', () => {
+test('keeps tentative Spawner Kanban and Canvas improvement questions in conversation', () => {
   assert.equal(
     shouldPreferConversationalIdeation(
-      'maybe we should build a tiny kanban app, what would be the best first version?'
+      'maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?'
     ),
     true
   );
