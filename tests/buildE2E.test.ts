@@ -36,6 +36,7 @@ const originalEnv = {
 	BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
 	BOT_PRO_USER_IDS: process.env.BOT_PRO_USER_IDS,
 	ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
+	SPARK_CLARIFICATION_COPY_LLM: process.env.SPARK_CLARIFICATION_COPY_LLM,
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
 	SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
 	SPAWNER_UI_URL: process.env.SPAWNER_UI_URL
@@ -76,6 +77,7 @@ async function callHandleBuildIntent(opts: {
 	buildMode: 'direct' | 'advanced_prd';
 }): Promise<void> {
 	process.env.SPARK_BOT_TEST_MODE = '1';
+	process.env.SPARK_CLARIFICATION_COPY_LLM = '0';
 	// Stub the access-policy gate so the test does not require a real
 	// Spark access profile to be loaded. We assume sparkAccessAllows would
 	// pass for an admin tester; the production path runs the real gate.

@@ -12,7 +12,7 @@ import { message } from 'telegraf/filters';
 import { conversation } from './conversation';
 import { getBuilderBridgeStatus, runBuilderDiagnosticsScan, runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
-import { llm } from './llm';
+import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
 import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
@@ -662,15 +662,24 @@ function projectKanbanUrl(baseUrl: string, missionId: string): string {
 }
 
 export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
+  return formatBuildClarificationReplyWithMicrocopy(projectName, questions, assumptions, null);
+}
+
+export function formatBuildClarificationReplyWithMicrocopy(
+  projectName: string,
+  questions: string[],
+  assumptions: string[],
+  microcopy: BuildClarificationMicrocopy | null = null
+): string {
   const lower = `${projectName}\n${questions.join('\n')}\n${assumptions.join('\n')}`.toLowerCase();
   const isGame = /\b(game|maze|puzzle|arcade|player|score|level|win condition)\b/.test(lower);
   const isDashboard = /\b(dashboard|metric|analytics|monitor|report)\b/.test(lower);
-  const recommendation = isGame
+  const recommendation = microcopy?.recommendation || (isGame
     ? 'browser-playable, keyboard controls, clear win/score loop, restart, and local best score'
     : isDashboard
       ? 'focused web dashboard, the key metrics first, seeded data if live data is not ready, and clean empty/error states'
-      : (assumptions[0]?.replace(/^Assume\s+/i, '').replace(/\.$/, '') || 'focused web v1 with a polished first screen and simple verification');
-  const steerQuestion = questions[0] || (isGame
+      : (assumptions[0]?.replace(/^Assume\s+/i, '').replace(/\.$/, '') || 'focused web v1 with a polished first screen and simple verification'));
+  const steerQuestion = microcopy?.steeringQuestion || questions[0] || (isGame
     ? 'What twist should make it fun?'
     : 'What is the one detail I should not guess?');
   return [
@@ -678,6 +687,11 @@ export function formatBuildClarificationReply(projectName: string, questions: st
     '',
     `Say "go" and I will start. Or steer one thing: ${steerQuestion}`
   ].join('\n');
+}
+
+async function buildBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): Promise<string> {
+  const microcopy = await generateBuildClarificationMicrocopy({ projectName, questions, assumptions });
+  return formatBuildClarificationReplyWithMicrocopy(projectName, questions, assumptions, microcopy);
 }
 
 function slugForDomainChipBrief(brief: string): string {
@@ -838,13 +852,11 @@ export async function handleBuildIntent(
         timestamp: Date.now()
       });
 
-      await ctx.reply(formatBuildClarificationReply(
-        projectName,
-        res.data.openQuestions.filter((q: unknown): q is string => typeof q === 'string'),
-        Array.isArray(res.data.addedAssumptions)
-          ? res.data.addedAssumptions.filter((a: unknown): a is string => typeof a === 'string')
-          : []
-      ));
+      const clarificationQuestions = res.data.openQuestions.filter((q: unknown): q is string => typeof q === 'string');
+      const clarificationAssumptions = Array.isArray(res.data.addedAssumptions)
+        ? res.data.addedAssumptions.filter((a: unknown): a is string => typeof a === 'string')
+        : [];
+      await ctx.reply(await buildBuildClarificationReply(projectName, clarificationQuestions, clarificationAssumptions));
       return;
     }
 

@@ -27,6 +27,17 @@ interface ZaiChatResponse {
   }>;
 }
 
+export interface BuildClarificationMicrocopyInput {
+  projectName: string;
+  questions: string[];
+  assumptions: string[];
+}
+
+export interface BuildClarificationMicrocopy {
+  recommendation: string;
+  steeringQuestion: string;
+}
+
 function joinUrl(baseUrl: string, pathName: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${pathName.replace(/^\/+/, '')}`;
 }
@@ -400,6 +411,114 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
     throw new Error(result.stderr || result.stdout || 'Claude CLI failed');
   }
   return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
+}
+
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fence?.[1]?.trim() || text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1).trim();
+  if (!candidate || !candidate.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(candidate);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeMicrocopy(parsed: Record<string, unknown>): BuildClarificationMicrocopy | null {
+  const recommendation = typeof parsed.recommendation === 'string'
+    ? parsed.recommendation.replace(/\s+/g, ' ').trim()
+    : '';
+  const steeringQuestion = typeof parsed.steeringQuestion === 'string'
+    ? parsed.steeringQuestion.replace(/\s+/g, ' ').trim()
+    : '';
+  if (recommendation.length < 12 || recommendation.length > 150) return null;
+  if (steeringQuestion.length < 10 || steeringQuestion.length > 160) return null;
+  return {
+    recommendation: recommendation.replace(/[.!?]+$/, ''),
+    steeringQuestion: steeringQuestion.replace(/[.!?]+$/, '?')
+  };
+}
+
+export function buildClarificationMicrocopyPrompt(input: BuildClarificationMicrocopyInput): string {
+  return [
+    'You write tiny Telegram UX copy for Spark build scoping.',
+    'Return strict JSON only, no markdown.',
+    'Schema: {"recommendation":"<short recommended default>","steeringQuestion":"<one optional steering question>"}',
+    '',
+    'Rules:',
+    '- Keep recommendation under 18 words.',
+    '- Keep steeringQuestion under 18 words.',
+    '- Make the default concrete and project-specific.',
+    '- Do not mention accounts/login unless the project needs it.',
+    '- Do not tell the user to say go. The wrapper handles that.',
+    '- No emoji. No lists. No filler.',
+    '',
+    `Project: ${input.projectName}`,
+    `Planner questions: ${input.questions.slice(0, 4).join(' | ') || 'none'}`,
+    `Planner assumptions: ${input.assumptions.slice(0, 4).join(' | ') || 'none'}`
+  ].join('\n');
+}
+
+export async function generateBuildClarificationMicrocopy(
+  input: BuildClarificationMicrocopyInput,
+  timeoutMs: number = Number(process.env.SPARK_CLARIFICATION_COPY_TIMEOUT_MS || 8000)
+): Promise<BuildClarificationMicrocopy | null> {
+  if (process.env.SPARK_CLARIFICATION_COPY_LLM === '0') return null;
+  const prompt = buildClarificationMicrocopyPrompt(input);
+  try {
+    const config = resolveChatProviderConfig();
+    let raw = '';
+    if (config.kind === 'codex') {
+      raw = await codexChat(prompt);
+    } else if (config.kind === 'claude') {
+      raw = await claudeChat(prompt, config.model);
+    } else if (config.kind === 'openai_compat') {
+      const res = await axios.post<ZaiChatResponse>(
+        joinUrl(config.baseUrl, '/chat/completions'),
+        {
+          model: config.model,
+          messages: [
+            { role: 'system', content: 'Return strict JSON only.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.8,
+          max_tokens: 120,
+          thinking: { type: 'disabled' }
+        },
+        {
+          timeout: timeoutMs,
+          headers: {
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      raw = res.data.choices?.[0]?.message?.content?.trim() ||
+        res.data.choices?.[0]?.message?.reasoning_content?.trim() ||
+        '';
+    } else if (config.kind === 'ollama') {
+      const res = await axios.post<OllamaResponse>(
+        `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
+        {
+          model: config.model,
+          prompt,
+          system: 'Return strict JSON only.',
+          stream: false,
+          options: { temperature: 0.8, num_predict: 120 },
+        },
+        { timeout: timeoutMs }
+      );
+      raw = res.data.response?.trim() || '';
+    } else {
+      return null;
+    }
+    const parsed = extractJsonObject(raw);
+    return parsed ? normalizeMicrocopy(parsed) : null;
+  } catch (err: any) {
+    console.warn('Clarification microcopy LLM failed:', err?.code || err?.message || String(err));
+    return null;
+  }
 }
 
 export const llm = {

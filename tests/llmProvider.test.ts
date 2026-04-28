@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, resolveChatProviderConfig } from '../src/llm';
+import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, resolveChatProviderConfig } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -214,4 +214,17 @@ test('system prompt treats Spawner Kanban and Canvas as existing surfaces', () =
   assert.match(prompt, /Kanban, Canvas, Mission Control/);
   assert.match(prompt, /already exist in spawner-ui/);
   assert.match(prompt, /Do not suggest a standalone app/);
+});
+
+test('build clarification microcopy prompt keeps go copy in wrapper', () => {
+  const prompt = buildClarificationMicrocopyPrompt({
+    projectName: 'snake game',
+    questions: ['What should make this game surprising?'],
+    assumptions: ['Assume this is a browser-playable game.']
+  });
+
+  assert.match(prompt, /strict JSON/);
+  assert.match(prompt, /Do not tell the user to say go/);
+  assert.match(prompt, /snake game/);
+  assert.match(prompt, /What should make this game surprising/);
 });
