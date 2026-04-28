@@ -342,6 +342,13 @@ test('adds domain chip guidance for chip ideation', () => {
   assert.match(hint, /most recent list/);
 });
 
+test('keeps hyphenated domain-chip repo references in conversation', () => {
+  const text = "it's alchemist-content-lab on desktop works with domain-chip-xcontent";
+
+  assert.equal(shouldPreferConversationalIdeation(text), true);
+  assert.match(buildIdeationSystemHint(text), /advanced Spark domain chip/);
+});
+
 test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply(''), true);
   assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
@@ -349,6 +356,9 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply('Spark Researcher returned no concrete guidance for this message.'), true);
   assert.equal(isLowInformationLlmReply('What would you like help with?'), true);
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
+  assert.equal(isLowInformationLlmReply(
+    "I caught 'chip' in there but I'm not sure what you want.\n\nOptions I can actually do:\n- Run a loop on a specific chip (say 'loop <chip-key>')\n- List active chips (say 'which chips are active')"
+  ), true);
   assert.equal(isLowInformationLlmReply('Here is a real idea.'), false);
 });
 

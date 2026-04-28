@@ -41,7 +41,8 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return false;
   }
-  return hasLocalOptionReference(trimmed) || COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
+  const mentionsDomainChipArtifact = /\bdomain[-\s]*chip[-\w]*\b/i.test(trimmed);
+  return hasLocalOptionReference(trimmed) || mentionsDomainChipArtifact || COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
 export function isMissionExecutionConfirmation(text: string): boolean {
@@ -426,7 +427,7 @@ export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdateP
 }
 
 export function buildIdeationSystemHint(text: string): string {
-  const domainChip = /\bdomain\s*chip\b/i.test(text);
+  const domainChip = /\bdomain[-\s]*chip[-\w]*\b/i.test(text);
   const missionControl = /\bmission\s+control\b/i.test(text);
   const existingSpawnerSurface = /\bspawner\b/i.test(text) && /\b(?:kanban|canvas|mission\s+board|mission\s+control)\b/i.test(text);
 
@@ -468,7 +469,12 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
-    normalized.includes('having trouble thinking')
+    normalized.includes('having trouble thinking') ||
+    (
+      normalized.includes("i caught 'chip'") &&
+      normalized.includes('loop <chip-key>') &&
+      normalized.includes('which chips are active')
+    )
   );
 }
 
@@ -541,7 +547,7 @@ export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' 
 }
 
 export function buildIdeationFallbackReply(text: string): string {
-  if (/\bdomain\s*chip\b/i.test(text)) {
+  if (/\bdomain[-\s]*chip[-\w]*\b/i.test(text)) {
     return [
       'Yes. I would shape this as a real domain chip first, not jump straight into files.',
       '',
