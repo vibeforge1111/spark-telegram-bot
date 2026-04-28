@@ -65,6 +65,7 @@ import {
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isDiagnosticsScanRequest,
+  isMissionExecutionConfirmation,
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
@@ -183,6 +184,15 @@ interface PendingClarification {
   timestamp: number;
 }
 const pendingClarifications = new Map<string, PendingClarification>();
+interface PendingDomainChipBuild {
+  brief: string;
+  prd: string;
+  projectName: string;
+  buildMode: 'direct' | 'advanced_prd';
+  buildModeReason: string;
+  timestamp: number;
+}
+const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 let pollingActive = false;
@@ -825,6 +835,74 @@ export function buildDomainChipPrd(brief: string): string {
   ].join('\n');
 }
 
+function domainChipBuildModeForBrief(_brief: string): { buildMode: 'direct' | 'advanced_prd'; reason: string } {
+  return {
+    buildMode: 'advanced_prd',
+    reason: 'Domain-chip creation needs manifest design, hook contracts, router boundaries, activation notes, and tests.'
+  };
+}
+
+export function formatDomainChipBuildPreview(brief: string): string {
+  const projectName = projectNameForDomainChipBrief(brief);
+  const mode = domainChipBuildModeForBrief(brief);
+  return [
+    `I can build this as ${projectName}.`,
+    `Recommended path: ${mode.buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'} because ${mode.reason}`,
+    'Before I start: should outputs be names only, or names with rationale + usage angle? Any vibe to prefer, like luxury, absurd, consumer, or sci-fi?',
+    'Reply "go" to use my default: surreal-but-usable names, short rationale, router-safe tests.'
+  ].join('\n');
+}
+
+function isDomainChipPendingStart(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return /^(?:go|start|run|build|create|make|ship|do it|build it|create it|make it|start it|yes|yeah|yep|ok|okay|sure|perfect)$/i.test(normalized) ||
+    isMissionExecutionConfirmation(text);
+}
+
+function isDomainChipPendingCancel(text: string): boolean {
+  return /^(?:cancel|stop|never mind|nevermind|not now|no)$/i.test(text.trim());
+}
+
+function domainChipPrdWithUserDirection(pending: PendingDomainChipBuild, text: string): string {
+  if (isDomainChipPendingStart(text)) {
+    return `${pending.prd}\n\n## Pre-build direction\n\nUse the default direction: surreal-but-usable outputs, short rationale, usage angle, and router-safe tests.`;
+  }
+  return `${pending.prd}\n\n## User direction before build\n\n${text.trim()}`;
+}
+
+async function handlePendingDomainChipBuild(ctx: any, text: string): Promise<boolean> {
+  const key = `${ctx.chat.id}-${ctx.from.id}`;
+  const pending = pendingDomainChipBuilds.get(key);
+  if (!pending) return false;
+
+  if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) {
+    pendingDomainChipBuilds.delete(key);
+    await ctx.reply('That domain-chip draft expired. Send the idea again and I will shape it before starting.');
+    return true;
+  }
+
+  if (isDomainChipPendingCancel(text)) {
+    pendingDomainChipBuilds.delete(key);
+    await ctx.reply('No problem. I will hold off on creating that domain chip.');
+    return true;
+  }
+
+  pendingDomainChipBuilds.delete(key);
+  const prd = domainChipPrdWithUserDirection(pending, text);
+  await ctx.reply(isDomainChipPendingStart(text)
+    ? `Starting ${pending.projectName} with the recommended defaults.`
+    : `Got it. I will use that direction and start ${pending.projectName}.`);
+  await handleBuildIntent(
+    ctx,
+    prd,
+    pending.projectName,
+    null,
+    pending.buildMode,
+    pending.buildModeReason
+  );
+  return true;
+}
+
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
 }
@@ -1355,6 +1433,11 @@ bot.on(message('text'), async (ctx) => {
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
 
+    if (await handlePendingDomainChipBuild(ctx, text)) {
+      await conversation.remember(user, text).catch(() => {});
+      return;
+    }
+
     const pendingClarification = pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`);
     if (pendingClarification && !parseBuildIntent(text)) {
       await handleClarificationAnswers(ctx, text);
@@ -1397,14 +1480,16 @@ bot.on(message('text'), async (ctx) => {
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
       await conversation.remember(user, text).catch(() => {});
-      await handleBuildIntent(
-        ctx,
-        buildDomainChipPrd(naturalChipBrief),
-        projectNameForDomainChipBrief(naturalChipBrief),
-        null,
-        'advanced_prd',
-        'Natural-language domain-chip creation should use the Spawner PRD/canvas/mission-control build flow.'
-      );
+      const mode = domainChipBuildModeForBrief(naturalChipBrief);
+      pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
+        brief: naturalChipBrief,
+        prd: buildDomainChipPrd(naturalChipBrief),
+        projectName: projectNameForDomainChipBrief(naturalChipBrief),
+        buildMode: mode.buildMode,
+        buildModeReason: mode.reason,
+        timestamp: Date.now()
+      });
+      await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
       return;
     }
 

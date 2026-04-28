@@ -209,6 +209,18 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('domain chip natural request previews before starting build', async () => {
+		const indexModule: any = await import('../src/index');
+		const reply = indexModule.formatDomainChipBuildPreview('creates surreal product names from half-remembered dreams');
+
+		assert.match(reply, /I can build this as domain-chip-creates-surreal-product-names-from/);
+		assert.match(reply, /Recommended path: Advanced PRD -> tasks/);
+		assert.match(reply, /Before I start:/);
+		assert.match(reply, /Reply "go"/);
+		assert.doesNotMatch(reply, /Mission:/);
+		assert.doesNotMatch(reply, /Canvas:/);
+	});
+
 	await test('canvas ready summary includes structure tests and canvas link', async () => {
 		const indexModule: any = await import('../src/index');
 		const reply = indexModule.formatCanvasReadySummary({
