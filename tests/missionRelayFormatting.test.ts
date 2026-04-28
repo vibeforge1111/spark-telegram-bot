@@ -74,6 +74,36 @@ test('keeps minimal structured provider summaries compact', () => {
   assert.doesNotMatch(message, /Checks:/);
 });
 
+test('formats structured provider failures without raw JSON noise', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-failed',
+    requestId: 'tg-build-failed',
+    verbosity: 'normal',
+    response: JSON.stringify({
+      status: 'failed',
+      summary: 'The app shell was created, but final browser verification failed.',
+      project_path: 'C:\\Users\\USER\\Desktop\\spark-failed-build',
+      changed_files: ['index.html', 'app.js'],
+      verification: [
+        'File check passed.',
+        'Browser smoke failed because the launch button was missing.'
+      ],
+      exact_commands: ['npm run smoke'],
+      execution_contract: { done_when: ['All checks pass'] }
+    })
+  });
+
+  assert.match(message, /Codex reported a failure\./);
+  assert.match(message, /final browser verification failed/);
+  assert.match(message, /Project: C:\\Users\\USER\\Desktop\\spark-failed-build/);
+  assert.match(message, /Changed files: index\.html, app\.js/);
+  assert.match(message, /Browser smoke failed/);
+  assert.doesNotMatch(message, /"status"/);
+  assert.doesNotMatch(message, /execution_contract/);
+  assert.doesNotMatch(message, /exact_commands/);
+});
+
 test('warns cleanly when structured provider output is malformed', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'claude',
@@ -159,6 +189,72 @@ test('mission start update links the mission once through kanban', () => {
   assert.match(message || '', /useful checkpoints/);
   assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban/);
   assert.doesNotMatch(message || '', /\/missions/);
+});
+
+test('normal verbosity announces task starts but suppresses noisy progress', () => {
+  const subscription = {
+    missionId: 'spark-123',
+    chatId: '8319079055',
+    userId: '8319079055',
+    requestId: 'tg-build-1',
+    goal: 'Build a tiny board.',
+    createdAt: '2026-04-26T00:00:00Z'
+  };
+
+  const started = formatProgressMessageForTelegram(
+    {
+      type: 'task_started',
+      missionId: 'spark-123',
+      taskName: 'Create static shell',
+      data: {}
+    },
+    subscription,
+    'normal',
+    'board'
+  );
+  const noisyProgress = formatProgressMessageForTelegram(
+    {
+      type: 'task_progress',
+      missionId: 'spark-123',
+      taskName: 'Create static shell',
+      message: '[MissionControl] Progress: Z.AI GLM: Create static shell is running (spark-123).',
+      data: {}
+    },
+    subscription,
+    'normal',
+    'board'
+  );
+
+  assert.match(started || '', /Create static shell started working on it\./);
+  assert.equal(noisyProgress, null);
+});
+
+test('verbose progress turns useful relay summaries into readable Telegram updates', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_progress',
+      missionId: 'spark-123',
+      taskName: 'Wire launch sequence',
+      message:
+        '[MissionControl] Progress: Codex: added persisted launch state, reset controls, and final pulse animation (spark-123).',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a tiny board.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'verbose',
+    'board'
+  );
+
+  assert.match(message || '', /Update: Wire launch sequence/);
+  assert.match(message || '', /added persisted launch state/);
+  assert.doesNotMatch(message || '', /MissionControl/);
+  assert.doesNotMatch(message || '', /spark-123/);
 });
 
 test('mission completion avoids repeating the mission id and old missions link', () => {

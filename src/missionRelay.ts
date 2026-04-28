@@ -468,7 +468,7 @@ function stripMissionControlBoilerplate(text: string): string {
   return stripThinkingAndMeta(text)
     .replace(/^\[MissionControl\]\s*/i, '')
     .replace(/^Progress:\s*/i, '')
-    .replace(/\s*\((?:spark|mission|dispatch)-[\w-]+\)\s*$/i, '')
+    .replace(/\s*\((?:spark|mission|dispatch)-[\w-]+\)\s*[.!?]?\s*$/i, '')
     .replace(/\b(?:spark|mission|dispatch)-\d{6,}\b/gi, 'this mission')
     .trim();
 }
