@@ -46,8 +46,17 @@ test('renders recommended model versions for Claude families', () => {
   assert.equal(recommendedModelFor('anthropic', 'agent'), 'claude-sonnet-4-6');
   assert.equal(recommendedModelFor('anthropic', 'mission'), 'claude-opus-4-7');
   const help = renderModelRecommendations('anthropic');
-  assert.match(help, /agent Claude Sonnet 4\.6 \(claude-sonnet-4-6\)/);
-  assert.match(help, /mission Claude Opus 4\.7 \(claude-opus-4-7\)/);
+  assert.match(help, /Choose one provider first/);
+  assert.match(help, /Claude sign-in or API key; agent Claude Sonnet 4\.6 \(claude-sonnet-4-6\); mission Claude Opus 4\.7 \(claude-opus-4-7\)/);
+  assert.match(help, /Sonnet is the daily driver; Opus is for harder missions/);
+});
+
+test('renders paid API and local recommendation lanes', () => {
+  const help = renderModelRecommendations();
+  assert.match(help, /Have ChatGPT\/Codex: codex with gpt-5\.5/);
+  assert.match(help, /Want local\/private: LM Studio for desktop, Ollama for terminal/);
+  assert.match(help, /huggingface: Hosted open-model router; agent google\/gemma-4-26B-A4B-it:fastest; mission google\/gemma-4-31B-it:fastest/);
+  assert.match(help, /lmstudio: Local\/private desktop/);
 });
 
 test('switches mission provider in memory immediately', async () => {

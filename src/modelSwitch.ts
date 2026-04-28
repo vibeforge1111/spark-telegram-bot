@@ -13,6 +13,8 @@ interface ProviderSpec {
   defaultModel: string;
   displayModel?: string;
   recommendation: string;
+  lane: string;
+  starterTip: string;
   authMode: string;
   baseUrl?: string;
   requiredEnv?: string[];
@@ -25,6 +27,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'zai',
     defaultModel: 'glm-5.1',
     recommendation: 'Best current Z.AI coding-agent default for Spark agent chat and build support.',
+    lane: 'API key',
+    starterTip: 'Use this if you already have a Z.AI/GLM key.',
     authMode: 'api_key',
     baseUrl: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4/',
     requiredEnv: ['ZAI_API_KEY']
@@ -34,6 +38,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'codex',
     defaultModel: 'gpt-5.5',
     recommendation: 'Recommended OpenAI/Codex model for Spark missions and local coding work.',
+    lane: 'ChatGPT/Codex sign-in',
+    starterTip: 'Use this if you already have ChatGPT/Codex available on this machine.',
     authMode: 'codex_oauth',
     requiredEnv: [],
     cliCommand: process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex'
@@ -44,6 +50,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     defaultModel: 'claude-sonnet-4-6',
     displayModel: 'Claude Sonnet 4.6 (claude-sonnet-4-6)',
     recommendation: 'Latest Sonnet family default for agent chat/runtime/memory. Claude Code alias: sonnet.',
+    lane: 'Claude sign-in or API key',
+    starterTip: 'Use this if you already have Claude. Sonnet is the daily driver; Opus is for harder missions.',
     authMode: 'claude_oauth',
     requiredEnv: [],
     cliCommand: process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude'
@@ -53,6 +61,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'openai',
     defaultModel: 'gpt-5.5',
     recommendation: 'Recommended OpenAI API model when using an API key or OpenAI-compatible endpoint.',
+    lane: 'OpenAI API key',
+    starterTip: 'Use this if you want direct OpenAI API billing instead of Codex sign-in.',
     authMode: 'api_key',
     baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
     requiredEnv: ['OPENAI_API_KEY']
@@ -62,6 +72,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'openrouter',
     defaultModel: 'openai/gpt-5.5',
     recommendation: 'OpenRouter route for OpenAI GPT-5.5; users can replace this with any OpenRouter model id.',
+    lane: 'API gateway',
+    starterTip: 'Use this if you want one API key that can try many model families.',
     authMode: 'api_key',
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     requiredEnv: ['OPENROUTER_API_KEY']
@@ -71,6 +83,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'lmstudio',
     defaultModel: 'local-model',
     recommendation: 'Local OpenAI-compatible server at http://localhost:1234/v1. Pass the loaded LM Studio model id from its Models endpoint.',
+    lane: 'Local/private desktop',
+    starterTip: 'Use this if you want a friendly desktop app for local models.',
     authMode: 'local',
     baseUrl: process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1',
     requiredEnv: []
@@ -80,6 +94,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'huggingface',
     defaultModel: 'google/gemma-4-26B-A4B-it:fastest',
     recommendation: 'Hugging Face router default for Gemma 4 chat. Use google/gemma-4-31B-it:fastest for heavier mission work, or pass any HF router chat model id.',
+    lane: 'Hosted open-model router',
+    starterTip: 'Use this if you want hosted open models through a Hugging Face token.',
     authMode: 'api_key',
     baseUrl: process.env.HUGGINGFACE_BASE_URL || 'https://router.huggingface.co/v1',
     requiredEnv: ['HF_TOKEN', 'HUGGINGFACE_API_KEY']
@@ -89,6 +105,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'minimax',
     defaultModel: 'MiniMax-M2.7',
     recommendation: 'MiniMax default for users who already have a MiniMax API key.',
+    lane: 'API key',
+    starterTip: 'Use this if you already have a MiniMax key.',
     authMode: 'api_key',
     baseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
     requiredEnv: ['MINIMAX_API_KEY']
@@ -98,6 +116,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     botProvider: 'ollama',
     defaultModel: 'llama3.2:3b',
     recommendation: 'Fast local default when installed. Users can pass any local Ollama model id, for example /model agent ollama qwen3.5:27b.',
+    lane: 'Local/private terminal',
+    starterTip: 'Use this if you want private local models and are comfortable installing models in a terminal.',
     authMode: 'local',
     baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
     requiredEnv: []
@@ -283,13 +303,26 @@ export function renderModelStatus(): string {
 
 export function renderModelRecommendations(provider?: ProviderId | null): string {
   const ids = provider ? [provider] : (Object.keys(PROVIDERS) as ProviderId[]);
-  const lines = ['Recommended model versions'];
+  const lines = [
+    'Recommended Spark brain paths',
+    '',
+    'Choose one provider first. Spark uses it for agent chat, runtime, memory, retrieval, and missions. You can split agent vs mission later.',
+    '',
+    'Fast picks:',
+    '- Have ChatGPT/Codex: codex with gpt-5.5',
+    '- Have Claude: claude with Sonnet for agent, Opus for hard missions',
+    '- Have API keys: OpenAI, OpenRouter, Z.AI, MiniMax, or Hugging Face',
+    '- Want local/private: LM Studio for desktop, Ollama for terminal',
+    '',
+    'Provider details'
+  ];
   for (const id of ids) {
     const spec = PROVIDERS[id];
     const agentModel = displayModelFor(id, 'agent', recommendedModelFor(id, 'agent'));
     const missionModel = displayModelFor(id, 'mission', recommendedModelFor(id, 'mission'));
-    lines.push(`- ${spec.botProvider}: agent ${agentModel}; mission ${missionModel}`);
+    lines.push(`- ${spec.botProvider}: ${spec.lane}; agent ${agentModel}; mission ${missionModel}`);
     lines.push(`  ${spec.recommendation}`);
+    lines.push(`  ${spec.starterTip}`);
   }
   lines.push('');
   lines.push('Spark uses these curated defaults unless you provide an exact model id.');
