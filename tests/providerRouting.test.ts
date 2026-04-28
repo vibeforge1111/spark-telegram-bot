@@ -35,6 +35,7 @@ test('recognizes local providers for chat and mission routing', () => {
 
 test('recognizes OpenAI-compatible gateway providers for chat and mission routing', () => {
   assert.equal(resolveKnownChatProviderId('openai'), 'openai');
+  assert.equal(resolveKnownChatProviderId('kimi'), 'kimi');
   assert.equal(resolveKnownChatProviderId('openrouter'), 'openrouter');
   assert.equal(resolveKnownChatProviderId('huggingface'), 'huggingface');
   assert.equal(resolveKnownChatProviderId('lmstudio'), 'lmstudio');
@@ -42,6 +43,9 @@ test('recognizes OpenAI-compatible gateway providers for chat and mission routin
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'openai'
   } as NodeJS.ProcessEnv), 'openai');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'kimi'
+  } as NodeJS.ProcessEnv), 'kimi');
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'openrouter'
   } as NodeJS.ProcessEnv), 'openrouter');

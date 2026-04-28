@@ -4,6 +4,7 @@ export const VALID_MISSION_PROVIDER_IDS = new Set([
   'claude',
   'codex',
   'openai',
+  'kimi',
   'openrouter',
   'huggingface',
   'lmstudio',

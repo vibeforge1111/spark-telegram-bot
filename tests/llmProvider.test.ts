@@ -118,6 +118,21 @@ test('uses explicit Hugging Face router provider', () => {
   assert.equal(config.apiKey, 'hf-key');
 });
 
+test('uses explicit Kimi provider without being masked by other keys', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'kimi',
+    KIMI_API_KEY: 'kimi-key',
+    KIMI_MODEL: 'kimi-k2.6',
+    ZAI_API_KEY: 'old-zai-key',
+  });
+
+  assert.equal(config.provider, 'kimi');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.baseUrl, 'https://api.moonshot.ai/v1');
+  assert.equal(config.model, 'kimi-k2.6');
+  assert.equal(config.apiKey, 'kimi-key');
+});
+
 test('uses Gemma 4 as the Hugging Face default chat model', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'huggingface',

@@ -65,6 +65,7 @@ interface ChatProviderConfig {
 const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 const HUGGINGFACE_DEFAULT_BASE_URL = 'https://router.huggingface.co/v1';
+const KIMI_DEFAULT_BASE_URL = 'https://api.moonshot.ai/v1';
 const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
@@ -88,6 +89,7 @@ function normalizeProvider(value: string): string {
   if (normalized === 'open-router') return 'openrouter';
   if (normalized === 'hf' || normalized === 'hugging-face') return 'huggingface';
   if (normalized === 'lm-studio' || normalized === 'lm studio') return 'lmstudio';
+  if (normalized === 'moonshot' || normalized === 'kimi-k2') return 'kimi';
   return normalized;
 }
 
@@ -105,6 +107,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     else if (env.MINIMAX_API_KEY) provider = 'minimax';
     else if (env.OPENROUTER_API_KEY) provider = 'openrouter';
     else if (env.HF_TOKEN || env.HUGGINGFACE_API_KEY) provider = 'huggingface';
+    else if (env.KIMI_API_KEY || env.MOONSHOT_API_KEY) provider = 'kimi';
     else if (env.OLLAMA_URL || env.OLLAMA_MODEL) provider = 'ollama';
   }
 
@@ -149,6 +152,15 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
       model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OPENROUTER_MODEL') || 'openai/gpt-5.5',
       baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENROUTER_BASE_URL') || OPENROUTER_DEFAULT_BASE_URL,
       apiKey: env.OPENROUTER_API_KEY,
+    };
+  }
+  if (provider === 'kimi') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'KIMI_MODEL') || 'kimi-k2.6',
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'KIMI_BASE_URL', 'MOONSHOT_BASE_URL') || KIMI_DEFAULT_BASE_URL,
+      apiKey: env.KIMI_API_KEY || env.MOONSHOT_API_KEY,
     };
   }
   if (provider === 'lmstudio') {
