@@ -39,6 +39,25 @@ export function stripMarkdownEmphasis(text: string): string {
     .replace(/__([^_\n][\s\S]*?[^_\n])__/g, '$1');
 }
 
+export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
+  if (!text) return text;
+  const lower = text.toLowerCase();
+  const mentionsSpawnerSurface =
+    lower.includes('spawner') &&
+    (lower.includes('kanban') || lower.includes('canvas') || lower.includes('mission control'));
+  if (!mentionsSpawnerSurface || !lower.includes('standalone')) return text;
+
+  return text
+    .replace(
+      /\n?\s*[-*]?\s*Are you thinking this runs locally as a standalone page,\s*or lives inside the existing Spawner UI routes\?\s*$/i,
+      '\n\nSince this lives inside the existing Spawner UI routes, the useful question is: which surface should we tighten first - Kanban state accuracy, Canvas execution state, or Telegram relay messaging?'
+    )
+    .replace(
+      /\n?\s*[-*]?\s*Should this be a standalone (?:page|app|tool),\s*or live inside the existing Spawner UI routes\?\s*$/i,
+      '\n\nSince this lives inside the existing Spawner UI routes, the useful question is: which surface should we tighten first - Kanban state accuracy, Canvas execution state, or Telegram relay messaging?'
+    );
+}
+
 export function sanitizeOutbound(text: string): string {
-  return redactText(stripMarkdownEmphasis(replaceEmDashes(text)));
+  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
 }
