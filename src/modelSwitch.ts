@@ -11,6 +11,8 @@ interface ProviderSpec {
   provider: ProviderId;
   botProvider: string;
   defaultModel: string;
+  displayModel?: string;
+  recommendation: string;
   authMode: string;
   baseUrl?: string;
   requiredEnv?: string[];
@@ -22,6 +24,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'zai',
     botProvider: 'zai',
     defaultModel: 'glm-5.1',
+    recommendation: 'Best current Z.AI coding-agent default for Spark agent chat and build support.',
     authMode: 'api_key',
     baseUrl: process.env.ZAI_BASE_URL || 'https://api.z.ai/api/coding/paas/v4/',
     requiredEnv: ['ZAI_API_KEY']
@@ -30,6 +33,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'codex',
     botProvider: 'codex',
     defaultModel: 'gpt-5.5',
+    recommendation: 'Recommended OpenAI/Codex model for Spark missions and local coding work.',
     authMode: 'codex_oauth',
     requiredEnv: [],
     cliCommand: process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex'
@@ -37,7 +41,9 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   anthropic: {
     provider: 'anthropic',
     botProvider: 'claude',
-    defaultModel: 'sonnet',
+    defaultModel: 'claude-sonnet-4-20250514',
+    displayModel: 'Claude Sonnet 4 (claude-sonnet-4-20250514)',
+    recommendation: 'Stable Sonnet snapshot for agent chat/runtime/memory. Claude Code alias: sonnet.',
     authMode: 'claude_oauth',
     requiredEnv: [],
     cliCommand: process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude'
@@ -46,6 +52,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'openai',
     botProvider: 'openai',
     defaultModel: 'gpt-5.5',
+    recommendation: 'Recommended OpenAI API model when using an API key or OpenAI-compatible endpoint.',
     authMode: 'api_key',
     baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
     requiredEnv: ['OPENAI_API_KEY']
@@ -54,6 +61,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'openrouter',
     botProvider: 'openrouter',
     defaultModel: 'openai/gpt-5.5',
+    recommendation: 'OpenRouter route for OpenAI GPT-5.5; users can replace this with any OpenRouter model id.',
     authMode: 'api_key',
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     requiredEnv: ['OPENROUTER_API_KEY']
@@ -62,6 +70,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'huggingface',
     botProvider: 'huggingface',
     defaultModel: 'deepseek-ai/DeepSeek-R1:fastest',
+    recommendation: 'Hugging Face router default for reasoning; users can replace this with any HF router model id.',
     authMode: 'api_key',
     baseUrl: process.env.HUGGINGFACE_BASE_URL || 'https://router.huggingface.co/v1',
     requiredEnv: ['HF_TOKEN', 'HUGGINGFACE_API_KEY']
@@ -70,6 +79,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'minimax',
     botProvider: 'minimax',
     defaultModel: 'MiniMax-M2.7',
+    recommendation: 'MiniMax default for users who already have a MiniMax API key.',
     authMode: 'api_key',
     baseUrl: process.env.MINIMAX_BASE_URL || 'https://api.minimax.io/v1',
     requiredEnv: ['MINIMAX_API_KEY']
@@ -78,11 +88,29 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     provider: 'ollama',
     botProvider: 'ollama',
     defaultModel: 'kimi-k2.5:cloud',
+    recommendation: 'Local Ollama-style default; users should choose whichever model is installed locally.',
     authMode: 'local',
     baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
     requiredEnv: []
   }
 };
+
+const CLAUDE_MISSION_MODEL = 'claude-opus-4-1-20250805';
+const CLAUDE_MISSION_DISPLAY = 'Claude Opus 4.1 (claude-opus-4-1-20250805)';
+
+export function recommendedModelFor(provider: ProviderId, role: ModelRole): string {
+  if (provider === 'anthropic' && role === 'mission') return CLAUDE_MISSION_MODEL;
+  return PROVIDERS[provider].defaultModel;
+}
+
+function displayModelFor(provider: ProviderId, role: ModelRole, model: string): string {
+  if (provider === 'anthropic' && role === 'mission' && model === CLAUDE_MISSION_MODEL) {
+    return CLAUDE_MISSION_DISPLAY;
+  }
+  const spec = PROVIDERS[provider];
+  if (model === spec.defaultModel && spec.displayModel) return spec.displayModel;
+  return model;
+}
 
 const PROVIDER_ALIASES: Record<string, ProviderId> = {
   zai: 'zai',
@@ -155,7 +183,7 @@ export function providerIsConfigured(provider: ProviderId, env: NodeJS.ProcessEn
 
 function applyToEnv(role: ModelRole, provider: ProviderId, model?: string, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const spec = PROVIDERS[provider];
-  const selectedModel = model?.trim() || (role === 'mission' && provider === 'anthropic' ? 'opus' : spec.defaultModel);
+  const selectedModel = model?.trim() || recommendedModelFor(provider, role);
   const updates: Record<string, string> = {};
 
   if (role === 'agent') {
@@ -222,15 +250,33 @@ export function renderModelStatus(): string {
     `Agent chat: ${chat.provider}${chat.model ? ` (${chat.model})` : ''}`,
     `Missions: ${missionProvider}${missionModel ? ` (${missionModel})` : ''}`,
     '',
+    renderModelRecommendations(),
+    '',
     'Change it:',
     '/model agent zai',
     '/model agent codex',
-    '/model agent claude',
+    `/model agent claude ${PROVIDERS.anthropic.defaultModel}`,
     '/model mission codex',
-    '/model mission claude',
+    `/model mission claude ${CLAUDE_MISSION_MODEL}`,
+    '/model agent openrouter anthropic/claude-sonnet-4',
     '',
-    'Use /diagnose after changing to verify the route.'
+    'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');
+}
+
+export function renderModelRecommendations(provider?: ProviderId | null): string {
+  const ids = provider ? [provider] : (Object.keys(PROVIDERS) as ProviderId[]);
+  const lines = ['Recommended model versions'];
+  for (const id of ids) {
+    const spec = PROVIDERS[id];
+    const agentModel = displayModelFor(id, 'agent', recommendedModelFor(id, 'agent'));
+    const missionModel = displayModelFor(id, 'mission', recommendedModelFor(id, 'mission'));
+    lines.push(`- ${spec.botProvider}: agent ${agentModel}; mission ${missionModel}`);
+    lines.push(`  ${spec.recommendation}`);
+  }
+  lines.push('');
+  lines.push('Spark uses these curated defaults unless you provide an exact model id.');
+  return lines.join('\n');
 }
 
 export async function switchModelRoute(role: ModelRole, provider: ProviderId, model?: string): Promise<string> {
@@ -243,12 +289,12 @@ export async function switchModelRoute(role: ModelRole, provider: ProviderId, mo
   const updates = applyToEnv(role, provider, model);
   const changedFiles = await persistEnvUpdates(updates);
   const spec = PROVIDERS[provider];
-  const selectedModel = model?.trim() || (role === 'mission' && provider === 'anthropic' ? 'opus' : spec.defaultModel);
+  const selectedModel = model?.trim() || recommendedModelFor(provider, role);
+  const displayModel = displayModelFor(provider, role, selectedModel);
   const label = role === 'agent' ? 'Agent chat/runtime/memory' : 'Missions';
   return [
-    `${label} now uses ${spec.botProvider === 'claude' ? 'claude' : provider} (${selectedModel}).`,
+    `${label} now uses ${spec.botProvider === 'claude' ? 'claude' : provider} (${displayModel}).`,
     changedFiles.length > 0 ? 'Saved for future Spark restarts.' : 'Applied to this running bot.',
     'Run /diagnose to verify it.'
   ].join('\n');
 }
-

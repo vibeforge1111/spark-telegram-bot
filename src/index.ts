@@ -83,6 +83,7 @@ import { renderSparkErrorReply } from './errorExplain';
 import {
   normalizeModelProvider,
   normalizeModelRole,
+  renderModelRecommendations,
   renderModelStatus,
   switchModelRoute
 } from './modelSwitch';
@@ -305,6 +306,7 @@ bot.start(async (ctx) => {
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
       '/model - Show or change Agent/Mission model routing',
+      '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
       '/access <1|2|3|4> - Choose Chat Only, Build When Asked, Research + Build, or Full Access',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
@@ -899,6 +901,14 @@ bot.command('model', async (ctx) => {
 
   const reply = await switchModelRoute(role, provider, modelToken);
   await ctx.reply(reply);
+});
+
+bot.command('models', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/models', '').trim();
+  const provider = normalizeModelProvider(raw);
+  await ctx.reply(renderModelRecommendations(provider));
 });
 
 bot.command('board', async (ctx) => {

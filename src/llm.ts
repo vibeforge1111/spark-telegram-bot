@@ -115,7 +115,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     return {
       provider,
       kind: 'claude',
-      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'ANTHROPIC_MODEL', 'CLAUDE_MODEL') || 'sonnet',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'ANTHROPIC_MODEL', 'CLAUDE_MODEL') || 'claude-sonnet-4-20250514',
       baseUrl: '',
     };
   }

@@ -3,6 +3,8 @@ import {
   normalizeModelProvider,
   normalizeModelRole,
   providerIsConfigured,
+  recommendedModelFor,
+  renderModelRecommendations,
   renderModelStatus,
   switchModelRoute
 } from '../src/modelSwitch';
@@ -32,10 +34,19 @@ test('renders a model status help surface', () => {
     const status = renderModelStatus();
     assert.match(status, /Agent chat: zai \(glm-5\.1\)/);
     assert.match(status, /Missions: codex \(gpt-5\.5\)/);
-    assert.match(status, /\/model agent claude/);
+    assert.match(status, /\/model agent claude claude-sonnet-4-20250514/);
+    assert.match(status, /\/model mission claude claude-opus-4-1-20250805/);
   } finally {
     process.env = before;
   }
+});
+
+test('renders recommended model versions for Claude families', () => {
+  assert.equal(recommendedModelFor('anthropic', 'agent'), 'claude-sonnet-4-20250514');
+  assert.equal(recommendedModelFor('anthropic', 'mission'), 'claude-opus-4-1-20250805');
+  const help = renderModelRecommendations('anthropic');
+  assert.match(help, /agent Claude Sonnet 4 \(claude-sonnet-4-20250514\)/);
+  assert.match(help, /mission Claude Opus 4\.1 \(claude-opus-4-1-20250805\)/);
 });
 
 test('switches mission provider in memory immediately', async () => {
@@ -43,9 +54,9 @@ test('switches mission provider in memory immediately', async () => {
   try {
     process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
     const reply = await switchModelRoute('mission', 'anthropic');
-    assert.match(reply, /Missions now uses claude \(opus\)/);
+    assert.match(reply, /Missions now uses claude \(Claude Opus 4\.1 \(claude-opus-4-1-20250805\)\)/);
     assert.equal(resolveMissionDefaultProvider(process.env), 'claude');
-    assert.equal(process.env.SPARK_MISSION_LLM_MODEL, 'opus');
+    assert.equal(process.env.SPARK_MISSION_LLM_MODEL, 'claude-opus-4-1-20250805');
   } finally {
     process.env = before;
   }
@@ -55,12 +66,12 @@ test('switches agent provider in memory immediately', async () => {
   const before = { ...process.env };
   try {
     process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
-    const reply = await switchModelRoute('agent', 'anthropic', 'sonnet');
-    assert.match(reply, /Agent chat\/runtime\/memory now uses claude \(sonnet\)/);
+    const reply = await switchModelRoute('agent', 'anthropic');
+    assert.match(reply, /Agent chat\/runtime\/memory now uses claude \(Claude Sonnet 4 \(claude-sonnet-4-20250514\)\)/);
     const config = resolveChatProviderConfig(process.env);
     assert.equal(config.provider, 'anthropic');
     assert.equal(config.kind, 'claude');
-    assert.equal(config.model, 'sonnet');
+    assert.equal(config.model, 'claude-sonnet-4-20250514');
   } finally {
     process.env = before;
   }
