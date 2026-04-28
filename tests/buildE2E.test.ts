@@ -159,8 +159,8 @@ async function run(): Promise<void> {
 		assert.equal(typeof writeCall!.body.options, 'object');
 		const missionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.match(replies[0] || '', new RegExp(`Mission: ${missionId}`));
-		assert.match(replies[0] || '', new RegExp(`Canvas: http://stub-spawner\\.test/canvas\\?pipeline=prd-${writeCall!.body.requestId}&mission=${missionId}`));
-		assert.match(replies[0] || '', new RegExp(`Mission board: http://stub-spawner\\.test/kanban\\?mission=${missionId}`));
+		assert.doesNotMatch(replies[0] || '', /Canvas:/);
+		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban/);
 
 		restoreAxios();
 		restoreEnv();
@@ -202,11 +202,44 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
 		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
 		assert.match(writeCall!.body.content, /current Spark-compatible domain chip standards/);
-		assert.match(replies[0] || '', /Canvas: http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-/);
-		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-/);
+		assert.doesNotMatch(replies[0] || '', /Canvas:/);
+		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban/);
 
 		restoreAxios();
 		restoreEnv();
+	});
+
+	await test('canvas ready summary includes structure tests and canvas link', async () => {
+		const indexModule: any = await import('../src/index');
+		const reply = indexModule.formatCanvasReadySummary({
+			projectName: 'domain-chip-posters',
+			taskCount: 2,
+			elapsed: 195,
+			readyCanvasUrl: 'http://stub-spawner.test/canvas?pipeline=prd-test&mission=mission-test',
+			kanbanUrl: 'http://stub-spawner.test/kanban',
+			analysis: {
+				projectType: 'domain-chip',
+				infrastructure: 'local Spark runtime',
+				techStack: ['Python', 'spark-chip.json'],
+				skills: ['domain-chip-creator'],
+				tasks: [
+					{
+						title: 'Scaffold chip manifest and hooks',
+						skills: ['runtime-sync'],
+						verificationCommands: ['python -m pytest tests']
+					},
+					{
+						title: 'Validate router behavior',
+						verificationCommands: ['spark chips why "poster prompts" --json']
+					}
+				]
+			}
+		});
+
+		assert.match(reply, /Architecture: domain-chip \| local Spark runtime \| Python, spark-chip\.json/);
+		assert.match(reply, /Build structure: domain-chip-creator, runtime-sync/);
+		assert.match(reply, /Tests\/checks: 2/);
+		assert.match(reply, /Canvas: http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
 	});
 
 	await test('clarification replies are natural and project-specific', async () => {
@@ -306,8 +339,8 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
 		assert.match(replies.join('\n'), /Starting with the defaults/);
 		assert.match(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
-		assert.match(replies.join('\n'), new RegExp(`Canvas: http://stub-spawner\\.test/canvas\\?pipeline=prd-${dispatchCall!.body.requestId}&mission=${clarifiedMissionId}`));
-		assert.match(replies.join('\n'), new RegExp(`Mission board: http://stub-spawner\\.test/kanban\\?mission=${clarifiedMissionId}`));
+		assert.doesNotMatch(replies.join('\n'), /Canvas:/);
+		assert.match(replies.join('\n'), /Mission board: http:\/\/stub-spawner\.test\/kanban/);
 
 		restoreAxios();
 		restoreEnv();

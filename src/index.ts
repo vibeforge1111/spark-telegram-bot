@@ -446,13 +446,93 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
-    const kanbanUrl = projectKanbanUrl(publicSpawnerUrl, missionId);
+    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
     await ctx.reply(
-      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nMission: ${missionId}\nCanvas: ${canvasUrl}\nMission board: ${kanbanUrl}`
+      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nMission: ${missionId}\nMission board: ${kanbanUrl}\n\nSpark is turning this into a build plan. Watch Mission Control/Kanban for progress. I'll send the project canvas link here when it is ready.`
     );
+    startPrdCanvasReadyNotifier({
+      chatId: Number(ctx.chat.id),
+      projectName: pending.projectName,
+      requestId: newRequestId,
+      missionId,
+      spawnerUrl,
+      publicSpawnerUrl,
+      canvasUrl,
+      kanbanUrl
+    });
   } catch (err) {
     await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));
   }
+}
+
+function startPrdCanvasReadyNotifier(args: {
+  chatId: number;
+  projectName: string;
+  requestId: string;
+  missionId: string;
+  spawnerUrl: string;
+  publicSpawnerUrl: string;
+  canvasUrl: string;
+  kanbanUrl: string;
+}): void {
+  void (async () => {
+    const started = Date.now();
+    const readyTimeoutMs = localServiceTimeoutMs('SPARK_SPAWNER_PRD_READY_TIMEOUT_MS', 600_000);
+    const deadline = started + readyTimeoutMs;
+    const resultUrl = `${args.spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(args.requestId)}`;
+    const heartbeatThresholds = [25_000, 75_000, 135_000];
+    let heartbeatIndex = 0;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 4000));
+      try {
+        const elapsedMs = Date.now() - started;
+        if (heartbeatIndex < heartbeatThresholds.length && elapsedMs >= heartbeatThresholds[heartbeatIndex]) {
+          const elapsedSec = Math.round(elapsedMs / 1000);
+          await bot.telegram.sendMessage(
+            args.chatId,
+            `Still working on ${args.projectName}. Spark is shaping the PRD and preparing the canvas (${elapsedSec}s elapsed).`
+          ).catch(() => {});
+          heartbeatIndex += 1;
+        }
+
+        const poll = await axios.get(resultUrl, { timeout: 3000 });
+        if (poll.data?.found && poll.data?.result?.success) {
+          try {
+            const queue = await axios.post(
+              `${args.spawnerUrl}/api/prd-bridge/load-to-canvas`,
+              { requestId: args.requestId, missionId: args.missionId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
+              { timeout: 8000 }
+            );
+            const taskCount = queue.data?.taskCount;
+            const readyCanvasUrl = queue.data?.canvasUrl
+              ? `${args.publicSpawnerUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
+              : args.canvasUrl;
+            const elapsed = Math.round((Date.now() - started) / 1000);
+            await bot.telegram.sendMessage(args.chatId, formatCanvasReadySummary({
+              projectName: args.projectName,
+              taskCount,
+              elapsed,
+              analysis: poll.data.result,
+              readyCanvasUrl,
+              kanbanUrl: args.kanbanUrl
+            }));
+          } catch (queueErr: any) {
+            await bot.telegram.sendMessage(
+              args.chatId,
+              `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+            );
+          }
+          return;
+        }
+      } catch {
+        // keep polling
+      }
+    }
+    await bot.telegram.sendMessage(
+      args.chatId,
+      `Analysis is still running after ${Math.round(readyTimeoutMs / 1000)}s for ${args.projectName}. Mission: ${args.missionId}\nMission board: ${args.kanbanUrl}`
+    );
+  })();
 }
 
 bot.command('clarify', async (ctx) => {
@@ -665,6 +745,10 @@ function projectKanbanUrl(baseUrl: string, missionId: string): string {
   return `${root}/kanban?mission=${encodeURIComponent(missionId)}`;
 }
 
+function missionBoardUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/kanban`;
+}
+
 export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
   return formatBuildClarificationReplyWithMicrocopy(projectName, questions, assumptions, null);
 }
@@ -739,6 +823,49 @@ export function buildDomainChipPrd(brief: string): string {
     '- A non-domain phrase like "we talked about chips and snacks earlier" falls through conversationally.',
     '- The final response reports chip key, path, router-invokable status, and any warnings.'
   ].join('\n');
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
+}
+
+export function formatCanvasReadySummary(args: {
+  projectName: string;
+  taskCount: unknown;
+  elapsed: number;
+  analysis: any;
+  readyCanvasUrl: string;
+  kanbanUrl: string;
+}): string {
+  const tasks = Array.isArray(args.analysis?.tasks) ? args.analysis.tasks : [];
+  const taskTitles = tasks
+    .map((task: any) => typeof task?.title === 'string' ? task.title.trim() : '')
+    .filter(Boolean)
+    .slice(0, 3);
+  const verificationCommands = tasks.flatMap((task: any) => asStringArray(task?.verificationCommands));
+  const skills = asStringArray(args.analysis?.skills)
+    .concat(tasks.flatMap((task: any) => asStringArray(task?.skills)))
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .slice(0, 5);
+  const architecture = [
+    typeof args.analysis?.projectType === 'string' ? args.analysis.projectType : null,
+    typeof args.analysis?.infrastructure === 'string' ? args.analysis.infrastructure : null,
+    Array.isArray(args.analysis?.techStack) ? args.analysis.techStack.slice(0, 4).join(', ') : null,
+  ].filter(Boolean).join(' | ');
+
+  const lines = [
+    `Canvas ready for ${args.projectName}. ${args.taskCount ?? tasks.length} tasks queued in ${args.elapsed}s.`,
+  ];
+  if (architecture) lines.push(`Architecture: ${architecture}`);
+  if (skills.length > 0) lines.push(`Build structure: ${skills.join(', ')}`);
+  if (taskTitles.length > 0) {
+    lines.push('Tasks:');
+    for (const title of taskTitles) lines.push(`- ${title}`);
+  }
+  lines.push(`Tests/checks: ${verificationCommands.length}`);
+  for (const command of verificationCommands.slice(0, 3)) lines.push(`- ${command}`);
+  lines.push('', `Canvas: ${args.readyCanvasUrl}`, `Mission board: ${args.kanbanUrl}`, '', "I'll post live progress and results here.");
+  return lines.join('\n');
 }
 
 async function handleRunCommand(
@@ -866,7 +993,7 @@ export async function handleBuildIntent(
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
-    const kanbanUrl = projectKanbanUrl(publicSpawnerUrl, missionId);
+    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
     const ackLines = [
       `Got it. Project: ${projectName}`,
       `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
@@ -874,10 +1001,9 @@ export async function handleBuildIntent(
       `Tier: ${tier}`,
       `Request ID: ${requestId}`,
       `Mission: ${missionId}`,
-      `Canvas: ${canvasUrl}`,
       `Mission board: ${kanbanUrl}`,
       '',
-      `Spark is turning this into a build plan. The canvas auto-loads the moment analysis finishes — keep that tab open. I'll also DM you here when it's ready, then keep posting progress.`
+      `Spark is turning this into a build plan. Watch Mission Control/Kanban for progress. I'll send the project canvas link here when it is ready.`
     ].filter(Boolean);
     await ctx.reply(ackLines.join('\n'));
 
@@ -885,60 +1011,16 @@ export async function handleBuildIntent(
       return;
     }
 
-    // Fire-and-forget: poll for analysis result, queue to canvas, notify user.
-    void (async () => {
-      const started = Date.now();
-      const deadline = started + 180_000;
-      const resultUrl = `${spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(requestId)}`;
-      const heartbeatThresholds = [25_000, 75_000, 135_000];
-      let heartbeatIndex = 0;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 4000));
-        try {
-          const elapsedMs = Date.now() - started;
-          if (heartbeatIndex < heartbeatThresholds.length && elapsedMs >= heartbeatThresholds[heartbeatIndex]) {
-            const elapsedSec = Math.round(elapsedMs / 1000);
-            await bot.telegram.sendMessage(
-              chatId,
-              `Still working on ${projectName}. Spark is shaping the PRD and preparing the canvas (${elapsedSec}s elapsed).`
-            ).catch(() => {});
-            heartbeatIndex += 1;
-          }
-
-          const poll = await axios.get(resultUrl, { timeout: 3000 });
-          if (poll.data?.found && poll.data?.result?.success) {
-            try {
-              const queue = await axios.post(
-                `${spawnerUrl}/api/prd-bridge/load-to-canvas`,
-                { requestId, missionId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
-                { timeout: 8000 }
-              );
-              const taskCount = queue.data?.taskCount;
-              const readyCanvasUrl = queue.data?.canvasUrl
-                ? `${(process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl).replace(/\/+$/, '')}${queue.data.canvasUrl}`
-                : canvasUrl;
-              const elapsed = Math.round((Date.now() - started) / 1000);
-              await bot.telegram.sendMessage(
-                chatId,
-                `Canvas ready for ${projectName}. ${taskCount} tasks queued in ${elapsed}s.\n\nOpen ${readyCanvasUrl} and it will start automatically.\nMission board: ${kanbanUrl}\n\nI'll post live progress and results here.`
-              );
-            } catch (queueErr: any) {
-              await bot.telegram.sendMessage(
-                chatId,
-                `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
-              );
-            }
-            return;
-          }
-        } catch {
-          // keep polling
-        }
-      }
-      await bot.telegram.sendMessage(
-        chatId,
-        `Analysis timed out after 180s for ${projectName}. The PRD is written at .spawner/pending-prd.md. Want me to retry?`
-      );
-    })();
+    startPrdCanvasReadyNotifier({
+      chatId,
+      projectName,
+      requestId,
+      missionId,
+      spawnerUrl,
+      publicSpawnerUrl,
+      canvasUrl,
+      kanbanUrl
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
   }
