@@ -164,6 +164,49 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('domain chip creation can use the build PRD bridge contract', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+
+		const indexModule: any = await import('../src/index');
+		const prd = indexModule.buildDomainChipPrd('creates weird poster prompts from dream fragments');
+		const projectName = indexModule.projectNameForDomainChipBrief('creates weird poster prompts from dream fragments');
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		await indexModule.handleBuildIntent(
+			ctx,
+			prd,
+			projectName,
+			null,
+			'advanced_prd',
+			'Natural-language domain-chip creation should use the Spawner PRD/canvas/mission-control build flow.'
+		);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, 'expected domain chip creation to POST to /api/prd-bridge/write');
+		assert.equal(writeCall!.body.projectName, 'domain-chip-creates-weird-poster-prompts-from');
+		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
+		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
+		assert.match(writeCall!.body.content, /current Spark-compatible domain chip standards/);
+		assert.match(replies[0] || '', /Canvas: http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-/);
+		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('clarification replies are natural and project-specific', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
@@ -303,7 +346,11 @@ async function run(): Promise<void> {
 	});
 }
 
-run().catch((err) => {
-	console.error(err);
-	process.exit(1);
-});
+run()
+	.then(() => {
+		process.exit(0);
+	})
+	.catch((err) => {
+		console.error(err);
+		process.exit(1);
+	});

@@ -690,6 +690,49 @@ export function formatBuildClarificationReply(projectName: string, questions: st
   return lines.join('\n');
 }
 
+function slugForDomainChipBrief(brief: string): string {
+  const slug = brief
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 5)
+    .join('-');
+  return slug || 'custom-domain-chip';
+}
+
+export function projectNameForDomainChipBrief(brief: string): string {
+  const base = slugForDomainChipBrief(brief);
+  return base.startsWith('domain-chip-') ? base : `domain-chip-${base}`;
+}
+
+export function buildDomainChipPrd(brief: string): string {
+  const chipKey = projectNameForDomainChipBrief(brief);
+  return [
+    `Create a Spark domain chip named ${chipKey}.`,
+    '',
+    `Natural-language chip brief: ${brief}`,
+    '',
+    'This must use the current Spark-compatible domain chip standards, not the older domain-chip-labs-only assumptions.',
+    '',
+    'Requirements:',
+    '- Scaffold or update the chip under the active Spark chip runtime location.',
+    '- Include a valid spark-chip.json manifest with router metadata, precise intent keywords, and no generic keyword hijacking.',
+    '- Implement hook entrypoints that can be invoked through the Spark attachments/chips runtime.',
+    '- Add focused tests or smoke checks that prove the chip is router-invokable.',
+    '- Register or document the runtime activation step if the scaffolder does not activate it automatically.',
+    '- Avoid deterministic slash-command handoffs in Telegram-facing text; the chip should work from natural language.',
+    '- Validate that unrelated mentions of "chip" do not route to this chip.',
+    '',
+    'Acceptance checks:',
+    `- The created chip key is ${chipKey} or a clearly justified close variant.`,
+    '- The chip can be discovered by the Spark chip router for matching domain language.',
+    '- A non-domain phrase like "we talked about chips and snacks earlier" falls through conversationally.',
+    '- The final response reports chip key, path, router-invokable status, and any warnings.'
+  ].join('\n');
+}
+
 async function handleRunCommand(
   ctx: any,
   goal: string,
@@ -1266,28 +1309,14 @@ bot.on(message('text'), async (ctx) => {
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
       await conversation.remember(user, text).catch(() => {});
-      await safeSendChatAction(ctx, 'typing');
-      await ctx.reply(`Scaffolding a new domain chip for: ${naturalChipBrief}`);
-
-      const result = await createChipFromPrompt(naturalChipBrief);
-      if (!result.ok) {
-        await ctx.reply(`Chip create failed: ${result.error || 'unknown error'}`);
-        return;
-      }
-
-      const lines = [
-        'Chip created successfully.',
-        `Key: ${result.chipKey}`,
-        `Path: ${result.chipPath}`,
-        `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
-      ];
-      if (result.warnings && result.warnings.length > 0) {
-        lines.push('Warnings:');
-        for (const warning of result.warnings) lines.push(`- ${warning}`);
-      }
-      const response = lines.join('\n');
-      await ctx.reply(response);
-      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      await handleBuildIntent(
+        ctx,
+        buildDomainChipPrd(naturalChipBrief),
+        projectNameForDomainChipBrief(naturalChipBrief),
+        null,
+        'advanced_prd',
+        'Natural-language domain-chip creation should use the Spawner PRD/canvas/mission-control build flow.'
+      );
       return;
     }
 
