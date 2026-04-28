@@ -23,6 +23,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  parseNaturalChipCreateIntent,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
@@ -349,6 +350,18 @@ test('keeps hyphenated domain-chip repo references in conversation', () => {
   assert.match(buildIdeationSystemHint(text), /advanced Spark domain chip/);
 });
 
+test('extracts natural domain chip create requests without slash-command handoff', () => {
+  assert.equal(
+    parseNaturalChipCreateIntent("let's build a domain-chip that creates us cool images out of ASCII patterns"),
+    'creates us cool images out of ASCII patterns'
+  );
+  assert.equal(
+    parseNaturalChipCreateIntent('build a domain-chip for Telegram memory routing'),
+    'Telegram memory routing'
+  );
+  assert.equal(parseNaturalChipCreateIntent('which chips are active?'), null);
+});
+
 test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply(''), true);
   assert.equal(isLowInformationLlmReply("I'm here, but I couldn't generate a response right now."), true);
@@ -358,6 +371,9 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
   assert.equal(isLowInformationLlmReply(
     "I caught 'chip' in there but I'm not sure what you want.\n\nOptions I can actually do:\n- Run a loop on a specific chip (say 'loop <chip-key>')\n- List active chips (say 'which chips are active')"
+  ), true);
+  assert.equal(isLowInformationLlmReply(
+    "Got it - a chip for:\ncreates us cool images out of ASCII patterns\n\nTap this to scaffold it (takes 30-60s):\n/chip create creates us cool images out of ASCII patterns\n\nI hand off to the slash command so you see the scaffolder's output live and can cancel if the brief needs tweaking."
   ), true);
   assert.equal(isLowInformationLlmReply('Here is a real idea.'), false);
 });

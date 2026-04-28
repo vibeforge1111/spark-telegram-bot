@@ -45,6 +45,51 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   return hasLocalOptionReference(trimmed) || mentionsDomainChipArtifact || COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
+export function parseNaturalChipCreateIntent(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+
+  if (
+    /\b(?:use|load|activate|pin|unpin|disable|delete|remove|cancel|kill)\s+(?:the\s+)?[\w-]+\s*chip\b/i.test(normalized) ||
+    /\b(?:which|what)\s+chips?\b/i.test(normalized) ||
+    /\bhow\s+does\s+(?:the\s+)?[\w-]+\s*chip\s+work\b/i.test(normalized)
+  ) {
+    return null;
+  }
+
+  const createPattern =
+    /\b(?:let'?s\s+)?(?:make|build|create|scaffold|generate|spin\s+up|cook\s+up|craft|author|whip\s+up)\b[^.\n]{0,60}\b(?:domain[-\s]*chip|chip)\b/i;
+  const wantPattern =
+    /\bi\s+(?:need|want|could\s+use|would\s+like)\b[^.\n]{0,30}\b(?:a|an|another|new)?\s*(?:domain[-\s]*chip|chip)\b/i;
+  const imperativePattern = /^\s*(?:a\s+)?new\s+(?:domain[-\s]*)?chip\s+(?:for|that|which|to)\b/i;
+
+  if (!createPattern.test(normalized) && !wantPattern.test(normalized) && !imperativePattern.test(normalized)) {
+    return null;
+  }
+
+  let brief = normalized;
+  for (let i = 0; i < 6; i += 1) {
+    const before = brief;
+    brief = brief.replace(
+      /^\s*(?:let'?s\s+|please\s+|hey\s+|ok\s+|okay\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)+/i,
+      ''
+    );
+    brief = brief.replace(
+      /^\s*(?:make|build|create|scaffold|generate|spin\s+up|cook\s+up|craft|author|whip\s+up)\s+(?:me\s+|us\s+)?/i,
+      ''
+    );
+    brief = brief.replace(/^\s*i\s+(?:need|want|could\s+use|would\s+like)\s+/i, '');
+    brief = brief.replace(/^\s*(?:a|an|another|new)\s+/i, '');
+    brief = brief.replace(/^\s*(?:domain[-\s]*)?chip\s+(?:called\s+|named\s+)?/i, '');
+    brief = brief.replace(/^\s*domain-chip-[\w-]+\s*[:,-]?\s*/i, '');
+    brief = brief.replace(/^\s*(?:for|that|which|to|about)\s+/i, '');
+    if (brief === before) break;
+  }
+
+  brief = brief.trim().replace(/[.!?,]+$/g, '').trim();
+  return brief.length >= 3 ? brief : null;
+}
+
 export function isMissionExecutionConfirmation(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
@@ -474,6 +519,11 @@ export function isLowInformationLlmReply(reply: string): boolean {
       normalized.includes("i caught 'chip'") &&
       normalized.includes('loop <chip-key>') &&
       normalized.includes('which chips are active')
+    ) ||
+    (
+      normalized.includes('tap this to scaffold') &&
+      normalized.includes('/chip create') &&
+      normalized.includes('slash command')
     )
   );
 }

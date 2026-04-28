@@ -69,6 +69,7 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseNaturalChipCreateIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -1186,6 +1187,34 @@ bot.on(message('text'), async (ctx) => {
     }
 
     const localServiceContext = contextualTurns.join('\n');
+    const naturalChipBrief = parseNaturalChipCreateIntent(text);
+    if (naturalChipBrief) {
+      await conversation.remember(user, text).catch(() => {});
+      await safeSendChatAction(ctx, 'typing');
+      await ctx.reply(`Scaffolding a new domain chip for: ${naturalChipBrief}`);
+
+      const result = await createChipFromPrompt(naturalChipBrief);
+      if (!result.ok) {
+        await ctx.reply(`Chip create failed: ${result.error || 'unknown error'}`);
+        return;
+      }
+
+      const lines = [
+        'Chip created successfully.',
+        `Key: ${result.chipKey}`,
+        `Path: ${result.chipPath}`,
+        `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
+      ];
+      if (result.warnings && result.warnings.length > 0) {
+        lines.push('Warnings:');
+        for (const warning of result.warnings) lines.push(`- ${warning}`);
+      }
+      const response = lines.join('\n');
+      await ctx.reply(response);
+      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      return;
+    }
+
     const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
     if (spawnerBoardIntent) {
       await conversation.remember(user, text).catch(() => {});
