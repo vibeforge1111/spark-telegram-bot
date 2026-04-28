@@ -62,7 +62,8 @@ test('keeps explicit build specs on the build path', () => {
 test('detects execution confirmation without treating every reply as a mission', () => {
   assert.equal(isMissionExecutionConfirmation("yes let's do it create it after analyzing our systems deeply please"), true);
   assert.equal(isMissionExecutionConfirmation('spin it up'), true);
-  assert.equal(isMissionExecutionConfirmation('sounds good'), true);
+  assert.equal(isMissionExecutionConfirmation('sure'), false);
+  assert.equal(isMissionExecutionConfirmation('sounds good'), false);
   assert.equal(isMissionExecutionConfirmation('what do you think about this?'), false);
 });
 
@@ -87,6 +88,17 @@ test('infers Spark bug-recognition mission from recent planning context', () => 
 test('does not infer mission from low-context agreement', () => {
   assert.equal(inferMissionGoalFromRecentContext('yes sounds good', ['nice', 'cool']), null);
   assert.equal(inferMissionGoalFromRecentContext('what happened?', ['new domain chip']), null);
+});
+
+test('does not launch a mission from bare agreement after memory dashboard scoping', () => {
+  const goal = inferMissionGoalFromRecentContext('sure', [
+    "let's build a memory quality dashboard makes sense, but let's pin the scope before building.",
+    'it would show recall accuracy over time, failure modes, and latency within spawner-ui.',
+    'all data sources that make sense',
+    'everything'
+  ]);
+
+  assert.equal(goal, null);
 });
 
 test('answers what we were going to build from recent context', () => {
