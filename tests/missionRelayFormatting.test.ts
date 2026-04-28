@@ -154,14 +154,18 @@ test('supports human verbosity aliases', () => {
 test('builds mission surface links from user preference', () => {
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:5173'), []);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:5173'), [
-    'Mission spark-123: http://127.0.0.1:5173/kanban'
+    'Mission spark-123: http://127.0.0.1:5173/kanban?mission=spark-123'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:5173'), [
-    'Canvas: http://127.0.0.1:5173/canvas'
+    'Canvas: http://127.0.0.1:5173/canvas?mission=spark-123'
   ]);
   assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:5173'), [
-    'Mission spark-123: http://127.0.0.1:5173/kanban',
-    'Canvas: http://127.0.0.1:5173/canvas'
+    'Mission spark-123: http://127.0.0.1:5173/kanban?mission=spark-123',
+    'Canvas: http://127.0.0.1:5173/canvas?mission=spark-123'
+  ]);
+  assert.deepEqual(buildMissionSurfaceLinks('mission-1777', 'both', 'http://127.0.0.1:5173', 'tg-build-1'), [
+    'Mission mission-1777: http://127.0.0.1:5173/kanban?mission=mission-1777',
+    'Canvas: http://127.0.0.1:5173/canvas?pipeline=prd-tg-build-1&mission=mission-1777'
   ]);
 });
 
@@ -187,7 +191,7 @@ test('mission start update links the mission once through kanban', () => {
 
   assert.match(message || '', /Spark started the run/);
   assert.match(message || '', /useful checkpoints/);
-  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban/);
+  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
   assert.doesNotMatch(message || '', /\/missions/);
 });
 

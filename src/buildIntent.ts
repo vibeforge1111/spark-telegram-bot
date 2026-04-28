@@ -9,33 +9,50 @@ export interface BuildIntent {
   buildModeReason: string;
 }
 
-const DEFAULT_WORKSPACE_ROOT = 'C:\\Users\\USER\\Desktop';
-const WORKSPACE_ROOT = (process.env.SPARK_PROJECT_ROOT || DEFAULT_WORKSPACE_ROOT)
-  .replace(/\//g, '\\')
-  .replace(/[\\/]$/, '');
-
 export type BuildMode = 'direct' | 'advanced_prd';
 
+function defaultWorkspaceRoot(): string {
+  if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
+  if (process.platform === 'win32') {
+    const home = process.env.USERPROFILE || 'C:\\Users\\USER';
+    return `${home.replace(/[\\/]$/, '')}\\Desktop`;
+  }
+  const home = process.env.HOME || '/root';
+  return home.replace(/[\\/]$/, '');
+}
+
+function normalizePathForPlatform(value: string): string {
+  const trimmed = value.trim().replace(/[\\/]$/, '');
+  if (/^[A-Z]:[\\/]/i.test(trimmed)) {
+    return trimmed.replace(/\//g, '\\');
+  }
+  return trimmed.replace(/\\/g, '/');
+}
+
+function isInsideWorkspace(candidate: string): boolean {
+  const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
+  const normalizedRoot = normalizePathForPlatform(defaultWorkspaceRoot()).toLowerCase();
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+}
+
 function inferProjectName(prd: string, projectPath: string | null): string {
-  const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;]|\s+(?:with|that|which|where|for|using)\b|$)/i);
+  const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;]|\s+(?:with|that|which|where|for|using)\b|\s+and\s+(?:make|build|create|ship|scaffold|generate)\b|$)/i);
   if (nameMatch) return nameMatch[1].trim();
   if (projectPath) {
     const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();
     if (pathName) return pathName.replace(/[-_]/g, ' ').trim();
   }
-  const atMatch = prd.match(/(?:at|in)\s+[A-Z]:[\\/][\w\\/:\-. ]+[\\/]([\w.-]+)/);
+  const atMatch = prd.match(/(?:at|in)\s+(?:[A-Z]:[\\/]|\/)[\w\\/:\-. ]+[\\/]([\w.-]+)/);
   if (atMatch) return atMatch[1].replace(/[-_]/g, ' ').trim();
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
   return firstWords.slice(0, 60) || 'Untitled Project';
 }
 
 function extractPath(text: string): string | null {
-  const atMatch = text.match(/(?:at|in|into)\s+([A-Z]:[\\/][^\s:][^\n]*?)(?:\s*[:,]|\s*$)/);
+  const atMatch = text.match(/(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/)[^\n:]*?)(?:\s*[:,]|\s*$)/i);
   if (atMatch) {
-    const candidate = atMatch[1].trim().replace(/\//g, '\\').replace(/[\\/]$/, '');
-    const lowerCandidate = candidate.toLowerCase();
-    const lowerRoot = WORKSPACE_ROOT.toLowerCase();
-    if (lowerCandidate === lowerRoot || lowerCandidate.startsWith(`${lowerRoot}\\`)) {
+    const candidate = normalizePathForPlatform(atMatch[1]);
+    if (isInsideWorkspace(candidate)) {
       return candidate;
     }
   }
@@ -44,8 +61,8 @@ function extractPath(text: string): string | null {
 
 function removeLeadingPathPrefix(text: string): string {
   return text
-    .replace(/^(?:at|in|into)\s+[A-Z]:[\\/][^\n]*?:\s*/i, '')
-    .replace(/\s+(?:at|in|into)\s+[A-Z]:[\\/][^\n]*?:\s*/i, ' ')
+    .replace(/^(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, '')
+    .replace(/\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, ' ')
     .trim();
 }
 
@@ -113,8 +130,16 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   // and "build me a foo" both qualify. Includes "me an", "me the", "me this"
   // and bare "a/an/the/this" so "build me an app" doesn't get parsed as
   // project="me an app".
-  const starters = /^\/?(?:build|make|create|ship|scaffold|generate)\s+(?:me\s+)?(?:a|an|the|this)\s+/i;
-  const rawStarter = /^\/?(?:build|make\s+me|create|ship|scaffold|generate)\s+/i;
+  const starterPrefix = /^\s*(?:let'?s\s+)?(?:please\s+)?/i;
+  const immediatePrefix = /(?:(?:right\s+now|now)\s+)?/i;
+  const starters = new RegExp(
+    `${starterPrefix.source}\\/?(?:build|make|create|ship|scaffold|generate)\\s+${immediatePrefix.source}(?:me\\s+)?(?:a|an|the|this|new\\s+project\\s+)\\s+`,
+    'i'
+  );
+  const rawStarter = new RegExp(
+    `${starterPrefix.source}\\/?(?:build|make\\s+me|create|ship|scaffold|generate)\\s+${immediatePrefix.source}`,
+    'i'
+  );
 
   let stripped: string | null = null;
   const starterMatch = trimmed.match(starters);

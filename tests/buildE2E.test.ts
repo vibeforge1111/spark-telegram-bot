@@ -36,6 +36,8 @@ const originalEnv = {
 	BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
 	BOT_PRO_USER_IDS: process.env.BOT_PRO_USER_IDS,
 	ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
+	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+	SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
 	SPAWNER_UI_URL: process.env.SPAWNER_UI_URL
 };
 
@@ -73,6 +75,7 @@ async function callHandleBuildIntent(opts: {
 	projectName: string;
 	buildMode: 'direct' | 'advanced_prd';
 }): Promise<void> {
+	process.env.SPARK_BOT_TEST_MODE = '1';
 	// Stub the access-policy gate so the test does not require a real
 	// Spark access profile to be loaded. We assume sparkAccessAllows would
 	// pass for an admin tester; the production path runs the real gate.
@@ -114,6 +117,7 @@ async function run(): Promise<void> {
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 
 		const captured: CapturedCall[] = [];
 		(axios as any).post = async (url: string, body: any) => {
@@ -151,6 +155,58 @@ async function run(): Promise<void> {
 		assert.ok(writeCall!.body.content.includes('saas-billing-test'), 'PRD content includes project name header');
 		assert.ok(writeCall!.body.telegramRelay, 'telegramRelay block present');
 		assert.equal(typeof writeCall!.body.options, 'object');
+		const missionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
+		assert.match(replies[0] || '', new RegExp(`Mission: ${missionId}`));
+		assert.match(replies[0] || '', new RegExp(`Canvas: http://stub-spawner\\.test/canvas\\?pipeline=prd-${writeCall!.body.requestId}&mission=${missionId}`));
+		assert.match(replies[0] || '', new RegExp(`Mission board: http://stub-spawner\\.test/kanban\\?mission=${missionId}`));
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('clarification replies are natural and project-specific', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+
+		(axios as any).post = async (url: string, body: any) => {
+			if (url.includes('/api/prd-bridge/write')) {
+				return {
+					data: {
+						success: true,
+						needsClarification: true,
+						requestId: body.requestId,
+						openQuestions: [
+							'What should make this game feel surprising: shifting walls, power-ups, enemies, time pressure, or something stranger?',
+							'Should it be chill and atmospheric or fast and score-chasing?'
+						],
+						addedAssumptions: [
+							'Assume this is a browser-playable game unless another platform is specified.',
+							'Assume no accounts or backend in v1; keep state local to the browser.'
+						]
+					}
+				};
+			}
+			return { data: { success: true } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+
+		await callHandleBuildIntent({
+			ctx,
+			prd: "let's build a maze game",
+			projectName: 'maze game',
+			buildMode: 'advanced_prd'
+		});
+
+		assert.match(replies[0] || '', /I can build maze game/);
+		assert.match(replies[0] || '', /Give me the game feel/);
+		assert.match(replies[0] || '', /shifting walls/);
+		assert.doesNotMatch(replies[0] || '', /Brief is too thin/);
+		assert.doesNotMatch(replies[0] || '', /Who is the first user/);
 
 		restoreAxios();
 		restoreEnv();

@@ -384,7 +384,7 @@ bot.command('myid', async (ctx) => {
 // /clarify <answers> — re-dispatch a build that was held by the
 // clarification gate. The original brief + user-supplied answers are
 // concatenated and re-sent to spawner-ui with forceDispatch:true.
-bot.command('clarify', async (ctx) => {
+async function handleClarificationAnswers(ctx: any, answersRawInput: string): Promise<void> {
   const key = `${ctx.chat.id}-${ctx.from.id}`;
   const pending = pendingClarifications.get(key);
   if (!pending) {
@@ -397,7 +397,7 @@ bot.command('clarify', async (ctx) => {
     return;
   }
 
-  const answersRaw = ctx.message.text.replace(/^\/clarify\b/, '').trim();
+  const answersRaw = answersRawInput.trim();
   const skip = answersRaw.toLowerCase() === 'skip';
   pendingClarifications.delete(key);
 
@@ -407,7 +407,7 @@ bot.command('clarify', async (ctx) => {
       .map((q, i) => `Q${i + 1}: ${q}`)
       .join('\n')}\n\nAnswers: ${answersRaw}`;
   } else if (skip) {
-    await ctx.reply('OK, dispatching with my default assumptions.');
+    await ctx.reply('OK, I will run with those defaults.');
   }
 
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
@@ -443,11 +443,15 @@ bot.command('clarify', async (ctx) => {
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     await ctx.reply(
-      `Re-dispatched with your answers.\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
+      `${skip ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
     );
   } catch (err) {
     await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));
   }
+}
+
+bot.command('clarify', async (ctx) => {
+  await handleClarificationAnswers(ctx, ctx.message.text.replace(/^\/clarify\b/, ''));
 });
 
 // /remember command
@@ -641,6 +645,49 @@ function humanAck(providers: string[]): string {
   return `On it - checking with ${who} in parallel. Hang on.`;
 }
 
+function missionIdFromTelegramBuildRequest(requestId: string): string {
+  const stamp = requestId.match(/(\d{10,})$/)?.[1];
+  return `mission-${stamp || requestId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+function projectCanvasUrl(baseUrl: string, requestId: string, missionId: string): string {
+  const root = baseUrl.replace(/\/+$/, '');
+  return `${root}/canvas?pipeline=${encodeURIComponent(`prd-${requestId}`)}&mission=${encodeURIComponent(missionId)}`;
+}
+
+function projectKanbanUrl(baseUrl: string, missionId: string): string {
+  const root = baseUrl.replace(/\/+$/, '');
+  return `${root}/kanban?mission=${encodeURIComponent(missionId)}`;
+}
+
+export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
+  const lower = `${projectName}\n${questions.join('\n')}\n${assumptions.join('\n')}`.toLowerCase();
+  const isGame = /\b(game|maze|puzzle|arcade|player|score|level|win condition)\b/.test(lower);
+  const isDashboard = /\b(dashboard|metric|analytics|monitor|report)\b/.test(lower);
+  const opener = isGame
+    ? `I can build ${projectName}. I just need to choose the shape of the game before Spark turns it into tasks.`
+    : isDashboard
+      ? `I can build ${projectName}. A couple of dashboard choices will change the plan quite a bit.`
+      : `I can build ${projectName}. A few choices would make the plan much sharper.`;
+  const questionLead = isGame
+    ? `Give me the game feel in one reply:`
+    : `Reply with the bits you care about most:`;
+  const lines = [
+    opener,
+    '',
+    questionLead,
+    ...questions.map((q) => `- ${q}`)
+  ];
+  if (assumptions.length > 0) {
+    lines.push('');
+    lines.push(isGame ? `If you want me to just run with it, I'll use these defaults:` : `If you want me to run with defaults, I'll assume:`);
+    for (const a of assumptions.slice(0, 4)) lines.push(`- ${a.replace(/^Assume\s+/i, '')}`);
+  }
+  lines.push('');
+  lines.push(`You can answer naturally, or send /clarify skip and I'll start with those defaults.`);
+  return lines.join('\n');
+}
+
 async function handleRunCommand(
   ctx: any,
   goal: string,
@@ -710,6 +757,7 @@ export async function handleBuildIntent(
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
   const chatId = Number(ctx.chat.id);
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
+  const missionId = missionIdFromTelegramBuildRequest(requestId);
 
   const prdContent = projectPath
     ? `# ${projectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nTarget operating-system folder: \`${projectPath}\`\n\n${prd}`
@@ -755,35 +803,36 @@ export async function handleBuildIntent(
         timestamp: Date.now()
       });
 
-      const lines = [
-        `Brief is too thin to plan against confidently. Answer these and I'll dispatch the build:`,
-        '',
-        ...res.data.openQuestions.map((q: string, i: number) => `${i + 1}. ${q}`)
-      ];
-      if (Array.isArray(res.data.addedAssumptions) && res.data.addedAssumptions.length > 0) {
-        lines.push('');
-        lines.push(`Assumptions I'd otherwise default to:`);
-        for (const a of res.data.addedAssumptions) lines.push(`  - ${a}`);
-      }
-      lines.push('');
-      lines.push(`Reply with /clarify <your answers in one message>. Or send /clarify skip to dispatch with my defaults.`);
-      await ctx.reply(lines.join('\n'));
+      await ctx.reply(formatBuildClarificationReply(
+        projectName,
+        res.data.openQuestions.filter((q: unknown): q is string => typeof q === 'string'),
+        Array.isArray(res.data.addedAssumptions)
+          ? res.data.addedAssumptions.filter((a: unknown): a is string => typeof a === 'string')
+          : []
+      ));
       return;
     }
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
-    const canvasUrl = `${publicSpawnerUrl}/canvas`;
+    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
+    const kanbanUrl = projectKanbanUrl(publicSpawnerUrl, missionId);
     const ackLines = [
       `Got it. Project: ${projectName}`,
       `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
       projectPath ? `Target folder: ${projectPath}` : null,
       `Tier: ${tier}`,
       `Request ID: ${requestId}`,
+      `Mission: ${missionId}`,
       `Canvas: ${canvasUrl}`,
+      `Mission board: ${kanbanUrl}`,
       '',
       `Spark is turning this into a build plan. The canvas auto-loads the moment analysis finishes — keep that tab open. I'll also DM you here when it's ready, then keep posting progress.`
     ].filter(Boolean);
     await ctx.reply(ackLines.join('\n'));
+
+    if (process.env.SPARK_BOT_TEST_MODE === '1') {
+      return;
+    }
 
     // Fire-and-forget: poll for analysis result, queue to canvas, notify user.
     void (async () => {
@@ -810,14 +859,17 @@ export async function handleBuildIntent(
             try {
               const queue = await axios.post(
                 `${spawnerUrl}/api/prd-bridge/load-to-canvas`,
-                { requestId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
+                { requestId, missionId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
                 { timeout: 8000 }
               );
               const taskCount = queue.data?.taskCount;
+              const readyCanvasUrl = queue.data?.canvasUrl
+                ? `${(process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl).replace(/\/+$/, '')}${queue.data.canvasUrl}`
+                : canvasUrl;
               const elapsed = Math.round((Date.now() - started) / 1000);
               await bot.telegram.sendMessage(
                 chatId,
-                `Canvas ready for ${projectName}. ${taskCount} tasks queued in ${elapsed}s.\n\nOpen ${spawnerUrl}/canvas and it will start automatically. I'll post live progress and results here.`
+                `Canvas ready for ${projectName}. ${taskCount} tasks queued in ${elapsed}s.\n\nOpen ${readyCanvasUrl} and it will start automatically.\nMission board: ${kanbanUrl}\n\nI'll post live progress and results here.`
               );
             } catch (queueErr: any) {
               await bot.telegram.sendMessage(
@@ -1170,6 +1222,12 @@ bot.on(message('text'), async (ctx) => {
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
 
+    const pendingClarification = pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`);
+    if (pendingClarification && !parseBuildIntent(text)) {
+      await handleClarificationAnswers(ctx, text);
+      return;
+    }
+
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);
     if (missionUpdatePreference) {
       await conversation.remember(user, text).catch(() => {});
@@ -1187,6 +1245,7 @@ bot.on(message('text'), async (ctx) => {
     }
 
     const localServiceContext = contextualTurns.join('\n');
+
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
       await conversation.remember(user, text).catch(() => {});
@@ -1212,6 +1271,22 @@ bot.on(message('text'), async (ctx) => {
       const response = lines.join('\n');
       await ctx.reply(response);
       await conversation.rememberAssistantReply(user, response).catch(() => {});
+      return;
+    }
+
+    // Build intent must win over board/status language. Users often paste a
+    // project brief plus the latest board output while testing.
+    const buildIntent = parseBuildIntent(text);
+    if (buildIntent) {
+      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
       return;
     }
 
@@ -1320,24 +1395,6 @@ bot.on(message('text'), async (ctx) => {
     }
 
     await conversation.remember(user, text).catch(() => {});
-
-    // Build intent runs FIRST. If the user said "build me X", "create a Y",
-    // "scaffold a Z", we route to handleBuildIntent regardless of how chatty
-    // the message reads. Conversational ideation is the fallback for messages
-    // that don't anchor on a project-trigger verb.
-    const buildIntent = parseBuildIntent(text);
-    if (buildIntent) {
-      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
-      await handleBuildIntent(
-        ctx,
-        buildIntent.prd,
-        buildIntent.projectName,
-        buildIntent.projectPath,
-        buildIntent.buildMode,
-        buildIntent.buildModeReason
-      );
-      return;
-    }
 
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);

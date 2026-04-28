@@ -367,15 +367,20 @@ function spawnerUiUrl(): string {
 export function buildMissionSurfaceLinks(
   missionId: string,
   preference: TelegramMissionLinkPreference,
-  baseUrl = spawnerUiUrl()
+  baseUrl = spawnerUiUrl(),
+  requestId?: string | null
 ): string[] {
   if (preference === 'none') return [];
   const links: string[] = [];
+  const missionQuery = `mission=${encodeURIComponent(missionId)}`;
+  const canvasQuery = requestId?.trim()
+    ? `pipeline=${encodeURIComponent(`prd-${requestId.trim()}`)}&${missionQuery}`
+    : missionQuery;
   if (preference === 'board' || preference === 'both') {
-    links.push(`Mission ${missionId}: ${baseUrl}/kanban`);
+    links.push(`Mission ${missionId}: ${baseUrl}/kanban?${missionQuery}`);
   }
   if (preference === 'canvas' || preference === 'both') {
-    links.push(`Canvas: ${baseUrl}/canvas`);
+    links.push(`Canvas: ${baseUrl}/canvas?${canvasQuery}`);
   }
   return links;
 }
@@ -386,6 +391,12 @@ function missionIdIsLinked(missionId: string, links: string[]): boolean {
 
 function missionReferenceLines(missionId: string, links: string[]): string[] {
   return missionIdIsLinked(missionId, links) ? links : [`Mission: ${missionId}`, ...links];
+}
+
+function requestIdFromEvent(event: DeliverableRelayEvent): string | null {
+  const data = asRecord(event.data);
+  const value = data?.requestId;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function findMissionInBoard(board: Record<string, unknown>, missionId: string): MissionBoardEntry | null {
@@ -681,7 +692,7 @@ export function formatProgressMessageForTelegram(
   if (!shouldDeliverProgressEvent(event, verbosity)) return null;
   const taskLabel = clipText(event.taskName || event.taskId || 'task', 120);
   const message = event.message || summary || '';
-  const links = buildMissionSurfaceLinks(event.missionId, linkPreference);
+  const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
 
   switch (event.type) {
     case 'mission_created':
