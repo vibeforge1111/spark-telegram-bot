@@ -68,6 +68,7 @@ const HUGGINGFACE_DEFAULT_BASE_URL = 'https://router.huggingface.co/v1';
 const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
+const OLLAMA_DEFAULT_MODEL = 'llama3.2:3b';
 
 function firstEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string {
   for (const key of keys) {
@@ -168,7 +169,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     return {
       provider,
       kind: 'ollama',
-      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OLLAMA_MODEL') || 'kimi-k2.5:cloud',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OLLAMA_MODEL') || OLLAMA_DEFAULT_MODEL,
       baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OLLAMA_URL') || OLLAMA_DEFAULT_BASE_URL,
     };
   }
@@ -485,8 +486,13 @@ export const llm = {
       );
 
       return res.data.response.trim();
-    } catch (err) {
-      console.error('LLM error:', err);
+    } catch (err: any) {
+      console.error('LLM error:', {
+        provider: resolveChatProviderConfig().provider,
+        code: err?.code,
+        status: err?.response?.status,
+        message: err?.response?.data?.error || err?.message || String(err)
+      });
       return renderSparkErrorReply(err, 'chat', true);
     }
   },

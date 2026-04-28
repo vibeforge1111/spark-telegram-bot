@@ -83,6 +83,20 @@ test('refuses API providers when no key is configured', () => {
   assert.equal(providerIsConfigured('anthropic', {} as NodeJS.ProcessEnv), true);
 });
 
+test('uses a lightweight Ollama default for local model switching', async () => {
+  const before = { ...process.env };
+  try {
+    process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
+    const reply = await switchModelRoute('agent', 'ollama');
+    assert.match(reply, /Agent chat\/runtime\/memory now uses ollama \(llama3\.2:3b\)/);
+    const config = resolveChatProviderConfig(process.env);
+    assert.equal(config.provider, 'ollama');
+    assert.equal(config.model, 'llama3.2:3b');
+  } finally {
+    process.env = before;
+  }
+});
+
 (async () => {
   for (const entry of tests) {
     try {

@@ -87,8 +87,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   ollama: {
     provider: 'ollama',
     botProvider: 'ollama',
-    defaultModel: 'kimi-k2.5:cloud',
-    recommendation: 'Local Ollama-style default; users should choose whichever model is installed locally.',
+    defaultModel: 'llama3.2:3b',
+    recommendation: 'Fast local default when installed. Users can pass any local Ollama model id, for example /model agent ollama qwen3.5:27b.',
     authMode: 'local',
     baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
     requiredEnv: []

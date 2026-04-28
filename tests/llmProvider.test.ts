@@ -64,6 +64,16 @@ test('uses explicit Ollama provider when selected', () => {
   assert.equal(config.model, 'llama3.2');
 });
 
+test('uses a small installed-friendly Ollama default when no model is selected', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'ollama',
+  });
+
+  assert.equal(config.provider, 'ollama');
+  assert.equal(config.kind, 'ollama');
+  assert.equal(config.model, 'llama3.2:3b');
+});
+
 test('uses explicit OpenRouter provider without being masked by other keys', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'openrouter',
