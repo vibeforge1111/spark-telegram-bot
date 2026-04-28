@@ -120,6 +120,18 @@ test('recommends Gemma 4 for Hugging Face agent and mission routes', () => {
   assert.match(text, /mission google\/gemma-4-31B-it:fastest/);
 });
 
+test('refuses local chat providers for missions until Spawner advertises them', async () => {
+  const before = { ...process.env };
+  try {
+    process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
+    const reply = await switchModelRoute('mission', 'lmstudio', 'loaded-local-model');
+    assert.match(reply, /cannot use lmstudio for missions yet/);
+    assert.equal(resolveMissionDefaultProvider(process.env), 'codex');
+  } finally {
+    process.env = before;
+  }
+});
+
 (async () => {
   for (const entry of tests) {
     try {

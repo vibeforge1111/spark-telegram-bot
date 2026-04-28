@@ -2,7 +2,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
-import { resolveChatDefaultProvider, resolveMissionDefaultProvider } from './providerRouting';
+import { resolveChatDefaultProvider, resolveKnownProviderId, resolveMissionDefaultProvider } from './providerRouting';
 
 type ProviderId = 'zai' | 'codex' | 'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'minimax' | 'ollama' | 'lmstudio';
 type ModelRole = 'agent' | 'mission';
@@ -302,10 +302,17 @@ export async function switchModelRoute(role: ModelRole, provider: ProviderId, mo
     const needed = spec.requiredEnv?.join(' or ') || spec.cliCommand || 'provider setup';
     return `I cannot switch to ${provider} yet because it is not configured. Set up ${needed}, then try again.`;
   }
+  const spec = PROVIDERS[provider];
+  if (role === 'mission' && !resolveKnownProviderId(spec.botProvider)) {
+    return [
+      `I cannot use ${spec.botProvider} for missions yet because Spawner does not advertise that mission provider.`,
+      `You can still use it for agent chat with /model agent ${spec.botProvider}${model ? ` ${model}` : ''}.`,
+      'For missions, choose codex, claude, zai, minimax, openrouter, or huggingface.'
+    ].join('\n');
+  }
 
   const updates = applyToEnv(role, provider, model);
   const changedFiles = await persistEnvUpdates(updates);
-  const spec = PROVIDERS[provider];
   const selectedModel = model?.trim() || recommendedModelFor(provider, role);
   const displayModel = displayModelFor(provider, role, selectedModel);
   const label = role === 'agent' ? 'Agent chat/runtime/memory' : 'Missions';
