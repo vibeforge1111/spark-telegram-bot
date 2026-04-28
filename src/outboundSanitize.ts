@@ -49,7 +49,7 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
 
   return text
     .replace(
-      /\n?\s*[-*]?\s*Are you thinking this runs locally as a standalone page,\s*or lives inside the existing Spawner UI routes\?\s*$/i,
+      /\n?\s*[-*]?\s*Are you thinking this (?:runs locally as|should run locally as|should be) a standalone (?:page|app|tool),\s*or lives? inside the existing Spawner UI routes\?\s*$/i,
       '\n\nSince this lives inside the existing Spawner UI routes, the useful question is: which surface should we tighten first - Kanban state accuracy, Canvas execution state, or Telegram relay messaging?'
     )
     .replace(
