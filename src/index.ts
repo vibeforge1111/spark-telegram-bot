@@ -413,6 +413,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
 
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
   const newRequestId = `${pending.requestId}-clarified-${Date.now()}`;
+  const missionId = missionIdFromTelegramBuildRequest(newRequestId);
   const tier = getTierForUser(ctx.from.id);
   const prdContent = pending.projectPath
     ? `# ${pending.projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nTarget operating-system folder: \`${pending.projectPath}\`\n\n${enrichedPrd}`
@@ -432,6 +433,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
         telegramRelay: getTelegramRelayIdentity(),
         tier,
         forceDispatch: true,
+        missionId,
         options: { includeSkills: true, includeMCPs: false }
       },
       { timeout: 10000 }
@@ -443,8 +445,10 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     }
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
+    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
+    const kanbanUrl = projectKanbanUrl(publicSpawnerUrl, missionId);
     await ctx.reply(
-      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
+      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nMission: ${missionId}\nCanvas: ${canvasUrl}\nMission board: ${kanbanUrl}`
     );
   } catch (err) {
     await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));

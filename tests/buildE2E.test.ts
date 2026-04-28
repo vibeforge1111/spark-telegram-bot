@@ -301,8 +301,13 @@ async function run(): Promise<void> {
 
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected go to force-dispatch pending clarification');
+		const clarifiedMissionId = `mission-${String(dispatchCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
+		assert.equal(dispatchCall!.body.missionId, clarifiedMissionId);
 		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
 		assert.match(replies.join('\n'), /Starting with the defaults/);
+		assert.match(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
+		assert.match(replies.join('\n'), new RegExp(`Canvas: http://stub-spawner\\.test/canvas\\?pipeline=prd-${dispatchCall!.body.requestId}&mission=${clarifiedMissionId}`));
+		assert.match(replies.join('\n'), new RegExp(`Mission board: http://stub-spawner\\.test/kanban\\?mission=${clarifiedMissionId}`));
 
 		restoreAxios();
 		restoreEnv();
