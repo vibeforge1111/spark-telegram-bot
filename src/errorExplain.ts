@@ -111,12 +111,38 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   }
 
   if (
+    lower.includes('timed out') ||
+    lower.includes('promise timed') ||
+    lower.includes('command timed')
+  ) {
+    if (context === 'telegram') {
+      return {
+        category: 'telegram_handler_timeout',
+        userLine: 'Spark waited too long while handling this Telegram turn.',
+        detail,
+        check: 'Run /diagnose so Spark can tell whether the slow part is chat, Builder, Spawner, or the local harness.',
+        repair: 'Operator fix: increase the relevant timeout, then inspect spark-telegram-bot logs for the slow component before restarting the bot.'
+      };
+    }
+    if (context === 'chat') {
+      return {
+        category: 'chat_runtime_timeout',
+        userLine: 'Spark hit the chat runtime timeout before it could answer cleanly.',
+        detail,
+        check: 'Run /diagnose and check the active chat provider plus any local harness command that was running.',
+        repair: 'Operator fix: raise the chat/tool timeout or route this kind of long analysis through a Spawner mission.'
+      };
+    }
+  }
+
+  if (
     lower.includes('econnrefused') ||
     lower.includes('connection refused') ||
     lower.includes('fetch failed') ||
     lower.includes('enotfound') ||
     lower.includes('etimedout') ||
     lower.includes('timeout') ||
+    lower.includes('timed out') ||
     lower.includes('network error')
   ) {
     if (context === 'spawner' || lower.includes('5173') || lower.includes('8788')) {

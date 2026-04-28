@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
+import { chatCommandTimeoutMs } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
@@ -389,7 +390,7 @@ async function codexChat(prompt: string): Promise<string> {
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-chat-'));
   const outputPath = path.join(tmpDir, 'last-message.txt');
   try {
-    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, 120000);
+    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, chatCommandTimeoutMs());
     if (!result.ok) {
       throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
     }
@@ -405,7 +406,7 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
     CLAUDE_PATH,
     ['-p', '--output-format', 'text', '--model', model],
     prompt,
-    120000
+    chatCommandTimeoutMs()
   );
   if (!result.ok) {
     throw new Error(result.stderr || result.stdout || 'Claude CLI failed');

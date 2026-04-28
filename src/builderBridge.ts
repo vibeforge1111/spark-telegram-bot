@@ -6,6 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
+import { builderBridgeTimeoutMs } from './timeoutConfig';
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
@@ -71,7 +72,7 @@ function resolveBridgeConfig(): BuilderBridgeConfig {
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
-    timeoutMs: Number.parseInt(process.env.SPARK_BUILDER_TIMEOUT_MS || '45000', 10) || 45000,
+    timeoutMs: builderBridgeTimeoutMs(),
   };
 }
 

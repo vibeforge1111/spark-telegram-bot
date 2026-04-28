@@ -41,6 +41,23 @@ test('explains slow Spawner handoffs separately from offline Spawner', () => {
   assert.match(reply, /Spark spawner failure: spawner_slow/);
 });
 
+test('does not mislabel Telegram handler timeouts as Telegram config', () => {
+  const reply = renderSparkErrorReply(new Error('Promise timed out after 90000 milliseconds'), 'telegram', true);
+
+  assert.match(reply, /waited too long/);
+  assert.match(reply, /chat, Builder, Spawner, or the local harness/);
+  assert.match(reply, /Spark telegram failure: telegram_handler_timeout/);
+  assert.doesNotMatch(reply, /Telegram configuration problem/);
+});
+
+test('explains command timeouts in chat as runtime timeouts', () => {
+  const explanation = explainSparkError(new Error('command timed out after 120000ms'), 'chat');
+
+  assert.equal(explanation.category, 'chat_runtime_timeout');
+  assert.match(explanation.userLine, /chat runtime timeout/);
+  assert.match(explanation.repair, /route this kind of long analysis through a Spawner mission/);
+});
+
 test('explains builder memory failures', () => {
   const reply = renderSparkErrorReply(new Error('Builder bridge is required but unavailable'), 'memory', true);
 

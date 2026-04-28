@@ -77,7 +77,7 @@ async function run(): Promise<void> {
       providers: ['codex', 'claude'],
       promptMode: 'orchestrator'
     });
-    assert.equal(capturedOptions.timeout, 30000);
+    assert.equal(capturedOptions.timeout, 1800000);
   });
 
   await test('runGoal retries once when local Spawner request times out', async () => {

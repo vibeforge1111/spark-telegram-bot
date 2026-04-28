@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
-const DEFAULT_LOCAL_SERVICE_TIMEOUT_MS = 30_000;
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 
@@ -61,10 +61,10 @@ type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
 type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
 
 export function localServiceTimeoutMs(envKey: string, fallbackMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS): number {
-  const raw = process.env[envKey];
-  if (!raw) return fallbackMs;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed >= 1000 ? parsed : fallbackMs;
+  const defaultMs = process.env.SPARK_LOCAL_SERVICE_TIMEOUT_MS
+    ? positiveIntegerEnv(process.env, 'SPARK_LOCAL_SERVICE_TIMEOUT_MS', fallbackMs)
+    : fallbackMs;
+  return positiveIntegerEnv(process.env, envKey, defaultMs);
 }
 
 function isRetryableLocalServiceError(err: any): boolean {

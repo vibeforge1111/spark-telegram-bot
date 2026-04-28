@@ -26,6 +26,7 @@ import {
   normalizeSparkAccessProfile,
   renderSparkAccessDenial,
   renderSparkAccessOnboarding,
+  renderSparkAccessRuntimeHint,
   renderSparkAccessStatus,
   setSparkAccessProfile,
   sparkAccessAllows,
@@ -90,6 +91,7 @@ import {
   renderModelStatus,
   switchModelRoute
 } from './modelSwitch';
+import { telegramHandlerTimeoutMs } from './timeoutConfig';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -103,7 +105,9 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
 }
 
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
-const bot = new Telegraf(botToken);
+const bot = new Telegraf(botToken, {
+  handlerTimeout: telegramHandlerTimeoutMs()
+});
 
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
@@ -487,7 +491,7 @@ function startPrdCanvasReadyNotifier(args: {
 }): void {
   void (async () => {
     const started = Date.now();
-    const readyTimeoutMs = localServiceTimeoutMs('SPARK_SPAWNER_PRD_READY_TIMEOUT_MS', 600_000);
+    const readyTimeoutMs = localServiceTimeoutMs('SPARK_SPAWNER_PRD_READY_TIMEOUT_MS');
     const deadline = started + readyTimeoutMs;
     const resultUrl = `${args.spawnerUrl}/api/prd-bridge/result?requestId=${encodeURIComponent(args.requestId)}`;
     const heartbeatThresholds = [25_000, 75_000, 135_000];
@@ -1619,7 +1623,12 @@ bot.on(message('text'), async (ctx) => {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await safeSendChatAction(ctx, 'typing');
       const memories = await conversation.getContext(user, text);
-      const llmResponse = await llm.chat(text, buildIdeationSystemHint(text), memories);
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      const llmResponse = await llm.chat(
+        text,
+        [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
+        memories
+      );
       const response = isLowInformationLlmReply(llmResponse)
         ? buildIdeationFallbackReply(text)
         : llmResponse;
@@ -1674,9 +1683,10 @@ bot.on(message('text'), async (ctx) => {
 
     // Get context from previous memories
     const memories = await conversation.getContext(user, text);
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
 
     // Get LLM response with Spark context
-    const response = await llm.chat(text, '', memories);
+    const response = await llm.chat(text, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
       await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));

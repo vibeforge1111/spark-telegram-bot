@@ -10,6 +10,7 @@ import {
   renderSparkAccessDenial,
   renderSparkAccessLevelGuide,
   renderSparkAccessOnboarding,
+  renderSparkAccessRuntimeHint,
   renderSparkAccessStatus,
   setSparkAccessProfile,
   sparkAccessAllows,
@@ -125,6 +126,15 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Level 3 - Research \+ Build/);
     assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Level 4 - Full Access/);
     assert.match(renderSparkAccessOnboarding('agent'), /change this later anytime by sending \/access 1/);
+  });
+
+  await test('renders runtime access hints that prevent filesystem access contradictions', () => {
+    assert.match(renderSparkAccessRuntimeHint('developer'), /Current Spark access: Level 4 - Full Access/);
+    assert.match(renderSparkAccessRuntimeHint('developer'), /do not say you cannot inspect local files/);
+    assert.match(renderSparkAccessRuntimeHint('developer'), /Spawner\/Codex/);
+    assert.match(renderSparkAccessRuntimeHint('agent'), /Current Spark access: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessRuntimeHint('agent'), /Use \/access 4/);
+    assert.match(renderSparkAccessRuntimeHint('chat'), /Do not claim local filesystem access/);
   });
 
   await test('classifies operating-system work and renders denial copy', () => {

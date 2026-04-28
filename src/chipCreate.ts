@@ -4,6 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
+import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { buildChipCreateMissionContext, ChipCreateMissionReporter } from './missionControl';
 
 const execFileAsync = promisify(execFile);
@@ -90,7 +91,7 @@ function resolveConfig(): ChipCreateConfig {
     chipLabsRoot: path.resolve(
       process.env.CHIP_LABS_ROOT || path.join(os.homedir(), '.spark', 'domain-chip-labs')
     ),
-    timeoutMs: Number.parseInt(process.env.CHIP_CREATE_TIMEOUT_MS || '180000', 10) || 180000,
+    timeoutMs: positiveIntegerEnv(process.env, 'CHIP_CREATE_TIMEOUT_MS', builderBridgeTimeoutMs()),
   };
 }
 

@@ -180,6 +180,39 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
   ].join('\n');
 }
 
+export function renderSparkAccessRuntimeHint(profile: SparkAccessProfile): string {
+  if (profile === 'developer') {
+    return [
+      `Current Spark access: ${sparkAccessLabel(profile)}.`,
+      'For local desktop, filesystem, repo, debugging, or project-inspection requests, do not say you cannot inspect local files as a blanket limitation.',
+      'Plain chat cannot directly read the filesystem, but this chat can hand the work to Spawner/Codex for local operating-system work when the user asks.',
+      'If you are not already executing through that path, say you can use the local agent path and ask for or infer the target safely.'
+    ].join('\n');
+  }
+
+  if (profile === 'agent') {
+    return [
+      `Current Spark access: ${sparkAccessLabel(profile)}.`,
+      'Spark can research public links, docs, GitHub repos, and run requested Spawner missions.',
+      'Do not claim local filesystem access at this level. Use /access 4 when the user asks Spark to inspect local desktop files, local repos, or the operating system.'
+    ].join('\n');
+  }
+
+  if (profile === 'builder') {
+    return [
+      `Current Spark access: ${sparkAccessLabel(profile)}.`,
+      'Spark can run explicit Spawner builds when the user clearly asks.',
+      'Do not claim public web research or local filesystem access unless the user raises access.'
+    ].join('\n');
+  }
+
+  return [
+    `Current Spark access: ${sparkAccessLabel(profile)}.`,
+    'Do not claim local filesystem access or mission execution access at this level.',
+    'Spark can chat, remember, recall, and diagnose configured local state.'
+  ].join('\n');
+}
+
 export function renderSparkAccessLevelGuide(): string {
   return [
     'What each level means:',
