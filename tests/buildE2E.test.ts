@@ -246,10 +246,12 @@ async function run(): Promise<void> {
 		});
 
 		assert.match(replies[0] || '', /I can build maze game/);
-		assert.match(replies[0] || '', /Say "go"/);
-		assert.match(replies[0] || '', /Default direction/);
+		assert.match(replies[0] || '', /I recommend: browser-playable/);
+		assert.match(replies[0] || '', /Say "go" and I will start/);
 		assert.match(replies[0] || '', /shifting walls/);
 		assert.doesNotMatch(replies[0] || '', /Brief is too thin/);
+		assert.doesNotMatch(replies[0] || '', /Default direction/);
+		assert.ok((replies[0] || '').split('\n').length <= 3, 'clarification reply should stay short');
 		assert.doesNotMatch(replies[0] || '', /Who is the first user/);
 
 		restoreAxios();

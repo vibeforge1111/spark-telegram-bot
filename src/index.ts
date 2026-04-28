@@ -665,29 +665,19 @@ export function formatBuildClarificationReply(projectName: string, questions: st
   const lower = `${projectName}\n${questions.join('\n')}\n${assumptions.join('\n')}`.toLowerCase();
   const isGame = /\b(game|maze|puzzle|arcade|player|score|level|win condition)\b/.test(lower);
   const isDashboard = /\b(dashboard|metric|analytics|monitor|report)\b/.test(lower);
-  const defaultLine = assumptions[0]?.replace(/^Assume\s+/i, '') || 'I will choose a focused v1 and keep it easy to verify.';
-  const opener = isGame
-    ? `I can build ${projectName}. My default would be ${defaultLine}`
+  const recommendation = isGame
+    ? 'browser-playable, keyboard controls, clear win/score loop, restart, and local best score'
     : isDashboard
-      ? `I can build ${projectName}. My default would be ${defaultLine}`
-      : `I can build ${projectName}. My default would be ${defaultLine}`;
-  const questionLead = isGame
-    ? `Say "go" and I will start with that. Or steer the game feel with one quick reply:`
-    : `Say "go" and I will start with that. Or steer the plan with one quick reply:`;
-  const lines = [
-    opener,
+      ? 'focused web dashboard, the key metrics first, seeded data if live data is not ready, and clean empty/error states'
+      : (assumptions[0]?.replace(/^Assume\s+/i, '').replace(/\.$/, '') || 'focused web v1 with a polished first screen and simple verification');
+  const steerQuestion = questions[0] || (isGame
+    ? 'What twist should make it fun?'
+    : 'What is the one detail I should not guess?');
+  return [
+    `I can build ${projectName}. I recommend: ${recommendation}.`,
     '',
-    questionLead,
-    ...questions.slice(0, 3).map((q) => `- ${q}`)
-  ];
-  if (assumptions.length > 0) {
-    lines.push('');
-    lines.push(`Default direction:`);
-    for (const a of assumptions.slice(0, 3)) lines.push(`- ${a.replace(/^Assume\s+/i, '')}`);
-  }
-  lines.push('');
-  lines.push(`Just reply "go" to start, or answer naturally if you want to change the direction.`);
-  return lines.join('\n');
+    `Say "go" and I will start. Or steer one thing: ${steerQuestion}`
+  ].join('\n');
 }
 
 function slugForDomainChipBrief(brief: string): string {
