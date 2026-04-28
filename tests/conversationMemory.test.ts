@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ConversationMemory, parseTelegramUserIds } from '../src/conversation';
+import {
+  ConversationMemory,
+  isPendingTaskRecoveryQuestion,
+  parseTelegramUserIds,
+  renderPendingTaskRecoveryReply
+} from '../src/conversation';
 import { resetJsonStateForTests } from '../src/jsonState';
 
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -117,6 +122,46 @@ async function main(): Promise<void> {
 
     assert.deepEqual(recent, ['a new domain chip', 'recognizing bugs happening in Spark systems']);
   });
+  });
+
+  await test('persists interrupted task recovery context across instances', async () => {
+  await withTempState(async () => {
+    const first = new ConversationMemory();
+    await first.recordInterruptedTask(user, {
+      message: 'analyze our systems to see what memory layers we have',
+      failure: 'Promise timed out after 90000 milliseconds',
+      stage: 'telegram_handler'
+    });
+
+    const second = new ConversationMemory();
+    const pending = await second.getPendingTaskRecovery(user);
+    const context = await second.getContext(user, 'what happened');
+
+    assert.equal(pending?.message, 'analyze our systems to see what memory layers we have');
+    assert.equal(pending?.failure, 'Promise timed out after 90000 milliseconds');
+    assert.equal(pending?.stage, 'telegram_handler');
+    assert.match(context, /Interrupted task to recover/);
+    assert.match(context, /analyze our systems/);
+  });
+  });
+
+  await test('recognizes recovery probes and renders the interrupted request', () => {
+    assert.equal(isPendingTaskRecoveryQuestion('what happened?'), true);
+    assert.equal(isPendingTaskRecoveryQuestion('is it fine now'), true);
+    assert.equal(isPendingTaskRecoveryQuestion('you timed out'), true);
+    assert.equal(isPendingTaskRecoveryQuestion('please build the app'), false);
+
+    const reply = renderPendingTaskRecoveryReply({
+      message: 'check the compression pipeline',
+      failure: 'command timed out after 120000ms',
+      stage: 'chat_runtime',
+      recordedAt: '2026-04-28T18:00:00.000Z'
+    });
+
+    assert.match(reply, /The interrupted request was/);
+    assert.match(reply, /check the compression pipeline/);
+    assert.match(reply, /command timed out after 120000ms/);
+    assert.match(reply, /I can resume from that/);
   });
 }
 

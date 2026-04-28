@@ -9,7 +9,11 @@ import { Telegraf } from 'telegraf';
 // rewrites in .env. Never committed (.gitignored).
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
-import { conversation } from './conversation';
+import {
+  conversation,
+  isPendingTaskRecoveryQuestion,
+  renderPendingTaskRecoveryReply
+} from './conversation';
 import { getBuilderBridgeStatus, runBuilderDiagnosticsScan, runBuilderTelegramBridge } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
@@ -1429,6 +1433,17 @@ bot.on(message('text'), async (ctx) => {
     return;
   }
 
+  if (isPendingTaskRecoveryQuestion(text)) {
+    const pendingTask = await conversation.getPendingTaskRecovery(user);
+    if (pendingTask) {
+      const reply = renderPendingTaskRecoveryReply(pendingTask);
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      return;
+    }
+  }
+
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
@@ -1574,6 +1589,11 @@ bot.on(message('text'), async (ctx) => {
         }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
+        await conversation.recordInterruptedTask(user, {
+          message: text,
+          failure: detail,
+          stage: 'diagnostics_scan'
+        }).catch(() => {});
         await ctx.reply(`Diagnostics scan failed: ${detail}`);
       }
       return;
@@ -1689,6 +1709,11 @@ bot.on(message('text'), async (ctx) => {
     const response = await llm.chat(text, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
+      await conversation.recordInterruptedTask(user, {
+        message: text,
+        failure: bridgeFailed ? 'Builder bridge failed and chat fallback returned a low-information reply.' : 'Chat runtime returned a low-information reply.',
+        stage: bridgeFailed ? 'builder_bridge_fallback' : 'chat_runtime'
+      }).catch(() => {});
       await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));
       return;
     }
@@ -1713,6 +1738,12 @@ bot.on(message('text'), async (ctx) => {
 
   } catch (err) {
     console.error('Message handling error:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    await conversation.recordInterruptedTask(user, {
+      message: text,
+      failure: detail,
+      stage: 'telegram_message_handler'
+    }).catch(() => {});
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
 });

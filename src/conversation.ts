@@ -30,6 +30,14 @@ interface TelegramUser {
 interface ConversationSnapshot {
   recentByUser?: Record<string, string[]>;
   notesByUser?: Record<string, string[]>;
+  interruptedByUser?: Record<string, PendingTaskRecovery>;
+}
+
+export interface PendingTaskRecovery {
+  message: string;
+  failure: string;
+  stage?: string;
+  recordedAt: string;
 }
 
 export interface Memory {
@@ -44,6 +52,7 @@ export interface Memory {
 export class ConversationMemory {
   private readonly recentByUser = new Map<number, string[]>();
   private readonly notesByUser = new Map<number, string[]>();
+  private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
   private readonly maxRecent = 8;
   private readonly maxNotes = 12;
   private loaded = false;
@@ -84,6 +93,26 @@ export class ConversationMemory {
         }
       }
     }
+    if (snapshot?.interruptedByUser) {
+      for (const [key, value] of Object.entries(snapshot.interruptedByUser)) {
+        const userId = Number(key);
+        if (
+          Number.isSafeInteger(userId) &&
+          userId > 0 &&
+          value &&
+          typeof value.message === 'string' &&
+          typeof value.failure === 'string' &&
+          typeof value.recordedAt === 'string'
+        ) {
+          this.interruptedByUser.set(userId, {
+            message: value.message,
+            failure: value.failure,
+            stage: typeof value.stage === 'string' ? value.stage : undefined,
+            recordedAt: value.recordedAt
+          });
+        }
+      }
+    }
     this.loaded = true;
   }
 
@@ -96,9 +125,14 @@ export class ConversationMemory {
   }
 
   private async persist(): Promise<void> {
+    const interruptedByUser: Record<string, PendingTaskRecovery> = {};
+    for (const [key, value] of this.interruptedByUser.entries()) {
+      interruptedByUser[String(key)] = value;
+    }
     await writeJsonAtomic(this.statePath, {
       recentByUser: this.recordFromMap(this.recentByUser),
-      notesByUser: this.recordFromMap(this.notesByUser)
+      notesByUser: this.recordFromMap(this.notesByUser),
+      interruptedByUser
     });
   }
 
@@ -128,6 +162,28 @@ export class ConversationMemory {
     return null;
   }
 
+  async recordInterruptedTask(
+    user: TelegramUser,
+    input: { message: string; failure: string; stage?: string }
+  ): Promise<void> {
+    await this.ensureLoaded();
+    const message = input.message.trim();
+    const failure = input.failure.trim();
+    if (!message || !failure) return;
+    this.interruptedByUser.set(this.userKey(user), {
+      message,
+      failure,
+      stage: input.stage?.trim() || undefined,
+      recordedAt: new Date().toISOString()
+    });
+    await this.persist();
+  }
+
+  async getPendingTaskRecovery(user: TelegramUser): Promise<PendingTaskRecovery | null> {
+    await this.ensureLoaded();
+    return this.interruptedByUser.get(this.userKey(user)) || null;
+  }
+
   async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
     await this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
     return null;
@@ -153,6 +209,14 @@ export class ConversationMemory {
       for (const note of notes) {
         lines.push(`- ${note}`);
       }
+    }
+
+    const interrupted = this.interruptedByUser.get(key);
+    if (interrupted) {
+      lines.push('Interrupted task to recover:');
+      lines.push(`- User request: ${interrupted.message}`);
+      lines.push(`- Failure: ${interrupted.failure}`);
+      if (interrupted.stage) lines.push(`- Stage: ${interrupted.stage}`);
     }
 
     if (recent.length > 0) {
@@ -188,3 +252,30 @@ export class ConversationMemory {
 }
 
 export const conversation = new ConversationMemory();
+
+export function isPendingTaskRecoveryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    /\bwhat happened\b/.test(normalized) ||
+    /\bis it fine now\b/.test(normalized) ||
+    /\bare we good now\b/.test(normalized) ||
+    /\bdid it recover\b/.test(normalized) ||
+    /\byou timed out\b/.test(normalized) ||
+    /\bit timed out\b/.test(normalized) ||
+    /\bwhat was i asking\b/.test(normalized) ||
+    /\bwhat were we doing\b/.test(normalized) ||
+    /\bwhere did we leave off\b/.test(normalized)
+  );
+}
+
+export function renderPendingTaskRecoveryReply(task: PendingTaskRecovery): string {
+  return [
+    'I recovered the last interrupted task.',
+    '',
+    `The interrupted request was: ${task.message}`,
+    `Failure: ${task.failure}`,
+    task.stage ? `Stage: ${task.stage}` : null,
+    '',
+    'I can resume from that instead of starting from scratch.'
+  ].filter(Boolean).join('\n');
+}
