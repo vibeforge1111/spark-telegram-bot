@@ -41,9 +41,9 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   anthropic: {
     provider: 'anthropic',
     botProvider: 'claude',
-    defaultModel: 'claude-sonnet-4-20250514',
-    displayModel: 'Claude Sonnet 4 (claude-sonnet-4-20250514)',
-    recommendation: 'Stable Sonnet snapshot for agent chat/runtime/memory. Claude Code alias: sonnet.',
+    defaultModel: 'claude-sonnet-4-6',
+    displayModel: 'Claude Sonnet 4.6 (claude-sonnet-4-6)',
+    recommendation: 'Latest Sonnet family default for agent chat/runtime/memory. Claude Code alias: sonnet.',
     authMode: 'claude_oauth',
     requiredEnv: [],
     cliCommand: process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude'
@@ -95,8 +95,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   }
 };
 
-const CLAUDE_MISSION_MODEL = 'claude-opus-4-1-20250805';
-const CLAUDE_MISSION_DISPLAY = 'Claude Opus 4.1 (claude-opus-4-1-20250805)';
+const CLAUDE_MISSION_MODEL = 'claude-opus-4-7';
+const CLAUDE_MISSION_DISPLAY = 'Claude Opus 4.7 (claude-opus-4-7)';
 
 export function recommendedModelFor(provider: ProviderId, role: ModelRole): string {
   if (provider === 'anthropic' && role === 'mission') return CLAUDE_MISSION_MODEL;
@@ -258,7 +258,7 @@ export function renderModelStatus(): string {
     `/model agent claude ${PROVIDERS.anthropic.defaultModel}`,
     '/model mission codex',
     `/model mission claude ${CLAUDE_MISSION_MODEL}`,
-    '/model agent openrouter anthropic/claude-sonnet-4',
+    '/model agent openrouter anthropic/claude-sonnet-4.6',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');
