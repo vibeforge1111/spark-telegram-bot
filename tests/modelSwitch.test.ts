@@ -22,6 +22,7 @@ test('normalizes Telegram model switch aliases', () => {
   assert.equal(normalizeModelRole('spawner'), 'mission');
   assert.equal(normalizeModelProvider('claude'), 'anthropic');
   assert.equal(normalizeModelProvider('glm'), 'zai');
+  assert.equal(normalizeModelProvider('lm studio'), 'lmstudio');
 });
 
 test('renders a model status help surface', () => {
@@ -92,6 +93,22 @@ test('uses a lightweight Ollama default for local model switching', async () => 
     const config = resolveChatProviderConfig(process.env);
     assert.equal(config.provider, 'ollama');
     assert.equal(config.model, 'llama3.2:3b');
+  } finally {
+    process.env = before;
+  }
+});
+
+test('supports LM Studio as an explicit local model route', async () => {
+  const before = { ...process.env };
+  try {
+    process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
+    const reply = await switchModelRoute('agent', 'lmstudio', 'loaded-local-model');
+    assert.match(reply, /Agent chat\/runtime\/memory now uses lmstudio \(loaded-local-model\)/);
+    const config = resolveChatProviderConfig(process.env);
+    assert.equal(config.provider, 'lmstudio');
+    assert.equal(config.kind, 'openai_compat');
+    assert.equal(config.baseUrl, 'http://localhost:1234/v1');
+    assert.equal(config.model, 'loaded-local-model');
   } finally {
     process.env = before;
   }

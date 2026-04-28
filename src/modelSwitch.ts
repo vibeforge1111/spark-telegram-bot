@@ -4,7 +4,7 @@ import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
 import { resolveChatDefaultProvider, resolveMissionDefaultProvider } from './providerRouting';
 
-type ProviderId = 'zai' | 'codex' | 'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'minimax' | 'ollama';
+type ProviderId = 'zai' | 'codex' | 'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'minimax' | 'ollama' | 'lmstudio';
 type ModelRole = 'agent' | 'mission';
 
 interface ProviderSpec {
@@ -66,6 +66,15 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     requiredEnv: ['OPENROUTER_API_KEY']
   },
+  lmstudio: {
+    provider: 'lmstudio',
+    botProvider: 'lmstudio',
+    defaultModel: 'local-model',
+    recommendation: 'Local OpenAI-compatible server at http://localhost:1234/v1. Pass the loaded LM Studio model id from its Models endpoint.',
+    authMode: 'local',
+    baseUrl: process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1',
+    requiredEnv: []
+  },
   huggingface: {
     provider: 'huggingface',
     botProvider: 'huggingface',
@@ -123,6 +132,9 @@ const PROVIDER_ALIASES: Record<string, ProviderId> = {
   anthropic: 'anthropic',
   openrouter: 'openrouter',
   router: 'openrouter',
+  lmstudio: 'lmstudio',
+  'lm-studio': 'lmstudio',
+  'lm studio': 'lmstudio',
   hf: 'huggingface',
   huggingface: 'huggingface',
   minimax: 'minimax',
@@ -259,6 +271,8 @@ export function renderModelStatus(): string {
     '/model mission codex',
     `/model mission claude ${CLAUDE_MISSION_MODEL}`,
     '/model agent openrouter anthropic/claude-sonnet-4.6',
+    '/model agent lmstudio <loaded-model-id>',
+    '/model agent huggingface deepseek-ai/DeepSeek-R1:fastest',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');

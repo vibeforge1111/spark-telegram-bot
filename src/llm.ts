@@ -69,6 +69,8 @@ const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimax.io/v1';
 const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
 const OLLAMA_DEFAULT_MODEL = 'llama3.2:3b';
+const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
+const LMSTUDIO_DEFAULT_MODEL = 'local-model';
 
 function firstEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string {
   for (const key of keys) {
@@ -84,6 +86,7 @@ function normalizeProvider(value: string): string {
   if (normalized === 'claude') return 'anthropic';
   if (normalized === 'open-router') return 'openrouter';
   if (normalized === 'hf' || normalized === 'hugging-face') return 'huggingface';
+  if (normalized === 'lm-studio' || normalized === 'lm studio') return 'lmstudio';
   return normalized;
 }
 
@@ -145,6 +148,15 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
       model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'OPENROUTER_MODEL') || 'openai/gpt-5.5',
       baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENROUTER_BASE_URL') || OPENROUTER_DEFAULT_BASE_URL,
       apiKey: env.OPENROUTER_API_KEY,
+    };
+  }
+  if (provider === 'lmstudio') {
+    return {
+      provider,
+      kind: 'openai_compat',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'LMSTUDIO_MODEL') || LMSTUDIO_DEFAULT_MODEL,
+      baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'LMSTUDIO_BASE_URL') || LMSTUDIO_DEFAULT_BASE_URL,
+      apiKey: env.LMSTUDIO_API_KEY || 'lm-studio',
     };
   }
   if (provider === 'huggingface') {

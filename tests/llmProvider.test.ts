@@ -90,6 +90,20 @@ test('uses explicit OpenRouter provider without being masked by other keys', () 
   assert.equal(config.apiKey, 'or-key');
 });
 
+test('uses LM Studio as a named OpenAI-compatible local provider', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'lmstudio',
+    LMSTUDIO_BASE_URL: 'http://localhost:1234/v1',
+    LMSTUDIO_MODEL: 'qwen-local',
+  });
+
+  assert.equal(config.provider, 'lmstudio');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.baseUrl, 'http://localhost:1234/v1');
+  assert.equal(config.model, 'qwen-local');
+  assert.equal(config.apiKey, 'lm-studio');
+});
+
 test('uses explicit Hugging Face router provider', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'huggingface',
