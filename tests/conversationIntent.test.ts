@@ -176,6 +176,18 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
 });
 
+test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {
+  const prompt = [
+    "let's build a memory quality dashboard makes sense, but let's pin the scope before building.",
+    'it would show: recall accuracy over time, failure modes (confabulation vs. omission vs. drift), and latency.',
+    'All within spawner-ui, not a separate thing.',
+    'it should be connected to our live memory system for our own monitoring'
+  ].join('\n');
+
+  assert.equal(shouldPreferConversationalIdeation(prompt), true);
+  assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
+});
+
 test('answers diagnostic follow-up testing questions from mission context', () => {
   assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
   const reply = buildDiagnosticFollowupTestReply(

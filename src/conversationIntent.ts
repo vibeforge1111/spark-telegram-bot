@@ -5,6 +5,7 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\bi\s+(?:do\s+not|don't|dont)\s+know\s+(?:exactly\s+)?(?:what|yet)\b/i,
   /\b(?:do\s+not|don't|dont)\s+build\s+yet\b/i,
   /\bbefore\s+(?:building|we\s+build|creating|we\s+create|making|we\s+make)\b/i,
+  /\b(?:pin|define|tighten)\s+(?:the\s+)?scope\b/i,
   /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
   /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
   /\bwhat\s+would\s+you\s+(?:build|make|create|suggest)\b/i,
@@ -280,6 +281,7 @@ export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_p
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
+  if (shouldPreferConversationalIdeation(text)) return null;
 
   if (
     /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
