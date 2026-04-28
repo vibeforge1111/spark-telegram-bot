@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { quoteWindowsArg, windowsCmdShimArgs, withHiddenWindows } from '../src/hiddenProcess';
+import {
+  quoteWindowsArg,
+  resolveWindowsCommand,
+  windowsCmdShimArgs,
+  windowsPowerShellShimArgs,
+  withHiddenWindows
+} from '../src/hiddenProcess';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -27,6 +33,25 @@ test('Windows cmd shims preserve spaced paths without shell interpolation', () =
     '/s',
     '/c',
     '"C:\\Program Files\\Spark\\spark.cmd" run "hello world"',
+  ]);
+});
+
+test('Windows command resolver finds cmd shims from PATH', () => {
+  if (process.platform !== 'win32') return;
+  const resolved = resolveWindowsCommand('claude');
+  assert.match(resolved, /claude\.(ps1|cmd|exe)$/i);
+});
+
+test('PowerShell shim args run scripts without shell interpolation', () => {
+  assert.deepEqual(windowsPowerShellShimArgs('C:\\Spark Tools\\claude.ps1', ['-p', 'hello world']), [
+    '-NoLogo',
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    'C:\\Spark Tools\\claude.ps1',
+    '-p',
+    'hello world',
   ]);
 });
 
