@@ -80,6 +80,12 @@ import { getTierForUser } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
 import { renderSparkErrorReply } from './errorExplain';
+import {
+  normalizeModelProvider,
+  normalizeModelRole,
+  renderModelStatus,
+  switchModelRoute
+} from './modelSwitch';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -146,6 +152,15 @@ bot.telegram.sendMessage = ((chatId: any, text: any, extra?: any) => {
   delivery.then(() => recordNodeOutboundDelivery(chatId, cleaned)).catch(() => {});
   return delivery;
 }) as typeof bot.telegram.sendMessage;
+
+bot.use(async (ctx, next) => {
+  const originalReply = ctx.reply.bind(ctx);
+  ctx.reply = ((text: any, extra?: any) => {
+    const cleaned = typeof text === 'string' ? sanitizeOutbound(text) : text;
+    return originalReply(cleaned, extra);
+  }) as typeof ctx.reply;
+  await next();
+});
 
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
@@ -289,6 +304,7 @@ bot.start(async (ctx) => {
       'Spawner Control:',
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
+      '/model - Show or change Agent/Mission model routing',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
       '/access <1|2|3|4> - Choose Chat Only, Build When Asked, Research + Build, or Full Access',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
@@ -828,10 +844,12 @@ function parseRunCommand(text: string, command: string): string {
   return text.slice(idx + command.length).trim();
 }
 
-const MISSION_DEFAULT_PROVIDER = resolveMissionDefaultProvider();
+function missionDefaultProvider(): string {
+  return resolveMissionDefaultProvider();
+}
 
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
-  { name: 'run', providers: [MISSION_DEFAULT_PROVIDER], usage: `/run <goal>  (default: ${MISSION_DEFAULT_PROVIDER})` },
+  { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
   { name: 'runglm', providers: ['zai'], usage: '/runglm <goal>  (Z.AI GLM)' },
   { name: 'runzai', providers: ['zai'], usage: '/runzai <goal>' },
@@ -848,9 +866,40 @@ for (const variant of RUN_VARIANTS) {
     if (!goal) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
-    await handleRunCommand(ctx, goal, variant.providers);
+    const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    await handleRunCommand(ctx, goal, providers);
   });
 }
+
+bot.command('model', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = ctx.message.text.replace('/model', '').trim();
+  if (!raw || raw.toLowerCase() === 'status') {
+    await ctx.reply(renderModelStatus());
+    return;
+  }
+
+  const [roleToken, providerToken, modelToken] = raw.split(/\s+/).filter(Boolean);
+  const role = normalizeModelRole(roleToken);
+  const provider = normalizeModelProvider(providerToken);
+  if (!role || !provider) {
+    await ctx.reply([
+      'Use /model like this:',
+      '/model agent zai',
+      '/model agent codex',
+      '/model agent claude',
+      '/model mission codex',
+      '/model mission claude',
+      '',
+      'Agent means chat + runtime + memory. Mission means Spawner builds.'
+    ].join('\n'));
+    return;
+  }
+
+  const reply = await switchModelRoute(role, provider, modelToken);
+  await ctx.reply(reply);
+});
 
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
@@ -1198,7 +1247,7 @@ bot.on(message('text'), async (ctx) => {
       if (improvementGoal) {
         console.log(`[ConversationIntent] inferred contextual improvement mission user=${ctx.from?.id} textLen=${text.length}`);
         await conversation.remember(user, text).catch(() => {});
-        const missionId = await handleRunCommand(ctx, improvementGoal, [MISSION_DEFAULT_PROVIDER]);
+        const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()]);
         if (missionId) {
           await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to improve the Spark Diagnostic Agent integration from Telegram context.`).catch(() => {});
         }
@@ -1213,7 +1262,7 @@ bot.on(message('text'), async (ctx) => {
         return;
       }
       await conversation.remember(user, text).catch(() => {});
-      const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [MISSION_DEFAULT_PROVIDER], 'external_research');
+      const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [missionDefaultProvider()], 'external_research');
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
       }
@@ -1224,7 +1273,7 @@ bot.on(message('text'), async (ctx) => {
     if (inferredMissionGoal) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);
       await conversation.remember(user, text).catch(() => {});
-      const missionId = await handleRunCommand(ctx, inferredMissionGoal, [MISSION_DEFAULT_PROVIDER]);
+      const missionId = await handleRunCommand(ctx, inferredMissionGoal, [missionDefaultProvider()]);
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} from Telegram follow-up: ${inferredMissionGoal.slice(0, 220)}`).catch(() => {});
       }

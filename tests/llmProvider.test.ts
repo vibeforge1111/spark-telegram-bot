@@ -147,6 +147,17 @@ test('system prompt prioritizes local list references over older memory', () => 
   assert.match(prompt, /Do not offer to scaffold/);
 });
 
+test('uses Claude Code print mode when Anthropic is selected for chat', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'anthropic',
+    SPARK_CHAT_LLM_MODEL: 'opus',
+  });
+
+  assert.equal(config.provider, 'anthropic');
+  assert.equal(config.kind, 'claude');
+  assert.equal(config.model, 'opus');
+});
+
 test('system prompt treats Spawner Kanban and Canvas as existing surfaces', () => {
   const prompt = buildSparkChatSystemPrompt('', '');
 

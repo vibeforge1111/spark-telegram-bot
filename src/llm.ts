@@ -10,6 +10,7 @@ loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: tru
 
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
+const CLAUDE_PATH = process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude';
 
 interface OllamaResponse {
   model: string;
@@ -55,7 +56,7 @@ export interface ChatProviderPing {
 
 interface ChatProviderConfig {
   provider: string;
-  kind: 'codex' | 'openai_compat' | 'ollama' | 'unsupported' | 'not_configured';
+  kind: 'codex' | 'claude' | 'openai_compat' | 'ollama' | 'unsupported' | 'not_configured';
   model: string;
   baseUrl: string;
   apiKey?: string;
@@ -107,6 +108,14 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
       provider,
       kind: 'codex',
       model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'CODEX_MODEL', 'SPARK_CODEX_MODEL') || 'gpt-5.5',
+      baseUrl: '',
+    };
+  }
+  if (provider === 'anthropic') {
+    return {
+      provider,
+      kind: 'claude',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'ANTHROPIC_MODEL', 'CLAUDE_MODEL') || 'sonnet',
       baseUrl: '',
     };
   }
@@ -268,6 +277,12 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
       ? { ok: true, detail: 'codex cli available' }
       : { ok: false, detail: 'codex cli unavailable' };
   }
+  if (config.kind === 'claude') {
+    const result = await runProcess(CLAUDE_PATH, ['--version'], '', 5000);
+    return result.ok
+      ? { ok: true, detail: 'claude cli available' }
+      : { ok: false, detail: 'claude cli unavailable' };
+  }
 
   if (config.kind === 'openai_compat') {
     try {
@@ -348,6 +363,19 @@ async function codexChat(prompt: string): Promise<string> {
   }
 }
 
+async function claudeChat(prompt: string, model: string): Promise<string> {
+  const result = await runProcess(
+    CLAUDE_PATH,
+    ['-p', '--output-format', 'text', '--model', model],
+    prompt,
+    120000
+  );
+  if (!result.ok) {
+    throw new Error(result.stderr || result.stdout || 'Claude CLI failed');
+  }
+  return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
+}
+
 export const llm = {
   /**
    * Check if the configured LLM is available.
@@ -356,6 +384,10 @@ export const llm = {
     const config = resolveChatProviderConfig();
     if (config.kind === 'codex') {
       return await codexAvailable();
+    }
+    if (config.kind === 'claude') {
+      const result = await runProcess(CLAUDE_PATH, ['--version'], '', 5000);
+      return result.ok;
     }
 
     if (config.kind === 'openai_compat') {
@@ -398,6 +430,9 @@ export const llm = {
       const config = resolveChatProviderConfig();
       if (config.kind === 'codex') {
         return await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`);
+      }
+      if (config.kind === 'claude') {
+        return await claudeChat(`${systemPrompt}\n\nUser message:\n${userMessage}`, config.model);
       }
 
       if (config.kind === 'openai_compat') {
