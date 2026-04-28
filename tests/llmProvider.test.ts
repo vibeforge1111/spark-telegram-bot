@@ -108,14 +108,25 @@ test('uses explicit Hugging Face router provider', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'huggingface',
     HF_TOKEN: 'hf-key',
-    HUGGINGFACE_MODEL: 'deepseek-ai/DeepSeek-R1:fastest',
+    HUGGINGFACE_MODEL: 'google/gemma-4-26B-A4B-it:fastest',
   });
 
   assert.equal(config.provider, 'huggingface');
   assert.equal(config.kind, 'openai_compat');
   assert.equal(config.baseUrl, 'https://router.huggingface.co/v1');
-  assert.equal(config.model, 'deepseek-ai/DeepSeek-R1:fastest');
+  assert.equal(config.model, 'google/gemma-4-26B-A4B-it:fastest');
   assert.equal(config.apiKey, 'hf-key');
+});
+
+test('uses Gemma 4 as the Hugging Face default chat model', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'huggingface',
+    HF_TOKEN: 'hf-key',
+  });
+
+  assert.equal(config.provider, 'huggingface');
+  assert.equal(config.kind, 'openai_compat');
+  assert.equal(config.model, 'google/gemma-4-26B-A4B-it:fastest');
 });
 
 test('builds Codex exec args for non-git Spark workspaces', () => {

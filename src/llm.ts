@@ -71,6 +71,7 @@ const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434';
 const OLLAMA_DEFAULT_MODEL = 'llama3.2:3b';
 const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 const LMSTUDIO_DEFAULT_MODEL = 'local-model';
+const HUGGINGFACE_DEFAULT_MODEL = 'google/gemma-4-26B-A4B-it:fastest';
 
 function firstEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string {
   for (const key of keys) {
@@ -163,7 +164,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     return {
       provider,
       kind: 'openai_compat',
-      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'HUGGINGFACE_MODEL') || 'deepseek-ai/DeepSeek-R1:fastest',
+      model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'HUGGINGFACE_MODEL') || HUGGINGFACE_DEFAULT_MODEL,
       baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'HUGGINGFACE_BASE_URL') || HUGGINGFACE_DEFAULT_BASE_URL,
       apiKey: env.HF_TOKEN || env.HUGGINGFACE_API_KEY,
     };

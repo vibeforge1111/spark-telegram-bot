@@ -114,6 +114,12 @@ test('supports LM Studio as an explicit local model route', async () => {
   }
 });
 
+test('recommends Gemma 4 for Hugging Face agent and mission routes', () => {
+  const text = renderModelRecommendations('huggingface');
+  assert.match(text, /agent google\/gemma-4-26B-A4B-it:fastest/);
+  assert.match(text, /mission google\/gemma-4-31B-it:fastest/);
+});
+
 (async () => {
   for (const entry of tests) {
     try {

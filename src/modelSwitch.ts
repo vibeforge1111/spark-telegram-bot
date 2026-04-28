@@ -78,8 +78,8 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
   huggingface: {
     provider: 'huggingface',
     botProvider: 'huggingface',
-    defaultModel: 'deepseek-ai/DeepSeek-R1:fastest',
-    recommendation: 'Hugging Face router default for reasoning; users can replace this with any HF router model id.',
+    defaultModel: 'google/gemma-4-26B-A4B-it:fastest',
+    recommendation: 'Hugging Face router default for Gemma 4 chat. Use google/gemma-4-31B-it:fastest for heavier mission work, or pass any HF router chat model id.',
     authMode: 'api_key',
     baseUrl: process.env.HUGGINGFACE_BASE_URL || 'https://router.huggingface.co/v1',
     requiredEnv: ['HF_TOKEN', 'HUGGINGFACE_API_KEY']
@@ -106,9 +106,11 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 
 const CLAUDE_MISSION_MODEL = 'claude-opus-4-7';
 const CLAUDE_MISSION_DISPLAY = 'Claude Opus 4.7 (claude-opus-4-7)';
+const HUGGINGFACE_MISSION_MODEL = 'google/gemma-4-31B-it:fastest';
 
 export function recommendedModelFor(provider: ProviderId, role: ModelRole): string {
   if (provider === 'anthropic' && role === 'mission') return CLAUDE_MISSION_MODEL;
+  if (provider === 'huggingface' && role === 'mission') return HUGGINGFACE_MISSION_MODEL;
   return PROVIDERS[provider].defaultModel;
 }
 
@@ -272,7 +274,8 @@ export function renderModelStatus(): string {
     `/model mission claude ${CLAUDE_MISSION_MODEL}`,
     '/model agent openrouter anthropic/claude-sonnet-4.6',
     '/model agent lmstudio <loaded-model-id>',
-    '/model agent huggingface deepseek-ai/DeepSeek-R1:fastest',
+    '/model agent huggingface google/gemma-4-26B-A4B-it:fastest',
+    '/model mission huggingface google/gemma-4-31B-it:fastest',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');
