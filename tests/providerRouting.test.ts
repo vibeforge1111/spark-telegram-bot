@@ -36,9 +36,13 @@ test('recognizes chat-only provider ids without making them mission providers', 
 test('recognizes OpenAI-compatible gateway providers for chat and mission routing', () => {
   assert.equal(resolveKnownChatProviderId('openrouter'), 'openrouter');
   assert.equal(resolveKnownChatProviderId('huggingface'), 'huggingface');
+  assert.equal(resolveKnownChatProviderId('lmstudio'), 'lmstudio');
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'openrouter'
   } as NodeJS.ProcessEnv), 'openrouter');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'lmstudio'
+  } as NodeJS.ProcessEnv), 'lmstudio');
 });
 
 test('uses explicit Telegram mission override before other mission defaults', () => {

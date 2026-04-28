@@ -1,8 +1,9 @@
-export const VALID_MISSION_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex', 'openrouter', 'huggingface']);
+export const VALID_MISSION_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex', 'openrouter', 'huggingface', 'lmstudio']);
 export const VALID_CHAT_PROVIDER_IDS = new Set([
   ...VALID_MISSION_PROVIDER_IDS,
   'anthropic',
   'huggingface',
+  'lmstudio',
   'ollama',
   'openai',
   'openrouter',
