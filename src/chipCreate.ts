@@ -4,6 +4,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
+import { buildChipCreateMissionContext, ChipCreateMissionReporter } from './missionControl';
 
 const execFileAsync = promisify(execFile);
 
@@ -98,6 +99,19 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
   if (!clean) {
     return { ok: false, error: 'empty prompt' };
   }
+  const reporter = new ChipCreateMissionReporter(buildChipCreateMissionContext(clean));
+  await reporter.created();
+  await reporter.taskStarted(
+    'task-brief',
+    'Understand natural-language chip brief',
+    ['telegram-natural-language', 'domain-chip-creator']
+  );
+  await reporter.taskCompleted('task-brief', 'Understand natural-language chip brief');
+  await reporter.taskStarted(
+    'task-scaffold',
+    'Scaffold Spark-compatible domain chip',
+    ['domain-chip-creator', 'spark-intelligence-builder']
+  );
   const config = resolveConfig();
   const args = [
     '-m', 'spark_intelligence.cli', 'chips', 'create',
@@ -108,6 +122,10 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
     '--json',
   ];
   try {
+    await reporter.progress('Running Spark chip scaffolder...', {
+      outputDir: config.outputDir,
+      chipLabsRoot: config.chipLabsRoot,
+    });
     const { stdout } = await execFileAsync(config.pythonCommand, args, withHiddenWindows({
       cwd: config.builderRepo,
       timeout: config.timeoutMs,
@@ -116,10 +134,33 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
     }));
     const parsed = parseChipCreateJson(stdout);
     if (!parsed) {
+      await reporter.taskFailed('task-scaffold', 'Scaffold Spark-compatible domain chip', 'chip create returned invalid JSON');
+      await reporter.failed('chip create returned invalid JSON');
       return { ok: false, error: 'chip create returned invalid JSON' };
+    }
+    if (parsed.ok) {
+      await reporter.taskCompleted('task-scaffold', 'Scaffold Spark-compatible domain chip', {
+        chipKey: parsed.chipKey,
+        chipPath: parsed.chipPath,
+        routerInvokable: parsed.routerInvokable,
+        warnings: parsed.warnings ?? [],
+      });
+      await reporter.completed({
+        chipKey: parsed.chipKey,
+        chipPath: parsed.chipPath,
+        routerInvokable: parsed.routerInvokable,
+        warnings: parsed.warnings ?? [],
+      });
+    } else {
+      const error = parsed.error || 'chip create failed';
+      await reporter.taskFailed('task-scaffold', 'Scaffold Spark-compatible domain chip', error);
+      await reporter.failed(error);
     }
     return parsed;
   } catch (err: any) {
-    return { ok: false, error: formatChipCreateProcessError(err) };
+    const error = formatChipCreateProcessError(err);
+    await reporter.taskFailed('task-scaffold', 'Scaffold Spark-compatible domain chip', error);
+    await reporter.failed(error);
+    return { ok: false, error };
   }
 }
