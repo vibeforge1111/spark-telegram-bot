@@ -1,12 +1,17 @@
-export const VALID_MISSION_PROVIDER_IDS = new Set(['minimax', 'zai', 'claude', 'codex', 'openrouter', 'huggingface', 'lmstudio']);
-export const VALID_CHAT_PROVIDER_IDS = new Set([
-  ...VALID_MISSION_PROVIDER_IDS,
-  'anthropic',
+export const VALID_MISSION_PROVIDER_IDS = new Set([
+  'minimax',
+  'zai',
+  'claude',
+  'codex',
+  'openai',
+  'openrouter',
   'huggingface',
   'lmstudio',
   'ollama',
-  'openai',
-  'openrouter',
+]);
+export const VALID_CHAT_PROVIDER_IDS = new Set([
+  ...VALID_MISSION_PROVIDER_IDS,
+  'anthropic',
 ]);
 
 export function normalizeProviderId(value: string | undefined | null): string | null {

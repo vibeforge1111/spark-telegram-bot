@@ -25,24 +25,32 @@ test('keeps chat provider separate from mission provider', () => {
   assert.equal(resolveMissionDefaultProvider(env), 'codex');
 });
 
-test('recognizes chat-only provider ids without making them mission providers', () => {
+test('recognizes local providers for chat and mission routing', () => {
   assert.equal(resolveKnownChatProviderId('openai'), 'openai');
   assert.equal(resolveKnownChatProviderId('ollama'), 'ollama');
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'ollama'
-  } as NodeJS.ProcessEnv), 'codex');
+  } as NodeJS.ProcessEnv), 'ollama');
 });
 
 test('recognizes OpenAI-compatible gateway providers for chat and mission routing', () => {
+  assert.equal(resolveKnownChatProviderId('openai'), 'openai');
   assert.equal(resolveKnownChatProviderId('openrouter'), 'openrouter');
   assert.equal(resolveKnownChatProviderId('huggingface'), 'huggingface');
   assert.equal(resolveKnownChatProviderId('lmstudio'), 'lmstudio');
+  assert.equal(resolveKnownChatProviderId('ollama'), 'ollama');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'openai'
+  } as NodeJS.ProcessEnv), 'openai');
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'openrouter'
   } as NodeJS.ProcessEnv), 'openrouter');
   assert.equal(resolveMissionDefaultProvider({
     SPARK_MISSION_LLM_PROVIDER: 'lmstudio'
   } as NodeJS.ProcessEnv), 'lmstudio');
+  assert.equal(resolveMissionDefaultProvider({
+    SPARK_MISSION_LLM_PROVIDER: 'ollama'
+  } as NodeJS.ProcessEnv), 'ollama');
 });
 
 test('uses explicit Telegram mission override before other mission defaults', () => {
