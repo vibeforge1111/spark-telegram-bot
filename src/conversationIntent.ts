@@ -152,6 +152,41 @@ export function inferMissionGoalFromRecentContext(currentText: string, recentMes
   ].join('\n\n');
 }
 
+export interface InferredDefaultBuild {
+  projectName: string;
+  prd: string;
+}
+
+export function inferDefaultBuildFromRecentScoping(currentText: string, recentMessages: string[]): InferredDefaultBuild | null {
+  const normalized = currentText.trim().toLowerCase();
+  if (!/^(?:i\s+don'?t\s+know[, ]*)?(?:you\s+decide|decide|pick\s+for\s+me|choose\s+for\s+me|your\s+call|go\s+with\s+your\s+recommendation|go\s+with\s+that|do\s+that)$/i.test(normalized)) {
+    return null;
+  }
+
+  const context = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .slice(-6)
+    .join('\n')
+    .toLowerCase();
+  if (!/\b(?:build|make|create|ship)\b/.test(context)) return null;
+
+  const wantsMazeGame = /\bmaze\b/.test(context) && /\bgame\b/.test(context);
+  const wantsBrowser = /\b(?:browser|html\s*canvas|canvas|web)\b/.test(context);
+  if (wantsMazeGame && wantsBrowser) {
+    return {
+      projectName: 'Browser Maze Game',
+      prd: [
+        'Build a browser-based maze game using vanilla JavaScript and HTML Canvas unless the existing project setup clearly suggests otherwise.',
+        'Use Spark\'s recommended default scope: top-down 2D maze, WASD and arrow-key controls, procedurally generated levels, visible exit, timer, restart button, level progression, and localStorage best-time persistence.',
+        'Make the first screen immediately playable. Include a polished dark arcade visual style, responsive layout, clear win state, and README smoke tests for movement, maze completion, restart, level generation, and best-time persistence.'
+      ].join('\n\n')
+    };
+  }
+
+  return null;
+}
+
 export function isExplicitContextualBuildRequest(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;

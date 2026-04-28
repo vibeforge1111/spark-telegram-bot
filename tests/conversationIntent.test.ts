@@ -12,6 +12,7 @@ import {
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   hasLocalOptionReference,
+  inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
@@ -99,6 +100,22 @@ test('does not launch a mission from bare agreement after memory dashboard scopi
   ]);
 
   assert.equal(goal, null);
+});
+
+test('infers recommended browser maze build when user asks Spark to decide after scoping', () => {
+  const build = inferDefaultBuildFromRecentScoping("i don't know you decide", [
+    'let’s build a maze game',
+    'lets do a browser based one'
+  ]);
+
+  assert.ok(build);
+  assert.equal(build.projectName, 'Browser Maze Game');
+  assert.match(build.prd, /HTML Canvas/);
+  assert.match(build.prd, /procedurally generated levels/);
+});
+
+test('does not infer default build from you decide without build context', () => {
+  assert.equal(inferDefaultBuildFromRecentScoping('you decide', ['memory quality eval', 'favorite color is blue']), null);
 });
 
 test('answers what we were going to build from recent context', () => {

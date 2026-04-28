@@ -60,6 +60,7 @@ import {
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
+  inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
@@ -384,7 +385,7 @@ bot.command('myid', async (ctx) => {
 // /clarify <answers> — re-dispatch a build that was held by the
 // clarification gate. The original brief + user-supplied answers are
 // concatenated and re-sent to spawner-ui with forceDispatch:true.
-async function handleClarificationAnswers(ctx: any, answersRawInput: string): Promise<void> {
+export async function handleClarificationAnswers(ctx: any, answersRawInput: string): Promise<void> {
   const key = `${ctx.chat.id}-${ctx.from.id}`;
   const pending = pendingClarifications.get(key);
   if (!pending) {
@@ -398,16 +399,16 @@ async function handleClarificationAnswers(ctx: any, answersRawInput: string): Pr
   }
 
   const answersRaw = answersRawInput.trim();
-  const skip = answersRaw.toLowerCase() === 'skip';
+  const runWithDefaults = /^(?:go|run|start|ship|yes|yep|yeah|do it|let'?s go|default|defaults|skip)$/i.test(answersRaw);
   pendingClarifications.delete(key);
 
   let enrichedPrd = pending.prd;
-  if (!skip && answersRaw) {
+  if (!runWithDefaults && answersRaw) {
     enrichedPrd = `${pending.prd}\n\n## User clarifications\n\n${pending.questions
       .map((q, i) => `Q${i + 1}: ${q}`)
       .join('\n')}\n\nAnswers: ${answersRaw}`;
-  } else if (skip) {
-    await ctx.reply('OK, I will run with those defaults.');
+  } else if (runWithDefaults) {
+    await ctx.reply('Perfect, I will run with the default direction.');
   }
 
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
@@ -443,7 +444,7 @@ async function handleClarificationAnswers(ctx: any, answersRawInput: string): Pr
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     await ctx.reply(
-      `${skip ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
+      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nCanvas: ${publicSpawnerUrl}/canvas`
     );
   } catch (err) {
     await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));
@@ -664,27 +665,28 @@ export function formatBuildClarificationReply(projectName: string, questions: st
   const lower = `${projectName}\n${questions.join('\n')}\n${assumptions.join('\n')}`.toLowerCase();
   const isGame = /\b(game|maze|puzzle|arcade|player|score|level|win condition)\b/.test(lower);
   const isDashboard = /\b(dashboard|metric|analytics|monitor|report)\b/.test(lower);
+  const defaultLine = assumptions[0]?.replace(/^Assume\s+/i, '') || 'I will choose a focused v1 and keep it easy to verify.';
   const opener = isGame
-    ? `I can build ${projectName}. I just need to choose the shape of the game before Spark turns it into tasks.`
+    ? `I can build ${projectName}. My default would be ${defaultLine}`
     : isDashboard
-      ? `I can build ${projectName}. A couple of dashboard choices will change the plan quite a bit.`
-      : `I can build ${projectName}. A few choices would make the plan much sharper.`;
+      ? `I can build ${projectName}. My default would be ${defaultLine}`
+      : `I can build ${projectName}. My default would be ${defaultLine}`;
   const questionLead = isGame
-    ? `Give me the game feel in one reply:`
-    : `Reply with the bits you care about most:`;
+    ? `Say "go" and I will start with that. Or steer the game feel with one quick reply:`
+    : `Say "go" and I will start with that. Or steer the plan with one quick reply:`;
   const lines = [
     opener,
     '',
     questionLead,
-    ...questions.map((q) => `- ${q}`)
+    ...questions.slice(0, 3).map((q) => `- ${q}`)
   ];
   if (assumptions.length > 0) {
     lines.push('');
-    lines.push(isGame ? `If you want me to just run with it, I'll use these defaults:` : `If you want me to run with defaults, I'll assume:`);
-    for (const a of assumptions.slice(0, 4)) lines.push(`- ${a.replace(/^Assume\s+/i, '')}`);
+    lines.push(`Default direction:`);
+    for (const a of assumptions.slice(0, 3)) lines.push(`- ${a.replace(/^Assume\s+/i, '')}`);
   }
   lines.push('');
-  lines.push(`You can answer naturally, or send /clarify skip and I'll start with those defaults.`);
+  lines.push(`Just reply "go" to start, or answer naturally if you want to change the direction.`);
   return lines.join('\n');
 }
 
@@ -1225,6 +1227,21 @@ bot.on(message('text'), async (ctx) => {
     const pendingClarification = pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`);
     if (pendingClarification && !parseBuildIntent(text)) {
       await handleClarificationAnswers(ctx, text);
+      return;
+    }
+
+    const defaultBuild = inferDefaultBuildFromRecentScoping(text, recentMessages);
+    if (defaultBuild) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(`I will choose the default and start it: ${defaultBuild.projectName}.`);
+      await handleBuildIntent(
+        ctx,
+        defaultBuild.prd,
+        defaultBuild.projectName,
+        null,
+        'advanced_prd',
+        'User asked Spark to choose the recommended direction after collaborative scoping.'
+      );
       return;
     }
 

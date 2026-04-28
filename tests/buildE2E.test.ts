@@ -203,10 +203,59 @@ async function run(): Promise<void> {
 		});
 
 		assert.match(replies[0] || '', /I can build maze game/);
-		assert.match(replies[0] || '', /Give me the game feel/);
+		assert.match(replies[0] || '', /Say "go"/);
+		assert.match(replies[0] || '', /Default direction/);
 		assert.match(replies[0] || '', /shifting walls/);
 		assert.doesNotMatch(replies[0] || '', /Brief is too thin/);
 		assert.doesNotMatch(replies[0] || '', /Who is the first user/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('pending clarification accepts go as run-with-defaults', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write') && !body.forceDispatch) {
+				return {
+					data: {
+						success: true,
+						needsClarification: true,
+						requestId: body.requestId,
+						openQuestions: ['What should make this game feel surprising?'],
+						addedAssumptions: ['Assume this is a browser-playable game unless another platform is specified.']
+					}
+				};
+			}
+			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies);
+
+		await callHandleBuildIntent({
+			ctx,
+			prd: "let's build a maze game",
+			projectName: 'maze game',
+			buildMode: 'advanced_prd'
+		});
+
+		const indexModule: any = await import('../src/index');
+		const goCtx = makeFakeCtx(8319079055, 8319079055, 558, replies);
+		goCtx.message.text = 'go';
+		await indexModule.handleClarificationAnswers(goCtx, 'go');
+
+		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
+		assert.ok(dispatchCall, 'expected go to force-dispatch pending clarification');
+		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
+		assert.match(replies.join('\n'), /Starting with the defaults/);
 
 		restoreAxios();
 		restoreEnv();
