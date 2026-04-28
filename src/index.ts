@@ -22,6 +22,11 @@ import { installConsoleRedaction } from './redaction';
 import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
+import {
+  isLocalWorkspaceInspectionRequest,
+  renderLocalWorkspaceInspectionReply,
+  summarizeLocalWorkspaces
+} from './localWorkspace';
 import { createSchedule, deleteSchedule, listSchedules, formatScheduleList, humanizeCron, formatNextFireLocal } from './schedule';
 import {
   describeSparkAccessProfile,
@@ -1451,6 +1456,31 @@ bot.on(message('text'), async (ctx) => {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
+
+    if (isLocalWorkspaceInspectionRequest(text)) {
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      if (!sparkAccessAllows(accessProfile, 'operating_system')) {
+        await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
+        return;
+      }
+      await conversation.remember(user, text).catch(() => {});
+      await safeSendChatAction(ctx, 'typing');
+      try {
+        const summary = await summarizeLocalWorkspaces();
+        const reply = renderLocalWorkspaceInspectionReply(summary);
+        await ctx.reply(reply);
+        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        await conversation.recordInterruptedTask(user, {
+          message: text,
+          failure: detail,
+          stage: 'local_workspace_inspection'
+        }).catch(() => {});
+        await ctx.reply(`Local workspace inspection failed: ${detail}`);
+      }
+      return;
+    }
 
     if (await handlePendingDomainChipBuild(ctx, text)) {
       await conversation.remember(user, text).catch(() => {});
