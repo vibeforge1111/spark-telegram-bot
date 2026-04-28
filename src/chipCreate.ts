@@ -25,6 +25,54 @@ interface ChipCreateConfig {
   timeoutMs: number;
 }
 
+interface ChipCreateJsonPayload {
+  ok: boolean;
+  chip_key?: string | null;
+  chip_path?: string | null;
+  router_invokable?: boolean;
+  warnings?: string[];
+  error?: string | null;
+}
+
+export function parseChipCreateJson(stdout: string): ChipCreateResult | null {
+  const trimmed = stdout.trim();
+  if (!trimmed) return null;
+  let parsed: ChipCreateJsonPayload;
+  try {
+    parsed = JSON.parse(trimmed) as ChipCreateJsonPayload;
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.ok !== 'boolean') {
+    return null;
+  }
+  return {
+    ok: Boolean(parsed.ok),
+    chipKey: parsed.chip_key ?? undefined,
+    chipPath: parsed.chip_path ?? undefined,
+    routerInvokable: Boolean(parsed.router_invokable),
+    warnings: parsed.warnings ?? [],
+    error: parsed.error ?? undefined,
+  };
+}
+
+export function formatChipCreateProcessError(err: any): string {
+  const stdout = typeof err?.stdout === 'string' ? err.stdout : '';
+  const stdoutResult = parseChipCreateJson(stdout);
+  if (stdoutResult?.error) {
+    return stdoutResult.error;
+  }
+
+  const stderr = typeof err?.stderr === 'string' ? err.stderr.trim().slice(-400) : '';
+  const stderrResult = parseChipCreateJson(stderr);
+  if (stderrResult?.error) {
+    return stderrResult.error;
+  }
+
+  const message = err?.message || 'chip create failed';
+  return stderr ? `${message}: ${stderr}` : message;
+}
+
 function resolveConfig(): ChipCreateConfig {
   const builderRepo = path.resolve(
     process.env.SPARK_BUILDER_REPO || path.join(process.cwd(), '..', 'spark-intelligence-builder')
@@ -66,25 +114,12 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout) as {
-      ok: boolean;
-      chip_key?: string | null;
-      chip_path?: string | null;
-      router_invokable?: boolean;
-      warnings?: string[];
-      error?: string | null;
-    };
-    return {
-      ok: Boolean(parsed.ok),
-      chipKey: parsed.chip_key ?? undefined,
-      chipPath: parsed.chip_path ?? undefined,
-      routerInvokable: Boolean(parsed.router_invokable),
-      warnings: parsed.warnings ?? [],
-      error: parsed.error ?? undefined,
-    };
+    const parsed = parseChipCreateJson(stdout);
+    if (!parsed) {
+      return { ok: false, error: 'chip create returned invalid JSON' };
+    }
+    return parsed;
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
-    const message = err?.message || 'chip create failed';
-    return { ok: false, error: stderr ? `${message}: ${stderr}` : message };
+    return { ok: false, error: formatChipCreateProcessError(err) };
   }
 }
