@@ -49,6 +49,71 @@ export interface Memory {
   created_at?: string;
 }
 
+export interface ResolvedOptionReference {
+  ordinal: number;
+  choice: string;
+  source: string;
+}
+
+const ORDINAL_WORDS: Record<string, number> = {
+  first: 1,
+  second: 2,
+  third: 3,
+  fourth: 4,
+  fifth: 5,
+  sixth: 6,
+  seventh: 7,
+  eighth: 8,
+  ninth: 9,
+  tenth: 10
+};
+
+function compactLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+export function optionOrdinalFromText(text: string): number | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const numeric = normalized.match(/\b(?:no\.?|number|option|#)\s*([1-9]\d*)\b/);
+  if (numeric?.[1]) return Number(numeric[1]);
+  for (const [word, value] of Object.entries(ORDINAL_WORDS)) {
+    if (new RegExp(`\\b(?:the\\s+)?${word}\\s*(?:one|option|idea|direction|item)?\\b`, 'i').test(normalized)) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function cleanOptionText(text: string): string {
+  return compactLine(text)
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+}
+
+export function extractAssistantOptions(message: string): string[] {
+  const withoutPrefix = message.replace(/^Spark:\s*/i, '').trim();
+  const lines = withoutPrefix.split(/\r?\n/);
+  const numbered = lines
+    .map((line) => line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+?)\s*$/)?.[1])
+    .filter((line): line is string => Boolean(line && line.trim()))
+    .map(cleanOptionText)
+    .filter(Boolean);
+  if (numbered.length >= 2) return numbered;
+
+  const twoWay = withoutPrefix.match(/\btwo\s+(?:ways|paths|options|directions)\b[^:]*:\s*([\s\S]+)/i);
+  const body = twoWay?.[1]
+    ?.split(/\n\s*(?:which|what|where|how|do you|does it|that sets)\b/i)[0]
+    ?.trim();
+  if (!body) return [];
+
+  const parts = body
+    .split(/\s*,?\s+or\s+/i)
+    .map(cleanOptionText)
+    .filter(Boolean);
+  return parts.length >= 2 ? parts.slice(0, 4) : [];
+}
+
 export class ConversationMemory {
   private readonly recentByUser = new Map<number, string[]>();
   private readonly notesByUser = new Map<number, string[]>();
@@ -238,6 +303,26 @@ export class ConversationMemory {
       .slice(-Math.max(1, limit))
       .map((item) => item.replace(/^User:\s*/i, '').trim())
       .filter(Boolean);
+  }
+
+  async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {
+    const ordinal = optionOrdinalFromText(text);
+    if (!ordinal) return null;
+    await this.ensureLoaded();
+    const recent = this.recentByUser.get(this.userKey(user)) || [];
+    for (const item of [...recent].reverse()) {
+      if (!/^Spark:\s*/i.test(item)) continue;
+      const options = extractAssistantOptions(item);
+      const choice = options[ordinal - 1];
+      if (choice) {
+        return {
+          ordinal,
+          choice,
+          source: item.replace(/^Spark:\s*/i, '').trim()
+        };
+      }
+    }
+    return null;
   }
 
   async getMemoryCount(user: TelegramUser): Promise<number> {

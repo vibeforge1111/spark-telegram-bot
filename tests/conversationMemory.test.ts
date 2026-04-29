@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   ConversationMemory,
+  extractAssistantOptions,
   isPendingTaskRecoveryQuestion,
+  optionOrdinalFromText,
   parseTelegramUserIds,
   renderPendingTaskRecoveryReply
 } from '../src/conversation';
@@ -108,6 +110,26 @@ async function main(): Promise<void> {
       "I don't know what should we be building",
       'no.1 could be handy - how would you think of the no2?'
     ]);
+  });
+  });
+
+  await test('resolves short ordinal replies against the last Spark option list', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.remember(user, "Hey Spark, let's build something like a magazine about AGI");
+    await memory.rememberAssistantReply(user, [
+      'Two ways to take this: a content chip that generates magazine-style AGI pieces on demand, or a recurring publication workflow that curates, writes, and packages issues on a schedule.',
+      '',
+      "Which form factor are you picturing?"
+    ].join('\n'));
+
+    const resolved = await memory.resolveRecentOptionReference(user, 'The second');
+
+    assert.equal(optionOrdinalFromText('The second'), 2);
+    assert.deepEqual(extractAssistantOptions('Spark: Pick one:\n1. First path\n2. Second path'), ['First path', 'Second path']);
+    assert.equal(resolved?.ordinal, 2);
+    assert.match(resolved?.choice || '', /recurring publication workflow/);
   });
   });
 

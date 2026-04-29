@@ -87,7 +87,8 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
-  shouldPreferConversationalIdeation
+  shouldPreferConversationalIdeation,
+  hasLocalOptionReference
 } from './conversationIntent';
 import axios from 'axios';
 import { getTierForUser } from './userTier';
@@ -1543,6 +1544,64 @@ bot.on(message('text'), async (ctx) => {
 
     const localServiceContext = contextualTurns.join('\n');
 
+    if (hasLocalOptionReference(text)) {
+      const resolved = await conversation.resolveRecentOptionReference(user, text);
+      if (resolved) {
+        await conversation.remember(user, text).catch(() => {});
+        await safeSendChatAction(ctx, 'typing');
+        const memories = await conversation.getContext(user, text);
+        const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+        const resolvedPrompt = [
+          `The user replied with a local option reference: "${text}".`,
+          `Resolve it as option ${resolved.ordinal}: ${resolved.choice}.`,
+          'Use this as grounding, not as a canned answer. Continue naturally with the chat model and any memory context available.',
+          'Restate the resolved choice briefly, then give the next useful question or recommendation.',
+          'Do not say you lack the prior list.'
+        ].join('\n');
+        const bridgePrompt = [
+          'Plain chat continuation.',
+          `The user wrote: "${text}".`,
+          `That is a local reference to option ${resolved.ordinal}: ${resolved.choice}.`,
+          'Use Spark memory and conversational context if available.',
+          'Continue naturally and briefly. Do not say you lack the prior list.',
+          'Do not start a build unless the user explicitly says go, build, run, or ship.'
+        ].join('\n');
+        const builderReply = await runBuilderTelegramBridge(
+          buildUpdateWithText(ctx.update as unknown as Record<string, unknown>, bridgePrompt)
+        ).catch((bridgeError) => {
+          console.warn('[Bridge] local option reference fallback after bridge error:', bridgeError);
+          return {
+            used: false,
+            responseText: '',
+            decision: '',
+            bridgeMode: '',
+            routingDecision: ''
+          };
+        });
+        if (
+          builderReply.used &&
+          builderReply.bridgeMode !== 'bridge_error' &&
+          !isLowInformationLlmReply(builderReply.responseText) &&
+          !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)
+        ) {
+          await ctx.reply(builderReply.responseText);
+          await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+          return;
+        }
+        const llmResponse = await llm.chat(
+          resolvedPrompt,
+          [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
+          memories
+        );
+        const response = isLowInformationLlmReply(llmResponse)
+          ? `Got it: ${resolved.choice}.\n\nI would shape that path next.`
+          : llmResponse;
+        await ctx.reply(response);
+        await conversation.rememberAssistantReply(user, response).catch(() => {});
+        return;
+      }
+    }
+
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
       await conversation.remember(user, text).catch(() => {});
@@ -1700,6 +1759,8 @@ bot.on(message('text'), async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
 
   try {
+    await conversation.remember(user, text).catch(() => {});
+
     const memoryDirective = extractPlainChatMemoryDirective(text);
     if (memoryDirective) {
       await conversation.learnAboutUser(user, `User asked Spark to remember: ${memoryDirective}`).catch(() => {});

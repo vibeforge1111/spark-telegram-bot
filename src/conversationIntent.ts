@@ -29,7 +29,8 @@ const HARD_EXECUTION_PATTERNS = [
 
 const LOCAL_OPTION_REFERENCE_PATTERNS = [
   /\b(?:no\.?|number|option|#)\s*[1-9]\d*\b/i,
-  /\b(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:one|option|idea|direction|item)\b/i
+  /^(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s*(?:one|option|idea|direction|item)?[.!?]*$/i,
+  /\b(?:go\s+with|pick|choose|take|use|do|prefer|like|want)\s+(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s*(?:one|option|idea|direction|item)?\b/i
 ];
 
 export function hasLocalOptionReference(text: string): boolean {

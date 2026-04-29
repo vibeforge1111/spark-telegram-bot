@@ -391,6 +391,8 @@ test('keeps local numbered-option follow-ups in conversation', () => {
   const prompt = 'no.1 could be handy - how would you think of the no2?';
 
   assert.equal(hasLocalOptionReference(prompt), true);
+  assert.equal(hasLocalOptionReference('The second'), true);
+  assert.equal(hasLocalOptionReference('let us build a page where the first screen should show the dashboard'), false);
   assert.equal(shouldPreferConversationalIdeation(prompt), true);
   assert.equal(inferMissionGoalFromRecentContext(prompt, [
     "I don't know what should we be building",
