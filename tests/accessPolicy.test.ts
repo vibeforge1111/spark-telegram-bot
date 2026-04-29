@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -145,13 +145,23 @@ async function main(): Promise<void> {
     assert.doesNotMatch(status, /What each level means/);
 
     const changed = renderSparkAccessChangeConfirmation('agent');
-    assert.match(changed, /Done - I changed this chat to Level 3 - Research \+ Build/);
+    assert.equal(changed, 'Done - I changed this chat to Level 3 - Research + Build.');
+    assert.doesNotMatch(changed, /Default/);
     assert.doesNotMatch(changed, /Change it with/);
 
     const help = renderSparkAccessConversationHelp('builder');
     assert.match(help, /currently Level 2 - Build When Asked/);
     assert.match(help, /Level 4: local projects/);
     assert.doesNotMatch(help, /\/access 1/);
+  });
+
+  await test('slash access setter uses compact confirmation instead of full help', async () => {
+    const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const accessCommand = indexSource.match(/bot\.command\('access', async \(ctx\) => \{[\s\S]*?\n\}\);/);
+    assert.ok(accessCommand, 'expected /access command handler to exist');
+    assert.match(accessCommand[0], /renderSparkAccessStatus\(current\)/);
+    assert.match(accessCommand[0], /renderSparkAccessChangeConfirmation\(next\)/);
+    assert.doesNotMatch(accessCommand[0], /ctx\.reply\(renderSparkAccessStatus\(next\)\)/);
   });
 
   await test('renders runtime access hints that prevent filesystem access contradictions', () => {

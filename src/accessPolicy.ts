@@ -251,10 +251,7 @@ export function renderSparkAccessBriefStatus(profile: SparkAccessProfile): strin
 }
 
 export function renderSparkAccessChangeConfirmation(profile: SparkAccessProfile): string {
-  return [
-    `Done - I changed this chat to ${sparkAccessLabel(profile)}.`,
-    describeSparkAccessProfile(profile).replace(/^Level \d - [^:]+:\s*/, '')
-  ].join('\n\n');
+  return `Done - I changed this chat to ${sparkAccessLabel(profile)}.`;
 }
 
 export function renderSparkAccessConversationHelp(profile: SparkAccessProfile): string {

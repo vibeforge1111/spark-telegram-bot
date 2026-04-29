@@ -1417,7 +1417,9 @@ bot.command('access', async (ctx) => {
 
   await setSparkAccessProfile(ctx.chat.id, next);
   await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
-  await ctx.reply(renderSparkAccessStatus(next));
+  const reply = renderSparkAccessChangeConfirmation(next);
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
 });
 
 async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean> {
