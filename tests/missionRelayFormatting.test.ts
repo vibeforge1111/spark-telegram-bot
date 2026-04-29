@@ -229,6 +229,30 @@ test('mission start update links the mission once through kanban', () => {
   assert.doesNotMatch(message || '', /\/missions/);
 });
 
+test('verbose mission start does not paste the whole build brief', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'mission_started',
+      missionId: 'spark-123',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build this at C:\\Users\\USER\\Desktop\\huge-project with many implementation details.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'verbose',
+    'both'
+  );
+
+  assert.match(message || '', /Spark started the run/);
+  assert.doesNotMatch(message || '', /Build this at/);
+  assert.doesNotMatch(message || '', /Target operating-system folder/);
+});
+
 test('normal verbosity announces task starts but suppresses noisy progress', () => {
   const subscription = {
     missionId: 'spark-123',
@@ -267,6 +291,32 @@ test('normal verbosity announces task starts but suppresses noisy progress', () 
   assert.equal(noisyProgress, null);
 });
 
+test('task start labels are human-readable instead of node slugs', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_started',
+      missionId: 'spark-123',
+      taskId: 'node-2-task-task-2-threejs-sprite-forge-core',
+      taskName: 'node-2-task-task-2-threejs-sprite-forge-core',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a tiny board.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Task 2 started/);
+  assert.match(message || '', /Three\.js sprite forge core/);
+  assert.doesNotMatch(message || '', /node-2/);
+});
+
 test('verbose progress turns useful relay summaries into readable Telegram updates', () => {
   const message = formatProgressMessageForTelegram(
     {
@@ -293,6 +343,42 @@ test('verbose progress turns useful relay summaries into readable Telegram updat
   assert.match(message || '', /added persisted launch state/);
   assert.doesNotMatch(message || '', /MissionControl/);
   assert.doesNotMatch(message || '', /spark-123/);
+});
+
+test('suppresses internal skill and dispatch chatter', () => {
+  const subscription = {
+    missionId: 'spark-123',
+    chatId: '8319079055',
+    userId: '8319079055',
+    requestId: 'tg-build-1',
+    goal: 'Build a tiny board.',
+    createdAt: '2026-04-26T00:00:00Z'
+  };
+
+  assert.equal(formatProgressMessageForTelegram(
+    {
+      type: 'dispatch_started',
+      missionId: 'spark-123',
+      message: 'Spark is assigning the work.',
+      data: {}
+    },
+    subscription,
+    'verbose',
+    'board'
+  ), null);
+
+  assert.equal(formatProgressMessageForTelegram(
+    {
+      type: 'progress',
+      missionId: 'spark-123',
+      taskName: 'node-1-task-task-1-static-shell',
+      message: 'SKILL_LOADED:node-1-task-task-1-static-shell:none',
+      data: {}
+    },
+    subscription,
+    'verbose',
+    'board'
+  ), null);
 });
 
 test('normal mission completion waits for the handoff summary', () => {

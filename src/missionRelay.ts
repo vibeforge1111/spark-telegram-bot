@@ -513,6 +513,17 @@ function stripMissionControlBoilerplate(text: string): string {
     .trim();
 }
 
+function looksLikeInternalProgress(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    /\bskill_loaded\b/.test(normalized) ||
+    /\bnode-\d+-task\b/.test(normalized) ||
+    /\btask-task-\d+\b/.test(normalized) ||
+    /\bis working through\b/.test(normalized) && /\btask pack\b/.test(normalized) ||
+    /\bestimate adjusting\b|\b\d+(?:m \d+s|m|s) elapsed\b/i.test(message)
+  );
+}
+
 function usefulProgressSummary(message: string, taskLabel: string): string | null {
   const cleaned = compactWhitespace(stripMissionControlBoilerplate(message));
   if (!cleaned) return null;
@@ -521,13 +532,10 @@ function usefulProgressSummary(message: string, taskLabel: string): string | nul
   const normalized = withoutProvider.toLowerCase();
   const normalizedTask = taskLabel.toLowerCase();
 
+  if (looksLikeInternalProgress(withoutProvider)) {
+    return null;
+  }
   if (/^(?:working|still working|running|in progress|processing)\.?$/.test(normalized)) {
-    return null;
-  }
-  if (/\bis working through\b/.test(normalized) && /\btask pack\b/.test(normalized)) {
-    return null;
-  }
-  if (/\bestimate adjusting\b|\b\d+(?:m \d+s|m|s) elapsed\b/i.test(withoutProvider)) {
     return null;
   }
   if (normalized.includes(normalizedTask) && /\b(?:is\s+)?(?:running|in progress|working)\b/.test(normalized)) {
@@ -703,14 +711,26 @@ function taskNumberFromEvent(event: DeliverableRelayEvent): string | null {
 }
 
 function cleanTaskLabel(label: string): string {
-  return clipText(
-    label
-      .replace(/^task[-_ ]?\d+[-_: ]*/i, '')
-      .replace(/^[a-z0-9]+(?:[-_][a-z0-9]+){2,}:\s*/i, '')
-      .replace(/[-_]+/g, ' ')
-      .trim(),
-    160
-  );
+  const cleaned = label
+    .replace(/^node-\d+-task-/i, '')
+    .replace(/^task-task-/i, 'task-')
+    .replace(/^task[-_ ]?\d+[-_: ]*/i, '')
+    .replace(/^[a-z0-9]+(?:[-_][a-z0-9]+){2,}:\s*/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const readable = cleaned
+    .replace(/\bthreejs\b/gi, 'Three.js')
+    .replace(/\bwebgl\b/gi, 'WebGL')
+    .replace(/\bjavascript\b/gi, 'JavaScript')
+    .replace(/\blocalstorage\b/gi, 'localStorage')
+    .replace(/\breadme\b/gi, 'README')
+    .replace(/\bui\b/gi, 'UI')
+    .replace(/\bjs\b/gi, 'JS')
+    .replace(/\bcss\b/gi, 'CSS')
+    .replace(/\bhtml\b/gi, 'HTML')
+    .replace(/Three\.JS/g, 'Three.js');
+  return clipText(readable, 160);
 }
 
 function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
@@ -847,6 +867,9 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
   if (event.type === 'mission_failed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     return true;
   }
+  if (event.type === 'mission_created' || event.type === 'dispatch_started') {
+    return false;
+  }
   if (verbosity === 'minimal') {
     return event.type === 'mission_started' || event.type === 'mission_completed';
   }
@@ -854,9 +877,7 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
     return ['mission_started', 'task_started', 'mission_completed'].includes(event.type);
   }
   return [
-    'mission_created',
     'mission_started',
-    'dispatch_started',
     'task_started',
     'task_progress',
     'progress',
@@ -880,20 +901,15 @@ export function formatProgressMessageForTelegram(
 
   switch (event.type) {
     case 'mission_created':
-      return [
-        'Spark picked up your request.',
-        `Goal: ${clipText(subscription.goal, 260)}`,
-        ...missionReferenceLines(event.missionId, links)
-      ].join('\n');
+      return null;
     case 'mission_started':
       return [
         'Spark started the run.',
         verbosity === 'normal' ? 'I will send useful checkpoints here and keep the board updated.' : null,
-        verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
         ...missionReferenceLines(event.missionId, links)
       ].filter(Boolean).join('\n');
     case 'dispatch_started':
-      return 'Spark is assigning the work.';
+      return null;
     case 'task_started':
       return formatTaskStartedMessage(event);
     case 'task_progress':
