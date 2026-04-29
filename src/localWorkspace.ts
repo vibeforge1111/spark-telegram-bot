@@ -2,6 +2,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { parseBuildIntent } from './buildIntent';
 
 export interface LocalWorkspaceRootSummary {
   path: string;
@@ -45,6 +46,10 @@ export function isLocalWorkspaceInspectionRequest(text: string): boolean {
   const namesLocalSurface = /\b(?:desktop|folder|folders|repo|repos|repositories|workspace|workspaces|local project|local projects|filesystem|file system|my computer|my machine)\b/.test(normalized);
   const asksFocus = /\b(?:what projects|focused on|working on|what am i working|where am i working)\b/.test(normalized);
   return (asksInspection && namesLocalSurface) || (asksFocus && namesLocalSurface);
+}
+
+export function isLocalWorkspaceInspectionOnlyRequest(text: string): boolean {
+  return !parseBuildIntent(text) && isLocalWorkspaceInspectionRequest(text);
 }
 
 export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env): string[] {

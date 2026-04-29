@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  isLocalWorkspaceInspectionOnlyRequest,
   isLocalWorkspaceInspectionRequest,
   renderLocalWorkspaceInspectionReply,
   summarizeLocalWorkspaces
@@ -24,6 +25,18 @@ async function main(): Promise<void> {
     assert.equal(isLocalWorkspaceInspectionRequest('look at the repos in my Desktop'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('inspect my local workspace folders'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('what is the weather today'), false);
+  });
+
+  await test('does not let local workspace inspection steal explicit build prompts', () => {
+    const prompt = [
+      'Build this at C:\\Users\\USER\\Desktop\\spark-telegram-unit-smoke: a vanilla-JS static app called Spark Telegram Unit Smoke.',
+      'Files: index.html, styles.css, app.js, README.md. No build step.',
+      'Make a tiny dark Mission Control panel with four checklist items, a progress meter, Launch and Reset buttons, and localStorage persistence under key spark-telegram-unit-smoke:v1.',
+      'When all four items are checked and Launch is clicked, show UNIT SMOKE PASSED with a subtle pulse.'
+    ].join(' ');
+
+    assert.equal(isLocalWorkspaceInspectionRequest(prompt), true, 'documents the broad heuristic collision');
+    assert.equal(isLocalWorkspaceInspectionOnlyRequest(prompt), false);
   });
 
   await test('summarizes local folders and repository signals without reading file contents', async () => {

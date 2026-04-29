@@ -23,7 +23,7 @@ import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spa
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import {
-  isLocalWorkspaceInspectionRequest,
+  isLocalWorkspaceInspectionOnlyRequest,
   renderLocalWorkspaceInspectionReply,
   summarizeLocalWorkspaces
 } from './localWorkspace';
@@ -1463,8 +1463,9 @@ bot.on(message('text'), async (ctx) => {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext];
+    const buildIntent = parseBuildIntent(text);
 
-    if (isLocalWorkspaceInspectionRequest(text)) {
+    if (isLocalWorkspaceInspectionOnlyRequest(text)) {
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       if (!sparkAccessAllows(accessProfile, 'operating_system')) {
         await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
@@ -1495,7 +1496,7 @@ bot.on(message('text'), async (ctx) => {
     }
 
     const pendingClarification = pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`);
-    if (pendingClarification && !parseBuildIntent(text)) {
+    if (pendingClarification && !buildIntent) {
       await handleClarificationAnswers(ctx, text);
       return;
     }
@@ -1551,7 +1552,6 @@ bot.on(message('text'), async (ctx) => {
 
     // Build intent must win over board/status language. Users often paste a
     // project brief plus the latest board output while testing.
-    const buildIntent = parseBuildIntent(text);
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
       await handleBuildIntent(
