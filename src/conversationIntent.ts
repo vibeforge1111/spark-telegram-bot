@@ -485,6 +485,10 @@ export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string
 }
 
 export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
+  if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
+    return null;
+  }
+
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
     return null;

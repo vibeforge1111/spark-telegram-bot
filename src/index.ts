@@ -1494,6 +1494,22 @@ bot.on(message('text'), async (ctx) => {
       return;
     }
 
+    // Build intent must win over preference/board/status language. Users often
+    // include words like "Mission Control", "updates", or "progress" inside
+    // actual project briefs.
+    if (buildIntent) {
+      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
+      return;
+    }
+
     const defaultBuild = inferDefaultBuildFromRecentScoping(text, recentMessages);
     if (defaultBuild) {
       await conversation.remember(user, text).catch(() => {});
@@ -1540,21 +1556,6 @@ bot.on(message('text'), async (ctx) => {
         timestamp: Date.now()
       });
       await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
-      return;
-    }
-
-    // Build intent must win over board/status language. Users often paste a
-    // project brief plus the latest board output while testing.
-    if (buildIntent) {
-      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
-      await handleBuildIntent(
-        ctx,
-        buildIntent.prd,
-        buildIntent.projectName,
-        buildIntent.projectPath,
-        buildIntent.buildMode,
-        buildIntent.buildModeReason
-      );
       return;
     }
 

@@ -156,3 +156,22 @@ Running: 1
   assert.equal(intent.buildMode, 'advanced_prd');
   assert.match(intent.prd, /playful Mission Control checklist/);
 });
+
+test('build intent wins over mission update language inside project briefs', () => {
+  const intent = parseBuildIntent(`Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a vanilla-JS static app called Terminal Chef Clock. Files: index.html, styles.css, app.js, README.md. No build step.
+
+Make it a playful dark terminal-style cooking timer for developers who cook.
+
+First screen:
+- A full-screen terminal dashboard with a huge monospace countdown.
+- A tiny “cook log” panel that records timer starts, pauses, resets, and completions.
+
+Behavior:
+- Countdown updates every second.
+- State persists in localStorage under key terminal-chef-clock:v1.`);
+
+  assert.ok(intent);
+  assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\terminal-chef-clock');
+  assert.equal(intent.projectName, 'Terminal Chef Clock');
+  assert.match(intent.prd, /Countdown updates every second/);
+});

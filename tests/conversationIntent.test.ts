@@ -323,6 +323,20 @@ test('parses natural mission update preferences', () => {
     parseMissionUpdatePreferenceIntent('please help me design a project called Relay Workshop with kanban and canvas, but do not build yet'),
     null
   );
+  assert.equal(
+    parseMissionUpdatePreferenceIntent(`Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a vanilla-JS static app called Terminal Chef Clock. Files: index.html, styles.css, app.js, README.md. No build step.
+
+Make it a playful dark terminal-style cooking timer for developers who cook.
+
+First screen:
+- A full-screen terminal dashboard with a huge monospace countdown.
+- A tiny “cook log” panel that records timer starts, pauses, resets, and completions.
+
+Behavior:
+- Countdown updates every second.
+- State persists in localStorage under key terminal-chef-clock:v1.`),
+    null
+  );
 });
 
 test('spaces mission preference acknowledgements for Telegram scanning', () => {
