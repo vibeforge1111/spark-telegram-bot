@@ -45,7 +45,7 @@ test('formats structured provider JSON as readable Telegram text', () => {
 
   assert.match(message, /Z\.AI GLM finished the build\./);
   assert.match(message, /Implemented the requested static board/);
-  assert.match(message, /Open locally: file:\/\/\/C:\/Users\/USER\/Desktop\/spark-board\/index\.html/);
+  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Files updated: 4/);
   assert.match(message, /Checks:/);
   assert.doesNotMatch(message, /Mission: spark-123/);
@@ -96,7 +96,7 @@ test('formats structured provider failures without raw JSON noise', () => {
 
   assert.match(message, /Codex reported a failure\./);
   assert.match(message, /final browser verification failed/);
-  assert.match(message, /Open locally: file:\/\/\/C:\/Users\/USER\/Desktop\/spark-failed-build\/index\.html/);
+  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Files updated: 2/);
   assert.match(message, /Browser smoke failed/);
   assert.doesNotMatch(message, /"status"/);
@@ -166,7 +166,7 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.match(message, /Full-viewport Three\.js orbital forge/);
   assert.match(message, /Checks passed:/);
   assert.match(message, /Headless Chrome desktop\/mobile/);
-  assert.match(message, /Open locally: file:\/\/\/C:\/Users\/USER\/Desktop\/spark-orbit-forge\/index\.html/);
+  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);

@@ -564,7 +564,12 @@ function formatChangedFiles(files: string[], limit: number): string[] {
 }
 
 function normalizeLocalPath(pathValue: string): string {
-  return pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
+  const normalized = pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
+  const wslDrive = normalized.match(/^\/([a-zA-Z])\/(.+)$/);
+  if (wslDrive) {
+    return `${wslDrive[1].toUpperCase()}:/${wslDrive[2]}`.replace(/\/+$/, '');
+  }
+  return normalized.replace(/\/+$/, '');
 }
 
 function localIndexLink(projectPath: string | null): string | null {
@@ -577,6 +582,22 @@ function localIndexLink(projectPath: string | null): string | null {
     return `file://${normalized.replace(/ /g, '%20')}/index.html`;
   }
   return null;
+}
+
+function projectPreviewBaseUrl(): string {
+  return (process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173').replace(/\/+$/, '');
+}
+
+function projectPreviewLink(projectPath: string | null): string | null {
+  if (!projectPath) return null;
+  const normalized = normalizeLocalPath(projectPath);
+  if (!normalized) return null;
+  const token = Buffer.from(normalized, 'utf8').toString('base64url');
+  return `${projectPreviewBaseUrl()}/preview/${token}/index.html`;
+}
+
+function projectOpenLink(projectPath: string | null): string | null {
+  return projectPreviewLink(projectPath) || localIndexLink(projectPath);
 }
 
 function extractProjectPathFromText(text: string): string | null {
@@ -690,7 +711,7 @@ export function formatProviderCompletionForTelegram(input: {
       ].join('\n');
     }
     const projectPath = extractProjectPathFromText(input.response);
-    const openLink = localIndexLink(projectPath);
+    const openLink = projectOpenLink(projectPath);
     const shipped = extractSectionBullets(input.response, /^What shipped:/i, 4);
     const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
     const lead = extractFreeformLeadSummary(input.response);
@@ -703,7 +724,7 @@ export function formatProviderCompletionForTelegram(input: {
       lines.push('', 'Checks passed:', ...checks.map((item) => `- ${item}`));
     }
     if (openLink) {
-      lines.push('', `Open locally: ${openLink}`);
+      lines.push('', `Preview: ${openLink}`);
     }
     if (verbosity === 'verbose') {
       lines.push('', `Mission: ${input.missionId}`);
@@ -730,7 +751,7 @@ export function formatProviderCompletionForTelegram(input: {
     return [
       `${provider} ${providerStatusVerb(status)}.`,
       summary ? clipText(summary, 240) : null,
-      projectPath ? `Open locally: ${localIndexLink(projectPath) || projectPath}` : null,
+      projectPath ? `Preview: ${projectOpenLink(projectPath) || projectPath}` : null,
       changedFiles.length ? `Files changed: ${changedFiles.length}` : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
@@ -744,7 +765,7 @@ export function formatProviderCompletionForTelegram(input: {
   }
 
   if (projectPath) {
-    lines.push('', `Open locally: ${localIndexLink(projectPath) || projectPath}`);
+    lines.push('', `Preview: ${projectOpenLink(projectPath) || projectPath}`);
   }
 
   if (verbosity === 'verbose') {
