@@ -67,6 +67,58 @@ test('resolves numbered references against the latest assistant list', () => {
   assert.match(renderConversationFrameContext(frame), /Domain Chip Workbench/);
 });
 
+test('list references beat older access focus when both are in context', () => {
+  const frame = buildConversationFrame('Let\'s do the second one', [
+    { role: 'user', text: 'Change my access level to three please' },
+    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' },
+    { role: 'user', text: 'Change it to 4' },
+    { role: 'assistant', text: 'Done - I changed this chat to Level 4 - Full Access.' },
+    { role: 'user', text: 'Give me three build ideas for a memory dashboard' },
+    {
+      role: 'assistant',
+      text: [
+        'Three concrete directions:',
+        '1. Recall Audit Board',
+        '2. Memory Timeline Explorer',
+        '3. Live Stress-Test Panel'
+      ].join('\n')
+    }
+  ]);
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'Memory Timeline Explorer');
+});
+
+test('short action option references use newer list context instead of access context', () => {
+  const frame = buildConversationFrame('Let\'s do two', [
+    { role: 'user', text: 'Change my access level to three please' },
+    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' },
+    { role: 'user', text: 'Give me three build ideas for a memory dashboard' },
+    {
+      role: 'assistant',
+      text: [
+        'Three concrete directions:',
+        '1. Recall Audit Board',
+        '2. Memory Timeline Explorer',
+        '3. Live Stress-Test Panel'
+      ].join('\n')
+    }
+  ]);
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'Memory Timeline Explorer');
+});
+
+test('access shorthand still works when no list reference is present', () => {
+  const frame = buildConversationFrame('Actually make it four', [
+    { role: 'user', text: 'Change my access level to three please' },
+    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' }
+  ]);
+
+  assert.equal(frame.referenceResolution.kind, 'access_level');
+  assert.equal(frame.referenceResolution.value, '4');
+});
+
 test('keeps hot turns while compacting older context', () => {
   const turns: ConversationTurn[] = Array.from({ length: 20 }, (_, index) => ({
     role: 'user',

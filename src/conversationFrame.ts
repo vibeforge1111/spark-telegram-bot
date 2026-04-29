@@ -87,6 +87,18 @@ const DEFAULT_POLICY: ContextBudgetPolicy = {
 };
 
 const NUMBER_WORDS: Record<string, string> = { one: '1', two: '2', three: '3', four: '4' };
+const OPTION_NUMBER_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10
+};
 const ORDINALS: Record<string, number> = {
   first: 1,
   second: 2,
@@ -397,21 +409,6 @@ function resolveReference(
   focusStack: ConversationFocus[],
   artifacts: ConversationArtifact[]
 ): ReferenceResolution {
-  const accessFocus = focusStack.some((focus) => focus.kind === 'access_level');
-  if (accessFocus) {
-    const accessValue = extractAccessValue(currentMessage);
-    const hasChangeShape = /\b(?:change|set|switch|make|do|go\s+to|go\s+with|actually|instead)\b/i.test(currentMessage);
-    const shortLevelOnly = /^\s*(?:level\s*)?(?:[1-4]|one|two|three|four)\s*[.!?]?\s*$/i.test(currentMessage);
-    if (accessValue && (hasChangeShape || shortLevelOnly)) {
-      return {
-        kind: 'access_level',
-        value: accessValue,
-        confidence: 0.9,
-        reason: 'recent access focus plus short level reference'
-      };
-    }
-  }
-
   const optionMatch = currentMessage.match(
     /\b(?:no\.?|number|option|#)\s*(\d{1,2})\b|\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:one|option|idea|direction|item)\b/i
   );
@@ -429,7 +426,54 @@ function resolveReference(
     }
   }
 
+  const bareOptionIndex = extractBareOptionReferenceIndex(currentMessage);
+  if (bareOptionIndex) {
+    const latestList = latestArtifactOfKind(artifacts, 'list');
+    const latestAccess = latestArtifactOfKind(artifacts, 'access_level');
+    const listIsCurrentFocus = latestList && (!latestAccess || latestList.sourceIndex >= latestAccess.sourceIndex);
+    if (listIsCurrentFocus && bareOptionIndex >= 1 && bareOptionIndex <= latestList.items.length) {
+      return {
+        kind: 'list_item',
+        value: latestList.items[bareOptionIndex - 1],
+        confidence: 0.78,
+        sourceArtifactKey: latestList.key,
+        reason: `resolved short option ${bareOptionIndex} against newer list artifact`
+      };
+    }
+  }
+
+  const accessFocus = focusStack.some((focus) => focus.kind === 'access_level');
+  if (accessFocus) {
+    const accessValue = extractAccessValue(currentMessage);
+    const hasChangeShape = /\b(?:change|set|switch|make|do|go\s+to|go\s+with|actually|instead)\b/i.test(currentMessage);
+    const shortLevelOnly = /^\s*(?:level\s*)?(?:[1-4]|one|two|three|four)\s*[.!?]?\s*$/i.test(currentMessage);
+    if (accessValue && (hasChangeShape || shortLevelOnly)) {
+      return {
+        kind: 'access_level',
+        value: accessValue,
+        confidence: 0.9,
+        reason: 'recent access focus plus short level reference'
+      };
+    }
+  }
+
   return { kind: 'none', value: null, confidence: 0, reason: 'no reliable local reference' };
+}
+
+function latestArtifactOfKind(
+  artifacts: ConversationArtifact[],
+  kind: ConversationFocusKind
+): ConversationArtifact | null {
+  return [...artifacts].reverse().find((artifact) => artifact.kind === kind) || null;
+}
+
+function extractBareOptionReferenceIndex(text: string): number | null {
+  const match = text.match(
+    /^(?:let'?s\s+|please\s+|actually\s+|no[, ]*|instead\s+)*(?:do|pick|choose|select|use|go\s+with)\s+(?:the\s+)?(?:option\s+|idea\s+|direction\s+|item\s+)?([1-9]|10|one|two|three|four|five|six|seven|eight|nine|ten)\b/i
+  );
+  if (!match) return null;
+  const value = match[1].toLowerCase();
+  return OPTION_NUMBER_WORDS[value] || Number(value) || null;
 }
 
 function compactOlderTurns(turns: ConversationTurn[], artifacts: ConversationArtifact[]): string {
