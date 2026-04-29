@@ -44,9 +44,9 @@ test('formats structured provider JSON as readable Telegram text', () => {
     })
   });
 
-  assert.match(message, /Z\.AI GLM finished the build\./);
+  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
   assert.match(message, /Implemented the requested static board/);
-  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Files updated: 4/);
   assert.match(message, /Checks:/);
   assert.doesNotMatch(message, /Mission: spark-123/);
@@ -68,7 +68,7 @@ test('keeps minimal structured provider summaries compact', () => {
     })
   });
 
-  assert.match(message, /Codex finished the build\./);
+  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
   assert.match(message, /Built the mission cards and canvas sync\./);
   assert.match(message, /Files changed: 3/);
   assert.doesNotMatch(message, /src\/kanban\.ts/);
@@ -95,9 +95,9 @@ test('formats structured provider failures without raw JSON noise', () => {
     })
   });
 
-  assert.match(message, /Codex reported a failure\./);
+  assert.match(message, /(?:This run needs attention|Something blocked the mission|The build hit a problem|Spark could not finish this run)\./);
   assert.match(message, /final browser verification failed/);
-  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Files updated: 2/);
   assert.match(message, /Browser smoke failed/);
   assert.doesNotMatch(message, /"status"/);
@@ -132,13 +132,12 @@ test('strips hidden reasoning and relay plumbing from freeform provider results'
     ].join('\n')
   });
 
-  assert.match(message, /Codex finished the build\./);
+  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
   assert.match(message, /created the Kanban cards and synced the canvas/);
   assert.doesNotMatch(message, /private chain of thought/);
   assert.doesNotMatch(message, /curl -X POST/);
   assert.doesNotMatch(message, /Mission ID/);
 });
-
 test('summarizes freeform Codex build output without dumping file links', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
@@ -162,12 +161,12 @@ test('summarizes freeform Codex build output without dumping file links', () => 
     ].join('\n')
   });
 
-  assert.match(message, /Codex finished the build\./);
+  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
   assert.match(message, /What shipped:/);
   assert.match(message, /Full-viewport Three\.js orbital forge/);
   assert.match(message, /Checks passed:/);
   assert.match(message, /Headless Chrome desktop\/mobile/);
-  assert.match(message, /Preview: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);
@@ -223,8 +222,8 @@ test('mission start update links the mission once through kanban', () => {
     'board'
   );
 
-  assert.match(message || '', /Spark started the run/);
-  assert.match(message || '', /useful checkpoints/);
+  assert.match(message || '', /(?:Spark is on it|The run is moving|Spark picked it up|We are underway)\./);
+  assert.match(message || '', /only ping when something useful changes/);
   assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
   assert.doesNotMatch(message || '', /\/missions/);
 });
@@ -248,7 +247,7 @@ test('verbose mission start does not paste the whole build brief', () => {
     'both'
   );
 
-  assert.match(message || '', /Spark started the run/);
+  assert.match(message || '', /(?:Spark is on it|The run is moving|Spark picked it up|We are underway)\./);
   assert.doesNotMatch(message || '', /Build this at/);
   assert.doesNotMatch(message || '', /Target operating-system folder/);
 });
@@ -287,7 +286,8 @@ test('normal verbosity announces task starts but suppresses noisy progress', () 
     'board'
   );
 
-  assert.match(started || '', /Task started\nCreate static shell/);
+  assert.match(started || '', /(?:Step(?: \d+)? (?:started|is moving|is underway)|Now working on step)/);
+  assert.match(started || '', /Create static shell/);
   assert.equal(noisyProgress, null);
 });
 
@@ -312,9 +312,36 @@ test('task start labels are human-readable instead of node slugs', () => {
     'board'
   );
 
-  assert.match(message || '', /Task 2 started/);
+  assert.match(message || '', /(?:Step 2 started|Step 2 is moving|Now working on step 2|Step 2 is underway)/);
   assert.match(message || '', /Three\.js sprite forge core/);
   assert.doesNotMatch(message || '', /node-2/);
+});
+
+test('task completion messages stay compact and human readable', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_completed',
+      missionId: 'spark-123',
+      taskId: 'node-3-task-task-3-localstorage-and-saved-sprites',
+      taskName: 'node-3-task-task-3-localstorage-and-saved-sprites',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a sprite creator.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /(?:Step 3 done|Step 3 landed|Step 3 is complete|Finished step 3)/);
+  assert.match(message || '', /localStorage and saved sprites/);
+  assert.doesNotMatch(message || '', /node-3/);
+  assert.doesNotMatch(message || '', /MissionControl/);
 });
 
 test('verbose progress turns useful relay summaries into readable Telegram updates', () => {
@@ -339,7 +366,8 @@ test('verbose progress turns useful relay summaries into readable Telegram updat
     'board'
   );
 
-  assert.match(message || '', /Update: Wire launch sequence/);
+  assert.match(message || '', /(?:Checkpoint|Small update|Progress note|Good signal)/);
+  assert.match(message || '', /Wire launch sequence/);
   assert.match(message || '', /added persisted launch state/);
   assert.doesNotMatch(message || '', /MissionControl/);
   assert.doesNotMatch(message || '', /spark-123/);
@@ -419,11 +447,11 @@ test('formats mission heartbeat as useful work narration', () => {
     }
   });
 
-  assert.match(message, /Still building/);
-  assert.match(message, /Latest checkpoint:/);
+  assert.match(message, /(?:Still working|Still with it|The run is still active|No handoff yet)\./);
+  assert.match(message, /Checkpoint:/);
   assert.match(message, /reviewing the telemetry relay and writing focused tests/);
-  assert.match(message, /Current focus:\nReview relay updates/);
-  assert.match(message, /meaningful changes/);
+  assert.match(message, /Focus:\nReview relay updates/);
+  assert.match(message, /new signal/);
   assert.doesNotMatch(message, /Elapsed:/);
   assert.doesNotMatch(message, /Mission: spark-123/);
 });
@@ -515,7 +543,6 @@ test('ignores mission relay events targeted at another Telegram profile', () => 
     else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
   }
 });
-
 test('accepts legacy flat Telegram relay target fields for this bot only', () => {
   const originalPort = process.env.TELEGRAM_RELAY_PORT;
   const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
