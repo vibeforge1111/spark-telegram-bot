@@ -273,6 +273,13 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
+  if (
+    /\b(?:review|rate|assess|judge)\b/.test(normalized) &&
+    /\bquality\b/.test(normalized) &&
+    /\bbuild\b/.test(normalized)
+  ) {
+    return false;
+  }
   const contextText = context.toLowerCase();
   return (
     (/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) &&

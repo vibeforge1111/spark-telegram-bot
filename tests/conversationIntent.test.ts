@@ -188,6 +188,16 @@ test('does not confuse mission-control ideation with opening the local UI', () =
   );
 });
 
+test('does not intercept build-quality review requests as local UI links', () => {
+  assert.equal(
+    isLocalSparkServiceRequest(
+      'Review the quality of the /memory-quality build in spawner-ui.',
+      'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.'
+    ),
+    false
+  );
+});
+
 test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);
