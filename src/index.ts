@@ -471,9 +471,16 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
-    await ctx.reply(
-      `${runWithDefaults ? 'Starting with the defaults.' : 'Got it, I will use that direction.'}\nProject: ${pending.projectName}\nTier: ${tier}\nRequest ID: ${newRequestId}\nMission: ${missionId}\nMission board: ${kanbanUrl}\n\nSpark is turning this into a build plan. Watch Mission Control/Kanban for progress. I'll send the project canvas link here when it is ready.`
-    );
+    await ctx.reply([
+      runWithDefaults ? 'Perfect, I will run with the default direction.' : 'Got it, I will use that direction.',
+      '',
+      `Project: ${pending.projectName}`,
+      `Mode: ${pending.buildMode === 'advanced_prd' ? 'Advanced PRD build' : 'Direct build'}`,
+      `Mission: ${missionId}`,
+      `Mission board: ${kanbanUrl}`,
+      '',
+      'I am shaping the plan now. I will send the project canvas link as soon as it is ready.'
+    ].join('\n'));
     startPrdCanvasReadyNotifier({
       chatId: Number(ctx.chat.id),
       projectName: pending.projectName,
@@ -917,10 +924,6 @@ async function handlePendingDomainChipBuild(ctx: any, text: string): Promise<boo
   return true;
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : [];
-}
-
 export function formatCanvasReadySummary(args: {
   projectName: string;
   taskCount: unknown;
@@ -934,29 +937,18 @@ export function formatCanvasReadySummary(args: {
     .map((task: any) => typeof task?.title === 'string' ? task.title.trim() : '')
     .filter(Boolean)
     .slice(0, 3);
-  const verificationCommands = tasks.flatMap((task: any) => asStringArray(task?.verificationCommands));
-  const skills = asStringArray(args.analysis?.skills)
-    .concat(tasks.flatMap((task: any) => asStringArray(task?.skills)))
-    .filter((value, index, array) => array.indexOf(value) === index)
-    .slice(0, 5);
-  const architecture = [
-    typeof args.analysis?.projectType === 'string' ? args.analysis.projectType : null,
-    typeof args.analysis?.infrastructure === 'string' ? args.analysis.infrastructure : null,
-    Array.isArray(args.analysis?.techStack) ? args.analysis.techStack.slice(0, 4).join(', ') : null,
-  ].filter(Boolean).join(' | ');
-
   const lines = [
-    `Canvas ready for ${args.projectName}. ${args.taskCount ?? tasks.length} tasks queued in ${args.elapsed}s.`,
+    `Canvas is ready for ${args.projectName}.`,
+    `${args.taskCount ?? tasks.length} build steps queued in ${args.elapsed}s.`,
   ];
-  if (architecture) lines.push(`Architecture: ${architecture}`);
-  if (skills.length > 0) lines.push(`Build structure: ${skills.join(', ')}`);
   if (taskTitles.length > 0) {
-    lines.push('Tasks:');
-    for (const title of taskTitles) lines.push(`- ${title}`);
+    lines.push('', 'Plan:');
+    taskTitles.forEach((title: string, index: number) => lines.push(`${index + 1}. ${title}`));
+    if (tasks.length > taskTitles.length) {
+      lines.push(`+${tasks.length - taskTitles.length} more`);
+    }
   }
-  lines.push(`Tests/checks: ${verificationCommands.length}`);
-  for (const command of verificationCommands.slice(0, 3)) lines.push(`- ${command}`);
-  lines.push('', `Canvas: ${args.readyCanvasUrl}`, `Mission board: ${args.kanbanUrl}`, '', "I'll post live progress and results here.");
+  lines.push('', `Canvas: ${args.readyCanvasUrl}`, `Mission board: ${args.kanbanUrl}`, '', "I'll post progress here when a step starts or finishes.");
   return lines.join('\n');
 }
 
@@ -1087,15 +1079,16 @@ export async function handleBuildIntent(
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
     const ackLines = [
-      `Got it. Project: ${projectName}`,
-      `Build mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD -> tasks' : 'Direct build'}`,
+      'Got it. Spark picked up the build.',
+      '',
+      `Project: ${projectName}`,
+      `Mode: ${buildMode === 'advanced_prd' ? 'Advanced PRD build' : 'Direct build'}`,
       projectPath ? `Target folder: ${projectPath}` : null,
-      `Tier: ${tier}`,
-      `Request ID: ${requestId}`,
       `Mission: ${missionId}`,
+      '',
       `Mission board: ${kanbanUrl}`,
       '',
-      `Spark is turning this into a build plan. Watch Mission Control/Kanban for progress. I'll send the project canvas link here when it is ready.`
+      'I am shaping the plan now. I will send the project canvas link as soon as it is ready.'
     ].filter(Boolean);
     await ctx.reply(ackLines.join('\n'));
 

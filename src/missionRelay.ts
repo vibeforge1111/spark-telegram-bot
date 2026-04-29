@@ -83,6 +83,7 @@ const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
+const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
 let registryLoaded = false;
 let relayServer: Server | null = null;
@@ -562,6 +563,110 @@ function formatChangedFiles(files: string[], limit: number): string[] {
   return lines;
 }
 
+function normalizeLocalPath(pathValue: string): string {
+  return pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
+}
+
+function localIndexLink(projectPath: string | null): string | null {
+  if (!projectPath) return null;
+  const normalized = normalizeLocalPath(projectPath);
+  if (/^[A-Za-z]:\//.test(normalized)) {
+    return `file:///${normalized.replace(/ /g, '%20')}/index.html`;
+  }
+  if (normalized.startsWith('/')) {
+    return `file://${normalized.replace(/ /g, '%20')}/index.html`;
+  }
+  return null;
+}
+
+function extractProjectPathFromText(text: string): string | null {
+  const patterns = [
+    /(?:built|verified|created)[^`\r\n]*(?:in|at)\s+`([^`\r\n]+)`/i,
+    /Project:\s*([A-Za-z]:\\[^\r\n]+)/i,
+    /Project folder:\s*([A-Za-z]:\\[^\r\n]+)/i,
+    /(?:at|in)\s+([A-Za-z]:\\Users\\[^\r\n`]+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim().replace(/[.。]\s*$/, '');
+  }
+  return null;
+}
+
+function stripMarkdownFileLinks(text: string): string {
+  return text
+    .replace(/^\s*-\s+\[[^\]]+\]\(<[^)]+>\)\s*$/gim, '')
+    .replace(/^\s*-\s+\[[^\]]+\]\([^)]+\)\s*$/gim, '')
+    .replace(/`(?:[A-Za-z]:\\|\/(?:c|Users|home|root)\/)[^`\r\n]+`/g, '`local file`')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function extractSectionBullets(text: string, headingPattern: RegExp, maxItems: number): string[] {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((line) => headingPattern.test(line.trim()));
+  if (start < 0) return [];
+  const bullets: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (bullets.length > 0) break;
+      continue;
+    }
+    if (/^[A-Z][A-Za-z /-]+:\s*$/.test(trimmed) && bullets.length > 0) break;
+    const bullet = trimmed.match(/^[-*]\s+(.+)/)?.[1];
+    if (bullet) {
+      if (!/\[[^\]]+\]\(|(?:[A-Za-z]:\\|\/(?:c|Users|home|root)\/)/i.test(bullet)) {
+        bullets.push(clipText(bullet, 180));
+      }
+      if (bullets.length >= maxItems) break;
+    } else if (bullets.length > 0) {
+      break;
+    }
+  }
+  return bullets;
+}
+
+function extractFreeformLeadSummary(text: string): string | null {
+  const cleaned = stripMarkdownFileLinks(stripThinkingAndMeta(text));
+  const line = cleaned
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .find((entry) =>
+      entry &&
+      !/^[-*]\s/.test(entry) &&
+      !/^(what shipped|verification passed|created exactly|mission:|note:)/i.test(entry) &&
+      !/\[[^\]]+\]\(/.test(entry)
+    );
+  return line ? clipText(line.replace(/^Done\.\s*/i, ''), 360) : null;
+}
+
+function taskNumberFromEvent(event: DeliverableRelayEvent): string | null {
+  const raw = `${event.taskId || ''} ${event.taskName || ''}`;
+  const match = raw.match(/\b(?:task|t)[-_ ]?(\d+)\b/i);
+  return match?.[1] || null;
+}
+
+function cleanTaskLabel(label: string): string {
+  return clipText(
+    label
+      .replace(/^task[-_ ]?\d+[-_: ]*/i, '')
+      .replace(/^[a-z0-9]+(?:[-_][a-z0-9]+){2,}:\s*/i, '')
+      .replace(/[-_]+/g, ' ')
+      .trim(),
+    160
+  );
+}
+
+function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
+  const number = taskNumberFromEvent(event);
+  const taskLabel = cleanTaskLabel(event.taskName || event.taskId || 'Next build step');
+  return [
+    number ? `Task ${number} started` : 'Task started',
+    taskLabel
+  ].join('\n');
+}
+
 export function formatProviderCompletionForTelegram(input: {
   providerLabel: string;
   response: string;
@@ -575,7 +680,7 @@ export function formatProviderCompletionForTelegram(input: {
   const parsed = parseJsonObject(input.response);
 
   if (!parsed) {
-    const clean = stripThinkingAndMeta(input.response);
+    const clean = stripMarkdownFileLinks(stripThinkingAndMeta(input.response));
     const looksStructured = clean.trim().startsWith('{') || clean.trim().startsWith('[');
     if (looksStructured) {
       return [
@@ -584,6 +689,26 @@ export function formatProviderCompletionForTelegram(input: {
         'Use the canvas or mission board for the full raw record.'
       ].join('\n');
     }
+    const projectPath = extractProjectPathFromText(input.response);
+    const openLink = localIndexLink(projectPath);
+    const shipped = extractSectionBullets(input.response, /^What shipped:/i, 4);
+    const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
+    const lead = extractFreeformLeadSummary(input.response);
+    const lines = [`${provider} finished the build.`];
+    if (lead) lines.push('', lead);
+    if (shipped.length > 0) {
+      lines.push('', 'What shipped:', ...shipped.map((item) => `- ${item}`));
+    }
+    if (checks.length > 0) {
+      lines.push('', 'Checks passed:', ...checks.map((item) => `- ${item}`));
+    }
+    if (openLink) {
+      lines.push('', `Open locally: ${openLink}`);
+    }
+    if (verbosity === 'verbose') {
+      lines.push('', `Mission: ${input.missionId}`);
+    }
+    if (lines.length > 1) return lines.join('\n');
     return [
       `${provider} says:`,
       '',
@@ -605,7 +730,7 @@ export function formatProviderCompletionForTelegram(input: {
     return [
       `${provider} ${providerStatusVerb(status)}.`,
       summary ? clipText(summary, 240) : null,
-      projectPath ? `Project: ${projectPath}` : null,
+      projectPath ? `Open locally: ${localIndexLink(projectPath) || projectPath}` : null,
       changedFiles.length ? `Files changed: ${changedFiles.length}` : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
@@ -619,10 +744,14 @@ export function formatProviderCompletionForTelegram(input: {
   }
 
   if (projectPath) {
-    lines.push('', `Project: ${projectPath}`);
+    lines.push('', `Open locally: ${localIndexLink(projectPath) || projectPath}`);
   }
 
-  lines.push(...formatChangedFiles(changedFiles, verbosity === 'verbose' ? 12 : 6));
+  if (verbosity === 'verbose') {
+    lines.push(...formatChangedFiles(changedFiles, 12));
+  } else if (changedFiles.length > 0) {
+    lines.push(`Files updated: ${changedFiles.length}`);
+  }
 
   if (verification.length > 0) {
     const visible = verification.slice(0, verbosity === 'verbose' ? 6 : 3);
@@ -711,7 +840,7 @@ export function formatProgressMessageForTelegram(
     case 'dispatch_started':
       return 'Spark is assigning the work.';
     case 'task_started':
-      return `${taskLabel} started working on it.`;
+      return formatTaskStartedMessage(event);
     case 'task_progress':
     case 'progress':
     case 'provider_feedback':
@@ -723,10 +852,8 @@ export function formatProgressMessageForTelegram(
         useful
       ].filter(Boolean).join('\n');
     case 'mission_completed':
-      return [
-        'Mission completed.',
-        links.length > 0 ? 'Open the board/canvas from the start message, or check the latest build summary above.' : 'Check the latest build summary above.'
-      ].join('\n');
+      if (verbosity !== 'verbose') return null;
+      return 'Mission completed. Preparing the handoff summary now.';
     case 'mission_failed':
       return [
         'Mission failed.',
@@ -742,8 +869,18 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   const providerKey = typeof event.data?.provider === 'string' && event.data.provider
     ? event.data.provider
     : event.source || 'none';
-  const signature = `${event.missionId}:${event.type}:${event.taskId || 'mission'}:${providerKey}`;
+  const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
+  const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
   const now = Date.now();
+  if (event.type === 'task_started') {
+    const taskKey = cleanTaskLabel(event.taskName || event.taskId || 'task').toLowerCase();
+    const taskSignature = `${event.missionId}:${event.type}:${taskKey}:${providerKey}`;
+    const previousTask = deliveryCache.get(taskSignature);
+    if (typeof previousTask === 'number' && now - previousTask < 5 * 60_000) {
+      return true;
+    }
+    deliveryCache.set(taskSignature, now);
+  }
   const previous = deliveryCache.get(signature);
   if (typeof previous === 'number' && now - previous < 30_000) {
     return true;
@@ -788,21 +925,21 @@ export function formatMissionHeartbeatForTelegram(input: {
 
   const lines: string[] = [];
   if (summary) {
-    lines.push('Still building. Here is the latest useful signal I have:', summary);
+    lines.push('Still building.', '', 'Latest checkpoint:', summary);
   } else {
-    lines.push('Still building. No new high-signal checkpoint has landed yet.');
+    lines.push('Still building.', '', 'No new checkpoint yet.');
   }
 
-  lines.push(`Current focus: ${taskLabel}.`);
+  lines.push('', 'Current focus:', taskLabel);
 
   if (input.verbosity === 'verbose') {
-    lines.push(`Elapsed: ${humanElapsed(input.elapsedMs)}.`);
+    lines.push('', `Elapsed: ${humanElapsed(input.elapsedMs)}.`);
     if (status && !['running', 'created'].includes(status.toLowerCase())) {
       lines.push(`Mission state: ${status}.`);
     }
     lines.push(`Goal: ${clipText(input.goal, 220)}`);
   } else {
-    lines.push('I will send the next note when there is a meaningful checkpoint or the run finishes.');
+    lines.push('', 'I will nudge you again when something meaningful changes.');
   }
 
   if (input.verbosity === 'verbose') {
@@ -837,6 +974,10 @@ function scheduleHeartbeat(
       verbosity,
       snapshot
     });
+    if (heartbeatLastMessages.get(key) === message) {
+      return;
+    }
+    heartbeatLastMessages.set(key, message);
 
     bot.telegram.sendMessage(chatId, message).catch((error) => {
       console.warn('[MissionRelay] Failed to send heartbeat:', error);
@@ -851,6 +992,7 @@ function clearHeartbeatForMission(missionId: string): void {
     if (key === missionId || key.startsWith(`${missionId}:`)) {
       clearInterval(timer);
       heartbeatTimers.delete(key);
+      heartbeatLastMessages.delete(key);
     }
   }
 }

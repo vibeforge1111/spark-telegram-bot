@@ -36,6 +36,7 @@ const originalEnv = {
 	BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
 	BOT_PRO_USER_IDS: process.env.BOT_PRO_USER_IDS,
 	ADMIN_TELEGRAM_IDS: process.env.ADMIN_TELEGRAM_IDS,
+	SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
 	SPARK_CLARIFICATION_COPY_LLM: process.env.SPARK_CLARIFICATION_COPY_LLM,
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
 	SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
@@ -78,6 +79,7 @@ async function callHandleBuildIntent(opts: {
 }): Promise<void> {
 	process.env.SPARK_BOT_TEST_MODE = '1';
 	process.env.SPARK_CLARIFICATION_COPY_LLM = '0';
+	process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 	// Stub the access-policy gate so the test does not require a real
 	// Spark access profile to be loaded. We assume sparkAccessAllows would
 	// pass for an admin tester; the production path runs the real gate.
@@ -221,7 +223,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(reply, /Canvas:/);
 	});
 
-	await test('canvas ready summary includes structure tests and canvas link', async () => {
+	await test('canvas ready summary stays readable and includes canvas link', async () => {
 		const indexModule: any = await import('../src/index');
 		const reply = indexModule.formatCanvasReadySummary({
 			projectName: 'domain-chip-posters',
@@ -248,9 +250,12 @@ async function run(): Promise<void> {
 			}
 		});
 
-		assert.match(reply, /Architecture: domain-chip \| local Spark runtime \| Python, spark-chip\.json/);
-		assert.match(reply, /Build structure: domain-chip-creator, runtime-sync/);
-		assert.match(reply, /Tests\/checks: 2/);
+		assert.match(reply, /Canvas is ready for domain-chip-posters/);
+		assert.match(reply, /2 build steps queued in 195s/);
+		assert.match(reply, /Plan:/);
+		assert.match(reply, /1\. Scaffold chip manifest and hooks/);
+		assert.doesNotMatch(reply, /Architecture:/);
+		assert.doesNotMatch(reply, /Tests\/checks/);
 		assert.match(reply, /Canvas: http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
 	});
 
@@ -349,7 +354,7 @@ async function run(): Promise<void> {
 		const clarifiedMissionId = `mission-${String(dispatchCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(dispatchCall!.body.missionId, clarifiedMissionId);
 		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
-		assert.match(replies.join('\n'), /Starting with the defaults/);
+		assert.match(replies.join('\n'), /Perfect, I will run with the default direction/);
 		assert.match(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
 		assert.doesNotMatch(replies.join('\n'), /Canvas:/);
 		assert.match(replies.join('\n'), /Mission board: http:\/\/stub-spawner\.test\/kanban/);
