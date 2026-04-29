@@ -524,6 +524,12 @@ function usefulProgressSummary(message: string, taskLabel: string): string | nul
   if (/^(?:working|still working|running|in progress|processing)\.?$/.test(normalized)) {
     return null;
   }
+  if (/\bis working through\b/.test(normalized) && /\btask pack\b/.test(normalized)) {
+    return null;
+  }
+  if (/\bestimate adjusting\b|\b\d+(?:m \d+s|m|s) elapsed\b/i.test(withoutProvider)) {
+    return null;
+  }
   if (normalized.includes(normalizedTask) && /\b(?:is\s+)?(?:running|in progress|working)\b/.test(normalized)) {
     return null;
   }
@@ -953,8 +959,8 @@ function heartbeatKey(event: DeliverableRelayEvent): string {
 }
 
 function heartbeatIntervalMs(verbosity: TelegramRelayVerbosity): number {
-  if (verbosity === 'verbose') return 45_000;
-  if (verbosity === 'normal') return 90_000;
+  if (verbosity === 'verbose') return 120_000;
+  if (verbosity === 'normal') return 180_000;
   return 0;
 }
 
@@ -1000,11 +1006,12 @@ export function formatMissionHeartbeatForTelegram(input: {
   lines.push('', 'Current focus:', taskLabel);
 
   if (input.verbosity === 'verbose') {
-    lines.push('', `Elapsed: ${humanElapsed(input.elapsedMs)}.`);
+    if (input.elapsedMs >= 5 * 60_000) {
+      lines.push('', `Elapsed: ${humanElapsed(input.elapsedMs)}.`);
+    }
     if (status && !['running', 'created'].includes(status.toLowerCase())) {
       lines.push(`Mission state: ${status}.`);
     }
-    lines.push(`Goal: ${clipText(input.goal, 220)}`);
   } else {
     lines.push('', 'I will nudge you again when something meaningful changes.');
   }

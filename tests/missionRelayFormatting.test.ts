@@ -359,9 +359,30 @@ test('suppresses low-signal mission heartbeat summaries', () => {
   });
 
   assert.match(message, /No new checkpoint yet/);
-  assert.match(message, /Elapsed: about 3 min/);
+  assert.doesNotMatch(message, /Elapsed:/);
   assert.match(message, /Mission: spark-123/);
   assert.doesNotMatch(message, /Z\.AI: Document launch path is running/);
+});
+
+test('suppresses provider stopwatch heartbeat summaries', () => {
+  const message = formatMissionHeartbeatForTelegram({
+    missionId: 'spark-123',
+    goal: 'Build a Spark diagnostic chip.',
+    taskLabel: 'Create app shell',
+    elapsedMs: 180_000,
+    verbosity: 'verbose',
+    snapshot: {
+      missionId: 'spark-123',
+      status: 'running',
+      lastEventType: 'task_progress',
+      lastSummary: '[MissionControl] Progress: OpenAI Codex is working through 4 task pack (2m 20s elapsed; estimate adjusting) (spark-123).',
+      taskName: 'Create app shell'
+    }
+  });
+
+  assert.match(message, /No new checkpoint yet/);
+  assert.doesNotMatch(message, /working through 4 task pack/);
+  assert.doesNotMatch(message, /estimate adjusting/);
 });
 
 test('stops mission heartbeats for terminal or stale runs', () => {
