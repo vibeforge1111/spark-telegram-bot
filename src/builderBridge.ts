@@ -6,7 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
-import { builderBridgeTimeoutMs } from './timeoutConfig';
+import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
@@ -50,6 +50,19 @@ export interface BuilderDiagnosticsScanJson {
 export interface BuilderDiagnosticsScanResult {
   replyText: string;
   markdownPath: string;
+}
+
+export interface BuilderConversationColdContextInput {
+  userId: number | string;
+  currentMessage: string;
+}
+
+export interface BuilderConversationColdContextResult {
+  used: boolean;
+  contextText: string;
+  sourceCount: number;
+  bridgeMode: string;
+  error?: string;
 }
 
 function parseBridgeMode(): BuilderBridgeMode {
@@ -187,6 +200,91 @@ function formatServiceCheckCounts(value: unknown): string {
     .join(', ');
 }
 
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function truncateForPrompt(text: string, maxChars: number): string {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, Math.max(0, maxChars - 16)).trim()} [truncated]`;
+}
+
+function shouldIncludeColdMemoryItem(item: Record<string, unknown>): boolean {
+  const lane = stringValue(item.lane);
+  const sourceClass = stringValue(item.source_class);
+  if (!lane || !stringValue(item.text)) {
+    return false;
+  }
+  if (lane === 'wiki_packets' || sourceClass === 'obsidian_llm_wiki_packets') {
+    return false;
+  }
+  return true;
+}
+
+export function formatConversationColdMemoryContext(payload: unknown, maxChars = 3000): {
+  contextText: string;
+  sourceCount: number;
+} {
+  const root = objectValue(payload);
+  const packet = objectValue(root.context_packet);
+  const sections = arrayValue(packet.sections);
+  const lines = [
+    '[Spark Cold Memory Context]',
+    'Use this as supporting retrieved memory only. Newer conversation frame context wins.',
+    ''
+  ];
+  let usedChars = lines.join('\n').length;
+  let sourceCount = 0;
+
+  for (const sectionValue of sections) {
+    const section = objectValue(sectionValue);
+    const items = arrayValue(section.items).map(objectValue).filter(shouldIncludeColdMemoryItem);
+    if (!items.length) {
+      continue;
+    }
+    const sectionName = stringValue(section.section) || 'retrieved_memory';
+    const sectionLines = [`[${sectionName}]`];
+    for (const item of items) {
+      const text = truncateForPrompt(stringValue(item.text), 700);
+      if (!text) {
+        continue;
+      }
+      const lane = stringValue(item.lane) || 'memory';
+      const predicate = stringValue(item.predicate);
+      const source = predicate ? `${lane}/${predicate}` : lane;
+      const line = `- ${source}: ${text}`;
+      if (usedChars + sectionLines.join('\n').length + line.length > maxChars) {
+        break;
+      }
+      sectionLines.push(line);
+      sourceCount += 1;
+    }
+    if (sectionLines.length > 1) {
+      lines.push(...sectionLines, '');
+      usedChars = lines.join('\n').length;
+    }
+    if (usedChars >= maxChars) {
+      break;
+    }
+  }
+
+  return {
+    contextText: sourceCount > 0 ? lines.join('\n').trim() : '',
+    sourceCount
+  };
+}
+
 export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): string {
   const findings = Array.isArray(report.findings) ? report.findings.length : 0;
   const sources = Array.isArray(report.sources) ? report.sources.length : 0;
@@ -256,6 +354,94 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
   };
+}
+
+export async function runBuilderConversationColdContext(
+  input: BuilderConversationColdContextInput
+): Promise<BuilderConversationColdContextResult> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return {
+      used: false,
+      contextText: '',
+      sourceCount: 0,
+      bridgeMode: config.mode,
+    };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    if (config.mode === 'required') {
+      throw new Error(
+        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
+      );
+    }
+    return {
+      used: false,
+      contextText: '',
+      sourceCount: 0,
+      bridgeMode: config.mode,
+    };
+  }
+
+  const currentMessage = input.currentMessage.trim();
+  if (!currentMessage) {
+    return {
+      used: false,
+      contextText: '',
+      sourceCount: 0,
+      bridgeMode: config.mode,
+    };
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', [
+        'memory',
+        'inspect-capsule',
+        '--home',
+        config.builderHome,
+        '--query',
+        currentMessage,
+        '--subject',
+        `human:telegram:${String(input.userId).trim()}`,
+        '--limit',
+        '6',
+        '--no-record-activity',
+        '--json',
+      ]),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: positiveIntegerEnv(process.env, 'SPARK_CONTEXT_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 6000)),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Builder memory context returned empty stdout. stderr=${redactText(stderr.trim())}`);
+    }
+    const formatted = formatConversationColdMemoryContext(JSON.parse(trimmedStdout));
+    return {
+      used: formatted.sourceCount > 0,
+      contextText: formatted.contextText,
+      sourceCount: formatted.sourceCount,
+      bridgeMode: config.mode,
+    };
+  } catch (error) {
+    if (config.mode === 'required') {
+      throw error;
+    }
+    console.warn('[BuilderBridge] Cold memory context unavailable:', error);
+    return {
+      used: false,
+      contextText: '',
+      sourceCount: 0,
+      bridgeMode: config.mode,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {

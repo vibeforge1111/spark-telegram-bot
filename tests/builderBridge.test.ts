@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { formatDiagnosticsScanReply } from '../src/builderBridge';
+import { formatConversationColdMemoryContext, formatDiagnosticsScanReply } from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -46,4 +46,52 @@ test('formats diagnostics scan replies without emojis while preserving sections'
     ].join('\n')
   );
   assert.doesNotMatch(reply, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+});
+
+test('formats authoritative cold memory context for prompt injection', () => {
+  const result = formatConversationColdMemoryContext({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: [
+            {
+              lane: 'recent_conversation',
+              source_class: 'recent_conversation',
+              predicate: 'conversation.focus',
+              text: 'The user was choosing between access level 3 and level 4.'
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.sourceCount, 1);
+  assert.match(result.contextText, /\[Spark Cold Memory Context\]/);
+  assert.match(result.contextText, /recent_conversation\/conversation\.focus/);
+  assert.match(result.contextText, /access level 3 and level 4/);
+});
+
+test('does not inject wiki diagnostic packets as conversational cold memory', () => {
+  const result = formatConversationColdMemoryContext({
+    context_packet: {
+      sections: [
+        {
+          section: 'compiled_project_knowledge',
+          items: [
+            {
+              lane: 'wiki_packets',
+              source_class: 'obsidian_llm_wiki_packets',
+              predicate: 'knowledge.packet',
+              text: 'Spark Diagnostic Report 2026-04-27'
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.sourceCount, 0);
+  assert.equal(result.contextText, '');
 });

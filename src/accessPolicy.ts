@@ -12,13 +12,15 @@ const ACCESS_PATH = resolveStatePath('.spark-access-policy.json');
 export function normalizeSparkAccessProfile(value: unknown): SparkAccessProfile | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase().replace(/[\s_+\-&]+/g, '');
-  if (['1', 'level1', 'l1', 'chat', 'chatonly', 'private', 'conversation'].includes(normalized)) return 'chat';
-  if (['2', 'level2', 'l2', 'builder', 'mission', 'missions', 'build', 'buildwhenasked', 'buildpermission'].includes(normalized)) return 'builder';
-  if (['3', 'level3', 'l3', 'agent', 'tools', 'research', 'researchbuild', 'researchandbuild', 'web', 'github'].includes(normalized)) return 'agent';
+  if (['1', 'access1', 'level1', 'accesslevel1', 'l1', 'chat', 'chatonly', 'private', 'conversation'].includes(normalized)) return 'chat';
+  if (['2', 'access2', 'level2', 'accesslevel2', 'l2', 'builder', 'mission', 'missions', 'build', 'buildwhenasked', 'buildpermission'].includes(normalized)) return 'builder';
+  if (['3', 'access3', 'level3', 'accesslevel3', 'l3', 'agent', 'tools', 'research', 'researchbuild', 'researchandbuild', 'web', 'github'].includes(normalized)) return 'agent';
   if (
     [
       '4',
+      'access4',
       'level4',
+      'accesslevel4',
       'l4',
       'developer',
       'dev',
@@ -144,18 +146,18 @@ export function renderSparkAccessDenial(profile: SparkAccessProfile, requirement
   if (requirement === 'operating_system') {
     return [
       `This needs ${sparkAccessLabel('developer')}, but this chat is at ${sparkAccessLabel(profile)}.`,
-      'Use `/access 4` when you want Spark to work across the operating system or local projects.'
+      'You can say "change my access level to 4" or send `/access 4` when you want Spark to work across the operating system or local projects.'
     ].join('\n');
   }
   if (requirement === 'external_research') {
     return [
       `This needs ${sparkAccessLabel('agent')} or ${sparkAccessLabel('developer')}, but this chat is at ${sparkAccessLabel(profile)}.`,
-      'Use `/access 3` for public links/docs/GitHub research, or `/access 4` for Full Access.'
+      'You can say "change my access level to 3" for public links/docs/GitHub research, or "change my access level to 4" for Full Access.'
     ].join('\n');
   }
   return [
     `This needs ${sparkAccessLabel('builder')} or higher, but this chat is at ${sparkAccessLabel(profile)}.`,
-    'Use `/access 2` when you want Spark to build through Spawner after you ask.'
+    'You can say "change my access level to 2" or send `/access 2` when you want Spark to build through Spawner after you ask.'
   ].join('\n');
 }
 
@@ -213,6 +215,57 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     '/access 2  Build When Asked',
     '/access 3  Research + Build (default)',
     '/access 4  Full Access'
+  ].join('\n');
+}
+
+export function renderSparkAccessBriefStatus(profile: SparkAccessProfile): string {
+  if (profile === 'developer') {
+    return [
+      `You are on ${sparkAccessLabel(profile)}.`,
+      'That means I can use Spawner/Codex for local projects, repo inspection, debugging, public research, and requested missions.',
+      'You can say "change my access level to 3" if you want to remove local filesystem/project access.'
+    ].join('\n\n');
+  }
+
+  if (profile === 'agent') {
+    return [
+      `You are on ${sparkAccessLabel(profile)}.`,
+      'That means I can research public links/docs/GitHub and run requested Spawner missions, but I will not inspect local files or repos.',
+      'Say "change my access level to 4" when you want local project access.'
+    ].join('\n\n');
+  }
+
+  if (profile === 'builder') {
+    return [
+      `You are on ${sparkAccessLabel(profile)}.`,
+      'That means I can run builds or missions only when you clearly ask, but public research and local project access are off.',
+      'Say "change my access level to 3" for public research, or "change my access level to 4" for local project access.'
+    ].join('\n\n');
+  }
+
+  return [
+    `You are on ${sparkAccessLabel(profile)}.`,
+    'That means I can chat, remember, recall, and diagnose, but I will not start builds or missions.',
+    'Say "change my access level to 2" if you want me to run requested Spawner builds.'
+  ].join('\n\n');
+}
+
+export function renderSparkAccessChangeConfirmation(profile: SparkAccessProfile): string {
+  return [
+    `Done - I changed this chat to ${sparkAccessLabel(profile)}.`,
+    describeSparkAccessProfile(profile).replace(/^Level \d - [^:]+:\s*/, '')
+  ].join('\n\n');
+}
+
+export function renderSparkAccessConversationHelp(profile: SparkAccessProfile): string {
+  return [
+    `Yes. Spark has chat access levels, and this chat is currently ${sparkAccessLabel(profile)}.`,
+    'Level 1: chat, memory, recall, diagnostics.',
+    'Level 2: requested Spawner builds.',
+    'Level 3: public links/docs/GitHub research plus builds.',
+    'Level 4: local projects, files, debugging, and deeper missions.',
+    '',
+    'You can say things like "change my access level to 3" or "what can level 4 do?"'
   ].join('\n');
 }
 

@@ -11,9 +11,13 @@ import {
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
+  hasRecentAccessConversation,
   hasLocalOptionReference,
+  inferRecentConversationFocus,
   inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
+  isAccessHelpQuestion,
+  isAccessStatusQuestion,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isDiagnosticsScanRequest,
@@ -24,6 +28,8 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  parseContextualAccessChangeIntent,
+  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
@@ -492,6 +498,50 @@ test('chat runtime failure replies give operators a useful next step', () => {
   assert.match(adminReply, /chat provider/);
   assert.match(userReply, /chat model is not healthy/);
   assert.match(userReply, /ask the operator/);
+});
+
+test('recognizes natural access status questions', () => {
+  assert.equal(isAccessStatusQuestion('what is my access level?'), true);
+  assert.equal(isAccessStatusQuestion("What's my access level right now?"), true);
+  assert.equal(isAccessStatusQuestion('can you show my Spark access status'), true);
+  assert.equal(isAccessStatusQuestion('which access level are we on right now'), true);
+  assert.equal(isAccessStatusQuestion('change my access level to full access'), false);
+  assert.equal(isAccessStatusQuestion('please remember that my access level is important'), false);
+});
+
+test('parses natural access change requests', () => {
+  assert.equal(parseNaturalAccessChangeIntent('can you change my access level to access 3?'), '3');
+  assert.equal(parseNaturalAccessChangeIntent('Change my access level to three please'), '3');
+  assert.equal(parseNaturalAccessChangeIntent('please switch Spark access to full access'), 'full access');
+  assert.equal(parseNaturalAccessChangeIntent('raise my access to level 4'), '4');
+  assert.equal(parseNaturalAccessChangeIntent('lower my access to two'), '2');
+  assert.equal(parseNaturalAccessChangeIntent('what is my access level?'), null);
+  assert.equal(parseNaturalAccessChangeIntent('please remember that my access level is 3'), null);
+});
+
+test('resolves contextual access change follow-ups from recent access turns', () => {
+  const recent = [
+    'User: Change my access level to three please',
+    'Spark: Done - I changed this chat to Level 3 - Research + Build.'
+  ];
+
+  assert.equal(hasRecentAccessConversation(recent), true);
+  assert.equal(inferRecentConversationFocus(recent), 'access');
+  assert.equal(parseContextualAccessChangeIntent('Change it to 4', recent), '4');
+  assert.equal(parseContextualAccessChangeIntent('Actually make it four', recent), '4');
+  assert.equal(parseContextualAccessChangeIntent('4', recent), '4');
+  assert.equal(parseContextualAccessChangeIntent('do four instead', recent), '4');
+  assert.equal(parseContextualAccessChangeIntent('Change it to 4', ['User: I like the fourth design']), null);
+  assert.equal(inferRecentConversationFocus(['User: I like the fourth design']), null);
+  assert.equal(parseContextualAccessChangeIntent('Remember that I like level 4', recent), null);
+});
+
+test('recognizes fuzzy access system help questions', () => {
+  assert.equal(isAccessHelpQuestion('does Spark have access levels or something like that?'), true);
+  assert.equal(isAccessHelpQuestion('what access tiers unlock local files?'), true);
+  assert.equal(isAccessHelpQuestion('is there a permission management surface for this chat?'), true);
+  assert.equal(isAccessHelpQuestion('please remember that access levels matter to me'), false);
+  assert.equal(isAccessHelpQuestion('I like access to clean design tools'), false);
 });
 
 test('provides a conversational fallback for mission dashboard refinement', () => {

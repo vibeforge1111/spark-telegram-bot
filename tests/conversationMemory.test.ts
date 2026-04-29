@@ -111,6 +111,36 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('exposes recent full turns for the conversation frame harness', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.remember(user, 'What could we build?');
+    await memory.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'));
+
+    const turns = await memory.getRecentTurns(user, 4);
+
+    assert.deepEqual(turns, [
+      { role: 'user', text: 'What could we build?' },
+      { role: 'assistant', text: ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n') }
+    ]);
+  });
+  });
+
+  await test('persists rolling frame state for contextual references across instances', async () => {
+  await withTempState(async () => {
+    const first = new ConversationMemory();
+
+    await first.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'));
+
+    const second = new ConversationMemory();
+    const frame = await second.getConversationFrame(user, 'the second one');
+
+    assert.equal(frame.referenceResolution.kind, 'list_item');
+    assert.equal(frame.referenceResolution.value, 'Domain Chip Workbench');
+  });
+  });
+
   await test('persists recent planning context across ConversationMemory instances', async () => {
   await withTempState(async () => {
     const first = new ConversationMemory();

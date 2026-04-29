@@ -7,6 +7,9 @@ import {
   getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
+  renderSparkAccessBriefStatus,
+  renderSparkAccessChangeConfirmation,
+  renderSparkAccessConversationHelp,
   renderSparkAccessDenial,
   renderSparkAccessLevelGuide,
   renderSparkAccessOnboarding,
@@ -40,9 +43,13 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
 async function main(): Promise<void> {
   await test('normalizes Spark access aliases', () => {
     assert.equal(normalizeSparkAccessProfile('1'), 'chat');
+    assert.equal(normalizeSparkAccessProfile('access 1'), 'chat');
     assert.equal(normalizeSparkAccessProfile('level 2'), 'builder');
+    assert.equal(normalizeSparkAccessProfile('access level 2'), 'builder');
     assert.equal(normalizeSparkAccessProfile('L3'), 'agent');
+    assert.equal(normalizeSparkAccessProfile('access 3'), 'agent');
     assert.equal(normalizeSparkAccessProfile('level-4'), 'developer');
+    assert.equal(normalizeSparkAccessProfile('access 4'), 'developer');
     assert.equal(normalizeSparkAccessProfile('chat'), 'chat');
     assert.equal(normalizeSparkAccessProfile('chat only'), 'chat');
     assert.equal(normalizeSparkAccessProfile('mission'), 'builder');
@@ -131,6 +138,22 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessOnboarding('agent'), /change this later anytime by sending \/access 1/);
   });
 
+  await test('renders compact conversational access replies', () => {
+    const status = renderSparkAccessBriefStatus('developer');
+    assert.match(status, /You are on Level 4 - Full Access/);
+    assert.match(status, /change my access level to 3/);
+    assert.doesNotMatch(status, /What each level means/);
+
+    const changed = renderSparkAccessChangeConfirmation('agent');
+    assert.match(changed, /Done - I changed this chat to Level 3 - Research \+ Build/);
+    assert.doesNotMatch(changed, /Change it with/);
+
+    const help = renderSparkAccessConversationHelp('builder');
+    assert.match(help, /currently Level 2 - Build When Asked/);
+    assert.match(help, /Level 4: local projects/);
+    assert.doesNotMatch(help, /\/access 1/);
+  });
+
   await test('renders runtime access hints that prevent filesystem access contradictions', () => {
     assert.match(renderSparkAccessRuntimeHint('developer'), /Current Spark access: Level 4 - Full Access/);
     assert.match(renderSparkAccessRuntimeHint('developer'), /do not say you cannot inspect local files/);
@@ -147,8 +170,13 @@ async function main(): Promise<void> {
     assert.equal(sparkMissionNeedsOperatingSystemAccess('create a small browser app', '/Users/me/app'), true);
 
     assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /Build When Asked/);
+    assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /change my access level to 2/);
+    assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /\/access 2/);
     assert.match(renderSparkAccessDenial('builder', 'external_research'), /Research \+ Build/);
+    assert.match(renderSparkAccessDenial('builder', 'external_research'), /change my access level to 3/);
+    assert.match(renderSparkAccessDenial('builder', 'external_research'), /change my access level to 4/);
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /operating system/);
+    assert.match(renderSparkAccessDenial('agent', 'operating_system'), /change my access level to 4/);
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /\/access 4/);
   });
 

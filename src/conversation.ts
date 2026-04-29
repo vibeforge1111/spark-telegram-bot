@@ -3,6 +3,14 @@
 // a small in-process context buffer so plain chat can stay coherent immediately
 // after the user says "remember that..." while durable memory catches up.
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import {
+  buildConversationFrameFromState,
+  emptyRollingConversationFrameState,
+  renderConversationFrameDiagnostics,
+  updateRollingConversationFrameState,
+  type ConversationFrame,
+  type RollingConversationFrameState
+} from './conversationFrame';
 
 export function parseTelegramUserIds(raw: string | undefined): number[] {
   return (raw || '')
@@ -31,6 +39,7 @@ interface ConversationSnapshot {
   recentByUser?: Record<string, string[]>;
   notesByUser?: Record<string, string[]>;
   interruptedByUser?: Record<string, PendingTaskRecovery>;
+  frameStateByUser?: Record<string, RollingConversationFrameState>;
 }
 
 export interface PendingTaskRecovery {
@@ -49,12 +58,18 @@ export interface Memory {
   created_at?: string;
 }
 
+export interface RecentConversationTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export class ConversationMemory {
   private readonly recentByUser = new Map<number, string[]>();
   private readonly notesByUser = new Map<number, string[]>();
   private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
-  private readonly maxRecent = 8;
-  private readonly maxNotes = 12;
+  private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
+  private readonly maxRecent = 40;
+  private readonly maxNotes = 20;
   private loaded = false;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
@@ -113,6 +128,14 @@ export class ConversationMemory {
         }
       }
     }
+    if (snapshot?.frameStateByUser) {
+      for (const [key, value] of Object.entries(snapshot.frameStateByUser)) {
+        const userId = Number(key);
+        if (Number.isSafeInteger(userId) && userId > 0 && value && typeof value === 'object') {
+          this.frameStateByUser.set(userId, value);
+        }
+      }
+    }
     this.loaded = true;
   }
 
@@ -129,10 +152,15 @@ export class ConversationMemory {
     for (const [key, value] of this.interruptedByUser.entries()) {
       interruptedByUser[String(key)] = value;
     }
+    const frameStateByUser: Record<string, RollingConversationFrameState> = {};
+    for (const [key, value] of this.frameStateByUser.entries()) {
+      frameStateByUser[String(key)] = value;
+    }
     await writeJsonAtomic(this.statePath, {
       recentByUser: this.recordFromMap(this.recentByUser),
       notesByUser: this.recordFromMap(this.notesByUser),
-      interruptedByUser
+      interruptedByUser,
+      frameStateByUser
     });
   }
 
@@ -149,12 +177,27 @@ export class ConversationMemory {
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
     await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, 'user', message);
     return null;
   }
 
   async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
     await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, 'assistant', message);
     return null;
+  }
+
+  private async updateRollingFrame(user: TelegramUser, role: 'user' | 'assistant', text: string): Promise<void> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    const previous = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
+    const next = updateRollingConversationFrameState(previous, {
+      role,
+      text,
+      createdAt: new Date().toISOString()
+    });
+    this.frameStateByUser.set(key, next);
+    await this.persist();
   }
 
   async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
@@ -221,7 +264,7 @@ export class ConversationMemory {
 
     if (recent.length > 0) {
       lines.push('Recent Telegram turns:');
-      for (const item of recent.slice(-4)) {
+      for (const item of recent.slice(-12)) {
         lines.push(`- ${item}`);
       }
     }
@@ -238,6 +281,43 @@ export class ConversationMemory {
       .slice(-Math.max(1, limit))
       .map((item) => item.replace(/^User:\s*/i, '').trim())
       .filter(Boolean);
+  }
+
+  async getRecentTurns(user: TelegramUser, limit: number = 16): Promise<RecentConversationTurn[]> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    const recent = this.recentByUser.get(key) || [];
+    return recent
+      .slice(-Math.max(1, limit))
+      .map((item) => {
+        const assistant = item.match(/^Spark:\s*(.+)$/is);
+        if (assistant) {
+          return { role: 'assistant' as const, text: assistant[1].trim() };
+        }
+        const userMatch = item.match(/^User:\s*(.+)$/is);
+        return { role: 'user' as const, text: (userMatch?.[1] || item).trim() };
+      })
+      .filter((turn) => turn.text.length > 0);
+  }
+
+  async getConversationFrame(user: TelegramUser, currentMessage: string): Promise<ConversationFrame> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    const state = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
+    if (state.hotTurns.length > 0 || state.warmSummary || state.artifacts.length > 0) {
+      return buildConversationFrameFromState(currentMessage, state);
+    }
+    const recentTurns = await this.getRecentTurns(user, 24);
+    return buildConversationFrameFromState(currentMessage, {
+      ...emptyRollingConversationFrameState(),
+      hotTurns: recentTurns
+    });
+  }
+
+  async getConversationFrameDiagnostics(user: TelegramUser): Promise<string> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    return renderConversationFrameDiagnostics(this.frameStateByUser.get(key) || emptyRollingConversationFrameState());
   }
 
   async getMemoryCount(user: TelegramUser): Promise<number> {

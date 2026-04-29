@@ -14,7 +14,13 @@ import {
   isPendingTaskRecoveryQuestion,
   renderPendingTaskRecoveryReply
 } from './conversation';
-import { getBuilderBridgeStatus, runBuilderDiagnosticsScan, runBuilderTelegramBridge } from './builderBridge';
+import { renderConversationFrameContext } from './conversationFrame';
+import {
+  getBuilderBridgeStatus,
+  runBuilderConversationColdContext,
+  runBuilderDiagnosticsScan,
+  runBuilderTelegramBridge
+} from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
@@ -33,6 +39,9 @@ import {
   getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
+  renderSparkAccessBriefStatus,
+  renderSparkAccessChangeConfirmation,
+  renderSparkAccessConversationHelp,
   renderSparkAccessDenial,
   renderSparkAccessOnboarding,
   renderSparkAccessRuntimeHint,
@@ -73,6 +82,8 @@ import {
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
+  isAccessHelpQuestion,
+  isAccessStatusQuestion,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isDiagnosticsScanRequest,
@@ -82,6 +93,8 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseContextualAccessChangeIntent,
+  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
@@ -393,6 +406,12 @@ bot.command('diagnose', async (ctx) => {
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
+});
+
+bot.command('context', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+  const report = await conversation.getConversationFrameDiagnostics(ctx.from);
+  await ctx.reply(report);
 });
 
 // /myid command - get your secure Telegram ID (for admin setup)
@@ -1401,6 +1420,29 @@ bot.command('access', async (ctx) => {
   await ctx.reply(renderSparkAccessStatus(next));
 });
 
+async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean> {
+  if (!requireAdmin(ctx)) return true;
+
+  const next = normalizeSparkAccessProfile(raw);
+  if (!next) {
+    await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
+    return true;
+  }
+
+  const runtimeGate = validateSparkAccessProfileForRuntime(next);
+  if (!runtimeGate.ok) {
+    await ctx.reply(runtimeGate.message);
+    return true;
+  }
+
+  await setSparkAccessProfile(ctx.chat.id, next);
+  await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
+  const reply = renderSparkAccessChangeConfirmation(next);
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  return true;
+}
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -1449,13 +1491,65 @@ bot.on(message('text'), async (ctx) => {
     }
   }
 
+  const naturalAccessChange = parseNaturalAccessChangeIntent(text);
+  if (naturalAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, naturalAccessChange);
+    return;
+  }
+
+  const conversationFrame = await conversation.getConversationFrame(user, text);
+  let conversationFrameContext = renderConversationFrameContext(conversationFrame, 12_000);
+  const frameAccessChange = conversationFrame.referenceResolution.kind === 'access_level'
+    ? conversationFrame.referenceResolution.value
+    : null;
+  if (frameAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, frameAccessChange);
+    return;
+  }
+
+  const recentAccessMessages = await conversation.getRecentMessages(user, 6);
+  const contextualAccessChange = parseContextualAccessChangeIntent(text, recentAccessMessages);
+  if (contextualAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, contextualAccessChange);
+    return;
+  }
+
+  if (isAccessStatusQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const reply = renderSparkAccessBriefStatus(accessProfile);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (isAccessHelpQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const reply = renderSparkAccessConversationHelp(accessProfile);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const coldMemoryContext = await runBuilderConversationColdContext({
+    userId: user.id,
+    currentMessage: text,
+  });
+  if (coldMemoryContext.contextText) {
+    conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+  }
+
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
-    const contextualTurns = [...recentMessages, sessionContext];
+    const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
     const buildIntent = parseBuildIntent(text);
 
     if (isLocalWorkspaceInspectionOnlyRequest(text)) {
@@ -1673,7 +1767,7 @@ bot.on(message('text'), async (ctx) => {
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await safeSendChatAction(ctx, 'typing');
-      const memories = await conversation.getContext(user, text);
+      const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       const llmResponse = await llm.chat(
         text,
@@ -1733,7 +1827,7 @@ bot.on(message('text'), async (ctx) => {
     }
 
     // Get context from previous memories
-    const memories = await conversation.getContext(user, text);
+    const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
 
     // Get LLM response with Spark context

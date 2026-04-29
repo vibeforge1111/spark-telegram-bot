@@ -20,6 +20,7 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 - receives Telegram updates through one long-polling gateway process
 - refuses webhook mode and webhook env in this launch build
 - routes normal chat to Builder memory/research when the Builder bridge is available
+- builds a per-turn conversation frame so shorthand follow-ups like "change it to 4" or "the second one" can resolve against recent context
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
 - relays mission status and terminal updates back to Telegram
@@ -59,6 +60,7 @@ General:
 - `/myid`
 - `/status`
 - `/diagnose`
+- `/context`
 - `/spark`
 - `/remember <text>`
 - `/recall <topic>`
@@ -104,6 +106,14 @@ Important rule:
 
 Normal chat messages can be routed into `spark-intelligence-builder` so the Telegram bot uses Builder's researcher and persistent memory path instead of the local fallback conversation memory.
 
+Before the normal routing cascade, the gateway also builds a local conversation frame from recent user and assistant turns. This mirrors Builder's canonical conversation harness shape: hot verbatim turns, exact artifacts such as numbered lists or access levels, a focus stack, a reference resolution, and token-budget metadata. The frame is used for low-latency local routing and is also passed into fallback LLM context.
+
+The frame state is persisted per user. It rolls older turns into a warm summary, keeps exact artifacts separately, and exposes `/context` for operator diagnostics. After deterministic access/status/help handling, the gateway also asks Builder for a cold-memory capsule with `memory inspect-capsule --no-record-activity`. Conversation-safe retrieved memory is appended to the frame context before admin routes, build routes, Builder bridge fallback, or local LLM fallback use it.
+
+Canonical harness docs live in Builder:
+
+- [Conversation context harness](../spark-intelligence-builder/docs/CONVERSATION_CONTEXT_HARNESS_2026-04-29.md)
+
 Bridge env:
 
 - `SPARK_BUILDER_BRIDGE_MODE=auto|off|required`
@@ -111,6 +121,7 @@ Bridge env:
 - `SPARK_BUILDER_HOME`
 - `SPARK_BUILDER_PYTHON`
 - `SPARK_BUILDER_TIMEOUT_MS`
+- `SPARK_CONTEXT_BRIDGE_TIMEOUT_MS`
 
 Default behavior is `auto`, which looks for a sibling `spark-intelligence-builder` repo and the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 

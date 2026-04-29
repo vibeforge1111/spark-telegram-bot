@@ -168,6 +168,9 @@ test('system prompt teaches fresh Spark installs their ecosystem', () => {
   assert.match(prompt, /Spark Researcher/);
   assert.match(prompt, /Spawner UI/);
   assert.match(prompt, /\/remember <text>/);
+  assert.match(prompt, /Spark does have a Telegram chat access-level system/);
+  assert.match(prompt, /change my access level to 3/);
+  assert.match(prompt, /minimum access level/);
   assert.match(prompt, /Not a generic assistant/);
 });
 

@@ -17,6 +17,7 @@ async function ensureDb(): Promise<DatabaseSync> {
   await mkdir(path.dirname(dbPath()), { recursive: true });
   db = new DatabaseSync(dbPath());
   db.exec(`
+    PRAGMA busy_timeout = 5000;
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS gateway_state (
       state_key TEXT PRIMARY KEY,
