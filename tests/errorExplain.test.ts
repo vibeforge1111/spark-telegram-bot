@@ -88,13 +88,14 @@ test('directs duplicate Telegram polling to one live process', () => {
 });
 
 test('redacts secrets from user-facing errors', () => {
+  const tokenFixture = ['1234567890', 'AA' + 'A'.repeat(34)].join(':');
   const reply = renderSparkErrorReply(
-    new Error('BOT_TOKEN=8736683770:AAHP_8S4XEdylUaqOK4yHQscvRPRLk8Km6I failed with sk-live-secret-value'),
+    new Error(`BOT_TOKEN=${tokenFixture} failed with sk-live-secret-value`),
     'telegram',
     true
   );
 
-  assert.doesNotMatch(reply, /8736683770:AAHP_8S4XEdylUaqOK4yHQscvRPRLk8Km6I/);
+  assert.doesNotMatch(reply, new RegExp(tokenFixture.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.doesNotMatch(reply, /sk-live-secret-value/);
   assert.match(reply, /\[REDACTED\]|\*\*\*/);
 });
