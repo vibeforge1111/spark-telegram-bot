@@ -8,7 +8,8 @@ import {
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
-  shouldAcceptRelayEventForThisBot
+  shouldAcceptRelayEventForThisBot,
+  shouldStopMissionHeartbeat
 } from '../src/missionRelay';
 
 function test(name: string, fn: () => void): void {
@@ -361,6 +362,26 @@ test('suppresses low-signal mission heartbeat summaries', () => {
   assert.match(message, /Elapsed: about 3 min/);
   assert.match(message, /Mission: spark-123/);
   assert.doesNotMatch(message, /Z\.AI: Document launch path is running/);
+});
+
+test('stops mission heartbeats for terminal or stale runs', () => {
+  assert.equal(shouldStopMissionHeartbeat({
+    elapsedMs: 60_000,
+    staleMs: 30 * 60_000,
+    snapshot: { missionId: 'spark-1', status: 'completed' }
+  }), true);
+
+  assert.equal(shouldStopMissionHeartbeat({
+    elapsedMs: 31 * 60_000,
+    staleMs: 30 * 60_000,
+    snapshot: { missionId: 'spark-2', status: 'running' }
+  }), true);
+
+  assert.equal(shouldStopMissionHeartbeat({
+    elapsedMs: 10 * 60_000,
+    staleMs: 30 * 60_000,
+    snapshot: { missionId: 'spark-3', status: 'running' }
+  }), false);
 });
 
 test('ignores mission relay events targeted at another Telegram profile', () => {

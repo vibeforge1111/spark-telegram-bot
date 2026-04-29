@@ -90,6 +90,7 @@ let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
 const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
 const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
+const DEFAULT_HEARTBEAT_STALE_MS = 35 * 60_000;
 
 function getRelayPort(): number {
 	return telegramRelayIdentityFromEnv().port;
@@ -433,7 +434,34 @@ async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEn
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       const board = asRecord(payload?.board);
-      return board ? findMissionInBoard(board, missionId) : null;
+      const boardEntry = board ? findMissionInBoard(board, missionId) : null;
+      if (boardEntry) return boardEntry;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    // Fall through to the trace endpoint; the board may be stale while trace still knows dispatch state.
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
+        signal: controller.signal
+      });
+      if (!response.ok) return null;
+      const payload = asRecord(await response.json());
+      if (!payload) return null;
+      const progress = asRecord(payload.progress);
+      return {
+        missionId,
+        status: typeof payload.phase === 'string' ? payload.phase : undefined,
+        lastEventType: typeof payload.phase === 'string' ? payload.phase : undefined,
+        lastUpdated: typeof payload.serverTime === 'string' ? payload.serverTime : undefined,
+        lastSummary: typeof payload.summary === 'string' ? payload.summary : undefined,
+        taskName: typeof progress?.currentTask === 'string' ? progress.currentTask : null
+      };
     } finally {
       clearTimeout(timeout);
     }
@@ -930,6 +958,24 @@ function heartbeatIntervalMs(verbosity: TelegramRelayVerbosity): number {
   return 0;
 }
 
+function heartbeatStaleMs(): number {
+  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HEARTBEAT_STALE_MS;
+}
+
+function isTerminalMissionStatus(status: string | undefined | null): boolean {
+  return ['completed', 'failed', 'cancelled'].includes((status || '').toLowerCase());
+}
+
+export function shouldStopMissionHeartbeat(input: {
+  elapsedMs: number;
+  staleMs?: number;
+  snapshot?: MissionBoardEntry | null;
+}): boolean {
+  if (isTerminalMissionStatus(input.snapshot?.status)) return true;
+  return input.elapsedMs >= (input.staleMs ?? heartbeatStaleMs());
+}
+
 export function formatMissionHeartbeatForTelegram(input: {
   missionId: string;
   goal: string;
@@ -987,6 +1033,30 @@ function scheduleHeartbeat(
   const timer = setInterval(async () => {
     const elapsedMs = Date.now() - startedAt;
     const snapshot = await fetchMissionBoardEntry(event.missionId);
+    if (shouldStopMissionHeartbeat({ elapsedMs, snapshot })) {
+      clearHeartbeatForMission(event.missionId);
+      const status = snapshot?.status?.toLowerCase();
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        const message = status === 'completed'
+          ? 'This mission has reached completed state. I am stopping live status pings and waiting for the handoff summary.'
+          : `This mission is now ${status}. I am stopping live status pings; check the board or canvas for the latest trace.`;
+        bot.telegram.sendMessage(chatId, message).catch((error) => {
+          console.warn('[MissionRelay] Failed to send terminal heartbeat notice:', error);
+        });
+      } else {
+        bot.telegram.sendMessage(
+          chatId,
+          [
+            'This run has gone quiet, so I am stopping repeated live pings.',
+            '',
+            'The mission may have lost its worker heartbeat. Check the board/canvas trace, then use /mission status or /mission kill if it is stranded.'
+          ].join('\n')
+        ).catch((error) => {
+          console.warn('[MissionRelay] Failed to send stale heartbeat notice:', error);
+        });
+      }
+      return;
+    }
     const message = formatMissionHeartbeatForTelegram({
       missionId: event.missionId,
       goal: subscription.goal,
