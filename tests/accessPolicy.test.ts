@@ -20,7 +20,10 @@ import {
   sparkAccessAllowsOperatingSystemWork,
   sparkAccessAllowsSpawnerBuilds,
   sparkMissionNeedsOperatingSystemAccess,
-  sparkAccessAllowsWorkspaceBuilds
+  sparkAccessAllowsWorkspaceBuilds,
+  sparkHostedFullAccessAllowed,
+  sparkIsHostedRuntime,
+  validateSparkAccessProfileForRuntime
 } from '../src/accessPolicy';
 import { resetJsonStateForTests } from '../src/jsonState';
 
@@ -147,6 +150,35 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessDenial('builder', 'external_research'), /Research \+ Build/);
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /operating system/);
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /\/access 4/);
+  });
+
+  await test('gates full access on hosted Spark Live unless explicitly enabled', () => {
+    assert.equal(sparkIsHostedRuntime({}), false);
+    assert.equal(sparkIsHostedRuntime({ SPARK_LIVE_CONTAINER: '1' }), true);
+    assert.equal(sparkIsHostedRuntime({ SPARK_SPAWNER_HOST: '0.0.0.0' }), true);
+    assert.equal(sparkIsHostedRuntime({ SPARK_SPAWNER_HOST: '::' }), true);
+    assert.equal(sparkIsHostedRuntime({ SPARK_ALLOWED_HOSTS: 'agent.example.com' }), true);
+
+    assert.equal(sparkHostedFullAccessAllowed({}), false);
+    assert.equal(sparkHostedFullAccessAllowed({ SPARK_ALLOW_HOSTED_FULL_ACCESS: 'true' }), true);
+
+    assert.deepEqual(validateSparkAccessProfileForRuntime('developer', {}), { ok: true });
+    assert.deepEqual(validateSparkAccessProfileForRuntime('agent', { SPARK_LIVE_CONTAINER: '1' }), { ok: true });
+    assert.deepEqual(
+      validateSparkAccessProfileForRuntime('developer', {
+        SPARK_LIVE_CONTAINER: '1',
+        SPARK_ALLOW_HOSTED_FULL_ACCESS: '1'
+      }),
+      { ok: true }
+    );
+
+    const denied = validateSparkAccessProfileForRuntime('developer', { SPARK_SPAWNER_HOST: '0.0.0.0' });
+    assert.equal(denied.ok, false);
+    if (!denied.ok) {
+      assert.match(denied.message, /Full Access is locked/);
+      assert.match(denied.message, /\/access 3/);
+      assert.match(denied.message, /SPARK_ALLOW_HOSTED_FULL_ACCESS=1/);
+    }
   });
 }
 

@@ -95,6 +95,42 @@ export function sparkAccessAllows(profile: SparkAccessProfile, requirement: Spar
   }
 }
 
+export function sparkIsHostedRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  const spawnerHost = (env.SPARK_SPAWNER_HOST || '').trim();
+  const allowedHosts = (env.SPARK_ALLOWED_HOSTS || '').trim();
+  return (
+    env.SPARK_LIVE_CONTAINER === '1' ||
+    spawnerHost === '0.0.0.0' ||
+    spawnerHost === '::' ||
+    allowedHosts.length > 0
+  );
+}
+
+export function sparkHostedFullAccessAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(String(env.SPARK_ALLOW_HOSTED_FULL_ACCESS || '').trim().toLowerCase());
+}
+
+export function validateSparkAccessProfileForRuntime(
+  profile: SparkAccessProfile,
+  env: NodeJS.ProcessEnv = process.env
+): { ok: true } | { ok: false; message: string } {
+  if (profile !== 'developer' || !sparkIsHostedRuntime(env) || sparkHostedFullAccessAllowed(env)) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    message: [
+      'Full Access is locked for hosted Spark Live right now.',
+      '',
+      'Use /access 3 for the default hosted experience: chat, memory, public research, and requested Spawner builds.',
+      'Only enable /access 4 on a hosted/VPS install after operator approval guardrails are ready.',
+      '',
+      'Operator override: set SPARK_ALLOW_HOSTED_FULL_ACCESS=1 and restart Spark Live.'
+    ].join('\n')
+  };
+}
+
 export function sparkMissionNeedsOperatingSystemAccess(goal: string, projectPath?: string | null): boolean {
   if (projectPath) return true;
   const normalized = goal.toLowerCase();

@@ -40,6 +40,7 @@ import {
   setSparkAccessProfile,
   sparkAccessAllows,
   sparkMissionNeedsOperatingSystemAccess,
+  validateSparkAccessProfileForRuntime,
   type SparkAccessRequirement
 } from './accessPolicy';
 import {
@@ -1393,6 +1394,12 @@ bot.command('access', async (ctx) => {
   const next = normalizeSparkAccessProfile(raw);
   if (!next) {
     await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
+    return;
+  }
+
+  const runtimeGate = validateSparkAccessProfileForRuntime(next);
+  if (!runtimeGate.ok) {
+    await ctx.reply(runtimeGate.message);
     return;
   }
 
