@@ -125,10 +125,14 @@ async function resolveDiagnosticsBridgeConfig(config: BuilderBridgeConfig): Prom
 function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   const sourcePath = path.join(config.builderRepo, 'src');
   const existingPythonPath = process.env.PYTHONPATH || '';
-  return {
+  const env = {
     ...process.env,
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
+  if (process.env.BOT_TOKEN && !env.TELEGRAM_BOT_TOKEN) {
+    env.TELEGRAM_BOT_TOKEN = process.env.BOT_TOKEN;
+  }
+  return env;
 }
 
 function pythonModuleInvocation(config: BuilderBridgeConfig, moduleName: string, args: string[]): string[] {
