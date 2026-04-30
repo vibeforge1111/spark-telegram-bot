@@ -19,7 +19,7 @@ export interface ChipCreateMissionContext {
 
 export type MissionControlPost = (url: string, payload: MissionControlEvent) => Promise<void>;
 
-const DEFAULT_SPAWNER_UI_URL = 'http://127.0.0.1:5173';
+const DEFAULT_SPAWNER_UI_URL = 'http://127.0.0.1:3333';
 const SOURCE = 'spark-telegram-bot';
 
 function truncate(value: string, maxLength: number): string {

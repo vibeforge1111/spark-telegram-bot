@@ -464,7 +464,10 @@ function resolveReference(
   const accessFocus = focusStack.some((focus) => focus.kind === 'access_level');
   if (accessFocus) {
     const accessValue = extractAccessValue(currentMessage);
-    const hasChangeShape = /\b(?:change|set|switch|make|do|go\s+to|go\s+with|actually|instead)\b/i.test(currentMessage);
+    const explicitAccessChangeShape = /\b(?:change|set|switch|update|upgrade|downgrade|go\s+to)\b/i.test(currentMessage) &&
+      /\b(?:access|permission|level\s+[1-4]|level\s+(?:one|two|three|four)|full\s+access|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build)\b/i.test(currentMessage);
+    const contextualAccessChangeShape = /\b(?:change|set|switch|update|upgrade|downgrade|make)\s+(?:it|that|this|me|us|this\s+chat|the\s+chat)?\s*(?:to|as|into|onto)?\s*(?:level\s*)?(?:[1-4]|one|two|three|four)\b/i.test(currentMessage);
+    const hasChangeShape = explicitAccessChangeShape || contextualAccessChangeShape;
     const shortLevelOnly = /^\s*(?:level\s*)?(?:[1-4]|one|two|three|four)\s*[.!?]?\s*$/i.test(currentMessage);
     if (accessValue && (hasChangeShape || shortLevelOnly)) {
       return {

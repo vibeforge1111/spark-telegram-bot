@@ -362,7 +362,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 };
 
 function spawnerUiUrl(): string {
-  return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173').replace(/\/+$/, '');
+  return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
 }
 
 export function buildMissionSurfaceLinks(
@@ -585,7 +585,7 @@ function localIndexLink(projectPath: string | null): string | null {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173').replace(/\/+$/, '');
+  return (process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
 }
 
 function projectPreviewLink(projectPath: string | null): string | null {

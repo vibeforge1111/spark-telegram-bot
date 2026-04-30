@@ -35,6 +35,21 @@ function isInsideWorkspace(candidate: string): boolean {
   return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
 }
 
+function inferConceptualProjectName(prd: string): string | null {
+  const lower = prd.toLowerCase();
+  if (
+    /\bfounders?\b/.test(lower) &&
+    /\b(?:strategy|strategic|operating picture)\b/.test(lower) &&
+    /\b(?:notes?|memos?|document|ledger)\b/.test(lower)
+  ) {
+    return 'Founder Strategy Ledger';
+  }
+  if (/\bchess\s+game\b/.test(lower)) {
+    return /\binvented\b|\boriginal\b|\bnew rules\b/.test(lower) ? 'Invented Chess Game' : 'Chess Game';
+  }
+  return null;
+}
+
 function inferProjectName(prd: string, projectPath: string | null): string {
   const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;]|\s+(?:with|that|which|where|for|using)\b|\s+and\s+(?:make|build|create|ship|scaffold|generate)\b|$)/i);
   if (nameMatch) return nameMatch[1].trim();
@@ -44,6 +59,8 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   }
   const atMatch = prd.match(/(?:at|in)\s+(?:[A-Z]:[\\/]|\/)[\w\\/:\-. ]+[\\/]([\w.-]+)/);
   if (atMatch) return atMatch[1].replace(/[-_]/g, ' ').trim();
+  const conceptualName = inferConceptualProjectName(prd);
+  if (conceptualName) return conceptualName;
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
   return firstWords.slice(0, 60) || 'Untitled Project';
 }
@@ -99,6 +116,13 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
 
   const requestedFiles = (text.match(/\b[\w.-]+\.(?:html|css|js|ts|tsx|jsx|json|md|py|svelte|vue|go|rs)\b/gi) || []).length;
   const featureWords = (text.match(/\b(?:shows?|supports?|persists?|updates?|editable|animated|dashboard|form|localstorage|api|auth|database|deploy|integrat(?:e|ion))\b/gi) || []).length;
+
+  if (prd.length > 520 && /\b(?:founders?|strategy|workflow|system|dashboard|platform|tool|product)\b/.test(lower)) {
+    return {
+      mode: 'advanced_prd',
+      reason: 'Long conceptual product brief benefits from PRD-to-task planning.'
+    };
+  }
 
   if (projectPath && (prd.length > 260 || requestedFiles >= 4 || featureWords >= 5)) {
     return {

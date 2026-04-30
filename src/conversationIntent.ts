@@ -28,8 +28,12 @@ const HARD_EXECUTION_PATTERNS = [
 ];
 
 const LOCAL_OPTION_REFERENCE_PATTERNS = [
-  /\b(?:no\.?|number|option|#)\s*[1-9]\d*\b/i,
-  /\b(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:one|option|idea|direction|item)\b/i
+  /\b(?:no\.?|number|option|#)\s*(?:[1-9]\d*|one|two|three|four|five|six|seven|eight|nine|ten)\b/i,
+  /^(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(?:\s+(?:one|option|idea|direction|item|path))?[.!?]*$/i,
+  /^(?:the\s+)?(?:last|final|latter)[.!?]*$/i,
+  /\b(?:go\s+with|pick|choose|take|use|do|prefer|like|want|would\s+take)\s+(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|[1-9]\d*(?:st|nd|rd|th)?|last|final|latter)\s*(?:one|option|idea|direction|item|path)?\b/i,
+  /\b(?:the\s+)?(?:last|final|latter)\s+(?:one|option|idea|direction|item|path)\b/i,
+  /\bthat\s+option\b/i
 ];
 
 export function hasLocalOptionReference(text: string): boolean {
@@ -260,9 +264,18 @@ function hasKnownLocalSparkSurface(text: string): boolean {
   return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
 }
 
+function isProjectLocalhostRequest(normalized: string): boolean {
+  return /\b(?:localhost|local\s*host|local\s+url|open|link)\b/.test(normalized) &&
+    /\b(?:project|app|website|site|build|built|shipped|beauty|centre|center|thing|it)\b/.test(normalized) &&
+    !/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized);
+}
+
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
+    return false;
+  }
+  if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
   return !hasKnownLocalSparkSurface(normalized) && !hasKnownLocalSparkSurface(context);
@@ -271,6 +284,9 @@ export function isAmbiguousLocalSparkServiceRequest(text: string, context: strin
 export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
   if (shouldPreferConversationalIdeation(text)) {
+    return false;
+  }
+  if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
   if (
@@ -294,7 +310,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
 export function buildLocalSparkServiceClarificationReply(): string {
   return [
     'Which local Spark surface do you mean?',
-    '- Spawner UI / Mission Control: http://127.0.0.1:5173',
+    '- Spawner UI / Mission Control: http://127.0.0.1:3333',
     '- Diagnostic notes: `~/.spark/diagnostics`',
     '- Telegram bot health: `/diagnose`',
     '- Full stack check: `spark status`'
@@ -305,7 +321,7 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   if (spawnerAvailable) {
     return [
       'Yes. Spawner UI / Mission Control is running here:',
-      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3333',
       '',
       'For this diagnostic-agent work, open the Mission board there. The diagnostic notes are written under `~/.spark/diagnostics`.'
     ].join('\n');
@@ -313,17 +329,20 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
 
   return [
     'Spawner UI is not reachable from the Telegram gateway right now.',
-    'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:5173.',
+    'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:3333.',
     'After that, I can use the Spawner API path again through missions.'
   ].join('\n');
 }
 
-export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider';
+export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider' | 'latest_project_preview';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
   if (shouldPreferConversationalIdeation(text)) return null;
+  if (isProjectLocalhostRequest(normalized)) {
+    return 'latest_project_preview';
+  }
 
   if (
     /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
@@ -418,9 +437,10 @@ export function parseNaturalAccessChangeIntent(text: string): string | null {
     return null;
   }
 
-  const hasAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\blevel\s+[1-4]\b|\bfull\s+access\b/i.test(normalized);
-  const hasChangeVerb = /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade|make|put|move)\b/i.test(normalized);
-  if (!hasAccessTarget || !hasChangeVerb) {
+  const hasExplicitAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\bpermissions?\b/i.test(normalized);
+  const hasStrongChangeVerb = /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade)\b/i.test(normalized);
+  const startsAsDirectAccessChange = /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)?\s*(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-4]|one|two|three|four|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|full\s+access|developer)\b/i.test(normalized);
+  if (!(hasExplicitAccessTarget && hasStrongChangeVerb) && !startsAsDirectAccessChange) {
     return null;
   }
 
@@ -678,6 +698,7 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('working memory') ||
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
+    normalized.includes('no prior list or options to match') ||
     (
       normalized.includes("i caught 'mission'") &&
       normalized.includes('show the mission board') &&

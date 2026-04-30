@@ -22,45 +22,25 @@ const os = require('os');
 const SOURCE_ROOT = path.resolve(__dirname, '..');
 const RUNTIME_ROOT = path.join(os.homedir(), '.spark', 'modules', 'spark-telegram-bot', 'source');
 
-// Files that must stay in sync. Add new modules to this list as the bot
-// surface grows. dist/ entries are required because the runtime runs the
-// compiled output.
-const SYNCED_PATHS = [
-	'src/accessPolicy.ts',
-	'src/buildIntent.ts',
-	'src/builderBridge.ts',
-	'src/chipCreate.ts',
-	'src/conversation.ts',
-	'src/conversationFrame.ts',
-	'src/conversationIntent.ts',
-	'src/errorExplain.ts',
-	'src/jsonState.ts',
-	'src/llm.ts',
-	'src/localWorkspace.ts',
-	'src/missionControl.ts',
-	'src/outboundSanitize.ts',
-	'src/timeoutConfig.ts',
-	'src/userTier.ts',
-	'src/index.ts',
-	'src/spawner.ts',
-	'dist/accessPolicy.js',
-	'dist/buildIntent.js',
-	'dist/builderBridge.js',
-	'dist/chipCreate.js',
-	'dist/conversation.js',
-	'dist/conversationFrame.js',
-	'dist/conversationIntent.js',
-	'dist/errorExplain.js',
-	'dist/jsonState.js',
-	'dist/llm.js',
-	'dist/localWorkspace.js',
-	'dist/missionControl.js',
-	'dist/outboundSanitize.js',
-	'dist/timeoutConfig.js',
-	'dist/userTier.js',
-	'dist/index.js',
-	'dist/spawner.js'
-];
+// The runtime should mirror all first-party source and compiled entry files.
+// Keep this discovered so new modules cannot quietly drift out of sync.
+function discoverSyncedPaths() {
+	const folders = [
+		{ dir: 'src', ext: '.ts' },
+		{ dir: 'dist', ext: '.js' }
+	];
+	const paths = [];
+	for (const folder of folders) {
+		const abs = path.join(SOURCE_ROOT, folder.dir);
+		if (!exists(abs)) continue;
+		for (const name of fs.readdirSync(abs).sort()) {
+			if (name.endsWith(folder.ext)) {
+				paths.push(path.join(folder.dir, name).replace(/\\/g, '/'));
+			}
+		}
+	}
+	return paths;
+}
 
 function exists(p) {
 	try { fs.accessSync(p); return true; } catch { return false; }
@@ -90,7 +70,7 @@ function syncOnce({ silent = false } = {}) {
 		return;
 	}
 	let synced = 0;
-	for (const rel of SYNCED_PATHS) {
+	for (const rel of discoverSyncedPaths()) {
 		const src = path.join(SOURCE_ROOT, rel);
 		const dst = path.join(RUNTIME_ROOT, rel);
 		if (checksum(src) === checksum(dst)) continue;
@@ -108,7 +88,7 @@ function checkDrift() {
 		process.exit(0);
 	}
 	const drift = [];
-	for (const rel of SYNCED_PATHS) {
+	for (const rel of discoverSyncedPaths()) {
 		const a = checksum(path.join(SOURCE_ROOT, rel));
 		const b = checksum(path.join(RUNTIME_ROOT, rel));
 		if (a !== b) drift.push(rel);

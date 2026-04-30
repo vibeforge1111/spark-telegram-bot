@@ -115,6 +115,12 @@ import {
   switchModelRoute
 } from './modelSwitch';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
+import {
+  buildContextualImageUpdate,
+  imageMessageHasCaption,
+  isTelegramImageMessage,
+  telegramImageMemoryText
+} from './telegramImageBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -456,7 +462,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     await ctx.reply('Perfect, I will run with the default direction.');
   }
 
-  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   const newRequestId = `${pending.requestId}-clarified-${Date.now()}`;
   const missionId = missionIdFromTelegramBuildRequest(newRequestId);
   const tier = getTierForUser(ctx.from.id);
@@ -1140,7 +1146,7 @@ export async function handleBuildIntent(
     return;
   }
 
-  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   const chatId = Number(ctx.chat.id);
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
   const missionId = missionIdFromTelegramBuildRequest(requestId);
@@ -1763,12 +1769,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const coldMemoryContext = await runBuilderConversationColdContext({
-    userId: user.id,
-    currentMessage: text,
-  });
-  if (coldMemoryContext.contextText) {
-    conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+  try {
+    const coldMemoryContext = await runBuilderConversationColdContext({
+      userId: user.id,
+      currentMessage: text,
+    });
+    if (coldMemoryContext.contextText) {
+      conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+    }
+  } catch (error) {
+    console.warn('[BuilderBridge] Skipping cold memory context for this turn:', error);
   }
 
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
@@ -1889,6 +1899,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         ? await spawner.latestProviderSummary()
         : spawnerBoardIntent === 'latest_on_kanban'
           ? await spawner.latestKanbanSummary()
+          : spawnerBoardIntent === 'latest_project_preview'
+            ? await spawner.latestProjectPreview()
           : await spawner.board();
       await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
       return;
@@ -2106,7 +2118,56 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 }
 
+export async function handleImageMessage(ctx: any): Promise<void> {
+  const user = ctx.from;
+  const imageMemoryText = telegramImageMemoryText(ctx.message);
+
+  await conversation.remember(user, imageMemoryText).catch(() => {});
+  await safeSendChatAction(ctx, 'typing');
+
+  try {
+    const bridgeUpdate = imageMessageHasCaption(ctx.message)
+      ? ctx.update as unknown as Record<string, unknown>
+      : buildContextualImageUpdate(
+          ctx.update as unknown as Record<string, unknown>,
+          await conversation.getRecentMessages(user, 6).catch(() => [])
+        );
+    const builderReply = await runBuilderTelegramBridge(bridgeUpdate);
+    console.log(`[ImageBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
+
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText) {
+      await ctx.reply(builderReply.responseText);
+      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      return;
+    }
+
+    const fallback = 'I received the image, but Spark did not return an image analysis. Run `/diagnose`, then ask the operator to run `spark-intelligence auth verify-image-input --live --json`.';
+    await ctx.reply(fallback);
+    await conversation.recordInterruptedTask(user, {
+      message: imageMemoryText,
+      failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
+      stage: 'telegram_image_handler'
+    }).catch(() => {});
+  } catch (err) {
+    console.error('Image handling error:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    await conversation.recordInterruptedTask(user, {
+      message: imageMemoryText,
+      failure: detail,
+      stage: 'telegram_image_handler'
+    }).catch(() => {});
+    await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
+  }
+}
+
 bot.on(message('text'), handleTextMessage);
+bot.on(message('photo'), handleImageMessage);
+bot.on(message('document'), async (ctx) => {
+  if (!isTelegramImageMessage(ctx.message)) {
+    return;
+  }
+  await handleImageMessage(ctx);
+});
 
 // Graceful shutdown
 process.once('SIGINT', () => {

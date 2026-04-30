@@ -224,6 +224,14 @@ function truncateForPrompt(text: string, maxChars: number): string {
   return `${trimmed.slice(0, Math.max(0, maxChars - 16)).trim()} [truncated]`;
 }
 
+export function compactColdMemoryQuery(text: string, maxChars = 1600): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxChars - 16)).trim()} [truncated]`;
+}
+
 function shouldIncludeColdMemoryItem(item: Record<string, unknown>): boolean {
   const lane = stringValue(item.lane);
   const sourceClass = stringValue(item.source_class);
@@ -375,20 +383,16 @@ export async function runBuilderConversationColdContext(
 
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    if (config.mode === 'required') {
-      throw new Error(
-        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
-      );
-    }
     return {
       used: false,
       contextText: '',
       sourceCount: 0,
       bridgeMode: config.mode,
+      error: `Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`,
     };
   }
 
-  const currentMessage = input.currentMessage.trim();
+  const currentMessage = compactColdMemoryQuery(input.currentMessage);
   if (!currentMessage) {
     return {
       used: false,
@@ -434,9 +438,6 @@ export async function runBuilderConversationColdContext(
       bridgeMode: config.mode,
     };
   } catch (error) {
-    if (config.mode === 'required') {
-      throw error;
-    }
     console.warn('[BuilderBridge] Cold memory context unavailable:', error);
     return {
       used: false,

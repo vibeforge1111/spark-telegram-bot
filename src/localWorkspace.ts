@@ -42,14 +42,20 @@ const SKIP_NAMES = new Set([
 
 export function isLocalWorkspaceInspectionRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  const asksInspection = /\b(?:see|look|inspect|analy[sz]e|scan|list|show|map|find)\b/.test(normalized);
+  const asksExplicitInventory = /\b(?:inspect|scan|list|show|map|find)\b/.test(normalized);
   const namesLocalSurface = /\b(?:desktop|folder|folders|repo|repos|repositories|workspace|workspaces|local project|local projects|filesystem|file system|my computer|my machine)\b/.test(normalized);
+  const asksLookAtInventory = /\blook\b/.test(normalized) &&
+    /\b(?:at|through|inside|in|on)\b/.test(normalized) &&
+    /\b(?:desktop|folders|repos|repositories|workspaces|local projects|filesystem|file system)\b/.test(normalized);
   const asksFocus = /\b(?:what projects|focused on|working on|what am i working|where am i working)\b/.test(normalized);
-  return (asksInspection && namesLocalSurface) || (asksFocus && namesLocalSurface);
+  return (asksExplicitInventory && namesLocalSurface) || asksLookAtInventory || (asksFocus && namesLocalSurface);
 }
 
 export function isLocalWorkspaceInspectionOnlyRequest(text: string): boolean {
-  return !parseBuildIntent(text) && isLocalWorkspaceInspectionRequest(text);
+  const normalized = text.trim().toLowerCase();
+  return /^\/(?:workspaces?|local-workspaces?|folders?)\b/.test(normalized) &&
+    !parseBuildIntent(text) &&
+    isLocalWorkspaceInspectionRequest(text);
 }
 
 export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env): string[] {
