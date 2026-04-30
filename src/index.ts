@@ -103,7 +103,12 @@ import {
   switchModelRoute
 } from './modelSwitch';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
-import { isTelegramImageMessage, telegramImageMemoryText } from './telegramImageBridge';
+import {
+  buildContextualImageUpdate,
+  imageMessageHasCaption,
+  isTelegramImageMessage,
+  telegramImageMemoryText
+} from './telegramImageBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -1851,7 +1856,13 @@ async function handleImageMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    const bridgeUpdate = imageMessageHasCaption(ctx.message)
+      ? ctx.update as unknown as Record<string, unknown>
+      : buildContextualImageUpdate(
+          ctx.update as unknown as Record<string, unknown>,
+          await conversation.getRecentMessages(user, 6).catch(() => [])
+        );
+    const builderReply = await runBuilderTelegramBridge(bridgeUpdate);
     console.log(`[ImageBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText) {
