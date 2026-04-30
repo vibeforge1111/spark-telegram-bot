@@ -25,7 +25,7 @@ import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
-import { formatCreatorMissionSummary, localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
+import { formatCreatorMissionExecutionSummary, formatCreatorMissionSummary, localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import {
@@ -345,6 +345,7 @@ bot.start(async (ctx) => {
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
       '/creator plan <brief> - Plan a creator mission for a chip/path/benchmark/autoloop',
+      '/creator run <missionId> - Execute a planned creator mission',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -808,7 +809,9 @@ type ParsedCreatorCommand = {
 
 const CREATOR_USAGE = [
   'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
-  'Example: /creator plan private risk medium create a Startup YC benchmarked specialization path'
+  '       /creator run <mission-creator-id>',
+  'Example: /creator plan private risk medium create a Startup YC benchmarked specialization path',
+  'Example: /creator run mission-creator-1776768300668'
 ].join('\n');
 
 function normalizeCreatorPrivacyMode(value: string): ParsedCreatorCommand['privacyMode'] | null {
@@ -1312,8 +1315,10 @@ bot.command('board', async (ctx) => {
 bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const parsed = parseCreatorPlanCommand(ctx.message.text.replace('/creator', '').trim());
-  if (!parsed) {
+  const raw = ctx.message.text.replace('/creator', '').trim();
+  const runMatch = raw.match(/^(?:run|execute|start)\s+(\S+)\s*$/i);
+  const parsed = runMatch ? null : parseCreatorPlanCommand(raw);
+  if (!runMatch && !parsed) {
     return ctx.reply(CREATOR_USAGE);
   }
 
@@ -1324,6 +1329,32 @@ bot.command('creator', async (ctx) => {
   }
 
   await safeSendChatAction(ctx, 'typing');
+
+  if (runMatch) {
+    const missionId = runMatch[1].trim();
+    if (missionId.includes('<') || missionId.includes('>')) {
+      return ctx.reply('Use the real creator mission ID, for example: /creator run mission-creator-1776768300668');
+    }
+    if (!/^mission-creator-[A-Za-z0-9_-]+$/.test(missionId)) {
+      return ctx.reply('Use a creator mission ID from /creator plan or /board, for example: /creator run mission-creator-1776768300668');
+    }
+
+    await ctx.reply('Starting creator mission execution through Spawner...');
+    const result = await spawner.creatorMissionExecute({ missionId });
+    await ctx.reply(formatCreatorMissionExecutionSummary(result));
+    if (result.success && result.missionId) {
+      await conversation.learnAboutUser(
+        ctx.from,
+        `Started execution for creator mission ${result.missionId} from Telegram.`
+      ).catch(() => {});
+    }
+    return;
+  }
+
+  if (!parsed) {
+    return ctx.reply(CREATOR_USAGE);
+  }
+
   await ctx.reply('Planning creator mission through Spawner...');
 
   const requestId = `tg-creator-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;

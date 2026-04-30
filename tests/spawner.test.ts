@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
-import { formatCreatorMissionSummary, spawner } from '../src/spawner';
+import { formatCreatorMissionExecutionSummary, formatCreatorMissionSummary, spawner } from '../src/spawner';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -215,6 +215,70 @@ async function run(): Promise<void> {
     assert.match(message, /Risk: high/);
     assert.match(message, /Artifacts: domain_chip, benchmark_pack, autoloop_policy/);
     assert.match(message, /Tasks: 2 queued/);
+    assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
+    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+  });
+
+  await test('creatorMissionExecute posts a planned creator mission run request to Spawner', async () => {
+    restoreAxios();
+
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    let capturedOptions: any = null;
+    (axios as any).post = async (url: string, body: unknown, options: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      capturedOptions = options;
+      return {
+        data: {
+          ok: true,
+          missionId: 'mission-creator-1',
+          requestId: 'tg-creator-1',
+          started: true,
+          providerId: 'codex',
+          projectPath: 'C:\\Users\\USER\\Desktop',
+          canvasUrl: 'http://spawner.test/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1',
+          trace: {
+            mission_id: 'mission-creator-1',
+            request_id: 'tg-creator-1',
+            links: {
+              kanban: 'http://spawner.test/kanban?mission=mission-creator-1'
+            }
+          }
+        }
+      };
+    };
+
+    const result = await spawner.creatorMissionExecute({ missionId: 'mission-creator-1' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.started, true);
+    assert.equal(result.providerId, 'codex');
+    assert.match(capturedUrl, /\/api\/creator\/mission\/execute$/);
+    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1' });
+    assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('formatCreatorMissionExecutionSummary renders execution links for Telegram', async () => {
+    const message = formatCreatorMissionExecutionSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        started: true,
+        providerId: 'codex',
+        projectPath: 'C:\\Users\\USER\\Desktop',
+        canvasUrl: '/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1',
+        trace: {
+          mission_id: 'mission-creator-1'
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /Creator mission execution started/);
+    assert.match(message, /Mission: mission-creator-1/);
+    assert.match(message, /Provider: Codex/);
+    assert.match(message, /Workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });

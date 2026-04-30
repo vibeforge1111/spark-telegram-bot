@@ -65,6 +65,25 @@ interface CreatorMissionResult {
   error?: string;
 }
 
+interface CreatorMissionExecutionInput {
+  missionId?: string;
+  requestId?: string;
+}
+
+interface CreatorMissionExecutionResult {
+  success: boolean;
+  missionId?: string;
+  requestId?: string;
+  started?: boolean;
+  skipped?: boolean;
+  reason?: string;
+  providerId?: string;
+  projectPath?: string;
+  canvasUrl?: string;
+  trace?: CreatorMissionTrace;
+  error?: string;
+}
+
 interface BoardEntry {
   missionId: string;
   missionName?: string | null;
@@ -268,6 +287,36 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
   return lines.join('\n');
 }
 
+export function formatCreatorMissionExecutionSummary(
+  result: CreatorMissionExecutionResult,
+  baseUrl = spawnerPublicUrl()
+): string {
+  if (!result.success) {
+    return `Creator mission run failed: ${result.error || 'unknown error'}`;
+  }
+
+  const trace = result.trace || {};
+  const missionId = result.missionId || trace.mission_id || 'unknown';
+  const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
+  const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
+  const headline = result.started
+    ? 'Creator mission execution started.'
+    : result.skipped
+      ? 'Creator mission execution skipped.'
+      : 'Creator mission execution accepted.';
+
+  return [
+    headline,
+    '',
+    `Mission: ${missionId}`,
+    ...(result.providerId ? [`Provider: ${formatProviderLabel(result.providerId)}`] : []),
+    ...(result.reason ? [`Reason: ${result.reason}`] : []),
+    ...(result.projectPath ? [`Workspace: ${result.projectPath}`] : []),
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Mission board: ${kanbanUrl}`
+  ].join('\n');
+}
+
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
@@ -339,6 +388,45 @@ export const spawner = {
         taskCount: typeof res.data?.taskCount === 'number' ? res.data.taskCount : undefined,
         canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
         trace: res.data?.trace
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async creatorMissionExecute(input: CreatorMissionExecutionInput): Promise<CreatorMissionExecutionResult> {
+    try {
+      const res = await postLocalServiceWithRetry(
+        `${SPAWNER_UI_URL}/api/creator/mission/execute`,
+        {
+          ...(input.missionId ? { missionId: input.missionId } : {}),
+          ...(input.requestId ? { requestId: input.requestId } : {})
+        },
+        localServiceTimeoutMs('SPARK_CREATOR_MISSION_EXECUTE_TIMEOUT_MS')
+      );
+
+      if (res.data?.ok === false) {
+        return {
+          success: false,
+          error: res.data?.error || 'Creator mission execution was rejected.'
+        };
+      }
+
+      return {
+        success: Boolean(res.data?.ok),
+        missionId: res.data?.missionId,
+        requestId: res.data?.requestId,
+        started: res.data?.started === true,
+        skipped: res.data?.skipped === true,
+        reason: typeof res.data?.reason === 'string' ? res.data.reason : undefined,
+        providerId: typeof res.data?.providerId === 'string' ? res.data.providerId : undefined,
+        projectPath: typeof res.data?.projectPath === 'string' ? res.data.projectPath : undefined,
+        canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
+        trace: res.data?.trace,
+        error: typeof res.data?.error === 'string' ? res.data.error : undefined
       };
     } catch (err: any) {
       return {
