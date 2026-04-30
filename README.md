@@ -137,6 +137,8 @@ Current files:
 
 - `agent-knowledge/access.md`
 - `agent-knowledge/memory.md`
+- `agent-knowledge/spark-doc-sources.md`
+- `agent-knowledge/spark-system.md`
 - `agent-knowledge/using-spark.md`
 
 Set `SPARK_AGENT_KNOWLEDGE_DIR` to point at another directory if a deployment

@@ -176,6 +176,8 @@ test('system prompt includes editable Spark agent knowledge', () => {
 
   assert.match(prompt, /Spark agent knowledge base/);
   assert.match(prompt, /Spark Access/);
+  assert.match(prompt, /Spark System Overview/);
+  assert.match(prompt, /local-first personal agent stack/);
   assert.match(prompt, /domain-chip-memory/);
   assert.match(prompt, /Do not quote it as a canned panel/);
 });
