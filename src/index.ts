@@ -1614,6 +1614,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // actual project briefs.
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
+      if (buildPreference?.verbosity) {
+        await setTelegramRelayVerbosity(ctx.chat.id, buildPreference.verbosity);
+      }
+      if (buildPreference?.links) {
+        await setTelegramMissionLinkPreference(ctx.chat.id, buildPreference.links);
+      }
       await handleBuildIntent(
         ctx,
         buildIntent.prd,

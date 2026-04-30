@@ -345,6 +345,14 @@ Behavior:
   assert.equal(parseMissionUpdatePreferenceIntent('go now and start the mission with canvas links'), null);
   assert.equal(parseMissionUpdatePreferenceIntent('let us run the build now with board and canvas'), null);
   assert.equal(parseMissionUpdatePreferenceIntent('start it, include the canvas when ready'), null);
+  assert.deepEqual(
+    parseMissionUpdatePreferenceIntent('go now and start the mission with canvas links', { allowExecutionLanguage: true }),
+    { links: 'canvas' }
+  );
+  assert.deepEqual(
+    parseMissionUpdatePreferenceIntent('let us run the build now with board and canvas', { allowExecutionLanguage: true }),
+    { links: 'both' }
+  );
 });
 
 test('spaces mission preference acknowledgements for Telegram scanning', () => {

@@ -666,19 +666,27 @@ function hasMissionExecutionLanguage(normalized: string): boolean {
   );
 }
 
-export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
-  if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
+export function parseMissionUpdatePreferenceIntent(
+  text: string,
+  options: { allowExecutionLanguage?: boolean } = {}
+): MissionUpdatePreferenceIntent | null {
+  if (!options.allowExecutionLanguage && HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return null;
   }
 
   const normalized = text.trim().toLowerCase();
-  if (hasMissionExecutionLanguage(normalized)) {
+  if (!options.allowExecutionLanguage && hasMissionExecutionLanguage(normalized)) {
     return null;
   }
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
     return null;
   }
-  if (!/\b(?:updates?|notify|notifications?|links?|send|include|without|verbose|detailed|minimal|quiet|normal|standard|telegram only|start and end|start\s*\/\s*end)\b/.test(normalized)) {
+  const hasExplicitPreferenceAction =
+    /\b(?:updates?|notify|notifications?|links?|send|include|without|verbose|detailed|minimal|quiet|normal|standard|telegram only|start and end|start\s*\/\s*end)\b/.test(normalized);
+  const hasBoardAndCanvasPair =
+    /\b(?:board|kanban)\b.*\bcanvas\b/.test(normalized) ||
+    /\bcanvas\b.*\b(?:board|kanban)\b/.test(normalized);
+  if (!hasExplicitPreferenceAction && !(options.allowExecutionLanguage && hasBoardAndCanvasPair)) {
     return null;
   }
 
@@ -695,7 +703,7 @@ export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdateP
     intent.links = 'none';
   } else if (/\b(?:(?:board|kanban)\s+and\s+canvas|canvas\s+and\s+(?:board|kanban)|both links?|both)\b/.test(normalized)) {
     intent.links = 'both';
-  } else if (/\b(?:canvas link|include canvas|show canvas|open canvas|canvas too)\b/.test(normalized)) {
+  } else if (/\b(?:canvas links?|include canvas|show canvas|open canvas|canvas too)\b/.test(normalized)) {
     intent.links = 'canvas';
   } else if (/\b(?:mission board link|board link|kanban link|include board|include kanban|show board|show kanban|spawner link|mission control link)\b/.test(normalized)) {
     intent.links = 'board';
