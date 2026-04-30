@@ -442,6 +442,9 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
   assert.equal(isLowInformationLlmReply('Access is not authorized for this channel. Ask the operator to review access.'), true);
   assert.equal(isLowInformationLlmReply(
+    "I caught 'mission' in there.\n\nOptions:\n- Show the mission board (say 'what's running')\n- Start a new mission (say 'run <goal>' or use /run)\n\nWhich?"
+  ), true);
+  assert.equal(isLowInformationLlmReply(
     "I caught 'chip' in there but I'm not sure what you want.\n\nOptions I can actually do:\n- Run a loop on a specific chip (say 'loop <chip-key>')\n- List active chips (say 'which chips are active')"
   ), true);
   assert.equal(isLowInformationLlmReply(

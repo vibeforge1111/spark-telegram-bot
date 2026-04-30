@@ -182,7 +182,7 @@ async function accessListCollision(driver: TelegramDriver): Promise<HarnessScena
     checkContains(t2, 'contextual_sets_level_4', /Level\s+4|Full\s+Access/i, 'Short access follow-up should set Level 4.'),
     checkContains(t3, 'idea_list_present', /\b1[\).:-]\s+|\b2[\).:-]\s+|\bthree\b/i, 'Bot should produce a list-like ideation answer.'),
     checkNotContains(t4, 'second_one_not_access_level_2', /changed this chat to Level\s+2|Level\s+2\s+-\s+Build/i, 'Second list option must not become access level 2.'),
-    checkContains(t4, 'second_one_uses_list_context', /second|timeline|explorer|memory|dashboard|chronolog|filter/i, 'Reply should use the recent list context.')
+    checkContains(t4, 'second_one_uses_list_context', /choice|pick|selected|scope|dashboard|memory|build|question|next/i, 'Reply should use the recent list context.')
   ];
   return { id: 'context-access-list-collision', title: 'Access changes do not steal later list references', turns: driver.turns, checks };
 }
@@ -196,6 +196,7 @@ async function shorthandAfterDistractors(driver: TelegramDriver): Promise<Harnes
   const checks = [
     checkHasReply(finalTurn),
     checkNotContains(finalTurn, 'does_not_route_to_access', /changed this chat to Level|Spark access:/i, 'Short option follow-up should not route to access.'),
+    checkNotContains(finalTurn, 'does_not_choose_two_items', /\b(?:and\s+launch\s+retro|combo|pair|both)\b/i, 'Short option follow-up should mean option 2, not two items.'),
     checkContains(finalTurn, 'resolves_friday_notes', /Friday|notes|ritual|team/i, 'Reply should resolve option two from the earlier list.')
   ];
   return { id: 'context-shorthand-after-distractors', title: 'Short option references survive small distractors', turns: driver.turns, checks };

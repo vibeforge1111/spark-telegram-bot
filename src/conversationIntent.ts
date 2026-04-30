@@ -678,6 +678,11 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('working memory') ||
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
+    (
+      normalized.includes("i caught 'mission'") &&
+      normalized.includes('show the mission board') &&
+      normalized.includes('start a new mission')
+    ) ||
     normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking') ||

@@ -14,7 +14,7 @@ import {
   isPendingTaskRecoveryQuestion,
   renderPendingTaskRecoveryReply
 } from './conversation';
-import { renderConversationFrameContext } from './conversationFrame';
+import { renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   getBuilderBridgeStatus,
   runBuilderConversationColdContext,
@@ -1579,6 +1579,29 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
   return true;
 }
 
+function answerFromRecentRememberDirective(text: string, frame: ConversationFrame): string | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
+    return null;
+  }
+
+  const turns = [...frame.hotTurns].reverse();
+  for (const turn of turns) {
+    if (turn.role !== 'user') continue;
+    const directive = extractPlainChatMemoryDirective(turn.text);
+    if (!directive) continue;
+    const cleaned = directive.replace(/^this\s+/i, '').replace(/[.!?]+$/g, '').trim();
+    if (!cleaned) continue;
+    const codeWord = cleaned.match(/\b(?:session\s+test\s+)?code\s+word\s*[:\-]\s*(.+)$/i);
+    if (codeWord?.[1]?.trim()) {
+      return codeWord[1].trim().replace(/^["']|["']$/g, '');
+    }
+    return cleaned;
+  }
+
+  return null;
+}
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -1670,6 +1693,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkAccessConversationHelp(accessProfile);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const recentRememberedAnswer = answerFromRecentRememberDirective(text, conversationFrame);
+  if (recentRememberedAnswer) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(recentRememberedAnswer);
+    await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});
     return;
   }
 
@@ -1907,8 +1938,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await safeSendChatAction(ctx, 'typing');
       const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      const ideationPrompt = conversationFrame.referenceResolution.kind === 'list_item' && conversationFrame.referenceResolution.value
+        ? [
+            `The user selected this exact option from the recent list: ${conversationFrame.referenceResolution.value}`,
+            '',
+            'Continue the conversation from that selected option. Do not reinterpret the short follow-up as a request for a quantity.'
+          ].join('\n')
+        : text;
       const llmResponse = await llm.chat(
-        text,
+        ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
         memories
       );
@@ -1953,7 +1991,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
+      const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
+        /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
+      if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
         if (memoryDirective) {
           await conversation.remember(user, text).catch(() => {});
         }
@@ -1968,8 +2008,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
 
+    const chatPrompt = conversationFrame.referenceResolution.kind === 'list_item' && conversationFrame.referenceResolution.value
+      ? [
+          `The user selected this exact option from the recent list: ${conversationFrame.referenceResolution.value}`,
+          '',
+          'Answer the user by continuing from that selected option. Do not reinterpret the short follow-up as a request for a quantity.'
+        ].join('\n')
+      : text;
+
     // Get LLM response with Spark context
-    const response = await llm.chat(text, renderSparkAccessRuntimeHint(accessProfile), memories);
+    const response = await llm.chat(chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {
