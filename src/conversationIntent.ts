@@ -437,9 +437,10 @@ export function parseNaturalAccessChangeIntent(text: string): string | null {
     return null;
   }
 
-  const hasAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\blevel\s+[1-4]\b|\bfull\s+access\b/i.test(normalized);
-  const hasChangeVerb = /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade|make|put|move)\b/i.test(normalized);
-  if (!hasAccessTarget || !hasChangeVerb) {
+  const hasExplicitAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\bpermissions?\b/i.test(normalized);
+  const hasStrongChangeVerb = /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade)\b/i.test(normalized);
+  const startsAsDirectAccessChange = /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)?\s*(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-4]|one|two|three|four|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|full\s+access|developer)\b/i.test(normalized);
+  if (!(hasExplicitAccessTarget && hasStrongChangeVerb) && !startsAsDirectAccessChange) {
     return null;
   }
 
@@ -698,6 +699,11 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
     normalized.includes('no prior list or options to match') ||
+    (
+      normalized.includes("i caught 'mission'") &&
+      normalized.includes('show the mission board') &&
+      normalized.includes('start a new mission')
+    ) ||
     normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking') ||
@@ -757,6 +763,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   const patterns = [
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s+that\s+(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s*[:,-]\s*(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:can\s+you\s+)?remember\s+(.+?)[.!?]?$/i,
     /^(?:please\s+)?keep\s+in\s+mind\s+that\s+(.+?)[.!?]?$/i,
     /^(?:please\s+)?note\s+that\s+(.+?)[.!?]?$/i
   ];

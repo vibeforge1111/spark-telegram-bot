@@ -335,6 +335,25 @@ export function renderConversationFrameDiagnostics(state: RollingConversationFra
   return lines.join('\n');
 }
 
+export function renderChoiceContextAcknowledgement(text: string): string | null {
+  if (!/\b(?:choosing|choose|between|options?|ideas?|directions?)\b/i.test(text)) return null;
+  if (/\b(?:which|recommend|rank|best|should\s+i|pick\s+one|choose\s+one|choose\s+for\s+me|what\s+do\s+you\s+think)\b/i.test(text)) {
+    return null;
+  }
+  if (/\?\s*$/.test(text.trim())) return null;
+
+  const items = extractNumberedItems(text);
+  if (items.length < 2) return null;
+
+  return [
+    'Got it. I have these options on the table:',
+    '',
+    ...items.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    'Tell me which number you want when you are ready.'
+  ].join('\n');
+}
+
 function selectHotTurns(turns: ConversationTurn[], policy: ContextBudgetPolicy): {
   hotTurns: ConversationTurn[];
   olderTurns: ConversationTurn[];
@@ -414,7 +433,7 @@ function resolveReference(
   );
   if (optionMatch) {
     const index = optionMatch[1] ? Number(optionMatch[1]) : ORDINALS[optionMatch[2].toLowerCase()];
-    const latestList = [...artifacts].reverse().find((artifact) => artifact.kind === 'list');
+    const latestList = [...artifacts].reverse().find((artifact) => artifact.kind === 'list' && isSelectableListArtifact(artifact));
     if (latestList && index >= 1 && index <= latestList.items.length) {
       return {
         kind: 'list_item',
@@ -428,7 +447,7 @@ function resolveReference(
 
   const bareOptionIndex = extractBareOptionReferenceIndex(currentMessage);
   if (bareOptionIndex) {
-    const latestList = latestArtifactOfKind(artifacts, 'list');
+    const latestList = latestArtifactOfKind(artifacts, 'list', isSelectableListArtifact);
     const latestAccess = latestArtifactOfKind(artifacts, 'access_level');
     const listIsCurrentFocus = latestList && (!latestAccess || latestList.sourceIndex >= latestAccess.sourceIndex);
     if (listIsCurrentFocus && bareOptionIndex >= 1 && bareOptionIndex <= latestList.items.length) {
@@ -445,7 +464,8 @@ function resolveReference(
   const accessFocus = focusStack.some((focus) => focus.kind === 'access_level');
   if (accessFocus) {
     const accessValue = extractAccessValue(currentMessage);
-    const hasChangeShape = /\b(?:change|set|switch|make|do|go\s+to|go\s+with|actually|instead)\b/i.test(currentMessage);
+    const hasChangeShape = /\b(?:change|set|switch|update|upgrade|downgrade|go\s+to)\b/i.test(currentMessage) &&
+      /\b(?:access|permission|level\s+[1-4]|level\s+(?:one|two|three|four)|full\s+access|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build)\b/i.test(currentMessage);
     const shortLevelOnly = /^\s*(?:level\s*)?(?:[1-4]|one|two|three|four)\s*[.!?]?\s*$/i.test(currentMessage);
     if (accessValue && (hasChangeShape || shortLevelOnly)) {
       return {
@@ -462,9 +482,23 @@ function resolveReference(
 
 function latestArtifactOfKind(
   artifacts: ConversationArtifact[],
-  kind: ConversationFocusKind
+  kind: ConversationFocusKind,
+  predicate: (artifact: ConversationArtifact) => boolean = () => true
 ): ConversationArtifact | null {
-  return [...artifacts].reverse().find((artifact) => artifact.kind === kind) || null;
+  return [...artifacts].reverse().find((artifact) => artifact.kind === kind && predicate(artifact)) || null;
+}
+
+function isSelectableListArtifact(artifact: ConversationArtifact): boolean {
+  if (artifact.kind !== 'list') return false;
+  const title = artifact.title.toLowerCase();
+  const questionItems = artifact.items.filter((item) => /\?\s*$/.test(item.trim())).length;
+  if (artifact.items.length > 0 && questionItems === artifact.items.length) {
+    return false;
+  }
+  if (/\b(?:before|questions?|should this|do you want|which one|which option)\b/.test(title) && questionItems > 0) {
+    return false;
+  }
+  return true;
 }
 
 function extractBareOptionReferenceIndex(text: string): number | null {

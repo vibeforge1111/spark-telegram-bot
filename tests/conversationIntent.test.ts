@@ -24,6 +24,8 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  parseContextualAccessChangeIntent,
+  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
@@ -31,6 +33,7 @@ import {
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
+import { buildConversationFrame } from '../src/conversationFrame';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -352,6 +355,28 @@ test('spaces mission preference acknowledgements for Telegram scanning', () => {
       'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
     ].join('\n')
   );
+});
+
+test('keeps build flow language from becoming access changes', () => {
+  assert.equal(parseNaturalAccessChangeIntent('change my access level to 4'), '4');
+  assert.equal(parseNaturalAccessChangeIntent('set this chat to full access'), 'full access');
+  assert.equal(
+    parseNaturalAccessChangeIntent('let us build the appointment system with full access to the project brief'),
+    null
+  );
+  assert.equal(
+    parseContextualAccessChangeIntent('let us do it', ['Done - I changed this chat to Level 4 - Full Access.']),
+    null
+  );
+  assert.equal(
+    parseContextualAccessChangeIntent('level 3', ['Done - I changed this chat to Level 4 - Full Access.']),
+    '3'
+  );
+
+  const frame = buildConversationFrame('let us do it', [
+    { role: 'assistant', text: 'Done - I changed this chat to Level 4 - Full Access.' }
+  ]);
+  assert.equal(frame.referenceResolution.kind, 'none');
 });
 
 test('keeps explicit design-only project prompts in conversation', () => {
