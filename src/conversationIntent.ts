@@ -1,3 +1,5 @@
+import { parseBuildIntent } from './buildIntent';
+
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
   /\bhelp\s+me\s+(?:design|plan|scope)\b/i,
@@ -282,6 +284,10 @@ export function isAmbiguousLocalSparkServiceRequest(text: string, context: strin
 }
 
 export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
+  if (parseBuildIntent(text)) {
+    return false;
+  }
+
   const normalized = text.trim().toLowerCase();
   if (shouldPreferConversationalIdeation(text)) {
     return false;
