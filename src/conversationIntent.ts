@@ -343,6 +343,9 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   if (isProjectLocalhostRequest(normalized)) {
     return 'latest_project_preview';
   }
+  if (/\b(?:link|url|open|browser|where|localhost)\b/.test(normalized) && isLocalSparkServiceRequest(text, '')) {
+    return null;
+  }
 
   if (
     /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
@@ -655,12 +658,23 @@ export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string
   return ['Done, I updated how I narrate missions.', ...details].join('\n\n');
 }
 
+function hasMissionExecutionLanguage(normalized: string): boolean {
+  return (
+    /\b(?:build|create|make|ship|scaffold|generate|implement|code|develop)\b/.test(normalized) ||
+    /\b(?:start|run|launch|kick\s+off|spin\s+up)\s+(?:the\s+)?(?:mission|run|build|project|canvas|workflow|it|this)\b/.test(normalized) ||
+    /\b(?:go|do\s+it|let'?s\s+go|go\s+now|start\s+now|run\s+now)\b/.test(normalized)
+  );
+}
+
 export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return null;
   }
 
   const normalized = text.trim().toLowerCase();
+  if (hasMissionExecutionLanguage(normalized)) {
+    return null;
+  }
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
     return null;
   }
@@ -733,6 +747,10 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
     normalized.includes('no prior list or options to match') ||
+    normalized.includes('two of what') ||
+    normalized.includes("don't have a list") ||
+    normalized.includes('do not have a list') ||
+    normalized.includes('no list in front') ||
     (
       normalized.includes("i caught 'mission'") &&
       normalized.includes('show the mission board') &&

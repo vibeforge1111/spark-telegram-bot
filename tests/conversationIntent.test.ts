@@ -342,6 +342,9 @@ Behavior:
 - State persists in localStorage under key terminal-chef-clock:v1.`),
     null
   );
+  assert.equal(parseMissionUpdatePreferenceIntent('go now and start the mission with canvas links'), null);
+  assert.equal(parseMissionUpdatePreferenceIntent('let us run the build now with board and canvas'), null);
+  assert.equal(parseMissionUpdatePreferenceIntent('start it, include the canvas when ready'), null);
 });
 
 test('spaces mission preference acknowledgements for Telegram scanning', () => {
