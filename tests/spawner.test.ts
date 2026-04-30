@@ -144,6 +144,8 @@ async function run(): Promise<void> {
           ok: true,
           missionId: 'mission-creator-1',
           requestId: 'tg-creator-1',
+          taskCount: 8,
+          canvasUrl: 'http://spawner.test/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1',
           trace: {
             mission_id: 'mission-creator-1',
             request_id: 'tg-creator-1',
@@ -169,6 +171,8 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'mission-creator-1');
     assert.equal(result.requestId, 'tg-creator-1');
+    assert.equal(result.taskCount, 8);
+    assert.equal(result.canvasUrl, 'http://spawner.test/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1');
     assert.match(capturedUrl, /\/api\/creator\/mission$/);
     assert.deepEqual(capturedBody, {
       brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
@@ -189,10 +193,14 @@ async function run(): Promise<void> {
           mission_id: 'mission-creator-1',
           creator_mode: 'full_path',
           artifacts: ['domain_chip', 'benchmark_pack', 'autoloop_policy'],
+          tasks: [{ id: 'creator-intent-plan' }, { id: 'benchmark-pack' }],
           intent_packet: {
             target_domain: 'Startup YC',
             privacy_mode: 'github_pr',
             risk_level: 'high'
+          },
+          links: {
+            canvas: '/canvas?pipeline=creator-tg-creator-1&mission=mission-creator-1'
           }
         }
       },
@@ -206,6 +214,8 @@ async function run(): Promise<void> {
     assert.match(message, /Privacy: github_pr/);
     assert.match(message, /Risk: high/);
     assert.match(message, /Artifacts: domain_chip, benchmark_pack, autoloop_policy/);
+    assert.match(message, /Tasks: 2 queued/);
+    assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 

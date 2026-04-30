@@ -47,8 +47,10 @@ interface CreatorMissionTrace {
   request_id?: string;
   creator_mode?: string;
   artifacts?: string[];
+  tasks?: unknown[];
   intent_packet?: CreatorIntentPacket;
   links?: {
+    canvas?: string;
     kanban?: string;
   };
 }
@@ -57,6 +59,8 @@ interface CreatorMissionResult {
   success: boolean;
   missionId?: string;
   requestId?: string;
+  taskCount?: number;
+  canvasUrl?: string;
   trace?: CreatorMissionTrace;
   error?: string;
 }
@@ -216,6 +220,14 @@ function creatorMissionKanbanUrl(missionId: string, baseUrl = spawnerPublicUrl()
   return `${baseUrl.replace(/\/+$/, '')}/kanban?mission=${encodeURIComponent(missionId)}`;
 }
 
+function absoluteSpawnerUrl(value: string | undefined, baseUrl = spawnerPublicUrl()): string | undefined {
+  if (!value?.trim()) return undefined;
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/')) return `${baseUrl.replace(/\/+$/, '')}${trimmed}`;
+  return trimmed;
+}
+
 function formatCreatorMode(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
@@ -232,8 +244,14 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     ? trace.artifacts.join(', ')
     : 'none yet';
   const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
+  const taskCount = typeof result.taskCount === 'number'
+    ? result.taskCount
+    : Array.isArray(trace.tasks)
+      ? trace.tasks.length
+      : null;
+  const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
 
-  return [
+  const lines = [
     'Creator mission planned.',
     '',
     `Mission: ${missionId}`,
@@ -242,8 +260,12 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     `Privacy: ${intent.privacy_mode || 'unknown'}`,
     `Risk: ${intent.risk_level || 'unknown'}`,
     `Artifacts: ${artifacts}`,
+    ...(taskCount !== null ? [`Tasks: ${taskCount} queued`] : []),
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
     `Mission board: ${kanbanUrl}`
-  ].join('\n');
+  ];
+
+  return lines.join('\n');
 }
 
 export const spawner = {
@@ -314,6 +336,8 @@ export const spawner = {
         success: Boolean(res.data?.ok),
         missionId: res.data?.missionId,
         requestId: res.data?.requestId,
+        taskCount: typeof res.data?.taskCount === 'number' ? res.data.taskCount : undefined,
+        canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
         trace: res.data?.trace
       };
     } catch (err: any) {
