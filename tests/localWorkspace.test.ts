@@ -39,6 +39,11 @@ async function main(): Promise<void> {
     assert.equal(isLocalWorkspaceInspectionOnlyRequest(prompt), false);
   });
 
+  await test('keeps natural workspace inspection out of chat interception', () => {
+    assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);
+    assert.equal(isLocalWorkspaceInspectionOnlyRequest('/workspaces'), true);
+  });
+
   await test('does not turn build-quality discussion into folder inventory', () => {
     assert.equal(
       isLocalWorkspaceInspectionOnlyRequest(

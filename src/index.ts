@@ -29,7 +29,6 @@ import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spa
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import {
-  isLocalWorkspaceInspectionOnlyRequest,
   renderLocalWorkspaceInspectionReply,
   summarizeLocalWorkspaces
 } from './localWorkspace';
@@ -39,9 +38,7 @@ import {
   getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
-  renderSparkAccessBriefStatus,
   renderSparkAccessChangeConfirmation,
-  renderSparkAccessConversationHelp,
   renderSparkAccessDenial,
   renderSparkAccessOnboarding,
   renderSparkAccessRuntimeHint,
@@ -82,8 +79,6 @@ import {
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
-  isAccessHelpQuestion,
-  isAccessStatusQuestion,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isDiagnosticsScanRequest,
@@ -93,8 +88,6 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
-  parseContextualAccessChangeIntent,
-  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
@@ -350,6 +343,7 @@ bot.start(async (ctx) => {
       'Spawner Control:',
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
+      '/workspaces - Show local project folders',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -419,6 +413,28 @@ bot.command('context', async (ctx) => {
   const report = await conversation.getConversationFrameDiagnostics(ctx.from);
   await ctx.reply(report);
 });
+
+async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, 'operating_system')) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
+    return;
+  }
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const summary = await summarizeLocalWorkspaces();
+    const reply = renderLocalWorkspaceInspectionReply(summary);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    await ctx.reply(`Local workspace inspection failed: ${detail}`);
+  }
+}
+
+bot.command('workspaces', handleLocalWorkspaceInventory);
+bot.command('workspace', handleLocalWorkspaceInventory);
 
 // /myid command - get your secure Telegram ID (for admin setup)
 bot.command('myid', async (ctx) => {
@@ -1452,6 +1468,9 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
 }
 
 function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: string; text: string }>): string | null {
+  if (extractPlainChatMemoryDirective(text)) {
+    return null;
+  }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;
@@ -1536,51 +1555,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
-  const naturalAccessChange = parseNaturalAccessChangeIntent(text);
-  if (naturalAccessChange) {
-    await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, naturalAccessChange);
-    return;
-  }
-
   const conversationFrame = await conversation.getConversationFrame(user, text);
   let conversationFrameContext = renderConversationFrameContext(conversationFrame, 12_000);
-  const frameAccessChange = conversationFrame.referenceResolution.kind === 'access_level'
-    ? conversationFrame.referenceResolution.value
-    : null;
-  if (frameAccessChange) {
-    await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, frameAccessChange);
-    return;
-  }
-
-  const recentAccessMessages = await conversation.getRecentMessages(user, 6);
-  const contextualAccessChange = conversationFrame.referenceResolution.kind === 'list_item'
-    ? null
-    : parseContextualAccessChangeIntent(text, recentAccessMessages);
-  if (contextualAccessChange) {
-    await conversation.remember(user, text).catch(() => {});
-    await handleAccessChangeRequest(ctx, contextualAccessChange);
-    return;
-  }
-
-  if (isAccessStatusQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
-    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-    const reply = renderSparkAccessBriefStatus(accessProfile);
-    await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
-    return;
-  }
-
-  if (isAccessHelpQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
-    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-    const reply = renderSparkAccessConversationHelp(accessProfile);
-    await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
-    return;
-  }
 
   const recentRememberedAnswer = answerFromRememberTurns(text, [
     ...conversationFrame.hotTurns.filter((turn) => turn.role === 'user' || turn.role === 'assistant'),
@@ -1621,31 +1597,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
     const buildIntent = parseBuildIntent(text);
-
-    if (isLocalWorkspaceInspectionOnlyRequest(text)) {
-      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-      if (!sparkAccessAllows(accessProfile, 'operating_system')) {
-        await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
-        return;
-      }
-      await conversation.remember(user, text).catch(() => {});
-      await safeSendChatAction(ctx, 'typing');
-      try {
-        const summary = await summarizeLocalWorkspaces();
-        const reply = renderLocalWorkspaceInspectionReply(summary);
-        await ctx.reply(reply);
-        await conversation.rememberAssistantReply(user, reply).catch(() => {});
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        await conversation.recordInterruptedTask(user, {
-          message: text,
-          failure: detail,
-          stage: 'local_workspace_inspection'
-        }).catch(() => {});
-        await ctx.reply(`Local workspace inspection failed: ${detail}`);
-      }
-      return;
-    }
 
     if (await handlePendingDomainChipBuild(ctx, text)) {
       await conversation.remember(user, text).catch(() => {});

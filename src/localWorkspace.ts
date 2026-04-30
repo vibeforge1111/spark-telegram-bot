@@ -52,7 +52,8 @@ export function isLocalWorkspaceInspectionRequest(text: string): boolean {
 }
 
 export function isLocalWorkspaceInspectionOnlyRequest(text: string): boolean {
-  return !parseBuildIntent(text) && isLocalWorkspaceInspectionRequest(text);
+  const normalized = text.trim().toLowerCase();
+  return /^\/(?:workspaces?|local-workspaces?|folders?)\b/.test(normalized) && !parseBuildIntent(text);
 }
 
 export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env): string[] {
