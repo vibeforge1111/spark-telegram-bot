@@ -541,10 +541,10 @@ const VOICE_LINES = {
     'No handoff yet.'
   ],
   completed: [
-    'Build finished.',
-    'Spark shipped it.',
-    'The build is done.',
-    'Mission complete.'
+    '✨ Spark shipped it.',
+    '✨ Spark has the build ready.',
+    '✨ Spark finished the build.',
+    '✨ Spark shipped something you can open.'
   ],
   failed: [
     'This run needs attention.',
@@ -693,6 +693,14 @@ function projectOpenLink(projectPath: string | null): string | null {
   return projectPreviewLink(projectPath) || localIndexLink(projectPath);
 }
 
+function openProjectLines(openLink: string | null): string[] {
+  return openLink ? ['Open it here:', openLink] : [];
+}
+
+function nextPolishLine(): string {
+  return 'Tell Spark what you want changed next and we can keep polishing from here.';
+}
+
 function extractProjectPathFromText(text: string): string | null {
   const patterns = [
     /(?:built|verified|created)[^`\r\n]*(?:in|at)\s+`([^`\r\n]+)`/i,
@@ -833,15 +841,20 @@ export function formatProviderCompletionForTelegram(input: {
     const lead = extractFreeformLeadSummary(input.response);
     const lines = [voiceLine('completed', `${input.missionId}:${provider}:freeform`)];
     if (lead) lines.push('', lead);
+    if (openLink) {
+      lines.push('', ...openProjectLines(openLink));
+    }
     if (shipped.length > 0) {
       lines.push('', 'What shipped:', ...shipped.map((item) => `- ${item}`));
     }
     if (checks.length > 0) {
-      lines.push('', 'Checks passed:', ...checks.map((item) => `- ${item}`));
+      if (verbosity === 'verbose') {
+        lines.push('', 'Quality checks:', ...checks.map((item) => `- ${item}`));
+      } else {
+        lines.push('', 'Quality checks passed.');
+      }
     }
-    if (openLink) {
-      lines.push('', `Open: ${openLink}`);
-    }
+    if (openLink) lines.push('', nextPolishLine());
     if (verbosity === 'verbose') {
       lines.push('', `Mission: ${input.missionId}`);
     }
@@ -867,8 +880,7 @@ export function formatProviderCompletionForTelegram(input: {
     return [
       voiceLine(status && ['failed', 'error', 'blocked'].includes(status.toLowerCase()) ? 'failed' : 'completed', `${input.missionId}:${provider}:minimal`),
       summary ? clipText(summary, 240) : null,
-      projectPath ? `Open: ${projectOpenLink(projectPath) || projectPath}` : null,
-      changedFiles.length ? `Files changed: ${changedFiles.length}` : null,
+      projectPath ? openProjectLines(projectOpenLink(projectPath) || projectPath).join('\n') : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
   }
@@ -881,21 +893,23 @@ export function formatProviderCompletionForTelegram(input: {
   }
 
   if (projectPath) {
-    lines.push('', `Open: ${projectOpenLink(projectPath) || projectPath}`);
+    lines.push('', ...openProjectLines(projectOpenLink(projectPath) || projectPath));
   }
 
   if (verbosity === 'verbose') {
     lines.push(...formatChangedFiles(changedFiles, 12));
-  } else if (changedFiles.length > 0) {
-    lines.push(`Files updated: ${changedFiles.length}`);
   }
 
   if (verification.length > 0) {
-    const visible = verification.slice(0, verbosity === 'verbose' ? 6 : 3);
-    lines.push('', 'Checks:');
-    lines.push(...visible.map((item) => `- ${clipText(item, 180)}`));
-    if (verification.length > visible.length) {
-      lines.push(`- ${verification.length - visible.length} more check(s) passed.`);
+    if (verbosity === 'verbose') {
+      const visible = verification.slice(0, 6);
+      lines.push('', 'Quality checks:');
+      lines.push(...visible.map((item) => `- ${clipText(item, 180)}`));
+      if (verification.length > visible.length) {
+        lines.push(`- ${verification.length - visible.length} more check(s) passed.`);
+      }
+    } else {
+      lines.push('', 'Quality checks passed.');
     }
   }
 
@@ -906,6 +920,10 @@ export function formatProviderCompletionForTelegram(input: {
   if (nextActions.length > 0) {
     lines.push('', 'Next:');
     lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
+  }
+
+  if (projectPath && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
+    lines.push('', nextPolishLine());
   }
 
   if (verbosity === 'verbose') {

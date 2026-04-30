@@ -264,9 +264,18 @@ function hasKnownLocalSparkSurface(text: string): boolean {
   return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
 }
 
+function isProjectLocalhostRequest(normalized: string): boolean {
+  return /\b(?:localhost|local\s*host|local\s+url|open|link)\b/.test(normalized) &&
+    /\b(?:project|app|website|site|build|built|shipped|beauty|centre|center|thing|it)\b/.test(normalized) &&
+    !/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized);
+}
+
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
+    return false;
+  }
+  if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
   return !hasKnownLocalSparkSurface(normalized) && !hasKnownLocalSparkSurface(context);
@@ -275,6 +284,9 @@ export function isAmbiguousLocalSparkServiceRequest(text: string, context: strin
 export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
   if (shouldPreferConversationalIdeation(text)) {
+    return false;
+  }
+  if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
   if (
@@ -322,12 +334,15 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
-export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider';
+export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider' | 'latest_project_preview';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
   if (shouldPreferConversationalIdeation(text)) return null;
+  if (isProjectLocalhostRequest(normalized)) {
+    return 'latest_project_preview';
+  }
 
   if (
     /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||

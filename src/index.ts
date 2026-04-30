@@ -1627,6 +1627,8 @@ bot.on(message('text'), async (ctx) => {
         ? await spawner.latestProviderSummary()
         : spawnerBoardIntent === 'latest_on_kanban'
           ? await spawner.latestKanbanSummary()
+          : spawnerBoardIntent === 'latest_project_preview'
+            ? await spawner.latestProjectPreview()
           : await spawner.board();
       await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
       return;

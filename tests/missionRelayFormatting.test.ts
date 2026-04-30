@@ -44,11 +44,13 @@ test('formats structured provider JSON as readable Telegram text', () => {
     })
   });
 
-  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
+  assert.match(message, /✨ Spark/);
   assert.match(message, /Implemented the requested static board/);
-  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
-  assert.match(message, /Files updated: 4/);
-  assert.match(message, /Checks:/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Quality checks passed\./);
+  assert.match(message, /keep polishing/);
+  assert.doesNotMatch(message, /Files updated/);
+  assert.doesNotMatch(message, /npm run|node --check|Get-ChildItem|Checks:/);
   assert.doesNotMatch(message, /Mission: spark-123/);
   assert.doesNotMatch(message, /"goal"/);
   assert.doesNotMatch(message, /exact_commands/);
@@ -68,9 +70,9 @@ test('keeps minimal structured provider summaries compact', () => {
     })
   });
 
-  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
+  assert.match(message, /✨ Spark/);
   assert.match(message, /Built the mission cards and canvas sync\./);
-  assert.match(message, /Files changed: 3/);
+  assert.doesNotMatch(message, /Files changed: 3/);
   assert.doesNotMatch(message, /src\/kanban\.ts/);
   assert.doesNotMatch(message, /Checks:/);
 });
@@ -97,9 +99,10 @@ test('formats structured provider failures without raw JSON noise', () => {
 
   assert.match(message, /(?:This run needs attention|Something blocked the mission|The build hit a problem|Spark could not finish this run)\./);
   assert.match(message, /final browser verification failed/);
-  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
-  assert.match(message, /Files updated: 2/);
-  assert.match(message, /Browser smoke failed/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Quality checks passed\./);
+  assert.doesNotMatch(message, /Files updated/);
+  assert.doesNotMatch(message, /npm run smoke/);
   assert.doesNotMatch(message, /"status"/);
   assert.doesNotMatch(message, /execution_contract/);
   assert.doesNotMatch(message, /exact_commands/);
@@ -132,7 +135,7 @@ test('strips hidden reasoning and relay plumbing from freeform provider results'
     ].join('\n')
   });
 
-  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
+  assert.match(message, /✨ Spark/);
   assert.match(message, /created the Kanban cards and synced the canvas/);
   assert.doesNotMatch(message, /private chain of thought/);
   assert.doesNotMatch(message, /curl -X POST/);
@@ -161,12 +164,12 @@ test('summarizes freeform Codex build output without dumping file links', () => 
     ].join('\n')
   });
 
-  assert.match(message, /(?:Build finished|Spark shipped it|The build is done|Mission complete)\./);
+  assert.match(message, /✨ Spark/);
   assert.match(message, /What shipped:/);
   assert.match(message, /Full-viewport Three\.js orbital forge/);
-  assert.match(message, /Checks passed:/);
-  assert.match(message, /Headless Chrome desktop\/mobile/);
-  assert.match(message, /Open: http:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Quality checks passed\./);
+  assert.doesNotMatch(message, /Headless Chrome desktop\/mobile/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5173\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);

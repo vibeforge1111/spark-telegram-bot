@@ -150,6 +150,57 @@ function formatProviderLabel(providerId: string): string {
   return PROVIDER_LABELS[normalized] || providerId.trim();
 }
 
+function normalizeLocalProjectPath(pathValue: string): string {
+  const normalized = pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
+  const wslDrive = normalized.match(/^\/([a-zA-Z])\/(.+)$/);
+  if (wslDrive) return `${wslDrive[1].toUpperCase()}:/${wslDrive[2]}`.replace(/\/+$/, '');
+  return normalized.replace(/\/+$/, '');
+}
+
+function projectPreviewLink(projectPath: string): string {
+  const token = Buffer.from(normalizeLocalProjectPath(projectPath), 'utf8').toString('base64url');
+  return `${SPAWNER_UI_URL.replace(/\/+$/, '')}/preview/${token}/index.html`;
+}
+
+function extractProjectPathFromText(text: string): string | null {
+  const patterns = [
+    /(?:built|verified|created)[\s\S]{0,240}?(?:in|at)\s+`([^`\r\n]+)`/i,
+    /Project:\s*([A-Za-z]:\\[^\r\n]+)/i,
+    /Project folder:\s*([A-Za-z]:\\[^\r\n]+)/i,
+    /(?:at|in)\s+([A-Za-z]:\\Users\\[^\r\n`]+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim().replace(/[.。]\s*$/, '');
+  }
+  return null;
+}
+
+function extractPreviewUrlFromText(text: string): string | null {
+  const match = text.match(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+\/preview\/[A-Za-z0-9_-]+\/index\.html/i);
+  return match?.[0] || null;
+}
+
+function providerResultText(entry: BoardEntry): string {
+  return [
+    entry.providerSummary,
+    ...(entry.providerResults || []).map((result) => result.summary),
+    entry.lastSummary,
+    entry.missionName || ''
+  ].filter((part): part is string => Boolean(part?.trim())).join('\n');
+}
+
+function rootRouteLooksLikeProject(text: string): boolean {
+  return /\b(?:replaced the root screen|root route|src\/routes\/\+page|visiting\s+\/|at\s+\/)\b/i.test(text);
+}
+
+function projectOpenLinkForEntry(entry: BoardEntry): string | null {
+  const text = providerResultText(entry);
+  return extractPreviewUrlFromText(text)
+    || (extractProjectPathFromText(text) ? projectPreviewLink(extractProjectPathFromText(text) as string) : null)
+    || (rootRouteLooksLikeProject(text) ? SPAWNER_UI_URL.replace(/\/+$/, '') : null);
+}
+
 function formatLatestMission(entry: BoardEntry): string[] {
   const title = entry.missionName || entry.taskName || 'Unnamed mission';
   const tasks = entry.taskNames && entry.taskNames.length > 0
@@ -346,6 +397,51 @@ export const spawner = {
           `The latest Spawner job was handled by: ${providerNames(latest)}`,
           '',
           ...formatLatestMission(latest)
+        ].join('\n')
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async latestProjectPreview(): Promise<{ success: boolean; message: string }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const candidates = [...board.completed, ...board.running];
+      candidates.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+      const latest = candidates.find((entry) => projectOpenLinkForEntry(entry)) || candidates[0];
+      if (!latest) {
+        return {
+          success: true,
+          message: 'I do not see a shipped app link yet.'
+        };
+      }
+
+      const openLink = projectOpenLinkForEntry(latest);
+      if (!openLink) {
+        return {
+          success: true,
+          message: [
+            'I found the latest mission, but I do not see a local app link in the handoff yet.',
+            '',
+            `Latest: ${latest.missionName || latest.taskName || latest.missionId}`,
+            `Mission board: ${SPAWNER_UI_URL.replace(/\/+$/, '')}/kanban?mission=${encodeURIComponent(latest.missionId)}`
+          ].join('\n')
+        };
+      }
+
+      return {
+        success: true,
+        message: [
+          'Here is the latest shipped app:',
+          '',
+          latest.missionName || latest.taskName || latest.missionId,
+          openLink,
+          '',
+          'Tell me what feels off and Spark can keep polishing it.'
         ].join('\n')
       };
     } catch (err: any) {
