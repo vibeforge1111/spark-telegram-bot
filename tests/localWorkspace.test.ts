@@ -21,7 +21,7 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
 
 async function main(): Promise<void> {
   await test('recognizes local workspace and desktop inspection requests', () => {
-    assert.equal(isLocalWorkspaceInspectionRequest('can you analyze things in my desktop and what projects i am focused on'), true);
+    assert.equal(isLocalWorkspaceInspectionRequest('can you scan my desktop and what projects i am focused on'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('look at the repos in my Desktop'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('inspect my local workspace folders'), true);
     assert.equal(isLocalWorkspaceInspectionRequest('what is the weather today'), false);
@@ -37,6 +37,21 @@ async function main(): Promise<void> {
 
     assert.equal(isLocalWorkspaceInspectionRequest(prompt), true, 'documents the broad heuristic collision');
     assert.equal(isLocalWorkspaceInspectionOnlyRequest(prompt), false);
+  });
+
+  await test('does not turn build-quality discussion into folder inventory', () => {
+    assert.equal(
+      isLocalWorkspaceInspectionOnlyRequest(
+        'looking at how spawner UI operated in the last examples, what would you improve before we build the beauty salon appointment system?'
+      ),
+      false
+    );
+    assert.equal(
+      isLocalWorkspaceInspectionOnlyRequest(
+        'what would you improve in the spawner-ui repo so missions and canvas feel better?'
+      ),
+      false
+    );
   });
 
   await test('summarizes local folders and repository signals without reading file contents', async () => {
