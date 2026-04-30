@@ -250,7 +250,8 @@ async function longWarmContext(driver: TelegramDriver): Promise<HarnessScenarioR
   const checks = [
     checkHasReply(finalTurn),
     checkContains(finalTurn, 'long_context_recovers_option_2', /timeline|explorer|chronolog|memory/i, 'Older list artifact should survive several turns.'),
-    checkNotContains(finalTurn, 'long_context_not_access', /changed this chat to Level|Spark access:/i, 'Longer context reference should not route to access.')
+    checkNotContains(finalTurn, 'long_context_not_access', /changed this chat to Level|Spark access:/i, 'Longer context reference should not route to access.'),
+    checkNotContains(finalTurn, 'long_context_no_prior_name_bleed', /spantrap/i, 'Older naming context must not bleed into the memory dashboard selection.')
   ];
   return { id: 'context-long-warm-context', title: 'List artifact survives a longer live loop', turns: driver.turns, checks };
 }

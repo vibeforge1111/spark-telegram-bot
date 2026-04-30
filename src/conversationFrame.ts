@@ -335,6 +335,25 @@ export function renderConversationFrameDiagnostics(state: RollingConversationFra
   return lines.join('\n');
 }
 
+export function renderChoiceContextAcknowledgement(text: string): string | null {
+  if (!/\b(?:choosing|choose|between|options?|ideas?|directions?)\b/i.test(text)) return null;
+  if (/\b(?:which|recommend|rank|best|should\s+i|pick\s+one|choose\s+one|choose\s+for\s+me|what\s+do\s+you\s+think)\b/i.test(text)) {
+    return null;
+  }
+  if (/\?\s*$/.test(text.trim())) return null;
+
+  const items = extractNumberedItems(text);
+  if (items.length < 2) return null;
+
+  return [
+    'Got it. I have these options on the table:',
+    '',
+    ...items.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    'Tell me which number you want when you are ready.'
+  ].join('\n');
+}
+
 function selectHotTurns(turns: ConversationTurn[], policy: ContextBudgetPolicy): {
   hotTurns: ConversationTurn[];
   olderTurns: ConversationTurn[];

@@ -14,7 +14,7 @@ import {
   isPendingTaskRecoveryQuestion,
   renderPendingTaskRecoveryReply
 } from './conversation';
-import { renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
+import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   getBuilderBridgeStatus,
   runBuilderConversationColdContext,
@@ -1601,6 +1601,21 @@ function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: stri
   return null;
 }
 
+function buildSelectedListReferencePrompt(frame: ConversationFrame): string | null {
+  if (frame.referenceResolution.kind !== 'list_item' || !frame.referenceResolution.value) return null;
+  const artifact = frame.artifacts.find((item) => item.key === frame.referenceResolution.sourceArtifactKey);
+  const listLines = artifact?.items.length
+    ? ['Recent list options:', ...artifact.items.map((item, index) => `${index + 1}. ${item}`)]
+    : [];
+  return [
+    `The user selected this exact option from the recent list: ${frame.referenceResolution.value}`,
+    artifact ? `The selected option belongs to this list context: ${artifact.title}` : '',
+    ...listLines,
+    '',
+    'Continue only from that selected option and its list. Do not blend this with older unrelated lists, project names, access levels, or prior option sets. Do not reinterpret the short follow-up as a request for a quantity.'
+  ].filter(Boolean).join('\n');
+}
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -1703,6 +1718,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(recentRememberedAnswer);
     await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});
+    return;
+  }
+
+  const choiceContextAcknowledgement = renderChoiceContextAcknowledgement(text);
+  if (choiceContextAcknowledgement) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(choiceContextAcknowledgement);
+    await conversation.rememberAssistantReply(user, choiceContextAcknowledgement).catch(() => {});
     return;
   }
 
@@ -1940,13 +1963,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await safeSendChatAction(ctx, 'typing');
       const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-      const ideationPrompt = conversationFrame.referenceResolution.kind === 'list_item' && conversationFrame.referenceResolution.value
-        ? [
-            `The user selected this exact option from the recent list: ${conversationFrame.referenceResolution.value}`,
-            '',
-            'Continue the conversation from that selected option. Do not reinterpret the short follow-up as a request for a quantity.'
-          ].join('\n')
-        : text;
+      const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
       const llmResponse = await llm.chat(
         ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
@@ -2010,13 +2027,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
 
-    const chatPrompt = conversationFrame.referenceResolution.kind === 'list_item' && conversationFrame.referenceResolution.value
-      ? [
-          `The user selected this exact option from the recent list: ${conversationFrame.referenceResolution.value}`,
-          '',
-          'Answer the user by continuing from that selected option. Do not reinterpret the short follow-up as a request for a quantity.'
-        ].join('\n')
-      : text;
+    const chatPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
 
     // Get LLM response with Spark context
     const response = await llm.chat(chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);

@@ -4,6 +4,7 @@ import {
   buildConversationFrameFromState,
   emptyRollingConversationFrameState,
   estimateTokens,
+  renderChoiceContextAcknowledgement,
   renderConversationFrameContext,
   renderConversationFrameDiagnostics,
   updateRollingConversationFrameState,
@@ -129,6 +130,15 @@ test('short option references ignore assistant clarification question lists', ()
 
   assert.equal(frame.referenceResolution.kind, 'list_item');
   assert.equal(frame.referenceResolution.value, 'memory timeline explorer');
+});
+
+test('acknowledges choice lists without prematurely selecting one', () => {
+  const reply = renderChoiceContextAcknowledgement(
+    'I am choosing between: 1. recall audit board 2. memory timeline explorer 3. live stress-test panel'
+  );
+
+  assert.match(reply || '', /I have these options on the table/);
+  assert.match(reply || '', /2\. memory timeline explorer/);
 });
 
 test('access shorthand still works when no list reference is present', () => {
