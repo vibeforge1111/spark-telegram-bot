@@ -95,3 +95,25 @@ test('does not inject wiki diagnostic packets as conversational cold memory', ()
   assert.equal(result.sourceCount, 0);
   assert.equal(result.contextText, '');
 });
+
+test('keeps cold memory prompt context bounded and source counted', () => {
+  const result = formatConversationColdMemoryContext({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: Array.from({ length: 8 }, (_, index) => ({
+            lane: 'recent_conversation',
+            source_class: 'recent_conversation',
+            predicate: `fact.${index}`,
+            text: `Important remembered context ${index}. ${'detail '.repeat(120)}`
+          }))
+        }
+      ]
+    }
+  }, 1200);
+
+  assert.equal(result.sourceCount > 0, true);
+  assert.equal(result.contextText.length <= 1300, true);
+  assert.match(result.contextText, /\[Spark Cold Memory Context\]/);
+});

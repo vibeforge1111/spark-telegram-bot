@@ -166,3 +166,114 @@ test('builds frames from persistent rolling artifacts, not only immediate turns'
   assert.equal(frame.referenceResolution.value, 'Domain Chip Workbench');
   assert.equal(Number(frame.budget.rollingCompactionEvents) >= 0, true);
 });
+
+test('keeps exact list artifacts after a long compacted conversation', () => {
+  let state = emptyRollingConversationFrameState();
+  state = updateRollingConversationFrameState(state, {
+    role: 'assistant',
+    text: [
+      'Memory dashboard options:',
+      '1. Recall Audit Board',
+      '2. Memory Timeline Explorer',
+      '3. Live Stress-Test Panel'
+    ].join('\n'),
+    turnId: 'options'
+  }, {
+    hotMinTurns: 8,
+    hotTargetTokens: 80
+  });
+
+  for (let index = 0; index < 90; index += 1) {
+    state = updateRollingConversationFrameState(state, {
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      text: `long planning turn ${index} about performance, memory quality, and rollout checks`,
+      turnId: `long-${index}`
+    }, {
+      hotMinTurns: 8,
+      hotTargetTokens: 80
+    });
+  }
+
+  const frame = buildConversationFrameFromState('Let\'s do the second one', state, {
+    hotMinTurns: 8,
+    hotTargetTokens: 80
+  });
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'Memory Timeline Explorer');
+  assert.equal(state.compactionEvents.length > 0, true);
+  assert.equal(state.warmSummary.length > 0, true);
+});
+
+test('newer list artifacts outrank older list artifacts after compaction', () => {
+  let state = emptyRollingConversationFrameState();
+  state = updateRollingConversationFrameState(state, {
+    role: 'assistant',
+    text: ['Old options:', '1. Old Alpha', '2. Old Beta'].join('\n'),
+    turnId: 'old-list'
+  });
+  for (let index = 0; index < 35; index += 1) {
+    state = updateRollingConversationFrameState(state, {
+      role: 'user',
+      text: `middle context turn ${index}`,
+      turnId: `middle-${index}`
+    }, {
+      hotMinTurns: 6,
+      hotTargetTokens: 60
+    });
+  }
+  state = updateRollingConversationFrameState(state, {
+    role: 'assistant',
+    text: ['New options:', '1. New Timeline', '2. New Evaluator'].join('\n'),
+    turnId: 'new-list'
+  });
+
+  const frame = buildConversationFrameFromState('pick the second one', state, {
+    hotMinTurns: 6,
+    hotTargetTokens: 60
+  });
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'New Evaluator');
+});
+
+test('renders bounded prompt context under a tight token limit', () => {
+  const turns: ConversationTurn[] = Array.from({ length: 80 }, (_, index) => ({
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    text: `turn ${index} ${'context '.repeat(40)}`,
+    turnId: `t${index}`
+  }));
+  const frame = buildConversationFrame('summarize where we are', turns, {
+    hotMinTurns: 8,
+    hotTargetTokens: 400
+  });
+  const rendered = renderConversationFrameContext(frame, 350);
+
+  assert.equal(estimateTokens(rendered) <= 360, true);
+  assert.match(rendered, /\[Spark Conversation Frame\]/);
+  assert.match(rendered, /truncated|hot_turns|warm_summary/);
+});
+
+test('builds a long rolling frame within the Telegram turn budget', () => {
+  let state = emptyRollingConversationFrameState();
+  const started = Date.now();
+  for (let index = 0; index < 300; index += 1) {
+    state = updateRollingConversationFrameState(state, {
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      text: `soak test turn ${index} with enough words to exercise token estimates and rolling compaction behavior`,
+      turnId: `soak-${index}`
+    }, {
+      hotMinTurns: 10,
+      hotTargetTokens: 160
+    });
+  }
+  const frame = buildConversationFrameFromState('what are we doing now?', state, {
+    hotMinTurns: 10,
+    hotTargetTokens: 160
+  });
+  const elapsedMs = Date.now() - started;
+
+  assert.equal(elapsedMs < 1000, true);
+  assert.equal(frame.hotTurns.length >= 10, true);
+  assert.equal(Number(frame.budget.assembledEstimatedTokens) < Number(frame.budget.safeInputBudgetTokens), true);
+});
