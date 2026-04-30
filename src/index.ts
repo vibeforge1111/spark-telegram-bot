@@ -88,6 +88,7 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
@@ -1555,6 +1556,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
+  const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
+  const naturalAccessChange = earlyBuildIntent ? null : parseNaturalAccessChangeIntent(text);
+  if (naturalAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, naturalAccessChange);
+    return;
+  }
+
   const conversationFrame = await conversation.getConversationFrame(user, text);
   let conversationFrameContext = renderConversationFrameContext(conversationFrame, 12_000);
 
@@ -1596,7 +1605,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
-    const buildIntent = parseBuildIntent(text);
+    const buildIntent = earlyBuildIntent;
 
     if (await handlePendingDomainChipBuild(ctx, text)) {
       await conversation.remember(user, text).catch(() => {});
@@ -1614,6 +1623,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // actual project briefs.
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      const accessPreference = parseNaturalAccessChangeIntent(text);
+      const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
+      if (normalizedAccessPreference) {
+        await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
+      }
       const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
       if (buildPreference?.verbosity) {
         await setTelegramRelayVerbosity(ctx.chat.id, buildPreference.verbosity);

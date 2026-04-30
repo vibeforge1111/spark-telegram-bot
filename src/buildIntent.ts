@@ -153,6 +153,17 @@ function extractBuildDescription(text: string): string | null {
     return text.slice(command[0].length);
   }
 
+  const inlineCommand = text.match(
+    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+  );
+  if (inlineCommand?.index !== undefined) {
+    const prefix = text.slice(0, inlineCommand.index).toLowerCase();
+    if (/\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix)) {
+      return null;
+    }
+    return text.slice(inlineCommand.index + inlineCommand[0].length);
+  }
+
   const lineCommand = text.match(
     /(?:^|\n)\s*(?:build|make|create|ship|scaffold|generate|develop)\s+(?:this|it)\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i
   );

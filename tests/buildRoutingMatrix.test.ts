@@ -70,6 +70,31 @@ Build it at C:\\Users\\USER\\Desktop\\kitchen-ops-clock.
 It should have timers, prep stages, localStorage, reset flow, responsive design, and README smoke tests.`, 'Kitchen Ops Clock');
 });
 
+test('mixed preference and access wording still reaches the builder', () => {
+  const updatePrompt = `Use verbose updates and build a Three.js world tree called Spark World Tree.
+
+Build it at C:\\Users\\USER\\Desktop\\spark-world-tree.
+
+Send the Mission board first and the canvas when planning is ready.`;
+  const updateIntent = parseBuildIntent(updatePrompt);
+  assert.ok(updateIntent);
+  assert.equal(updateIntent.projectName, 'Spark World Tree');
+  assert.equal(parseMissionUpdatePreferenceIntent(updatePrompt, { allowExecutionLanguage: true })?.verbosity, 'verbose');
+  assert.equal(isLocalSparkServiceRequest(updatePrompt, ''), false);
+
+  const savedPreferencePrompt = `Save mission updates as verbose and build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a clock for terminal devs who cook.`;
+  const savedPreferenceIntent = parseBuildIntent(savedPreferencePrompt);
+  assert.ok(savedPreferenceIntent);
+  assert.equal(savedPreferenceIntent.projectPath, 'C:\\Users\\USER\\Desktop\\terminal-chef-clock');
+  assert.equal(parseMissionUpdatePreferenceIntent(savedPreferencePrompt, { allowExecutionLanguage: true })?.verbosity, 'verbose');
+
+  const accessPrompt = 'Change this chat to level 4 and build a beauty salon appointment system called Salon Flow.';
+  const accessIntent = parseBuildIntent(accessPrompt);
+  assert.ok(accessIntent);
+  assert.equal(accessIntent.projectName, 'Salon Flow');
+  assert.equal(parseNaturalAccessChangeIntent(accessPrompt), '4');
+});
+
 test('non-build utility requests still route away from builder', () => {
   assert.equal(parseBuildIntent('include board and canvas links for missions'), null);
   assert.deepEqual(parseMissionUpdatePreferenceIntent('include board and canvas links for missions'), { links: 'both' });
