@@ -646,16 +646,6 @@ function stringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function formatChangedFiles(files: string[], limit: number): string[] {
-  if (files.length === 0) return [];
-  const visible = files.slice(0, limit);
-  const lines = [`Changed files: ${visible.join(', ')}`];
-  if (files.length > visible.length) {
-    lines.push(`Plus ${files.length - visible.length} more file(s).`);
-  }
-  return lines;
-}
-
 function normalizeLocalPath(pathValue: string): string {
   const normalized = pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
   const wslDrive = normalized.match(/^\/([a-zA-Z])\/(.+)$/);
@@ -871,10 +861,8 @@ export function formatProviderCompletionForTelegram(input: {
   const status = stringField(parsed, 'status');
   const summary = stringField(parsed, 'summary') || stringField(parsed, 'message');
   const projectPath = stringField(parsed, 'project_path') || stringField(parsed, 'projectPath');
-  const changedFiles = stringArray(parsed.changed_files || parsed.changedFiles);
   const verification = stringArray(parsed.verification);
   const nextActions = stringArray(parsed.next_actions || parsed.nextActions);
-  const exactCommands = stringArray(parsed.exact_commands || parsed.exactCommands);
 
   if (verbosity === 'minimal') {
     return [
@@ -896,25 +884,11 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push('', ...openProjectLines(projectOpenLink(projectPath) || projectPath));
   }
 
-  if (verbosity === 'verbose') {
-    lines.push(...formatChangedFiles(changedFiles, 12));
-  }
-
   if (verification.length > 0) {
-    if (verbosity === 'verbose') {
-      const visible = verification.slice(0, 6);
-      lines.push('', 'Quality checks:');
-      lines.push(...visible.map((item) => `- ${clipText(item, 180)}`));
-      if (verification.length > visible.length) {
-        lines.push(`- ${verification.length - visible.length} more check(s) passed.`);
-      }
-    } else {
-      lines.push('', 'Quality checks passed.');
-    }
-  }
-
-  if (verbosity === 'verbose' && exactCommands.length > 0) {
-    lines.push('', `Verification commands run: ${exactCommands.length}`);
+    const checkText = verification.length === 1
+      ? 'Quality check passed.'
+      : `Quality checks passed (${verification.length} checks).`;
+    lines.push('', checkText);
   }
 
   if (nextActions.length > 0) {

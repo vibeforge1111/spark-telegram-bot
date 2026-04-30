@@ -47,7 +47,7 @@ test('formats structured provider JSON as readable Telegram text', () => {
   assert.match(message, /✨ Spark/);
   assert.match(message, /Implemented the requested static board/);
   assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
-  assert.match(message, /Quality checks passed\./);
+  assert.match(message, /Quality checks passed/);
   assert.match(message, /keep polishing/);
   assert.doesNotMatch(message, /Files updated/);
   assert.doesNotMatch(message, /npm run|node --check|Get-ChildItem|Checks:/);
@@ -77,6 +77,30 @@ test('keeps minimal structured provider summaries compact', () => {
   assert.doesNotMatch(message, /Checks:/);
 });
 
+test('keeps verbose completion summaries readable and non-console-like', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-verbose',
+    requestId: 'tg-build-verbose',
+    verbosity: 'verbose',
+    response: JSON.stringify({
+      summary: 'Built the dashboard and verified the main workflow.',
+      status: 'completed',
+      project_path: 'C:\\Users\\USER\\Desktop\\spark-readable-build',
+      changed_files: ['index.html', 'styles.css', 'app.js', 'README.md'],
+      verification: ['Type check passed.', 'Browser smoke passed.', 'Persistence smoke passed.'],
+      exact_commands: ['npm run check', 'npm run test:run', 'npx playwright test']
+    })
+  });
+
+  assert.match(message, /Spark/);
+  assert.match(message, /Built the dashboard and verified the main workflow/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Quality checks passed \(3 checks\)\./);
+  assert.doesNotMatch(message, /Verification commands run/);
+  assert.doesNotMatch(message, /npm run|playwright|Changed files|README\.md/);
+});
+
 test('formats structured provider failures without raw JSON noise', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
@@ -100,7 +124,7 @@ test('formats structured provider failures without raw JSON noise', () => {
   assert.match(message, /(?:This run needs attention|Something blocked the mission|The build hit a problem|Spark could not finish this run)\./);
   assert.match(message, /final browser verification failed/);
   assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
-  assert.match(message, /Quality checks passed\./);
+  assert.match(message, /Quality checks passed/);
   assert.doesNotMatch(message, /Files updated/);
   assert.doesNotMatch(message, /npm run smoke/);
   assert.doesNotMatch(message, /"status"/);
@@ -167,7 +191,7 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.match(message, /✨ Spark/);
   assert.match(message, /What shipped:/);
   assert.match(message, /Full-viewport Three\.js orbital forge/);
-  assert.match(message, /Quality checks passed\./);
+  assert.match(message, /Quality checks passed/);
   assert.doesNotMatch(message, /Headless Chrome desktop\/mobile/);
   assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.doesNotMatch(message, /\[index\.html\]/);
