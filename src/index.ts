@@ -1791,7 +1791,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (isPendingTaskRecoveryQuestion(text)) {
+  const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
+
+  if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {
       const reply = renderPendingTaskRecoveryReply(pendingTask);
@@ -1802,7 +1804,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
-  const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
   const naturalAccessChange = earlyBuildIntent ? null : parseNaturalAccessChangeIntent(text);
   if (naturalAccessChange) {
     await conversation.remember(user, text).catch(() => {});
@@ -1848,7 +1849,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
-  const recentRememberedAnswer = answerFromRememberTurns(text, [
+  const recentRememberedAnswer = earlyBuildIntent ? null : answerFromRememberTurns(text, [
     ...conversationFrame.hotTurns.filter((turn) => turn.role === 'user' || turn.role === 'assistant'),
     ...await conversation.getRecentTurns(user, 40)
   ]);
@@ -1859,7 +1860,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const choiceContextAcknowledgement = renderChoiceContextAcknowledgement(text);
+  const choiceContextAcknowledgement = earlyBuildIntent ? null : renderChoiceContextAcknowledgement(text);
   if (choiceContextAcknowledgement) {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(choiceContextAcknowledgement);
@@ -1867,16 +1868,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  try {
-    const coldMemoryContext = await runBuilderConversationColdContext({
-      userId: user.id,
-      currentMessage: text,
-    });
-    if (coldMemoryContext.contextText) {
-      conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+  if (!earlyBuildIntent) {
+    try {
+      const coldMemoryContext = await runBuilderConversationColdContext({
+        userId: user.id,
+        currentMessage: text,
+      });
+      if (coldMemoryContext.contextText) {
+        conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+      }
+    } catch (error) {
+      console.warn('[BuilderBridge] Skipping cold memory context for this turn:', error);
     }
-  } catch (error) {
-    console.warn('[BuilderBridge] Skipping cold memory context for this turn:', error);
   }
 
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
@@ -1887,6 +1890,34 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
     const buildIntent = earlyBuildIntent;
+
+    // Build intent gets first refusal inside the admin lane. Utility helpers can
+    // still extract preferences from the same prompt, but they must not stop a
+    // detailed project brief from becoming a mission.
+    if (buildIntent) {
+      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      const accessPreference = parseNaturalAccessChangeIntent(text);
+      const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
+      if (normalizedAccessPreference) {
+        await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
+      }
+      const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
+      if (buildPreference?.verbosity) {
+        await setTelegramRelayVerbosity(ctx.chat.id, buildPreference.verbosity);
+      }
+      if (buildPreference?.links) {
+        await setTelegramMissionLinkPreference(ctx.chat.id, buildPreference.links);
+      }
+      await handleBuildIntent(
+        ctx,
+        buildIntent.prd,
+        buildIntent.projectName,
+        buildIntent.projectPath,
+        buildIntent.buildMode,
+        buildIntent.buildModeReason
+      );
+      return;
+    }
 
     if (isLocalWorkspaceInspectionOnlyRequest(text)) {
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
@@ -1921,34 +1952,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const pendingClarification = pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`);
     if (pendingClarification && !buildIntent) {
       await handleClarificationAnswers(ctx, text);
-      return;
-    }
-
-    // Build intent must win over preference/board/status language. Users often
-    // include words like "Mission Control", "updates", or "progress" inside
-    // actual project briefs.
-    if (buildIntent) {
-      console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
-      const accessPreference = parseNaturalAccessChangeIntent(text);
-      const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
-      if (normalizedAccessPreference) {
-        await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
-      }
-      const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
-      if (buildPreference?.verbosity) {
-        await setTelegramRelayVerbosity(ctx.chat.id, buildPreference.verbosity);
-      }
-      if (buildPreference?.links) {
-        await setTelegramMissionLinkPreference(ctx.chat.id, buildPreference.links);
-      }
-      await handleBuildIntent(
-        ctx,
-        buildIntent.prd,
-        buildIntent.projectName,
-        buildIntent.projectPath,
-        buildIntent.buildMode,
-        buildIntent.buildModeReason
-      );
       return;
     }
 

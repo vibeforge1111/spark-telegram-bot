@@ -168,6 +168,47 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('build intent keeps going when the prompt also changes update preferences', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 561, replies);
+		ctx.message.text = [
+			'Save mission updates as verbose and include both links.',
+			'Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a playful clock for terminal devs who cook.',
+			'Use advanced PRD planning first, then build and verify it.'
+		].join('\n');
+
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, 'expected mixed preference/build prompt to POST to /api/prd-bridge/write');
+		assert.match(writeCall!.body.content, /Target operating-system folder: `C:\\Users\\USER\\Desktop\\terminal-chef-clock`/);
+		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
+		assert.doesNotMatch(replies.join('\n'), /Saved your mission update preference/);
+		assert.match(replies[0] || '', /Project: terminal chef clock/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('domain chip creation can use the build PRD bridge contract', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
@@ -205,6 +246,59 @@ async function run(): Promise<void> {
 		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
 		assert.match(writeCall!.body.content, /current Spark-compatible domain chip standards/);
 		assert.doesNotMatch(replies[0] || '', /Canvas:/);
+		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('detailed build briefs with numbered lane lists still start a mission', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		ctx.message.text = [
+			'Hey Spark, let’s build a real project called Founder Signal Room.',
+			'Build it at C:\\Users\\USER\\Desktop\\founder-signal-room.',
+			'Core workflow:',
+			'- A founder pastes messy weekly notes into an intake panel.',
+			'- Notes can include customer quotes, random ideas, and meeting takeaways.',
+			'- The app extracts strategic signals into five lanes:',
+			'  1. Customer pain',
+			'  2. Product bets',
+			'  3. Growth signals',
+			'  4. Risks',
+			'  5. Decisions to revisit',
+			'Please use advanced PRD planning first, attach relevant skills, show the mission in Kanban and Canvas, then build and verify it.'
+		].join('\n');
+
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, 'expected detailed build brief to POST to /api/prd-bridge/write');
+		assert.equal(writeCall!.body.projectName, 'Founder Signal Room');
+		assert.match(writeCall!.body.content, /Target operating-system folder: `C:\\Users\\USER\\Desktop\\founder-signal-room`/);
+		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
+		assert.doesNotMatch(replies.join('\n'), /Got it\. I have these options on the table/);
+		assert.doesNotMatch(replies.join('\n'), /Tell me which number/);
+		assert.match(replies[0] || '', /Project: Founder Signal Room/);
 		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban/);
 
 		restoreAxios();
