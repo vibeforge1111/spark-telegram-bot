@@ -125,7 +125,7 @@ async function resolveDiagnosticsBridgeConfig(config: BuilderBridgeConfig): Prom
 function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   const sourcePath = path.join(config.builderRepo, 'src');
   const existingPythonPath = process.env.PYTHONPATH || '';
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
