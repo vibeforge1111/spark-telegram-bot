@@ -139,6 +139,8 @@ test('does not turn exploratory conversation into an accidental build', () => {
   );
 
   assert.equal(intent, null);
+  assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
+  assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
 });
 
 test('infers a compact product name for long conceptual build briefs', () => {
