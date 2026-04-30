@@ -144,10 +144,19 @@ async function main(): Promise<void> {
     assert.match(status, /change my access level to 3/);
     assert.doesNotMatch(status, /What each level means/);
 
-    const changed = renderSparkAccessChangeConfirmation('agent');
-    assert.equal(changed, 'Done - I changed this chat to Level 3 - Research + Build.');
-    assert.doesNotMatch(changed, /Default/);
-    assert.doesNotMatch(changed, /Change it with/);
+    const confirmations = [
+      ['chat', 'Done - I changed this chat to Level 1 - Chat Only.'],
+      ['builder', 'Done - I changed this chat to Level 2 - Build When Asked.'],
+      ['agent', 'Done - I changed this chat to Level 3 - Research + Build.'],
+      ['developer', 'Done - I changed this chat to Level 4 - Full Access.']
+    ] as const;
+    for (const [profile, expected] of confirmations) {
+      const changed = renderSparkAccessChangeConfirmation(profile);
+      assert.equal(changed, expected);
+      assert.doesNotMatch(changed, /What each level means/);
+      assert.doesNotMatch(changed, /Change it with/);
+      assert.doesNotMatch(changed, /Default/);
+    }
 
     const help = renderSparkAccessConversationHelp('builder');
     assert.match(help, /currently Level 2 - Build When Asked/);
