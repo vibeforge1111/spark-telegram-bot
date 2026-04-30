@@ -7,6 +7,8 @@ const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
+type CreatorPrivacyMode = 'local_only' | 'github_pr' | 'swarm_shared';
+type CreatorRiskLevel = 'low' | 'medium' | 'high';
 
 interface RunGoalInput {
   goal: string;
@@ -23,6 +25,39 @@ interface RunGoalResult {
   missionId?: string;
   requestId?: string;
   providers?: string[];
+  error?: string;
+}
+
+interface CreatorMissionInput {
+  brief: string;
+  requestId?: string;
+  missionId?: string;
+  privacyMode?: CreatorPrivacyMode;
+  riskLevel?: CreatorRiskLevel;
+}
+
+interface CreatorIntentPacket {
+  target_domain?: string;
+  privacy_mode?: CreatorPrivacyMode;
+  risk_level?: CreatorRiskLevel;
+}
+
+interface CreatorMissionTrace {
+  mission_id?: string;
+  request_id?: string;
+  creator_mode?: string;
+  artifacts?: string[];
+  intent_packet?: CreatorIntentPacket;
+  links?: {
+    kanban?: string;
+  };
+}
+
+interface CreatorMissionResult {
+  success: boolean;
+  missionId?: string;
+  requestId?: string;
+  trace?: CreatorMissionTrace;
   error?: string;
 }
 
@@ -173,6 +208,44 @@ function formatLatestMission(entry: BoardEntry): string[] {
   return lines;
 }
 
+function spawnerPublicUrl(): string {
+  return (process.env.SPAWNER_UI_PUBLIC_URL || SPAWNER_UI_URL).replace(/\/+$/, '');
+}
+
+function creatorMissionKanbanUrl(missionId: string, baseUrl = spawnerPublicUrl()): string {
+  return `${baseUrl.replace(/\/+$/, '')}/kanban?mission=${encodeURIComponent(missionId)}`;
+}
+
+function formatCreatorMode(value: string | undefined): string {
+  return (value || 'unknown').replace(/_/g, ' ');
+}
+
+export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUrl = spawnerPublicUrl()): string {
+  if (!result.success) {
+    return `Creator mission failed: ${result.error || 'unknown error'}`;
+  }
+
+  const trace = result.trace || {};
+  const intent = trace.intent_packet || {};
+  const missionId = result.missionId || trace.mission_id || 'unknown';
+  const artifacts = Array.isArray(trace.artifacts) && trace.artifacts.length > 0
+    ? trace.artifacts.join(', ')
+    : 'none yet';
+  const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
+
+  return [
+    'Creator mission planned.',
+    '',
+    `Mission: ${missionId}`,
+    `Mode: ${formatCreatorMode(trace.creator_mode)}`,
+    `Domain: ${intent.target_domain || 'unknown'}`,
+    `Privacy: ${intent.privacy_mode || 'unknown'}`,
+    `Risk: ${intent.risk_level || 'unknown'}`,
+    `Artifacts: ${artifacts}`,
+    `Mission board: ${kanbanUrl}`
+  ].join('\n');
+}
+
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
@@ -207,6 +280,41 @@ export const spawner = {
         missionId: res.data?.missionId,
         requestId: res.data?.requestId,
         providers: Array.isArray(res.data?.providers) ? res.data.providers : []
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async creatorMission(input: CreatorMissionInput): Promise<CreatorMissionResult> {
+    try {
+      const res = await postLocalServiceWithRetry(
+        `${SPAWNER_UI_URL}/api/creator/mission`,
+        {
+          brief: input.brief,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          ...(input.missionId ? { missionId: input.missionId } : {}),
+          ...(input.privacyMode ? { privacyMode: input.privacyMode } : {}),
+          ...(input.riskLevel ? { riskLevel: input.riskLevel } : {})
+        },
+        localServiceTimeoutMs('SPARK_CREATOR_MISSION_TIMEOUT_MS')
+      );
+
+      if (res.data?.ok === false) {
+        return {
+          success: false,
+          error: res.data?.error || 'Creator mission was rejected.'
+        };
+      }
+
+      return {
+        success: Boolean(res.data?.ok),
+        missionId: res.data?.missionId,
+        requestId: res.data?.requestId,
+        trace: res.data?.trace
       };
     } catch (err: any) {
       return {

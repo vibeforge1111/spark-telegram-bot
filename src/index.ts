@@ -25,7 +25,7 @@ import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
-import { localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
+import { formatCreatorMissionSummary, localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import {
@@ -344,6 +344,7 @@ bot.start(async (ctx) => {
       'Spawner Control:',
       '/run <goal> - Start a mission in Spawner',
       '/board - Mission state report',
+      '/creator plan <brief> - Plan a creator mission for a chip/path/benchmark/autoloop',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -799,6 +800,105 @@ function missionBoardUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/kanban`;
 }
 
+type ParsedCreatorCommand = {
+  brief: string;
+  privacyMode?: 'local_only' | 'github_pr' | 'swarm_shared';
+  riskLevel?: 'low' | 'medium' | 'high';
+};
+
+const CREATOR_USAGE = [
+  'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
+  'Example: /creator plan private risk medium create a Startup YC benchmarked specialization path'
+].join('\n');
+
+function normalizeCreatorPrivacyMode(value: string): ParsedCreatorCommand['privacyMode'] | null {
+  const normalized = value.toLowerCase();
+  if (['private', 'local', 'local_only', 'local-only'].includes(normalized)) return 'local_only';
+  if (['github', 'github_pr', 'github-pr', 'pr'].includes(normalized)) return 'github_pr';
+  if (['swarm', 'shared', 'swarm_shared', 'swarm-shared'].includes(normalized)) return 'swarm_shared';
+  return null;
+}
+
+function normalizeCreatorRiskLevel(value: string): ParsedCreatorCommand['riskLevel'] | null {
+  const normalized = value.toLowerCase();
+  if (['low', 'medium', 'high'].includes(normalized)) {
+    return normalized as ParsedCreatorCommand['riskLevel'];
+  }
+  return null;
+}
+
+export function parseCreatorPlanCommand(raw: string): ParsedCreatorCommand | null {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  const action = parts.shift()?.toLowerCase();
+  if (action !== 'plan') return null;
+
+  let privacyMode: ParsedCreatorCommand['privacyMode'];
+  let riskLevel: ParsedCreatorCommand['riskLevel'];
+
+  while (parts.length > 0) {
+    const token = parts[0];
+    const lower = token.toLowerCase();
+
+    if (lower === '--') {
+      parts.shift();
+      break;
+    }
+
+    const privacyEquals = lower.match(/^--privacy(?:-mode)?=(.+)$/);
+    if (privacyEquals) {
+      const parsed = normalizeCreatorPrivacyMode(privacyEquals[1]);
+      if (!parsed) return null;
+      privacyMode = parsed;
+      parts.shift();
+      continue;
+    }
+
+    if (lower === '--privacy' || lower === '--privacy-mode' || lower === 'privacy') {
+      const parsed = parts[1] ? normalizeCreatorPrivacyMode(parts[1]) : null;
+      if (!parsed) return null;
+      privacyMode = parsed;
+      parts.splice(0, 2);
+      continue;
+    }
+
+    const riskEquals = lower.match(/^--risk(?:-level)?=(.+)$/);
+    if (riskEquals) {
+      const parsed = normalizeCreatorRiskLevel(riskEquals[1]);
+      if (!parsed) return null;
+      riskLevel = parsed;
+      parts.shift();
+      continue;
+    }
+
+    if (lower === '--risk' || lower === '--risk-level' || lower === 'risk') {
+      const parsed = parts[1] ? normalizeCreatorRiskLevel(parts[1]) : null;
+      if (!parsed) return null;
+      riskLevel = parsed;
+      parts.splice(0, 2);
+      continue;
+    }
+
+    const privacyAlias = normalizeCreatorPrivacyMode(token);
+    if (privacyAlias) {
+      privacyMode = privacyAlias;
+      parts.shift();
+      continue;
+    }
+
+    const riskAlias = normalizeCreatorRiskLevel(token);
+    if (riskAlias) {
+      riskLevel = riskAlias;
+      parts.shift();
+      continue;
+    }
+
+    break;
+  }
+
+  const brief = parts.join(' ').trim();
+  return brief ? { brief, privacyMode, riskLevel } : null;
+}
+
 export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
   return formatBuildClarificationReplyWithMicrocopy(projectName, questions, assumptions, null);
 }
@@ -1209,6 +1309,40 @@ bot.command('board', async (ctx) => {
   await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
 });
 
+bot.command('creator', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+
+  const parsed = parseCreatorPlanCommand(ctx.message.text.replace('/creator', '').trim());
+  if (!parsed) {
+    return ctx.reply(CREATOR_USAGE);
+  }
+
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+    return;
+  }
+
+  await safeSendChatAction(ctx, 'typing');
+  await ctx.reply('Planning creator mission through Spawner...');
+
+  const requestId = `tg-creator-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
+  const result = await spawner.creatorMission({
+    brief: parsed.brief,
+    requestId,
+    privacyMode: parsed.privacyMode,
+    riskLevel: parsed.riskLevel
+  });
+
+  await ctx.reply(formatCreatorMissionSummary(result));
+  if (result.success && result.missionId) {
+    await conversation.learnAboutUser(
+      ctx.from,
+      `Started creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
+    ).catch(() => {});
+  }
+});
+
 bot.command('chip', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -1461,11 +1595,11 @@ bot.command('mission', async (ctx) => {
   }
 
   if (missionId.includes('<') || missionId.includes('>')) {
-    return ctx.reply('Use the real mission ID from /run, for example: /mission status spark-1776768300668');
+    return ctx.reply('Use the real mission ID from /run or /creator, for example: /mission status spark-1776768300668');
   }
 
-  if (!/^spark-[A-Za-z0-9_-]+$/.test(missionId)) {
-    return ctx.reply('Use a real mission ID from /board, for example: /mission status spark-1776768300668');
+  if (!/^(?:spark|mission)-[A-Za-z0-9_-]+$/.test(missionId)) {
+    return ctx.reply('Use a real mission ID from /board, for example: /mission status spark-1776768300668 or /mission status mission-creator-1776768300668');
   }
 
   await safeSendChatAction(ctx, 'typing');

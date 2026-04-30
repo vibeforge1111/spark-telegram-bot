@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
-import { spawner } from '../src/spawner';
+import { formatCreatorMissionSummary, spawner } from '../src/spawner';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -127,6 +127,86 @@ async function run(): Promise<void> {
     assert.deepEqual(capturedBody.telegramRelay, { port: 8788, profile: 'primary' });
     assert.equal(capturedBody.providers, undefined);
     assert.equal(capturedBody.promptMode, undefined);
+  });
+
+  await test('creatorMission posts creator planning input to Spawner', async () => {
+    restoreAxios();
+
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    let capturedOptions: any = null;
+    (axios as any).post = async (url: string, body: unknown, options: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      capturedOptions = options;
+      return {
+        data: {
+          ok: true,
+          missionId: 'mission-creator-1',
+          requestId: 'tg-creator-1',
+          trace: {
+            mission_id: 'mission-creator-1',
+            request_id: 'tg-creator-1',
+            creator_mode: 'full_path',
+            artifacts: ['domain_chip', 'benchmark_pack'],
+            intent_packet: {
+              target_domain: 'Startup YC',
+              privacy_mode: 'local_only',
+              risk_level: 'medium'
+            }
+          }
+        }
+      };
+    };
+
+    const result = await spawner.creatorMission({
+      brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
+      requestId: 'tg-creator-1',
+      privacyMode: 'local_only',
+      riskLevel: 'medium'
+    });
+
+    assert.equal(result.success, true);
+    assert.equal(result.missionId, 'mission-creator-1');
+    assert.equal(result.requestId, 'tg-creator-1');
+    assert.match(capturedUrl, /\/api\/creator\/mission$/);
+    assert.deepEqual(capturedBody, {
+      brief: 'Create a Startup YC specialization path with benchmarked autoloop.',
+      requestId: 'tg-creator-1',
+      privacyMode: 'local_only',
+      riskLevel: 'medium'
+    });
+    assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('formatCreatorMissionSummary renders the creator mission packet for Telegram', async () => {
+    const message = formatCreatorMissionSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        requestId: 'tg-creator-1',
+        trace: {
+          mission_id: 'mission-creator-1',
+          creator_mode: 'full_path',
+          artifacts: ['domain_chip', 'benchmark_pack', 'autoloop_policy'],
+          intent_packet: {
+            target_domain: 'Startup YC',
+            privacy_mode: 'github_pr',
+            risk_level: 'high'
+          }
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /Creator mission planned/);
+    assert.match(message, /Mission: mission-creator-1/);
+    assert.match(message, /Mode: full path/);
+    assert.match(message, /Domain: Startup YC/);
+    assert.match(message, /Privacy: github_pr/);
+    assert.match(message, /Risk: high/);
+    assert.match(message, /Artifacts: domain_chip, benchmark_pack, autoloop_policy/);
+    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 
   await test('missionCommand formats provider status for Telegram', async () => {
