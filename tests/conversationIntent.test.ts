@@ -479,6 +479,10 @@ test('extracts explicit plain-chat memory directives', () => {
     extractPlainChatMemoryDirective('can you remember that you are a QA agent'),
     'you are a QA agent'
   );
+  assert.equal(
+    extractPlainChatMemoryDirective('Please remember this session test code word: aurora mango.'),
+    'this session test code word: aurora mango'
+  );
   assert.equal(extractPlainChatMemoryDirective('remember: my preferred reply style is concise'), 'my preferred reply style is concise');
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
