@@ -1579,14 +1579,13 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
   return true;
 }
 
-function answerFromRecentRememberDirective(text: string, frame: ConversationFrame): string | null {
+function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: string; text: string }>): string | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;
   }
 
-  const turns = [...frame.hotTurns].reverse();
-  for (const turn of turns) {
+  for (const turn of [...turns].reverse()) {
     if (turn.role !== 'user') continue;
     const directive = extractPlainChatMemoryDirective(turn.text);
     if (!directive) continue;
@@ -1696,7 +1695,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const recentRememberedAnswer = answerFromRecentRememberDirective(text, conversationFrame);
+  const recentRememberedAnswer = answerFromRememberTurns(text, [
+    ...conversationFrame.hotTurns.filter((turn) => turn.role === 'user' || turn.role === 'assistant'),
+    ...await conversation.getRecentTurns(user, 40)
+  ]);
   if (recentRememberedAnswer) {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(recentRememberedAnswer);

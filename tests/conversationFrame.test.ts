@@ -109,6 +109,28 @@ test('short action option references use newer list context instead of access co
   assert.equal(frame.referenceResolution.value, 'Memory Timeline Explorer');
 });
 
+test('short option references ignore assistant clarification question lists', () => {
+  const frame = buildConversationFrame('Let\'s do two', [
+    {
+      role: 'user',
+      text: 'I am choosing between: 1. recall audit board 2. memory timeline explorer 3. live stress-test panel'
+    },
+    {
+      role: 'assistant',
+      text: [
+        'Memory Timeline Explorer. Good pick.',
+        '',
+        'Before I spec it out:',
+        '1. Panel inside Spawner UI, or standalone page?',
+        '2. Just visualization for now, or do you want interaction like clicking a memory to see its full history chain?'
+      ].join('\n')
+    }
+  ]);
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'memory timeline explorer');
+});
+
 test('access shorthand still works when no list reference is present', () => {
   const frame = buildConversationFrame('Actually make it four', [
     { role: 'user', text: 'Change my access level to three please' },
