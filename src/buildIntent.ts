@@ -66,7 +66,7 @@ function inferProjectName(prd: string, projectPath: string | null): string {
 }
 
 function extractPath(text: string): string | null {
-  const atMatch = text.match(/(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/)[^\n:]*?)(?:\s*[:,]|\s*$)/i);
+  const atMatch = text.match(/(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/)[^\n:]*?)(?:\s*[:,]|\.\s*(?:\n|$)|\s*$)/i);
   if (atMatch) {
     const candidate = normalizePathForPlatform(atMatch[1]);
     if (isInsideWorkspace(candidate)) {
@@ -107,7 +107,7 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
-  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
       reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
@@ -139,13 +139,14 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
 
 function normalizeBuildCommandText(text: string): string {
   return text
+    .replace(/^\s*(?:hey|hi|hello|yo)\s+spark[,!.]?\s*/i, '')
     .replace(/^\s*(?:use\s+)?advanced\s+prd\s+mode\.?\s*/i, '')
     .replace(/^\s*(?:use\s+)?direct\s+(?:build\s+)?mode\.?\s*/i, '')
     .trim();
 }
 
 export function parseBuildIntent(text: string): BuildIntent | null {
-  const original = text.trim();
+  const original = text.trim().replace(/[‘’]/g, "'");
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
 

@@ -157,6 +157,23 @@ The bet: most founders already have the raw material. They just need it compress
   assert.doesNotMatch(intent.projectName, /^A narrow tool that takes/i);
 });
 
+test('parses Telegram-style greeting with curly apostrophe and mission link preferences', () => {
+  const intent = parseBuildIntent(`Hey Spark, let’s build a real project called Founder Signal Room.
+
+Build it at C:\\Users\\USER\\Desktop\\founder-signal-room.
+
+I want this to be a private, local-first dashboard for founders who collect messy notes during the week and need those notes turned into a living operating picture.
+
+Mission preferences:
+Send concise Telegram updates only when planning is ready, a meaningful step starts or finishes, and when the project ships. Include the Mission board first, then send the project canvas link once it is ready.`);
+
+  assert.ok(intent);
+  assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\founder-signal-room');
+  assert.equal(intent.projectName, 'Founder Signal Room');
+  assert.equal(intent.buildMode, 'advanced_prd');
+  assert.match(intent.prd, /living operating picture/);
+});
+
 test('build intent wins even when a Spawner board paste is included below the prompt', () => {
   const intent = parseBuildIntent(`Build this at C:\\Users\\USER\\Desktop\\spark-telegram-live-mission: a vanilla-JS static app called Spark Telegram Live Mission. Files: index.html, styles.css, app.js, README.md. No build step.
 
