@@ -401,6 +401,11 @@ function requestIdFromEvent(event: DeliverableRelayEvent): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function missionStartLinkPreference(preference: TelegramMissionLinkPreference): TelegramMissionLinkPreference {
+  if (preference === 'none') return 'none';
+  return 'board';
+}
+
 function findMissionInBoard(board: Record<string, unknown>, missionId: string): MissionBoardEntry | null {
   for (const [status, value] of Object.entries(board)) {
     if (!Array.isArray(value)) continue;
@@ -955,7 +960,15 @@ export function formatProgressMessageForTelegram(
   if (!shouldDeliverProgressEvent(event, verbosity)) return null;
   const taskLabel = clipText(event.taskName || event.taskId || 'task', 120);
   const message = event.message || summary || '';
-  const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
+  const effectiveLinkPreference = event.type === 'mission_started'
+    ? missionStartLinkPreference(linkPreference)
+    : linkPreference;
+  const links = buildMissionSurfaceLinks(
+    event.missionId,
+    effectiveLinkPreference,
+    undefined,
+    event.type === 'mission_started' ? null : requestIdFromEvent(event)
+  );
 
   switch (event.type) {
     case 'mission_created':
@@ -963,6 +976,8 @@ export function formatProgressMessageForTelegram(
     case 'mission_started':
       return compactTelegramBlocks(
         voiceLine('missionStarted', `${event.missionId}:started`),
+        'Planning has started. The Mission board is live now.',
+        'I will send the canvas link once the PRD and canvas are ready.',
         verbosity === 'normal' ? 'I will only ping when something useful changes.' : null,
         missionReferenceLines(event.missionId, links).join('\n')
       );

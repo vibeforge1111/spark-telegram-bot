@@ -392,6 +392,13 @@ test('keeps local numbered-option follow-ups in conversation', () => {
 
   assert.equal(hasLocalOptionReference(prompt), true);
   assert.equal(hasLocalOptionReference('The second'), true);
+  assert.equal(hasLocalOptionReference('option two'), true);
+  assert.equal(hasLocalOptionReference('go with the 3rd path'), true);
+  assert.equal(hasLocalOptionReference('the first one'), true);
+  assert.equal(hasLocalOptionReference('the last one'), true);
+  assert.equal(hasLocalOptionReference('I would take the final path'), true);
+  assert.equal(hasLocalOptionReference('the latter'), true);
+  assert.equal(hasLocalOptionReference('that option'), true);
   assert.equal(hasLocalOptionReference('let us build a page where the first screen should show the dashboard'), false);
   assert.equal(shouldPreferConversationalIdeation(prompt), true);
   assert.equal(inferMissionGoalFromRecentContext(prompt, [
@@ -436,6 +443,7 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply('Spark Researcher returned no concrete guidance for this message.'), true);
   assert.equal(isLowInformationLlmReply('What would you like help with?'), true);
   assert.equal(isLowInformationLlmReply('Nothing active'), true);
+  assert.equal(isLowInformationLlmReply('No prior list or options to match "the second" against in this conversation.'), true);
   assert.equal(isLowInformationLlmReply(
     "I caught 'chip' in there but I'm not sure what you want.\n\nOptions I can actually do:\n- Run a loop on a specific chip (say 'loop <chip-key>')\n- List active chips (say 'which chips are active')"
   ), true);

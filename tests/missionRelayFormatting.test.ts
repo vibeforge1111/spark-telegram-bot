@@ -223,8 +223,11 @@ test('mission start update links the mission once through kanban', () => {
   );
 
   assert.match(message || '', /(?:Spark is on it|The run is moving|Spark picked it up|We are underway)\./);
+  assert.match(message || '', /Planning has started/);
+  assert.match(message || '', /canvas link once the PRD and canvas are ready/);
   assert.match(message || '', /only ping when something useful changes/);
   assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
+  assert.doesNotMatch(message || '', /Canvas:/);
   assert.doesNotMatch(message || '', /\/missions/);
 });
 
@@ -248,6 +251,10 @@ test('verbose mission start does not paste the whole build brief', () => {
   );
 
   assert.match(message || '', /(?:Spark is on it|The run is moving|Spark picked it up|We are underway)\./);
+  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
+  assert.match(message || '', /canvas link once the PRD and canvas are ready/);
+  assert.doesNotMatch(message || '', /Canvas:/);
+  assert.doesNotMatch(message || '', /prd-tg-build-1/);
   assert.doesNotMatch(message || '', /Build this at/);
   assert.doesNotMatch(message || '', /Target operating-system folder/);
 });

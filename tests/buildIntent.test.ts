@@ -141,6 +141,22 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(intent, null);
 });
 
+test('infers a compact product name for long conceptual build briefs', () => {
+  const intent = parseBuildIntent(`Let's build this A narrow tool that takes a founder's messy weekly notes - half-written thoughts, customer quotes, random metrics, meeting takeaways - and turns them into a running strategy document that actually stays current.
+
+The problem I keep seeing: founders do the thinking but lose it. They write something sharp in a notebook or a voice memo, then it's buried. The strategic picture in their head is always richer than anything written down. By the time they need it - for a board meeting, a hire, a pivot decision - they're reconstructing from memory instead of building on what they already figured out.
+
+What I'd want: something that sits underneath their existing note-taking habit, pulls the strategic signal out of the noise, and maintains a living document that reflects what they actually know and believe about their business right now. Not a summary. A sharp, current, usable operating picture.
+
+The bet: most founders already have the raw material. They just need it compressed and kept live.`);
+
+  assert.ok(intent);
+  assert.equal(intent.projectPath, null);
+  assert.equal(intent.projectName, 'Founder Strategy Ledger');
+  assert.equal(intent.buildMode, 'advanced_prd');
+  assert.doesNotMatch(intent.projectName, /^A narrow tool that takes/i);
+});
+
 test('build intent wins even when a Spawner board paste is included below the prompt', () => {
   const intent = parseBuildIntent(`Build this at C:\\Users\\USER\\Desktop\\spark-telegram-live-mission: a vanilla-JS static app called Spark Telegram Live Mission. Files: index.html, styles.css, app.js, README.md. No build step.
 

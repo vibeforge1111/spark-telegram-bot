@@ -184,8 +184,11 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   if (
     lower.includes('builder bridge') ||
     lower.includes('spark_builder') ||
+    lower.includes('spark_intelligence') ||
+    lower.includes('spark-intelligence-builder') ||
     lower.includes('builder home') ||
     lower.includes('memory bridge') ||
+    lower.includes('simulate-telegram-update') ||
     context === 'memory' ||
     context === 'builder'
   ) {
@@ -268,7 +271,8 @@ export function renderSparkErrorReply(
       : 'Please ask the operator to run /diagnose and check the repair hint.'
   ];
   if (isAdmin) {
-    lines.push(`Still stuck: ${doctorCommand(explanation.category, context)}`);
+    const doctorContext = explanation.category === 'builder_or_memory' ? 'builder' : context;
+    lines.push(`Still stuck: ${doctorCommand(explanation.category, doctorContext)}`);
     lines.push('That uses your configured LLM, redacts sensitive data, and creates a local upstream PR draft only if you review/share it.');
   }
   return lines.join('\n\n');

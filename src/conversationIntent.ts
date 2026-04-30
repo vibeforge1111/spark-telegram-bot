@@ -28,9 +28,12 @@ const HARD_EXECUTION_PATTERNS = [
 ];
 
 const LOCAL_OPTION_REFERENCE_PATTERNS = [
-  /\b(?:no\.?|number|option|#)\s*[1-9]\d*\b/i,
-  /^(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s*(?:one|option|idea|direction|item)?[.!?]*$/i,
-  /\b(?:go\s+with|pick|choose|take|use|do|prefer|like|want)\s+(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s*(?:one|option|idea|direction|item)?\b/i
+  /\b(?:no\.?|number|option|#)\s*(?:[1-9]\d*|one|two|three|four|five|six|seven|eight|nine|ten)\b/i,
+  /^(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(?:\s+(?:one|option|idea|direction|item|path))?[.!?]*$/i,
+  /^(?:the\s+)?(?:last|final|latter)[.!?]*$/i,
+  /\b(?:go\s+with|pick|choose|take|use|do|prefer|like|want|would\s+take)\s+(?:the\s+)?(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|[1-9]\d*(?:st|nd|rd|th)?|last|final|latter)\s*(?:one|option|idea|direction|item|path)?\b/i,
+  /\b(?:the\s+)?(?:last|final|latter)\s+(?:one|option|idea|direction|item|path)\b/i,
+  /\bthat\s+option\b/i
 ];
 
 export function hasLocalOptionReference(text: string): boolean {
@@ -391,6 +394,123 @@ export function isDiagnosticsScanRequest(text: string): boolean {
   );
 }
 
+export function isAccessStatusQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
+
+  if (/\b(?:set|change|raise|lower|switch|update|make)\b.*\baccess\b/.test(normalized)) {
+    return false;
+  }
+
+  return (
+    /\bwhat'?s\s+(?:my|this\s+chat'?s|our)?\s*(?:spark\s+)?access\s+(?:level|profile|status)\b/.test(normalized) ||
+    /\b(?:what|which)\s+(?:is|are|'?s)?\s*(?:my|this\s+chat'?s|our)?\s*spark\s+access\s+(?:level|profile|status)\b/.test(normalized) ||
+    /\b(?:what|which)\s+(?:access\s+)?level\s+(?:am\s+i|are\s+we|is\s+this\s+chat)\s+(?:on|at|using)\b/.test(normalized) ||
+    /\b(?:show|tell|check|view|see)\s+(?:me\s+)?(?:my|this\s+chat'?s|our)?\s*spark\s+access\s+(?:level|profile|status)\b/.test(normalized) ||
+    /\b(?:show|tell|check|view|see)\s+(?:me\s+)?(?:my|this\s+chat'?s|our)?\s*access\s+level\b/.test(normalized) ||
+    /\b(?:my|this\s+chat'?s|our)\s+access\s+(?:level|profile|status)\b/.test(normalized) ||
+    /\bcurrent\s+spark\s+access\b/.test(normalized)
+  );
+}
+
+export function parseNaturalAccessChangeIntent(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const lower = normalized.toLowerCase();
+  if (!lower || isExplicitMemoryWriteLikeRequest(lower)) {
+    return null;
+  }
+
+  const hasAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\blevel\s+[1-4]\b|\bfull\s+access\b/i.test(normalized);
+  const hasChangeVerb = /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade|make|put|move)\b/i.test(normalized);
+  if (!hasAccessTarget || !hasChangeVerb) {
+    return null;
+  }
+
+  const valuePatterns = [
+    /\b(?:to|as|at|on|into)\s+(?:spark\s+)?(?:access\s+)?(?:level\s*)?([1-4])\b/i,
+    /\b(?:to|as|at|on|into)\s+(?:spark\s+)?(?:access\s+)?(?:level\s*)?(one|two|three|four)\b/i,
+    /\b(?:to|as|into)\s+((?:chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|full\s+access|full|developer|agent|builder|chat))\b/i,
+    /\b(?:access\s+)?(?:level\s*)?([1-4])\b/i,
+    /\b(?:access\s+)?(?:level\s*)?(one|two|three|four)\b/i,
+    /\b(chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|full\s+access|full|developer|agent|builder)\b/i
+  ];
+
+  for (const pattern of valuePatterns) {
+    const match = normalized.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) {
+      const numberWords: Record<string, string> = { one: '1', two: '2', three: '3', four: '4' };
+      return numberWords[value.toLowerCase()] || value;
+    }
+  }
+
+  return null;
+}
+
+export type RecentConversationFocus = 'access' | null;
+
+export function inferRecentConversationFocus(recentMessages: string[]): RecentConversationFocus {
+  const hasAccessFocus = recentMessages
+    .slice(-6)
+    .some((message) => {
+      const normalized = message.toLowerCase();
+      return (
+        /\bspark access\b/.test(normalized) ||
+        /\baccess\s+(?:level|levels|profile|profiles)\b/.test(normalized) ||
+        /\bchanged this chat to level [1-4]\b/.test(normalized) ||
+        /\byou are on level [1-4]\b/.test(normalized)
+      );
+    });
+  return hasAccessFocus ? 'access' : null;
+}
+
+export function hasRecentAccessConversation(recentMessages: string[]): boolean {
+  return inferRecentConversationFocus(recentMessages) === 'access';
+}
+
+export function parseContextualAccessChangeIntent(text: string, recentMessages: string[]): string | null {
+  if (inferRecentConversationFocus(recentMessages) !== 'access') {
+    return null;
+  }
+
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const lower = normalized.toLowerCase();
+  if (!lower || isExplicitMemoryWriteLikeRequest(lower)) {
+    return null;
+  }
+
+  const contextualChange =
+    /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade|make|put|move)\s+(?:it|that|this|me|us|the\s+chat)\b/i.test(normalized) ||
+    /^(?:actually\s+|instead\s+|no[, ]*)?(?:do|make|set|switch|use|go\s+to|go\s+with)\s+(?:it\s+)?(?:to\s+|as\s+|at\s+)?(?:level\s+)?(?:[1-4]|one|two|three|four)\b/i.test(normalized) ||
+    /^(?:actually\s+|instead\s+|no[, ]*)?(?:level\s+)?(?:[1-4]|one|two|three|four)\b/i.test(normalized);
+  if (!contextualChange) {
+    return null;
+  }
+
+  return parseNaturalAccessChangeIntent(`change access ${normalized}`);
+}
+
+export function isAccessHelpQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
+
+  const mentionsAccess =
+    /\b(?:spark\s+)?access\s+(?:level|levels|profile|profiles|tier|tiers|system)\b/.test(normalized) ||
+    /\bpermission\s+(?:level|levels|management|surface|system)\b/.test(normalized) ||
+    /\bwhat\s+can\s+i\s+(?:unlock|do)\b.*\baccess\b/.test(normalized) ||
+    /\baccess\b.*\b(?:unlock|allow|permission|permissions)\b/.test(normalized);
+  if (!mentionsAccess) return false;
+
+  return (
+    /\b(?:is|are|does|do|can|could|would|how|what|which|where|why)\b/.test(normalized) ||
+    /\b(?:unlock|allow|permission|permissions|tier|tiers|level|levels|management|surface|system)\b/.test(normalized)
+  );
+}
+
 function isExplicitMemoryWriteLikeRequest(normalized: string): boolean {
   return (
     /^memory\s+update\s*:/.test(normalized) ||
@@ -561,6 +681,8 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized === "i'm having trouble thinking right now. try again in a moment." ||
     normalized.includes('working memory') ||
     normalized.includes('returned no concrete guidance') ||
+    normalized.includes('access is not authorized for this channel') ||
+    normalized.includes('no prior list or options to match') ||
     normalized.includes('what would you like help with') ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking') ||

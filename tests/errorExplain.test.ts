@@ -50,6 +50,19 @@ test('does not mislabel Telegram handler timeouts as Telegram config', () => {
   assert.doesNotMatch(reply, /Telegram configuration problem/);
 });
 
+test('does not mislabel Builder command failures as Telegram config', () => {
+  const reply = renderSparkErrorReply(
+    new Error('Command failed: C:\\Python313\\python.exe -c import runpy, sys; sys.path.insert(0, sys.argv[1]); sys.argv = ["spark_intelligence.cli", *sys.argv[2:]]; runpy.run_module("spark_intelligence.cli", run_name="__main__") C:\\Users\\USER\\.spark\\modules\\spark-intelligence-builder\\source\\src gateway simulate-telegram-update update.json --home C:\\Users\\USER\\.spark\\state\\spark-intelligence --origin telegram-runtime --json'),
+    'telegram',
+    true
+  );
+
+  assert.match(reply, /Builder memory path/);
+  assert.match(reply, /Spark builder failure: builder_or_memory/);
+  assert.doesNotMatch(reply, /Telegram configuration problem/);
+  assert.doesNotMatch(reply, /Spark telegram failure: telegram_config/);
+});
+
 test('explains command timeouts in chat as runtime timeouts', () => {
   const explanation = explainSparkError(new Error('command timed out after 120000ms'), 'chat');
 
