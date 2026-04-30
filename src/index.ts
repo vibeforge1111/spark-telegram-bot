@@ -103,6 +103,7 @@ import {
   switchModelRoute
 } from './modelSwitch';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
+import { isTelegramImageMessage, telegramImageMemoryText } from './telegramImageBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -1838,6 +1839,50 @@ bot.on(message('text'), async (ctx) => {
     }).catch(() => {});
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
+});
+
+async function handleImageMessage(ctx: any): Promise<void> {
+  const user = ctx.from;
+  const imageMemoryText = telegramImageMemoryText(ctx.message);
+
+  await conversation.remember(user, imageMemoryText).catch(() => {});
+  await safeSendChatAction(ctx, 'typing');
+
+  try {
+    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(`[ImageBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
+
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText) {
+      await ctx.reply(builderReply.responseText);
+      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      return;
+    }
+
+    const fallback = 'I received the image, but Spark did not return an image analysis. Run `/diagnose`, then ask the operator to run `spark-intelligence auth verify-image-input --live --json`.';
+    await ctx.reply(fallback);
+    await conversation.recordInterruptedTask(user, {
+      message: imageMemoryText,
+      failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
+      stage: 'telegram_image_handler'
+    }).catch(() => {});
+  } catch (err) {
+    console.error('Image handling error:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    await conversation.recordInterruptedTask(user, {
+      message: imageMemoryText,
+      failure: detail,
+      stage: 'telegram_image_handler'
+    }).catch(() => {});
+    await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
+  }
+}
+
+bot.on(message('photo'), handleImageMessage);
+bot.on(message('document'), async (ctx) => {
+  if (!isTelegramImageMessage(ctx.message)) {
+    return;
+  }
+  await handleImageMessage(ctx);
 });
 
 // Graceful shutdown
