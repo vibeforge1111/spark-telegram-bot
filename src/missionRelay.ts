@@ -82,6 +82,7 @@ interface MissionBoardEntry {
 const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
+const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number }>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
@@ -786,6 +787,18 @@ function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
   const number = taskNumberFromEvent(event);
   const taskLabel = cleanTaskLabel(event.taskName || event.taskId || 'Next build step');
   const seed = `${event.missionId}:${event.taskId || event.taskName || taskLabel}`;
+  const assignedTaskCount = typeof event.data?.assignedTaskCount === 'number'
+    ? event.data.assignedTaskCount
+    : Array.isArray(event.data?.assignedTaskIds)
+      ? event.data.assignedTaskIds.length
+      : 0;
+  if (assignedTaskCount > 1) {
+    return compactTelegramBlocks(
+      number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
+      taskLabel,
+      `Spark is working through ${assignedTaskCount} build steps. I will send the next note when a step finishes or the focus changes.`
+    );
+  }
   return [
     number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
     taskLabel
@@ -1011,8 +1024,17 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
   const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
   const now = Date.now();
+  const openTaskKey = `${event.missionId}:${providerKey}`;
+  if (event.type === 'task_completed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
+    openTaskStartCache.delete(openTaskKey);
+  }
   if (event.type === 'task_started') {
     const taskKey = cleanTaskLabel(event.taskName || event.taskId || 'task').toLowerCase();
+    const openTask = openTaskStartCache.get(openTaskKey);
+    if (openTask && openTask.taskKey !== taskKey && now - openTask.timestamp < 10 * 60_000) {
+      return true;
+    }
+    openTaskStartCache.set(openTaskKey, { taskKey, timestamp: now });
     const taskSignature = `${event.missionId}:${event.type}:${taskKey}:${providerKey}`;
     const previousTask = deliveryCache.get(taskSignature);
     if (typeof previousTask === 'number' && now - previousTask < 5 * 60_000) {
@@ -1036,6 +1058,15 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   }
 
   return false;
+}
+
+export function shouldSkipDuplicateForTests(event: DeliverableRelayEvent): boolean {
+  return shouldSkipDuplicate(event);
+}
+
+export function resetMissionRelayDeliveryStateForTests(): void {
+  deliveryCache.clear();
+  openTaskStartCache.clear();
 }
 
 function heartbeatKey(event: DeliverableRelayEvent): string {

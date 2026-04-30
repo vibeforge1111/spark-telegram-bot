@@ -8,7 +8,9 @@ import {
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
+  resetMissionRelayDeliveryStateForTests,
   shouldAcceptRelayEventForThisBot,
+  shouldSkipDuplicateForTests,
   shouldStopMissionHeartbeat
 } from '../src/missionRelay';
 
@@ -323,6 +325,93 @@ test('normal verbosity announces task starts but suppresses noisy progress', () 
   assert.match(started || '', /(?:Step(?: \d+)? (?:started|is moving|is underway)|Now working on step)/);
   assert.match(started || '', /Create static shell/);
   assert.equal(noisyProgress, null);
+});
+
+test('task pack starts explain the batch without announcing every future step', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_started',
+      missionId: 'spark-pack',
+      taskId: 'task-1-shell',
+      taskName: 'Create the project shell',
+      source: 'codex',
+      data: {
+        provider: 'codex',
+        assignedTaskIds: ['task-1-shell', 'task-2-scene', 'task-3-controls', 'task-4-docs'],
+        assignedTaskCount: 4
+      }
+    },
+    {
+      missionId: 'spark-pack',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-pack',
+      goal: 'Build a sprite creator.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Create the project shell/);
+  assert.match(message || '', /working through 4 build steps/);
+  assert.doesNotMatch(message || '', /task-2-scene/);
+});
+
+test('suppresses same-provider task start bursts until a task finishes', () => {
+  resetMissionRelayDeliveryStateForTests();
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_started',
+    missionId: 'spark-burst',
+    taskName: 'Plan the build',
+    source: 'codex',
+    data: { provider: 'codex' }
+  }), false);
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_started',
+    missionId: 'spark-burst',
+    taskName: 'Build the UI',
+    source: 'codex',
+    data: { provider: 'codex' }
+  }), true);
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_completed',
+    missionId: 'spark-burst',
+    taskName: 'Plan the build',
+    source: 'codex',
+    data: { provider: 'codex' }
+  }), false);
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_started',
+    missionId: 'spark-burst',
+    taskName: 'Build the UI',
+    source: 'codex',
+    data: { provider: 'codex' }
+  }), false);
+});
+
+test('allows different providers to start different tasks in parallel', () => {
+  resetMissionRelayDeliveryStateForTests();
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_started',
+    missionId: 'spark-parallel',
+    taskName: 'Build frontend',
+    source: 'codex',
+    data: { provider: 'codex' }
+  }), false);
+
+  assert.equal(shouldSkipDuplicateForTests({
+    type: 'task_started',
+    missionId: 'spark-parallel',
+    taskName: 'Build backend',
+    source: 'claude',
+    data: { provider: 'claude' }
+  }), false);
 });
 
 test('task start labels are human-readable instead of node slugs', () => {
