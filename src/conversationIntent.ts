@@ -1,3 +1,5 @@
+import { parseBuildIntent } from './buildIntent';
+
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
   /\bhelp\s+me\s+(?:design|plan|scope)\b/i,
@@ -282,6 +284,10 @@ export function isAmbiguousLocalSparkServiceRequest(text: string, context: strin
 }
 
 export function isLocalSparkServiceRequest(text: string, context: string = ''): boolean {
+  if (parseBuildIntent(text)) {
+    return false;
+  }
+
   const normalized = text.trim().toLowerCase();
   if (shouldPreferConversationalIdeation(text)) {
     return false;
@@ -342,6 +348,9 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   if (shouldPreferConversationalIdeation(text)) return null;
   if (isProjectLocalhostRequest(normalized)) {
     return 'latest_project_preview';
+  }
+  if (/\b(?:link|url|open|browser|where|localhost)\b/.test(normalized) && isLocalSparkServiceRequest(text, '')) {
+    return null;
   }
 
   if (
@@ -617,20 +626,73 @@ export interface MissionUpdatePreferenceIntent {
   links?: 'none' | 'board' | 'canvas' | 'both';
 }
 
-export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string[]): string {
-  return ['Saved your mission update preference.', ...detailLines.filter((line) => line.trim())].join('\n\n');
+function humanizeMissionPreferenceLine(line: string): string {
+  const trimmed = line.trim();
+  const update = trimmed.match(/^Updates:\s*(minimal|normal|verbose)\s*-/i)?.[1]?.toLowerCase();
+  if (update === 'minimal') {
+    return 'Updates will stay quiet: mission start, finish, and failures only.';
+  }
+  if (update === 'normal') {
+    return 'Updates will stay balanced: starts, meaningful step changes, results, and failures.';
+  }
+  if (update === 'verbose') {
+    return 'Updates will be more detailed: step starts, useful progress notes, completions, and failures.';
+  }
+
+  const links = trimmed.match(/^Links:\s*(none|board|canvas|both)\s*-/i)?.[1]?.toLowerCase();
+  if (links === 'none') {
+    return 'I will keep mission updates in Telegram without Spawner links.';
+  }
+  if (links === 'board') {
+    return 'I will include the Mission board link when a mission is active.';
+  }
+  if (links === 'canvas') {
+    return 'I will include the project canvas link when it is ready.';
+  }
+  if (links === 'both') {
+    return 'I will include both the Mission board and project canvas links.';
+  }
+
+  return trimmed;
 }
 
-export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {
-  if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
+export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string[]): string {
+  const details = detailLines
+    .map(humanizeMissionPreferenceLine)
+    .filter((line) => line.trim());
+
+  return ['Done, I updated how I narrate missions.', ...details].join('\n\n');
+}
+
+function hasMissionExecutionLanguage(normalized: string): boolean {
+  return (
+    /\b(?:build|create|make|ship|scaffold|generate|implement|code|develop)\b/.test(normalized) ||
+    /\b(?:start|run|launch|kick\s+off|spin\s+up)\s+(?:the\s+)?(?:mission|run|build|project|canvas|workflow|it|this)\b/.test(normalized) ||
+    /\b(?:go|do\s+it|let'?s\s+go|go\s+now|start\s+now|run\s+now)\b/.test(normalized)
+  );
+}
+
+export function parseMissionUpdatePreferenceIntent(
+  text: string,
+  options: { allowExecutionLanguage?: boolean } = {}
+): MissionUpdatePreferenceIntent | null {
+  if (!options.allowExecutionLanguage && HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(text))) {
     return null;
   }
 
   const normalized = text.trim().toLowerCase();
+  if (!options.allowExecutionLanguage && hasMissionExecutionLanguage(normalized)) {
+    return null;
+  }
   if (!/\b(?:mission|missions|spawner|canvas|board|kanban|telegram|updates?|notify|notifications?|links?)\b/.test(normalized)) {
     return null;
   }
-  if (!/\b(?:updates?|notify|notifications?|links?|send|include|without|verbose|detailed|minimal|quiet|normal|standard|telegram only|start and end|start\s*\/\s*end)\b/.test(normalized)) {
+  const hasExplicitPreferenceAction =
+    /\b(?:updates?|notify|notifications?|links?|send|include|without|verbose|detailed|minimal|quiet|normal|standard|telegram only|start and end|start\s*\/\s*end)\b/.test(normalized);
+  const hasBoardAndCanvasPair =
+    /\b(?:board|kanban)\b.*\bcanvas\b/.test(normalized) ||
+    /\bcanvas\b.*\b(?:board|kanban)\b/.test(normalized);
+  if (!hasExplicitPreferenceAction && !(options.allowExecutionLanguage && hasBoardAndCanvasPair)) {
     return null;
   }
 
@@ -647,7 +709,7 @@ export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdateP
     intent.links = 'none';
   } else if (/\b(?:(?:board|kanban)\s+and\s+canvas|canvas\s+and\s+(?:board|kanban)|both links?|both)\b/.test(normalized)) {
     intent.links = 'both';
-  } else if (/\b(?:canvas link|include canvas|show canvas|open canvas|canvas too)\b/.test(normalized)) {
+  } else if (/\b(?:canvas links?|include canvas|show canvas|open canvas|canvas too)\b/.test(normalized)) {
     intent.links = 'canvas';
   } else if (/\b(?:mission board link|board link|kanban link|include board|include kanban|show board|show kanban|spawner link|mission control link)\b/.test(normalized)) {
     intent.links = 'board';
@@ -699,6 +761,10 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
     normalized.includes('no prior list or options to match') ||
+    normalized.includes('two of what') ||
+    normalized.includes("don't have a list") ||
+    normalized.includes('do not have a list') ||
+    normalized.includes('no list in front') ||
     (
       normalized.includes("i caught 'mission'") &&
       normalized.includes('show the mission board') &&

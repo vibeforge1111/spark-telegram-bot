@@ -362,6 +362,7 @@ bot.start(async (ctx) => {
       '/creator run <missionId> - Execute a planned creator mission',
       '/creator status <missionId> - Show creator mission readiness and validation state',
       '/creator validate <missionId> [maxCommands] - Run creator validation gates',
+      '/workspaces - Show local project folders',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -431,6 +432,28 @@ bot.command('context', async (ctx) => {
   const report = await conversation.getConversationFrameDiagnostics(ctx.from);
   await ctx.reply(report);
 });
+
+async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, 'operating_system')) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
+    return;
+  }
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const summary = await summarizeLocalWorkspaces();
+    const reply = renderLocalWorkspaceInspectionReply(summary);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    await ctx.reply(`Local workspace inspection failed: ${detail}`);
+  }
+}
+
+bot.command('workspaces', handleLocalWorkspaceInventory);
+bot.command('workspace', handleLocalWorkspaceInventory);
 
 // /myid command - get your secure Telegram ID (for admin setup)
 bot.command('myid', async (ctx) => {
@@ -1779,7 +1802,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
-  const naturalAccessChange = parseNaturalAccessChangeIntent(text);
+  const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
+  const naturalAccessChange = earlyBuildIntent ? null : parseNaturalAccessChangeIntent(text);
   if (naturalAccessChange) {
     await conversation.remember(user, text).catch(() => {});
     await handleAccessChangeRequest(ctx, naturalAccessChange);
@@ -1788,7 +1812,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   const conversationFrame = await conversation.getConversationFrame(user, text);
   let conversationFrameContext = renderConversationFrameContext(conversationFrame, 12_000);
-  const frameAccessChange = conversationFrame.referenceResolution.kind === 'access_level'
+  const frameAccessChange = !earlyBuildIntent && conversationFrame.referenceResolution.kind === 'access_level'
     ? conversationFrame.referenceResolution.value
     : null;
   if (frameAccessChange) {
@@ -1798,7 +1822,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const recentAccessMessages = await conversation.getRecentMessages(user, 6);
-  const contextualAccessChange = conversationFrame.referenceResolution.kind === 'list_item'
+  const contextualAccessChange = earlyBuildIntent || conversationFrame.referenceResolution.kind === 'list_item'
     ? null
     : parseContextualAccessChangeIntent(text, recentAccessMessages);
   if (contextualAccessChange) {
@@ -1807,7 +1831,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (isAccessStatusQuestion(text)) {
+  if (!earlyBuildIntent && isAccessStatusQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessBriefStatus(accessProfile);
@@ -1816,7 +1840,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (isAccessHelpQuestion(text)) {
+  if (!earlyBuildIntent && isAccessHelpQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessConversationHelp(accessProfile);
@@ -1824,7 +1848,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
-
   const recentRememberedAnswer = answerFromRememberTurns(text, [
     ...conversationFrame.hotTurns.filter((turn) => turn.role === 'user' || turn.role === 'assistant'),
     ...await conversation.getRecentTurns(user, 40)
@@ -1863,7 +1886,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
-    const buildIntent = parseBuildIntent(text);
+    const buildIntent = earlyBuildIntent;
 
     if (isLocalWorkspaceInspectionOnlyRequest(text)) {
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
@@ -1906,6 +1929,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // actual project briefs.
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      const accessPreference = parseNaturalAccessChangeIntent(text);
+      const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
+      if (normalizedAccessPreference) {
+        await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
+      }
+      const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
+      if (buildPreference?.verbosity) {
+        await setTelegramRelayVerbosity(ctx.chat.id, buildPreference.verbosity);
+      }
+      if (buildPreference?.links) {
+        await setTelegramMissionLinkPreference(ctx.chat.id, buildPreference.links);
+      }
       await handleBuildIntent(
         ctx,
         buildIntent.prd,

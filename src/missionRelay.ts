@@ -82,6 +82,7 @@ interface MissionBoardEntry {
 const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
+const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number }>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
@@ -90,6 +91,7 @@ let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
 const RELAY_RATE_LIMIT_MAX_REQUESTS = 240;
 const relayRateLimits = new Map<string, { startedAt: number; count: number }>();
+const DEFAULT_HEARTBEAT_STALE_MS = 35 * 60_000;
 
 function getRelayPort(): number {
 	return telegramRelayIdentityFromEnv().port;
@@ -400,6 +402,11 @@ function requestIdFromEvent(event: DeliverableRelayEvent): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function missionStartLinkPreference(preference: TelegramMissionLinkPreference): TelegramMissionLinkPreference {
+  if (preference === 'none') return 'none';
+  return 'board';
+}
+
 function findMissionInBoard(board: Record<string, unknown>, missionId: string): MissionBoardEntry | null {
   for (const [status, value] of Object.entries(board)) {
     if (!Array.isArray(value)) continue;
@@ -433,7 +440,34 @@ async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEn
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       const board = asRecord(payload?.board);
-      return board ? findMissionInBoard(board, missionId) : null;
+      const boardEntry = board ? findMissionInBoard(board, missionId) : null;
+      if (boardEntry) return boardEntry;
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    // Fall through to the trace endpoint; the board may be stale while trace still knows dispatch state.
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
+        signal: controller.signal
+      });
+      if (!response.ok) return null;
+      const payload = asRecord(await response.json());
+      if (!payload) return null;
+      const progress = asRecord(payload.progress);
+      return {
+        missionId,
+        status: typeof payload.phase === 'string' ? payload.phase : undefined,
+        lastEventType: typeof payload.phase === 'string' ? payload.phase : undefined,
+        lastUpdated: typeof payload.serverTime === 'string' ? payload.serverTime : undefined,
+        lastSummary: typeof payload.summary === 'string' ? payload.summary : undefined,
+        taskName: typeof progress?.currentTask === 'string' ? progress.currentTask : null
+      };
     } finally {
       clearTimeout(timeout);
     }
@@ -476,6 +510,76 @@ function clipText(text: string, maxLength: number): string {
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
+const VOICE_LINES = {
+  missionStarted: [
+    'Spark is on it.',
+    'The run is moving.',
+    'Spark picked it up.',
+    'We are underway.'
+  ],
+  taskStarted: [
+    'Step {n} started',
+    'Step {n} is moving',
+    'Now working on step {n}',
+    'Step {n} is underway'
+  ],
+  taskDone: [
+    'Step {n} done',
+    'Step {n} landed',
+    'Step {n} is complete',
+    'Finished step {n}'
+  ],
+  progress: [
+    'Checkpoint',
+    'Small update',
+    'Progress note',
+    'Good signal'
+  ],
+  heartbeat: [
+    'Still working.',
+    'Still with it.',
+    'The run is still active.',
+    'No handoff yet.'
+  ],
+  completed: [
+    '✨ Spark shipped it.',
+    '✨ Spark has the build ready.',
+    '✨ Spark finished the build.',
+    '✨ Spark shipped something you can open.'
+  ],
+  failed: [
+    'This run needs attention.',
+    'Something blocked the mission.',
+    'The build hit a problem.',
+    'Spark could not finish this run.'
+  ]
+} as const;
+
+function stableHash(text: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function voiceLine(kind: keyof typeof VOICE_LINES, seed: string, replacements: Record<string, string> = {}): string {
+  const choices = VOICE_LINES[kind];
+  let line: string = choices[stableHash(`${kind}:${seed}`) % choices.length] || choices[0];
+  for (const [key, value] of Object.entries(replacements)) {
+    line = line.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+  }
+  return line;
+}
+
+function compactTelegramBlocks(...blocks: Array<string | null | undefined | false>): string {
+  return blocks
+    .filter((block): block is string => Boolean(block && block.trim()))
+    .map((block) => block.trim())
+    .join('\n\n');
+}
+
 function stripMissionControlBoilerplate(text: string): string {
   return stripThinkingAndMeta(text)
     .replace(/^\[MissionControl\]\s*/i, '')
@@ -483,6 +587,17 @@ function stripMissionControlBoilerplate(text: string): string {
     .replace(/\s*\((?:spark|mission|dispatch)-[\w-]+\)\s*[.!?]?\s*$/i, '')
     .replace(/\b(?:spark|mission|dispatch)-\d{6,}\b/gi, 'this mission')
     .trim();
+}
+
+function looksLikeInternalProgress(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    /\bskill_loaded\b/.test(normalized) ||
+    /\bnode-\d+-task\b/.test(normalized) ||
+    /\btask-task-\d+\b/.test(normalized) ||
+    /\bis working through\b/.test(normalized) && /\btask pack\b/.test(normalized) ||
+    /\bestimate adjusting\b|\b\d+(?:m \d+s|m|s) elapsed\b/i.test(message)
+  );
 }
 
 function usefulProgressSummary(message: string, taskLabel: string): string | null {
@@ -493,6 +608,9 @@ function usefulProgressSummary(message: string, taskLabel: string): string | nul
   const normalized = withoutProvider.toLowerCase();
   const normalizedTask = taskLabel.toLowerCase();
 
+  if (looksLikeInternalProgress(withoutProvider)) {
+    return null;
+  }
   if (/^(?:working|still working|running|in progress|processing)\.?$/.test(normalized)) {
     return null;
   }
@@ -501,16 +619,6 @@ function usefulProgressSummary(message: string, taskLabel: string): string | nul
   }
 
   return clipText(withoutProvider, 420);
-}
-
-function humanElapsed(elapsedMs: number): string {
-  const seconds = Math.max(1, Math.round(elapsedMs / 1000));
-  if (seconds < 75) return `${seconds}s`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `about ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes > 0 ? `about ${hours}h ${remainingMinutes}m` : `about ${hours}h`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -539,30 +647,6 @@ function stringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function providerStatusVerb(status: string | null): string {
-  const normalized = status?.toLowerCase();
-  if (normalized === 'completed' || normalized === 'success' || normalized === 'passed') {
-    return 'finished the build';
-  }
-  if (normalized === 'blocked') {
-    return 'reported a blocker';
-  }
-  if (normalized === 'failed' || normalized === 'error') {
-    return 'reported a failure';
-  }
-  return 'finished';
-}
-
-function formatChangedFiles(files: string[], limit: number): string[] {
-  if (files.length === 0) return [];
-  const visible = files.slice(0, limit);
-  const lines = [`Changed files: ${visible.join(', ')}`];
-  if (files.length > visible.length) {
-    lines.push(`Plus ${files.length - visible.length} more file(s).`);
-  }
-  return lines;
-}
-
 function normalizeLocalPath(pathValue: string): string {
   const normalized = pathValue.trim().replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
   const wslDrive = normalized.match(/^\/([a-zA-Z])\/(.+)$/);
@@ -585,7 +669,7 @@ function localIndexLink(projectPath: string | null): string | null {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
+  return (process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555').replace(/\/+$/, '');
 }
 
 function projectPreviewLink(projectPath: string | null): string | null {
@@ -598,6 +682,14 @@ function projectPreviewLink(projectPath: string | null): string | null {
 
 function projectOpenLink(projectPath: string | null): string | null {
   return projectPreviewLink(projectPath) || localIndexLink(projectPath);
+}
+
+function openProjectLines(openLink: string | null): string[] {
+  return openLink ? ['Open it here:', openLink] : [];
+}
+
+function nextPolishLine(): string {
+  return 'Tell Spark what you want changed next and we can keep polishing from here.';
 }
 
 function extractProjectPathFromText(text: string): string | null {
@@ -669,21 +761,56 @@ function taskNumberFromEvent(event: DeliverableRelayEvent): string | null {
 }
 
 function cleanTaskLabel(label: string): string {
-  return clipText(
-    label
-      .replace(/^task[-_ ]?\d+[-_: ]*/i, '')
-      .replace(/^[a-z0-9]+(?:[-_][a-z0-9]+){2,}:\s*/i, '')
-      .replace(/[-_]+/g, ' ')
-      .trim(),
-    160
-  );
+  const cleaned = label
+    .replace(/^node-\d+-task-/i, '')
+    .replace(/^task-task-/i, 'task-')
+    .replace(/^task[-_ ]?\d+[-_: ]*/i, '')
+    .replace(/^[a-z0-9]+(?:[-_][a-z0-9]+){2,}:\s*/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const readable = cleaned
+    .replace(/\bthreejs\b/gi, 'Three.js')
+    .replace(/\bwebgl\b/gi, 'WebGL')
+    .replace(/\bjavascript\b/gi, 'JavaScript')
+    .replace(/\blocalstorage\b/gi, 'localStorage')
+    .replace(/\breadme\b/gi, 'README')
+    .replace(/\bui\b/gi, 'UI')
+    .replace(/\bjs\b/gi, 'JS')
+    .replace(/\bcss\b/gi, 'CSS')
+    .replace(/\bhtml\b/gi, 'HTML')
+    .replace(/Three\.JS/g, 'Three.js');
+  return clipText(readable, 160);
 }
 
 function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
   const number = taskNumberFromEvent(event);
   const taskLabel = cleanTaskLabel(event.taskName || event.taskId || 'Next build step');
+  const seed = `${event.missionId}:${event.taskId || event.taskName || taskLabel}`;
+  const assignedTaskCount = typeof event.data?.assignedTaskCount === 'number'
+    ? event.data.assignedTaskCount
+    : Array.isArray(event.data?.assignedTaskIds)
+      ? event.data.assignedTaskIds.length
+      : 0;
+  if (assignedTaskCount > 1) {
+    return compactTelegramBlocks(
+      number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
+      taskLabel,
+      `Spark is working through ${assignedTaskCount} build steps. I will send the next note when a step finishes or the focus changes.`
+    );
+  }
   return [
-    number ? `Task ${number} started` : 'Task started',
+    number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
+    taskLabel
+  ].join('\n');
+}
+
+function formatTaskCompletedMessage(event: DeliverableRelayEvent): string {
+  const number = taskNumberFromEvent(event);
+  const taskLabel = cleanTaskLabel(event.taskName || event.taskId || 'Build step');
+  const seed = `${event.missionId}:${event.taskId || event.taskName || taskLabel}:done`;
+  return [
+    number ? voiceLine('taskDone', seed, { n: number }) : 'Step done',
     taskLabel
   ].join('\n');
 }
@@ -715,17 +842,22 @@ export function formatProviderCompletionForTelegram(input: {
     const shipped = extractSectionBullets(input.response, /^What shipped:/i, 4);
     const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
     const lead = extractFreeformLeadSummary(input.response);
-    const lines = [`${provider} finished the build.`];
+    const lines = [voiceLine('completed', `${input.missionId}:${provider}:freeform`)];
     if (lead) lines.push('', lead);
+    if (openLink) {
+      lines.push('', ...openProjectLines(openLink));
+    }
     if (shipped.length > 0) {
       lines.push('', 'What shipped:', ...shipped.map((item) => `- ${item}`));
     }
     if (checks.length > 0) {
-      lines.push('', 'Checks passed:', ...checks.map((item) => `- ${item}`));
+      if (verbosity === 'verbose') {
+        lines.push('', 'Quality checks:', ...checks.map((item) => `- ${item}`));
+      } else {
+        lines.push('', 'Quality checks passed.');
+      }
     }
-    if (openLink) {
-      lines.push('', `Preview: ${openLink}`);
-    }
+    if (openLink) lines.push('', nextPolishLine());
     if (verbosity === 'verbose') {
       lines.push('', `Mission: ${input.missionId}`);
     }
@@ -742,22 +874,19 @@ export function formatProviderCompletionForTelegram(input: {
   const status = stringField(parsed, 'status');
   const summary = stringField(parsed, 'summary') || stringField(parsed, 'message');
   const projectPath = stringField(parsed, 'project_path') || stringField(parsed, 'projectPath');
-  const changedFiles = stringArray(parsed.changed_files || parsed.changedFiles);
   const verification = stringArray(parsed.verification);
   const nextActions = stringArray(parsed.next_actions || parsed.nextActions);
-  const exactCommands = stringArray(parsed.exact_commands || parsed.exactCommands);
 
   if (verbosity === 'minimal') {
     return [
-      `${provider} ${providerStatusVerb(status)}.`,
+      voiceLine(status && ['failed', 'error', 'blocked'].includes(status.toLowerCase()) ? 'failed' : 'completed', `${input.missionId}:${provider}:minimal`),
       summary ? clipText(summary, 240) : null,
-      projectPath ? `Preview: ${projectOpenLink(projectPath) || projectPath}` : null,
-      changedFiles.length ? `Files changed: ${changedFiles.length}` : null,
+      projectPath ? openProjectLines(projectOpenLink(projectPath) || projectPath).join('\n') : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
   }
 
-  const lines: string[] = [`${provider} ${providerStatusVerb(status)}.`];
+  const lines: string[] = [voiceLine(status && ['failed', 'error', 'blocked'].includes(status.toLowerCase()) ? 'failed' : 'completed', `${input.missionId}:${provider}:structured`)];
   if (summary) {
     lines.push('', clipText(summary, verbosity === 'verbose' ? 700 : 420));
   } else if (input.goal) {
@@ -765,31 +894,23 @@ export function formatProviderCompletionForTelegram(input: {
   }
 
   if (projectPath) {
-    lines.push('', `Preview: ${projectOpenLink(projectPath) || projectPath}`);
-  }
-
-  if (verbosity === 'verbose') {
-    lines.push(...formatChangedFiles(changedFiles, 12));
-  } else if (changedFiles.length > 0) {
-    lines.push(`Files updated: ${changedFiles.length}`);
+    lines.push('', ...openProjectLines(projectOpenLink(projectPath) || projectPath));
   }
 
   if (verification.length > 0) {
-    const visible = verification.slice(0, verbosity === 'verbose' ? 6 : 3);
-    lines.push('', 'Checks:');
-    lines.push(...visible.map((item) => `- ${clipText(item, 180)}`));
-    if (verification.length > visible.length) {
-      lines.push(`- ${verification.length - visible.length} more check(s) passed.`);
-    }
-  }
-
-  if (verbosity === 'verbose' && exactCommands.length > 0) {
-    lines.push('', `Verification commands run: ${exactCommands.length}`);
+    const checkText = verification.length === 1
+      ? 'Quality check passed.'
+      : `Quality checks passed (${verification.length} checks).`;
+    lines.push('', checkText);
   }
 
   if (nextActions.length > 0) {
     lines.push('', 'Next:');
     lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
+  }
+
+  if (projectPath && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
+    lines.push('', nextPolishLine());
   }
 
   if (verbosity === 'verbose') {
@@ -813,21 +934,23 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
   if (event.type === 'mission_failed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     return true;
   }
+  if (event.type === 'mission_created' || event.type === 'dispatch_started') {
+    return false;
+  }
   if (verbosity === 'minimal') {
     return event.type === 'mission_started' || event.type === 'mission_completed';
   }
   if (verbosity === 'normal') {
-    return ['mission_started', 'task_started', 'mission_completed'].includes(event.type);
+    return ['mission_started', 'task_started', 'task_completed', 'mission_completed'].includes(event.type);
   }
   return [
-    'mission_created',
     'mission_started',
-    'dispatch_started',
     'task_started',
     'task_progress',
     'progress',
     'provider_feedback',
     'log',
+    'task_completed',
     'mission_completed'
   ].includes(event.type);
 }
@@ -842,45 +965,53 @@ export function formatProgressMessageForTelegram(
   if (!shouldDeliverProgressEvent(event, verbosity)) return null;
   const taskLabel = clipText(event.taskName || event.taskId || 'task', 120);
   const message = event.message || summary || '';
-  const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
+  const effectiveLinkPreference = event.type === 'mission_started'
+    ? missionStartLinkPreference(linkPreference)
+    : linkPreference;
+  const links = buildMissionSurfaceLinks(
+    event.missionId,
+    effectiveLinkPreference,
+    undefined,
+    event.type === 'mission_started' ? null : requestIdFromEvent(event)
+  );
 
   switch (event.type) {
     case 'mission_created':
-      return [
-        'Spark picked up your request.',
-        `Goal: ${clipText(subscription.goal, 260)}`,
-        ...missionReferenceLines(event.missionId, links)
-      ].join('\n');
+      return null;
     case 'mission_started':
-      return [
-        'Spark started the run.',
-        verbosity === 'normal' ? 'I will send useful checkpoints here and keep the board updated.' : null,
-        verbosity === 'verbose' ? `Goal: ${clipText(subscription.goal, 260)}` : null,
-        ...missionReferenceLines(event.missionId, links)
-      ].filter(Boolean).join('\n');
+      return compactTelegramBlocks(
+        voiceLine('missionStarted', `${event.missionId}:started`),
+        'Planning has started. The Mission board is live now.',
+        'I will send the canvas link once the PRD and canvas are ready.',
+        verbosity === 'normal' ? 'I will only ping when something useful changes.' : null,
+        missionReferenceLines(event.missionId, links).join('\n')
+      );
     case 'dispatch_started':
-      return 'Spark is assigning the work.';
+      return null;
     case 'task_started':
       return formatTaskStartedMessage(event);
+    case 'task_completed':
+      return formatTaskCompletedMessage(event);
     case 'task_progress':
     case 'progress':
     case 'provider_feedback':
     case 'log':
       const useful = usefulProgressSummary(message, taskLabel);
       if (!useful) return null;
-      return [
-        `Update: ${taskLabel}`,
+      return compactTelegramBlocks(
+        voiceLine('progress', `${event.missionId}:${event.taskId || taskLabel}:${useful}`),
+        cleanTaskLabel(taskLabel),
         useful
-      ].filter(Boolean).join('\n');
+      );
     case 'mission_completed':
       if (verbosity !== 'verbose') return null;
-      return 'Mission completed. Preparing the handoff summary now.';
+      return 'Build finished. Preparing the handoff summary.';
     case 'mission_failed':
-      return [
-        'Mission failed.',
-        message ? clipText(message, 500) : null,
-        ...missionReferenceLines(event.missionId, links)
-      ].filter(Boolean).join('\n');
+      return compactTelegramBlocks(
+        voiceLine('failed', `${event.missionId}:failed`),
+        message ? clipText(stripMissionControlBoilerplate(message), 500) : null,
+        missionReferenceLines(event.missionId, links).join('\n')
+      );
     default:
       return null;
   }
@@ -893,8 +1024,17 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
   const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
   const now = Date.now();
+  const openTaskKey = `${event.missionId}:${providerKey}`;
+  if (event.type === 'task_completed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
+    openTaskStartCache.delete(openTaskKey);
+  }
   if (event.type === 'task_started') {
     const taskKey = cleanTaskLabel(event.taskName || event.taskId || 'task').toLowerCase();
+    const openTask = openTaskStartCache.get(openTaskKey);
+    if (openTask && openTask.taskKey !== taskKey && now - openTask.timestamp < 10 * 60_000) {
+      return true;
+    }
+    openTaskStartCache.set(openTaskKey, { taskKey, timestamp: now });
     const taskSignature = `${event.missionId}:${event.type}:${taskKey}:${providerKey}`;
     const previousTask = deliveryCache.get(taskSignature);
     if (typeof previousTask === 'number' && now - previousTask < 5 * 60_000) {
@@ -920,14 +1060,41 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   return false;
 }
 
+export function shouldSkipDuplicateForTests(event: DeliverableRelayEvent): boolean {
+  return shouldSkipDuplicate(event);
+}
+
+export function resetMissionRelayDeliveryStateForTests(): void {
+  deliveryCache.clear();
+  openTaskStartCache.clear();
+}
+
 function heartbeatKey(event: DeliverableRelayEvent): string {
   return event.missionId;
 }
 
 function heartbeatIntervalMs(verbosity: TelegramRelayVerbosity): number {
-  if (verbosity === 'verbose') return 45_000;
-  if (verbosity === 'normal') return 90_000;
+  if (verbosity === 'verbose') return 120_000;
+  if (verbosity === 'normal') return 180_000;
   return 0;
+}
+
+function heartbeatStaleMs(): number {
+  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HEARTBEAT_STALE_MS;
+}
+
+function isTerminalMissionStatus(status: string | undefined | null): boolean {
+  return ['completed', 'failed', 'cancelled'].includes((status || '').toLowerCase());
+}
+
+export function shouldStopMissionHeartbeat(input: {
+  elapsedMs: number;
+  staleMs?: number;
+  snapshot?: MissionBoardEntry | null;
+}): boolean {
+  if (isTerminalMissionStatus(input.snapshot?.status)) return true;
+  return input.elapsedMs >= (input.staleMs ?? heartbeatStaleMs());
 }
 
 export function formatMissionHeartbeatForTelegram(input: {
@@ -946,21 +1113,19 @@ export function formatMissionHeartbeatForTelegram(input: {
 
   const lines: string[] = [];
   if (summary) {
-    lines.push('Still building.', '', 'Latest checkpoint:', summary);
+    lines.push(voiceLine('heartbeat', `${input.missionId}:${summary}`), '', 'Checkpoint:', summary);
   } else {
-    lines.push('Still building.', '', 'No new checkpoint yet.');
+    lines.push(voiceLine('heartbeat', `${input.missionId}:${taskLabel}`), '', 'No new checkpoint yet.');
   }
 
-  lines.push('', 'Current focus:', taskLabel);
+  lines.push('', 'Focus:', taskLabel);
 
   if (input.verbosity === 'verbose') {
-    lines.push('', `Elapsed: ${humanElapsed(input.elapsedMs)}.`);
     if (status && !['running', 'created'].includes(status.toLowerCase())) {
       lines.push(`Mission state: ${status}.`);
     }
-    lines.push(`Goal: ${clipText(input.goal, 220)}`);
   } else {
-    lines.push('', 'I will nudge you again when something meaningful changes.');
+    lines.push('', 'I will nudge you again when there is new signal.');
   }
 
   if (input.verbosity === 'verbose') {
@@ -987,6 +1152,30 @@ function scheduleHeartbeat(
   const timer = setInterval(async () => {
     const elapsedMs = Date.now() - startedAt;
     const snapshot = await fetchMissionBoardEntry(event.missionId);
+    if (shouldStopMissionHeartbeat({ elapsedMs, snapshot })) {
+      clearHeartbeatForMission(event.missionId);
+      const status = snapshot?.status?.toLowerCase();
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        const message = status === 'completed'
+          ? 'The board shows this run as complete. I will stop live pings and wait for the handoff.'
+          : `The board shows this run as ${status}. I will stop live pings; the trace has the latest detail.`;
+        bot.telegram.sendMessage(chatId, message).catch((error) => {
+          console.warn('[MissionRelay] Failed to send terminal heartbeat notice:', error);
+        });
+      } else {
+        bot.telegram.sendMessage(
+          chatId,
+          [
+            'This run has gone quiet, so I am stopping repeated pings.',
+            '',
+            'Check the board or canvas trace. If it looks stranded, use /mission status or /mission kill.'
+          ].join('\n')
+        ).catch((error) => {
+          console.warn('[MissionRelay] Failed to send stale heartbeat notice:', error);
+        });
+      }
+      return;
+    }
     const message = formatMissionHeartbeatForTelegram({
       missionId: event.missionId,
       goal: subscription.goal,
@@ -1058,87 +1247,6 @@ async function rememberMissionCompletion(
   await conversation.learnAboutUser({ id: userId }, note).catch((error) => {
     console.warn('[MissionRelay] Failed to remember mission completion:', error);
   });
-}
-
-function formatRelayMessage(
-  event: DeliverableRelayEvent,
-  subscription: MissionSubscription,
-  summary?: string
-): string {
-  const taskLabel = event.taskName || event.taskId || 'task';
-  const lines = [
-    `Mission: ${event.missionId}`,
-    `Request: ${subscription.requestId}`
-  ];
-
-  switch (event.type) {
-    case 'mission_created':
-      lines.unshift('Spawner mission created');
-      break;
-    case 'mission_started':
-      lines.unshift('Spawner mission started');
-      break;
-    case 'mission_paused':
-      lines.unshift('Spawner mission paused');
-      break;
-    case 'mission_resumed':
-      lines.unshift('Spawner mission resumed');
-      break;
-    case 'dispatch_started':
-      lines.unshift('Spawner dispatch started');
-      break;
-    case 'task_started':
-      lines.unshift(`Task started: ${taskLabel}`);
-      break;
-    case 'task_progress':
-    case 'progress':
-      lines.unshift(`Progress: ${taskLabel}`);
-      break;
-    case 'provider_feedback':
-      lines.unshift(`Provider update: ${taskLabel}`);
-      break;
-    case 'log':
-      lines.unshift('Spawner update');
-      break;
-    case 'mission_completed':
-      lines.unshift('Spawner mission completed');
-      break;
-    case 'mission_failed':
-      lines.unshift('Spawner mission failed');
-      break;
-    case 'task_failed':
-      lines.unshift(`Task failed: ${taskLabel}`);
-      break;
-    case 'task_cancelled':
-      lines.unshift(`Task cancelled: ${taskLabel}`);
-      break;
-  }
-
-  if (summary) {
-    lines.push(summary);
-  } else if (event.message) {
-    lines.push(event.message);
-  }
-
-  if (event.type === 'mission_completed' || event.type === 'mission_failed') {
-    const providers = event.data?.providers;
-    if (providers && typeof providers === 'object') {
-      const providerLines = Object.entries(providers)
-        .map(([providerId, value]) => {
-          if (value && typeof value === 'object' && 'status' in value) {
-            return `${providerId}: ${String((value as { status?: unknown }).status || 'unknown')}`;
-          }
-          return `${providerId}: ${String(value)}`;
-        });
-      if (providerLines.length > 0) {
-        lines.push('Providers:');
-        lines.push(...providerLines);
-      }
-    }
-  }
-
-  lines.push(`Check: /mission status ${event.missionId}`);
-  return lines.join('\n');
 }
 
 function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null> {
@@ -1291,28 +1399,26 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       const linkPreference = await getTelegramMissionLinkPreference(subscription.chatId);
 
       if (event.type === 'task_completed') {
-        clearHeartbeatForMission(event.missionId);
         const extracted = extractProviderResponse(event);
-        if (!extracted) {
-          writeJson(res, 202, { ok: true, ignored: 'no_response_text' });
+        if (extracted) {
+          clearHeartbeatForMission(event.missionId);
+          const message = formatProviderCompletionForTelegram({
+            providerLabel: extracted.providerLabel,
+            response: extracted.response,
+            missionId: event.missionId,
+            requestId: subscription.requestId,
+            goal: subscription.goal,
+            verbosity
+          });
+          const chunks = chunkForTelegram(message);
+          for (let i = 0; i < chunks.length; i++) {
+            const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
+            await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
+          }
+          await rememberMissionCompletion(subscription, event, extracted.providerLabel, extracted.response);
+          writeJson(res, 200, { ok: true, chunks: chunks.length });
           return;
         }
-        const message = formatProviderCompletionForTelegram({
-          providerLabel: extracted.providerLabel,
-          response: extracted.response,
-          missionId: event.missionId,
-          requestId: subscription.requestId,
-          goal: subscription.goal,
-          verbosity
-        });
-        const chunks = chunkForTelegram(message);
-        for (let i = 0; i < chunks.length; i++) {
-          const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
-          await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
-        }
-        await rememberMissionCompletion(subscription, event, extracted.providerLabel, extracted.response);
-        writeJson(res, 200, { ok: true, chunks: chunks.length });
-        return;
       }
 
       if (event.type === 'task_failed' || event.type === 'task_cancelled') {
@@ -1321,7 +1427,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         const label = humanizeProviderLabel(failure.providerLabel);
         await bot.telegram.sendMessage(
           chatId,
-          `${label} couldn't finish this one - ${failure.error.slice(0, 500)}`
+          compactTelegramBlocks(
+            voiceLine('failed', `${event.missionId}:${label}:task-failed`),
+            `${label} could not finish this step.`,
+            clipText(stripMissionControlBoilerplate(failure.error), 500)
+          )
         );
         writeJson(res, 200, { ok: true });
         return;

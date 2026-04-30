@@ -37,6 +37,7 @@ import {
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
+import { buildConversationFrame } from '../src/conversationFrame';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -214,6 +215,8 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
   assert.equal(parseSpawnerBoardNaturalIntent('did the latest canvas run show up on kanban?'), 'latest_on_kanban');
   assert.equal(parseSpawnerBoardNaturalIntent('which LLM took the latest Spawner job?'), 'latest_provider');
+  assert.equal(parseSpawnerBoardNaturalIntent('no the localhost for the beauty centre'), 'latest_project_preview');
+  assert.equal(isLocalSparkServiceRequest('no the localhost for the beauty centre', 'Completed Spawner mission spark-123'), false);
   assert.equal(
     parseSpawnerBoardNaturalIntent('the canvas event stream looked good, can you check whether the kanban side saw the same mission?'),
     'latest_on_kanban'
@@ -343,6 +346,17 @@ Behavior:
 - State persists in localStorage under key terminal-chef-clock:v1.`),
     null
   );
+  assert.equal(parseMissionUpdatePreferenceIntent('go now and start the mission with canvas links'), null);
+  assert.equal(parseMissionUpdatePreferenceIntent('let us run the build now with board and canvas'), null);
+  assert.equal(parseMissionUpdatePreferenceIntent('start it, include the canvas when ready'), null);
+  assert.deepEqual(
+    parseMissionUpdatePreferenceIntent('go now and start the mission with canvas links', { allowExecutionLanguage: true }),
+    { links: 'canvas' }
+  );
+  assert.deepEqual(
+    parseMissionUpdatePreferenceIntent('let us run the build now with board and canvas', { allowExecutionLanguage: true }),
+    { links: 'both' }
+  );
 });
 
 test('spaces mission preference acknowledgements for Telegram scanning', () => {
@@ -351,11 +365,33 @@ test('spaces mission preference acknowledgements for Telegram scanning', () => {
       'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
     ]),
     [
-      'Saved your mission update preference.',
+      'Done, I updated how I narrate missions.',
       '',
-      'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
+      'I will include both the Mission board and project canvas links.'
     ].join('\n')
   );
+});
+
+test('keeps build flow language from becoming access changes', () => {
+  assert.equal(parseNaturalAccessChangeIntent('change my access level to 4'), '4');
+  assert.equal(parseNaturalAccessChangeIntent('set this chat to full access'), 'full access');
+  assert.equal(
+    parseNaturalAccessChangeIntent('let us build the appointment system with full access to the project brief'),
+    null
+  );
+  assert.equal(
+    parseContextualAccessChangeIntent('let us do it', ['Done - I changed this chat to Level 4 - Full Access.']),
+    null
+  );
+  assert.equal(
+    parseContextualAccessChangeIntent('level 3', ['Done - I changed this chat to Level 4 - Full Access.']),
+    '3'
+  );
+
+  const frame = buildConversationFrame('let us do it', [
+    { role: 'assistant', text: 'Done - I changed this chat to Level 4 - Full Access.' }
+  ]);
+  assert.equal(frame.referenceResolution.kind, 'none');
 });
 
 test('keeps explicit design-only project prompts in conversation', () => {
@@ -397,6 +433,15 @@ test('keeps local numbered-option follow-ups in conversation', () => {
   const prompt = 'no.1 could be handy - how would you think of the no2?';
 
   assert.equal(hasLocalOptionReference(prompt), true);
+  assert.equal(hasLocalOptionReference('The second'), true);
+  assert.equal(hasLocalOptionReference('option two'), true);
+  assert.equal(hasLocalOptionReference('go with the 3rd path'), true);
+  assert.equal(hasLocalOptionReference('the first one'), true);
+  assert.equal(hasLocalOptionReference('the last one'), true);
+  assert.equal(hasLocalOptionReference('I would take the final path'), true);
+  assert.equal(hasLocalOptionReference('the latter'), true);
+  assert.equal(hasLocalOptionReference('that option'), true);
+  assert.equal(hasLocalOptionReference('let us build a page where the first screen should show the dashboard'), false);
   assert.equal(shouldPreferConversationalIdeation(prompt), true);
   assert.equal(inferMissionGoalFromRecentContext(prompt, [
     "I don't know what should we be building",
@@ -444,6 +489,7 @@ test('detects empty or generic LLM failures', () => {
   assert.equal(isLowInformationLlmReply(
     "I caught 'mission' in there.\n\nOptions:\n- Show the mission board (say 'what's running')\n- Start a new mission (say 'run <goal>' or use /run)\n\nWhich?"
   ), true);
+  assert.equal(isLowInformationLlmReply('No prior list or options to match "the second" against in this conversation.'), true);
   assert.equal(isLowInformationLlmReply(
     "I caught 'chip' in there but I'm not sure what you want.\n\nOptions I can actually do:\n- Run a loop on a specific chip (say 'loop <chip-key>')\n- List active chips (say 'which chips are active')"
   ), true);

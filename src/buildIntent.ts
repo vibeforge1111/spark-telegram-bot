@@ -51,7 +51,7 @@ function inferConceptualProjectName(prd: string): string | null {
 }
 
 function inferProjectName(prd: string, projectPath: string | null): string {
-  const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;]|\s+(?:with|that|which|where|for|using)\b|\s+and\s+(?:make|build|create|ship|scaffold|generate)\b|$)/i);
+  const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;?]|\n|\s+(?:with|that|which|where|for|using)\b|\s+and\s+(?:make|build|create|ship|scaffold|generate)\b|$)/i);
   if (nameMatch) return nameMatch[1].trim();
   if (projectPath) {
     const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();
@@ -66,7 +66,7 @@ function inferProjectName(prd: string, projectPath: string | null): string {
 }
 
 function extractPath(text: string): string | null {
-  const atMatch = text.match(/(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/)[^\n:]*?)(?:\s*[:,]|\s*$)/i);
+  const atMatch = text.match(/(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/)[^\n:]*?)(?:\s*[:,]|\.\s*(?:\n|$)|\s*$)/i);
   if (atMatch) {
     const candidate = normalizePathForPlatform(atMatch[1]);
     if (isInsideWorkspace(candidate)) {
@@ -107,7 +107,7 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
-  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
       reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
@@ -139,40 +139,47 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
 
 function normalizeBuildCommandText(text: string): string {
   return text
+    .replace(/^\s*(?:(?:hey|hi|hello|yo|ok|okay)\s+)?spark[,!.]?\s*/i, '')
     .replace(/^\s*(?:use\s+)?advanced\s+prd\s+mode\.?\s*/i, '')
     .replace(/^\s*(?:use\s+)?direct\s+(?:build\s+)?mode\.?\s*/i, '')
     .trim();
 }
 
+function extractBuildDescription(text: string): string | null {
+  const command = text.match(
+    /^\s*(?:(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+|can\s+(?:you|we)\s+|could\s+(?:you|we)\s+|let'?s\s+|let\s+us\s+|please\s+)?\/?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+  );
+  if (command) {
+    return text.slice(command[0].length);
+  }
+
+  const inlineCommand = text.match(
+    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+  );
+  if (inlineCommand?.index !== undefined) {
+    const prefix = text.slice(0, inlineCommand.index).toLowerCase();
+    if (/\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix)) {
+      return null;
+    }
+    return text.slice(inlineCommand.index + inlineCommand[0].length);
+  }
+
+  const lineCommand = text.match(
+    /(?:^|\n)\s*(?:build|make|create|ship|scaffold|generate|develop)\s+(?:this|it)\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i
+  );
+  if (lineCommand?.index !== undefined) {
+    return text.slice(lineCommand.index).replace(/^\s*(?:build|make|create|ship|scaffold|generate|develop)\s+/i, '');
+  }
+
+  return null;
+}
+
 export function parseBuildIntent(text: string): BuildIntent | null {
-  const original = text.trim();
+  const original = text.trim().replace(/[‘’]/g, "'");
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
 
-  // Anchor patterns: the message must start with a project-trigger verb,
-  // optionally preceded by a slash (slash command shape). "/build me a foo"
-  // and "build me a foo" both qualify. Includes "me an", "me the", "me this"
-  // and bare "a/an/the/this" so "build me an app" doesn't get parsed as
-  // project="me an app".
-  const starterPrefix = /^\s*(?:let'?s\s+)?(?:please\s+)?/i;
-  const immediatePrefix = /(?:(?:right\s+now|now)\s+)?/i;
-  const starters = new RegExp(
-    `${starterPrefix.source}\\/?(?:build|make|create|ship|scaffold|generate)\\s+${immediatePrefix.source}(?:me\\s+)?(?:a|an|the|this|new\\s+project\\s+)\\s+`,
-    'i'
-  );
-  const rawStarter = new RegExp(
-    `${starterPrefix.source}\\/?(?:build|make\\s+me|create|ship|scaffold|generate)\\s+${immediatePrefix.source}`,
-    'i'
-  );
-
-  let stripped: string | null = null;
-  const starterMatch = trimmed.match(starters);
-  if (starterMatch) {
-    stripped = trimmed.slice(starterMatch[0].length);
-  } else {
-    const rawMatch = trimmed.match(rawStarter);
-    if (rawMatch) stripped = trimmed.slice(rawMatch[0].length);
-  }
+  const stripped = extractBuildDescription(trimmed);
 
   if (stripped === null) return null;
   // Project description can legitimately be very short ("app", "blog",

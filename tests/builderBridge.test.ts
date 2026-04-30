@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { formatConversationColdMemoryContext, formatDiagnosticsScanReply } from '../src/builderBridge';
+import {
+  compactColdMemoryQuery,
+  formatConversationColdMemoryContext,
+  formatDiagnosticsScanReply
+} from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -48,6 +52,14 @@ test('formats diagnostics scan replies without emojis while preserving sections'
   assert.doesNotMatch(reply, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });
 
+test('compacts large cold memory queries before invoking Builder memory', () => {
+  const query = compactColdMemoryQuery(`Build this project.\n\n${'feature '.repeat(500)}`, 120);
+
+  assert.ok(query.length <= 120);
+  assert.match(query, /\[truncated\]$/);
+  assert.doesNotMatch(query, /\n/);
+});
+
 test('formats authoritative cold memory context for prompt injection', () => {
   const result = formatConversationColdMemoryContext({
     context_packet: {
@@ -73,13 +85,19 @@ test('formats authoritative cold memory context for prompt injection', () => {
   assert.match(result.contextText, /access level 3 and level 4/);
 });
 
-test('does not inject wiki diagnostic packets as conversational cold memory', () => {
-  const result = formatConversationColdMemoryContext({
+test('filters wiki diagnostic packets from conversational cold memory', () => {
+  const formatted = formatConversationColdMemoryContext({
     context_packet: {
       sections: [
         {
           section: 'compiled_project_knowledge',
           items: [
+            {
+              lane: 'evidence',
+              source_class: 'evidence',
+              predicate: 'raw_turn',
+              text: 'User prefers compact Telegram progress updates.'
+            },
             {
               lane: 'wiki_packets',
               source_class: 'obsidian_llm_wiki_packets',
@@ -92,8 +110,9 @@ test('does not inject wiki diagnostic packets as conversational cold memory', ()
     }
   });
 
-  assert.equal(result.sourceCount, 0);
-  assert.equal(result.contextText, '');
+  assert.equal(formatted.sourceCount, 1);
+  assert.match(formatted.contextText, /compact Telegram progress updates/);
+  assert.doesNotMatch(formatted.contextText, /wiki_packets|Diagnostic Report/);
 });
 
 test('keeps cold memory prompt context bounded and source counted', () => {

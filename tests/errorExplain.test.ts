@@ -24,7 +24,7 @@ test('explains provider auth failures with a repair path', () => {
 });
 
 test('explains local service network failures', () => {
-  const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:5173'), 'spawner');
+  const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 
   assert.equal(explanation.category, 'spawner_offline');
   assert.match(explanation.userLine, /Mission Control is not reachable/);
@@ -48,6 +48,19 @@ test('does not mislabel Telegram handler timeouts as Telegram config', () => {
   assert.match(reply, /chat, Builder, Spawner, or the local harness/);
   assert.match(reply, /Spark telegram failure: telegram_handler_timeout/);
   assert.doesNotMatch(reply, /Telegram configuration problem/);
+});
+
+test('does not mislabel Builder command failures as Telegram config', () => {
+  const reply = renderSparkErrorReply(
+    new Error('Command failed: C:\\Python313\\python.exe -c import runpy, sys; sys.path.insert(0, sys.argv[1]); sys.argv = ["spark_intelligence.cli", *sys.argv[2:]]; runpy.run_module("spark_intelligence.cli", run_name="__main__") C:\\Users\\USER\\.spark\\modules\\spark-intelligence-builder\\source\\src gateway simulate-telegram-update update.json --home C:\\Users\\USER\\.spark\\state\\spark-intelligence --origin telegram-runtime --json'),
+    'telegram',
+    true
+  );
+
+  assert.match(reply, /Builder memory path/);
+  assert.match(reply, /Spark builder failure: builder_or_memory/);
+  assert.doesNotMatch(reply, /Telegram configuration problem/);
+  assert.doesNotMatch(reply, /Spark telegram failure: telegram_config/);
 });
 
 test('explains command timeouts in chat as runtime timeouts', () => {

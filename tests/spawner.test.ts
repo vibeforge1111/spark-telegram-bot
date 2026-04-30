@@ -676,6 +676,73 @@ async function run(): Promise<void> {
     assert.match(result.message, /Mission: spark-live/);
     assert.doesNotMatch(result.message, /spark-done/);
   });
+
+  await test('latestProjectPreview returns the shipped app link for root route builds', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-beauty',
+              missionName: 'Beauty Centre Booking Website',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Polish booking flow',
+              providerSummary: 'Codex: Replaced the root screen with a booking-first premium service menu in src/routes/+page.svelte.'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /latest shipped app/);
+    assert.match(result.message, /Beauty Centre Booking Website/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:5555/);
+    assert.doesNotMatch(result.message, /Mission board/);
+  });
+
+  await test('latestProjectPreview returns static preview links from project paths', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-static',
+              missionName: 'Sprite Forge',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship static app',
+              providerSummary: 'Codex: Built and verified `Sprite Forge` at `C:\\Users\\USER\\Desktop\\sprite-forge`.'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  });
 }
 
 run()
