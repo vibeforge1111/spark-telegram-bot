@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { renderSparkErrorReply } from './errorExplain';
@@ -12,6 +12,8 @@ loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: tru
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
 const CODEX_PATH = process.env.CODEX_PATH || process.env.SPARK_CODEX_PATH || 'codex';
 const CLAUDE_PATH = process.env.CLAUDE_PATH || process.env.SPARK_CLAUDE_PATH || 'claude';
+const DEFAULT_AGENT_KNOWLEDGE_DIR = path.resolve(process.cwd(), 'agent-knowledge');
+const MAX_AGENT_KNOWLEDGE_CHARS = 18_000;
 
 interface OllamaResponse {
   model: string;
@@ -238,10 +240,28 @@ Useful commands the user can try:
 - /access <1|2|3|4>: choose Spark's access level for this Telegram chat. Level 1 is chat only, Level 2 is Builder and explicit missions, Level 3 adds public web/GitHub research, Level 4 adds local workspace build access.
 
 When the user asks what Spark knows or can do, explain these capabilities plainly and briefly. Do not pretend a tool succeeded unless it actually did.
+Spark does have a Telegram chat access-level system. Never say there is no access level, tier, permission system, or permission surface when the user is asking about Spark access. If they ask to see it, say they can ask "what is my access level?" If they ask to change it, say they can ask "change my access level to 3" or use /access 3. If a task is blocked, name the minimum access level that would unlock it.
 When the user asks you to inspect a public GitHub repo, URL, or local Spark surface, do not claim you have no access as a blanket statement. Explain the truthful boundary: plain chat cannot browse by itself, but Spark can use Spawner/Codex missions for public repo/web inspection when this chat is at Access Level 3 or 4. If access is not enabled, tell the user to run /access 3 or /access 4.
 The Telegram gateway can start missions from explicit natural-language requests or /run. Never say you started, launched, kicked off, created, queued, or are running a Spawner mission unless the gateway returns a mission id or explicit acknowledgement. If no mission id or gateway acknowledgement is present, offer to shape the request or ask the user to confirm the mission goal.`;
 
+export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.SPARK_AGENT_KNOWLEDGE_ENABLED === '0') return '';
+  const root = env.SPARK_AGENT_KNOWLEDGE_DIR?.trim() || DEFAULT_AGENT_KNOWLEDGE_DIR;
+  if (!existsSync(root)) return '';
+  const chunks: string[] = [];
+  for (const name of readdirSync(root).filter((file) => file.toLowerCase().endsWith('.md')).sort()) {
+    if (name.startsWith('.')) continue;
+    const filePath = path.join(root, name);
+    const content = readFileSync(filePath, 'utf-8').trim();
+    if (!content) continue;
+    chunks.push(`### ${name}\n${content}`);
+  }
+  const joined = chunks.join('\n\n').slice(0, MAX_AGENT_KNOWLEDGE_CHARS).trim();
+  return joined;
+}
+
 export function buildSparkChatSystemPrompt(conversationHistory: string = '', memories: string = ''): string {
+  const agentKnowledge = loadSparkAgentKnowledgeBase();
   return `You are Spark, the user's personal operator and thinking partner. Not a generic assistant.
 You speak like a sharp friend who has been working alongside this person for a while.
 Lead with the answer, the call, or the next move in the first sentence. No hedges, no throat clearing, no restating the question.
@@ -259,6 +279,7 @@ If something internal failed, speak as the agent: say what you cannot do right n
 Do not offer to scaffold, start, run, or create a mission at the end of an ideation answer unless the user explicitly asks to build, run, scaffold, start, or create it.
 
 ${SPARK_SYSTEM_PRIMER}
+${agentKnowledge ? `## Spark agent knowledge base\nUse this as background knowledge for natural conversation. Do not quote it as a canned panel. Prefer a brief, contextual answer that fits the user's current message.\n\n${agentKnowledge}` : ''}
 ${memories ? `## What I remember\n${memories}` : ''}
 ${conversationHistory ? `## Where we left off\n${conversationHistory}` : ''}
 

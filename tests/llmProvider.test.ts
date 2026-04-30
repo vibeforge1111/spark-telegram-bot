@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, resolveChatProviderConfig } from '../src/llm';
+import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -169,6 +169,21 @@ test('system prompt teaches fresh Spark installs their ecosystem', () => {
   assert.match(prompt, /Spawner UI/);
   assert.match(prompt, /\/remember <text>/);
   assert.match(prompt, /Not a generic assistant/);
+});
+
+test('system prompt includes editable Spark agent knowledge', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /Spark agent knowledge base/);
+  assert.match(prompt, /Spark Access/);
+  assert.match(prompt, /domain-chip-memory/);
+  assert.match(prompt, /Do not quote it as a canned panel/);
+});
+
+test('agent knowledge can be disabled for tests or constrained installs', () => {
+  const knowledge = loadSparkAgentKnowledgeBase({ SPARK_AGENT_KNOWLEDGE_ENABLED: '0' });
+
+  assert.equal(knowledge, '');
 });
 
 test('system prompt includes memory and conversation context when provided', () => {

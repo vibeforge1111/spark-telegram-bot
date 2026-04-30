@@ -126,6 +126,27 @@ Public Telegram webhook ingress intentionally exposes nothing in this launch bui
 
 Telegram relays should always have an explicit profile name. A fresh install uses the neutral `primary` profile for the main bot. Secondary bots should use named profiles, their own relay ports, and their own `telegram.profiles.<name>.bot_token` secret. The legacy unnamed/default path is only a compatibility alias.
 
+## Agent Knowledge Base
+
+Normal chat is guided by small Markdown knowledge files in `agent-knowledge/`.
+These files describe Spark access, memory, and day-to-day usage so the selected
+chat model can answer naturally from shared Spark context instead of triggering
+deterministic utility replies.
+
+Current files:
+
+- `agent-knowledge/access.md`
+- `agent-knowledge/memory.md`
+- `agent-knowledge/using-spark.md`
+
+Set `SPARK_AGENT_KNOWLEDGE_DIR` to point at another directory if a deployment
+needs a custom knowledge pack. Set `SPARK_AGENT_KNOWLEDGE_ENABLED=0` to disable
+this prompt injection for tests or constrained environments.
+
+Rule of thumb: add reusable Spark knowledge here, but keep actual commands
+explicit. Utility panels should stay behind slash commands like `/access`,
+`/workspaces`, `/board`, and `/diagnose`.
+
 ## Setup
 
 In the current supported split architecture, only this repo should receive the
