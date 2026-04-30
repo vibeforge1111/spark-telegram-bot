@@ -617,8 +617,42 @@ export interface MissionUpdatePreferenceIntent {
   links?: 'none' | 'board' | 'canvas' | 'both';
 }
 
+function humanizeMissionPreferenceLine(line: string): string {
+  const trimmed = line.trim();
+  const update = trimmed.match(/^Updates:\s*(minimal|normal|verbose)\s*-/i)?.[1]?.toLowerCase();
+  if (update === 'minimal') {
+    return 'Updates will stay quiet: mission start, finish, and failures only.';
+  }
+  if (update === 'normal') {
+    return 'Updates will stay balanced: starts, meaningful step changes, results, and failures.';
+  }
+  if (update === 'verbose') {
+    return 'Updates will be more detailed: step starts, useful progress notes, completions, and failures.';
+  }
+
+  const links = trimmed.match(/^Links:\s*(none|board|canvas|both)\s*-/i)?.[1]?.toLowerCase();
+  if (links === 'none') {
+    return 'I will keep mission updates in Telegram without Spawner links.';
+  }
+  if (links === 'board') {
+    return 'I will include the Mission board link when a mission is active.';
+  }
+  if (links === 'canvas') {
+    return 'I will include the project canvas link when it is ready.';
+  }
+  if (links === 'both') {
+    return 'I will include both the Mission board and project canvas links.';
+  }
+
+  return trimmed;
+}
+
 export function formatMissionUpdatePreferenceAcknowledgement(detailLines: string[]): string {
-  return ['Saved your mission update preference.', ...detailLines.filter((line) => line.trim())].join('\n\n');
+  const details = detailLines
+    .map(humanizeMissionPreferenceLine)
+    .filter((line) => line.trim());
+
+  return ['Done, I updated how I narrate missions.', ...details].join('\n\n');
 }
 
 export function parseMissionUpdatePreferenceIntent(text: string): MissionUpdatePreferenceIntent | null {

@@ -350,9 +350,9 @@ test('spaces mission preference acknowledgements for Telegram scanning', () => {
       'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
     ]),
     [
-      'Saved your mission update preference.',
+      'Done, I updated how I narrate missions.',
       '',
-      'Links: both - Mission updates include both the Mission board/Kanban and canvas links.'
+      'I will include both the Mission board and project canvas links.'
     ].join('\n')
   );
 });
