@@ -4,6 +4,7 @@ import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiv
 import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+const PROJECT_PREVIEW_URL = process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5500';
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
@@ -159,7 +160,7 @@ function normalizeLocalProjectPath(pathValue: string): string {
 
 function projectPreviewLink(projectPath: string): string {
   const token = Buffer.from(normalizeLocalProjectPath(projectPath), 'utf8').toString('base64url');
-  return `${SPAWNER_UI_URL.replace(/\/+$/, '')}/preview/${token}/index.html`;
+  return `${PROJECT_PREVIEW_URL.replace(/\/+$/, '')}/preview/${token}/index.html`;
 }
 
 function extractProjectPathFromText(text: string): string | null {
@@ -198,7 +199,7 @@ function projectOpenLinkForEntry(entry: BoardEntry): string | null {
   const text = providerResultText(entry);
   return extractPreviewUrlFromText(text)
     || (extractProjectPathFromText(text) ? projectPreviewLink(extractProjectPathFromText(text) as string) : null)
-    || (rootRouteLooksLikeProject(text) ? SPAWNER_UI_URL.replace(/\/+$/, '') : null);
+    || (rootRouteLooksLikeProject(text) ? PROJECT_PREVIEW_URL.replace(/\/+$/, '') : null);
 }
 
 function formatLatestMission(entry: BoardEntry): string[] {
