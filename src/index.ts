@@ -1474,7 +1474,7 @@ bot.command('mission', async (ctx) => {
 });
 
 // Handle regular text messages
-bot.on(message('text'), async (ctx) => {
+export async function handleTextMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const text = ctx.message.text;
 
@@ -1512,7 +1512,9 @@ bot.on(message('text'), async (ctx) => {
   }
 
   const recentAccessMessages = await conversation.getRecentMessages(user, 6);
-  const contextualAccessChange = parseContextualAccessChangeIntent(text, recentAccessMessages);
+  const contextualAccessChange = conversationFrame.referenceResolution.kind === 'list_item'
+    ? null
+    : parseContextualAccessChangeIntent(text, recentAccessMessages);
   if (contextualAccessChange) {
     await conversation.remember(user, text).catch(() => {});
     await handleAccessChangeRequest(ctx, contextualAccessChange);
@@ -1873,7 +1875,9 @@ bot.on(message('text'), async (ctx) => {
     }).catch(() => {});
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
-});
+}
+
+bot.on(message('text'), handleTextMessage);
 
 // Graceful shutdown
 process.once('SIGINT', () => {

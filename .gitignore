@@ -18,6 +18,7 @@ secrets*.json
 !.env.sample
 !.env.template
 *.log
+ops/reports/
 .spark-spawner-missions.json
 .spark-telegram-webhook-state.json
 .spark-telegram-inbox.json

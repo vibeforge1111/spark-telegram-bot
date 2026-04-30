@@ -120,6 +120,70 @@
     "expectedOutcome": "Answers from memory if bridge is available, otherwise gives actionable fallback."
   },
   {
+    "id": "context-window-001",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Change my access level to three please",
+    "expectedRoute": "natural_access_change",
+    "expectedOutcome": "Sets this chat to Level 3 without dumping the full access help blob."
+  },
+  {
+    "id": "context-window-002",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Change it to 4",
+    "expectedRoute": "contextual_access_change",
+    "expectedOutcome": "Uses the immediately prior access context and sets this chat to Level 4."
+  },
+  {
+    "id": "context-window-003",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Give me three build ideas for a memory dashboard",
+    "expectedRoute": "conversation_ideation",
+    "expectedOutcome": "Produces three memory-dashboard ideas and does not start a build."
+  },
+  {
+    "id": "context-window-004",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Let's do the second one",
+    "expectedRoute": "contextual_list_reference",
+    "expectedOutcome": "Continues with the second memory-dashboard idea. Must not change access level to 2."
+  },
+  {
+    "id": "context-window-005",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Please remember this session test code word: aurora mango.",
+    "expectedRoute": "memory_directive",
+    "expectedOutcome": "Stores or carries the code word in same-session context."
+  },
+  {
+    "id": "context-window-006",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "What is the session test code word I asked you to remember?",
+    "expectedRoute": "contextual_memory_recall",
+    "expectedOutcome": "Answers aurora mango from same-session context or durable memory."
+  },
+  {
+    "id": "context-window-007",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "I am choosing between: 1. recall audit board 2. memory timeline explorer 3. live stress-test panel",
+    "expectedRoute": "conversation",
+    "expectedOutcome": "Acknowledges the options without launching a mission."
+  },
+  {
+    "id": "context-window-008",
+    "suite": "context_window",
+    "risk": "safe",
+    "prompt": "Let's do two",
+    "expectedRoute": "contextual_list_reference",
+    "expectedOutcome": "Selects memory timeline explorer from the earlier list. Must not change access level to 2."
+  },
+  {
     "id": "local-001",
     "suite": "local_services",
     "risk": "safe",
