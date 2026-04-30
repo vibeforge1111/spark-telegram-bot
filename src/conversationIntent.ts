@@ -1,4 +1,5 @@
 import { parseBuildIntent } from './buildIntent';
+import type { ShippedProjectContext } from './shippedProjectContext';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
@@ -590,6 +591,63 @@ export function buildContextualImprovementGoal(currentText: string, recentMessag
   }
 
   return null;
+}
+
+export function isProjectImprovementRequest(text: string, project: ShippedProjectContext | null | undefined): boolean {
+  if (!project) return false;
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  const explicitBuild = parseBuildIntent(text);
+  if (explicitBuild?.projectPath) return false;
+  if (/^(?:where|what|which|show|send|give)\b.*\b(?:link|localhost|preview|url|board|canvas|kanban)\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(?:status|running|completed|failed|stuck|diagnose|logs?)\b/.test(normalized) && !/\b(?:fix|improve|polish|change|update)\b/.test(normalized)) {
+    return false;
+  }
+
+  const asksToChange = /\b(?:make|turn|change|improve|polish|update|add|remove|fix|adjust|tweak|refine|rework|redesign|clean|tighten|soften|brighten|darken)\b/.test(normalized);
+  if (!asksToChange) return false;
+
+  const pointsAtCurrentProject = /\b(?:this|that|it|app|site|page|screen|project|build|product|dashboard|tool|prototype|design|layout|colors?|colours?|palette|theme|spacing|copy|text|button|flow|workflow|mobile|responsive|spark)\b/.test(normalized);
+  return pointsAtCurrentProject;
+}
+
+export function buildProjectImprovementGoal(
+  currentText: string,
+  project: ShippedProjectContext | null | undefined,
+  recentMessages: string[] = []
+): string | null {
+  if (!isProjectImprovementRequest(currentText, project) || !project) return null;
+
+  const recentContext = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .slice(-8)
+    .join('\n');
+
+  return [
+    `Improve the existing shipped project "${project.projectName}" at ${project.projectPath}.`,
+    '',
+    'This is an iteration on an already shipped app, not a new scaffold.',
+    '',
+    `User feedback:\n${currentText.trim()}`,
+    '',
+    'Rules:',
+    '- Read the existing project files before editing.',
+    '- Preserve the current core workflow and data model unless the user explicitly asks to change them.',
+    '- Make the smallest strong improvement that satisfies the feedback.',
+    '- Keep the app usable by non-technical users.',
+    '- Update only the files needed for this iteration.',
+    '- Verify the previous smoke path still works and add one focused check for the new improvement.',
+    '- Return a concise handoff with project_path, what changed, and verification.',
+    '',
+    'Project context:',
+    `- Parent mission: ${project.missionId}`,
+    `- Current preview: ${project.previewUrl}`,
+    project.summary ? `- Last shipped summary: ${project.summary}` : null,
+    recentContext ? `\nRecent Telegram context:\n${recentContext}` : null
+  ].filter((part): part is string => Boolean(part)).join('\n');
 }
 
 export function isExternalResearchRequest(text: string): boolean {

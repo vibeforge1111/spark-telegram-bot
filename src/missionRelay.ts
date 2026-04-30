@@ -5,6 +5,7 @@ import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { recordShippedProjectFromMission } from './shippedProjectContext';
 
 type RelayEventType =
   | 'mission_created'
@@ -1246,6 +1247,18 @@ async function rememberMissionCompletion(
 
   await conversation.learnAboutUser({ id: userId }, note).catch((error) => {
     console.warn('[MissionRelay] Failed to remember mission completion:', error);
+  });
+
+  await recordShippedProjectFromMission({
+    chatId: subscription.chatId,
+    userId: subscription.userId,
+    missionId: event.missionId,
+    requestId: subscription.requestId,
+    goal: subscription.goal,
+    providerLabel,
+    response
+  }).catch((error) => {
+    console.warn('[MissionRelay] Failed to record shipped project context:', error);
   });
 }
 

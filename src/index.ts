@@ -80,6 +80,7 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
+  buildProjectImprovementGoal,
   buildDiagnosticFollowupTestReply,
   buildExternalResearchGoal,
   buildLocalSparkServiceClarificationReply,
@@ -99,6 +100,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
   parseContextualAccessChangeIntent,
@@ -110,6 +112,7 @@ import {
   shouldSuppressBuilderReplyForPlainChat,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { getLatestShippedProjectContext } from './shippedProjectContext';
 import axios from 'axios';
 import { getTierForUser } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -1968,6 +1971,29 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         'User asked Spark to choose the recommended direction after collaborative scoping.'
       );
       return;
+    }
+
+    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
+    if (isProjectImprovementRequest(text, latestShippedProject)) {
+      const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
+      if (improvementGoal && latestShippedProject) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply([
+          `Got it. I will improve ${latestShippedProject.projectName}.`,
+          '',
+          'I will keep the existing project intact and ship this as the next polish pass.',
+          latestShippedProject.previewUrl ? `Current preview: ${latestShippedProject.previewUrl}` : null
+        ].filter(Boolean).join('\n'));
+        await handleBuildIntent(
+          ctx,
+          improvementGoal,
+          `${latestShippedProject.projectName} polish ${latestShippedProject.iteration + 1}`,
+          latestShippedProject.projectPath,
+          'advanced_prd',
+          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.'
+        );
+        return;
+      }
     }
 
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);

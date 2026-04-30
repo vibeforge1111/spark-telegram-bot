@@ -3,6 +3,7 @@ import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
+  buildProjectImprovementGoal,
   buildDiagnosticFollowupTestReply,
   buildExternalResearchGoal,
   buildLocalSparkServiceClarificationReply,
@@ -24,6 +25,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
@@ -292,6 +294,53 @@ test('turns explicit contextual improvement requests into diagnostic integration
   assert.match(goal, /Improve the recently built Spark Diagnostic Agent/);
   assert.match(goal, /service discovery/);
   assert.match(goal, /no secret printing/);
+});
+
+test('turns natural shipped project feedback into an iteration mission', () => {
+  const project = {
+    chatId: '8319079055',
+    userId: '1278511160',
+    projectName: 'Founder Signal Room',
+    projectPath: 'C:/Users/USER/Desktop/founder-signal-room',
+    previewUrl: 'http://127.0.0.1:5555/preview/founder/index.html',
+    missionId: 'mission-founder',
+    iteration: 1,
+    summary: 'Built the first strategy room.',
+    shippedAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z'
+  };
+
+  assert.equal(isProjectImprovementRequest('make this more Spark colored', project), true);
+  assert.equal(isExplicitContextualBuildRequest('make this more Spark colored'), false);
+
+  const goal = buildProjectImprovementGoal('make this more Spark colored', project, [
+    'Spark shipped Founder Signal Room.',
+    'User is reviewing the preview now.'
+  ]);
+
+  assert.ok(goal);
+  assert.match(goal, /Improve the existing shipped project "Founder Signal Room"/);
+  assert.match(goal, /C:\/Users\/USER\/Desktop\/founder-signal-room/);
+  assert.match(goal, /not a new scaffold/);
+  assert.match(goal, /make this more Spark colored/);
+  assert.match(goal, /Parent mission: mission-founder/);
+});
+
+test('does not treat preview link questions as project improvement requests', () => {
+  const project = {
+    chatId: '8319079055',
+    userId: '1278511160',
+    projectName: 'Founder Signal Room',
+    projectPath: 'C:/Users/USER/Desktop/founder-signal-room',
+    previewUrl: 'http://127.0.0.1:5555/preview/founder/index.html',
+    missionId: 'mission-founder',
+    iteration: 1,
+    shippedAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z'
+  };
+
+  assert.equal(isProjectImprovementRequest('give me the localhost for this app', project), false);
+  assert.equal(buildProjectImprovementGoal('give me the localhost for this app', project), null);
 });
 
 test('detects public GitHub inspection requests for agent access routing', () => {
