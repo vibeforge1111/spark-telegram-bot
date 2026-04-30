@@ -14,7 +14,13 @@ import {
   isPendingTaskRecoveryQuestion,
   renderPendingTaskRecoveryReply
 } from './conversation';
-import { getBuilderBridgeStatus, runBuilderDiagnosticsScan, runBuilderTelegramBridge } from './builderBridge';
+import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
+import {
+  getBuilderBridgeStatus,
+  runBuilderConversationColdContext,
+  runBuilderDiagnosticsScan,
+  runBuilderTelegramBridge
+} from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
@@ -33,6 +39,9 @@ import {
   getConfiguredSparkAccessProfile,
   getSparkAccessProfile,
   normalizeSparkAccessProfile,
+  renderSparkAccessBriefStatus,
+  renderSparkAccessChangeConfirmation,
+  renderSparkAccessConversationHelp,
   renderSparkAccessDenial,
   renderSparkAccessOnboarding,
   renderSparkAccessRuntimeHint,
@@ -73,6 +82,8 @@ import {
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
   inferMissionGoalFromRecentContext,
+  isAccessHelpQuestion,
+  isAccessStatusQuestion,
   isBuildContextRecallQuestion,
   isDiagnosticFollowupTestQuestion,
   isDiagnosticsScanRequest,
@@ -82,13 +93,14 @@ import {
   isExplicitContextualBuildRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  parseContextualAccessChangeIntent,
+  parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
-  shouldPreferConversationalIdeation,
-  hasLocalOptionReference
+  shouldPreferConversationalIdeation
 } from './conversationIntent';
 import axios from 'axios';
 import { getTierForUser } from './userTier';
@@ -400,6 +412,12 @@ bot.command('diagnose', async (ctx) => {
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
+});
+
+bot.command('context', async (ctx) => {
+  if (!requireAdmin(ctx)) return;
+  const report = await conversation.getConversationFrameDiagnostics(ctx.from);
+  await ctx.reply(report);
 });
 
 // /myid command - get your secure Telegram ID (for admin setup)
@@ -1405,8 +1423,70 @@ bot.command('access', async (ctx) => {
 
   await setSparkAccessProfile(ctx.chat.id, next);
   await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
-  await ctx.reply(renderSparkAccessStatus(next));
+  const reply = renderSparkAccessChangeConfirmation(next);
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
 });
+
+async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean> {
+  if (!requireAdmin(ctx)) return true;
+
+  const next = normalizeSparkAccessProfile(raw);
+  if (!next) {
+    await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
+    return true;
+  }
+
+  const runtimeGate = validateSparkAccessProfileForRuntime(next);
+  if (!runtimeGate.ok) {
+    await ctx.reply(runtimeGate.message);
+    return true;
+  }
+
+  await setSparkAccessProfile(ctx.chat.id, next);
+  await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
+  const reply = renderSparkAccessChangeConfirmation(next);
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  return true;
+}
+
+function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: string; text: string }>): string | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
+    return null;
+  }
+
+  for (const turn of [...turns].reverse()) {
+    if (turn.role !== 'user') continue;
+    const directive = extractPlainChatMemoryDirective(turn.text);
+    if (!directive) continue;
+    const cleaned = directive.replace(/^this\s+/i, '').replace(/[.!?]+$/g, '').trim();
+    if (!cleaned) continue;
+    const codeWord = cleaned.match(/\b(?:session\s+test\s+)?code\s+word\s*[:\-]\s*(.+)$/i);
+    if (codeWord?.[1]?.trim()) {
+      return codeWord[1].trim().replace(/^["']|["']$/g, '');
+    }
+    return cleaned;
+  }
+
+  return null;
+}
+
+function buildSelectedListReferencePrompt(frame: ConversationFrame): string | null {
+  if (frame.referenceResolution.kind !== 'list_item' || !frame.referenceResolution.value) return null;
+  const artifact = frame.artifacts.find((item) => item.key === frame.referenceResolution.sourceArtifactKey);
+  const listLines = artifact?.items.length
+    ? ['Recent list options:', ...artifact.items.map((item, index) => `${index + 1}. ${item}`)]
+    : [];
+  return [
+    `The user selected this exact option from the recent list: ${frame.referenceResolution.value}`,
+    artifact ? `The selected option belongs to this list context: ${artifact.title}` : '',
+    ...listLines,
+    '',
+    'Continue only from that selected option and its list. Do not blend this with older unrelated lists, project names, access levels, or prior option sets. Do not reinterpret the short follow-up as a request for a quantity.'
+  ].filter(Boolean).join('\n');
+}
 
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
@@ -1437,7 +1517,7 @@ bot.command('mission', async (ctx) => {
 });
 
 // Handle regular text messages
-bot.on(message('text'), async (ctx) => {
+export async function handleTextMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const text = ctx.message.text;
 
@@ -1456,13 +1536,90 @@ bot.on(message('text'), async (ctx) => {
     }
   }
 
+  const naturalAccessChange = parseNaturalAccessChangeIntent(text);
+  if (naturalAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, naturalAccessChange);
+    return;
+  }
+
+  const conversationFrame = await conversation.getConversationFrame(user, text);
+  let conversationFrameContext = renderConversationFrameContext(conversationFrame, 12_000);
+  const frameAccessChange = conversationFrame.referenceResolution.kind === 'access_level'
+    ? conversationFrame.referenceResolution.value
+    : null;
+  if (frameAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, frameAccessChange);
+    return;
+  }
+
+  const recentAccessMessages = await conversation.getRecentMessages(user, 6);
+  const contextualAccessChange = conversationFrame.referenceResolution.kind === 'list_item'
+    ? null
+    : parseContextualAccessChangeIntent(text, recentAccessMessages);
+  if (contextualAccessChange) {
+    await conversation.remember(user, text).catch(() => {});
+    await handleAccessChangeRequest(ctx, contextualAccessChange);
+    return;
+  }
+
+  if (isAccessStatusQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const reply = renderSparkAccessBriefStatus(accessProfile);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (isAccessHelpQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const reply = renderSparkAccessConversationHelp(accessProfile);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const recentRememberedAnswer = answerFromRememberTurns(text, [
+    ...conversationFrame.hotTurns.filter((turn) => turn.role === 'user' || turn.role === 'assistant'),
+    ...await conversation.getRecentTurns(user, 40)
+  ]);
+  if (recentRememberedAnswer) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(recentRememberedAnswer);
+    await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});
+    return;
+  }
+
+  const choiceContextAcknowledgement = renderChoiceContextAcknowledgement(text);
+  if (choiceContextAcknowledgement) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(choiceContextAcknowledgement);
+    await conversation.rememberAssistantReply(user, choiceContextAcknowledgement).catch(() => {});
+    return;
+  }
+
+  try {
+    const coldMemoryContext = await runBuilderConversationColdContext({
+      userId: user.id,
+      currentMessage: text,
+    });
+    if (coldMemoryContext.contextText) {
+      conversationFrameContext = [conversationFrameContext, coldMemoryContext.contextText].filter(Boolean).join('\n\n');
+    }
+  } catch (error) {
+    console.warn('[BuilderBridge] Skipping cold memory context for this turn:', error);
+  }
+
   // Natural-language project-build intent: "build a ...", "make me a ...", etc.
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
     const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
-    const contextualTurns = [...recentMessages, sessionContext];
+    const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
     const buildIntent = parseBuildIntent(text);
 
     if (isLocalWorkspaceInspectionOnlyRequest(text)) {
@@ -1549,64 +1706,6 @@ bot.on(message('text'), async (ctx) => {
     }
 
     const localServiceContext = contextualTurns.join('\n');
-
-    if (hasLocalOptionReference(text)) {
-      const resolved = await conversation.resolveRecentOptionReference(user, text);
-      if (resolved) {
-        await conversation.remember(user, text).catch(() => {});
-        await safeSendChatAction(ctx, 'typing');
-        const memories = await conversation.getContext(user, text);
-        const accessProfile = await getSparkAccessProfile(ctx.chat.id);
-        const resolvedPrompt = [
-          `The user replied with a local option reference: "${text}".`,
-          `Resolve it as option ${resolved.ordinal}: ${resolved.choice}.`,
-          'Use this as grounding, not as a canned answer. Continue naturally with the chat model and any memory context available.',
-          'Restate the resolved choice briefly, then give the next useful question or recommendation.',
-          'Do not say you lack the prior list.'
-        ].join('\n');
-        const bridgePrompt = [
-          'Plain chat continuation.',
-          `The user wrote: "${text}".`,
-          `That is a local reference to option ${resolved.ordinal}: ${resolved.choice}.`,
-          'Use Spark memory and conversational context if available.',
-          'Continue naturally and briefly. Do not say you lack the prior list.',
-          'Do not start a build unless the user explicitly says go, build, run, or ship.'
-        ].join('\n');
-        const builderReply = await runBuilderTelegramBridge(
-          buildUpdateWithText(ctx.update as unknown as Record<string, unknown>, bridgePrompt)
-        ).catch((bridgeError) => {
-          console.warn('[Bridge] local option reference fallback after bridge error:', bridgeError);
-          return {
-            used: false,
-            responseText: '',
-            decision: '',
-            bridgeMode: '',
-            routingDecision: ''
-          };
-        });
-        if (
-          builderReply.used &&
-          builderReply.bridgeMode !== 'bridge_error' &&
-          !isLowInformationLlmReply(builderReply.responseText) &&
-          !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)
-        ) {
-          await ctx.reply(builderReply.responseText);
-          await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
-          return;
-        }
-        const llmResponse = await llm.chat(
-          resolvedPrompt,
-          [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
-          memories
-        );
-        const response = isLowInformationLlmReply(llmResponse)
-          ? `Got it: ${resolved.choice}.\n\nI would shape that path next.`
-          : llmResponse;
-        await ctx.reply(response);
-        await conversation.rememberAssistantReply(user, response).catch(() => {});
-        return;
-      }
-    }
 
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
@@ -1740,10 +1839,11 @@ bot.on(message('text'), async (ctx) => {
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await safeSendChatAction(ctx, 'typing');
-      const memories = await conversation.getContext(user, text);
+      const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
       const llmResponse = await llm.chat(
-        text,
+        ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
         memories
       );
@@ -1767,8 +1867,6 @@ bot.on(message('text'), async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    await conversation.remember(user, text).catch(() => {});
-
     const memoryDirective = extractPlainChatMemoryDirective(text);
     if (memoryDirective) {
       await conversation.learnAboutUser(user, `User asked Spark to remember: ${memoryDirective}`).catch(() => {});
@@ -1790,7 +1888,9 @@ bot.on(message('text'), async (ctx) => {
     }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      if (!shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
+      const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
+        /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
+      if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
         if (memoryDirective) {
           await conversation.remember(user, text).catch(() => {});
         }
@@ -1802,11 +1902,13 @@ bot.on(message('text'), async (ctx) => {
     }
 
     // Get context from previous memories
-    const memories = await conversation.getContext(user, text);
+    const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
 
+    const chatPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
+
     // Get LLM response with Spark context
-    const response = await llm.chat(text, renderSparkAccessRuntimeHint(accessProfile), memories);
+    const response = await llm.chat(chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {
@@ -1846,9 +1948,9 @@ bot.on(message('text'), async (ctx) => {
     }).catch(() => {});
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
-});
+}
 
-async function handleImageMessage(ctx: any): Promise<void> {
+export async function handleImageMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const imageMemoryText = telegramImageMemoryText(ctx.message);
 
@@ -1890,6 +1992,7 @@ async function handleImageMessage(ctx: any): Promise<void> {
   }
 }
 
+bot.on(message('text'), handleTextMessage);
 bot.on(message('photo'), handleImageMessage);
 bot.on(message('document'), async (ctx) => {
   if (!isTelegramImageMessage(ctx.message)) {
