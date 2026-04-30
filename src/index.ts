@@ -1611,6 +1611,9 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
 }
 
 function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: string; text: string }>): string | null {
+  if (extractPlainChatMemoryDirective(text)) {
+    return null;
+  }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;

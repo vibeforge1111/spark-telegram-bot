@@ -8,18 +8,24 @@ Spark should understand short follow-ups like "do the second one" by using the n
 
 ## Test Tiers
 
-1. Handler acceptance
+1. UX regression smoke
+   - Command: `npm run context:ux`
+   - Runs the short, high-signal regressions before touching context or memory routing.
+   - Covers stale memory override, same-session code-word recall, choice-list acknowledgement, and short option follow-ups.
+   - Isolated `SPARK_GATEWAY_STATE_DIR`, random test user, no live polling.
+
+2. Handler acceptance
    - Command: `npm run context:live -- --allow-fail`
    - Uses Telegram-shaped update payloads through `handleTextMessage`.
    - Uses the real Builder bridge when available and the real chat LLM fallback.
    - Isolated `SPARK_GATEWAY_STATE_DIR`, random test user, no live polling.
 
-2. Stress handler acceptance
+3. Stress handler acceptance
    - Command: `npm run context:live -- --stress --allow-fail`
    - Adds distractor turns before resolving an older numbered option.
    - Good for checking warm summary and artifact survival.
 
-3. Human true-inbound Telegram
+4. Human true-inbound Telegram
    - Command: `npm run nl:live -- --suite context_window --profile testerthebester --send`
    - Sends prompt cards to Telegram.
    - A human pastes each prompt to the real bot.
@@ -29,10 +35,11 @@ Spark should understand short follow-ups like "do the second one" by using the n
 
 - Access continuity: "Change it to 4" after an access request updates access.
 - List continuity: "Let's do the second one" after a numbered list follows the list, not access Level 2.
+- Choice-list restraint: "I am choosing between..." stores options without picking one early.
 - Context after distractors: short references survive several unrelated turns.
 - Capability steering: blocked research/build requests name the needed access level.
 - Same-session memory: explicit code words can be recalled later.
-- Stale-context resistance: newer explicit user intent wins over older summaries.
+- Stale-context resistance: newer explicit user intent wins over older summaries and persistent memories.
 
 ## Known Limits
 
@@ -61,6 +68,7 @@ Useful references:
 
 Before claiming the context window is ready:
 
+- `npm run context:ux` should pass before and after context-routing changes.
 - `npm run context:live -- --allow-fail` should pass all core checks.
 - `npm run context:live -- --stress --allow-fail` should pass all stress checks or produce a documented gap.
 - `npm run nl:live -- --suite context_window --profile testerthebester --send` should be run manually once against the live bot.

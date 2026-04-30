@@ -226,6 +226,36 @@ async function memoryCodeword(driver: TelegramDriver): Promise<HarnessScenarioRe
   return { id: 'context-memory-codeword', title: 'Same-session memory recalls explicit code word', turns: driver.turns, checks };
 }
 
+async function staleMemoryOverride(driver: TelegramDriver): Promise<HarnessScenarioResult> {
+  console.log('\n[context-stale-memory-override]');
+  await driver.send('Please remember that your tiny desk plant is named Sol.');
+  const codewordSave = await driver.send('Please remember this session test code word: aurora mango.');
+  const recall = await driver.send('What is the session test code word I asked you to remember?');
+  const checks = [
+    checkHasReply(codewordSave),
+    checkNotContains(codewordSave, 'codeword_save_not_stale_reply', /\bSol\b|tiny desk plant/i, 'Saving a new code word must not reply with an older memory.'),
+    checkHasReply(recall),
+    checkContains(recall, 'recalls_recent_codeword', /aurora\s+mango/i, 'Recent session fact should win over older stored facts.'),
+    checkNotContains(recall, 'does_not_surface_stale_sol_fact', /\bSol\b|tiny desk plant/i, 'Stale plant memory must not answer the code-word question.')
+  ];
+  return { id: 'context-stale-memory-override', title: 'Recent session memory wins over stale persistent memory', turns: driver.turns, checks };
+}
+
+async function choiceListAcknowledgement(driver: TelegramDriver): Promise<HarnessScenarioResult> {
+  console.log('\n[context-choice-list-acknowledgement]');
+  const listTurn = await driver.send('I am choosing between: 1. recall audit board 2. memory timeline explorer 3. live stress-test panel');
+  const pickTurn = await driver.send("Let's do two");
+  const checks = [
+    checkHasReply(listTurn),
+    checkContains(listTurn, 'acknowledges_options', /options on the table|which number/i, 'Choice-list setup should be acknowledged as context.'),
+    checkNotContains(listTurn, 'does_not_prematurely_select', /\b(?:good pick|it is|before i spec|shape this)\b/i, 'Choice-list setup must not select an option before the user picks.'),
+    checkHasReply(pickTurn),
+    checkContains(pickTurn, 'short_pick_resolves_option_2', /memory\s+timeline|timeline\s+explorer/i, 'Short follow-up should resolve option two from the list.'),
+    checkNotContains(pickTurn, 'short_pick_not_access', /changed this chat to Level|Spark access:/i, 'Short follow-up must not route to access.')
+  ];
+  return { id: 'context-choice-list-acknowledgement', title: 'Choice lists wait for the user, then resolve short picks', turns: driver.turns, checks };
+}
+
 async function latestContextWins(driver: TelegramDriver): Promise<HarnessScenarioResult> {
   console.log('\n[context-latest-context-wins]');
   await driver.send('Change my access level to three please');
@@ -303,7 +333,9 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npm run context:live',
+      '  npm run context:ux',
       '  npm run context:live -- --stress',
+      '  npm run context:live -- --ux',
       '  npm run context:live -- --allow-fail',
       '  npm run context:live -- --state-dir C:\\\\temp\\\\spark-context-test',
       '',
@@ -332,13 +364,19 @@ async function main(): Promise<void> {
   const imported = await import('../src/index');
   const handleTextMessage = imported.handleTextMessage as (ctx: any) => Promise<void>;
 
-  const scenarios: ScenarioRunner[] = [
-    accessListCollision,
-    shorthandAfterDistractors,
-    accessDenialSteer,
-    memoryCodeword,
-    latestContextWins,
-  ];
+  const scenarios: ScenarioRunner[] = hasFlag('ux')
+    ? [
+        staleMemoryOverride,
+        choiceListAcknowledgement,
+        shorthandAfterDistractors,
+      ]
+    : [
+        accessListCollision,
+        shorthandAfterDistractors,
+        accessDenialSteer,
+        memoryCodeword,
+        latestContextWins,
+      ];
   if (hasFlag('stress')) {
     scenarios.push(longWarmContext);
   }
