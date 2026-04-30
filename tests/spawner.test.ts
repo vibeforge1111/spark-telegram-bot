@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
-import { formatCreatorMissionExecutionSummary, formatCreatorMissionSummary, spawner } from '../src/spawner';
+import {
+  formatCreatorMissionExecutionSummary,
+  formatCreatorMissionStatusSummary,
+  formatCreatorMissionSummary,
+  formatCreatorMissionValidationSummary,
+  spawner
+} from '../src/spawner';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -280,6 +286,170 @@ async function run(): Promise<void> {
     assert.match(message, /Provider: Codex/);
     assert.match(message, /Workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
+    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+  });
+
+  await test('creatorMissionStatus reads a creator mission trace from Spawner', async () => {
+    restoreAxios();
+
+    let capturedUrl = '';
+    let capturedOptions: any = null;
+    (axios as any).get = async (url: string, options: unknown) => {
+      capturedUrl = url;
+      capturedOptions = options;
+      return {
+        data: {
+          ok: true,
+          tracePath: 'C:\\Users\\USER\\.spawner\\creator-missions\\mission-creator-1.json',
+          trace: {
+            mission_id: 'mission-creator-1',
+            request_id: 'tg-creator-1',
+            current_stage: 'validation_completed',
+            stage_status: 'validated',
+            publish_readiness: 'workspace_validated',
+            intent_packet: {
+              target_domain: 'Startup YC',
+              privacy_mode: 'local_only',
+              risk_level: 'medium'
+            }
+          }
+        }
+      };
+    };
+
+    const result = await spawner.creatorMissionStatus({ missionId: 'mission-creator-1' });
+
+    assert.equal(result.success, true);
+    assert.equal(result.missionId, 'mission-creator-1');
+    assert.equal(result.requestId, 'tg-creator-1');
+    assert.match(capturedUrl, /\/api\/creator\/mission\?missionId=mission-creator-1$/);
+    assert.equal(capturedOptions.timeout, 30000);
+  });
+
+  await test('formatCreatorMissionStatusSummary renders readiness and latest validation state', async () => {
+    const message = formatCreatorMissionStatusSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        trace: {
+          mission_id: 'mission-creator-1',
+          current_stage: 'validation_failed',
+          stage_status: 'failed',
+          publish_readiness: 'workspace_prepared',
+          artifacts: ['domain_chip', 'benchmark_pack'],
+          artifact_manifest_validation_issues: [{ message: 'missing command' }],
+          blockers: ['One or more validation commands failed.'],
+          validation_runs: [
+            {
+              status: 'failed',
+              results: [
+                { status: 'passed' },
+                { status: 'failed' },
+                { status: 'skipped' }
+              ]
+            }
+          ],
+          intent_packet: {
+            target_domain: 'Startup YC',
+            privacy_mode: 'local_only',
+            risk_level: 'medium'
+          }
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /Creator mission status/);
+    assert.match(message, /Mission: mission-creator-1/);
+    assert.match(message, /Domain: Startup YC/);
+    assert.match(message, /Stage: validation failed \(failed\)/);
+    assert.match(message, /Publish readiness: workspace prepared/);
+    assert.match(message, /Artifacts: 2/);
+    assert.match(message, /Manifest issues: 1/);
+    assert.match(message, /Latest validation: failed \(1 passed, 1 failed, 1 skipped\)/);
+    assert.match(message, /Blockers: One or more validation commands failed/);
+    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+  });
+
+  await test('creatorMissionValidate posts a creator validation request to Spawner', async () => {
+    restoreAxios();
+
+    let capturedUrl = '';
+    let capturedBody: any = null;
+    let capturedOptions: any = null;
+    (axios as any).post = async (url: string, body: unknown, options: unknown) => {
+      capturedUrl = url;
+      capturedBody = body;
+      capturedOptions = options;
+      return {
+        data: {
+          ok: true,
+          missionId: 'mission-creator-1',
+          requestId: 'tg-creator-1',
+          status: 'passed',
+          run: {
+            status: 'passed',
+            results: [
+              {
+                artifact_id: 'startup-bench',
+                command: 'python -m unittest discover -s tests -p "test_*.py"',
+                status: 'passed',
+                exit_code: 0
+              }
+            ]
+          },
+          trace: {
+            mission_id: 'mission-creator-1',
+            request_id: 'tg-creator-1'
+          }
+        }
+      };
+    };
+
+    const result = await spawner.creatorMissionValidate({ missionId: 'mission-creator-1', maxCommands: 3 });
+
+    assert.equal(result.success, true);
+    assert.equal(result.status, 'passed');
+    assert.match(capturedUrl, /\/api\/creator\/mission\/validate$/);
+    assert.deepEqual(capturedBody, { missionId: 'mission-creator-1', maxCommands: 3 });
+    assert.equal(capturedOptions.timeout, 1800000);
+  });
+
+  await test('formatCreatorMissionValidationSummary renders command totals and blockers', async () => {
+    const message = formatCreatorMissionValidationSummary(
+      {
+        success: true,
+        missionId: 'mission-creator-1',
+        status: 'failed',
+        run: {
+          status: 'failed',
+          results: [
+            {
+              artifact_id: 'domain-chip-startup-yc',
+              command: 'python -m pytest tests',
+              status: 'passed',
+              exit_code: 0
+            },
+            {
+              artifact_id: 'startup-bench',
+              command: 'python -m thestartupbench run-suite examples/dev_scenario_suite.json baseline',
+              status: 'failed',
+              exit_code: 1,
+              error: 'Validation command exited non-zero'
+            }
+          ]
+        }
+      },
+      'http://spawner.test/'
+    );
+
+    assert.match(message, /Creator mission validation failed/);
+    assert.match(message, /Mission: mission-creator-1/);
+    assert.match(message, /Commands: 2/);
+    assert.match(message, /Passed: 1/);
+    assert.match(message, /Failed: 1/);
+    assert.match(message, /Needs attention:/);
+    assert.match(message, /startup-bench - python -m thestartupbench run-suite/);
     assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 

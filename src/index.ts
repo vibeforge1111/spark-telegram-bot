@@ -25,7 +25,15 @@ import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeOutbound } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
-import { formatCreatorMissionExecutionSummary, formatCreatorMissionSummary, localServiceTimeoutMs, postLocalServiceWithRetry, spawner } from './spawner';
+import {
+  formatCreatorMissionExecutionSummary,
+  formatCreatorMissionStatusSummary,
+  formatCreatorMissionSummary,
+  formatCreatorMissionValidationSummary,
+  localServiceTimeoutMs,
+  postLocalServiceWithRetry,
+  spawner
+} from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import {
@@ -352,6 +360,8 @@ bot.start(async (ctx) => {
       '/board - Mission state report',
       '/creator plan <brief> - Plan a creator mission for a chip/path/benchmark/autoloop',
       '/creator run <missionId> - Execute a planned creator mission',
+      '/creator status <missionId> - Show creator mission readiness and validation state',
+      '/creator validate <missionId> [maxCommands] - Run creator validation gates',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -816,8 +826,11 @@ type ParsedCreatorCommand = {
 const CREATOR_USAGE = [
   'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
   '       /creator run <mission-creator-id>',
+  '       /creator status <mission-creator-id>',
+  '       /creator validate <mission-creator-id> [maxCommands]',
   'Example: /creator plan private risk medium create a Startup YC benchmarked specialization path',
-  'Example: /creator run mission-creator-1776768300668'
+  'Example: /creator run mission-creator-1776768300668',
+  'Example: /creator validate mission-creator-1776768300668 6'
 ].join('\n');
 
 function normalizeCreatorPrivacyMode(value: string): ParsedCreatorCommand['privacyMode'] | null {
@@ -906,6 +919,47 @@ export function parseCreatorPlanCommand(raw: string): ParsedCreatorCommand | nul
 
   const brief = parts.join(' ').trim();
   return brief ? { brief, privacyMode, riskLevel } : null;
+}
+
+type ParsedCreatorMissionControlCommand = {
+  action: 'run' | 'status' | 'validate';
+  missionId: string;
+  maxCommands?: number;
+};
+
+function parseCreatorMissionControlCommand(raw: string): ParsedCreatorMissionControlCommand | null {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  const actionToken = parts.shift()?.toLowerCase();
+  const missionId = parts.shift();
+  if (!actionToken || !missionId) return null;
+
+  const action = ['run', 'execute', 'start'].includes(actionToken)
+    ? 'run'
+    : ['status', 'show', 'inspect'].includes(actionToken)
+      ? 'status'
+      : ['validate', 'check', 'verify'].includes(actionToken)
+        ? 'validate'
+        : null;
+  if (!action) return null;
+
+  let maxCommands: number | undefined;
+  if (parts.length > 0) {
+    if (action !== 'validate') return null;
+    const maxToken = parts.length === 1
+      ? parts[0]
+      : parts.length === 2 && ['max', '--max', '--max-commands'].includes(parts[0].toLowerCase())
+        ? parts[1]
+        : '';
+    const parsedMax = Number.parseInt(maxToken, 10);
+    if (!Number.isInteger(parsedMax) || parsedMax < 1) return null;
+    maxCommands = parsedMax;
+  }
+
+  return { action, missionId, maxCommands };
+}
+
+function isValidCreatorMissionId(missionId: string): boolean {
+  return /^mission-creator-[A-Za-z0-9_-]+$/.test(missionId);
 }
 
 export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
@@ -1322,9 +1376,9 @@ bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
   const raw = ctx.message.text.replace('/creator', '').trim();
-  const runMatch = raw.match(/^(?:run|execute|start)\s+(\S+)\s*$/i);
-  const parsed = runMatch ? null : parseCreatorPlanCommand(raw);
-  if (!runMatch && !parsed) {
+  const control = parseCreatorMissionControlCommand(raw);
+  const parsed = control ? null : parseCreatorPlanCommand(raw);
+  if (!control && !parsed) {
     return ctx.reply(CREATOR_USAGE);
   }
 
@@ -1336,25 +1390,46 @@ bot.command('creator', async (ctx) => {
 
   await safeSendChatAction(ctx, 'typing');
 
-  if (runMatch) {
-    const missionId = runMatch[1].trim();
+  if (control) {
+    const missionId = control.missionId.trim();
     if (missionId.includes('<') || missionId.includes('>')) {
       return ctx.reply('Use the real creator mission ID, for example: /creator run mission-creator-1776768300668');
     }
-    if (!/^mission-creator-[A-Za-z0-9_-]+$/.test(missionId)) {
+    if (!isValidCreatorMissionId(missionId)) {
       return ctx.reply('Use a creator mission ID from /creator plan or /board, for example: /creator run mission-creator-1776768300668');
     }
 
-    await ctx.reply('Starting creator mission execution through Spawner...');
-    const result = await spawner.creatorMissionExecute({ missionId });
-    await ctx.reply(formatCreatorMissionExecutionSummary(result));
-    if (result.success && result.missionId) {
-      await conversation.learnAboutUser(
-        ctx.from,
-        `Started execution for creator mission ${result.missionId} from Telegram.`
-      ).catch(() => {});
+    if (control.action === 'status') {
+      const result = await spawner.creatorMissionStatus({ missionId });
+      await ctx.reply(formatCreatorMissionStatusSummary(result));
+      return;
     }
-    return;
+
+    if (control.action === 'validate') {
+      await ctx.reply('Running creator mission validation through Spawner...');
+      const result = await spawner.creatorMissionValidate({ missionId, maxCommands: control.maxCommands });
+      await ctx.reply(formatCreatorMissionValidationSummary(result));
+      if (result.success && result.missionId) {
+        await conversation.learnAboutUser(
+          ctx.from,
+          `Ran validation for creator mission ${result.missionId} from Telegram.`
+        ).catch(() => {});
+      }
+      return;
+    }
+
+    if (control.action === 'run') {
+      await ctx.reply('Starting creator mission execution through Spawner...');
+      const result = await spawner.creatorMissionExecute({ missionId });
+      await ctx.reply(formatCreatorMissionExecutionSummary(result));
+      if (result.success && result.missionId) {
+        await conversation.learnAboutUser(
+          ctx.from,
+          `Started execution for creator mission ${result.missionId} from Telegram.`
+        ).catch(() => {});
+      }
+      return;
+    }
   }
 
   if (!parsed) {

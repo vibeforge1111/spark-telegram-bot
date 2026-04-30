@@ -48,6 +48,13 @@ interface CreatorMissionTrace {
   request_id?: string;
   creator_mode?: string;
   artifacts?: string[];
+  artifact_manifests?: Array<{ artifact_id?: string; artifact_type?: string; repo?: string; validation_commands?: string[] }>;
+  artifact_manifest_validation_issues?: unknown[];
+  validation_runs?: CreatorValidationRun[];
+  current_stage?: string;
+  stage_status?: string;
+  publish_readiness?: string;
+  blockers?: string[];
   tasks?: unknown[];
   intent_packet?: CreatorIntentPacket;
   links?: {
@@ -71,6 +78,20 @@ interface CreatorMissionExecutionInput {
   requestId?: string;
 }
 
+interface CreatorMissionLookupInput {
+  missionId?: string;
+  requestId?: string;
+}
+
+interface CreatorMissionStatusResult {
+  success: boolean;
+  missionId?: string;
+  requestId?: string;
+  tracePath?: string;
+  trace?: CreatorMissionTrace;
+  error?: string;
+}
+
 interface CreatorMissionExecutionResult {
   success: boolean;
   missionId?: string;
@@ -81,6 +102,44 @@ interface CreatorMissionExecutionResult {
   providerId?: string;
   projectPath?: string;
   canvasUrl?: string;
+  trace?: CreatorMissionTrace;
+  error?: string;
+}
+
+interface CreatorMissionValidationInput {
+  missionId?: string;
+  requestId?: string;
+  maxCommands?: number;
+}
+
+interface CreatorValidationCommandResult {
+  artifact_id?: string;
+  artifact_type?: string;
+  repo?: string;
+  command?: string;
+  cwd?: string;
+  status?: 'passed' | 'failed' | 'skipped';
+  exit_code?: number | null;
+  stdout_tail?: string;
+  stderr_tail?: string;
+  error?: string | null;
+}
+
+interface CreatorValidationRun {
+  run_id?: string;
+  mission_id?: string;
+  started_at?: string;
+  completed_at?: string;
+  status?: 'passed' | 'failed' | 'blocked';
+  results?: CreatorValidationCommandResult[];
+}
+
+interface CreatorMissionValidationResult {
+  success: boolean;
+  missionId?: string;
+  requestId?: string;
+  status?: 'passed' | 'failed' | 'blocked';
+  run?: CreatorValidationRun;
   trace?: CreatorMissionTrace;
   error?: string;
 }
@@ -304,6 +363,27 @@ function formatCreatorMode(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
 
+function formatCreatorReadiness(value: string | undefined): string {
+  return (value || 'unknown').replace(/_/g, ' ');
+}
+
+function latestCreatorValidationRun(trace: CreatorMissionTrace): CreatorValidationRun | null {
+  const runs = Array.isArray(trace.validation_runs) ? trace.validation_runs : [];
+  return runs[runs.length - 1] || null;
+}
+
+function countValidationResults(run: CreatorValidationRun | null, status: CreatorValidationCommandResult['status']): number {
+  return (run?.results || []).filter((result) => result.status === status).length;
+}
+
+function formatValidationResultLine(result: CreatorValidationCommandResult): string {
+  const artifact = result.artifact_id || result.artifact_type || 'unknown artifact';
+  const status = result.status || 'unknown';
+  const command = result.command || 'unknown command';
+  const suffix = result.error ? ` (${result.error})` : '';
+  return `- ${status}: ${artifact} - ${command}${suffix}`;
+}
+
 export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUrl = spawnerPublicUrl()): string {
   if (!result.success) {
     return `Creator mission failed: ${result.error || 'unknown error'}`;
@@ -340,6 +420,42 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
   return lines.join('\n');
 }
 
+export function formatCreatorMissionStatusSummary(
+  result: CreatorMissionStatusResult,
+  baseUrl = spawnerPublicUrl()
+): string {
+  if (!result.success) {
+    return `Creator mission status failed: ${result.error || 'unknown error'}`;
+  }
+
+  const trace = result.trace || {};
+  const intent = trace.intent_packet || {};
+  const missionId = result.missionId || trace.mission_id || 'unknown';
+  const latestRun = latestCreatorValidationRun(trace);
+  const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
+  const canvasUrl = absoluteSpawnerUrl(trace.links?.canvas, baseUrl);
+  const blockers = Array.isArray(trace.blockers) ? trace.blockers.filter((blocker) => String(blocker).trim()) : [];
+  const artifactCount = Array.isArray(trace.artifact_manifests) ? trace.artifact_manifests.length : trace.artifacts?.length || 0;
+  const issueCount = Array.isArray(trace.artifact_manifest_validation_issues) ? trace.artifact_manifest_validation_issues.length : 0;
+
+  return [
+    'Creator mission status.',
+    '',
+    `Mission: ${missionId}`,
+    `Domain: ${intent.target_domain || 'unknown'}`,
+    `Stage: ${formatCreatorReadiness(trace.current_stage)} (${formatCreatorReadiness(trace.stage_status)})`,
+    `Publish readiness: ${formatCreatorReadiness(trace.publish_readiness)}`,
+    `Artifacts: ${artifactCount}`,
+    `Manifest issues: ${issueCount}`,
+    latestRun
+      ? `Latest validation: ${latestRun.status || 'unknown'} (${countValidationResults(latestRun, 'passed')} passed, ${countValidationResults(latestRun, 'failed')} failed, ${countValidationResults(latestRun, 'skipped')} skipped)`
+      : 'Latest validation: none yet',
+    ...(blockers.length > 0 ? [`Blockers: ${blockers.slice(0, 3).join('; ')}`] : []),
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Mission board: ${kanbanUrl}`
+  ].join('\n');
+}
+
 export function formatCreatorMissionExecutionSummary(
   result: CreatorMissionExecutionResult,
   baseUrl = spawnerPublicUrl()
@@ -365,6 +481,37 @@ export function formatCreatorMissionExecutionSummary(
     ...(result.providerId ? [`Provider: ${formatProviderLabel(result.providerId)}`] : []),
     ...(result.reason ? [`Reason: ${result.reason}`] : []),
     ...(result.projectPath ? [`Workspace: ${result.projectPath}`] : []),
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
+    `Mission board: ${kanbanUrl}`
+  ].join('\n');
+}
+
+export function formatCreatorMissionValidationSummary(
+  result: CreatorMissionValidationResult,
+  baseUrl = spawnerPublicUrl()
+): string {
+  if (!result.success) {
+    return `Creator mission validation failed: ${result.error || 'unknown error'}`;
+  }
+
+  const trace = result.trace || {};
+  const missionId = result.missionId || trace.mission_id || 'unknown';
+  const run = result.run || latestCreatorValidationRun(trace);
+  const results = run?.results || [];
+  const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
+  const canvasUrl = absoluteSpawnerUrl(trace.links?.canvas, baseUrl);
+  const failedOrSkipped = results.filter((item) => item.status === 'failed' || item.status === 'skipped').slice(0, 5);
+  const status = result.status || run?.status || 'unknown';
+
+  return [
+    `Creator mission validation ${status}.`,
+    '',
+    `Mission: ${missionId}`,
+    `Commands: ${results.length}`,
+    `Passed: ${countValidationResults(run, 'passed')}`,
+    `Failed: ${countValidationResults(run, 'failed')}`,
+    `Skipped: ${countValidationResults(run, 'skipped')}`,
+    ...(failedOrSkipped.length > 0 ? ['', 'Needs attention:', ...failedOrSkipped.map(formatValidationResultLine)] : []),
     ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
     `Mission board: ${kanbanUrl}`
   ].join('\n');
@@ -480,6 +627,75 @@ export const spawner = {
         canvasUrl: typeof res.data?.canvasUrl === 'string' ? res.data.canvasUrl : undefined,
         trace: res.data?.trace,
         error: typeof res.data?.error === 'string' ? res.data.error : undefined
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async creatorMissionStatus(input: CreatorMissionLookupInput): Promise<CreatorMissionStatusResult> {
+    try {
+      const params = new URLSearchParams();
+      if (input.missionId) params.set('missionId', input.missionId);
+      if (input.requestId) params.set('requestId', input.requestId);
+      const query = params.toString();
+      const res = await axios.get(
+        `${SPAWNER_UI_URL}/api/creator/mission${query ? `?${query}` : ''}`,
+        { timeout: localServiceTimeoutMs('SPARK_CREATOR_MISSION_STATUS_TIMEOUT_MS', 30000) }
+      );
+
+      if (res.data?.ok === false) {
+        return {
+          success: false,
+          error: res.data?.error || 'Creator mission status lookup was rejected.'
+        };
+      }
+
+      const trace = res.data?.trace;
+      return {
+        success: Boolean(res.data?.ok),
+        missionId: res.data?.missionId || trace?.mission_id,
+        requestId: res.data?.requestId || trace?.request_id,
+        tracePath: typeof res.data?.tracePath === 'string' ? res.data.tracePath : undefined,
+        trace
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async creatorMissionValidate(input: CreatorMissionValidationInput): Promise<CreatorMissionValidationResult> {
+    try {
+      const res = await postLocalServiceWithRetry(
+        `${SPAWNER_UI_URL}/api/creator/mission/validate`,
+        {
+          ...(input.missionId ? { missionId: input.missionId } : {}),
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+          ...(typeof input.maxCommands === 'number' ? { maxCommands: input.maxCommands } : {})
+        },
+        localServiceTimeoutMs('SPARK_CREATOR_MISSION_VALIDATE_TIMEOUT_MS')
+      );
+
+      if (res.data?.ok === false) {
+        return {
+          success: false,
+          error: res.data?.error || 'Creator mission validation was rejected.'
+        };
+      }
+
+      return {
+        success: Boolean(res.data?.ok),
+        missionId: res.data?.missionId,
+        requestId: res.data?.requestId,
+        status: res.data?.status,
+        run: res.data?.run,
+        trace: res.data?.trace
       };
     } catch (err: any) {
       return {
