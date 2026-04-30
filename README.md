@@ -220,9 +220,10 @@ If you are Claude Code, Codex, or another LLM agent operating this repo:
 2. Only this repo should receive `BOT_TOKEN`.
 3. Put only numeric owner IDs in `ADMIN_TELEGRAM_IDS`.
 4. Use `npm test`, `npm run build`, and `npm run health:polling` before claiming the gateway is healthy.
-5. Use `/diagnose` to verify provider/LLM wiring from Telegram.
-6. Never commit `.env`, `.env.*`, tokens, chat exports, mission logs with secrets, or screenshots containing secrets.
-7. Keep relay identity named. The main bot should report its configured primary profile, usually `primary`; tester bots should report their own profile names.
+5. `npm test` is offline-safe and injects a dummy token when `BOT_TOKEN` is unset. Use `npm run test:live-token` only when a real tester bot token is intentionally configured.
+6. Use `/diagnose` to verify provider/LLM wiring from Telegram.
+7. Never commit `.env`, `.env.*`, tokens, chat exports, mission logs with secrets, or screenshots containing secrets.
+8. Keep relay identity named. The main bot should report its configured primary profile, usually `primary`; tester bots should report their own profile names.
 
 ## Related Docs
 
