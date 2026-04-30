@@ -310,7 +310,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
 export function buildLocalSparkServiceClarificationReply(): string {
   return [
     'Which local Spark surface do you mean?',
-    '- Spawner UI / Mission Control: http://127.0.0.1:5173',
+    '- Spawner UI / Mission Control: http://127.0.0.1:3333',
     '- Diagnostic notes: `~/.spark/diagnostics`',
     '- Telegram bot health: `/diagnose`',
     '- Full stack check: `spark status`'
@@ -321,7 +321,7 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   if (spawnerAvailable) {
     return [
       'Yes. Spawner UI / Mission Control is running here:',
-      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3333',
       '',
       'For this diagnostic-agent work, open the Mission board there. The diagnostic notes are written under `~/.spark/diagnostics`.'
     ].join('\n');
@@ -329,7 +329,7 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
 
   return [
     'Spawner UI is not reachable from the Telegram gateway right now.',
-    'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:5173.',
+    'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:3333.',
     'After that, I can use the Spawner API path again through missions.'
   ].join('\n');
 }

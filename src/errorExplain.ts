@@ -145,7 +145,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
     lower.includes('timed out') ||
     lower.includes('network error')
   ) {
-    if (context === 'spawner' || lower.includes('5173') || lower.includes('8788')) {
+    if (context === 'spawner' || lower.includes('3333') || lower.includes('5173') || lower.includes('8788')) {
       if (lower.includes('econnrefused') || lower.includes('connection refused')) {
         return {
           category: 'spawner_offline',

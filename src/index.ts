@@ -442,7 +442,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     await ctx.reply('Perfect, I will run with the default direction.');
   }
 
-  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   const newRequestId = `${pending.requestId}-clarified-${Date.now()}`;
   const missionId = missionIdFromTelegramBuildRequest(newRequestId);
   const tier = getTierForUser(ctx.from.id);
@@ -1025,7 +1025,7 @@ export async function handleBuildIntent(
     return;
   }
 
-  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+  const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   const chatId = Number(ctx.chat.id);
   const requestId = `tg-build-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
   const missionId = missionIdFromTelegramBuildRequest(requestId);

@@ -46,7 +46,7 @@ test('formats structured provider JSON as readable Telegram text', () => {
 
   assert.match(message, /✨ Spark/);
   assert.match(message, /Implemented the requested static board/);
-  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5500\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Quality checks passed\./);
   assert.match(message, /keep polishing/);
   assert.doesNotMatch(message, /Files updated/);
@@ -99,7 +99,7 @@ test('formats structured provider failures without raw JSON noise', () => {
 
   assert.match(message, /(?:This run needs attention|Something blocked the mission|The build hit a problem|Spark could not finish this run)\./);
   assert.match(message, /final browser verification failed/);
-  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5500\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.match(message, /Quality checks passed\./);
   assert.doesNotMatch(message, /Files updated/);
   assert.doesNotMatch(message, /npm run smoke/);
@@ -169,7 +169,7 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.match(message, /Full-viewport Three\.js orbital forge/);
   assert.match(message, /Quality checks passed\./);
   assert.doesNotMatch(message, /Headless Chrome desktop\/mobile/);
-  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5500\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);
@@ -188,20 +188,20 @@ test('supports human verbosity aliases', () => {
 });
 
 test('builds mission surface links from user preference', () => {
-  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:5173'), []);
-  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:5173'), [
-    'Mission spark-123: http://127.0.0.1:5173/kanban?mission=spark-123'
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'none', 'http://127.0.0.1:3333'), []);
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board', 'http://127.0.0.1:3333'), [
+    'Mission spark-123: http://127.0.0.1:3333/kanban?mission=spark-123'
   ]);
-  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:5173'), [
-    'Canvas: http://127.0.0.1:5173/canvas?mission=spark-123'
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'canvas', 'http://127.0.0.1:3333'), [
+    'Canvas: http://127.0.0.1:3333/canvas?mission=spark-123'
   ]);
-  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:5173'), [
-    'Mission spark-123: http://127.0.0.1:5173/kanban?mission=spark-123',
-    'Canvas: http://127.0.0.1:5173/canvas?mission=spark-123'
+  assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'both', 'http://127.0.0.1:3333'), [
+    'Mission spark-123: http://127.0.0.1:3333/kanban?mission=spark-123',
+    'Canvas: http://127.0.0.1:3333/canvas?mission=spark-123'
   ]);
-  assert.deepEqual(buildMissionSurfaceLinks('mission-1777', 'both', 'http://127.0.0.1:5173', 'tg-build-1'), [
-    'Mission mission-1777: http://127.0.0.1:5173/kanban?mission=mission-1777',
-    'Canvas: http://127.0.0.1:5173/canvas?pipeline=prd-tg-build-1&mission=mission-1777'
+  assert.deepEqual(buildMissionSurfaceLinks('mission-1777', 'both', 'http://127.0.0.1:3333', 'tg-build-1'), [
+    'Mission mission-1777: http://127.0.0.1:3333/kanban?mission=mission-1777',
+    'Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-1&mission=mission-1777'
   ]);
 });
 
@@ -229,7 +229,7 @@ test('mission start update links the mission once through kanban', () => {
   assert.match(message || '', /Planning has started/);
   assert.match(message || '', /canvas link once the PRD and canvas are ready/);
   assert.match(message || '', /only ping when something useful changes/);
-  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
+  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-123/);
   assert.doesNotMatch(message || '', /Canvas:/);
   assert.doesNotMatch(message || '', /\/missions/);
 });
@@ -254,7 +254,7 @@ test('verbose mission start does not paste the whole build brief', () => {
   );
 
   assert.match(message || '', /(?:Spark is on it|The run is moving|Spark picked it up|We are underway)\./);
-  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:5173\/kanban\?mission=spark-123/);
+  assert.match(message || '', /Mission spark-123: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-123/);
   assert.match(message || '', /canvas link once the PRD and canvas are ready/);
   assert.doesNotMatch(message || '', /Canvas:/);
   assert.doesNotMatch(message || '', /prd-tg-build-1/);

@@ -171,7 +171,7 @@ test('recognizes local Spark service URL requests', () => {
     ),
     true
   );
-  assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:5173/);
+  assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:3333/);
   assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
 });
 

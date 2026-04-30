@@ -14,7 +14,7 @@ import {
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
-const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:5173';
+const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
 const BOT_DEFAULT_PROVIDER = resolveChatDefaultProvider();
 

@@ -24,7 +24,7 @@ test('explains provider auth failures with a repair path', () => {
 });
 
 test('explains local service network failures', () => {
-  const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:5173'), 'spawner');
+  const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 
   assert.equal(explanation.category, 'spawner_offline');
   assert.match(explanation.userLine, /Mission Control is not reachable/);

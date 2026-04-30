@@ -384,7 +384,7 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /latest shipped app/);
     assert.match(result.message, /Beauty Centre Booking Website/);
-    assert.match(result.message, /http:\/\/127\.0\.0\.1:5500/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:5555/);
     assert.doesNotMatch(result.message, /Mission board/);
   });
 
@@ -417,7 +417,7 @@ async function run(): Promise<void> {
     const result = await spawner.latestProjectPreview();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /http:\/\/127\.0\.0\.1:5500\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:5555\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   });
 }
 
