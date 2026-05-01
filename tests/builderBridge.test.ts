@@ -4,12 +4,15 @@ import {
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatMemoryDashboardReply,
+  formatMemoryFeedbackReply,
   formatMemorySessionSearchReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
   formatWikiQueryReply,
-  formatWikiStatusReply
+  formatWikiStatusReply,
+  parseMemoryFeedbackCommand,
+  selectMemoryFeedbackTargetFromPayload
 } from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
@@ -280,6 +283,87 @@ test('formats memory session search as concise episodic evidence report', () => 
   assert.match(reply, /session-search-memory-dashboard/);
   assert.match(reply, /episodic evidence/);
   assert.equal(reply.length < 1000, true);
+});
+
+test('parses memory feedback commands with optional target event ids', () => {
+  assert.deepEqual(parseMemoryFeedbackCommand('/memory bad evt-abc123 because stale current focus'), {
+    verdict: 'bad',
+    note: 'stale current focus',
+    targetEventId: 'evt-abc123',
+    targetTraceRef: undefined
+  });
+  assert.deepEqual(parseMemoryFeedbackCommand('/memory feedback wrong trace:trace-77 used the old plan'), {
+    verdict: 'wrong',
+    note: 'used the old plan',
+    targetEventId: undefined,
+    targetTraceRef: 'trace-77'
+  });
+  assert.deepEqual(parseMemoryFeedbackCommand('/memory feedback this was useful'), {
+    verdict: 'useful',
+    note: 'this was useful',
+    targetEventId: undefined,
+    targetTraceRef: undefined
+  });
+  assert.equal(parseMemoryFeedbackCommand('/memory feedback'), null);
+});
+
+test('selects latest memory event as feedback target from dashboard or search payloads', () => {
+  assert.deepEqual(
+    selectMemoryFeedbackTargetFromPayload({
+      agent_view: [
+        {
+          event_id: 'evt-dashboard-1',
+          trace_ref: 'trace-dashboard-1',
+          predicate: 'profile.current_focus',
+          event_type: 'memory_read_succeeded'
+        }
+      ]
+    }),
+    {
+      eventId: 'evt-dashboard-1',
+      traceRef: 'trace-dashboard-1',
+      label: 'profile.current_focus'
+    }
+  );
+  assert.deepEqual(
+    selectMemoryFeedbackTargetFromPayload({
+      sessions: [
+        {
+          events: [
+            {
+              event_id: 'evt-session-1',
+              trace_ref: 'trace-session-1',
+              snippet: 'The memory dashboard is the memory window.'
+            }
+          ]
+        }
+      ]
+    }),
+    {
+      eventId: 'evt-session-1',
+      traceRef: 'trace-session-1',
+      label: 'The memory dashboard is the memory window.'
+    }
+  );
+});
+
+test('formats recorded memory feedback as a concise Telegram ack', () => {
+  const reply = formatMemoryFeedbackReply({
+    event_id: 'evt-feedback-1',
+    verdict: 'bad',
+    note: 'This recall used stale current-state context.',
+    target: {
+      event_id: 'evt-memory-read-1',
+      event_type: 'memory_read_succeeded'
+    }
+  });
+
+  assert.match(reply, /Memory feedback recorded/);
+  assert.match(reply, /Verdict: bad/);
+  assert.match(reply, /Target: evt-memory-read-1/);
+  assert.match(reply, /stale current-state context/);
+  assert.match(reply, /review evidence/);
+  assert.equal(reply.length < 700, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {

@@ -97,6 +97,33 @@ export interface BuilderMemorySessionSearchResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemoryFeedbackInput {
+  userId: number | string;
+  chatId: number | string;
+  verdict: string;
+  note: string;
+  targetEventId?: string | null;
+  targetTraceRef?: string | null;
+}
+
+export interface BuilderMemoryFeedbackResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
+export interface MemoryFeedbackCommand {
+  verdict: string;
+  note: string;
+  targetEventId?: string;
+  targetTraceRef?: string;
+}
+
+export interface MemoryFeedbackTarget {
+  eventId?: string;
+  traceRef?: string;
+  label?: string;
+}
+
 export interface BuilderWikiStatusResult {
   replyText: string;
   payload: Record<string, unknown>;
@@ -598,6 +625,92 @@ export function formatMemorySessionSearchReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+const MEMORY_FEEDBACK_VERDICTS = new Set(['good', 'bad', 'ugly', 'wrong', 'missing', 'useful', 'not_useful']);
+
+function normalizeMemoryFeedbackVerdict(value: string): string | null {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return MEMORY_FEEDBACK_VERDICTS.has(normalized) ? normalized : null;
+}
+
+export function parseMemoryFeedbackCommand(text: string): MemoryFeedbackCommand | null {
+  const match = text.match(/^\/memory(?:@\w+)?\s+(good|bad|ugly|wrong|missing|useful|not[-_\s]?useful|feedback)\b\s*([\s\S]*)$/i);
+  if (!match) return null;
+  let verb = match[1].trim();
+  let rest = (match[2] || '').trim();
+  if (verb.toLowerCase() === 'feedback') {
+    const firstToken = rest.match(/^(good|bad|ugly|wrong|missing|useful|not[-_\s]?useful)\b\s*([\s\S]*)$/i);
+    if (firstToken) {
+      verb = firstToken[1];
+      rest = (firstToken[2] || '').trim();
+    } else {
+      verb = 'useful';
+    }
+  }
+  const verdict = normalizeMemoryFeedbackVerdict(verb);
+  if (!verdict || !rest) return null;
+
+  const targetEvent = rest.match(/\b(evt[-_A-Za-z0-9]+)\b/);
+  const targetTrace = rest.match(/\btrace[:=]([A-Za-z0-9_.:-]+)\b/i);
+  const targetEventId = targetEvent?.[1];
+  const targetTraceRef = targetTrace?.[1];
+  let note = rest;
+  if (targetEventId) note = note.replace(targetEventId, '').trim();
+  if (targetTrace?.[0]) note = note.replace(targetTrace[0], '').trim();
+  note = note.replace(/^(?:because|:|-)\s*/i, '').trim();
+  if (!note) return null;
+  return { verdict, note, targetEventId, targetTraceRef };
+}
+
+export function selectMemoryFeedbackTargetFromPayload(payload: unknown): MemoryFeedbackTarget | null {
+  const root = objectValue(payload);
+  const agentRows = arrayValue(root.agent_view).map(objectValue);
+  for (const row of agentRows) {
+    const eventId = stringValue(row.event_id);
+    if (eventId) {
+      return {
+        eventId,
+        traceRef: stringValue(row.trace_ref) || undefined,
+        label: stringValue(row.predicate) || stringValue(row.event_type) || undefined,
+      };
+    }
+  }
+  const sessions = arrayValue(root.sessions).map(objectValue);
+  for (const session of sessions) {
+    const events = arrayValue(session.events).map(objectValue);
+    for (const event of events) {
+      const eventId = stringValue(event.event_id);
+      if (eventId) {
+        return {
+          eventId,
+          traceRef: stringValue(event.trace_ref) || undefined,
+          label: stringValue(event.snippet) || stringValue(event.role) || undefined,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+export function formatMemoryFeedbackReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const target = objectValue(root.target);
+  const targetLabel =
+    stringValue(target.event_id) ||
+    stringValue(root.target_event_id) ||
+    stringValue(root.target_trace_ref) ||
+    'general memory review';
+  const lines = [
+    'Memory feedback recorded',
+    '',
+    `Verdict: ${stringValue(root.verdict) || 'recorded'}`,
+    `Target: ${targetLabel}`,
+    `Note: ${truncateForPrompt(stringValue(root.note) || 'saved for review', 220)}`,
+    '',
+    'I will treat this as review evidence, not as durable memory truth.',
+  ];
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -931,6 +1044,64 @@ export async function runBuilderMemorySessionSearch(
   return {
     payload,
     replyText: formatMemorySessionSearchReply(payload),
+  };
+}
+
+export async function runBuilderMemoryFeedback(
+  input: BuilderMemoryFeedbackInput
+): Promise<BuilderMemoryFeedbackResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const chatId = String(input.chatId).trim();
+  const args = pythonModuleInvocation(config, 'spark_intelligence.cli', [
+    'memory',
+    'record-feedback',
+    '--home',
+    config.builderHome,
+    '--human-id',
+    `human:telegram:${userId}`,
+    '--agent-id',
+    `agent:human:telegram:${userId}`,
+    '--session-id',
+    `session:telegram:${chatId}:${userId}`,
+    '--surface',
+    'telegram',
+    '--verdict',
+    input.verdict,
+    '--note',
+    input.note,
+    '--json',
+  ]);
+  if (input.targetEventId) {
+    args.push('--target-event-id', input.targetEventId);
+  }
+  if (input.targetTraceRef) {
+    args.push('--target-trace-ref', input.targetTraceRef);
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    args,
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_FEEDBACK_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory feedback returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemoryFeedbackReply(payload),
   };
 }
 

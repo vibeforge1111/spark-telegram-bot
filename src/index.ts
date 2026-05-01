@@ -17,11 +17,14 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   getBuilderBridgeStatus,
+  parseMemoryFeedbackCommand,
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
   runBuilderMemoryDashboard,
+  runBuilderMemoryFeedback,
   runBuilderMemorySessionSearch,
   runBuilderSelfAwarenessStatus,
+  selectMemoryFeedbackTargetFromPayload,
   runBuilderTelegramBridge,
   runBuilderWikiAnswer,
   runBuilderWikiInventory,
@@ -159,6 +162,12 @@ const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
+
+const latestMemoryFeedbackTargets = new Map<string, { eventId?: string; traceRef?: string; label?: string }>();
+
+function memoryFeedbackTargetKey(userId: number | string, chatId: number | string): string {
+  return `${String(chatId)}:${String(userId)}`;
+}
 
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
@@ -511,6 +520,20 @@ bot.command('memory', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const feedbackCommand = parseMemoryFeedbackCommand(text);
+    if (feedbackCommand) {
+      const latestTarget = latestMemoryFeedbackTargets.get(memoryFeedbackTargetKey(ctx.from.id, ctx.chat.id));
+      const result = await runBuilderMemoryFeedback({
+        userId: ctx.from.id,
+        chatId: ctx.chat.id,
+        verdict: feedbackCommand.verdict,
+        note: feedbackCommand.note,
+        targetEventId: feedbackCommand.targetEventId || latestTarget?.eventId,
+        targetTraceRef: feedbackCommand.targetTraceRef || latestTarget?.traceRef,
+      });
+      await ctx.reply(result.replyText);
+      return;
+    }
     const searchMatch = text.match(/^\/memory(?:@\w+)?\s+(?:search|find)\s+(.+)$/i);
     const result = searchMatch?.[1]?.trim()
       ? await runBuilderMemorySessionSearch({
@@ -522,6 +545,10 @@ bot.command('memory', async (ctx) => {
           userId: ctx.from.id,
           limit: 40,
         });
+    const feedbackTarget = selectMemoryFeedbackTargetFromPayload(result.payload);
+    if (feedbackTarget) {
+      latestMemoryFeedbackTargets.set(memoryFeedbackTargetKey(ctx.from.id, ctx.chat.id), feedbackTarget);
+    }
     await ctx.reply(result.replyText);
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
