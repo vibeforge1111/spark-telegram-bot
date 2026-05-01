@@ -20,7 +20,9 @@ import {
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
   runBuilderSelfAwarenessStatus,
-  runBuilderTelegramBridge
+  runBuilderTelegramBridge,
+  runBuilderWikiInventory,
+  runBuilderWikiStatus
 } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
@@ -101,6 +103,8 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkWikiInventoryQuestion,
+  isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
@@ -386,6 +390,7 @@ bot.start(async (ctx) => {
       '/workspaces - Show local project folders',
       '/model - Show or change Agent/Mission model routing',
       '/models - Show recommended model versions',
+      '/wiki - Check Spark LLM wiki health; use /wiki pages for vault inventory',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
       '/access <1|2|3|4> - Choose Chat Only, Build When Asked, Research + Build, or Full Access',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
@@ -457,6 +462,20 @@ bot.command('self', async (ctx) => {
       chatId: ctx.chat.id,
       currentMessage: text,
     });
+    await ctx.reply(result.replyText);
+  } catch (err: any) {
+    await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+  }
+});
+
+bot.command('wiki', async (ctx) => {
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
+    const result = wantsInventory
+      ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
+      : await runBuilderWikiStatus({ refresh: true });
     await ctx.reply(result.replyText);
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
@@ -1900,6 +1919,30 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkAccessConversationHelp(accessProfile);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
+    return;
+  }
+  if (!earlyBuildIntent && isSparkWikiStatusQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderWikiStatus({ refresh: true });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
     return;
   }
   const recentRememberedAnswer = earlyBuildIntent ? null : answerFromRememberTurns(text, [

@@ -76,6 +76,16 @@ export interface BuilderSelfAwarenessResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderWikiStatusResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
+export interface BuilderWikiInventoryResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -264,6 +274,76 @@ function formatClaimLines(title: string, claims: unknown, limit: number, compact
   return [title, ...items.map((item) => `- ${item}`), ''];
 }
 
+function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
+  const lens = objectValue(styleLens);
+  if (!Object.keys(lens).length) {
+    return [];
+  }
+  const lines = ['How I should show up for you'];
+  const summary = stringValue(lens.persona_summary);
+  const styleSentence = stringValue(lens.style_sentence);
+  const rules = arrayValue(lens.behavioral_rules)
+    .map((item) => stringValue(item))
+    .filter(Boolean)
+    .slice(0, 2);
+  if (summary) {
+    lines.push(`- Your saved style says: ${humanizeStyleInstruction(summary)}.`);
+  }
+  if (styleSentence) {
+    lines.push(`- Tone: ${styleSentence}.`);
+  }
+  if (rules.length && !summary) {
+    lines.push(`- Style promises: ${rules.join('; ')}.`);
+  }
+  if (lens.user_deltas_applied) {
+    lines.push('- Your recent style preferences are part of this answer, not hidden somewhere else.');
+  }
+  lines.push('');
+  return lines;
+}
+
+function humanizeStyleInstruction(value: string): string {
+  const parts = value
+    .replace(/\n/g, ';')
+    .split(';')
+    .map((part) => part.trim().replace(/[.]+$/, ''))
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((part) => {
+      const lower = part.toLowerCase();
+      if (lower.startsWith('do not say ')) {
+        part = `avoid saying ${part.slice(11)}`;
+      } else if (lower.startsWith("don't say ")) {
+        part = `avoid saying ${part.slice(10)}`;
+      } else if (lower.startsWith('dont say ')) {
+        part = `avoid saying ${part.slice(9)}`;
+      } else if (lower.startsWith('do not claim ')) {
+        part = `avoid claiming ${part.slice(13)}`;
+      } else if (lower.startsWith("don't claim ")) {
+        part = `avoid claiming ${part.slice(12)}`;
+      } else if (lower.startsWith('dont claim ')) {
+        part = `avoid claiming ${part.slice(11)}`;
+      } else if (lower.startsWith('do not ')) {
+        part = `avoid ${part.slice(7)}`;
+      } else if (lower.startsWith("don't ")) {
+        part = `avoid ${part.slice(6)}`;
+      } else if (lower.startsWith('dont ')) {
+        part = `avoid ${part.slice(5)}`;
+      }
+      return part.slice(0, 1).toLowerCase() + part.slice(1);
+    });
+  if (!parts.length) {
+    return value;
+  }
+  if (parts.length === 1) {
+    return parts[0];
+  }
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
 export function compactColdMemoryQuery(text: string, maxChars = 1600): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxChars) {
@@ -368,6 +448,7 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   const root = objectValue(payload);
   const wikiRefresh = objectValue(root.wiki_refresh);
   const wikiContext = objectValue(root.wiki_context);
+  const styleLens = objectValue(root.style_lens);
   const routes = arrayValue(root.natural_language_routes)
     .map((item) => stringValue(item))
     .filter(Boolean)
@@ -375,11 +456,14 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   const lines = [
     'Spark self-awareness',
     '',
-    'Short version: I can see some live Spark systems, but I should still prove a route worked before I sound certain.',
+    Object.keys(styleLens).length
+      ? 'Short version: I can see the live Spark stack. I should keep the answer grounded, but it should sound like your Spark instead of a pasted status report.'
+      : 'Short version: I can see the live Spark stack. I should stay grounded and prove a route worked before I sound certain.',
     '',
     `Workspace: ${stringValue(root.workspace_id) || 'default'}`,
     `Checked: ${stringValue(root.generated_at) || 'unknown'}`,
     '',
+    ...formatSelfAwarenessStyleLens(styleLens),
     ...formatClaimLines('What looks live', root.observed_now, 4, true),
     ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
     ...formatClaimLines('Where I still lack', root.lacks, 3, true),
@@ -400,6 +484,75 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     lines.push('');
   }
   lines.push('Core rule: I can try the right route, but I should name missing evidence before claiming certainty.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export function formatWikiStatusReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const healthy = Boolean(root.healthy || root.valid);
+  const missingBootstrap = arrayValue(root.missing_bootstrap_files);
+  const missingSystem = arrayValue(root.missing_system_compile_files);
+  const warnings = arrayValue(root.warnings).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const generatedCount = numericValue(root.refreshed_file_count);
+  const wikiStatus = stringValue(root.wiki_retrieval_status) || 'unknown';
+  const wikiRecords = numericValue(root.wiki_record_count);
+  const lines = [
+    'Spark LLM wiki',
+    '',
+    `Health: ${healthy ? 'ready' : 'needs attention'}`,
+    `Vault: ${stringValue(root.output_dir) || 'unknown'}`,
+    `Pages: ${numericValue(root.markdown_page_count)} markdown`,
+    `Retrieval: ${wikiStatus} (${wikiRecords} hits)`,
+    `Knowledge priority: ${root.project_knowledge_first ? 'project/system first' : 'not confirmed'}`,
+    `Missing: ${missingBootstrap.length + missingSystem.length ? `${missingBootstrap.length} bootstrap, ${missingSystem.length} generated` : 'none'}`,
+  ];
+  if (root.refreshed) {
+    lines.push(`Refresh: regenerated ${generatedCount} system pages`);
+  }
+  if (warnings.length) {
+    lines.push('', 'Warnings');
+    lines.push(...warnings.map((item) => `- ${item}`));
+  }
+  lines.push('', 'Rule: wiki is supporting project knowledge; live traces and status still win for current truth.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+export function formatWikiInventoryReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const pages = arrayValue(root.pages).map(objectValue).slice(0, 10);
+  const sections = objectEntries(root.section_counts)
+    .filter(([, count]) => typeof count === 'number')
+    .map(([section, count]) => `${section}: ${count}`)
+    .join(', ') || 'none';
+  const missing = arrayValue(root.missing_expected_files).map((item) => stringValue(item)).filter(Boolean);
+  const lines = [
+    'Spark LLM wiki inventory',
+    '',
+    `Vault: ${stringValue(root.output_dir) || 'unknown'}`,
+    `Pages: ${numericValue(root.page_count)} total, ${numericValue(root.returned_page_count)} shown`,
+    `Sections: ${sections}`,
+    `Missing expected: ${missing.length ? missing.length : 'none'}`,
+  ];
+  if (root.refreshed) {
+    lines.push(`Refresh: regenerated ${numericValue(root.refreshed_file_count)} system pages`);
+  }
+  if (pages.length) {
+    lines.push('', 'Top pages');
+    for (const page of pages) {
+      const pagePath = stringValue(page.path);
+      const title = stringValue(page.title) || pagePath;
+      const summary = stringValue(page.summary);
+      lines.push(`- ${pagePath}: ${title}`);
+      if (summary) {
+        lines.push(`  ${summary}`);
+      }
+    }
+  }
+  if (missing.length) {
+    lines.push('', 'Missing');
+    lines.push(...missing.slice(0, 8).map((item) => `- ${item}`));
+  }
+  lines.push('', 'Rule: this lists available project knowledge; retrieval and live traces decide what to use for an answer.');
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -489,6 +642,100 @@ export async function runBuilderSelfAwarenessStatus(
   return {
     payload,
     replyText: formatSelfAwarenessReply(payload),
+  };
+}
+
+export async function runBuilderWikiStatus(input: { refresh?: boolean } = {}): Promise<BuilderWikiStatusResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const args = [
+    'wiki',
+    'status',
+    '--home',
+    config.builderHome,
+    '--json',
+  ];
+  if (input.refresh !== false) {
+    args.push('--refresh');
+  }
+
+  let stdout = '';
+  let stderr = '';
+  try {
+    const result = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    const maybeOutput = error as { stdout?: unknown; stderr?: unknown };
+    stdout = typeof maybeOutput.stdout === 'string' ? maybeOutput.stdout : '';
+    stderr = typeof maybeOutput.stderr === 'string' ? maybeOutput.stderr : '';
+    if (!stdout.trim()) {
+      throw error;
+    }
+  }
+
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder wiki status returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatWikiStatusReply(payload),
+  };
+}
+
+export async function runBuilderWikiInventory(input: { refresh?: boolean; limit?: number } = {}): Promise<BuilderWikiInventoryResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const args = [
+    'wiki',
+    'inventory',
+    '--home',
+    config.builderHome,
+    '--limit',
+    String(input.limit || 12),
+    '--json',
+  ];
+  if (input.refresh !== false) {
+    args.push('--refresh');
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder wiki inventory returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatWikiInventoryReply(payload),
   };
 }
 

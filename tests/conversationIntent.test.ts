@@ -25,6 +25,8 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkWikiInventoryQuestion,
+  isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
@@ -585,6 +587,21 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     ),
     false
   );
+});
+
+test('detects natural Spark LLM wiki status questions without stealing build prompts', () => {
+  assert.equal(isSparkWikiStatusQuestion('is your LLM wiki active right now?'), true);
+  assert.equal(isSparkWikiStatusQuestion('can you check whether the Spark knowledge base is retrievable?'), true);
+  assert.equal(isSparkWikiStatusQuestion('show me the Obsidian vault status'), true);
+  assert.equal(isSparkWikiStatusQuestion('build me a wiki app for my team'), false);
+  assert.equal(isSparkWikiStatusQuestion('what is a wiki?'), false);
+});
+
+test('detects natural Spark LLM wiki inventory questions separately from status', () => {
+  assert.equal(isSparkWikiInventoryQuestion('what pages are in your LLM wiki?'), true);
+  assert.equal(isSparkWikiInventoryQuestion('list the Spark knowledge base contents'), true);
+  assert.equal(isSparkWikiInventoryQuestion('show me the Obsidian vault status'), false);
+  assert.equal(isSparkWikiInventoryQuestion('build me a wiki app for my team'), false);
 });
 
 test('extracts explicit plain-chat memory directives', () => {

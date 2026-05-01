@@ -54,6 +54,57 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   return hasLocalOptionReference(trimmed) || mentionsDomainChipArtifact || COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 
+export function isSparkWikiStatusQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+  if (parseBuildIntent(normalized)) {
+    return false;
+  }
+  const mentionsWiki =
+    /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
+    /\bobsidian\s+vault\b/i.test(normalized);
+  if (!mentionsWiki) {
+    return false;
+  }
+  const sparkScoped =
+    /\b(?:spark|agent|system|self[-\s]*awareness|introspection|your|you|its)\b/i.test(normalized) ||
+    /\b(?:obsidian|vault)\b/i.test(normalized);
+  if (!sparkScoped) {
+    return false;
+  }
+  return (
+    /\b(?:active|available|connected|enabled|healthy|ready|working|installed|retriev(?:e|al|able)|status|health|missing|lacking|fresh|stale|vault|obsidian|pages?)\b/i.test(normalized) ||
+    /\b(?:show|check|inspect|verify|test|open)\b/i.test(normalized)
+  );
+}
+
+export function isSparkWikiInventoryQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  const mentionsWiki =
+    /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
+    /\bobsidian\s+vault\b/i.test(normalized);
+  if (!mentionsWiki) {
+    return false;
+  }
+  const sparkScoped =
+    /\b(?:spark|agent|system|self[-\s]*awareness|introspection|your|you|its)\b/i.test(normalized) ||
+    /\b(?:obsidian|vault)\b/i.test(normalized);
+  if (!sparkScoped) {
+    return false;
+  }
+  return (
+    /\b(?:pages?|files?|notes?|inventory|index|contents?|inside|list|map)\b/i.test(normalized) ||
+    /\b(?:what|which)\s+(?:pages?|files?|notes?|contents?)\b/i.test(normalized)
+  );
+}
+
 export function parseNaturalChipCreateIntent(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;

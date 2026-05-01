@@ -3,7 +3,9 @@ import {
   compactColdMemoryQuery,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
-  formatSelfAwarenessReply
+  formatSelfAwarenessReply,
+  formatWikiInventoryReply,
+  formatWikiStatusReply
 } from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
@@ -164,6 +166,12 @@ test('formats self-awareness payload as actionable Telegram report', () => {
       wiki_record_count: 3,
       project_knowledge_first: true
     },
+    style_lens: {
+      persona_summary: 'warm, curious, and direct without turning into a status page',
+      style_sentence: 'direct, warm, and fast-moving, while staying evidence-first',
+      behavioral_rules: ['keep evidence visible', 'sound conversational'],
+      user_deltas_applied: true
+    },
     natural_language_routes: [
       "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
     ]
@@ -171,6 +179,9 @@ test('formats self-awareness payload as actionable Telegram report', () => {
 
   assert.match(reply, /Spark self-awareness/);
   assert.match(reply, /Short version/);
+  assert.match(reply, /How I should show up for you/);
+  assert.match(reply, /warm, curious, and direct/);
+  assert.match(reply, /Tone: direct, warm, and fast-moving/);
   assert.match(reply, /Where I still lack/);
   assert.match(reply, /What I should improve next/);
   assert.match(reply, /Knowledge notes/);
@@ -178,4 +189,75 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /test the browser route now/);
   assert.match(reply, /name missing evidence/);
   assert.equal(reply.length < 1800, true);
+});
+
+test('formats healthy wiki status as compact operational report', () => {
+  const reply = formatWikiStatusReply({
+    healthy: true,
+    output_dir: 'C:\\Users\\USER\\.spark-intelligence\\wiki',
+    markdown_page_count: 13,
+    wiki_retrieval_status: 'supported',
+    wiki_record_count: 3,
+    project_knowledge_first: true,
+    missing_bootstrap_files: [],
+    missing_system_compile_files: [],
+    refreshed: true,
+    refreshed_file_count: 4
+  });
+
+  assert.match(reply, /Spark LLM wiki/);
+  assert.match(reply, /Health: ready/);
+  assert.match(reply, /Retrieval: supported \(3 hits\)/);
+  assert.match(reply, /Knowledge priority: project\/system first/);
+  assert.match(reply, /Missing: none/);
+  assert.match(reply, /supporting project knowledge/);
+});
+
+test('formats degraded wiki status with missing counts and warnings', () => {
+  const reply = formatWikiStatusReply({
+    healthy: false,
+    output_dir: 'C:\\missing\\wiki',
+    markdown_page_count: 0,
+    wiki_retrieval_status: 'error',
+    wiki_record_count: 0,
+    project_knowledge_first: false,
+    missing_bootstrap_files: ['index.md'],
+    missing_system_compile_files: ['system/current-system-status.md'],
+    warnings: ['wiki_root_missing', 'wiki_packet_retrieval_not_supported']
+  });
+
+  assert.match(reply, /Health: needs attention/);
+  assert.match(reply, /Missing: 1 bootstrap, 1 generated/);
+  assert.match(reply, /wiki_root_missing/);
+  assert.match(reply, /wiki_packet_retrieval_not_supported/);
+});
+
+test('formats wiki inventory with page metadata and source boundary', () => {
+  const reply = formatWikiInventoryReply({
+    output_dir: 'C:\\Users\\USER\\.spark-intelligence\\wiki',
+    page_count: 13,
+    returned_page_count: 2,
+    section_counts: { diagnostics: 1, system: 5, tools: 2 },
+    missing_expected_files: [],
+    refreshed: true,
+    refreshed_file_count: 4,
+    pages: [
+      {
+        path: 'index.md',
+        title: 'Spark LLM Wiki',
+        summary: 'Bootstrap navigation for Spark local LLM-readable knowledge layer.'
+      },
+      {
+        path: 'system/current-system-status.md',
+        title: 'Current System Status',
+        summary: 'Generated Spark system snapshot for LLM wiki retrieval.'
+      }
+    ]
+  });
+
+  assert.match(reply, /Spark LLM wiki inventory/);
+  assert.match(reply, /Pages: 13 total, 2 shown/);
+  assert.match(reply, /Sections: diagnostics: 1, system: 5, tools: 2/);
+  assert.match(reply, /index\.md: Spark LLM Wiki/);
+  assert.match(reply, /live traces decide what to use/);
 });
