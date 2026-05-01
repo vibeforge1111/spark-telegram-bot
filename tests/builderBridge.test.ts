@@ -170,10 +170,12 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   });
 
   assert.match(reply, /Spark self-awareness/);
-  assert.match(reply, /Where I lack/);
-  assert.match(reply, /How I can improve/);
-  assert.match(reply, /LLM wiki/);
-  assert.match(reply, /Project knowledge first: yes/);
+  assert.match(reply, /Short version/);
+  assert.match(reply, /Where I still lack/);
+  assert.match(reply, /What I should improve next/);
+  assert.match(reply, /Knowledge notes/);
+  assert.doesNotMatch(reply, /Project knowledge first: yes/);
   assert.match(reply, /test the browser route now/);
-  assert.match(reply, /confident to attempt work through the right route/);
+  assert.match(reply, /name missing evidence/);
+  assert.equal(reply.length < 1800, true);
 });

@@ -24,7 +24,7 @@ import {
 } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
-import { sanitizeOutbound, splitTelegramText } from './outboundSanitize';
+import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
 import {
   formatCreatorMissionExecutionSummary,
@@ -202,8 +202,7 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
     return delivery;
   }
 
-  const cleaned = sanitizeOutbound(text);
-  const chunks = splitTelegramText(cleaned);
+  const chunks = sanitizeAndSplitTelegramText(text);
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
     lastDelivery = await _origSendMessage(chatId, chunk, extra);
@@ -219,8 +218,7 @@ bot.use(async (ctx, next) => {
       return originalReply(text, extra);
     }
 
-    const cleaned = sanitizeOutbound(text);
-    const chunks = splitTelegramText(cleaned);
+    const chunks = sanitizeAndSplitTelegramText(text);
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
       lastReply = await originalReply(chunk, extra);

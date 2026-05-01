@@ -240,8 +240,24 @@ function claimText(value: unknown): string {
   return stringValue(item.claim);
 }
 
-function formatClaimLines(title: string, claims: unknown, limit: number): string[] {
-  const items = arrayValue(claims).map(claimText).filter(Boolean).slice(0, limit);
+function compactSelfAwarenessClaim(text: string): string {
+  return text
+    .replace('Spark Intelligence Builder', 'Builder')
+    .replace('Spark Local Work', 'Local Work')
+    .replace(/ is visible in the Builder registry with status=([^.]+)\./, ': $1')
+    .replace(/ is not fully healthy or available: status=([^.]+)\. Main limit: /, ': $1 - ')
+    .replace('Recent tool_result_received:', 'Route worked recently:')
+    .replace('Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.', 'Registry visibility is not proof a route worked this turn.')
+    .replace('Spark cannot inspect secrets, hidden prompts, private infrastructure, or deployment health unless a safe diagnostic surface exposes them.', 'I need safe redacted diagnostics for secret-bound or private systems.')
+    .replace('Add per-capability last_success_at, last_failure_reason, and eval coverage fields.', 'Track last_success_at, last_failure_reason, latency, and eval coverage per capability.');
+}
+
+function formatClaimLines(title: string, claims: unknown, limit: number, compact = false): string[] {
+  const items = arrayValue(claims)
+    .map(claimText)
+    .filter(Boolean)
+    .map((item) => compact ? compactSelfAwarenessClaim(item) : item)
+    .slice(0, limit);
   if (!items.length) {
     return [];
   }
@@ -355,38 +371,35 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   const routes = arrayValue(root.natural_language_routes)
     .map((item) => stringValue(item))
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, 2);
   const lines = [
     'Spark self-awareness',
     '',
-    `Workspace: ${stringValue(root.workspace_id) || 'default'}`,
-    `Generated: ${stringValue(root.generated_at) || 'unknown'}`,
+    'Short version: I can see some live Spark systems, but I should still prove a route worked before I sound certain.',
     '',
-    ...formatClaimLines('Observed now', root.observed_now, 4),
-    ...formatClaimLines('Recently verified', root.recently_verified, 3),
-    ...formatClaimLines('Where I lack', root.lacks, 5),
-    ...formatClaimLines('How I can improve', root.improvement_options, 5),
+    `Workspace: ${stringValue(root.workspace_id) || 'default'}`,
+    `Checked: ${stringValue(root.generated_at) || 'unknown'}`,
+    '',
+    ...formatClaimLines('What looks live', root.observed_now, 4, true),
+    ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
+    ...formatClaimLines('Where I still lack', root.lacks, 3, true),
+    ...formatClaimLines('What I should improve next', root.improvement_options, 3, true),
   ];
   if (routes.length) {
-    lines.push('You can ask me naturally');
-    lines.push(...routes.map((item) => `- ${item}`));
+    lines.push('Good next probes');
+    lines.push(...routes.map((item) => `- ${item.replace(/^Ask:\s*/, '')}`));
     lines.push('');
   }
   if (Object.keys(wikiRefresh).length || Object.keys(wikiContext).length) {
     const generatedCount = numericValue(wikiRefresh.generated_file_count);
     const wikiStatus = stringValue(wikiContext.wiki_status) || 'unknown';
     const wikiRecords = numericValue(wikiContext.wiki_record_count);
-    const projectKnowledgeFirst = Boolean(wikiContext.project_knowledge_first);
-    lines.push('LLM wiki');
-    lines.push(`- Refresh: ${generatedCount} live system pages`);
-    lines.push(`- Retrieval: ${wikiStatus} (${wikiRecords} wiki hits)`);
-    lines.push(`- Project knowledge first: ${projectKnowledgeFirst ? 'yes' : 'no'}`);
-    lines.push('- Authority: supporting, not live truth');
+    lines.push('Knowledge notes');
+    lines.push(`- Wiki refreshed ${generatedCount} system pages and found ${wikiRecords} supporting hits (${wikiStatus}).`);
+    lines.push('- I should use that as background, not as live truth.');
     lines.push('');
   }
-  lines.push(
-    'Core rule: I should be confident to attempt work through the right route, while naming missing evidence and the next probe before claiming certainty.'
-  );
+  lines.push('Core rule: I can try the right route, but I should name missing evidence before claiming certainty.');
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 

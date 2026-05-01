@@ -18,6 +18,8 @@ const EM_DASH_FAMILY = [
   '\u2015', // horizontal bar
   '\u2212', // minus sign
 ];
+export const TELEGRAM_HARD_MESSAGE_LIMIT = 4096;
+export const TELEGRAM_SAFE_MESSAGE_LIMIT = 3600;
 
 export function replaceEmDashes(text: string, replacement: string = ' - '): string {
   if (!text) return text;
@@ -62,8 +64,36 @@ export function sanitizeOutbound(text: string): string {
   return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
 }
 
-export function splitTelegramText(text: string, maxChars = 3900): string[] {
+function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {
+  const parts = text
+    .trim()
+    .split(/\n\s*(?=\(\d+\/\d+\)\s)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) return null;
+  if (parts.every((part) => part.length <= maxChars)) {
+    return parts;
+  }
+  return parts.flatMap((part) => splitTelegramText(part, maxChars));
+}
+
+function findTelegramSplitIndex(window: string, maxChars: number): number {
+  const minimumUsefulSplit = Math.floor(maxChars * 0.45);
+  for (const boundary of ['\n\n', '\n', '. ', '; ', ' ']) {
+    const index = window.lastIndexOf(boundary);
+    if (index > minimumUsefulSplit) {
+      return index + boundary.length;
+    }
+  }
+  return maxChars;
+}
+
+export function splitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
   if (!text) return [''];
+  const existingChunks = splitExistingNumberedChunks(text, maxChars);
+  if (existingChunks) {
+    return existingChunks;
+  }
   if (text.length <= maxChars) return [text];
 
   const chunks: string[] = [];
@@ -71,12 +101,7 @@ export function splitTelegramText(text: string, maxChars = 3900): string[] {
 
   while (remaining.length > maxChars) {
     const window = remaining.slice(0, maxChars + 1);
-    const splitAt = Math.max(
-      window.lastIndexOf('\n\n'),
-      window.lastIndexOf('\n'),
-      window.lastIndexOf(' ')
-    );
-    const cut = splitAt > Math.floor(maxChars * 0.5) ? splitAt : maxChars;
+    const cut = findTelegramSplitIndex(window, maxChars);
     chunks.push(remaining.slice(0, cut).trim());
     remaining = remaining.slice(cut).trim();
   }
@@ -85,4 +110,8 @@ export function splitTelegramText(text: string, maxChars = 3900): string[] {
     chunks.push(remaining);
   }
   return chunks.length ? chunks : [''];
+}
+
+export function sanitizeAndSplitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
+  return splitTelegramText(sanitizeOutbound(text), maxChars);
 }

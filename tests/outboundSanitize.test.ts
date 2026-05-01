@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {
   rewriteSpawnerSurfaceStandaloneQuestion,
+  sanitizeAndSplitTelegramText,
   sanitizeOutbound,
   splitTelegramText,
+  TELEGRAM_SAFE_MESSAGE_LIMIT,
   stripMarkdownEmphasis
 } from '../src/outboundSanitize';
 
@@ -82,4 +84,44 @@ test('chunks long Telegram text under the safe message limit', () => {
   assert.equal(chunks.length > 1, true);
   assert.equal(chunks.every((chunk) => chunk.length <= 500), true);
   assert.match(chunks.join('\n'), /Paragraph 89/);
+});
+
+test('preserves Builder numbered chunks instead of splitting through them', () => {
+  const text = [
+    `(1/2) Spark self-awareness\n\n${'Observed now\n- ready\n\n'.repeat(45)}`,
+    `(2/2) Where Spark lacks\n\n${'How Spark can improve\n- record last-success evidence\n\n'.repeat(35)}`
+  ].join('\n\n');
+
+  const chunks = splitTelegramText(text, TELEGRAM_SAFE_MESSAGE_LIMIT);
+
+  assert.equal(chunks.length, 2);
+  assert.match(chunks[0], /^\(1\/2\)/);
+  assert.match(chunks[1], /^\(2\/2\)/);
+  assert.equal(chunks.every((chunk) => chunk.length <= TELEGRAM_SAFE_MESSAGE_LIMIT), true);
+});
+
+test('prefers paragraph boundaries before splitting on spaces', () => {
+  const text = [
+    `First section ${'alpha '.repeat(50)}`,
+    `Second section ${'beta '.repeat(50)}`,
+    `Third section ${'gamma '.repeat(50)}`
+  ].join('\n\n');
+
+  const chunks = splitTelegramText(text, 360);
+
+  assert.equal(chunks.length > 1, true);
+  assert.match(chunks[0], /First section/);
+  assert.match(chunks.join('\n'), /Second section/);
+  assert.match(chunks.join('\n'), /Third section/);
+  assert.equal(chunks.every((chunk) => chunk.length <= 360), true);
+});
+
+test('sanitizes before chunking Telegram reply text', () => {
+  const text = Array.from({ length: 25 }, (_, index) => `**Section ${index}** \u2014 ${'memory detail '.repeat(8)}`).join('\n\n');
+  const chunks = sanitizeAndSplitTelegramText(text, 360);
+
+  assert.equal(chunks.length > 1, true);
+  assert.equal(chunks.every((chunk) => chunk.length <= 360), true);
+  assert.doesNotMatch(chunks.join('\n'), /\*\*|\u2014/);
+  assert.match(chunks.join('\n'), /Section 24/);
 });
