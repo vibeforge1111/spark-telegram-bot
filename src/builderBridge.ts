@@ -132,6 +132,16 @@ export interface BuilderMemoryFeedbackReviewResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemoryFeedbackBenchmarkInput {
+  userId: number | string;
+  limit?: number;
+}
+
+export interface BuilderMemoryFeedbackBenchmarkResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface MemoryFeedbackCommand {
   verdict: string;
   note: string;
@@ -815,6 +825,31 @@ export function formatMemoryFeedbackReviewReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemoryFeedbackBenchmarkReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const counts = objectValue(root.counts);
+  const cases = arrayValue(root.cases).map(objectValue).slice(0, 4);
+  const lines = [
+    'Memory correction benchmarks',
+    '',
+    `Cases: total ${numericValue(counts.total_cases)}, actionable ${numericValue(counts.actionable_cases)}, source-linked ${numericValue(counts.source_packet_cases)}`,
+  ];
+  if (cases.length) {
+    lines.push('', 'Recent cases');
+    for (const item of cases) {
+      const sourcePacket = objectValue(item.source_packet);
+      const label = stringValue(item.benchmark_kind) || 'case';
+      const expected = stringValue(item.expected_outcome) || stringValue(item.note) || 'No expected outcome exported.';
+      lines.push(`- ${label}: ${truncateForPrompt(expected, 150)} source=${stringValue(sourcePacket.source_class) || 'none'}`);
+    }
+  } else {
+    lines.push('', 'Recent cases');
+    lines.push('- No feedback benchmark cases for this Telegram user yet.');
+  }
+  lines.push('', 'Rule: feedback becomes eval material, not durable memory truth.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -1292,6 +1327,49 @@ export async function runBuilderMemoryFeedbackReview(
   return {
     payload,
     replyText: formatMemoryFeedbackReviewReply(payload),
+  };
+}
+
+export async function runBuilderMemoryFeedbackBenchmarks(
+  input: BuilderMemoryFeedbackBenchmarkInput
+): Promise<BuilderMemoryFeedbackBenchmarkResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'feedback-benchmarks',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--agent-id',
+      `agent:human:telegram:${userId}`,
+      '--limit',
+      String(input.limit || 20),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_FEEDBACK_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory feedback benchmarks returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemoryFeedbackBenchmarkReply(payload),
   };
 }
 

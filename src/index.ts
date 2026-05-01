@@ -22,6 +22,7 @@ import {
   runBuilderDiagnosticsScan,
   runBuilderMemoryDashboard,
   runBuilderMemoryFeedback,
+  runBuilderMemoryFeedbackBenchmarks,
   runBuilderMemoryFeedbackReview,
   runBuilderMemorySessionSearch,
   runBuilderMemorySource,
@@ -525,6 +526,15 @@ bot.command('memory', async (ctx) => {
     const reviewMatch = text.match(/^\/memory(?:@\w+)?\s+(?:review|reviews|feedback\s+review|feedback\s+reviews)$/i);
     if (reviewMatch) {
       const result = await runBuilderMemoryFeedbackReview({
+        userId: ctx.from.id,
+        limit: 20,
+      });
+      await ctx.reply(result.replyText);
+      return;
+    }
+    const benchmarkMatch = text.match(/^\/memory(?:@\w+)?\s+(?:benchmarks|benchmark|corrections|correction\s+benchmarks)$/i);
+    if (benchmarkMatch) {
+      const result = await runBuilderMemoryFeedbackBenchmarks({
         userId: ctx.from.id,
         limit: 20,
       });

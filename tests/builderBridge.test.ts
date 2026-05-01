@@ -4,6 +4,7 @@ import {
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatMemoryDashboardReply,
+  formatMemoryFeedbackBenchmarkReply,
   formatMemoryFeedbackReply,
   formatMemoryFeedbackReviewReply,
   formatMemorySessionSearchReply,
@@ -454,6 +455,33 @@ test('formats memory feedback review as a concise correction queue', () => {
   assert.match(reply, /Needs review/);
   assert.match(reply, /profile\.current_focus/);
   assert.equal(reply.length < 1000, true);
+});
+
+test('formats memory feedback benchmark cases as correction evals', () => {
+  const reply = formatMemoryFeedbackBenchmarkReply({
+    counts: {
+      total_cases: 1,
+      actionable_cases: 1,
+      source_packet_cases: 1
+    },
+    cases: [
+      {
+        benchmark_kind: 'source_quality_regression',
+        expected_outcome: 'Future recall should prefer fresher authoritative state.',
+        source_packet: {
+          source_class: 'current_state'
+        }
+      }
+    ]
+  });
+
+  assert.match(reply, /Memory correction benchmarks/);
+  assert.match(reply, /total 1/);
+  assert.match(reply, /actionable 1/);
+  assert.match(reply, /source_quality_regression/);
+  assert.match(reply, /fresher authoritative state/);
+  assert.match(reply, /not durable memory truth/);
+  assert.equal(reply.length < 800, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {
