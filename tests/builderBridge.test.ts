@@ -301,6 +301,18 @@ test('formats wiki answer with sources and live verification boundary', () => {
         source_path: 'system/tracing-and-observability-map.md'
       }
     ],
+    live_context_status: 'included',
+    live_self_awareness: {
+      observed_now: [
+        { claim: 'Spark Intelligence Builder is visible in the Builder registry with status=ready.' }
+      ],
+      lacks: [
+        { claim: 'Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.' }
+      ],
+      improvement_options: [
+        { claim: 'Add per-capability last_success_at, last_failure_reason, and eval coverage fields.' }
+      ]
+    },
     missing_live_verification: [
       'Run `spark-intelligence self status --refresh-wiki --json` for current truth.'
     ]
@@ -308,6 +320,9 @@ test('formats wiki answer with sources and live verification boundary', () => {
 
   assert.match(reply, /Spark LLM wiki answer/);
   assert.match(reply, /wiki_backed_supporting_context \(2 wiki hits\)/);
+  assert.match(reply, /Live self snapshot/);
+  assert.match(reply, /Builder: ready/);
+  assert.match(reply, /Registry visibility is not proof a route worked this turn/);
   assert.match(reply, /system\/tracing-and-observability-map\.md/);
   assert.match(reply, /Still needs live verification/);
 });

@@ -610,6 +610,10 @@ export function formatWikiAnswerReply(payload: unknown): string {
   const sources = arrayValue(root.sources).map(objectValue).slice(0, 4);
   const missing = arrayValue(root.missing_live_verification).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
   const warnings = arrayValue(root.warnings).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const liveSelf = objectValue(root.live_self_awareness);
+  const observed = arrayValue(liveSelf.observed_now).map(objectValue).map((item) => stringValue(item.claim)).filter(Boolean).slice(0, 2);
+  const lacks = arrayValue(liveSelf.lacks).map(objectValue).map((item) => stringValue(item.claim)).filter(Boolean).slice(0, 2);
+  const improvements = arrayValue(liveSelf.improvement_options).map(objectValue).map((item) => stringValue(item.claim)).filter(Boolean).slice(0, 2);
   const lines = [
     'Spark LLM wiki answer',
     '',
@@ -618,6 +622,21 @@ export function formatWikiAnswerReply(payload: unknown): string {
     `Evidence: ${stringValue(root.evidence_level) || 'unknown'} (${numericValue(root.hit_count)} wiki hits)`,
     `Knowledge priority: ${root.project_knowledge_first ? 'project/system first' : 'not confirmed'}`,
   ];
+  if (stringValue(root.live_context_status) === 'included') {
+    lines.push('', 'Live self snapshot');
+    if (observed.length) {
+      lines.push('What looks live');
+      lines.push(...observed.map((item) => `- ${compactSelfAwarenessClaim(item)}`));
+    }
+    if (lacks.length) {
+      lines.push('Where I still lack');
+      lines.push(...lacks.map((item) => `- ${compactSelfAwarenessClaim(item)}`));
+    }
+    if (improvements.length) {
+      lines.push('Best next improvements');
+      lines.push(...improvements.map((item) => `- ${compactSelfAwarenessClaim(item)}`));
+    }
+  }
   if (sources.length) {
     lines.push('', 'Sources');
     for (const source of sources) {
@@ -879,7 +898,7 @@ export async function runBuilderWikiQuery(
 }
 
 export async function runBuilderWikiAnswer(
-  input: { question: string; refresh?: boolean; limit?: number }
+  input: { question: string; refresh?: boolean; limit?: number; userId?: number | string; chatId?: number | string; currentMessage?: string }
 ): Promise<BuilderWikiAnswerResult> {
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
@@ -897,6 +916,18 @@ export async function runBuilderWikiAnswer(
     String(input.limit || 5),
     '--json',
   ];
+  if (input.userId !== undefined && input.userId !== null) {
+    args.push('--human-id', `human:telegram:${String(input.userId).trim()}`);
+  }
+  if (input.chatId !== undefined && input.chatId !== null && input.userId !== undefined && input.userId !== null) {
+    args.push('--session-id', `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`);
+  }
+  if (input.chatId !== undefined || input.userId !== undefined) {
+    args.push('--channel-kind', 'telegram');
+  }
+  if (input.currentMessage) {
+    args.push('--user-message', input.currentMessage);
+  }
   if (input.refresh !== false) {
     args.push('--refresh');
   }

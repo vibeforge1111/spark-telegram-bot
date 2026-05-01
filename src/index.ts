@@ -480,7 +480,14 @@ bot.command('wiki', async (ctx) => {
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
     const result = answerMatch?.[1]?.trim()
-      ? await runBuilderWikiAnswer({ question: answerMatch[1].trim(), refresh: true, limit: 5 })
+      ? await runBuilderWikiAnswer({
+          question: answerMatch[1].trim(),
+          refresh: true,
+          limit: 5,
+          userId: ctx.from.id,
+          chatId: ctx.chat.id,
+          currentMessage: text,
+        })
       : queryMatch?.[1]?.trim()
       ? await runBuilderWikiQuery({ query: queryMatch[1].trim(), refresh: true, limit: 5 })
       : wantsInventory
@@ -1948,7 +1955,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
     try {
-      const result = await runBuilderWikiAnswer({ question: wikiAnswerQuestion, refresh: true, limit: 5 });
+      const result = await runBuilderWikiAnswer({
+        question: wikiAnswerQuestion,
+        refresh: true,
+        limit: 5,
+        userId: user.id,
+        chatId: ctx.chat.id,
+        currentMessage: text,
+      });
       await ctx.reply(result.replyText);
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
