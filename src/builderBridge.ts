@@ -91,6 +91,11 @@ export interface BuilderWikiQueryResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderWikiAnswerResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -600,6 +605,38 @@ export function formatWikiQueryReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatWikiAnswerReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const sources = arrayValue(root.sources).map(objectValue).slice(0, 4);
+  const missing = arrayValue(root.missing_live_verification).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const warnings = arrayValue(root.warnings).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const lines = [
+    'Spark LLM wiki answer',
+    '',
+    stringValue(root.answer) || 'I could not build a wiki-backed answer for that question.',
+    '',
+    `Evidence: ${stringValue(root.evidence_level) || 'unknown'} (${numericValue(root.hit_count)} wiki hits)`,
+    `Knowledge priority: ${root.project_knowledge_first ? 'project/system first' : 'not confirmed'}`,
+  ];
+  if (sources.length) {
+    lines.push('', 'Sources');
+    for (const source of sources) {
+      const title = stringValue(source.title) || 'wiki source';
+      const sourcePath = stringValue(source.source_path);
+      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+    }
+  }
+  if (missing.length) {
+    lines.push('', 'Still needs live verification');
+    lines.push(...missing.map((item) => `- ${item}`));
+  }
+  if (warnings.length) {
+    lines.push('', 'Warnings');
+    lines.push(...warnings.map((item) => `- ${item}`));
+  }
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   const config = resolveBridgeConfig();
   return {
@@ -838,6 +875,64 @@ export async function runBuilderWikiQuery(
   return {
     payload,
     replyText: formatWikiQueryReply(payload),
+  };
+}
+
+export async function runBuilderWikiAnswer(
+  input: { question: string; refresh?: boolean; limit?: number }
+): Promise<BuilderWikiAnswerResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const args = [
+    'wiki',
+    'answer',
+    input.question,
+    '--home',
+    config.builderHome,
+    '--limit',
+    String(input.limit || 5),
+    '--json',
+  ];
+  if (input.refresh !== false) {
+    args.push('--refresh');
+  }
+
+  let stdout = '';
+  let stderr = '';
+  try {
+    const result = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    const maybeOutput = error as { stdout?: unknown; stderr?: unknown };
+    stdout = typeof maybeOutput.stdout === 'string' ? maybeOutput.stdout : '';
+    stderr = typeof maybeOutput.stderr === 'string' ? maybeOutput.stderr : '';
+    if (!stdout.trim()) {
+      throw error;
+    }
+  }
+
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder wiki answer returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatWikiAnswerReply(payload),
   };
 }
 

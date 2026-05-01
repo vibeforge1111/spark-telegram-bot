@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractSparkWikiAnswerQuestion,
   extractPlainChatMemoryDirective,
   extractSparkWikiQuery,
   formatMissionUpdatePreferenceAcknowledgement,
@@ -612,6 +613,20 @@ test('extracts natural Spark LLM wiki retrieval queries without stealing status 
   assert.equal(extractSparkWikiQuery('show me the Obsidian vault status'), null);
   assert.equal(extractSparkWikiQuery('what pages are in your LLM wiki?'), null);
   assert.equal(extractSparkWikiQuery('build me a wiki app for my team'), null);
+});
+
+test('extracts natural Spark LLM wiki answer questions separately from query/status/inventory', () => {
+  assert.equal(
+    extractSparkWikiAnswerQuestion('answer from your LLM wiki how should route tracing work?'),
+    'how should route tracing work'
+  );
+  assert.equal(
+    extractSparkWikiAnswerQuestion('can you explain memory promotion using the Spark knowledge base'),
+    'memory promotion'
+  );
+  assert.equal(extractSparkWikiAnswerQuestion('search your wiki for memory promotion'), null);
+  assert.equal(extractSparkWikiAnswerQuestion('what pages are in your LLM wiki?'), null);
+  assert.equal(extractSparkWikiAnswerQuestion('build me a wiki app'), null);
 });
 
 test('extracts explicit plain-chat memory directives', () => {

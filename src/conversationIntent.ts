@@ -135,6 +135,29 @@ export function extractSparkWikiQuery(text: string): string | null {
   return null;
 }
 
+export function extractSparkWikiAnswerQuestion(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (isSparkWikiStatusQuestion(normalized) || isSparkWikiInventoryQuestion(normalized)) {
+    return null;
+  }
+  const patterns = [
+    /\b(?:answer|explain|summarize)\s+(?:from|using|with)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault),?\s+(.+)$/i,
+    /\b(?:using|from)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault),?\s+(?:answer|explain|summarize)\s+(.+)$/i,
+    /\b(?:can\s+you\s+)?(?:answer|explain|summarize)\s+(.+?)\s+(?:from|using|with)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const question = match?.[1]?.replace(/[?.!]+$/, '').trim();
+    if (question && question.length >= 3) {
+      return question;
+    }
+  }
+  return null;
+}
+
 export function parseNaturalChipCreateIntent(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;

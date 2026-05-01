@@ -4,6 +4,7 @@ import {
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatSelfAwarenessReply,
+  formatWikiAnswerReply,
   formatWikiInventoryReply,
   formatWikiQueryReply,
   formatWikiStatusReply
@@ -285,4 +286,28 @@ test('formats wiki query hits with source paths and authority boundary', () => {
   assert.match(reply, /Retrieval: supported \(1 hits\)/);
   assert.match(reply, /system\/recursive-self-improvement-loops\.md/);
   assert.match(reply, /supporting packets, not live truth/);
+});
+
+test('formats wiki answer with sources and live verification boundary', () => {
+  const reply = formatWikiAnswerReply({
+    question: 'How should Spark use route tracing?',
+    answer: 'From the LLM wiki, use route traces as operating context and verify current runtime state before claiming health.',
+    evidence_level: 'wiki_backed_supporting_context',
+    hit_count: 2,
+    project_knowledge_first: true,
+    sources: [
+      {
+        title: 'Tracing and Observability Map',
+        source_path: 'system/tracing-and-observability-map.md'
+      }
+    ],
+    missing_live_verification: [
+      'Run `spark-intelligence self status --refresh-wiki --json` for current truth.'
+    ]
+  });
+
+  assert.match(reply, /Spark LLM wiki answer/);
+  assert.match(reply, /wiki_backed_supporting_context \(2 wiki hits\)/);
+  assert.match(reply, /system\/tracing-and-observability-map\.md/);
+  assert.match(reply, /Still needs live verification/);
 });

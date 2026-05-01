@@ -21,6 +21,7 @@ import {
   runBuilderDiagnosticsScan,
   runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge,
+  runBuilderWikiAnswer,
   runBuilderWikiInventory,
   runBuilderWikiQuery,
   runBuilderWikiStatus
@@ -91,6 +92,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractSparkWikiAnswerQuestion,
   extractSparkWikiQuery,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
@@ -474,9 +476,12 @@ bot.command('wiki', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const answerMatch = text.match(/^\/wiki(?:@\w+)?\s+answer\s+(.+)$/i);
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
-    const result = queryMatch?.[1]?.trim()
+    const result = answerMatch?.[1]?.trim()
+      ? await runBuilderWikiAnswer({ question: answerMatch[1].trim(), refresh: true, limit: 5 })
+      : queryMatch?.[1]?.trim()
       ? await runBuilderWikiQuery({ query: queryMatch[1].trim(), refresh: true, limit: 5 })
       : wantsInventory
       ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
@@ -1931,6 +1936,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
+    return;
+  }
+  const wikiAnswerQuestion = earlyBuildIntent ? null : extractSparkWikiAnswerQuestion(text);
+  if (wikiAnswerQuestion) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderWikiAnswer({ question: wikiAnswerQuestion, refresh: true, limit: 5 });
       await ctx.reply(result.replyText);
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
