@@ -24,6 +24,7 @@ import {
   runBuilderMemoryFeedback,
   runBuilderMemoryFeedbackReview,
   runBuilderMemorySessionSearch,
+  runBuilderMemorySource,
   runBuilderSelfAwarenessStatus,
   selectMemoryFeedbackTargetFromPayload,
   runBuilderTelegramBridge,
@@ -541,6 +542,20 @@ bot.command('memory', async (ctx) => {
         targetEventId: feedbackCommand.targetEventId || latestTarget?.eventId,
         targetTraceRef: feedbackCommand.targetTraceRef || latestTarget?.traceRef,
       });
+      await ctx.reply(result.replyText);
+      return;
+    }
+    const sourceMatch = text.match(/^\/memory(?:@\w+)?\s+(?:source|why|explain)\s+(.+)$/i);
+    if (sourceMatch?.[1]?.trim()) {
+      const result = await runBuilderMemorySource({
+        userId: ctx.from.id,
+        query: sourceMatch[1].trim(),
+        limit: 5,
+      });
+      const feedbackTarget = selectMemoryFeedbackTargetFromPayload(result.payload);
+      if (feedbackTarget) {
+        latestMemoryFeedbackTargets.set(memoryFeedbackTargetKey(ctx.from.id, ctx.chat.id), feedbackTarget);
+      }
       await ctx.reply(result.replyText);
       return;
     }

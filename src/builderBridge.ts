@@ -97,6 +97,17 @@ export interface BuilderMemorySessionSearchResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemorySourceInput {
+  userId: number | string;
+  query: string;
+  limit?: number;
+}
+
+export interface BuilderMemorySourceResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface BuilderMemoryFeedbackInput {
   userId: number | string;
   chatId: number | string;
@@ -635,6 +646,40 @@ export function formatMemorySessionSearchReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemorySourceReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const selected = arrayValue(root.selected_sources).map(objectValue).slice(0, 4);
+  const sourceMix = objectEntries(root.source_mix)
+    .map(([source, count]) => `${source}=${numericValue(count)}`)
+    .join(', ');
+  const lines = [
+    'Memory source explanation',
+    '',
+    `Query: ${truncateForPrompt(stringValue(root.query) || 'unknown', 180)}`,
+    `Source: ${stringValue(root.source_class) || 'none'} (${stringValue(root.source_authority) || 'unknown'}, ${stringValue(root.confidence) || 'unknown'})`,
+    `Why: ${truncateForPrompt(stringValue(root.why_source_won) || 'No source explanation available.', 220)}`,
+  ];
+  if (sourceMix) {
+    lines.push(`Mix: ${sourceMix}`);
+  }
+  lines.push(
+    `Gates: stale_current=${stringValue(root.stale_current_status) || 'unknown'} source_mix=${stringValue(root.source_mix_status) || 'unknown'}`
+  );
+  if (selected.length) {
+    lines.push('', 'Selected evidence');
+    for (const source of selected) {
+      const label = stringValue(source.predicate) || stringValue(source.source_class) || 'memory';
+      const preview = stringValue(source.preview);
+      lines.push(`- ${label}: ${truncateForPrompt(preview || stringValue(source.reason) || 'selected', 150)}`);
+    }
+  } else {
+    lines.push('', 'Selected evidence');
+    lines.push('- Nothing strong enough was selected; Spark should abstain or ask for more context.');
+  }
+  lines.push('', 'Rule: this explains evidence; it is not durable truth by itself.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 const MEMORY_FEEDBACK_VERDICTS = new Set(['good', 'bad', 'ugly', 'wrong', 'missing', 'useful', 'not_useful']);
 
 function normalizeMemoryFeedbackVerdict(value: string): string | null {
@@ -696,6 +741,17 @@ export function selectMemoryFeedbackTargetFromPayload(payload: unknown): MemoryF
           label: stringValue(event.snippet) || stringValue(event.role) || undefined,
         };
       }
+    }
+  }
+  const selectedSources = arrayValue(root.selected_sources).map(objectValue);
+  for (const source of selectedSources) {
+    const eventId = stringValue(source.event_id);
+    if (eventId) {
+      return {
+        eventId,
+        traceRef: stringValue(source.source_ref) || undefined,
+        label: stringValue(source.predicate) || stringValue(source.source_class) || undefined,
+      };
     }
   }
   return null;
@@ -1092,6 +1148,49 @@ export async function runBuilderMemorySessionSearch(
   return {
     payload,
     replyText: formatMemorySessionSearchReply(payload),
+  };
+}
+
+export async function runBuilderMemorySource(
+  input: BuilderMemorySourceInput
+): Promise<BuilderMemorySourceResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'explain-source',
+      '--home',
+      config.builderHome,
+      '--query',
+      input.query,
+      '--subject',
+      `human:telegram:${userId}`,
+      '--limit',
+      String(input.limit || 5),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_SOURCE_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory source explanation returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemorySourceReply(payload),
   };
 }
 

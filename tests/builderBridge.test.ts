@@ -7,6 +7,7 @@ import {
   formatMemoryFeedbackReply,
   formatMemoryFeedbackReviewReply,
   formatMemorySessionSearchReply,
+  formatMemorySourceReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
@@ -286,6 +287,40 @@ test('formats memory session search as concise episodic evidence report', () => 
   assert.equal(reply.length < 1000, true);
 });
 
+test('formats memory source explanations as concise evidence reports', () => {
+  const reply = formatMemorySourceReply({
+    query: 'What is my current focus?',
+    source_class: 'current_state',
+    source_authority: 'authoritative',
+    confidence: 'high',
+    why_source_won: 'current_state was selected as the strongest current or historical state source.',
+    source_mix: {
+      current_state: 1,
+      recent_conversation: 1
+    },
+    stale_current_status: 'pass',
+    source_mix_status: 'pass',
+    selected_sources: [
+      {
+        source_class: 'current_state',
+        predicate: 'profile.current_focus',
+        event_id: 'evt-source-1',
+        preview: 'source-aware recall coverage'
+      }
+    ]
+  });
+
+  assert.match(reply, /Memory source explanation/);
+  assert.match(reply, /Source: current_state \(authoritative, high\)/);
+  assert.match(reply, /Why: current_state was selected/);
+  assert.match(reply, /Mix: current_state=1, recent_conversation=1/);
+  assert.match(reply, /Gates: stale_current=pass source_mix=pass/);
+  assert.match(reply, /Selected evidence/);
+  assert.match(reply, /profile\.current_focus: source-aware recall coverage/);
+  assert.match(reply, /explains evidence/);
+  assert.equal(reply.length < 1000, true);
+});
+
 test('parses memory feedback commands with optional target event ids', () => {
   assert.deepEqual(parseMemoryFeedbackCommand('/memory bad evt-abc123 because stale current focus'), {
     verdict: 'bad',
@@ -344,6 +379,22 @@ test('selects latest memory event as feedback target from dashboard or search pa
       eventId: 'evt-session-1',
       traceRef: 'trace-session-1',
       label: 'The memory dashboard is the memory window.'
+    }
+  );
+  assert.deepEqual(
+    selectMemoryFeedbackTargetFromPayload({
+      selected_sources: [
+        {
+          event_id: 'evt-source-1',
+          source_ref: 'turn-source-1',
+          predicate: 'profile.current_focus'
+        }
+      ]
+    }),
+    {
+      eventId: 'evt-source-1',
+      traceRef: 'turn-source-1',
+      label: 'profile.current_focus'
     }
   );
 });
