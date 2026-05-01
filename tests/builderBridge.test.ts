@@ -493,7 +493,9 @@ test('formats memory feedback benchmark run as correction scorecard', () => {
       executed_case_count: 2,
       automated_pass_count: 1,
       automated_fail_count: 1,
-      needs_operator_judgment_count: 1
+      needs_operator_judgment_count: 1,
+      automated_correction_score: 0.5,
+      operator_judgment_rate: 0.5
     },
     automated_failures: [
       {
@@ -512,6 +514,7 @@ test('formats memory feedback benchmark run as correction scorecard', () => {
   assert.match(reply, /Memory correction benchmark run/);
   assert.match(reply, /2 total, 2 executed/);
   assert.match(reply, /1 pass, 1 fail/);
+  assert.match(reply, /Score: 50% automated, 50% needs judgment/);
   assert.match(reply, /coverage_gap_still_generic_abstention/);
   assert.match(reply, /fresher authoritative state/);
   assert.match(reply, /humans still judge semantic correction/);

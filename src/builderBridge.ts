@@ -871,6 +871,7 @@ export function formatMemoryFeedbackBenchmarkRunReply(payload: unknown): string 
     `Status: ${stringValue(summary.status) || 'unknown'}`,
     `Cases: ${numericValue(summary.case_count)} total, ${numericValue(summary.executed_case_count)} executed`,
     `Automated: ${numericValue(summary.automated_pass_count)} pass, ${numericValue(summary.automated_fail_count)} fail`,
+    `Score: ${formatRatioValue(summary.automated_correction_score)} automated, ${formatRatioValue(summary.operator_judgment_rate)} needs judgment`,
     `Needs judgment: ${numericValue(summary.needs_operator_judgment_count)}`,
   ];
   if (failures.length) {
@@ -892,6 +893,10 @@ export function formatMemoryFeedbackBenchmarkRunReply(payload: unknown): string 
   }
   lines.push('', 'Rule: automated checks catch structure; humans still judge semantic correction.');
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function formatRatioValue(value: unknown): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${Math.round(value * 100)}%` : 'n/a';
 }
 
 export function formatWikiStatusReply(payload: unknown): string {
