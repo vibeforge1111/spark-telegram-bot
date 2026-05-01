@@ -1757,6 +1757,23 @@ function buildSelectedListReferencePrompt(frame: ConversationFrame): string | nu
   ].filter(Boolean).join('\n');
 }
 
+function buildSelectedListFastReply(frame: ConversationFrame): string | null {
+  if (frame.referenceResolution.kind !== 'list_item' || !frame.referenceResolution.value) return null;
+  const selected = frame.referenceResolution.value.trim();
+  if (!selected) return null;
+  return [
+    `${selected} it is.`,
+    '',
+    'I am resolving that against the current list context, not older memory.',
+    '',
+    `For ${selected}, the next step is one tiny version: what happens, who uses it, and what counts as done.`
+  ].join('\n');
+}
+
+function isShortResolvedListPick(text: string, frame: ConversationFrame): boolean {
+  return frame.referenceResolution.kind === 'list_item' && text.trim().length <= 40;
+}
+
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -2146,6 +2163,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
       await safeSendChatAction(ctx, 'typing');
+      if (isShortResolvedListPick(text, conversationFrame)) {
+        const fastReply = buildSelectedListFastReply(conversationFrame);
+        if (fastReply) {
+          await ctx.reply(fastReply);
+          await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
+          return;
+        }
+      }
       const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
