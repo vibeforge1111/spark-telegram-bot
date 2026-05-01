@@ -22,6 +22,7 @@ import {
   runBuilderDiagnosticsScan,
   runBuilderMemoryDashboard,
   runBuilderMemoryFeedback,
+  runBuilderMemoryFeedbackReview,
   runBuilderMemorySessionSearch,
   runBuilderSelfAwarenessStatus,
   selectMemoryFeedbackTargetFromPayload,
@@ -520,6 +521,15 @@ bot.command('memory', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const reviewMatch = text.match(/^\/memory(?:@\w+)?\s+(?:review|reviews|feedback\s+review|feedback\s+reviews)$/i);
+    if (reviewMatch) {
+      const result = await runBuilderMemoryFeedbackReview({
+        userId: ctx.from.id,
+        limit: 20,
+      });
+      await ctx.reply(result.replyText);
+      return;
+    }
     const feedbackCommand = parseMemoryFeedbackCommand(text);
     if (feedbackCommand) {
       const latestTarget = latestMemoryFeedbackTargets.get(memoryFeedbackTargetKey(ctx.from.id, ctx.chat.id));

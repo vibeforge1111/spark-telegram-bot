@@ -5,6 +5,7 @@ import {
   formatDiagnosticsScanReply,
   formatMemoryDashboardReply,
   formatMemoryFeedbackReply,
+  formatMemoryFeedbackReviewReply,
   formatMemorySessionSearchReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
@@ -364,6 +365,44 @@ test('formats recorded memory feedback as a concise Telegram ack', () => {
   assert.match(reply, /stale current-state context/);
   assert.match(reply, /review evidence/);
   assert.equal(reply.length < 700, true);
+});
+
+test('formats memory feedback review as a concise correction queue', () => {
+  const reply = formatMemoryFeedbackReviewReply({
+    counts: {
+      total_feedback: 2,
+      targeted_feedback: 1,
+      general_feedback: 1,
+      bad: 1,
+      wrong: 1,
+      missing: 0,
+      useful: 0
+    },
+    recent_feedback: [
+      {
+        verdict: 'wrong',
+        note: 'Used the older onboarding plan.',
+        target_event_id: 'evt-memory-read-1',
+        target: {
+          predicate: 'profile.current_plan'
+        }
+      }
+    ],
+    review_queue: [
+      {
+        movement_hint: 'retrieved',
+        predicate: 'profile.current_focus'
+      }
+    ]
+  });
+
+  assert.match(reply, /Memory feedback review/);
+  assert.match(reply, /total 2/);
+  assert.match(reply, /Recent feedback/);
+  assert.match(reply, /Used the older onboarding plan/);
+  assert.match(reply, /Needs review/);
+  assert.match(reply, /profile\.current_focus/);
+  assert.equal(reply.length < 1000, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {

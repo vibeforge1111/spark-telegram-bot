@@ -111,6 +111,16 @@ export interface BuilderMemoryFeedbackResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemoryFeedbackReviewInput {
+  userId: number | string;
+  limit?: number;
+}
+
+export interface BuilderMemoryFeedbackReviewResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface MemoryFeedbackCommand {
   verdict: string;
   note: string;
@@ -711,6 +721,44 @@ export function formatMemoryFeedbackReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemoryFeedbackReviewReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const counts = objectValue(root.counts);
+  const recent = arrayValue(root.recent_feedback).map(objectValue).slice(0, 4);
+  const queue = arrayValue(root.review_queue).map(objectValue).slice(0, 4);
+  const lines = [
+    'Memory feedback review',
+    '',
+    `Feedback: total ${numericValue(counts.total_feedback)}, targeted ${numericValue(counts.targeted_feedback)}, general ${numericValue(counts.general_feedback)}`,
+    `Signals: bad ${numericValue(counts.bad)}, wrong ${numericValue(counts.wrong)}, missing ${numericValue(counts.missing)}, useful ${numericValue(counts.useful)}`,
+  ];
+  if (recent.length) {
+    lines.push('', 'Recent feedback');
+    for (const item of recent) {
+      const target = objectValue(item.target);
+      const targetLabel =
+        stringValue(target.event_id) ||
+        stringValue(item.target_event_id) ||
+        stringValue(target.predicate) ||
+        'general';
+      lines.push(`- ${stringValue(item.verdict) || 'feedback'} on ${targetLabel}: ${truncateForPrompt(stringValue(item.note), 130)}`);
+    }
+  } else {
+    lines.push('', 'Recent feedback');
+    lines.push('- No memory feedback recorded for this Telegram user yet.');
+  }
+  if (queue.length) {
+    lines.push('', 'Needs review');
+    for (const item of queue) {
+      const label = stringValue(item.predicate) || stringValue(item.event_type) || 'memory decision';
+      const movement = stringValue(item.movement_hint) || 'review';
+      lines.push(`- ${movement}: ${truncateForPrompt(label, 130)}`);
+    }
+  }
+  lines.push('', 'Rule: feedback is review evidence, not durable memory truth.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -1102,6 +1150,49 @@ export async function runBuilderMemoryFeedback(
   return {
     payload,
     replyText: formatMemoryFeedbackReply(payload),
+  };
+}
+
+export async function runBuilderMemoryFeedbackReview(
+  input: BuilderMemoryFeedbackReviewInput
+): Promise<BuilderMemoryFeedbackReviewResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'review-feedback',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--agent-id',
+      `agent:human:telegram:${userId}`,
+      '--limit',
+      String(input.limit || 20),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_FEEDBACK_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory feedback review returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemoryFeedbackReviewReply(payload),
   };
 }
 
