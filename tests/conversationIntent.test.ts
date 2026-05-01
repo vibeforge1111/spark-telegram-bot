@@ -485,6 +485,8 @@ test('keeps local numbered-option follow-ups in conversation', () => {
   assert.equal(hasLocalOptionReference('The second'), true);
   assert.equal(hasLocalOptionReference('option two'), true);
   assert.equal(hasLocalOptionReference('go with the 3rd path'), true);
+  assert.equal(hasLocalOptionReference('Let\'s do two'), true);
+  assert.equal(hasLocalOptionReference('please pick option three'), true);
   assert.equal(hasLocalOptionReference('the first one'), true);
   assert.equal(hasLocalOptionReference('the last one'), true);
   assert.equal(hasLocalOptionReference('I would take the final path'), true);
@@ -492,6 +494,7 @@ test('keeps local numbered-option follow-ups in conversation', () => {
   assert.equal(hasLocalOptionReference('that option'), true);
   assert.equal(hasLocalOptionReference('let us build a page where the first screen should show the dashboard'), false);
   assert.equal(shouldPreferConversationalIdeation(prompt), true);
+  assert.equal(shouldPreferConversationalIdeation('Let\'s do two'), true);
   assert.equal(inferMissionGoalFromRecentContext(prompt, [
     "I don't know what should we be building",
     'A few directions: 1. Spark Command Palette 2. Domain Chip Workbench'

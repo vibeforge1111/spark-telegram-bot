@@ -110,6 +110,59 @@ test('short action option references use newer list context instead of access co
   assert.equal(frame.referenceResolution.value, 'Memory Timeline Explorer');
 });
 
+test('short action option references survive small distractors', () => {
+  const frame = buildConversationFrame('Let\'s do two', [
+    {
+      role: 'user',
+      text: 'Give me three build ideas for a memory dashboard'
+    },
+    {
+      role: 'assistant',
+      text: [
+        'Three concrete directions:',
+        '1. Recall Audit Board',
+        '2. Memory Timeline Explorer',
+        '3. Live Stress-Test Panel'
+      ].join('\n')
+    },
+    {
+      role: 'user',
+      text: 'Here are three directions for a team ritual: 1. async demos 2. Friday notes 3. launch retro'
+    },
+    {
+      role: 'assistant',
+      text: [
+        'Got it. I have these options on the table:',
+        '',
+        '1. async demos',
+        '2. Friday notes',
+        '3. launch retro',
+        '',
+        'Tell me which number you want when you are ready.'
+      ].join('\n')
+    },
+    {
+      role: 'user',
+      text: 'Before we choose, give me one sentence about why rituals can help remote teams.'
+    },
+    {
+      role: 'assistant',
+      text: 'Rituals create predictable touchpoints for remote teams.'
+    },
+    {
+      role: 'user',
+      text: 'Also keep it calm and not corporate.'
+    },
+    {
+      role: 'assistant',
+      text: 'Got it - less corporate, more calm. Duly noted.'
+    }
+  ]);
+
+  assert.equal(frame.referenceResolution.kind, 'list_item');
+  assert.equal(frame.referenceResolution.value, 'Friday notes');
+});
+
 test('short option references ignore assistant clarification question lists', () => {
   const frame = buildConversationFrame('Let\'s do two', [
     {
