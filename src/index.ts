@@ -19,6 +19,7 @@ import {
   getBuilderBridgeStatus,
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
+  runBuilderSelfImprovementPlan,
   runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge,
   runBuilderWikiAnswer,
@@ -92,6 +93,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiQuery,
   extractPlainChatMemoryDirective,
@@ -461,7 +463,15 @@ bot.command('self', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
-    const result = await runBuilderSelfAwarenessStatus({
+    const improveMatch = text.match(/^\/self(?:@\w+)?\s+(?:improve|upgrade|fix)\s*(.*)$/i);
+    const result = improveMatch
+      ? await runBuilderSelfImprovementPlan({
+          userId: ctx.from.id,
+          chatId: ctx.chat.id,
+          currentMessage: text,
+          goal: improveMatch[1]?.trim() || 'Improve Spark weak spots with probe-first evidence.',
+        })
+      : await runBuilderSelfAwarenessStatus({
       userId: ctx.from.id,
       chatId: ctx.chat.id,
       currentMessage: text,
@@ -1936,6 +1946,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkAccessConversationHelp(accessProfile);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);
+  if (selfImprovementGoal) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderSelfImprovementPlan({
+        userId: user.id,
+        chatId: ctx.chat.id,
+        currentMessage: text,
+        goal: selfImprovementGoal,
+      });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
     return;
   }
   if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {

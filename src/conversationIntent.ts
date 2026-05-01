@@ -158,6 +158,32 @@ export function extractSparkWikiAnswerQuestion(text: string): string | null {
   return null;
 }
 
+export function extractSparkSelfImprovementGoal(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  const mentionsSparkSelf =
+    /\b(?:spark|you|your|agent|self[-\s]*awareness|introspection|capabilit(?:y|ies)|tools?|routes?|systems?)\b/i.test(normalized);
+  const mentionsImprove =
+    /\b(?:improve|upgrade|tighten|fix|repair|strengthen|make better|close|reduce)\b/i.test(normalized);
+  const mentionsGap =
+    /\b(?:weak\s*spots?|gaps?|lacks?|limitations?|missing|where\s+(?:you|it)\s+lack|not\s+good|confidence|evidence|probes?)\b/i.test(normalized);
+  if (!mentionsSparkSelf || !mentionsImprove || !mentionsGap) {
+    return null;
+  }
+  const cleanupPatterns = [
+    /^(?:can\s+you\s+|please\s+|spark[, ]*)?/i,
+    /\b(?:from|using|with)\s+(?:your\s+)?(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\b/ig,
+  ];
+  let goal = normalized;
+  for (const pattern of cleanupPatterns) {
+    goal = goal.replace(pattern, '').trim();
+  }
+  goal = goal.replace(/[?.!]+$/, '').trim();
+  return goal.length >= 6 ? goal : 'Improve Spark weak spots with probe-first evidence';
+}
+
 export function parseNaturalChipCreateIntent(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;

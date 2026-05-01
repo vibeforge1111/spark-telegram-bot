@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractPlainChatMemoryDirective,
   extractSparkWikiQuery,
@@ -627,6 +628,19 @@ test('extracts natural Spark LLM wiki answer questions separately from query/sta
   assert.equal(extractSparkWikiAnswerQuestion('search your wiki for memory promotion'), null);
   assert.equal(extractSparkWikiAnswerQuestion('what pages are in your LLM wiki?'), null);
   assert.equal(extractSparkWikiAnswerQuestion('build me a wiki app'), null);
+});
+
+test('extracts natural Spark self-improvement goals without stealing builds or wiki queries', () => {
+  assert.equal(
+    extractSparkSelfImprovementGoal('Spark improve your weak spots around route confidence'),
+    'improve your weak spots around route confidence'
+  );
+  assert.equal(
+    extractSparkSelfImprovementGoal('Can you improve where you lack in self-awareness?'),
+    'improve where you lack in self-awareness'
+  );
+  assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
+  assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
 });
 
 test('extracts explicit plain-chat memory directives', () => {

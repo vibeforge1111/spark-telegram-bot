@@ -3,6 +3,7 @@ import {
   compactColdMemoryQuery,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
+  formatSelfImprovementPlanReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
@@ -192,6 +193,40 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /test the browser route now/);
   assert.match(reply, /name missing evidence/);
   assert.equal(reply.length < 1800, true);
+});
+
+test('formats self-improvement plan as probe-first actions', () => {
+  const reply = formatSelfImprovementPlanReply({
+    summary: 'I found 3 improvement actions from the live self-awareness capsule with supporting wiki context.',
+    mode: 'plan_only_probe_first',
+    evidence_level: 'live_self_snapshot_with_wiki_support',
+    priority_actions: [
+      {
+        title: 'Track last-success evidence per capability',
+        weak_spot: 'Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.',
+        next_probe: 'Run the target route and persist last-success evidence.',
+        evidence_to_collect: 'Per-capability last_success_at, last_failure_reason, latency, and exact invocation result.'
+      }
+    ],
+    natural_language_invocations: [
+      'Spark, run the safest probe for the top weak spot before changing anything.'
+    ],
+    wiki_sources: [
+      {
+        title: 'Self-Awareness Gaps',
+        source_path: 'diagnostics/self-awareness-gaps.md'
+      }
+    ],
+    guardrail: 'This is not autonomous self-modification.'
+  });
+
+  assert.match(reply, /Spark self-improvement plan/);
+  assert.match(reply, /plan_only_probe_first/);
+  assert.match(reply, /Priority actions/);
+  assert.match(reply, /Registry visibility is not proof a route worked this turn/);
+  assert.match(reply, /Say this next/);
+  assert.match(reply, /diagnostics\/self-awareness-gaps\.md/);
+  assert.match(reply, /not autonomous self-modification/);
 });
 
 test('formats healthy wiki status as compact operational report', () => {

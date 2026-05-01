@@ -76,6 +76,11 @@ export interface BuilderSelfAwarenessResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderSelfImprovementPlanResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface BuilderWikiStatusResult {
   replyText: string;
   payload: Record<string, unknown>;
@@ -497,6 +502,51 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatSelfImprovementPlanReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const actions = arrayValue(root.priority_actions).map(objectValue).slice(0, 4);
+  const invocations = arrayValue(root.natural_language_invocations).map((item) => stringValue(item)).filter(Boolean).slice(0, 3);
+  const sources = arrayValue(root.wiki_sources).map(objectValue).slice(0, 3);
+  const lines = [
+    'Spark self-improvement plan',
+    '',
+    stringValue(root.summary) || 'I could not build a grounded improvement plan yet.',
+    '',
+    `Mode: ${stringValue(root.mode) || 'plan_only_probe_first'}`,
+    `Evidence: ${stringValue(root.evidence_level) || 'unknown'}`,
+  ];
+  if (actions.length) {
+    lines.push('', 'Priority actions');
+    for (const [index, action] of actions.entries()) {
+      const title = stringValue(action.title) || `Action ${index + 1}`;
+      lines.push(`${index + 1}. ${title}`);
+      const weakSpot = compactSelfAwarenessClaim(stringValue(action.weak_spot));
+      const nextProbe = stringValue(action.next_probe);
+      const evidence = stringValue(action.evidence_to_collect);
+      if (weakSpot) lines.push(`   - Weak spot: ${weakSpot}`);
+      if (nextProbe) lines.push(`   - Probe: ${nextProbe}`);
+      if (evidence) lines.push(`   - Evidence: ${evidence}`);
+    }
+  }
+  if (invocations.length) {
+    lines.push('', 'Say this next');
+    lines.push(...invocations.map((item) => `- ${item}`));
+  }
+  if (sources.length) {
+    lines.push('', 'Wiki support');
+    for (const source of sources) {
+      const title = stringValue(source.title) || 'wiki source';
+      const sourcePath = stringValue(source.source_path);
+      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+    }
+  }
+  const guardrail = stringValue(root.guardrail);
+  if (guardrail) {
+    lines.push('', `Guardrail: ${guardrail}`);
+  }
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -742,6 +792,53 @@ export async function runBuilderSelfAwarenessStatus(
   return {
     payload,
     replyText: formatSelfAwarenessReply(payload),
+  };
+}
+
+export async function runBuilderSelfImprovementPlan(
+  input: BuilderSelfAwarenessInput & { goal?: string }
+): Promise<BuilderSelfImprovementPlanResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const goal = input.goal || input.currentMessage || 'Improve Spark weak spots with probe-first evidence.';
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'self',
+      'improve',
+      goal,
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${String(input.userId).trim()}`,
+      '--session-id',
+      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+      '--channel-kind',
+      'telegram',
+      '--user-message',
+      input.currentMessage || goal,
+      '--refresh-wiki',
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder self-improvement plan returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatSelfImprovementPlanReply(payload),
   };
 }
 
