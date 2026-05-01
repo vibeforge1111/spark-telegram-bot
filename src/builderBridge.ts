@@ -86,6 +86,11 @@ export interface BuilderWikiInventoryResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderWikiQueryResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -279,7 +284,7 @@ function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
   if (!Object.keys(lens).length) {
     return [];
   }
-  const lines = ['How I should show up for you'];
+  const lines = ['How I am tuned for you'];
   const summary = stringValue(lens.persona_summary);
   const styleSentence = stringValue(lens.style_sentence);
   const rules = arrayValue(lens.behavioral_rules)
@@ -287,7 +292,7 @@ function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
     .filter(Boolean)
     .slice(0, 2);
   if (summary) {
-    lines.push(`- Your saved style says: ${humanizeStyleInstruction(summary)}.`);
+    lines.push(`- I should ${humanizeStyleInstruction(summary)}.`);
   }
   if (styleSentence) {
     lines.push(`- Tone: ${styleSentence}.`);
@@ -296,7 +301,7 @@ function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
     lines.push(`- Style promises: ${rules.join('; ')}.`);
   }
   if (lens.user_deltas_applied) {
-    lines.push('- Your recent style preferences are part of this answer, not hidden somewhere else.');
+    lines.push('- I should let that tuning shape the answer, while keeping the evidence visible.');
   }
   lines.push('');
   return lines;
@@ -556,6 +561,45 @@ export function formatWikiInventoryReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatWikiQueryReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const hits = arrayValue(root.hits).map(objectValue).slice(0, 5);
+  const warnings = arrayValue(root.warnings).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const lines = [
+    'Spark LLM wiki query',
+    '',
+    `Query: ${stringValue(root.query) || 'unknown'}`,
+    `Retrieval: ${stringValue(root.wiki_retrieval_status) || 'unknown'} (${numericValue(root.hit_count)} hits)`,
+    `Knowledge priority: ${root.project_knowledge_first ? 'project/system first' : 'not confirmed'}`,
+  ];
+  if (root.refreshed) {
+    lines.push(`Refresh: regenerated ${numericValue(root.refreshed_file_count)} system pages`);
+  }
+  if (hits.length) {
+    lines.push('', 'Relevant packets');
+    for (const hit of hits) {
+      const title = stringValue(hit.title) || stringValue(hit.source_path) || 'wiki packet';
+      const sourcePath = stringValue(hit.source_path);
+      const text = truncateForPrompt(stringValue(hit.text), 360);
+      lines.push(`- ${title}`);
+      if (sourcePath) {
+        lines.push(`  source: ${sourcePath}`);
+      }
+      if (text) {
+        lines.push(`  ${text}`);
+      }
+    }
+  } else {
+    lines.push('', 'No matching wiki packets found for that phrasing.');
+  }
+  if (warnings.length) {
+    lines.push('', 'Warnings');
+    lines.push(...warnings.map((item) => `- ${item}`));
+  }
+  lines.push('', 'Rule: these are supporting packets, not live truth; live status and traces still win.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   const config = resolveBridgeConfig();
   return {
@@ -736,6 +780,64 @@ export async function runBuilderWikiInventory(input: { refresh?: boolean; limit?
   return {
     payload,
     replyText: formatWikiInventoryReply(payload),
+  };
+}
+
+export async function runBuilderWikiQuery(
+  input: { query: string; refresh?: boolean; limit?: number }
+): Promise<BuilderWikiQueryResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const args = [
+    'wiki',
+    'query',
+    input.query,
+    '--home',
+    config.builderHome,
+    '--limit',
+    String(input.limit || 5),
+    '--json',
+  ];
+  if (input.refresh !== false) {
+    args.push('--refresh');
+  }
+
+  let stdout = '';
+  let stderr = '';
+  try {
+    const result = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    stdout = result.stdout;
+    stderr = result.stderr;
+  } catch (error) {
+    const maybeOutput = error as { stdout?: unknown; stderr?: unknown };
+    stdout = typeof maybeOutput.stdout === 'string' ? maybeOutput.stdout : '';
+    stderr = typeof maybeOutput.stderr === 'string' ? maybeOutput.stderr : '';
+    if (!stdout.trim()) {
+      throw error;
+    }
+  }
+
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder wiki query returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatWikiQueryReply(payload),
   };
 }
 

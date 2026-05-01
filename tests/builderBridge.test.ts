@@ -5,6 +5,7 @@ import {
   formatDiagnosticsScanReply,
   formatSelfAwarenessReply,
   formatWikiInventoryReply,
+  formatWikiQueryReply,
   formatWikiStatusReply
 } from '../src/builderBridge';
 
@@ -179,9 +180,10 @@ test('formats self-awareness payload as actionable Telegram report', () => {
 
   assert.match(reply, /Spark self-awareness/);
   assert.match(reply, /Short version/);
-  assert.match(reply, /How I should show up for you/);
+  assert.match(reply, /How I am tuned for you/);
   assert.match(reply, /warm, curious, and direct/);
   assert.match(reply, /Tone: direct, warm, and fast-moving/);
+  assert.match(reply, /keeping the evidence visible/);
   assert.match(reply, /Where I still lack/);
   assert.match(reply, /What I should improve next/);
   assert.match(reply, /Knowledge notes/);
@@ -260,4 +262,27 @@ test('formats wiki inventory with page metadata and source boundary', () => {
   assert.match(reply, /Sections: diagnostics: 1, system: 5, tools: 2/);
   assert.match(reply, /index\.md: Spark LLM Wiki/);
   assert.match(reply, /live traces decide what to use/);
+});
+
+test('formats wiki query hits with source paths and authority boundary', () => {
+  const reply = formatWikiQueryReply({
+    query: 'recursive self-improvement loops',
+    wiki_retrieval_status: 'supported',
+    hit_count: 1,
+    project_knowledge_first: true,
+    refreshed: true,
+    refreshed_file_count: 4,
+    hits: [
+      {
+        title: 'Recursive Self-Improvement Loops',
+        source_path: 'system/recursive-self-improvement-loops.md',
+        text: 'Recursive improvement should preserve source-backed quality gates and avoid prompt drift.'
+      }
+    ]
+  });
+
+  assert.match(reply, /Spark LLM wiki query/);
+  assert.match(reply, /Retrieval: supported \(1 hits\)/);
+  assert.match(reply, /system\/recursive-self-improvement-loops\.md/);
+  assert.match(reply, /supporting packets, not live truth/);
 });
