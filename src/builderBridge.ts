@@ -76,6 +76,16 @@ export interface BuilderSelfAwarenessResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemoryDashboardInput {
+  userId: number | string;
+  limit?: number;
+}
+
+export interface BuilderMemoryDashboardResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface BuilderWikiStatusResult {
   replyText: string;
   payload: Record<string, unknown>;
@@ -497,6 +507,47 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemoryDashboardReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const counts = objectValue(root.counts);
+  const scope = objectValue(root.scope);
+  const humanRows = arrayValue(root.human_view).map(objectValue).slice(0, 6);
+  const blockers = arrayValue(root.recent_blockers).map(objectValue).slice(0, 3);
+  const movementKeys = ['captured', 'blocked', 'promoted', 'saved', 'decayed', 'summarized', 'retrieved'];
+  const movement = movementKeys
+    .map((key) => `${key}: ${numericValue(counts[key])}`)
+    .join(', ');
+  const lines = [
+    'Spark memory movement',
+    '',
+    `Scope: ${stringValue(scope.human_id) ? 'this Telegram user' : 'all recent memory'}`,
+    `Movement: ${movement}`,
+  ];
+  if (humanRows.length) {
+    lines.push('', 'Recent trace');
+    for (const row of humanRows) {
+      const movementName = stringValue(row.movement) || 'memory';
+      const line = stringValue(row.line) || stringValue(row.summary) || stringValue(row.event_type);
+      if (line) {
+        lines.push(`- ${movementName}: ${truncateForPrompt(line, 170)}`);
+      }
+    }
+  } else {
+    lines.push('', 'Recent trace');
+    lines.push('- No scoped memory movement found yet.');
+  }
+  if (blockers.length) {
+    lines.push('', 'Blocked writes');
+    for (const row of blockers) {
+      const predicate = stringValue(row.predicate) || stringValue(row.event_type) || 'memory';
+      const reason = stringValue(row.reason) || 'policy gate';
+      lines.push(`- ${predicate}: ${reason}`);
+    }
+  }
+  lines.push('', 'Rule: this shows memory movement, not a promise that every mention became durable memory.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -723,6 +774,49 @@ export async function runBuilderSelfAwarenessStatus(
   return {
     payload,
     replyText: formatSelfAwarenessReply(payload),
+  };
+}
+
+export async function runBuilderMemoryDashboard(
+  input: BuilderMemoryDashboardInput
+): Promise<BuilderMemoryDashboardResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'dashboard',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--agent-id',
+      `agent:human:telegram:${userId}`,
+      '--limit',
+      String(input.limit || 40),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_DASHBOARD_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory dashboard returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemoryDashboardReply(payload),
   };
 }
 

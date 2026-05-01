@@ -19,6 +19,7 @@ import {
   getBuilderBridgeStatus,
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
+  runBuilderMemoryDashboard,
   runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge,
   runBuilderWikiAnswer,
@@ -496,6 +497,19 @@ bot.command('context', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   const report = await conversation.getConversationFrameDiagnostics(ctx.from);
   await ctx.reply(report);
+});
+
+bot.command('memory', async (ctx) => {
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const result = await runBuilderMemoryDashboard({
+      userId: ctx.from.id,
+      limit: 40,
+    });
+    await ctx.reply(result.replyText);
+  } catch (err: any) {
+    await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
+  }
 });
 
 async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {

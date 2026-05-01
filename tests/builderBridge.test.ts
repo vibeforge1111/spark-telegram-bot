@@ -3,6 +3,7 @@ import {
   compactColdMemoryQuery,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
+  formatMemoryDashboardReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
@@ -192,6 +193,50 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /test the browser route now/);
   assert.match(reply, /name missing evidence/);
   assert.equal(reply.length < 1800, true);
+});
+
+test('formats memory dashboard movement as concise Telegram report', () => {
+  const reply = formatMemoryDashboardReply({
+    scope: {
+      human_id: 'human:telegram:111',
+      agent_id: 'agent:human:telegram:111'
+    },
+    counts: {
+      captured: 3,
+      blocked: 1,
+      promoted: 2,
+      saved: 2,
+      decayed: 1,
+      summarized: 1,
+      retrieved: 4
+    },
+    human_view: [
+      {
+        movement: 'captured',
+        line: 'Captured profile.current_focus from Telegram: persistent conversational memory.'
+      },
+      {
+        movement: 'promoted',
+        line: 'Promoted profile.current_focus into current state.'
+      }
+    ],
+    recent_blockers: [
+      {
+        predicate: 'profile.secret',
+        reason: 'salience_secret_like_material'
+      }
+    ]
+  });
+
+  assert.match(reply, /Spark memory movement/);
+  assert.match(reply, /Scope: this Telegram user/);
+  assert.match(reply, /captured: 3/);
+  assert.match(reply, /retrieved: 4/);
+  assert.match(reply, /Recent trace/);
+  assert.match(reply, /Blocked writes/);
+  assert.match(reply, /profile\.secret: salience_secret_like_material/);
+  assert.match(reply, /not a promise/);
+  assert.equal(reply.length < 1200, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {
