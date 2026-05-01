@@ -105,6 +105,36 @@ export function isSparkWikiInventoryQuestion(text: string): boolean {
   );
 }
 
+export function extractSparkWikiQuery(text: string): string | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (isSparkWikiStatusQuestion(normalized) || isSparkWikiInventoryQuestion(normalized)) {
+    return null;
+  }
+  const mentionsWiki =
+    /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
+    /\bobsidian\s+vault\b/i.test(normalized);
+  if (!mentionsWiki) {
+    return null;
+  }
+  const patterns = [
+    /\b(?:search|query|look\s+up|retrieve\s+from|check)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s+(?:for|about|on)\s+(.+)$/i,
+    /\bwhat\s+does\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s+(?:say|know|have)\s+(?:about|on)\s+(.+)$/i,
+    /\b(?:from|using)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault),?\s+(?:what|how|where|why|when|which)\s+(.+)$/i,
+  ];
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    const query = match?.[1]?.replace(/[?.!]+$/, '').trim();
+    if (query && query.length >= 3) {
+      return query;
+    }
+  }
+  return null;
+}
+
 export function parseNaturalChipCreateIntent(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;

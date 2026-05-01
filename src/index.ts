@@ -22,6 +22,7 @@ import {
   runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge,
   runBuilderWikiInventory,
+  runBuilderWikiQuery,
   runBuilderWikiStatus
 } from './builderBridge';
 import { spark } from './spark';
@@ -90,6 +91,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractSparkWikiQuery,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
@@ -472,8 +474,11 @@ bot.command('wiki', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
-    const result = wantsInventory
+    const result = queryMatch?.[1]?.trim()
+      ? await runBuilderWikiQuery({ query: queryMatch[1].trim(), refresh: true, limit: 5 })
+      : wantsInventory
       ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
       : await runBuilderWikiStatus({ refresh: true });
     await ctx.reply(result.replyText);
@@ -1926,6 +1931,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
+    return;
+  }
+  const wikiQuery = earlyBuildIntent ? null : extractSparkWikiQuery(text);
+  if (wikiQuery) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
       await ctx.reply(result.replyText);
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {

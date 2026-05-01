@@ -11,6 +11,7 @@ import {
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractPlainChatMemoryDirective,
+  extractSparkWikiQuery,
   formatMissionUpdatePreferenceAcknowledgement,
   hasRecentAccessConversation,
   hasLocalOptionReference,
@@ -602,6 +603,15 @@ test('detects natural Spark LLM wiki inventory questions separately from status'
   assert.equal(isSparkWikiInventoryQuestion('list the Spark knowledge base contents'), true);
   assert.equal(isSparkWikiInventoryQuestion('show me the Obsidian vault status'), false);
   assert.equal(isSparkWikiInventoryQuestion('build me a wiki app for my team'), false);
+});
+
+test('extracts natural Spark LLM wiki retrieval queries without stealing status or inventory', () => {
+  assert.equal(extractSparkWikiQuery('search your wiki for recursive self-improvement loops'), 'recursive self-improvement loops');
+  assert.equal(extractSparkWikiQuery('what does the Spark knowledge base say about route tracing?'), 'route tracing');
+  assert.equal(extractSparkWikiQuery('from your LLM wiki, how should memory promotion work?'), 'should memory promotion work');
+  assert.equal(extractSparkWikiQuery('show me the Obsidian vault status'), null);
+  assert.equal(extractSparkWikiQuery('what pages are in your LLM wiki?'), null);
+  assert.equal(extractSparkWikiQuery('build me a wiki app for my team'), null);
 });
 
 test('extracts explicit plain-chat memory directives', () => {
