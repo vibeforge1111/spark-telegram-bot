@@ -7,6 +7,7 @@ import {
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
+  formatWikiPromotionReply,
   formatWikiQueryReply,
   formatWikiStatusReply
 } from '../src/builderBridge';
@@ -378,4 +379,25 @@ test('formats wiki answer with sources and live verification boundary', () => {
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
   assert.match(reply, /system\/tracing-and-observability-map\.md/);
   assert.match(reply, /Still needs live verification/);
+});
+
+test('formats wiki improvement promotions with evidence boundary', () => {
+  const reply = formatWikiPromotionReply({
+    title: 'Track route confidence',
+    summary: 'Spark should separate route registration from recent successful invocation.',
+    promotion_status: 'candidate',
+    relative_path: 'improvements/2026-05-01-track-route-confidence.md',
+    authority: 'supporting_not_authoritative',
+    evidence_refs: ['telegram:123:456'],
+    source_refs: ['telegram:user:99'],
+    next_probe: 'Run the route and persist last_success_at.',
+    warnings: ['candidate_status_requires_probe_before_runtime_truth']
+  });
+
+  assert.match(reply, /Spark LLM wiki improvement note/);
+  assert.match(reply, /Status: candidate/);
+  assert.match(reply, /improvements\/2026-05-01-track-route-confidence\.md/);
+  assert.match(reply, /telegram:123:456/);
+  assert.match(reply, /supporting_not_authoritative/);
+  assert.match(reply, /not live runtime truth/);
 });

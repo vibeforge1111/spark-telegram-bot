@@ -12,6 +12,7 @@ import {
   buildRecentBuildContextReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
+  extractSparkWikiPromotionIntent,
   extractPlainChatMemoryDirective,
   extractSparkWikiQuery,
   formatMissionUpdatePreferenceAcknowledgement,
@@ -641,6 +642,31 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
+});
+
+test('extracts safe Spark wiki improvement promotion intents', () => {
+  assert.deepEqual(
+    extractSparkWikiPromotionIntent(
+      'save this as a wiki improvement: Spark should separate route registration from recent invocation evidence'
+    ),
+    {
+      title: 'Spark should separate route registration from recent invocation evidence',
+      summary: 'Spark should separate route registration from recent invocation evidence',
+      status: 'candidate'
+    }
+  );
+  assert.deepEqual(
+    extractSparkWikiPromotionIntent(
+      'promote verified wiki note: route confidence improved after pytest evidence confirmed the trace path'
+    ),
+    {
+      title: 'route confidence improved after pytest evidence confirmed the trace path',
+      summary: 'route confidence improved after pytest evidence confirmed the trace path',
+      status: 'verified'
+    }
+  );
+  assert.equal(extractSparkWikiPromotionIntent('what pages are in your LLM wiki?'), null);
+  assert.equal(extractSparkWikiPromotionIntent('build me a wiki notes app'), null);
 });
 
 test('extracts explicit plain-chat memory directives', () => {

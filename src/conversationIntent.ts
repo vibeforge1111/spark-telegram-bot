@@ -184,6 +184,66 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   return goal.length >= 6 ? goal : 'Improve Spark weak spots with probe-first evidence';
 }
 
+export interface SparkWikiPromotionIntent {
+  title: string;
+  summary: string;
+  status: 'candidate' | 'verified';
+}
+
+export function extractSparkWikiPromotionIntent(text: string): SparkWikiPromotionIntent | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  const mentionsWiki =
+    /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
+    /\bobsidian\s+vault\b/i.test(normalized);
+  const asksToWrite =
+    /\b(?:promote|write|save|add|capture|store|record)\b/i.test(normalized) &&
+    /\b(?:improvement|learning|lesson|note|wiki\s+note|self[-\s]*awareness|introspection|capability|route|trace|probe|evidence)\b/i.test(normalized);
+  if (!mentionsWiki || !asksToWrite) {
+    return null;
+  }
+  if (isSparkWikiStatusQuestion(normalized) || isSparkWikiInventoryQuestion(normalized)) {
+    return null;
+  }
+
+  const explicitSummaryPatterns = [
+    /\b(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s+(?:improvement\s+)?(?:note|learning|lesson)?\s*[:,-]\s*(.+)$/i,
+    /\b(?:promote|write|save|add|capture|store|record)\s+(?:this\s+)?(?:as\s+)?(?:a\s+)?(?:candidate\s+|verified\s+)?(?:wiki\s+)?(?:improvement|learning|lesson|note)\s*[:,-]?\s*(.+)$/i,
+    /\b(?:promote|write|save|add|capture|store|record)\s+(.+?)\s+(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)$/i,
+  ];
+  let summary = '';
+  for (const pattern of explicitSummaryPatterns) {
+    const match = normalized.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value && value.length >= 8) {
+      summary = value;
+      break;
+    }
+  }
+  if (!summary) {
+    summary = normalized
+      .replace(/^(?:please\s+|can\s+you\s+|spark[, ]*)?/i, '')
+      .replace(/\b(?:promote|write|save|add|capture|store|record)\b/i, '')
+      .replace(/\b(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\b/ig, '')
+      .replace(/\b(?:as\s+)?(?:a\s+)?(?:candidate\s+|verified\s+)?(?:wiki\s+)?(?:improvement|learning|lesson|note)\b/ig, '')
+      .trim();
+  }
+  summary = summary.replace(/[.!?]+$/, '').trim();
+  if (summary.length < 8) {
+    return null;
+  }
+  const verified = /\bverified\b/i.test(normalized) && /\b(?:evidence|tested|passed|confirmed|trace|pytest|smoke)\b/i.test(normalized);
+  const title = summary.length > 80 ? `${summary.slice(0, 77).trim()}...` : summary;
+  return {
+    title,
+    summary,
+    status: verified ? 'verified' : 'candidate',
+  };
+}
+
 export function parseNaturalChipCreateIntent(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;

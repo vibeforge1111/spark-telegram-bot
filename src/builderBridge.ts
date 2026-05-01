@@ -101,6 +101,11 @@ export interface BuilderWikiAnswerResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderWikiPromotionResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -734,6 +739,43 @@ export function formatWikiAnswerReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatWikiPromotionReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const evidenceRefs = arrayValue(root.evidence_refs).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const sourceRefs = arrayValue(root.source_refs).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const warnings = arrayValue(root.warnings).map((item) => stringValue(item)).filter(Boolean).slice(0, 4);
+  const lines = [
+    'Spark LLM wiki improvement note',
+    '',
+    `Stored: ${stringValue(root.title) || 'untitled improvement'}`,
+    `Status: ${stringValue(root.promotion_status) || 'candidate'}`,
+    `Path: ${stringValue(root.relative_path) || stringValue(root.path) || 'unknown'}`,
+    `Authority: ${stringValue(root.authority) || 'supporting_not_authoritative'}`,
+  ];
+  const summary = stringValue(root.summary);
+  if (summary) {
+    lines.push('', summary);
+  }
+  if (evidenceRefs.length) {
+    lines.push('', 'Evidence refs');
+    lines.push(...evidenceRefs.map((item) => `- ${item}`));
+  }
+  if (sourceRefs.length) {
+    lines.push('', 'Source refs');
+    lines.push(...sourceRefs.map((item) => `- ${item}`));
+  }
+  const nextProbe = stringValue(root.next_probe);
+  if (nextProbe) {
+    lines.push('', `Next probe: ${nextProbe}`);
+  }
+  if (warnings.length) {
+    lines.push('', 'Warnings');
+    lines.push(...warnings.map((item) => `- ${item}`));
+  }
+  lines.push('', 'Rule: this is retrievable project knowledge, not live runtime truth.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   const config = resolveBridgeConfig();
   return {
@@ -1089,6 +1131,77 @@ export async function runBuilderWikiAnswer(
   return {
     payload,
     replyText: formatWikiAnswerReply(payload),
+  };
+}
+
+export async function runBuilderWikiPromoteImprovement(
+  input: {
+    title: string;
+    summary?: string;
+    status?: 'candidate' | 'verified';
+    evidenceRefs?: string[];
+    sourceRefs?: string[];
+    nextProbe?: string;
+    invalidationTrigger?: string;
+  }
+): Promise<BuilderWikiPromotionResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const args = [
+    'wiki',
+    'promote-improvement',
+    input.title,
+    '--home',
+    config.builderHome,
+    '--status',
+    input.status || 'candidate',
+    '--json',
+  ];
+  const summary = stringValue(input.summary || input.title);
+  if (summary) {
+    args.push('--summary', summary);
+  }
+  for (const evidenceRef of input.evidenceRefs || []) {
+    const value = stringValue(evidenceRef);
+    if (value) {
+      args.push('--evidence-ref', value);
+    }
+  }
+  for (const sourceRef of input.sourceRefs || []) {
+    const value = stringValue(sourceRef);
+    if (value) {
+      args.push('--source', value);
+    }
+  }
+  if (input.nextProbe) {
+    args.push('--next-probe', input.nextProbe);
+  }
+  if (input.invalidationTrigger) {
+    args.push('--invalidation-trigger', input.invalidationTrigger);
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder wiki promotion returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatWikiPromotionReply(payload),
   };
 }
 

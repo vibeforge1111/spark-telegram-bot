@@ -24,6 +24,7 @@ import {
   runBuilderTelegramBridge,
   runBuilderWikiAnswer,
   runBuilderWikiInventory,
+  runBuilderWikiPromoteImprovement,
   runBuilderWikiQuery,
   runBuilderWikiStatus
 } from './builderBridge';
@@ -95,6 +96,7 @@ import {
   buildRecentBuildContextReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
+  extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
@@ -486,10 +488,20 @@ bot.command('wiki', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const promoteMatch = text.match(/^\/wiki(?:@\w+)?\s+promote(?:\s+(candidate|verified))?\s+(.+)$/i);
     const answerMatch = text.match(/^\/wiki(?:@\w+)?\s+answer\s+(.+)$/i);
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
-    const result = answerMatch?.[1]?.trim()
+    const result = promoteMatch?.[2]?.trim()
+      ? await runBuilderWikiPromoteImprovement({
+          title: promoteMatch[2].trim(),
+          summary: promoteMatch[2].trim(),
+          status: promoteMatch[1]?.toLowerCase() === 'verified' ? 'verified' : 'candidate',
+          evidenceRefs: [`telegram:${String(ctx.chat.id)}:${String((ctx.message as any)?.message_id || 'unknown')}`],
+          sourceRefs: [`telegram:user:${String(ctx.from.id)}`],
+          nextProbe: 'Run the relevant Spark probe, test, or trace check before treating this note as current truth.',
+        })
+      : answerMatch?.[1]?.trim()
       ? await runBuilderWikiAnswer({
           question: answerMatch[1].trim(),
           refresh: true,
@@ -1958,6 +1970,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         chatId: ctx.chat.id,
         currentMessage: text,
         goal: selfImprovementGoal,
+      });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+    }
+    return;
+  }
+  const wikiPromotion = earlyBuildIntent ? null : extractSparkWikiPromotionIntent(text);
+  if (wikiPromotion) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderWikiPromoteImprovement({
+        title: wikiPromotion.title,
+        summary: wikiPromotion.summary,
+        status: wikiPromotion.status,
+        evidenceRefs: [`telegram:${String(ctx.chat.id)}:${String((ctx.message as any)?.message_id || 'unknown')}`],
+        sourceRefs: [`telegram:user:${String(user.id)}`],
+        nextProbe: 'Run the relevant Spark probe, test, or trace check before treating this note as current truth.',
+        invalidationTrigger: 'Downgrade this note if newer live traces, tests, or source docs contradict it.',
       });
       await ctx.reply(result.replyText);
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
