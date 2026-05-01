@@ -86,6 +86,17 @@ export interface BuilderMemoryDashboardResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemorySessionSearchInput {
+  userId: number | string;
+  query: string;
+  limit?: number;
+}
+
+export interface BuilderMemorySessionSearchResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface BuilderWikiStatusResult {
   replyText: string;
   payload: Record<string, unknown>;
@@ -558,6 +569,35 @@ export function formatMemoryDashboardReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemorySessionSearchReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const sessions = arrayValue(root.sessions).map(objectValue).slice(0, 4);
+  const lines = [
+    'Spark memory search',
+    '',
+    `Query: ${stringValue(root.query) || 'unknown'}`,
+    `Status: ${stringValue(root.status) || 'unknown'} (${numericValue(root.matched_event_count)} matches)`,
+  ];
+  if (sessions.length) {
+    lines.push('', 'Best sessions');
+    for (const session of sessions) {
+      const events = arrayValue(session.events).map(objectValue).slice(0, 2);
+      lines.push(`- ${stringValue(session.session_id) || 'session:unknown'} (${numericValue(session.matched_event_count)} hits)`);
+      for (const event of events) {
+        const role = stringValue(event.role) || 'memory';
+        const snippet = stringValue(event.snippet);
+        if (snippet) {
+          lines.push(`  ${role}: ${truncateForPrompt(snippet, 170)}`);
+        }
+      }
+    }
+  } else {
+    lines.push('', 'No matching captured sessions found for that phrasing.');
+  }
+  lines.push('', 'Rule: this is episodic evidence, not durable truth by itself.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -846,6 +886,51 @@ export async function runBuilderMemoryDashboard(
   return {
     payload,
     replyText: formatMemoryDashboardReply(payload),
+  };
+}
+
+export async function runBuilderMemorySessionSearch(
+  input: BuilderMemorySessionSearchInput
+): Promise<BuilderMemorySessionSearchResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'search-sessions',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--agent-id',
+      `agent:human:telegram:${userId}`,
+      '--query',
+      input.query,
+      '--limit',
+      String(input.limit || 4),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_SEARCH_TIMEOUT_MS', Math.min(config.timeoutMs, 10000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory search returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemorySessionSearchReply(payload),
   };
 }
 

@@ -4,6 +4,7 @@ import {
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatMemoryDashboardReply,
+  formatMemorySessionSearchReply,
   formatSelfAwarenessReply,
   formatWikiAnswerReply,
   formatWikiInventoryReply,
@@ -248,6 +249,37 @@ test('formats memory dashboard movement as concise Telegram report', () => {
   assert.match(reply, /profile\.secret: salience_secret_like_material/);
   assert.match(reply, /not a promise/);
   assert.equal(reply.length < 1200, true);
+});
+
+test('formats memory session search as concise episodic evidence report', () => {
+  const reply = formatMemorySessionSearchReply({
+    query: 'memory window',
+    status: 'supported',
+    matched_event_count: 2,
+    sessions: [
+      {
+        session_id: 'session-search-memory-dashboard',
+        matched_event_count: 2,
+        events: [
+          {
+            role: 'user',
+            snippet: 'Let us call the memory dashboard the memory window from now on.'
+          },
+          {
+            role: 'assistant',
+            snippet: 'Got it. I will use memory window for that dashboard.'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.match(reply, /Spark memory search/);
+  assert.match(reply, /Query: memory window/);
+  assert.match(reply, /Best sessions/);
+  assert.match(reply, /session-search-memory-dashboard/);
+  assert.match(reply, /episodic evidence/);
+  assert.equal(reply.length < 1000, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {
