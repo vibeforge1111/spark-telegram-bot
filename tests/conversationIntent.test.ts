@@ -570,6 +570,21 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     true
   );
   assert.equal(shouldSuppressBuilderReplyForPlainChat('I am doing well. The chat is working normally.'), false);
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      [
+        'Spark self-awareness',
+        '',
+        'Where Spark lacks',
+        '- Registry visibility does not prove recent invocation.',
+        '',
+        'LLM wiki',
+        '- retrieval: supported (3 wiki hits)',
+      ].join('\n'),
+      'self_awareness_direct'
+    ),
+    false
+  );
 });
 
 test('extracts explicit plain-chat memory directives', () => {

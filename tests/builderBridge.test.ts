@@ -155,6 +155,15 @@ test('formats self-awareness payload as actionable Telegram report', () => {
     improvement_options: [
       { claim: 'Add per-capability last_success_at, last_failure_reason, and eval coverage fields.' }
     ],
+    wiki_refresh: {
+      generated_file_count: 4,
+      authority: 'supporting_not_authoritative'
+    },
+    wiki_context: {
+      wiki_status: 'supported',
+      wiki_record_count: 3,
+      project_knowledge_first: true
+    },
     natural_language_routes: [
       "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
     ]
@@ -163,6 +172,8 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /Spark self-awareness/);
   assert.match(reply, /Where I lack/);
   assert.match(reply, /How I can improve/);
+  assert.match(reply, /LLM wiki/);
+  assert.match(reply, /Project knowledge first: yes/);
   assert.match(reply, /test the browser route now/);
   assert.match(reply, /confident to attempt work through the right route/);
 });

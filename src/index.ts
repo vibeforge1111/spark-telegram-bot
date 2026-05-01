@@ -24,7 +24,7 @@ import {
 } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
-import { sanitizeOutbound } from './outboundSanitize';
+import { sanitizeOutbound, splitTelegramText } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
 import {
   formatCreatorMissionExecutionSummary,
@@ -195,11 +195,21 @@ function recordNodeOutboundDelivery(chatId: unknown, deliveredText: unknown): vo
 // forbids em dashes; production telemetry showed ~50% leak rate before
 // this shim. Mirrors spark_character.output_sanitizer (Python).
 const _origSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
-bot.telegram.sendMessage = ((chatId: any, text: any, extra?: any) => {
-  const cleaned = typeof text === 'string' ? sanitizeOutbound(text) : text;
-  const delivery = _origSendMessage(chatId, cleaned, extra);
-  delivery.then(() => recordNodeOutboundDelivery(chatId, cleaned)).catch(() => {});
-  return delivery;
+bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
+  if (typeof text !== 'string') {
+    const delivery = await _origSendMessage(chatId, text, extra);
+    recordNodeOutboundDelivery(chatId, text);
+    return delivery;
+  }
+
+  const cleaned = sanitizeOutbound(text);
+  const chunks = splitTelegramText(cleaned);
+  let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
+  for (const chunk of chunks) {
+    lastDelivery = await _origSendMessage(chatId, chunk, extra);
+    recordNodeOutboundDelivery(chatId, chunk);
+  }
+  return lastDelivery!;
 }) as typeof bot.telegram.sendMessage;
 
 bot.use(async (ctx, next) => {
