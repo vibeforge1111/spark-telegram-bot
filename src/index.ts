@@ -214,9 +214,18 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
 
 bot.use(async (ctx, next) => {
   const originalReply = ctx.reply.bind(ctx);
-  ctx.reply = ((text: any, extra?: any) => {
-    const cleaned = typeof text === 'string' ? sanitizeOutbound(text) : text;
-    return originalReply(cleaned, extra);
+  ctx.reply = (async (text: any, extra?: any) => {
+    if (typeof text !== 'string') {
+      return originalReply(text, extra);
+    }
+
+    const cleaned = sanitizeOutbound(text);
+    const chunks = splitTelegramText(cleaned);
+    let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
+    for (const chunk of chunks) {
+      lastReply = await originalReply(chunk, extra);
+    }
+    return lastReply!;
   }) as typeof ctx.reply;
   await next();
 });
