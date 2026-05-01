@@ -16,6 +16,21 @@ function test(name: string, fn: () => void): void {
   }
 }
 
+test('splits oversized Telegram text under the send limit', () => {
+  const text = [
+    'Spark self-awareness',
+    '',
+    ...Array.from({ length: 80 }, (_, index) => `- Capability ${index}: ${'detail '.repeat(18)}`)
+  ].join('\n');
+
+  const chunks = splitTelegramText(text, 900);
+
+  assert.equal(chunks.length > 1, true);
+  assert.equal(chunks.every((chunk) => chunk.length <= 900), true);
+  assert.match(chunks.join('\n'), /Capability 0/);
+  assert.match(chunks.join('\n'), /Capability 79/);
+});
+
 test('strips Markdown bold markers from Telegram replies', () => {
   assert.equal(
     stripMarkdownEmphasis('Short answer: **yes**.\n\n**Two directions to consider:**'),

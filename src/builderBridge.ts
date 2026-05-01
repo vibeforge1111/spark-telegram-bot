@@ -350,6 +350,8 @@ export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): 
 
 export function formatSelfAwarenessReply(payload: unknown): string {
   const root = objectValue(payload);
+  const wikiRefresh = objectValue(root.wiki_refresh);
+  const wikiContext = objectValue(root.wiki_context);
   const routes = arrayValue(root.natural_language_routes)
     .map((item) => stringValue(item))
     .filter(Boolean)
@@ -368,6 +370,18 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   if (routes.length) {
     lines.push('You can ask me naturally');
     lines.push(...routes.map((item) => `- ${item}`));
+    lines.push('');
+  }
+  if (Object.keys(wikiRefresh).length || Object.keys(wikiContext).length) {
+    const generatedCount = numericValue(wikiRefresh.generated_file_count);
+    const wikiStatus = stringValue(wikiContext.wiki_status) || 'unknown';
+    const wikiRecords = numericValue(wikiContext.wiki_record_count);
+    const projectKnowledgeFirst = Boolean(wikiContext.project_knowledge_first);
+    lines.push('LLM wiki');
+    lines.push(`- Refresh: ${generatedCount} live system pages`);
+    lines.push(`- Retrieval: ${wikiStatus} (${wikiRecords} wiki hits)`);
+    lines.push(`- Project knowledge first: ${projectKnowledgeFirst ? 'yes' : 'no'}`);
+    lines.push('- Authority: supporting, not live truth');
     lines.push('');
   }
   lines.push(
@@ -444,12 +458,13 @@ export async function runBuilderSelfAwarenessStatus(
       'telegram',
       '--user-message',
       input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+      '--refresh-wiki',
       '--json',
     ]),
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
-      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 12000)),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
       maxBuffer: 1024 * 1024,
     })
   );
