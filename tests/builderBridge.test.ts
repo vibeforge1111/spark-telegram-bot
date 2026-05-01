@@ -220,6 +220,14 @@ test('formats memory dashboard movement as concise Telegram report', () => {
         line: 'Promoted profile.current_focus into current state.'
       }
     ],
+    movement_paths: [
+      {
+        line: 'captured -> summarized: 2 source event(s) -> evidence.telegram.session_summary.'
+      },
+      {
+        line: 'saved -> retrieved: 1 record(s) from current_state=1.'
+      }
+    ],
     recent_blockers: [
       {
         predicate: 'profile.secret',
@@ -233,6 +241,9 @@ test('formats memory dashboard movement as concise Telegram report', () => {
   assert.match(reply, /captured: 3/);
   assert.match(reply, /retrieved: 4/);
   assert.match(reply, /Recent trace/);
+  assert.match(reply, /Movement paths/);
+  assert.match(reply, /captured -> summarized/);
+  assert.match(reply, /saved -> retrieved/);
   assert.match(reply, /Blocked writes/);
   assert.match(reply, /profile\.secret: salience_secret_like_material/);
   assert.match(reply, /not a promise/);

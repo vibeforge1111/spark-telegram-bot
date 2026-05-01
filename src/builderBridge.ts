@@ -512,6 +512,7 @@ export function formatMemoryDashboardReply(payload: unknown): string {
   const counts = objectValue(root.counts);
   const scope = objectValue(root.scope);
   const humanRows = arrayValue(root.human_view).map(objectValue).slice(0, 6);
+  const movementPaths = arrayValue(root.movement_paths).map(objectValue).slice(0, 4);
   const blockers = arrayValue(root.recent_blockers).map(objectValue).slice(0, 3);
   const movementKeys = ['captured', 'blocked', 'promoted', 'saved', 'decayed', 'summarized', 'retrieved'];
   const movement = movementKeys
@@ -535,6 +536,15 @@ export function formatMemoryDashboardReply(payload: unknown): string {
   } else {
     lines.push('', 'Recent trace');
     lines.push('- No scoped memory movement found yet.');
+  }
+  if (movementPaths.length) {
+    lines.push('', 'Movement paths');
+    for (const path of movementPaths) {
+      const line = stringValue(path.line);
+      if (line) {
+        lines.push(`- ${truncateForPrompt(line, 170)}`);
+      }
+    }
   }
   if (blockers.length) {
     lines.push('', 'Blocked writes');
