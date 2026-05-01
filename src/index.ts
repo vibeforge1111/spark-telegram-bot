@@ -19,6 +19,7 @@ import {
   getBuilderBridgeStatus,
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
+  runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge
 } from './builderBridge';
 import { spark } from './spark';
@@ -427,6 +428,21 @@ bot.command('diagnose', async (ctx) => {
     await ctx.reply(report);
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
+  }
+});
+
+bot.command('self', async (ctx) => {
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const result = await runBuilderSelfAwarenessStatus({
+      userId: ctx.from.id,
+      chatId: ctx.chat.id,
+      currentMessage: text,
+    });
+    await ctx.reply(result.replyText);
+  } catch (err: any) {
+    await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
 });
 

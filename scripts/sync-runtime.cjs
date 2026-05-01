@@ -22,12 +22,14 @@ const os = require('os');
 const SOURCE_ROOT = path.resolve(__dirname, '..');
 const RUNTIME_ROOT = path.join(os.homedir(), '.spark', 'modules', 'spark-telegram-bot', 'source');
 
-// The runtime should mirror all first-party source and compiled entry files.
+// The runtime should mirror all first-party source, compiled entry files, and
+// prompt knowledge used by the running gateway.
 // Keep this discovered so new modules cannot quietly drift out of sync.
 function discoverSyncedPaths() {
 	const folders = [
 		{ dir: 'src', ext: '.ts' },
-		{ dir: 'dist', ext: '.js' }
+		{ dir: 'dist', ext: '.js' },
+		{ dir: 'agent-knowledge', ext: '.md' }
 	];
 	const paths = [];
 	for (const folder of folders) {
