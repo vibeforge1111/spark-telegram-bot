@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   rewriteSpawnerSurfaceStandaloneQuestion,
   sanitizeOutbound,
+  splitTelegramText,
   stripMarkdownEmphasis
 } from '../src/outboundSanitize';
 
@@ -58,4 +59,12 @@ test('keeps bullets while removing bold emphasis', () => {
 
 test('still replaces dash family characters', () => {
   assert.equal(sanitizeOutbound('One — two – three'), 'One - two - three');
+});
+test('chunks long Telegram text under the safe message limit', () => {
+  const text = Array.from({ length: 90 }, (_, index) => `Paragraph ${index}: ${'useful context '.repeat(8)}`).join('\n\n');
+  const chunks = splitTelegramText(text, 500);
+
+  assert.equal(chunks.length > 1, true);
+  assert.equal(chunks.every((chunk) => chunk.length <= 500), true);
+  assert.match(chunks.join('\n'), /Paragraph 89/);
 });

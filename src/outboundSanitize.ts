@@ -61,3 +61,28 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
 export function sanitizeOutbound(text: string): string {
   return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
 }
+
+export function splitTelegramText(text: string, maxChars = 3900): string[] {
+  if (!text) return [''];
+  if (text.length <= maxChars) return [text];
+
+  const chunks: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > maxChars) {
+    const window = remaining.slice(0, maxChars + 1);
+    const splitAt = Math.max(
+      window.lastIndexOf('\n\n'),
+      window.lastIndexOf('\n'),
+      window.lastIndexOf(' ')
+    );
+    const cut = splitAt > Math.floor(maxChars * 0.5) ? splitAt : maxChars;
+    chunks.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+
+  if (remaining) {
+    chunks.push(remaining);
+  }
+  return chunks.length ? chunks : [''];
+}
