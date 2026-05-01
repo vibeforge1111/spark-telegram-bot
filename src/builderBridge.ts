@@ -142,6 +142,16 @@ export interface BuilderMemoryFeedbackBenchmarkResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderMemoryFeedbackBenchmarkRunInput {
+  userId: number | string;
+  limit?: number;
+}
+
+export interface BuilderMemoryFeedbackBenchmarkRunResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 export interface MemoryFeedbackCommand {
   verdict: string;
   note: string;
@@ -850,6 +860,40 @@ export function formatMemoryFeedbackBenchmarkReply(payload: unknown): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export function formatMemoryFeedbackBenchmarkRunReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const summary = objectValue(root.summary);
+  const failures = arrayValue(root.automated_failures).map(objectValue).slice(0, 3);
+  const queue = arrayValue(root.operator_judgment_queue).map(objectValue).slice(0, 3);
+  const lines = [
+    'Memory correction benchmark run',
+    '',
+    `Status: ${stringValue(summary.status) || 'unknown'}`,
+    `Cases: ${numericValue(summary.case_count)} total, ${numericValue(summary.executed_case_count)} executed`,
+    `Automated: ${numericValue(summary.automated_pass_count)} pass, ${numericValue(summary.automated_fail_count)} fail`,
+    `Needs judgment: ${numericValue(summary.needs_operator_judgment_count)}`,
+  ];
+  if (failures.length) {
+    lines.push('', 'Automated failures');
+    for (const item of failures) {
+      const mismatches = arrayValue(item.mismatches).map((value) => stringValue(value)).filter(Boolean).join(', ');
+      lines.push(`- ${stringValue(item.benchmark_kind) || 'case'}: ${mismatches || 'review required'}`);
+    }
+  }
+  if (queue.length) {
+    lines.push('', 'Judgment queue');
+    for (const item of queue) {
+      const expected = stringValue(item.expected_outcome) || stringValue(item.note) || 'Review the replayed answer.';
+      lines.push(`- ${stringValue(item.benchmark_kind) || 'case'}: ${truncateForPrompt(expected, 130)}`);
+    }
+  }
+  if (!failures.length && !queue.length && numericValue(summary.case_count) === 0) {
+    lines.push('', 'No feedback cases to replay yet.');
+  }
+  lines.push('', 'Rule: automated checks catch structure; humans still judge semantic correction.');
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function formatWikiStatusReply(payload: unknown): string {
   const root = objectValue(payload);
   const healthy = Boolean(root.healthy || root.valid);
@@ -1370,6 +1414,53 @@ export async function runBuilderMemoryFeedbackBenchmarks(
   return {
     payload,
     replyText: formatMemoryFeedbackBenchmarkReply(payload),
+  };
+}
+
+export async function runBuilderMemoryFeedbackBenchmarkRun(
+  input: BuilderMemoryFeedbackBenchmarkRunInput
+): Promise<BuilderMemoryFeedbackBenchmarkRunResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const userId = String(input.userId).trim();
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'memory',
+      'run-feedback-benchmarks',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--agent-id',
+      `agent:human:telegram:${userId}`,
+      '--user-id',
+      userId,
+      '--chat-id',
+      userId,
+      '--limit',
+      String(input.limit || 10),
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_MEMORY_FEEDBACK_RUN_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder memory feedback benchmark run returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatMemoryFeedbackBenchmarkRunReply(payload),
   };
 }
 

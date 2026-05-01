@@ -22,6 +22,7 @@ import {
   runBuilderDiagnosticsScan,
   runBuilderMemoryDashboard,
   runBuilderMemoryFeedback,
+  runBuilderMemoryFeedbackBenchmarkRun,
   runBuilderMemoryFeedbackBenchmarks,
   runBuilderMemoryFeedbackReview,
   runBuilderMemorySessionSearch,
@@ -537,6 +538,15 @@ bot.command('memory', async (ctx) => {
       const result = await runBuilderMemoryFeedbackBenchmarks({
         userId: ctx.from.id,
         limit: 20,
+      });
+      await ctx.reply(result.replyText);
+      return;
+    }
+    const benchmarkRunMatch = text.match(/^\/memory(?:@\w+)?\s+(?:run\s+benchmarks|run\s+benchmark|run\s+corrections|test\s+corrections)$/i);
+    if (benchmarkRunMatch) {
+      const result = await runBuilderMemoryFeedbackBenchmarkRun({
+        userId: ctx.from.id,
+        limit: 10,
       });
       await ctx.reply(result.replyText);
       return;

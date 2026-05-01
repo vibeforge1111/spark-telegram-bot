@@ -5,6 +5,7 @@ import {
   formatDiagnosticsScanReply,
   formatMemoryDashboardReply,
   formatMemoryFeedbackBenchmarkReply,
+  formatMemoryFeedbackBenchmarkRunReply,
   formatMemoryFeedbackReply,
   formatMemoryFeedbackReviewReply,
   formatMemorySessionSearchReply,
@@ -482,6 +483,39 @@ test('formats memory feedback benchmark cases as correction evals', () => {
   assert.match(reply, /fresher authoritative state/);
   assert.match(reply, /not durable memory truth/);
   assert.equal(reply.length < 800, true);
+});
+
+test('formats memory feedback benchmark run as correction scorecard', () => {
+  const reply = formatMemoryFeedbackBenchmarkRunReply({
+    summary: {
+      status: 'ok',
+      case_count: 2,
+      executed_case_count: 2,
+      automated_pass_count: 1,
+      automated_fail_count: 1,
+      needs_operator_judgment_count: 1
+    },
+    automated_failures: [
+      {
+        benchmark_kind: 'coverage_gap',
+        mismatches: ['coverage_gap_still_generic_abstention']
+      }
+    ],
+    operator_judgment_queue: [
+      {
+        benchmark_kind: 'source_quality_regression',
+        expected_outcome: 'Future recall should prefer fresher authoritative state.'
+      }
+    ]
+  });
+
+  assert.match(reply, /Memory correction benchmark run/);
+  assert.match(reply, /2 total, 2 executed/);
+  assert.match(reply, /1 pass, 1 fail/);
+  assert.match(reply, /coverage_gap_still_generic_abstention/);
+  assert.match(reply, /fresher authoritative state/);
+  assert.match(reply, /humans still judge semantic correction/);
+  assert.equal(reply.length < 900, true);
 });
 
 test('formats healthy wiki status as compact operational report', () => {
