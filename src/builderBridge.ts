@@ -65,6 +65,17 @@ export interface BuilderConversationColdContextResult {
   error?: string;
 }
 
+export interface BuilderSelfAwarenessInput {
+  userId: number | string;
+  chatId: number | string;
+  currentMessage?: string;
+}
+
+export interface BuilderSelfAwarenessResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
 function parseBridgeMode(): BuilderBridgeMode {
   const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
@@ -224,6 +235,19 @@ function truncateForPrompt(text: string, maxChars: number): string {
   return `${trimmed.slice(0, Math.max(0, maxChars - 16)).trim()} [truncated]`;
 }
 
+function claimText(value: unknown): string {
+  const item = objectValue(value);
+  return stringValue(item.claim);
+}
+
+function formatClaimLines(title: string, claims: unknown, limit: number): string[] {
+  const items = arrayValue(claims).map(claimText).filter(Boolean).slice(0, limit);
+  if (!items.length) {
+    return [];
+  }
+  return [title, ...items.map((item) => `- ${item}`), ''];
+}
+
 export function compactColdMemoryQuery(text: string, maxChars = 1600): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxChars) {
@@ -324,6 +348,34 @@ export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): 
   ].join('\n');
 }
 
+export function formatSelfAwarenessReply(payload: unknown): string {
+  const root = objectValue(payload);
+  const routes = arrayValue(root.natural_language_routes)
+    .map((item) => stringValue(item))
+    .filter(Boolean)
+    .slice(0, 4);
+  const lines = [
+    'Spark self-awareness',
+    '',
+    `Workspace: ${stringValue(root.workspace_id) || 'default'}`,
+    `Generated: ${stringValue(root.generated_at) || 'unknown'}`,
+    '',
+    ...formatClaimLines('Observed now', root.observed_now, 4),
+    ...formatClaimLines('Recently verified', root.recently_verified, 3),
+    ...formatClaimLines('Where I lack', root.lacks, 5),
+    ...formatClaimLines('How I can improve', root.improvement_options, 5),
+  ];
+  if (routes.length) {
+    lines.push('You can ask me naturally');
+    lines.push(...routes.map((item) => `- ${item}`));
+    lines.push('');
+  }
+  lines.push(
+    'Core rule: I should be confident to attempt work through the right route, while naming missing evidence and the next probe before claiming certainty.'
+  );
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function getBuilderBridgeStatus(): Promise<BuilderBridgeStatus> {
   const config = resolveBridgeConfig();
   return {
@@ -365,6 +417,50 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   return {
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
+  };
+}
+
+export async function runBuilderSelfAwarenessStatus(
+  input: BuilderSelfAwarenessInput
+): Promise<BuilderSelfAwarenessResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', [
+      'self',
+      'status',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${String(input.userId).trim()}`,
+      '--session-id',
+      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+      '--channel-kind',
+      'telegram',
+      '--user-message',
+      input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+      '--json',
+    ]),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 12000)),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const trimmedStdout = stdout.trim();
+  if (!trimmedStdout) {
+    throw new Error(`Builder self-awareness returned empty stdout. stderr=${redactText(stderr.trim())}`);
+  }
+  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  return {
+    payload,
+    replyText: formatSelfAwarenessReply(payload),
   };
 }
 

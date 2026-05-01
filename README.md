@@ -148,6 +148,7 @@ Current files:
 
 - `agent-knowledge/access.md`
 - `agent-knowledge/memory.md`
+- `agent-knowledge/self-awareness.md`
 - `agent-knowledge/spark-doc-sources.md`
 - `agent-knowledge/spark-system.md`
 - `agent-knowledge/using-spark.md`

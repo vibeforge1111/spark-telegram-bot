@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {
   compactColdMemoryQuery,
   formatConversationColdMemoryContext,
-  formatDiagnosticsScanReply
+  formatDiagnosticsScanReply,
+  formatSelfAwarenessReply
 } from '../src/builderBridge';
 
 function test(name: string, fn: () => void): void {
@@ -135,4 +136,33 @@ test('keeps cold memory prompt context bounded and source counted', () => {
   assert.equal(result.sourceCount > 0, true);
   assert.equal(result.contextText.length <= 1300, true);
   assert.match(result.contextText, /\[Spark Cold Memory Context\]/);
+});
+
+test('formats self-awareness payload as actionable Telegram report', () => {
+  const reply = formatSelfAwarenessReply({
+    workspace_id: 'default',
+    generated_at: '2026-05-01T10:00:00Z',
+    observed_now: [
+      { claim: 'Spark Intelligence Builder is visible in the Builder registry with status=ready.' }
+    ],
+    recently_verified: [
+      { claim: 'Recent tool_result_received: researcher_advisory via startup-yc status=succeeded.' }
+    ],
+    lacks: [
+      { claim: 'Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.' },
+      { claim: 'Natural-language invocability is only real when a user phrase maps to a route that exists.' }
+    ],
+    improvement_options: [
+      { claim: 'Add per-capability last_success_at, last_failure_reason, and eval coverage fields.' }
+    ],
+    natural_language_routes: [
+      "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
+    ]
+  });
+
+  assert.match(reply, /Spark self-awareness/);
+  assert.match(reply, /Where I lack/);
+  assert.match(reply, /How I can improve/);
+  assert.match(reply, /test the browser route now/);
+  assert.match(reply, /confident to attempt work through the right route/);
 });
