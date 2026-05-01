@@ -289,6 +289,33 @@ function formatClaimLines(title: string, claims: unknown, limit: number, compact
   return [title, ...items.map((item) => `- ${item}`), ''];
 }
 
+function formatCapabilityEvidenceLines(evidence: unknown, limit: number): string[] {
+  const items = arrayValue(evidence)
+    .map(objectValue)
+    .filter((item) => stringValue(item.capability_key))
+    .slice(0, limit);
+  if (!items.length) {
+    return [];
+  }
+  const lines = ['Capability evidence'];
+  for (const item of items) {
+    const key = stringValue(item.capability_key);
+    const success = stringValue(item.last_success_at);
+    const failure = stringValue(item.last_failure_at);
+    const latency = numericValue(item.route_latency_ms);
+    const evalStatus = stringValue(item.eval_coverage_status);
+    const status = success ? `last success ${success}` : failure ? `last failure ${failure}` : 'recent evidence present';
+    const extras = [
+      latency > 0 ? `${latency}ms` : '',
+      evalStatus && evalStatus !== 'unknown' ? `eval=${evalStatus}` : '',
+      !success && stringValue(item.last_failure_reason) ? stringValue(item.last_failure_reason) : ''
+    ].filter(Boolean);
+    lines.push(`- ${key}: ${status}${extras.length ? ` (${extras.join('; ')})` : ''}`);
+  }
+  lines.push('');
+  return lines;
+}
+
 function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
   const lens = objectValue(styleLens);
   if (!Object.keys(lens).length) {
@@ -481,6 +508,7 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     ...formatSelfAwarenessStyleLens(styleLens),
     ...formatClaimLines('What looks live', root.observed_now, 4, true),
     ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
+    ...formatCapabilityEvidenceLines(root.capability_evidence, 3),
     ...formatClaimLines('Where I still lack', root.lacks, 3, true),
     ...formatClaimLines('What I should improve next', root.improvement_options, 3, true),
   ];

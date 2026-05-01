@@ -153,6 +153,21 @@ test('formats self-awareness payload as actionable Telegram report', () => {
     recently_verified: [
       { claim: 'Recent tool_result_received: researcher_advisory via startup-yc status=succeeded.' }
     ],
+    capability_evidence: [
+      {
+        capability_key: 'startup-yc',
+        last_success_at: '2026-05-01T10:00:01Z',
+        route_latency_ms: 432,
+        eval_coverage_status: 'observed',
+        evidence_count: 2
+      },
+      {
+        capability_key: 'browser_search',
+        last_failure_at: '2026-05-01T10:00:02Z',
+        last_failure_reason: 'timeout',
+        evidence_count: 1
+      }
+    ],
     lacks: [
       { claim: 'Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.' },
       { claim: 'Natural-language invocability is only real when a user phrase maps to a route that exists.' }
@@ -187,6 +202,9 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /Tone: direct, warm, and fast-moving/);
   assert.match(reply, /keeping the evidence visible/);
   assert.match(reply, /Where I still lack/);
+  assert.match(reply, /Capability evidence/);
+  assert.match(reply, /startup-yc: last success 2026-05-01T10:00:01Z \(432ms; eval=observed\)/);
+  assert.match(reply, /browser_search: last failure 2026-05-01T10:00:02Z \(timeout\)/);
   assert.match(reply, /What I should improve next/);
   assert.match(reply, /Knowledge notes/);
   assert.doesNotMatch(reply, /Project knowledge first: yes/);
