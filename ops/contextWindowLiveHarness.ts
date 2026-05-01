@@ -181,7 +181,9 @@ async function accessListCollision(driver: TelegramDriver): Promise<HarnessScena
     checkContains(t1, 'sets_level_3', /Level\s+3|Research\s+\+\s+Build/i, 'Natural access change should set Level 3.'),
     checkContains(t2, 'contextual_sets_level_4', /Level\s+4|Full\s+Access/i, 'Short access follow-up should set Level 4.'),
     checkContains(t3, 'idea_list_present', /\b1[\).:-]\s+|\b2[\).:-]\s+|\bthree\b/i, 'Bot should produce a list-like ideation answer.'),
+    checkNotContains(t3, 'idea_request_not_build_mission', /Mission board:|Mission:|Project:|I am shaping|I will start/i, 'Build-idea requests should stay ideation and not start a mission.'),
     checkNotContains(t4, 'second_one_not_access_level_2', /changed this chat to Level\s+2|Level\s+2\s+-\s+Build/i, 'Second list option must not become access level 2.'),
+    checkNotContains(t4, 'second_one_not_build_mission', /Mission board:|Mission:|Project:|I am shaping/i, 'Short follow-up to an idea list should not start a build mission.'),
     checkContains(t4, 'second_one_uses_list_context', /choice|pick|selected|scope|dashboard|memory|build|question|next/i, 'Reply should use the recent list context.')
   ];
   return { id: 'context-access-list-collision', title: 'Access changes do not steal later list references', turns: driver.turns, checks };

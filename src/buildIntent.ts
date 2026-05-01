@@ -145,6 +145,11 @@ function normalizeBuildCommandText(text: string): string {
     .trim();
 }
 
+function isBuildIdeationRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return /\b(?:give|show|list|suggest|brainstorm|recommend|rank)\s+(?:me\s+|us\s+)?(?:\w+\s+){0,4}(?:build|project|app|dashboard)\s+(?:ideas?|directions?|concepts?|options?)\b/.test(normalized);
+}
+
 function extractBuildDescription(text: string): string | null {
   const command = text.match(
     /^\s*(?:(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+|can\s+(?:you|we)\s+|could\s+(?:you|we)\s+|let'?s\s+|let\s+us\s+|please\s+)?\/?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
@@ -178,6 +183,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
+  if (isBuildIdeationRequest(trimmed)) return null;
 
   const stripped = extractBuildDescription(trimmed);
 

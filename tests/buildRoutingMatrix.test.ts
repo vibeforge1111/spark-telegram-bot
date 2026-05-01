@@ -109,4 +109,6 @@ test('non-build utility requests still route away from builder', () => {
   assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);
 
   assert.equal(parseBuildIntent('can you help me think through whether we should build a mission control dashboard before we touch the canvas?'), null);
+  assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
+  assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
 });
