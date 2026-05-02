@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { spawnerAxiosOptions } from './spawnerAuth';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
 
@@ -108,7 +109,7 @@ export async function createSchedule(input: {
   chatId: string;
 }): Promise<{ ok: boolean; schedule?: ScheduleRecord; error?: string }> {
   try {
-    const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, { timeout: 10000 });
+    const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000));
     return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error };
   } catch (err: any) {
     return { ok: false, error: err?.response?.data?.error || err?.message || 'create failed' };
@@ -117,7 +118,7 @@ export async function createSchedule(input: {
 
 export async function listSchedules(): Promise<{ ok: boolean; schedules?: ScheduleRecord[]; error?: string }> {
   try {
-    const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, { timeout: 10000 });
+    const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000));
     return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error };
   } catch (err: any) {
     return { ok: false, error: err?.message || 'list failed' };
@@ -126,7 +127,7 @@ export async function listSchedules(): Promise<{ ok: boolean; schedules?: Schedu
 
 export async function deleteSchedule(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await axios.delete(`${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`, { timeout: 10000 });
+    const res = await axios.delete(`${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`, spawnerAxiosOptions(10000));
     return { ok: Boolean(res.data?.ok), error: res.data?.error };
   } catch (err: any) {
     return { ok: false, error: err?.message || 'delete failed' };

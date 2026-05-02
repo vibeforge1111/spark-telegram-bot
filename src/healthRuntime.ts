@@ -2,7 +2,14 @@ import { runTelegramPollingHealth } from './healthPolling';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 
 export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const { port } = telegramRelayIdentityFromEnv(env);
+  const { port, url } = telegramRelayIdentityFromEnv(env);
+  if (url) {
+    const healthUrl = new URL(url);
+    healthUrl.pathname = '/health';
+    healthUrl.search = '';
+    healthUrl.hash = '';
+    return healthUrl.toString();
+  }
   return `http://127.0.0.1:${port}/health`;
 }
 

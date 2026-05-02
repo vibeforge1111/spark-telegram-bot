@@ -30,6 +30,13 @@ interface ZaiChatResponse {
   }>;
 }
 
+interface AnthropicMessagesResponse {
+  content?: Array<{
+    type?: string;
+    text?: string;
+  }>;
+}
+
 export interface BuildClarificationMicrocopyInput {
   projectName: string;
   questions: string[];
@@ -43,6 +50,12 @@ export interface BuildClarificationMicrocopy {
 
 function joinUrl(baseUrl: string, pathName: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${pathName.replace(/^\/+/, '')}`;
+}
+
+function stripReasoningPreamble(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?(?:<\/think>|<\/thin>|$)/gi, '')
+    .trim();
 }
 
 export function isCodexProvider(value: string | undefined = process.env.LLM_PROVIDER || process.env.SPARK_LLM_PROVIDER): boolean {
@@ -70,7 +83,7 @@ export interface ChatProviderPing {
 
 interface ChatProviderConfig {
   provider: string;
-  kind: 'codex' | 'claude' | 'openai_compat' | 'ollama' | 'unsupported' | 'not_configured';
+  kind: 'codex' | 'claude' | 'anthropic_api' | 'openai_compat' | 'ollama' | 'unsupported' | 'not_configured';
   model: string;
   baseUrl: string;
   apiKey?: string;
@@ -87,6 +100,7 @@ const OLLAMA_DEFAULT_MODEL = 'llama3.2:3b';
 const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
 const LMSTUDIO_DEFAULT_MODEL = 'local-model';
 const HUGGINGFACE_DEFAULT_MODEL = 'google/gemma-4-26B-A4B-it:fastest';
+const ANTHROPIC_DEFAULT_BASE_URL = 'https://api.anthropic.com/v1';
 
 function firstEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string {
   for (const key of keys) {
@@ -119,6 +133,7 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
   } else if (!provider && env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER === '1') {
     if (env.ZAI_API_KEY) provider = 'zai';
     else if (env.MINIMAX_API_KEY) provider = 'minimax';
+    else if (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY) provider = 'anthropic';
     else if (env.OPENROUTER_API_KEY) provider = 'openrouter';
     else if (env.HF_TOKEN || env.HUGGINGFACE_API_KEY) provider = 'huggingface';
     else if (env.KIMI_API_KEY || env.MOONSHOT_API_KEY) provider = 'kimi';
@@ -134,6 +149,16 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     };
   }
   if (provider === 'anthropic') {
+    const apiKey = firstEnv(env, 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY');
+    if (apiKey) {
+      return {
+        provider,
+        kind: 'anthropic_api',
+        model: firstEnv(env, 'SPARK_CHAT_LLM_MODEL', 'ANTHROPIC_MODEL', 'CLAUDE_MODEL') || 'claude-sonnet-4-6',
+        baseUrl: firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'ANTHROPIC_BASE_URL', 'CLAUDE_BASE_URL') || ANTHROPIC_DEFAULT_BASE_URL,
+        apiKey
+      };
+    }
     return {
       provider,
       kind: 'claude',
@@ -342,6 +367,22 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
       ? { ok: true, detail: 'claude cli available' }
       : { ok: false, detail: 'claude cli unavailable' };
   }
+  if (config.kind === 'anthropic_api') {
+    try {
+      const content = await anthropicMessage(config, {
+        system: 'Health check. Reply with exactly CHAT_OK.',
+        user: 'Reply with exactly: CHAT_OK',
+        temperature: 0,
+        maxTokens: 8,
+        timeoutMs
+      });
+      return /CHAT_OK/i.test(content)
+        ? { ok: true, detail: 'completion ok' }
+        : { ok: false, detail: 'unexpected completion' };
+    } catch (err: any) {
+      return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
+    }
+  }
 
   if (config.kind === 'openai_compat') {
     try {
@@ -354,7 +395,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
             { role: 'user', content: 'Reply with exactly: CHAT_OK' }
           ],
           temperature: 0,
-          max_tokens: 8,
+          max_tokens: 256,
           thinking: { type: 'disabled' }
         },
         {
@@ -365,8 +406,8 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
           }
         }
       );
-      const content = res.data.choices?.[0]?.message?.content?.trim() ||
-        res.data.choices?.[0]?.message?.reasoning_content?.trim() ||
+      const content = stripReasoningPreamble(res.data.choices?.[0]?.message?.content || '') ||
+        stripReasoningPreamble(res.data.choices?.[0]?.message?.reasoning_content || '') ||
         '';
       return /CHAT_OK/i.test(content)
         ? { ok: true, detail: 'completion ok' }
@@ -435,6 +476,44 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
   return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
 }
 
+function extractAnthropicText(response: AnthropicMessagesResponse): string {
+  return (response.content || [])
+    .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+    .map((block) => block.text?.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+async function anthropicMessage(
+  config: ChatProviderConfig,
+  input: { system: string; user: string; temperature: number; maxTokens: number; timeoutMs: number }
+): Promise<string> {
+  if (!config.apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is required for Anthropic API chat');
+  }
+
+  const res = await axios.post<AnthropicMessagesResponse>(
+    joinUrl(config.baseUrl, '/messages'),
+    {
+      model: config.model,
+      system: input.system,
+      messages: [{ role: 'user', content: input.user }],
+      temperature: input.temperature,
+      max_tokens: input.maxTokens
+    },
+    {
+      timeout: input.timeoutMs,
+      headers: {
+        'x-api-key': config.apiKey,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  return extractAnthropicText(res.data);
+}
+
 function extractJsonObject(text: string): Record<string, unknown> | null {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fence?.[1]?.trim() || text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1).trim();
@@ -495,6 +574,14 @@ export async function generateBuildClarificationMicrocopy(
       raw = await codexChat(prompt);
     } else if (config.kind === 'claude') {
       raw = await claudeChat(prompt, config.model);
+    } else if (config.kind === 'anthropic_api') {
+      raw = await anthropicMessage(config, {
+        system: 'Return strict JSON only.',
+        user: prompt,
+        temperature: 0.8,
+        maxTokens: 120,
+        timeoutMs
+      });
     } else if (config.kind === 'openai_compat') {
       const res = await axios.post<ZaiChatResponse>(
         joinUrl(config.baseUrl, '/chat/completions'),
@@ -516,8 +603,8 @@ export async function generateBuildClarificationMicrocopy(
           }
         }
       );
-      raw = res.data.choices?.[0]?.message?.content?.trim() ||
-        res.data.choices?.[0]?.message?.reasoning_content?.trim() ||
+      raw = stripReasoningPreamble(res.data.choices?.[0]?.message?.content || '') ||
+        stripReasoningPreamble(res.data.choices?.[0]?.message?.reasoning_content || '') ||
         '';
     } else if (config.kind === 'ollama') {
       const res = await axios.post<OllamaResponse>(
@@ -555,6 +642,9 @@ export const llm = {
     if (config.kind === 'claude') {
       const result = await runProcess(CLAUDE_PATH, ['--version'], '', 5000);
       return result.ok;
+    }
+    if (config.kind === 'anthropic_api') {
+      return (await pingChatProvider(5000)).ok;
     }
 
     if (config.kind === 'openai_compat') {
@@ -601,6 +691,16 @@ export const llm = {
       if (config.kind === 'claude') {
         return await claudeChat(`${systemPrompt}\n\nUser message:\n${userMessage}`, config.model);
       }
+      if (config.kind === 'anthropic_api') {
+        const content = await anthropicMessage(config, {
+          system: systemPrompt,
+          user: userMessage,
+          temperature: 0.7,
+          maxTokens: 384,
+          timeoutMs: 60000
+        });
+        return content || "I'm here, but I couldn't generate a response right now.";
+      }
 
       if (config.kind === 'openai_compat') {
         const res = await axios.post<ZaiChatResponse>(
@@ -624,8 +724,8 @@ export const llm = {
           }
         );
 
-        const content = res.data.choices?.[0]?.message?.content?.trim();
-        const reasoningContent = res.data.choices?.[0]?.message?.reasoning_content?.trim();
+        const content = stripReasoningPreamble(res.data.choices?.[0]?.message?.content || '');
+        const reasoningContent = stripReasoningPreamble(res.data.choices?.[0]?.message?.reasoning_content || '');
         return content || reasoningContent || "I'm here, but I couldn't generate a response right now.";
       }
 

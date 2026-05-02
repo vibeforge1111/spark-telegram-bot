@@ -349,6 +349,28 @@ test('does not treat preview link questions as project improvement requests', ()
   assert.equal(buildProjectImprovementGoal('give me the localhost for this app', project), null);
 });
 
+test('does not treat Spark memory and self-awareness diagnostics as latest project polish', () => {
+  const project = {
+    chatId: '8319079055',
+    userId: '1278511160',
+    projectName: 'Loop Lantern',
+    projectPath: 'C:/Users/USER/Desktop/loop-lantern',
+    previewUrl: 'http://127.0.0.1:5555/preview/loop-lantern/index.html',
+    missionId: 'mission-loop',
+    iteration: 2,
+    shippedAt: '2026-05-01T00:00:00Z',
+    updatedAt: '2026-05-01T00:00:00Z'
+  };
+
+  const memoryLackPrompt = 'Where does your memory still lack right now, and how would we improve it?';
+  const selfAwarenessPrompt = 'Can you improve where you lack in self-awareness?';
+
+  assert.equal(isProjectImprovementRequest(memoryLackPrompt, project), false);
+  assert.equal(buildProjectImprovementGoal(memoryLackPrompt, project), null);
+  assert.equal(isProjectImprovementRequest(selfAwarenessPrompt, project), false);
+  assert.equal(buildProjectImprovementGoal(selfAwarenessPrompt, project), null);
+});
+
 test('detects public GitHub inspection requests for agent access routing', () => {
   assert.equal(
     isExternalResearchRequest('https://github.com/vibeforge1111/spark-character can you visit this'),
@@ -638,7 +660,11 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(
     extractSparkSelfImprovementGoal('Can you improve where you lack in self-awareness?'),
-    'improve where you lack in self-awareness'
+    null
+  );
+  assert.equal(
+    extractSparkSelfImprovementGoal('Where does your memory still lack right now, and how would we improve it?'),
+    null
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);

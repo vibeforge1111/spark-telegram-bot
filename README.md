@@ -36,11 +36,11 @@ flowchart TD
   Builder --> Researcher["spark-researcher"]
   Gateway --> SpawnerBridge["Spawner bridge<br/>src/spawner.ts"]
   SpawnerBridge --> Spawner["spawner-ui APIs"]
-  Spawner --> Relay["local mission relay<br/>127.0.0.1:8788/primary"]
+  Spawner --> Relay["mission relay<br/>127.0.0.1:8788 or private service URL"]
   Relay --> Gateway
 ```
 
-Mission lifecycle events return through the local relay endpoint:
+Mission lifecycle events return through the relay endpoint:
 
 ```text
 Spawner UI
@@ -133,7 +133,7 @@ Operator check:
 npm run health:polling
 ```
 
-Public Telegram webhook ingress intentionally exposes nothing in this launch build. The only local HTTP listener is the Spawner mission relay on `127.0.0.1:8788`, protected by `TELEGRAM_RELAY_SECRET`.
+Public Telegram webhook ingress intentionally exposes nothing in this launch build. Local installs keep the Spawner mission relay on `127.0.0.1:8788`, protected by `TELEGRAM_RELAY_SECRET`. Hosted two-service installs can set `TELEGRAM_RELAY_HOST=::` and `TELEGRAM_RELAY_URL` to the private relay callback URL whitelisted by spawner-ui.
 
 Telegram relays should always have an explicit profile name. A fresh install uses the neutral `primary` profile for the main bot. Secondary bots should use named profiles, their own relay ports, and their own `telegram.profiles.<name>.bot_token` secret. The legacy unnamed/default path is only a compatibility alias.
 
@@ -176,7 +176,7 @@ is the execution plane behind the gateway.
 4. Set `TELEGRAM_RELAY_SECRET` to a random 24+ character value. Spark CLI
    generates this for bundled installs.
 5. Keep `TELEGRAM_GATEWAY_MODE=polling`.
-6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work.
+6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work. For hosted two-service deploys, set `SPAWNER_UI_URL` to the private spawner-ui service URL, set this bot's `TELEGRAM_RELAY_URL` to its private `/spawner-events` URL, and put the same callback URL in spawner-ui `MISSION_CONTROL_WEBHOOK_URLS`.
 7. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
 8. Start the bot:
@@ -190,6 +190,27 @@ Then verify local launch config:
 ```bash
 npm run health:polling
 ```
+
+## Railway / Docker
+
+This repo includes a Dockerfile for the hosted Telegram gateway service. The
+container starts with `npm start` and listens for private mission relay traffic
+on `TELEGRAM_RELAY_PORT` when the relay is enabled.
+
+For a two-service Railway deploy, keep the bot and Spawner UI in the same
+project environment and use Railway private DNS between them:
+
+- `TELEGRAM_GATEWAY_MODE=polling`
+- `TELEGRAM_RELAY_HOST=::`
+- `TELEGRAM_RELAY_PORT=8788`
+- `TELEGRAM_RELAY_URL=http://spark-telegram-bot.railway.internal:8788/spawner-events`
+- `SPAWNER_UI_URL=http://spawner-ui.railway.internal:<spawner-port>`
+- `SPARK_BRIDGE_API_KEY=<same long value as spawner-ui>`
+- `SPARK_GATEWAY_STATE_DIR=/data/spark-gateway`
+
+Mount a persistent volume at `/data` for gateway state. Keep `BOT_TOKEN`,
+`ADMIN_TELEGRAM_IDS`, `TELEGRAM_RELAY_SECRET`, and provider keys in Railway
+service variables, not in the image or repo.
 
 ## First User Flow
 

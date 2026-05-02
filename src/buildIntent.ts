@@ -29,10 +29,18 @@ function normalizePathForPlatform(value: string): string {
   return trimmed.replace(/\\/g, '/');
 }
 
+function workspaceRootsFor(candidate: string): string[] {
+  if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
+  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
+  return [defaultWorkspaceRoot()];
+}
+
 function isInsideWorkspace(candidate: string): boolean {
   const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
-  const normalizedRoot = normalizePathForPlatform(defaultWorkspaceRoot()).toLowerCase();
-  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+  return workspaceRootsFor(candidate).some((root) => {
+    const normalizedRoot = normalizePathForPlatform(root).toLowerCase();
+    return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+  });
 }
 
 function inferConceptualProjectName(prd: string): string | null {

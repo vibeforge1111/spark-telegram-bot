@@ -6,7 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
-import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
+import { builderBridgeTimeoutMs, contextBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
@@ -69,6 +69,7 @@ export interface BuilderSelfAwarenessInput {
   userId: number | string;
   chatId: number | string;
   currentMessage?: string;
+  refreshWiki?: boolean;
 }
 
 export interface BuilderSelfAwarenessResult {
@@ -349,6 +350,194 @@ function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
   return lines;
 }
 
+function contextSourceCountsFromSelfAwareness(payload: Record<string, unknown>): Record<string, unknown> {
+  for (const entry of arrayValue(payload.source_ledger).map(objectValue)) {
+    if (stringValue(entry.source) === 'context_capsule') {
+      return objectValue(entry.source_counts);
+    }
+  }
+  return {};
+}
+
+function memoryMovementCountsFromSelfAwareness(payload: Record<string, unknown>): Record<string, unknown> {
+  const movement = objectValue(payload.memory_movement);
+  const movementCounts = objectValue(movement.movement_counts);
+  if (Object.keys(movementCounts).length) {
+    return movementCounts;
+  }
+  for (const entry of arrayValue(payload.source_ledger).map(objectValue)) {
+    if (stringValue(entry.source) === 'memory_dashboard_movement') {
+      return objectValue(entry.movement_counts);
+    }
+  }
+  return {};
+}
+
+function compactMemoryMovementSummary(payload: Record<string, unknown>): string {
+  const counts = memoryMovementCountsFromSelfAwareness(payload);
+  const states = ['captured', 'blocked', 'promoted', 'saved', 'decayed', 'summarized', 'retrieved', 'selected', 'dropped'];
+  const parts = states
+    .map((state) => [state, numericValue(counts[state])] as const)
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => `${state}=${count}`);
+  return parts.slice(0, 8).join(', ');
+}
+
+function formatMemoryMovementLines(payload: Record<string, unknown>): string[] {
+  const summary = compactMemoryMovementSummary(payload);
+  if (!summary) {
+    return [];
+  }
+  return [
+    'Memory movement',
+    `- Trace: ${summary}.`,
+    '- Movement rows are observability evidence, not instructions or authority over current-state memory.',
+    '',
+  ];
+}
+
+function formatMemoryContinuityLines(payload: Record<string, unknown>): string[] {
+  const counts = contextSourceCountsFromSelfAwareness(payload);
+  const currentState = numericValue(counts.current_state);
+  const taskRecovery = numericValue(counts.task_recovery);
+  const pendingTasks = numericValue(counts.pending_tasks);
+  const recentConversation = numericValue(counts.recent_conversation);
+  const proceduralLessons = numericValue(counts.procedural_lessons);
+  if (!currentState && !taskRecovery && !pendingTasks && !recentConversation && !proceduralLessons) {
+    return [];
+  }
+  const parts = [
+    currentState ? `current state ${currentState}` : '',
+    taskRecovery ? `task recovery ${taskRecovery}` : '',
+    pendingTasks ? `pending tasks ${pendingTasks}` : '',
+    recentConversation ? `recent turns ${recentConversation}` : '',
+    proceduralLessons ? `lessons ${proceduralLessons}` : '',
+  ].filter(Boolean);
+  return [
+    'Memory continuity',
+    `- I have ${parts.join(', ')} in the turn context.`,
+    '- Current-state facts win; task recovery and episodic context stay source-labeled support.',
+    '',
+  ];
+}
+
+function isMemoryLackSelfAwarenessQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return (
+    /\bmemory\b/i.test(normalized) &&
+    /\b(?:lack|lacks|weak|missing|limitations?|improve)\b/i.test(normalized)
+  );
+}
+
+function isSelfAwarenessImprovementQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /^(?:can|could|would|should)\s+you\s+(?:improve|strengthen|fix|repair)\b/i.test(normalized) &&
+    /\b(?:self[-\s]*awareness|where\s+you\s+lack|weak\s*spots?|gaps?|limitations?)\b/i.test(normalized)
+  );
+}
+
+function idString(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return stringValue(value);
+}
+
+function telegramBridgeMessageContext(updatePayload: Record<string, unknown>): {
+  text: string;
+  userId: string;
+  chatId: string;
+} {
+  const message = objectValue(updatePayload.message);
+  const from = objectValue(message.from);
+  const chat = objectValue(message.chat);
+  return {
+    text: stringValue(message.text),
+    userId: idString(from.id),
+    chatId: idString(chat.id),
+  };
+}
+
+function formatMemoryLackSelfAwarenessReply(root: Record<string, unknown>): string {
+  const counts = contextSourceCountsFromSelfAwareness(root);
+  const currentState = numericValue(counts.current_state);
+  const episodicRecall = numericValue(counts.episodic_recall);
+  const taskRecovery = numericValue(counts.task_recovery);
+  const recentConversation = numericValue(counts.recent_conversation);
+  const memoryRoute = arrayValue(root.recently_verified)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .map((claim) => claim.replace(/[.]+$/, ''))
+    .find((claim) => /\bmemory_open_recall_query\b/i.test(claim));
+  const supportParts = [
+    episodicRecall ? `episodic ${episodicRecall}` : '',
+    taskRecovery ? `task recovery ${taskRecovery}` : '',
+    recentConversation ? `recent turns ${recentConversation}` : '',
+  ].filter(Boolean);
+  const lines = [
+    'Memory self-awareness',
+    '',
+    'Short version: my memory is working, but the weak spot is choosing the right memory layer and showing why I trusted it.',
+    '',
+    'What is current',
+    currentState
+      ? `- Current-state memory is present (${currentState} signal${currentState === 1 ? '' : 's'}) and should beat wiki or older chat for mutable facts.`
+      : '- I do not see current-state facts in this capsule, so mutable facts need fresh confirmation.',
+    memoryRoute
+      ? `- I recently proved the recall route: ${memoryRoute}.`
+      : '- I need a fresh recall probe before claiming episodic memory worked this turn.',
+    '',
+    'Where memory still lacks',
+    '- I can still answer a memory question with generic system health unless the renderer keeps the focus on memory.',
+    supportParts.length
+      ? `- I see supporting context (${supportParts.join(', ')}), but I should label it as support, not current truth.`
+      : '- Episodic detail can be thin or truncated, so I should say what I do not know instead of filling gaps.',
+    compactMemoryMovementSummary(root)
+      ? `- I can now see movement trace evidence: ${compactMemoryMovementSummary(root)}.`
+      : '- Retrieved, summarized, promoted, decayed, and blocked memory movement should be visible in the dashboard trace.',
+    '',
+    'How we improve it next',
+    '- Add evals for memory-lack questions so they return source-labeled memory limits, not a status dump.',
+    '- Attach movement evidence to memory replies: captured, blocked, promoted, saved, decayed, summarized, retrieved.',
+    '- Keep wiki as supporting_not_authoritative; current-state memory and your newest message win for mutable facts.',
+  ];
+  return lines.join('\n').trim();
+}
+
+function formatSelfAwarenessImprovementQuestionReply(root: Record<string, unknown>): string {
+  const counts = contextSourceCountsFromSelfAwareness(root);
+  const currentState = numericValue(counts.current_state);
+  const topLack = arrayValue(root.lacks)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .find((claim) => /\bnatural[-\s]*language\b|\broute\b|\bRegistry visibility\b|\bproof\b/i.test(claim));
+  const topImprovement = arrayValue(root.improvement_options)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .find(Boolean);
+  const lines = [
+    'Yes - but I should not jump straight into changing myself from a vague prompt.',
+    '',
+    'What I can improve first',
+    `- ${topLack || 'The main gap is proving that the route I chose actually worked this turn.'}`,
+    topImprovement
+      ? `- First improvement: ${topImprovement}`
+      : '- First improvement: add route-selection evals and last-success evidence before changing behavior.',
+    '',
+    'How I would do it',
+    '- Run a probe for the exact self-awareness route.',
+    '- Record the selected route, authorization result, trace id, last_success_at, and failure reason.',
+    '- Then make the smallest code or wiki update that removes the proven gap.',
+    '',
+    currentState
+      ? `I also see ${currentState} current-state signal${currentState === 1 ? '' : 's'} in context, so I should keep using current state over stale wiki or older chat.`
+      : 'I do not see current-state signals in this capsule, so I should ask for or fetch fresh context before claiming mutable facts.',
+  ];
+  return lines.join('\n').trim();
+}
+
 function humanizeStyleInstruction(value: string): string {
   const parts = value
     .replace(/\n/g, ';')
@@ -402,10 +591,20 @@ export function compactColdMemoryQuery(text: string, maxChars = 1600): string {
 function shouldIncludeColdMemoryItem(item: Record<string, unknown>): boolean {
   const lane = stringValue(item.lane);
   const sourceClass = stringValue(item.source_class);
-  if (!lane || !stringValue(item.text)) {
+  const text = stringValue(item.text);
+  const lowerText = text.toLowerCase();
+  if (!lane || !text) {
     return false;
   }
   if (lane === 'wiki_packets' || sourceClass === 'obsidian_llm_wiki_packets') {
+    return false;
+  }
+  if (
+    lowerText.includes('spark could not reach the builder memory path') ||
+    lowerText.includes('spark builder failure: builder_or_memory') ||
+    lowerText.includes('command failed:') ||
+    lowerText.includes('runpy.run_module(')
+  ) {
     return false;
   }
   return true;
@@ -493,6 +692,13 @@ export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): 
 
 export function formatSelfAwarenessReply(payload: unknown): string {
   const root = objectValue(payload);
+  const currentMessage = stringValue(root.current_message);
+  if (isMemoryLackSelfAwarenessQuestion(currentMessage)) {
+    return formatMemoryLackSelfAwarenessReply(root);
+  }
+  if (isSelfAwarenessImprovementQuestion(currentMessage)) {
+    return formatSelfAwarenessImprovementQuestionReply(root);
+  }
   const wikiRefresh = objectValue(root.wiki_refresh);
   const wikiContext = objectValue(root.wiki_context);
   const styleLens = objectValue(root.style_lens);
@@ -511,6 +717,8 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     `Checked: ${stringValue(root.generated_at) || 'unknown'}`,
     '',
     ...formatSelfAwarenessStyleLens(styleLens),
+    ...formatMemoryContinuityLines(root),
+    ...formatMemoryMovementLines(root),
     ...formatClaimLines('What looks live', root.observed_now, 4, true),
     ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
     ...formatCapabilityEvidenceLines(root.capability_evidence, 3),
@@ -829,24 +1037,28 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const args = [
+    'self',
+    'status',
+    '--home',
+    config.builderHome,
+    '--human-id',
+    `human:telegram:${String(input.userId).trim()}`,
+    '--session-id',
+    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    '--channel-kind',
+    'telegram',
+    '--user-message',
+    input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+  ];
+  if (input.refreshWiki !== false) {
+    args.push('--refresh-wiki');
+  }
+  args.push('--json');
+
   const { stdout, stderr } = await execFileAsync(
     config.pythonCommand,
-    pythonModuleInvocation(config, 'spark_intelligence.cli', [
-      'self',
-      'status',
-      '--home',
-      config.builderHome,
-      '--human-id',
-      `human:telegram:${String(input.userId).trim()}`,
-      '--session-id',
-      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
-      '--channel-kind',
-      'telegram',
-      '--user-message',
-      input.currentMessage || 'Show Spark self-awareness status and improvement options.',
-      '--refresh-wiki',
-      '--json',
-    ]),
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
@@ -859,6 +1071,9 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder self-awareness returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
   const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  if (input.currentMessage) {
+    payload.current_message = input.currentMessage;
+  }
   return {
     payload,
     replyText: formatSelfAwarenessReply(payload),
@@ -1259,7 +1474,7 @@ export async function runBuilderConversationColdContext(
       withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
-        timeout: positiveIntegerEnv(process.env, 'SPARK_CONTEXT_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 6000)),
+        timeout: contextBridgeTimeoutMs(process.env, config.timeoutMs),
         maxBuffer: 1024 * 1024,
       })
     );
@@ -1354,12 +1569,45 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
     };
 
     const detail = parsed.detail || {};
+    const bridgeMode = String(detail.bridge_mode || '').trim();
+    const routingDecision = String(detail.routing_decision || '').trim();
+    let responseText = String(detail.response_text || '').trim();
+    const messageContext = telegramBridgeMessageContext(updatePayload);
+    if (
+      bridgeMode === 'self_awareness_direct' &&
+      (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) &&
+      messageContext.userId &&
+      messageContext.chatId
+    ) {
+      try {
+        const selfAwareness = await runBuilderSelfAwarenessStatus({
+          userId: messageContext.userId,
+          chatId: messageContext.chatId,
+          currentMessage: messageContext.text,
+        });
+        responseText = selfAwareness.replyText;
+      } catch (error) {
+        console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
+        try {
+          const selfAwareness = await runBuilderSelfAwarenessStatus({
+            userId: messageContext.userId,
+            chatId: messageContext.chatId,
+            currentMessage: messageContext.text,
+            refreshWiki: false,
+          });
+          responseText = selfAwareness.replyText;
+        } catch (fallbackError) {
+          console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
+          responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
+        }
+      }
+    }
     return {
       used: true,
-      responseText: String(detail.response_text || '').trim(),
+      responseText,
       decision: String(parsed.decision || '').trim(),
-      bridgeMode: String(detail.bridge_mode || '').trim(),
-      routingDecision: String(detail.routing_decision || '').trim(),
+      bridgeMode,
+      routingDecision,
     };
   } catch (error) {
     if (config.mode === 'required') {

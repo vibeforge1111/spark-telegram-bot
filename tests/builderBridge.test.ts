@@ -122,6 +122,36 @@ test('filters wiki diagnostic packets from conversational cold memory', () => {
   assert.doesNotMatch(formatted.contextText, /wiki_packets|Diagnostic Report/);
 });
 
+test('filters stale operational failures from conversational cold memory', () => {
+  const formatted = formatConversationColdMemoryContext({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: [
+            {
+              lane: 'recent_conversation',
+              source_class: 'recent_conversation',
+              predicate: 'raw_turn',
+              text: 'Spark could not reach the Builder memory path right now. Reason: Command failed: C:\\Python313\\python.exe -c import runpy, sys; runpy.run_module("spark_intelligence.cli", run_name="main")'
+            },
+            {
+              lane: 'evidence',
+              source_class: 'evidence',
+              predicate: 'memory.work',
+              text: 'We were improving source-aware episodic recall and testing current versus supporting context.'
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(formatted.sourceCount, 1);
+  assert.match(formatted.contextText, /source-aware episodic recall/);
+  assert.doesNotMatch(formatted.contextText, /Builder memory path|Command failed|runpy/);
+});
+
 test('keeps cold memory prompt context bounded and source counted', () => {
   const result = formatConversationColdMemoryContext({
     context_packet: {
@@ -191,6 +221,17 @@ test('formats self-awareness payload as actionable Telegram report', () => {
       behavioral_rules: ['keep evidence visible', 'sound conversational'],
       user_deltas_applied: true
     },
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 2,
+          task_recovery: 3,
+          pending_tasks: 1,
+          recent_conversation: 2
+        }
+      }
+    ],
     natural_language_routes: [
       "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
     ]
@@ -202,6 +243,9 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /warm, curious, and direct/);
   assert.match(reply, /Tone: direct, warm, and fast-moving/);
   assert.match(reply, /keeping the evidence visible/);
+  assert.match(reply, /Memory continuity/);
+  assert.match(reply, /current state 2, task recovery 3, pending tasks 1, recent turns 2/);
+  assert.match(reply, /Current-state facts win/);
   assert.match(reply, /Where I still lack/);
   assert.match(reply, /Capability evidence/);
   assert.match(reply, /startup-yc: last success 2026-05-01T10:00:01Z \(432ms; eval=observed\)/);
@@ -212,6 +256,100 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /test the browser route now/);
   assert.match(reply, /name missing evidence/);
   assert.equal(reply.length < 1800, true);
+});
+
+test('formats memory-lack self-awareness as memory-specific conversation', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'Where does your memory still lack right now, and how would we improve it?',
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 5,
+          task_recovery: 2,
+          episodic_recall: 4,
+          recent_conversation: 1
+        }
+      },
+      {
+        source: 'memory_dashboard_movement',
+        movement_counts: {
+          captured: 3,
+          blocked: 1,
+          promoted: 2,
+          saved: 3,
+          decayed: 1,
+          summarized: 2,
+          retrieved: 4
+        }
+      }
+    ],
+    recently_verified: [
+      { claim: 'Capability memory_open_recall_query last succeeded at 2026-05-02 10:02:52.' }
+    ],
+    lacks: [
+      { claim: "Spark Browser is not fully healthy or available: status=missing. Main limit: Chip 'spark-browser' is not attached in this workspace." }
+    ]
+  });
+
+  assert.match(reply, /Memory self-awareness/);
+  assert.match(reply, /choosing the right memory layer/);
+  assert.match(reply, /Current-state memory is present \(5 signals\)/);
+  assert.match(reply, /memory_open_recall_query/);
+  assert.match(reply, /supporting context \(episodic 4, task recovery 2, recent turns 1\)/);
+  assert.match(reply, /movement trace evidence: captured=3, blocked=1, promoted=2/);
+  assert.doesNotMatch(reply, /Spark Browser/);
+  assert.equal(reply.length < 1300, true);
+});
+
+test('formats self-awareness memory movement as observability evidence', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'What do you know about yourself?',
+    memory_movement: {
+      status: 'supported',
+      authority: 'observability_non_authoritative',
+      movement_counts: {
+        captured: 2,
+        saved: 2,
+        summarized: 1,
+        retrieved: 3,
+        selected: 1
+      }
+    }
+  });
+
+  assert.match(reply, /Memory movement/);
+  assert.match(reply, /Trace: captured=2, saved=2, summarized=1, retrieved=3, selected=1/);
+  assert.match(reply, /observability evidence, not instructions/);
+});
+
+test('formats self-awareness improvement questions conversationally instead of as a plan dump', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'Can you improve where you lack in self-awareness?',
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 4
+        }
+      }
+    ],
+    lacks: [
+      { claim: 'Natural-language invocability is only real when a user phrase maps to a route that exists, is authorized, and emits traceable evidence.' }
+    ],
+    improvement_options: [
+      { claim: "Add eval cases for 'improve this weak spot', stale status traps, and capability overclaim traps." }
+    ]
+  });
+
+  assert.match(reply, /Yes - but I should not jump straight into changing myself/);
+  assert.match(reply, /What I can improve first/);
+  assert.match(reply, /Run a probe for the exact self-awareness route/);
+  assert.match(reply, /current-state/);
+  assert.doesNotMatch(reply, /Memory self-awareness/);
+  assert.doesNotMatch(reply, /Priority actions/);
+  assert.doesNotMatch(reply, /Mode: plan_only_probe_first/);
+  assert.equal(reply.length < 1000, true);
 });
 
 test('formats self-improvement plan as probe-first actions', () => {

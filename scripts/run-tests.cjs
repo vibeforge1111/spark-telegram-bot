@@ -21,8 +21,10 @@ const tests = [
   'tests/timeoutConfig.test.ts',
   'tests/localWorkspace.test.ts',
   'tests/llmProvider.test.ts',
+  'tests/llmProviderSmoke.test.ts',
   'tests/healthPolling.test.ts',
   'tests/diagnose.test.ts',
+  'tests/creatorMissionStatus.test.ts',
   'tests/builderBridge.test.ts',
   'tests/pythonCommand.test.ts',
   'tests/hiddenProcess.test.ts'
