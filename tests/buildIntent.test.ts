@@ -49,6 +49,14 @@ test('parses conversational immediate new-project build requests', () => {
   assert.match(intent.prd, /new project called the Game of Ascension/);
 });
 
+test('infers clean landing-page names from compact build prompts', () => {
+  const intent = parseBuildIntent('Build a tiny static landing page for a cafe with a menu section.');
+
+  assert.ok(intent);
+  assert.equal(intent.projectName, 'Cafe Landing Page');
+  assert.equal(intent.buildMode, 'direct');
+});
+
 test('parses advanced PRD mode preface before build command', () => {
   const intent = parseBuildIntent(
     'Use advanced PRD mode. Build this at C:\\Users\\USER\\Desktop\\spark-galaxy-garden: a vanilla-JS single-page app called Spark Galaxy Garden. Files: index.html, styles.css, app.js, README.md. No build step. Users plant seeds, water them, harvest stardust, persist state, and see animated growth stages.'

@@ -1251,12 +1251,30 @@ export function formatCanvasReadySummary(args: {
   return lines.join('\n');
 }
 
-async function handleRunCommand(
+interface RunCommandOptions {
+  allowBuildIntent?: boolean;
+}
+
+export async function handleRunCommand(
   ctx: any,
   goal: string,
   providers: string[],
-  requiredAccess?: SparkAccessRequirement
+  requiredAccess?: SparkAccessRequirement,
+  options: RunCommandOptions = {}
 ): Promise<string | null> {
+  const buildIntent = options.allowBuildIntent ? parseBuildIntent(goal) : null;
+  if (buildIntent) {
+    await handleBuildIntent(
+      ctx,
+      buildIntent.prd,
+      buildIntent.projectName,
+      buildIntent.projectPath,
+      buildIntent.buildMode,
+      buildIntent.buildModeReason
+    );
+    return null;
+  }
+
   await safeSendChatAction(ctx, 'typing');
 
   const accessRequirement = requiredAccess || (
@@ -1439,7 +1457,7 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
-    await handleRunCommand(ctx, goal, providers);
+    await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
   });
 }
 

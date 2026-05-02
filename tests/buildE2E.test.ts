@@ -64,6 +64,7 @@ function makeFakeCtx(chatId: number, fromId: number, messageId: number, replies:
 		chat: { id: chatId },
 		from: { id: fromId, username: 'cem' },
 		message: { message_id: messageId, text: 'build me a saas with auth and billing' },
+		update: { update_id: messageId },
 		sendChatAction: async (_action: string) => {},
 		reply: async (text: string) => {
 			replies.push(text);
@@ -163,6 +164,88 @@ async function run(): Promise<void> {
 		assert.match(replies[0] || '', new RegExp(`Mission: ${missionId}`));
 		assert.doesNotMatch(replies[0] || '', /Canvas:/);
 		assert.match(replies[0] || '', /Mission board: http:\/\/stub-spawner\.test\/kanban/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('/run build requests route to PRD bridge instead of simple Spark run', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'zai', started: true } } };
+			}
+			if (url.includes('/api/spark/run')) {
+				return { data: { success: true, missionId: 'spark-should-not-run', requestId: body.requestId, providers: ['zai'] } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		const indexModule: any = await import('../src/index');
+
+		const missionId = await indexModule.handleRunCommand(
+			ctx,
+			'Build a tiny static landing page for a cafe with a menu section.',
+			['zai'],
+			undefined,
+			{ allowBuildIntent: true }
+		);
+
+		assert.equal(missionId, null, 'build-mode /run is handled by the PRD bridge notifier path');
+		assert.ok(captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'expected /run build request to POST to /api/prd-bridge/write');
+		assert.ok(!captured.some((c) => c.url.includes('/api/spark/run')), 'build request should not use the simple Spark run API');
+		assert.match(replies.join('\n'), /Project: /);
+		assert.match(replies.join('\n'), /Mission board: http:\/\/stub-spawner\.test\/kanban/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('/run non-build requests still use the simple Spark run path', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/spark/run')) {
+				return { data: { success: true, missionId: 'spark-simple-run-test', requestId: body.requestId, providers: ['zai'] } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies);
+		const indexModule: any = await import('../src/index');
+
+		const missionId = await indexModule.handleRunCommand(
+			ctx,
+			'Summarize the Railway deployment health.',
+			['zai'],
+			undefined,
+			{ allowBuildIntent: true }
+		);
+
+		assert.equal(missionId, 'spark-simple-run-test');
+		assert.ok(captured.some((c) => c.url.includes('/api/spark/run')), 'expected non-build /run to POST to /api/spark/run');
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'non-build /run should not use the PRD bridge');
 
 		restoreAxios();
 		restoreEnv();
