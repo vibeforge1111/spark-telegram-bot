@@ -205,8 +205,13 @@ project environment and use Railway private DNS between them:
 - `TELEGRAM_RELAY_PORT=8788`
 - `TELEGRAM_RELAY_URL=http://spark-telegram-bot.railway.internal:8788/spawner-events`
 - `SPAWNER_UI_URL=http://spawner-ui.railway.internal:<spawner-port>`
+- `SPAWNER_UI_PUBLIC_URL=https://<protected-spawner-public-domain>`
 - `SPARK_BRIDGE_API_KEY=<same long value as spawner-ui>`
 - `SPARK_GATEWAY_STATE_DIR=/data/spark-gateway`
+
+`SPAWNER_UI_URL` is for private service-to-service calls only. If it uses
+`railway.internal`, also set `SPAWNER_UI_PUBLIC_URL` so Telegram mission links
+open the protected public Spawner UI instead of Railway's private DNS.
 
 Mount a persistent volume at `/data` for gateway state. Keep `BOT_TOKEN`,
 `ADMIN_TELEGRAM_IDS`, `TELEGRAM_RELAY_SECRET`, and provider keys in Railway
