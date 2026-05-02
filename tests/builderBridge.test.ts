@@ -313,6 +313,7 @@ test('formats self-awareness improvement questions conversationally instead of a
   assert.match(reply, /What I can improve first/);
   assert.match(reply, /Run a probe for the exact self-awareness route/);
   assert.match(reply, /current-state/);
+  assert.doesNotMatch(reply, /Memory self-awareness/);
   assert.doesNotMatch(reply, /Priority actions/);
   assert.doesNotMatch(reply, /Mode: plan_only_probe_first/);
   assert.equal(reply.length < 1000, true);

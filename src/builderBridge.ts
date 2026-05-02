@@ -1542,8 +1542,8 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         });
         responseText = selfAwareness.replyText;
       } catch (error) {
-        console.warn('[BuilderBridge] Memory self-awareness reformat unavailable:', error);
-        responseText = formatMemoryLackSelfAwarenessReply({ current_message: messageContext.text });
+        console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
+        responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
       }
     }
     return {
