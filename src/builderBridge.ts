@@ -349,6 +349,40 @@ function formatSelfAwarenessStyleLens(styleLens: unknown): string[] {
   return lines;
 }
 
+function contextSourceCountsFromSelfAwareness(payload: Record<string, unknown>): Record<string, unknown> {
+  for (const entry of arrayValue(payload.source_ledger).map(objectValue)) {
+    if (stringValue(entry.source) === 'context_capsule') {
+      return objectValue(entry.source_counts);
+    }
+  }
+  return {};
+}
+
+function formatMemoryContinuityLines(payload: Record<string, unknown>): string[] {
+  const counts = contextSourceCountsFromSelfAwareness(payload);
+  const currentState = numericValue(counts.current_state);
+  const taskRecovery = numericValue(counts.task_recovery);
+  const pendingTasks = numericValue(counts.pending_tasks);
+  const recentConversation = numericValue(counts.recent_conversation);
+  const proceduralLessons = numericValue(counts.procedural_lessons);
+  if (!currentState && !taskRecovery && !pendingTasks && !recentConversation && !proceduralLessons) {
+    return [];
+  }
+  const parts = [
+    currentState ? `current state ${currentState}` : '',
+    taskRecovery ? `task recovery ${taskRecovery}` : '',
+    pendingTasks ? `pending tasks ${pendingTasks}` : '',
+    recentConversation ? `recent turns ${recentConversation}` : '',
+    proceduralLessons ? `lessons ${proceduralLessons}` : '',
+  ].filter(Boolean);
+  return [
+    'Memory continuity',
+    `- I have ${parts.join(', ')} in the turn context.`,
+    '- Current-state facts win; task recovery and episodic context stay source-labeled support.',
+    '',
+  ];
+}
+
 function humanizeStyleInstruction(value: string): string {
   const parts = value
     .replace(/\n/g, ';')
@@ -511,6 +545,7 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     `Checked: ${stringValue(root.generated_at) || 'unknown'}`,
     '',
     ...formatSelfAwarenessStyleLens(styleLens),
+    ...formatMemoryContinuityLines(root),
     ...formatClaimLines('What looks live', root.observed_now, 4, true),
     ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
     ...formatCapabilityEvidenceLines(root.capability_evidence, 3),

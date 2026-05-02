@@ -191,6 +191,17 @@ test('formats self-awareness payload as actionable Telegram report', () => {
       behavioral_rules: ['keep evidence visible', 'sound conversational'],
       user_deltas_applied: true
     },
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 2,
+          task_recovery: 3,
+          pending_tasks: 1,
+          recent_conversation: 2
+        }
+      }
+    ],
     natural_language_routes: [
       "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
     ]
@@ -202,6 +213,9 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.match(reply, /warm, curious, and direct/);
   assert.match(reply, /Tone: direct, warm, and fast-moving/);
   assert.match(reply, /keeping the evidence visible/);
+  assert.match(reply, /Memory continuity/);
+  assert.match(reply, /current state 2, task recovery 3, pending tasks 1, recent turns 2/);
+  assert.match(reply, /Current-state facts win/);
   assert.match(reply, /Where I still lack/);
   assert.match(reply, /Capability evidence/);
   assert.match(reply, /startup-yc: last success 2026-05-01T10:00:01Z \(432ms; eval=observed\)/);
