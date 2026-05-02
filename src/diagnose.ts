@@ -101,6 +101,10 @@ async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResu
   }
 }
 
+function isLocalOpenAICompatProvider(provider: ProviderStatus): boolean {
+  return provider.kind === 'openai_compat' && provider.requiresApiKey === false;
+}
+
 export function describeRelayHealth(status: HttpStatusResult, expected: RelayIdentity): string {
   const label = `:${expected.port}/${expected.profile}`;
   if (!status.ok) {
@@ -142,11 +146,19 @@ export function describeProviderStatus(provider: ProviderStatus, selectedIds: Se
   }
 
   if (selectedIds.has(provider.id)) {
-    const note = provider.requiresApiKey === false ? 'cli missing' : 'key missing';
+    const note = isLocalOpenAICompatProvider(provider)
+      ? 'local endpoint unavailable'
+      : provider.requiresApiKey === false
+        ? 'cli missing'
+        : 'key missing';
     return { ready, icon: '❌', note };
   }
 
-  const note = provider.requiresApiKey === false ? 'optional cli not found' : 'not configured';
+  const note = isLocalOpenAICompatProvider(provider)
+    ? 'local endpoint unavailable'
+    : provider.requiresApiKey === false
+      ? 'optional cli not found'
+      : 'not configured';
   return { ready, icon: '⚪', note };
 }
 
