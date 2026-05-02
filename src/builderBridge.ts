@@ -391,6 +391,28 @@ function isMemoryLackSelfAwarenessQuestion(text: string): boolean {
   );
 }
 
+function idString(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return stringValue(value);
+}
+
+function telegramBridgeMessageContext(updatePayload: Record<string, unknown>): {
+  text: string;
+  userId: string;
+  chatId: string;
+} {
+  const message = objectValue(updatePayload.message);
+  const from = objectValue(message.from);
+  const chat = objectValue(message.chat);
+  return {
+    text: stringValue(message.text),
+    userId: idString(from.id),
+    chatId: idString(chat.id),
+  };
+}
+
 function formatMemoryLackSelfAwarenessReply(root: Record<string, unknown>): string {
   const counts = contextSourceCountsFromSelfAwareness(root);
   const currentState = numericValue(counts.current_state);
@@ -1458,12 +1480,34 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
     };
 
     const detail = parsed.detail || {};
+    const bridgeMode = String(detail.bridge_mode || '').trim();
+    const routingDecision = String(detail.routing_decision || '').trim();
+    let responseText = String(detail.response_text || '').trim();
+    const messageContext = telegramBridgeMessageContext(updatePayload);
+    if (
+      bridgeMode === 'self_awareness_direct' &&
+      isMemoryLackSelfAwarenessQuestion(messageContext.text) &&
+      messageContext.userId &&
+      messageContext.chatId
+    ) {
+      try {
+        const selfAwareness = await runBuilderSelfAwarenessStatus({
+          userId: messageContext.userId,
+          chatId: messageContext.chatId,
+          currentMessage: messageContext.text,
+        });
+        responseText = selfAwareness.replyText;
+      } catch (error) {
+        console.warn('[BuilderBridge] Memory self-awareness reformat unavailable:', error);
+        responseText = formatMemoryLackSelfAwarenessReply({ current_message: messageContext.text });
+      }
+    }
     return {
       used: true,
-      responseText: String(detail.response_text || '').trim(),
+      responseText,
       decision: String(parsed.decision || '').trim(),
-      bridgeMode: String(detail.bridge_mode || '').trim(),
-      routingDecision: String(detail.routing_decision || '').trim(),
+      bridgeMode,
+      routingDecision,
     };
   } catch (error) {
     if (config.mode === 'required') {
