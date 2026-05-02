@@ -867,7 +867,7 @@ export const spawner = {
             'I found the latest mission, but I do not see a local app link in the handoff yet.',
             '',
             `Latest: ${latest.missionName || latest.taskName || latest.missionId}`,
-            `Mission board: ${SPAWNER_UI_URL.replace(/\/+$/, '')}/kanban?mission=${encodeURIComponent(latest.missionId)}`
+            `Mission board: ${spawnerPublicUrl()}/kanban?mission=${encodeURIComponent(latest.missionId)}`
           ].join('\n')
         };
       }

@@ -370,10 +370,19 @@ function spawnerUiUrl(): string {
   return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
 }
 
+function spawnerPublicUrl(): string {
+  return (
+    process.env.SPAWNER_UI_PUBLIC_URL ||
+    process.env.PUBLIC_SPAWNER_UI_URL ||
+    process.env.SPAWNER_PUBLIC_URL ||
+    spawnerUiUrl()
+  ).replace(/\/+$/, '');
+}
+
 export function buildMissionSurfaceLinks(
   missionId: string,
   preference: TelegramMissionLinkPreference,
-  baseUrl = spawnerUiUrl(),
+  baseUrl = spawnerPublicUrl(),
   requestId?: string | null
 ): string[] {
   if (preference === 'none') return [];

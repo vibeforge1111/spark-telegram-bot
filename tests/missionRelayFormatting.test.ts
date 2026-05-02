@@ -238,6 +238,24 @@ test('builds mission surface links from user preference', () => {
   ]);
 });
 
+test('uses the public Spawner URL for mission surface links when configured', () => {
+  const originalInternalUrl = process.env.SPAWNER_UI_URL;
+  const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+  process.env.SPAWNER_UI_URL = 'http://spawner-ui.railway.internal:3000';
+  process.env.SPAWNER_UI_PUBLIC_URL = 'https://spark-spawner-test.up.railway.app/';
+
+  try {
+    assert.deepEqual(buildMissionSurfaceLinks('spark-123', 'board'), [
+      'Mission spark-123: https://spark-spawner-test.up.railway.app/kanban?mission=spark-123'
+    ]);
+  } finally {
+    if (originalInternalUrl === undefined) delete process.env.SPAWNER_UI_URL;
+    else process.env.SPAWNER_UI_URL = originalInternalUrl;
+    if (originalPublicUrl === undefined) delete process.env.SPAWNER_UI_PUBLIC_URL;
+    else process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+  }
+});
+
 test('mission start update links the mission once through kanban', () => {
   const message = formatProgressMessageForTelegram(
     {
