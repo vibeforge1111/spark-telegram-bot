@@ -6,7 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
-import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
+import { builderBridgeTimeoutMs, contextBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
@@ -1294,7 +1294,7 @@ export async function runBuilderConversationColdContext(
       withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
-        timeout: positiveIntegerEnv(process.env, 'SPARK_CONTEXT_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 6000)),
+        timeout: contextBridgeTimeoutMs(process.env, config.timeoutMs),
         maxBuffer: 1024 * 1024,
       })
     );
