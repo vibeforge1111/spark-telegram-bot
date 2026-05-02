@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY scripts/run-health-polling.cjs ./scripts/run-health-polling.cjs
 COPY agent-knowledge ./agent-knowledge
 RUN mkdir -p /data/spark-gateway
 EXPOSE 8788
