@@ -58,6 +58,26 @@ test('marks selected API-key providers missing when no key is configured', () =>
   assert.equal(description.note, 'key missing');
 });
 
+test('marks hosted local OpenAI-compatible providers as endpoint unavailable', () => {
+  const provider: ProviderStatus = {
+    id: 'ollama',
+    label: 'Ollama',
+    model: 'llama3.2:3b',
+    kind: 'openai_compat',
+    requiresApiKey: false,
+    configured: false,
+    configurationMode: 'none'
+  };
+
+  const optional = describeProviderStatus(provider);
+  assert.equal(optional.ready, false);
+  assert.equal(optional.note, 'local endpoint unavailable');
+
+  const selected = describeProviderStatus(provider, new Set(['ollama']));
+  assert.equal(selected.ready, false);
+  assert.equal(selected.note, 'local endpoint unavailable');
+});
+
 test('pings selected Spawner route providers only', () => {
   const providers: ProviderStatus[] = [
     {
