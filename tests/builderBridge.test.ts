@@ -69,14 +69,21 @@ test('compacts large cold memory queries before invoking Builder memory', () => 
 
 test('formats authoritative cold memory context for prompt injection', () => {
   const result = formatConversationColdMemoryContext({
+    selected_count: 1,
+    source_mix: { recent_conversation: 1 },
+    memory_movement: {
+      movement_counts: { retrieved: 2, selected: 1 }
+    },
     context_packet: {
       sections: [
         {
           section: 'recent_conversation',
+          authority: 'supporting_not_authoritative',
           items: [
             {
               lane: 'recent_conversation',
               source_class: 'recent_conversation',
+              authority: 'supporting_not_authoritative',
               predicate: 'conversation.focus',
               text: 'The user was choosing between access level 3 and level 4.'
             }
@@ -88,7 +95,9 @@ test('formats authoritative cold memory context for prompt injection', () => {
 
   assert.equal(result.sourceCount, 1);
   assert.match(result.contextText, /\[Spark Cold Memory Context\]/);
-  assert.match(result.contextText, /recent_conversation\/conversation\.focus/);
+  assert.match(result.contextText, /Trace: selected=1; sources recent_conversation=1; movement retrieved=2, selected=1/);
+  assert.match(result.contextText, /Authority rule: current-state memory and the newest user message outrank wiki/);
+  assert.match(result.contextText, /recent_conversation\/conversation\.focus \(supporting_not_authoritative\)/);
   assert.match(result.contextText, /access level 3 and level 4/);
 });
 

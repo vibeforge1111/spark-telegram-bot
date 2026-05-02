@@ -396,6 +396,25 @@ function formatMemoryMovementLines(payload: Record<string, unknown>): string[] {
   ];
 }
 
+function formatColdMemoryMovementTrace(payload: Record<string, unknown>): string {
+  const packet = objectValue(payload.context_packet);
+  const sourceMix = objectValue(payload.source_mix);
+  const packetSourceMix = objectValue(packet.source_mix);
+  const movementSummary = compactMemoryMovementSummary(payload);
+  const selectedCount = numericValue(payload.selected_count);
+  const sourceParts = objectEntries(Object.keys(sourceMix).length ? sourceMix : packetSourceMix)
+    .filter(([, count]) => typeof count === 'number' && count > 0)
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 3)
+    .map(([source, count]) => `${source}=${count}`);
+  const parts = [
+    selectedCount ? `selected=${selectedCount}` : '',
+    sourceParts.length ? `sources ${sourceParts.join(', ')}` : '',
+    movementSummary ? `movement ${movementSummary}` : ''
+  ].filter(Boolean);
+  return parts.length ? `Trace: ${parts.join('; ')}.` : '';
+}
+
 function formatMemoryContinuityLines(payload: Record<string, unknown>): string[] {
   const counts = contextSourceCountsFromSelfAwareness(payload);
   const currentState = numericValue(counts.current_state);
@@ -620,8 +639,15 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
   const lines = [
     '[Spark Cold Memory Context]',
     'Use this as supporting retrieved memory only. Newer conversation frame context wins.',
-    ''
   ];
+  const traceLine = formatColdMemoryMovementTrace(root);
+  if (traceLine) {
+    lines.push(traceLine);
+  }
+  lines.push(
+    'Authority rule: current-state memory and the newest user message outrank wiki, old conversation, and movement telemetry.',
+    ''
+  );
   let usedChars = lines.join('\n').length;
   let sourceCount = 0;
 
@@ -640,8 +666,10 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
       }
       const lane = stringValue(item.lane) || 'memory';
       const predicate = stringValue(item.predicate);
+      const authority = stringValue(item.authority) || stringValue(section.authority);
       const source = predicate ? `${lane}/${predicate}` : lane;
-      const line = `- ${source}: ${text}`;
+      const labeledSource = authority ? `${source} (${authority})` : source;
+      const line = `- ${labeledSource}: ${text}`;
       if (usedChars + sectionLines.join('\n').length + line.length > maxChars) {
         break;
       }
@@ -1468,7 +1496,6 @@ export async function runBuilderConversationColdContext(
         `human:telegram:${String(input.userId).trim()}`,
         '--limit',
         '6',
-        '--no-record-activity',
         '--json',
       ]),
       withHiddenWindows({
