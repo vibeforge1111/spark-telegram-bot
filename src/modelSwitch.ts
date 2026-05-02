@@ -304,7 +304,7 @@ export function renderModelStatus(): string {
 export function renderModelRecommendations(provider?: ProviderId | null): string {
   const ids = provider ? [provider] : (Object.keys(PROVIDERS) as ProviderId[]);
   const lines = [
-    'Recommended Spark brain paths',
+    'Recommended Spark provider paths',
     '',
     'Choose one provider first. Spark uses it for agent chat, runtime, memory, retrieval, and missions. You can split agent vs mission later.',
     '',
