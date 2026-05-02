@@ -69,6 +69,7 @@ export interface BuilderSelfAwarenessInput {
   userId: number | string;
   chatId: number | string;
   currentMessage?: string;
+  refreshWiki?: boolean;
 }
 
 export interface BuilderSelfAwarenessResult {
@@ -996,24 +997,28 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const args = [
+    'self',
+    'status',
+    '--home',
+    config.builderHome,
+    '--human-id',
+    `human:telegram:${String(input.userId).trim()}`,
+    '--session-id',
+    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    '--channel-kind',
+    'telegram',
+    '--user-message',
+    input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+  ];
+  if (input.refreshWiki !== false) {
+    args.push('--refresh-wiki');
+  }
+  args.push('--json');
+
   const { stdout, stderr } = await execFileAsync(
     config.pythonCommand,
-    pythonModuleInvocation(config, 'spark_intelligence.cli', [
-      'self',
-      'status',
-      '--home',
-      config.builderHome,
-      '--human-id',
-      `human:telegram:${String(input.userId).trim()}`,
-      '--session-id',
-      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
-      '--channel-kind',
-      'telegram',
-      '--user-message',
-      input.currentMessage || 'Show Spark self-awareness status and improvement options.',
-      '--refresh-wiki',
-      '--json',
-    ]),
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
@@ -1543,7 +1548,18 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         responseText = selfAwareness.replyText;
       } catch (error) {
         console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
-        responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
+        try {
+          const selfAwareness = await runBuilderSelfAwarenessStatus({
+            userId: messageContext.userId,
+            chatId: messageContext.chatId,
+            currentMessage: messageContext.text,
+            refreshWiki: false,
+          });
+          responseText = selfAwareness.replyText;
+        } catch (fallbackError) {
+          console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
+          responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
+        }
       }
     }
     return {
