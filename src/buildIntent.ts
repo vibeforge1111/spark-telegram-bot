@@ -55,6 +55,11 @@ function inferConceptualProjectName(prd: string): string | null {
   if (/\bchess\s+game\b/.test(lower)) {
     return /\binvented\b|\boriginal\b|\bnew rules\b/.test(lower) ? 'Invented Chess Game' : 'Chess Game';
   }
+  const landingPageForMatch = lower.match(/\blanding\s+page\b.*?\bfor\s+(?:a|an|the)\s+([a-z][a-z0-9 -]{1,40}?)(?=[.,:;?]|\n|\s+(?:with|that|which|where|using)\b|$)/i);
+  if (landingPageForMatch) {
+    return `${landingPageForMatch[1].trim()} Landing Page`
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
   return null;
 }
 
