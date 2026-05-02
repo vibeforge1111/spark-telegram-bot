@@ -191,6 +191,22 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   return goal.length >= 6 ? goal : 'Improve Spark weak spots with probe-first evidence';
 }
 
+export function isSparkSelfMemoryDiagnosticQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const mentionsSelfOrMemory =
+    /\bself[-\s]*awareness\b/i.test(normalized) ||
+    /\b(?:your|you|spark|agent)\b/i.test(normalized) &&
+      /\b(?:memory|recall|introspection|capabilit(?:y|ies)|systems?|routes?|tools?|weak\s*spots?|gaps?|lacks?|limitations?)\b/i.test(normalized);
+  if (!mentionsSelfOrMemory) return false;
+  return (
+    /\bwhere\b.*\b(?:lack|lacks|weak|missing|limitations?)\b/i.test(normalized) ||
+    /\bwhat\b.*\b(?:lack|lacks|weak|missing|limitations?)\b/i.test(normalized) ||
+    /\bhow\b.*\b(?:improve|strengthen|fix|repair|make better)\b/i.test(normalized) ||
+    /\b(?:can|could|should|would)\s+you\s+(?:improve|strengthen|fix|repair)\b/i.test(normalized)
+  );
+}
+
 export interface SparkWikiPromotionIntent {
   title: string;
   summary: string;
@@ -795,6 +811,7 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
   if (!project) return false;
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
+  if (isSparkSelfMemoryDiagnosticQuestion(text)) return false;
   const explicitBuild = parseBuildIntent(text);
   if (explicitBuild?.projectPath) return false;
   if (/^(?:where|what|which|show|send|give)\b.*\b(?:link|localhost|preview|url|board|canvas|kanban)\b/.test(normalized)) {
