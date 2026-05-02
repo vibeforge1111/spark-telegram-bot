@@ -15,7 +15,6 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY agent-knowledge ./agent-knowledge
-RUN mkdir -p /data/spark-gateway && chown -R node:node /app /data
-USER node
+RUN mkdir -p /data/spark-gateway
 EXPOSE 8788
 CMD ["npm", "start"]
