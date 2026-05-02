@@ -383,6 +383,58 @@ function formatMemoryContinuityLines(payload: Record<string, unknown>): string[]
   ];
 }
 
+function isMemoryLackSelfAwarenessQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return (
+    /\bmemory\b/i.test(normalized) &&
+    /\b(?:lack|lacks|weak|missing|limitations?|improve)\b/i.test(normalized)
+  );
+}
+
+function formatMemoryLackSelfAwarenessReply(root: Record<string, unknown>): string {
+  const counts = contextSourceCountsFromSelfAwareness(root);
+  const currentState = numericValue(counts.current_state);
+  const episodicRecall = numericValue(counts.episodic_recall);
+  const taskRecovery = numericValue(counts.task_recovery);
+  const recentConversation = numericValue(counts.recent_conversation);
+  const memoryRoute = arrayValue(root.recently_verified)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .map((claim) => claim.replace(/[.]+$/, ''))
+    .find((claim) => /\bmemory_open_recall_query\b/i.test(claim));
+  const supportParts = [
+    episodicRecall ? `episodic ${episodicRecall}` : '',
+    taskRecovery ? `task recovery ${taskRecovery}` : '',
+    recentConversation ? `recent turns ${recentConversation}` : '',
+  ].filter(Boolean);
+  const lines = [
+    'Memory self-awareness',
+    '',
+    'Short version: my memory is working, but the weak spot is choosing the right memory layer and showing why I trusted it.',
+    '',
+    'What is current',
+    currentState
+      ? `- Current-state memory is present (${currentState} signal${currentState === 1 ? '' : 's'}) and should beat wiki or older chat for mutable facts.`
+      : '- I do not see current-state facts in this capsule, so mutable facts need fresh confirmation.',
+    memoryRoute
+      ? `- I recently proved the recall route: ${memoryRoute}.`
+      : '- I need a fresh recall probe before claiming episodic memory worked this turn.',
+    '',
+    'Where memory still lacks',
+    '- I can still answer a memory question with generic system health unless the renderer keeps the focus on memory.',
+    supportParts.length
+      ? `- I see supporting context (${supportParts.join(', ')}), but I should label it as support, not current truth.`
+      : '- Episodic detail can be thin or truncated, so I should say what I do not know instead of filling gaps.',
+    '- Retrieved, summarized, promoted, decayed, and blocked memory movement should be visible in the dashboard trace.',
+    '',
+    'How we improve it next',
+    '- Add evals for memory-lack questions so they return source-labeled memory limits, not a status dump.',
+    '- Attach movement evidence to memory replies: captured, blocked, promoted, saved, decayed, summarized, retrieved.',
+    '- Keep wiki as supporting_not_authoritative; current-state memory and your newest message win for mutable facts.',
+  ];
+  return lines.join('\n').trim();
+}
+
 function humanizeStyleInstruction(value: string): string {
   const parts = value
     .replace(/\n/g, ';')
@@ -537,6 +589,10 @@ export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): 
 
 export function formatSelfAwarenessReply(payload: unknown): string {
   const root = objectValue(payload);
+  const currentMessage = stringValue(root.current_message);
+  if (isMemoryLackSelfAwarenessQuestion(currentMessage)) {
+    return formatMemoryLackSelfAwarenessReply(root);
+  }
   const wikiRefresh = objectValue(root.wiki_refresh);
   const wikiContext = objectValue(root.wiki_context);
   const styleLens = objectValue(root.style_lens);
@@ -904,6 +960,9 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder self-awareness returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
   const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  if (input.currentMessage) {
+    payload.current_message = input.currentMessage;
+  }
   return {
     payload,
     replyText: formatSelfAwarenessReply(payload),

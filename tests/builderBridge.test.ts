@@ -258,6 +258,38 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.equal(reply.length < 1800, true);
 });
 
+test('formats memory-lack self-awareness as memory-specific conversation', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'Where does your memory still lack right now, and how would we improve it?',
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 5,
+          task_recovery: 2,
+          episodic_recall: 4,
+          recent_conversation: 1
+        }
+      }
+    ],
+    recently_verified: [
+      { claim: 'Capability memory_open_recall_query last succeeded at 2026-05-02 10:02:52.' }
+    ],
+    lacks: [
+      { claim: "Spark Browser is not fully healthy or available: status=missing. Main limit: Chip 'spark-browser' is not attached in this workspace." }
+    ]
+  });
+
+  assert.match(reply, /Memory self-awareness/);
+  assert.match(reply, /choosing the right memory layer/);
+  assert.match(reply, /Current-state memory is present \(5 signals\)/);
+  assert.match(reply, /memory_open_recall_query/);
+  assert.match(reply, /supporting context \(episodic 4, task recovery 2, recent turns 1\)/);
+  assert.match(reply, /captured, blocked, promoted, saved, decayed, summarized, retrieved/);
+  assert.doesNotMatch(reply, /Spark Browser/);
+  assert.equal(reply.length < 1300, true);
+});
+
 test('formats self-improvement plan as probe-first actions', () => {
   const reply = formatSelfImprovementPlanReply({
     summary: 'I found 3 improvement actions from the live self-awareness capsule with supporting wiki context.',
