@@ -5,6 +5,7 @@ import {
   describeChatProviderHealth,
   describeRelayHealth,
   describeProviderStatus,
+  describeSpawnerPublicLinkHealth,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
   resolveDiagnoseRouteProviders,
@@ -172,6 +173,30 @@ test('describes HTTP failures as relay errors', () => {
   assert.match(
     describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
     /HTTP 401$/
+  );
+});
+
+test('warns when Railway Spawner links would point at private DNS', () => {
+  assert.equal(
+    describeSpawnerPublicLinkHealth({
+      SPAWNER_UI_URL: 'http://spawner-ui.railway.internal:3000'
+    } as NodeJS.ProcessEnv),
+    'Spawner public links: ❌ set SPAWNER_UI_PUBLIC_URL; Telegram mission links cannot use railway.internal URLs'
+  );
+
+  assert.equal(
+    describeSpawnerPublicLinkHealth({
+      SPAWNER_UI_URL: 'http://spawner-ui.railway.internal:3000',
+      SPAWNER_UI_PUBLIC_URL: 'https://spawner-ui-production.up.railway.app'
+    } as NodeJS.ProcessEnv),
+    'Spawner public links: ✅ spawner-ui-production.up.railway.app'
+  );
+
+  assert.equal(
+    describeSpawnerPublicLinkHealth({
+      SPAWNER_UI_URL: 'http://127.0.0.1:3333'
+    } as NodeJS.ProcessEnv),
+    null
   );
 });
 

@@ -83,6 +83,35 @@ function httpPortLabel(url: string): string {
   }
 }
 
+function isRailwayPrivateUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.endsWith('.railway.internal');
+  } catch {
+    return /\.railway\.internal(?::|\/|$)/i.test(url);
+  }
+}
+
+function spawnerPublicUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return env.SPAWNER_UI_PUBLIC_URL || env.PUBLIC_SPAWNER_UI_URL || env.SPAWNER_PUBLIC_URL;
+}
+
+export function describeSpawnerPublicLinkHealth(env: NodeJS.ProcessEnv = process.env): string | null {
+  const internalUrl = env.SPAWNER_UI_URL || SPAWNER_UI_URL;
+  if (!isRailwayPrivateUrl(internalUrl)) {
+    return null;
+  }
+
+  const publicUrl = spawnerPublicUrlFromEnv(env);
+  if (!publicUrl) {
+    return 'Spawner public links: ❌ set SPAWNER_UI_PUBLIC_URL; Telegram mission links cannot use railway.internal URLs';
+  }
+  if (isRailwayPrivateUrl(publicUrl)) {
+    return 'Spawner public links: ❌ SPAWNER_UI_PUBLIC_URL must be a public protected Spawner URL, not railway.internal';
+  }
+  return `Spawner public links: ✅ ${httpPortLabel(publicUrl)}`;
+}
+
 async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResult> {
   try {
     const res = await axios.get(url, { timeout: timeoutMs });
@@ -383,6 +412,10 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
       spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`
     }`
   );
+  const spawnerPublicLinkHealth = describeSpawnerPublicLinkHealth();
+  if (spawnerPublicLinkHealth) {
+    lines.push(`• ${spawnerPublicLinkHealth}`);
+  }
   if (CODEX_SHIM_URL) {
     lines.push(
       `• Codex shim optional (${httpPortLabel(CODEX_SHIM_URL)}): ${
