@@ -163,6 +163,13 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (!normalized || parseBuildIntent(normalized)) {
     return null;
   }
+  if (
+    /\bwhere\s+(?:do|does|are|is)\b/i.test(normalized) &&
+    /\b(?:lack|lacks|weak|weakness|weaknesses|missing|limitations?)\b/i.test(normalized) &&
+    /\bhow\s+(?:would|should|can)\s+(?:we|you)\s+improve\b/i.test(normalized)
+  ) {
+    return null;
+  }
   const mentionsSparkSelf =
     /\b(?:spark|you|your|agent|self[-\s]*awareness|introspection|capabilit(?:y|ies)|tools?|routes?|systems?)\b/i.test(normalized);
   const mentionsImprove =
