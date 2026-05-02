@@ -2561,7 +2561,7 @@ async function start() {
 
   // Start polling
   console.log('Starting Spark Telegram bot...');
-  console.log(`Mission relay: http://127.0.0.1:${relay.port}/spawner-events`);
+  console.log(`Mission relay: ${getTelegramRelayIdentity().url || `http://127.0.0.1:${relay.port}/spawner-events`}`);
   if (TELEGRAM_SMOKE_MODE) {
     console.log('Telegram smoke mode: local relay is running; Telegram API calls are disabled.');
     return;

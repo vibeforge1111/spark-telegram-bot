@@ -106,11 +106,13 @@ function getRelayProfile(): string {
   return telegramRelayIdentityFromEnv().profile;
 }
 
-export function getTelegramRelayIdentity(): { port: number; profile: string } {
-  return {
-    port: getRelayPort(),
-    profile: getRelayProfile()
-  };
+function getRelayHost(): string {
+  const raw = process.env.TELEGRAM_RELAY_HOST || process.env.SPARK_TELEGRAM_RELAY_HOST;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : '127.0.0.1';
+}
+
+export function getTelegramRelayIdentity(): { port: number; profile: string; url?: string } {
+  return telegramRelayIdentityFromEnv();
 }
 
 function normalizeRelayPort(value: unknown): number | null {
@@ -1065,6 +1067,10 @@ export function shouldSkipDuplicateForTests(event: DeliverableRelayEvent): boole
   return shouldSkipDuplicate(event);
 }
 
+export function shouldAcknowledgeRelayWithoutTelegramDelivery(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.TELEGRAM_SMOKE_MODE === '1';
+}
+
 export function resetMissionRelayDeliveryStateForTests(): void {
   deliveryCache.clear();
   openTaskStartCache.clear();
@@ -1406,6 +1412,11 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       return;
     }
 
+    if (shouldAcknowledgeRelayWithoutTelegramDelivery()) {
+      writeJson(res, 200, { ok: true, smokeMode: true, eventType: event.type });
+      return;
+    }
+
     try {
       const chatId = Number(subscription.chatId);
       const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
@@ -1476,7 +1487,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
   await new Promise<void>((resolve, reject) => {
     relayServer!.once('error', reject);
-    relayServer!.listen(port, '127.0.0.1', () => {
+    relayServer!.listen(port, getRelayHost(), () => {
       relayServer!.off('error', reject);
       resolve();
     });

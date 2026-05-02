@@ -31,6 +31,13 @@ test('builds relay health URL from configured relay port', () => {
   assert.equal(relayHealthUrl({ TELEGRAM_RELAY_PORT: 'not-a-port' } as NodeJS.ProcessEnv), 'http://127.0.0.1:8788/health');
 });
 
+test('builds relay health URL from hosted relay callback URL', () => {
+  assert.equal(
+    relayHealthUrl({ TELEGRAM_RELAY_URL: 'http://spark-telegram-bot.railway.internal:8788/spawner-events' } as NodeJS.ProcessEnv),
+    'http://spark-telegram-bot.railway.internal:8788/health'
+  );
+});
+
 test('validates relay runtime without exposing secrets', async () => {
   const fetchImpl = async () => new Response(
     JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123 }),

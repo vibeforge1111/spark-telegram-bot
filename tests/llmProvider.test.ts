@@ -231,6 +231,34 @@ test('uses Claude Code print mode when Anthropic is selected for chat', () => {
   assert.equal(config.model, 'opus');
 });
 
+test('uses Anthropic API when an Anthropic key is configured', () => {
+  const config = resolveChatProviderConfig({
+    SPARK_CHAT_LLM_PROVIDER: 'anthropic',
+    ANTHROPIC_API_KEY: 'anthropic-key',
+  });
+
+  assert.equal(config.provider, 'anthropic');
+  assert.equal(config.kind, 'anthropic_api');
+  assert.equal(config.baseUrl, 'https://api.anthropic.com/v1');
+  assert.equal(config.model, 'claude-sonnet-4-6');
+  assert.equal(config.apiKey, 'anthropic-key');
+});
+
+test('only uses Anthropic API key implicitly when implicit provider selection is enabled', () => {
+  const implicitOff = resolveChatProviderConfig({
+    ANTHROPIC_API_KEY: 'anthropic-key',
+  });
+  assert.equal(implicitOff.provider, 'not_configured');
+  assert.equal(implicitOff.kind, 'not_configured');
+
+  const implicitOn = resolveChatProviderConfig({
+    SPARK_ALLOW_IMPLICIT_LLM_PROVIDER: '1',
+    ANTHROPIC_API_KEY: 'anthropic-key',
+  });
+  assert.equal(implicitOn.provider, 'anthropic');
+  assert.equal(implicitOn.kind, 'anthropic_api');
+});
+
 test('system prompt treats Spawner Kanban and Canvas as existing surfaces', () => {
   const prompt = buildSparkChatSystemPrompt('', '');
 

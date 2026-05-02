@@ -13,6 +13,8 @@ import {
   resolveMissionDefaultProvider
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { relayHealthUrl } from './healthRuntime';
+import { spawnerAxiosOptions } from './spawnerAuth';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -168,7 +170,7 @@ export function selectPingProviderIds(
 async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: string; payload?: ProvidersPayload }> {
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, {
-      timeout: 3000
+      ...spawnerAxiosOptions(3000)
     });
     return { ok: true, status: res.status, payload: res.data || {} };
   } catch (err: any) {
@@ -199,7 +201,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
         promptMode: 'simple',
         suppressRelay: true
       },
-      { timeout: 10000 }
+      spawnerAxiosOptions(10000)
     );
     const missionId = run.data?.missionId;
     if (!missionId) {
@@ -210,8 +212,8 @@ async function pingProvider(providerId: string): Promise<PingResult> {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       try {
         const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/results`, {
+          ...spawnerAxiosOptions(3000),
           params: { missionId },
-          timeout: 3000
         });
         const result = (res.data?.results || [])[0];
         if (result?.status === 'completed') {
@@ -339,7 +341,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
   };
 
   const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderPing, accessProfile] = await Promise.all([
-    httpStatus(`http://127.0.0.1:${relayIdentity.port}/health`, 2000),
+    httpStatus(relayHealthUrl(), 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
     getBuilderBridgeStatus().catch(() => ({
@@ -427,7 +429,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
   lines.push('');
 
   try {
-    const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 3000 });
+    const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, spawnerAxiosOptions(3000));
     const board = res.data?.board || {};
     const running = (board.running || []).length;
     const completed = (board.completed || []).length;

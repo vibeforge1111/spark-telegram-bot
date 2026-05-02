@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { spawnerAxiosOptions } from './spawnerAuth';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
 
@@ -203,11 +204,11 @@ export async function postLocalServiceWithRetry<T = any>(
   timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
 ): Promise<{ data: T }> {
   try {
-    return await axios.post(url, body, { timeout: timeoutMs });
+    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
     try {
-      return await axios.post(url, body, { timeout: timeoutMs });
+      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
     } catch (retryErr: any) {
       const original = err?.message || 'local service request failed';
       const retry = retryErr?.message || 'retry failed';
@@ -227,7 +228,7 @@ function isFreshRunningEntry(entry: BoardEntry): boolean {
 }
 
 async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
-  const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, { timeout: 10000 });
+  const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, spawnerAxiosOptions(10000));
   const board = res.data?.board || {};
   return {
     running: normalizeBucket(board.running).filter(isFreshRunningEntry),
@@ -520,7 +521,7 @@ export function formatCreatorMissionValidationSummary(
 export const spawner = {
   async isAvailable(): Promise<boolean> {
     try {
-      const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, { timeout: 3000 });
+      const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, spawnerAxiosOptions(3000));
       return Array.isArray(res.data?.providers);
     } catch {
       return false;
@@ -644,7 +645,7 @@ export const spawner = {
       const query = params.toString();
       const res = await axios.get(
         `${SPAWNER_UI_URL}/api/creator/mission${query ? `?${query}` : ''}`,
-        { timeout: localServiceTimeoutMs('SPARK_CREATOR_MISSION_STATUS_TIMEOUT_MS', 30000) }
+        spawnerAxiosOptions(localServiceTimeoutMs('SPARK_CREATOR_MISSION_STATUS_TIMEOUT_MS', 30000))
       );
 
       if (res.data?.ok === false) {
@@ -714,7 +715,7 @@ export const spawner = {
           missionId,
           source: 'telegram'
         },
-        { timeout: 10000 }
+        spawnerAxiosOptions(10000)
       );
 
       if (res.data?.ok === false) {

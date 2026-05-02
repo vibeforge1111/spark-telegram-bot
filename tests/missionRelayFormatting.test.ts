@@ -9,6 +9,7 @@ import {
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
+  shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
   shouldSkipDuplicateForTests,
   shouldStopMissionHeartbeat
@@ -57,6 +58,12 @@ test('formats structured provider JSON as readable Telegram text', () => {
   assert.doesNotMatch(message, /"goal"/);
   assert.doesNotMatch(message, /exact_commands/);
   assert.doesNotMatch(message, /execution_contract/);
+});
+
+test('acknowledges relay events without Telegram delivery in smoke mode', () => {
+  assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({ TELEGRAM_SMOKE_MODE: '1' } as NodeJS.ProcessEnv), true);
+  assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({ TELEGRAM_SMOKE_MODE: '0' } as NodeJS.ProcessEnv), false);
+  assert.equal(shouldAcknowledgeRelayWithoutTelegramDelivery({} as NodeJS.ProcessEnv), false);
 });
 
 test('keeps minimal structured provider summaries compact', () => {
@@ -723,15 +730,23 @@ test('requires relay events to match registered Telegram identity', () => {
 test('reports this relay identity from env', () => {
   const originalPort = process.env.TELEGRAM_RELAY_PORT;
   const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+  const originalUrl = process.env.TELEGRAM_RELAY_URL;
   process.env.TELEGRAM_RELAY_PORT = '8789';
   process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
+  process.env.TELEGRAM_RELAY_URL = 'http://spark-telegram-bot.railway.internal:8789';
 
   try {
-    assert.deepEqual(getTelegramRelayIdentity(), { port: 8789, profile: 'spark-agi' });
+    assert.deepEqual(getTelegramRelayIdentity(), {
+      port: 8789,
+      profile: 'spark-agi',
+      url: 'http://spark-telegram-bot.railway.internal:8789/spawner-events'
+    });
   } finally {
     if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
     else process.env.TELEGRAM_RELAY_PORT = originalPort;
     if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
     else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+    if (originalUrl === undefined) delete process.env.TELEGRAM_RELAY_URL;
+    else process.env.TELEGRAM_RELAY_URL = originalUrl;
   }
 });
