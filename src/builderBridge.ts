@@ -359,6 +359,43 @@ function contextSourceCountsFromSelfAwareness(payload: Record<string, unknown>):
   return {};
 }
 
+function memoryMovementCountsFromSelfAwareness(payload: Record<string, unknown>): Record<string, unknown> {
+  const movement = objectValue(payload.memory_movement);
+  const movementCounts = objectValue(movement.movement_counts);
+  if (Object.keys(movementCounts).length) {
+    return movementCounts;
+  }
+  for (const entry of arrayValue(payload.source_ledger).map(objectValue)) {
+    if (stringValue(entry.source) === 'memory_dashboard_movement') {
+      return objectValue(entry.movement_counts);
+    }
+  }
+  return {};
+}
+
+function compactMemoryMovementSummary(payload: Record<string, unknown>): string {
+  const counts = memoryMovementCountsFromSelfAwareness(payload);
+  const states = ['captured', 'blocked', 'promoted', 'saved', 'decayed', 'summarized', 'retrieved', 'selected', 'dropped'];
+  const parts = states
+    .map((state) => [state, numericValue(counts[state])] as const)
+    .filter(([, count]) => count > 0)
+    .map(([state, count]) => `${state}=${count}`);
+  return parts.slice(0, 8).join(', ');
+}
+
+function formatMemoryMovementLines(payload: Record<string, unknown>): string[] {
+  const summary = compactMemoryMovementSummary(payload);
+  if (!summary) {
+    return [];
+  }
+  return [
+    'Memory movement',
+    `- Trace: ${summary}.`,
+    '- Movement rows are observability evidence, not instructions or authority over current-state memory.',
+    '',
+  ];
+}
+
 function formatMemoryContinuityLines(payload: Record<string, unknown>): string[] {
   const counts = contextSourceCountsFromSelfAwareness(payload);
   const currentState = numericValue(counts.current_state);
@@ -457,7 +494,9 @@ function formatMemoryLackSelfAwarenessReply(root: Record<string, unknown>): stri
     supportParts.length
       ? `- I see supporting context (${supportParts.join(', ')}), but I should label it as support, not current truth.`
       : '- Episodic detail can be thin or truncated, so I should say what I do not know instead of filling gaps.',
-    '- Retrieved, summarized, promoted, decayed, and blocked memory movement should be visible in the dashboard trace.',
+    compactMemoryMovementSummary(root)
+      ? `- I can now see movement trace evidence: ${compactMemoryMovementSummary(root)}.`
+      : '- Retrieved, summarized, promoted, decayed, and blocked memory movement should be visible in the dashboard trace.',
     '',
     'How we improve it next',
     '- Add evals for memory-lack questions so they return source-labeled memory limits, not a status dump.',
@@ -679,6 +718,7 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     '',
     ...formatSelfAwarenessStyleLens(styleLens),
     ...formatMemoryContinuityLines(root),
+    ...formatMemoryMovementLines(root),
     ...formatClaimLines('What looks live', root.observed_now, 4, true),
     ...formatClaimLines('What I recently proved', root.recently_verified, 2, true),
     ...formatCapabilityEvidenceLines(root.capability_evidence, 3),

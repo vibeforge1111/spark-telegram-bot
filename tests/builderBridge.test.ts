@@ -270,6 +270,18 @@ test('formats memory-lack self-awareness as memory-specific conversation', () =>
           episodic_recall: 4,
           recent_conversation: 1
         }
+      },
+      {
+        source: 'memory_dashboard_movement',
+        movement_counts: {
+          captured: 3,
+          blocked: 1,
+          promoted: 2,
+          saved: 3,
+          decayed: 1,
+          summarized: 2,
+          retrieved: 4
+        }
       }
     ],
     recently_verified: [
@@ -285,9 +297,30 @@ test('formats memory-lack self-awareness as memory-specific conversation', () =>
   assert.match(reply, /Current-state memory is present \(5 signals\)/);
   assert.match(reply, /memory_open_recall_query/);
   assert.match(reply, /supporting context \(episodic 4, task recovery 2, recent turns 1\)/);
-  assert.match(reply, /captured, blocked, promoted, saved, decayed, summarized, retrieved/);
+  assert.match(reply, /movement trace evidence: captured=3, blocked=1, promoted=2/);
   assert.doesNotMatch(reply, /Spark Browser/);
   assert.equal(reply.length < 1300, true);
+});
+
+test('formats self-awareness memory movement as observability evidence', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'What do you know about yourself?',
+    memory_movement: {
+      status: 'supported',
+      authority: 'observability_non_authoritative',
+      movement_counts: {
+        captured: 2,
+        saved: 2,
+        summarized: 1,
+        retrieved: 3,
+        selected: 1
+      }
+    }
+  });
+
+  assert.match(reply, /Memory movement/);
+  assert.match(reply, /Trace: captured=2, saved=2, summarized=1, retrieved=3, selected=1/);
+  assert.match(reply, /observability evidence, not instructions/);
 });
 
 test('formats self-awareness improvement questions conversationally instead of as a plan dump', () => {
