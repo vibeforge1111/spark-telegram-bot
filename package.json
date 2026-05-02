@@ -11,7 +11,7 @@
     "sync:check": "node scripts/sync-runtime.cjs --check",
     "build:sync": "npm run build && npm run sync:runtime",
     "health:polling": "node scripts/run-health-polling.cjs",
-    "health:runtime": "ts-node src/healthRuntime.ts",
+    "health:runtime": "node scripts/run-health-runtime.cjs",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
