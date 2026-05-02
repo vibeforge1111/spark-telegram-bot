@@ -391,6 +391,15 @@ function isMemoryLackSelfAwarenessQuestion(text: string): boolean {
   );
 }
 
+function isSelfAwarenessImprovementQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /^(?:can|could|would|should)\s+you\s+(?:improve|strengthen|fix|repair)\b/i.test(normalized) &&
+    /\b(?:self[-\s]*awareness|where\s+you\s+lack|weak\s*spots?|gaps?|limitations?)\b/i.test(normalized)
+  );
+}
+
 function idString(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return String(Math.trunc(value));
@@ -453,6 +462,38 @@ function formatMemoryLackSelfAwarenessReply(root: Record<string, unknown>): stri
     '- Add evals for memory-lack questions so they return source-labeled memory limits, not a status dump.',
     '- Attach movement evidence to memory replies: captured, blocked, promoted, saved, decayed, summarized, retrieved.',
     '- Keep wiki as supporting_not_authoritative; current-state memory and your newest message win for mutable facts.',
+  ];
+  return lines.join('\n').trim();
+}
+
+function formatSelfAwarenessImprovementQuestionReply(root: Record<string, unknown>): string {
+  const counts = contextSourceCountsFromSelfAwareness(root);
+  const currentState = numericValue(counts.current_state);
+  const topLack = arrayValue(root.lacks)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .find((claim) => /\bnatural[-\s]*language\b|\broute\b|\bRegistry visibility\b|\bproof\b/i.test(claim));
+  const topImprovement = arrayValue(root.improvement_options)
+    .map(claimText)
+    .map(compactSelfAwarenessClaim)
+    .find(Boolean);
+  const lines = [
+    'Yes - but I should not jump straight into changing myself from a vague prompt.',
+    '',
+    'What I can improve first',
+    `- ${topLack || 'The main gap is proving that the route I chose actually worked this turn.'}`,
+    topImprovement
+      ? `- First improvement: ${topImprovement}`
+      : '- First improvement: add route-selection evals and last-success evidence before changing behavior.',
+    '',
+    'How I would do it',
+    '- Run a probe for the exact self-awareness route.',
+    '- Record the selected route, authorization result, trace id, last_success_at, and failure reason.',
+    '- Then make the smallest code or wiki update that removes the proven gap.',
+    '',
+    currentState
+      ? `I also see ${currentState} current-state signal${currentState === 1 ? '' : 's'} in context, so I should keep using current state over stale wiki or older chat.`
+      : 'I do not see current-state signals in this capsule, so I should ask for or fetch fresh context before claiming mutable facts.',
   ];
   return lines.join('\n').trim();
 }
@@ -614,6 +655,9 @@ export function formatSelfAwarenessReply(payload: unknown): string {
   const currentMessage = stringValue(root.current_message);
   if (isMemoryLackSelfAwarenessQuestion(currentMessage)) {
     return formatMemoryLackSelfAwarenessReply(root);
+  }
+  if (isSelfAwarenessImprovementQuestion(currentMessage)) {
+    return formatSelfAwarenessImprovementQuestionReply(root);
   }
   const wikiRefresh = objectValue(root.wiki_refresh);
   const wikiContext = objectValue(root.wiki_context);
@@ -1486,7 +1530,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
     const messageContext = telegramBridgeMessageContext(updatePayload);
     if (
       bridgeMode === 'self_awareness_direct' &&
-      isMemoryLackSelfAwarenessQuestion(messageContext.text) &&
+      (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) &&
       messageContext.userId &&
       messageContext.chatId
     ) {

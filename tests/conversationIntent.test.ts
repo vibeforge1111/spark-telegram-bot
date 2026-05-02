@@ -660,7 +660,7 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(
     extractSparkSelfImprovementGoal('Can you improve where you lack in self-awareness?'),
-    'improve where you lack in self-awareness'
+    null
   );
   assert.equal(
     extractSparkSelfImprovementGoal('Where does your memory still lack right now, and how would we improve it?'),

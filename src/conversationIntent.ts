@@ -170,6 +170,9 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   ) {
     return null;
   }
+  if (/^(?:can|could|would|should)\s+you\s+improve\b/i.test(normalized)) {
+    return null;
+  }
   const mentionsSparkSelf =
     /\b(?:spark|you|your|agent|self[-\s]*awareness|introspection|capabilit(?:y|ies)|tools?|routes?|systems?)\b/i.test(normalized);
   const mentionsImprove =

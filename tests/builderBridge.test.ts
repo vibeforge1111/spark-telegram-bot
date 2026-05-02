@@ -290,6 +290,34 @@ test('formats memory-lack self-awareness as memory-specific conversation', () =>
   assert.equal(reply.length < 1300, true);
 });
 
+test('formats self-awareness improvement questions conversationally instead of as a plan dump', () => {
+  const reply = formatSelfAwarenessReply({
+    current_message: 'Can you improve where you lack in self-awareness?',
+    source_ledger: [
+      {
+        source: 'context_capsule',
+        source_counts: {
+          current_state: 4
+        }
+      }
+    ],
+    lacks: [
+      { claim: 'Natural-language invocability is only real when a user phrase maps to a route that exists, is authorized, and emits traceable evidence.' }
+    ],
+    improvement_options: [
+      { claim: "Add eval cases for 'improve this weak spot', stale status traps, and capability overclaim traps." }
+    ]
+  });
+
+  assert.match(reply, /Yes - but I should not jump straight into changing myself/);
+  assert.match(reply, /What I can improve first/);
+  assert.match(reply, /Run a probe for the exact self-awareness route/);
+  assert.match(reply, /current-state/);
+  assert.doesNotMatch(reply, /Priority actions/);
+  assert.doesNotMatch(reply, /Mode: plan_only_probe_first/);
+  assert.equal(reply.length < 1000, true);
+});
+
 test('formats self-improvement plan as probe-first actions', () => {
   const reply = formatSelfImprovementPlanReply({
     summary: 'I found 3 improvement actions from the live self-awareness capsule with supporting wiki context.',
