@@ -122,6 +122,36 @@ test('filters wiki diagnostic packets from conversational cold memory', () => {
   assert.doesNotMatch(formatted.contextText, /wiki_packets|Diagnostic Report/);
 });
 
+test('filters stale operational failures from conversational cold memory', () => {
+  const formatted = formatConversationColdMemoryContext({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: [
+            {
+              lane: 'recent_conversation',
+              source_class: 'recent_conversation',
+              predicate: 'raw_turn',
+              text: 'Spark could not reach the Builder memory path right now. Reason: Command failed: C:\\Python313\\python.exe -c import runpy, sys; runpy.run_module("spark_intelligence.cli", run_name="main")'
+            },
+            {
+              lane: 'evidence',
+              source_class: 'evidence',
+              predicate: 'memory.work',
+              text: 'We were improving source-aware episodic recall and testing current versus supporting context.'
+            }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(formatted.sourceCount, 1);
+  assert.match(formatted.contextText, /source-aware episodic recall/);
+  assert.doesNotMatch(formatted.contextText, /Builder memory path|Command failed|runpy/);
+});
+
 test('keeps cold memory prompt context bounded and source counted', () => {
   const result = formatConversationColdMemoryContext({
     context_packet: {

@@ -436,10 +436,20 @@ export function compactColdMemoryQuery(text: string, maxChars = 1600): string {
 function shouldIncludeColdMemoryItem(item: Record<string, unknown>): boolean {
   const lane = stringValue(item.lane);
   const sourceClass = stringValue(item.source_class);
-  if (!lane || !stringValue(item.text)) {
+  const text = stringValue(item.text);
+  const lowerText = text.toLowerCase();
+  if (!lane || !text) {
     return false;
   }
   if (lane === 'wiki_packets' || sourceClass === 'obsidian_llm_wiki_packets') {
+    return false;
+  }
+  if (
+    lowerText.includes('spark could not reach the builder memory path') ||
+    lowerText.includes('spark builder failure: builder_or_memory') ||
+    lowerText.includes('command failed:') ||
+    lowerText.includes('runpy.run_module(')
+  ) {
     return false;
   }
   return true;
