@@ -807,7 +807,7 @@ test('requires relay events to match registered Telegram identity', () => {
   }, subscription), false);
 });
 
-test('normal relay surfaces hosted preview generation progress', () => {
+test('suppresses hosted preview generation progress in Telegram', () => {
   const message = formatProgressMessageForTelegram(
     {
       type: 'task_progress',
@@ -832,8 +832,7 @@ test('normal relay surfaces hosted preview generation progress', () => {
     'board'
   );
 
-  assert.match(message || '', /Spark is preparing the preview\./);
-  assert.match(message || '', /generating compact project files/);
+  assert.equal(message, null);
 });
 
 test('completion can withhold an unreachable hosted preview link', () => {
