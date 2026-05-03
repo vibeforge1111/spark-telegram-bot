@@ -256,6 +256,39 @@ test('uses the public Spawner URL for mission surface links when configured', ()
   }
 });
 
+test('uses the public Spawner URL for generated project preview links when configured', () => {
+  const originalPreviewUrl = process.env.SPARK_PROJECT_PREVIEW_URL;
+  const originalInternalUrl = process.env.SPAWNER_UI_URL;
+  const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+  delete process.env.SPARK_PROJECT_PREVIEW_URL;
+  process.env.SPAWNER_UI_URL = 'http://spawner-ui.railway.internal:3000';
+  process.env.SPAWNER_UI_PUBLIC_URL = 'https://spark-spawner-test.up.railway.app/';
+
+  try {
+    const message = formatProviderCompletionForTelegram({
+      providerLabel: 'zai',
+      missionId: 'spark-preview-public',
+      verbosity: 'normal',
+      response: JSON.stringify({
+        summary: 'Built the hosted page.',
+        status: 'completed',
+        project_path: '/data/workspaces/mission-1-cafe'
+      })
+    });
+
+    assert.match(message, /Open it here:\nhttps:\/\/spark-spawner-test\.up\.railway\.app\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+    assert.doesNotMatch(message, /127\.0\.0\.1:5555/);
+    assert.doesNotMatch(message, /spawner-ui\.railway\.internal/);
+  } finally {
+    if (originalPreviewUrl === undefined) delete process.env.SPARK_PROJECT_PREVIEW_URL;
+    else process.env.SPARK_PROJECT_PREVIEW_URL = originalPreviewUrl;
+    if (originalInternalUrl === undefined) delete process.env.SPAWNER_UI_URL;
+    else process.env.SPAWNER_UI_URL = originalInternalUrl;
+    if (originalPublicUrl === undefined) delete process.env.SPAWNER_UI_PUBLIC_URL;
+    else process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+  }
+});
+
 test('mission start update links the mission once through kanban', () => {
   const message = formatProgressMessageForTelegram(
     {

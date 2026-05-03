@@ -681,7 +681,12 @@ function localIndexLink(projectPath: string | null): string | null {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555').replace(/\/+$/, '');
+  const baseUrl =
+    process.env.SPARK_PROJECT_PREVIEW_URL ||
+    process.env.SPAWNER_UI_PUBLIC_URL ||
+    process.env.SPAWNER_UI_URL ||
+    'http://127.0.0.1:5555';
+  return baseUrl.replace(/\/+$/, '');
 }
 
 function projectPreviewLink(projectPath: string | null): string | null {
@@ -713,9 +718,11 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
+  const uiKey = process.env.SPARK_UI_API_KEY?.trim();
   try {
     const response = await fetch(url, {
       method: 'GET',
+      headers: uiKey ? { 'x-spawner-ui-key': uiKey } : undefined,
       signal: controller.signal
     });
     return response.ok;
