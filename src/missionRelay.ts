@@ -1010,6 +1010,9 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
   if (event.type === 'mission_started' && relayEventHasPlannedTasks(event)) {
     return false;
   }
+  if (event.type === 'task_progress' && relayEventKind(event) === 'artifact_generation') {
+    return false;
+  }
   if (event.type === 'mission_created' || event.type === 'dispatch_started') {
     return false;
   }
@@ -1017,7 +1020,6 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
     return event.type === 'mission_started' || event.type === 'mission_completed';
   }
   if (verbosity === 'normal') {
-    if (event.type === 'task_progress' && relayEventKind(event) === 'artifact_generation') return true;
     return ['mission_started', 'task_started', 'task_completed', 'mission_completed'].includes(event.type);
   }
   return [
@@ -1073,12 +1075,6 @@ export function formatProgressMessageForTelegram(
     case 'progress':
     case 'provider_feedback':
     case 'log':
-      if (relayEventKind(event) === 'artifact_generation') {
-        return compactTelegramBlocks(
-          'Spark is preparing the preview.',
-          usefulProgressSummary(message, taskLabel) || 'The model is generating project files. I will send the preview when it is ready.'
-        );
-      }
       const useful = usefulProgressSummary(message, taskLabel);
       if (!useful) return null;
       return compactTelegramBlocks(
