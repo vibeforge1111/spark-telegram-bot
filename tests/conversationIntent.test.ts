@@ -244,6 +244,13 @@ test('keeps memory quality dashboard scoping in conversation instead of board re
   assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
 });
 
+test('keeps memory movement dashboard probes out of local Spawner routing', () => {
+  const prompt = 'show me what memory movement the dashboard should reveal after this conversation';
+
+  assert.equal(isLocalSparkServiceRequest(prompt, 'Completed Spawner mission spark-123'), false);
+  assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
+});
+
 test('answers diagnostic follow-up testing questions from mission context', () => {
   assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
   const reply = buildDiagnosticFollowupTestReply(

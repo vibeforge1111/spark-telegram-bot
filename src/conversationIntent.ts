@@ -490,6 +490,12 @@ function isProjectLocalhostRequest(normalized: string): boolean {
     !/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized);
 }
 
+function isMemoryDashboardTraceabilityRequest(normalized: string): boolean {
+  return /\bmemory\b/.test(normalized) &&
+    /\b(?:movement|trace|traceability|lifecycle|captured|blocked|promoted|saved|decayed|summarized|retrieved|selected|dropped)\b/.test(normalized) &&
+    /\b(?:dashboard|show|reveal|surface|visible|evidence|rows?)\b/.test(normalized);
+}
+
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
   if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
@@ -507,6 +513,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   }
 
   const normalized = text.trim().toLowerCase();
+  if (isMemoryDashboardTraceabilityRequest(normalized)) {
+    return false;
+  }
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
