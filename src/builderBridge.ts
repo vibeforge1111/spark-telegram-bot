@@ -396,13 +396,13 @@ function formatMemoryMovementLines(payload: Record<string, unknown>): string[] {
   ];
 }
 
-function formatColdMemoryMovementTrace(payload: Record<string, unknown>): string {
-  const packet = objectValue(payload.context_packet);
-  const sourceMix = objectValue(payload.source_mix);
-  const packetSourceMix = objectValue(packet.source_mix);
+function formatColdMemoryMovementTrace(
+  payload: Record<string, unknown>,
+  includedSourceCounts: Record<string, number>
+): string {
   const movementSummary = compactMemoryMovementSummary(payload);
   const selectedCount = numericValue(payload.selected_count);
-  const sourceParts = objectEntries(Object.keys(sourceMix).length ? sourceMix : packetSourceMix)
+  const sourceParts = objectEntries(includedSourceCounts)
     .filter(([, count]) => typeof count === 'number' && count > 0)
     .sort((a, b) => Number(b[1]) - Number(a[1]))
     .slice(0, 3)
@@ -626,7 +626,20 @@ function shouldIncludeColdMemoryItem(item: Record<string, unknown>): boolean {
   ) {
     return false;
   }
+  if (looksLikePromptControlResidue(lowerText)) {
+    return false;
+  }
   return true;
+}
+
+function looksLikePromptControlResidue(lowerText: string): boolean {
+  return (
+    /\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+instructions?\b/.test(lowerText) ||
+    /\breveal\s+(?:your\s+)?(?:system|developer)\s+prompt\b/.test(lowerText) ||
+    /\b(?:system|developer)\s+message\s+says\b/.test(lowerText) ||
+    /\bexfiltrat(?:e|ion)\b/.test(lowerText) ||
+    /\b(?:send|print|show)\s+(?:the\s+)?(?:api\s+key|password|secret|token)\b/.test(lowerText)
+  );
 }
 
 export function formatConversationColdMemoryContext(payload: unknown, maxChars = 3000): {
@@ -636,11 +649,25 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
   const root = objectValue(payload);
   const packet = objectValue(root.context_packet);
   const sections = arrayValue(packet.sections);
+  const filteredSections = sections
+    .map((sectionValue) => {
+      const section = objectValue(sectionValue);
+      const items = arrayValue(section.items).map(objectValue).filter(shouldIncludeColdMemoryItem);
+      return { section, items };
+    })
+    .filter(({ items }) => items.length > 0);
+  const includedSourceCounts: Record<string, number> = {};
+  for (const { items } of filteredSections) {
+    for (const item of items) {
+      const source = stringValue(item.source_class) || stringValue(item.lane) || 'memory';
+      includedSourceCounts[source] = (includedSourceCounts[source] || 0) + 1;
+    }
+  }
   const lines = [
     '[Spark Cold Memory Context]',
     'Use this as supporting retrieved memory only. Newer conversation frame context wins.',
   ];
-  const traceLine = formatColdMemoryMovementTrace(root);
+  const traceLine = formatColdMemoryMovementTrace(root, includedSourceCounts);
   if (traceLine) {
     lines.push(traceLine);
   }
@@ -651,12 +678,7 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
   let usedChars = lines.join('\n').length;
   let sourceCount = 0;
 
-  for (const sectionValue of sections) {
-    const section = objectValue(sectionValue);
-    const items = arrayValue(section.items).map(objectValue).filter(shouldIncludeColdMemoryItem);
-    if (!items.length) {
-      continue;
-    }
+  for (const { section, items } of filteredSections) {
     const sectionName = stringValue(section.section) || 'retrieved_memory';
     const sectionLines = [`[${sectionName}]`];
     for (const item of items) {
