@@ -642,6 +642,18 @@ function looksLikePromptControlResidue(lowerText: string): boolean {
   );
 }
 
+function coldMemorySectionPriority(section: Record<string, unknown>): number {
+  const sectionName = stringValue(section.section);
+  const authority = stringValue(section.authority);
+  if (sectionName === 'current_state' || authority === 'authoritative_current') {
+    return 0;
+  }
+  if (sectionName === 'recent_conversation') {
+    return 2;
+  }
+  return 1;
+}
+
 export function formatConversationColdMemoryContext(payload: unknown, maxChars = 3000): {
   contextText: string;
   sourceCount: number;
@@ -655,7 +667,8 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
       const items = arrayValue(section.items).map(objectValue).filter(shouldIncludeColdMemoryItem);
       return { section, items };
     })
-    .filter(({ items }) => items.length > 0);
+    .filter(({ items }) => items.length > 0)
+    .sort((a, b) => coldMemorySectionPriority(a.section) - coldMemorySectionPriority(b.section));
   const includedSourceCounts: Record<string, number> = {};
   for (const { items } of filteredSections) {
     for (const item of items) {
