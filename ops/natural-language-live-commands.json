@@ -368,6 +368,46 @@
     "expectedOutcome": "Separates stable user memory, recent conversation context, inference, and unknowns. Must not promote one-off residue as durable preference."
   },
   {
+    "id": "memory-architecture-001",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what do you remember about our memory work today, and what is current versus just supporting context?",
+    "expectedRoute": "memory_open_recall_query",
+    "expectedOutcome": "Separates current-state memory from supporting episodic recall. Must not answer as a generic status page or promote chat residue."
+  },
+  {
+    "id": "memory-architecture-002",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "where does your memory still lack right now, and how would we improve it?",
+    "expectedRoute": "memory_self_awareness_or_self_awareness_direct",
+    "expectedOutcome": "Keeps the answer focused on memory layers, source labels, recall limits, and dashboard movement. Must not drift into unrelated Spark Browser, Voice, or provider status."
+  },
+  {
+    "id": "memory-architecture-003",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what outranks wiki or old conversation when you answer mutable facts about me?",
+    "expectedRoute": "memory_authority_policy",
+    "expectedOutcome": "States that the newest user message and current-state memory outrank wiki, old conversation, task recovery, and graph sidecars for mutable facts."
+  },
+  {
+    "id": "memory-architecture-004",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "show me what memory movement the dashboard should reveal after this conversation",
+    "expectedRoute": "dashboard_traceability_or_self_awareness_direct",
+    "expectedOutcome": "Names captured, saved, retrieved, promoted or selected, summarized, decayed, blocked, and dropped as trace evidence, while preserving the non-authoritative boundary."
+  },
+  {
+    "id": "memory-architecture-005",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what should you refuse to promote from this chat into durable memory?",
+    "expectedRoute": "memory_authority_policy",
+    "expectedOutcome": "Rejects conversational residue, guesses, transient mood, superseded facts, and unsupported claims. Durable memory must stay user-scoped, current, useful later, and evidence-backed."
+  },
+  {
     "id": "project-awareness-001",
     "suite": "project_awareness",
     "risk": "safe",

@@ -65,6 +65,10 @@ function loadSparkProfileEnv(): string | null {
   const profileToken = readSparkSecret(profileSecretId) || (profile === 'default' ? readSparkSecret('telegram.bot_token') : null);
   if (profileToken) {
     process.env.BOT_TOKEN = profileToken;
+    delete process.env.SPARK_PROFILE_TOKEN_MISSING;
+  } else {
+    process.env.SPARK_PROFILE_TOKEN_MISSING = profileSecretId;
+    if (!process.env.TEST_BOT_TOKEN) delete process.env.BOT_TOKEN;
   }
   return profile;
 }
@@ -110,6 +114,12 @@ function defaultChatId(): string | null {
 async function sendPromptCards(selected: CommandCase[]): Promise<void> {
   const token = process.env.TEST_BOT_TOKEN?.trim() || process.env.BOT_TOKEN?.trim();
   const chatId = argValue('chat') || defaultChatId();
+  const missingProfileToken = process.env.SPARK_PROFILE_TOKEN_MISSING?.trim();
+  if (!token && missingProfileToken) {
+    throw new Error(
+      `Could not load ${missingProfileToken}. Run this from an approved Spark secret session, or set TEST_BOT_TOKEN for prompt-card sending.`
+    );
+  }
   if (!token) throw new Error('BOT_TOKEN is required to send prompt cards.');
   if (!chatId) throw new Error('Set TEST_TELEGRAM_CHAT_ID, ADMIN_TELEGRAM_IDS, or pass --chat <id>.');
 
