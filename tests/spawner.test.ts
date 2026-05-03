@@ -25,6 +25,7 @@ const originalPost = axios.post;
 const originalPort = process.env.TELEGRAM_RELAY_PORT;
 const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+const originalUiKey = process.env.SPARK_UI_API_KEY;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -38,6 +39,8 @@ function restoreEnv(): void {
   else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
   if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
   else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+  if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
+  else process.env.SPARK_UI_API_KEY = originalUiKey;
 }
 
 async function run(): Promise<void> {
@@ -46,6 +49,7 @@ async function run(): Promise<void> {
     process.env.TELEGRAM_RELAY_PORT = '8799';
     process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
     process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
+    process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
 
     let capturedUrl = '';
     let capturedBody: any = null;
@@ -89,7 +93,7 @@ async function run(): Promise<void> {
     });
     assert.equal(capturedOptions.timeout, 1800000);
     assert.equal(capturedOptions.headers['x-api-key'], 'bridge-secret-for-tests');
-    assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'bridge-secret-for-tests');
+    assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
   });
 
   await test('runGoal retries once when local Spawner request times out', async () => {
