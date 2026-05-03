@@ -745,6 +745,55 @@ test('requires relay events to match registered Telegram identity', () => {
   }, subscription), false);
 });
 
+test('normal relay surfaces hosted preview generation progress', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_progress',
+      missionId: 'spark-preview',
+      taskName: 'zai',
+      message: 'Z.AI GLM is generating compact project files for the hosted preview.',
+      data: {
+        kind: 'artifact_generation',
+        provider: 'zai',
+        providerLabel: 'Z.AI GLM'
+      }
+    },
+    {
+      missionId: 'spark-preview',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-preview-1',
+      goal: 'Build a cafe page.',
+      createdAt: '2026-05-03T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Spark is preparing the preview\./);
+  assert.match(message || '', /generating compact project files/);
+});
+
+test('completion can withhold an unreachable hosted preview link', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'zai',
+    missionId: 'spark-preview-pending',
+    verbosity: 'normal',
+    openLink: null,
+    previewPending: true,
+    response: JSON.stringify({
+      summary: 'Built the cafe landing page.',
+      status: 'completed',
+      project_path: '/data/workspaces/mission-1-cafe'
+    })
+  });
+
+  assert.match(message, /Built the cafe landing page\./);
+  assert.match(message, /Preview is still preparing\. Use the Mission board for now\./);
+  assert.doesNotMatch(message, /Open it here:/);
+  assert.doesNotMatch(message, /\/preview\//);
+});
+
 test('reports this relay identity from env', () => {
   const originalPort = process.env.TELEGRAM_RELAY_PORT;
   const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
