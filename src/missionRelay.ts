@@ -696,6 +696,45 @@ function projectOpenLink(projectPath: string | null): string | null {
   return projectPreviewLink(projectPath) || localIndexLink(projectPath);
 }
 
+function relayStringField(data: Record<string, unknown> | undefined, field: string): string | null {
+  if (!data || typeof data[field] !== 'string') return null;
+  const value = data[field].trim();
+  return value || null;
+}
+
+function projectPathFromEvent(event: DeliverableRelayEvent): string | null {
+  return relayStringField(event.data, 'projectPath') || relayStringField(event.data, 'project_path');
+}
+
+function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
+  return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
+}
+
+async function httpPreviewIsReachable(url: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readyProjectOpenLinkFromEvent(event: DeliverableRelayEvent): Promise<string | null> {
+  const openLink = previewLinkFromEvent(event) || projectOpenLink(projectPathFromEvent(event));
+  if (!openLink) return null;
+  if (/^https?:\/\//i.test(openLink)) {
+    return await httpPreviewIsReachable(openLink) ? openLink : null;
+  }
+  return openLink;
+}
+
 function openProjectLines(openLink: string | null): string[] {
   return openLink ? ['Open it here:', openLink] : [];
 }
@@ -834,6 +873,8 @@ export function formatProviderCompletionForTelegram(input: {
   requestId?: string;
   goal?: string;
   verbosity?: TelegramRelayVerbosity;
+  openLink?: string | null;
+  previewPending?: boolean;
 }): string {
   const provider = humanizeProviderLabel(input.providerLabel);
   const verbosity = input.verbosity || 'normal';
@@ -850,7 +891,7 @@ export function formatProviderCompletionForTelegram(input: {
       ].join('\n');
     }
     const projectPath = extractProjectPathFromText(input.response);
-    const openLink = projectOpenLink(projectPath);
+    const openLink = input.openLink !== undefined ? input.openLink : projectOpenLink(projectPath);
     const shipped = extractSectionBullets(input.response, /^What shipped:/i, 4);
     const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
     const lead = extractFreeformLeadSummary(input.response);
@@ -858,6 +899,8 @@ export function formatProviderCompletionForTelegram(input: {
     if (lead) lines.push('', lead);
     if (openLink) {
       lines.push('', ...openProjectLines(openLink));
+    } else if (projectPath && input.previewPending) {
+      lines.push('', 'Preview is still preparing. Use the Mission board for now.');
     }
     if (shipped.length > 0) {
       lines.push('', 'What shipped:', ...shipped.map((item) => `- ${item}`));
@@ -886,6 +929,7 @@ export function formatProviderCompletionForTelegram(input: {
   const status = stringField(parsed, 'status');
   const summary = stringField(parsed, 'summary') || stringField(parsed, 'message');
   const projectPath = stringField(parsed, 'project_path') || stringField(parsed, 'projectPath');
+  const openLink = input.openLink !== undefined ? input.openLink : projectOpenLink(projectPath);
   const verification = stringArray(parsed.verification);
   const nextActions = stringArray(parsed.next_actions || parsed.nextActions);
 
@@ -893,7 +937,7 @@ export function formatProviderCompletionForTelegram(input: {
     return [
       voiceLine(status && ['failed', 'error', 'blocked'].includes(status.toLowerCase()) ? 'failed' : 'completed', `${input.missionId}:${provider}:minimal`),
       summary ? clipText(summary, 240) : null,
-      projectPath ? openProjectLines(projectOpenLink(projectPath) || projectPath).join('\n') : null,
+      openLink ? openProjectLines(openLink).join('\n') : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
   }
@@ -905,8 +949,10 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push('', `Goal: ${clipText(input.goal, 260)}`);
   }
 
-  if (projectPath) {
-    lines.push('', ...openProjectLines(projectOpenLink(projectPath) || projectPath));
+  if (openLink) {
+    lines.push('', ...openProjectLines(openLink));
+  } else if (projectPath && input.previewPending) {
+    lines.push('', 'Preview is still preparing. Use the Mission board for now.');
   }
 
   if (verification.length > 0) {
@@ -921,7 +967,7 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
   }
 
-  if (projectPath && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
+  if (openLink && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
     lines.push('', nextPolishLine());
   }
 
@@ -942,6 +988,10 @@ function extractProviderFailure(event: DeliverableRelayEvent): { providerLabel: 
   return { providerLabel: providerLabelFrom(event), error };
 }
 
+function relayEventKind(event: DeliverableRelayEvent): string | null {
+  return typeof event.data?.kind === 'string' ? event.data.kind : null;
+}
+
 function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: TelegramRelayVerbosity): boolean {
   if (event.type === 'mission_failed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     return true;
@@ -953,6 +1003,7 @@ function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: Tel
     return event.type === 'mission_started' || event.type === 'mission_completed';
   }
   if (verbosity === 'normal') {
+    if (event.type === 'task_progress' && relayEventKind(event) === 'artifact_generation') return true;
     return ['mission_started', 'task_started', 'task_completed', 'mission_completed'].includes(event.type);
   }
   return [
@@ -1008,6 +1059,12 @@ export function formatProgressMessageForTelegram(
     case 'progress':
     case 'provider_feedback':
     case 'log':
+      if (relayEventKind(event) === 'artifact_generation') {
+        return compactTelegramBlocks(
+          'Spark is preparing the preview.',
+          usefulProgressSummary(message, taskLabel) || 'The model is generating project files. I will send the preview when it is ready.'
+        );
+      }
       const useful = usefulProgressSummary(message, taskLabel);
       if (!useful) return null;
       return compactTelegramBlocks(
@@ -1435,13 +1492,17 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         const extracted = extractProviderResponse(event);
         if (extracted) {
           clearHeartbeatForMission(event.missionId);
+          const hasProjectLink = !!(previewLinkFromEvent(event) || projectPathFromEvent(event));
+          const openLink = hasProjectLink ? await readyProjectOpenLinkFromEvent(event) : undefined;
           const message = formatProviderCompletionForTelegram({
             providerLabel: extracted.providerLabel,
             response: extracted.response,
             missionId: event.missionId,
             requestId: subscription.requestId,
             goal: subscription.goal,
-            verbosity
+            verbosity,
+            openLink,
+            previewPending: hasProjectLink && !openLink
           });
           const chunks = chunkForTelegram(message);
           for (let i = 0; i < chunks.length; i++) {
