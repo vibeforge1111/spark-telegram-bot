@@ -30,7 +30,7 @@ import {
 } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
-import { sanitizeAndSplitTelegramText } from './outboundSanitize';
+import { sanitizeAndSplitTelegramText, withQuietTelegramLinks } from './outboundSanitize';
 import { installConsoleRedaction } from './redaction';
 import {
   formatCreatorMissionExecutionSummary,
@@ -216,8 +216,9 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
 
   const chunks = sanitizeAndSplitTelegramText(text);
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
+  const quietExtra = withQuietTelegramLinks(extra);
   for (const chunk of chunks) {
-    lastDelivery = await _origSendMessage(chatId, chunk, extra);
+    lastDelivery = await _origSendMessage(chatId, chunk, quietExtra);
     recordNodeOutboundDelivery(chatId, chunk);
   }
   return lastDelivery!;
@@ -232,8 +233,9 @@ bot.use(async (ctx, next) => {
 
     const chunks = sanitizeAndSplitTelegramText(text);
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
+    const quietExtra = withQuietTelegramLinks(extra);
     for (const chunk of chunks) {
-      lastReply = await originalReply(chunk, extra);
+      lastReply = await originalReply(chunk, quietExtra);
     }
     return lastReply!;
   }) as typeof ctx.reply;

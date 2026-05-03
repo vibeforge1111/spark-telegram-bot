@@ -577,7 +577,8 @@ test('formats mission heartbeat as useful work narration', () => {
     }
   });
 
-  assert.match(message, /(?:Still working|Still with it|The run is still active|No handoff yet)\./);
+  assert.ok(message);
+  assert.match(message, /(?:Still working|Still with it|The run is still active)\./);
   assert.match(message, /Checkpoint:/);
   assert.match(message, /reviewing the telemetry relay and writing focused tests/);
   assert.match(message, /Focus:\nReview relay updates/);
@@ -602,6 +603,7 @@ test('suppresses low-signal mission heartbeat summaries', () => {
     }
   });
 
+  assert.ok(message);
   assert.match(message, /No new checkpoint yet/);
   assert.doesNotMatch(message, /Elapsed:/);
   assert.match(message, /Mission: spark-123/);
@@ -624,9 +626,29 @@ test('suppresses provider stopwatch heartbeat summaries', () => {
     }
   });
 
+  assert.ok(message);
   assert.match(message, /No new checkpoint yet/);
   assert.doesNotMatch(message, /working through 4 task pack/);
   assert.doesNotMatch(message, /estimate adjusting/);
+});
+
+test('suppresses normal heartbeats when there is no useful checkpoint', () => {
+  const message = formatMissionHeartbeatForTelegram({
+    missionId: 'spark-123',
+    goal: 'Build a Spark diagnostic chip.',
+    taskLabel: 'Create app shell',
+    elapsedMs: 180_000,
+    verbosity: 'normal',
+    snapshot: {
+      missionId: 'spark-123',
+      status: 'running',
+      lastEventType: 'task_progress',
+      lastSummary: '[MissionControl] Progress: OpenAI Codex is working through 4 task pack (2m 20s elapsed; estimate adjusting) (spark-123).',
+      taskName: 'Create app shell'
+    }
+  });
+
+  assert.equal(message, null);
 });
 
 test('stops mission heartbeats for terminal or stale runs', () => {

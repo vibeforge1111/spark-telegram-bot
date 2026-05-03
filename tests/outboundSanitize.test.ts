@@ -5,7 +5,8 @@ import {
   sanitizeOutbound,
   splitTelegramText,
   TELEGRAM_SAFE_MESSAGE_LIMIT,
-  stripMarkdownEmphasis
+  stripMarkdownEmphasis,
+  withQuietTelegramLinks
 } from '../src/outboundSanitize';
 
 function test(name: string, fn: () => void): void {
@@ -124,4 +125,18 @@ test('sanitizes before chunking Telegram reply text', () => {
   assert.equal(chunks.every((chunk) => chunk.length <= 360), true);
   assert.doesNotMatch(chunks.join('\n'), /\*\*|\u2014/);
   assert.match(chunks.join('\n'), /Section 24/);
+});
+
+test('disables Telegram link previews while preserving extra options', () => {
+  const extra = withQuietTelegramLinks({
+    parse_mode: 'HTML',
+    link_preview_options: {
+      url: 'https://spawner-ui-production.up.railway.app/kanban'
+    }
+  });
+
+  assert.equal(extra.disable_web_page_preview, true);
+  assert.equal(extra.parse_mode, 'HTML');
+  assert.equal(extra.link_preview_options.url, 'https://spawner-ui-production.up.railway.app/kanban');
+  assert.equal(extra.link_preview_options.is_disabled, true);
 });

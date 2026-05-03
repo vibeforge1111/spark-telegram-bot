@@ -541,8 +541,7 @@ const VOICE_LINES = {
   heartbeat: [
     'Still working.',
     'Still with it.',
-    'The run is still active.',
-    'No handoff yet.'
+    'The run is still active.'
   ],
   completed: [
     '✨ Spark shipped it.',
@@ -1111,7 +1110,7 @@ export function formatMissionHeartbeatForTelegram(input: {
   elapsedMs: number;
   verbosity: TelegramRelayVerbosity;
   snapshot?: MissionBoardEntry | null;
-}): string {
+}): string | null {
   const taskLabel = clipText(input.snapshot?.taskName || input.taskLabel || 'the build', 120);
   const summary = input.snapshot?.lastSummary
     ? usefulProgressSummary(input.snapshot.lastSummary, taskLabel)
@@ -1122,6 +1121,9 @@ export function formatMissionHeartbeatForTelegram(input: {
   if (summary) {
     lines.push(voiceLine('heartbeat', `${input.missionId}:${summary}`), '', 'Checkpoint:', summary);
   } else {
+    if (input.verbosity !== 'verbose') {
+      return null;
+    }
     lines.push(voiceLine('heartbeat', `${input.missionId}:${taskLabel}`), '', 'No new checkpoint yet.');
   }
 
@@ -1191,6 +1193,9 @@ function scheduleHeartbeat(
       verbosity,
       snapshot
     });
+    if (!message) {
+      return;
+    }
     if (heartbeatLastMessages.get(key) === message) {
       return;
     }

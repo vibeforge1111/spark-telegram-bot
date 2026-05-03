@@ -115,3 +115,19 @@ export function splitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE
 export function sanitizeAndSplitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
   return splitTelegramText(sanitizeOutbound(text), maxChars);
 }
+
+export function withQuietTelegramLinks(extra?: Record<string, any>): Record<string, any> {
+  const linkPreviewOptions =
+    extra?.link_preview_options && typeof extra.link_preview_options === 'object'
+      ? extra.link_preview_options
+      : {};
+
+  return {
+    ...(extra || {}),
+    disable_web_page_preview: true,
+    link_preview_options: {
+      ...linkPreviewOptions,
+      is_disabled: true
+    }
+  };
+}
