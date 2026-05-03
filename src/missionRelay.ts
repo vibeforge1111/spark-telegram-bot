@@ -999,9 +999,16 @@ function relayEventKind(event: DeliverableRelayEvent): string | null {
   return typeof event.data?.kind === 'string' ? event.data.kind : null;
 }
 
+function relayEventHasPlannedTasks(event: DeliverableRelayEvent): boolean {
+  return Array.isArray(event.data?.plannedTasks) && event.data.plannedTasks.length > 0;
+}
+
 function shouldDeliverProgressEvent(event: DeliverableRelayEvent, verbosity: TelegramRelayVerbosity): boolean {
   if (event.type === 'mission_failed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     return true;
+  }
+  if (event.type === 'mission_started' && relayEventHasPlannedTasks(event)) {
+    return false;
   }
   if (event.type === 'mission_created' || event.type === 'dispatch_started') {
     return false;
