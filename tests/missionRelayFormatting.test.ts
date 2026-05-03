@@ -318,6 +318,35 @@ test('mission start update links the mission once through kanban', () => {
   assert.doesNotMatch(message || '', /\/missions/);
 });
 
+test('suppresses late mission start after canvas tasks are already planned', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'mission_started',
+      missionId: 'mission-planned',
+      taskName: 'Create the static app shell',
+      data: {
+        requestId: 'tg-build-1',
+        plannedTasks: [
+          { title: 'Create the static app shell' },
+          { title: 'Implement the core interaction and state' }
+        ]
+      }
+    },
+    {
+      missionId: 'mission-planned',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a cafe page.',
+      createdAt: '2026-05-03T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.equal(message, null);
+});
+
 test('verbose mission start does not paste the whole build brief', () => {
   const message = formatProgressMessageForTelegram(
     {
