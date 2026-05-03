@@ -43,6 +43,7 @@ import {
 } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
+import { spawnerAxiosOptions } from './spawnerAuth';
 import {
   isLocalWorkspaceInspectionOnlyRequest,
   renderLocalWorkspaceInspectionReply,
@@ -680,13 +681,13 @@ function startPrdCanvasReadyNotifier(args: {
           heartbeatIndex += 1;
         }
 
-        const poll = await axios.get(resultUrl, { timeout: 3000 });
+        const poll = await axios.get(resultUrl, spawnerAxiosOptions(3000));
         if (poll.data?.found && poll.data?.result?.success) {
           try {
             const queue = await axios.post(
               `${args.spawnerUrl}/api/prd-bridge/load-to-canvas`,
               { requestId: args.requestId, missionId: args.missionId, autoRun: true, telegramRelay: getTelegramRelayIdentity() },
-              { timeout: 8000 }
+              spawnerAxiosOptions(8000)
             );
             const taskCount = queue.data?.taskCount;
             const readyCanvasUrl = queue.data?.canvasUrl
