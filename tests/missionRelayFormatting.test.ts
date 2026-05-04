@@ -351,6 +351,32 @@ test('normal verbosity announces task starts but suppresses noisy progress', () 
   assert.equal(noisyProgress, null);
 });
 
+test('task start hides provider-only labels in normal Telegram updates', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'task_started',
+      missionId: 'spark-123',
+      taskId: 'task-1',
+      taskName: 'zai',
+      data: {}
+    },
+    {
+      missionId: 'spark-123',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-1',
+      goal: 'Build a tiny page.',
+      createdAt: '2026-04-26T00:00:00Z'
+    },
+    'normal',
+    'board'
+  );
+
+  assert.match(message || '', /Step 1/);
+  assert.doesNotMatch(message || '', /\nzai\b/i);
+  assert.doesNotMatch(message || '', /Z\.AI GLM/);
+});
+
 test('task pack starts explain the batch without announcing every future step', () => {
   const message = formatProgressMessageForTelegram(
     {

@@ -41,6 +41,12 @@ The most recent focus was fixing Railway `/diagnose` and `/run` failures where T
   - `LLM: CONNECTED`
   - `Starting Spark Telegram bot...`
   - Mission relay pointed at Railway internal relay URL.
+- Confirmed post-deploy Telegram smoke:
+  - `/diagnose` showed Spawner UI reachable and mission ping passing for `zai`.
+  - `/model status` showed `Missions: zai (default)`.
+  - `/run` used `Z.AI GLM` instead of falling back to Codex.
+  - Mission board links used `https://spawner-ui-production.up.railway.app/...` instead of Railway internal URLs.
+- Patched mission relay task-start formatting so provider-only labels such as `zai` are not printed as raw standalone Telegram lines.
 - Earlier in the same hardening thread:
   - Improved Telegram mission UX to suppress low-signal heartbeat messages.
   - Disabled Telegram link previews for mission/canvas/preview URLs.
@@ -146,7 +152,7 @@ Telegram prompts requested after the latest production deploy:
 - `git diff --check` emitted LF-to-CRLF warnings on Windows. No whitespace errors were reported.
 - `PROJECT.md` remains untracked in `C:\Users\USER\Desktop\spark-telegram-bot`.
 - `SPARK_UI_API_KEY` was exposed in earlier local debugging output. Rotate it after current smoke testing.
-- Latest post-deploy Telegram verification results were not yet captured in this handoff. The next thread should ask the user for the fresh `/diagnose` and `/run` output or run available Railway/API checks.
+- Latest post-deploy Telegram verification confirmed the Spawner 401, Codex fallback, and internal-link issues are resolved. Preview-link open/browser QA is still pending.
 
 ## Open Decisions
 
@@ -188,24 +194,17 @@ Telegram prompts requested after the latest production deploy:
 
 ## Next Concrete Steps
 
-1. Ask the user for fresh Telegram output after the successful bot deploy:
-   - `/diagnose`
-   - `/model status`
-   - flower-shop `/run` prompt above.
-2. Confirm `/diagnose` now shows Spawner UI reachable, provider metadata visible, Spawner public links present, and mission ping succeeding.
-3. Confirm `/run` produces a Canvas link and hosted preview link without the misleading provider-auth 401.
-4. If 401 persists, inspect Railway env values for presence/equality only, never printing secrets:
-   - `SPARK_UI_API_KEY`
-   - `SPARK_BRIDGE_API_KEY`
-   - bot-side Spawner URL/env values
-   - Spawner-side UI/bridge env values.
-5. If smoke passes, rotate `SPARK_UI_API_KEY`, update the bot and Spawner Railway services consistently, then re-run `/diagnose`.
-6. Remove or reduce the low-value "Spark is preparing the preview" Telegram message if the user still wants it gone.
-7. Continue hosted-provider hardening:
+1. Deploy the provider-only task-label polish if not already deployed, then rerun a short `/run` smoke and confirm no standalone `zai` line appears after "Step 1".
+2. Confirm the hosted preview link from the flower-shop run opens in a browser and renders the static page.
+3. Rotate `SPARK_UI_API_KEY`, update the bot and Spawner Railway services consistently, then re-run `/diagnose`.
+4. Remove or reduce the low-value "Spark is preparing the preview" Telegram message if the user still wants it gone.
+5. Continue hosted-provider hardening:
    - MiniMax API smoke
    - Z.AI JSON-file hosted build smoke
    - Codex API-key hosted path docs/smoke
    - clearer hosted Railway troubleshooting docs for Spawner auth vs provider auth.
+6. Smoke a deliberate staging failure, such as a bad provider key, and verify diagnostics name the correct broken layer.
+7. Decide whether this branch is ready to merge/pin for the launch installer path.
 
 ## Reactivation Prompt
 
@@ -228,24 +227,26 @@ C:\Users\USER\Desktop\vibeship-spawner-ui
 Current branch:
 codex/creator-mission-status-telegram
 
-Important recent bot commit:
+Important recent bot commits:
 9be2710 Use separate Spawner UI and bridge auth headers
+3eb0e59 Align hosted mission routing links
 
-Latest production Railway bot deployment:
-26b5f2bd-22c6-4b5b-a916-6f1bc336adbb
+Latest production Railway bot deployment before provider-line polish:
+6ad99a31-d806-4bf5-bb08-e8751cf73984
 
 The last root cause was bot-to-Spawner auth mismatch:
 - Spawner hosted UI gate expects x-spawner-ui-key = SPARK_UI_API_KEY.
 - Spawner bridge/control routes expect x-api-key = SPARK_BRIDGE_API_KEY.
 - The bot used to send the bridge key for both, causing HTTP 401 from Spawner UI and misleading provider-auth failures.
 - This has been patched, tested, pushed, and deployed.
+- Follow-up fixes made `/run` inherit the Agent provider when Mission is not split and made Telegram mission links prefer SPAWNER_UI_PUBLIC_URL.
 
 Start by:
 1. Re-read git status in C:\Users\USER\Desktop\spark-telegram-bot and do not stage PROJECT.md.
-2. Ask me for or inspect the fresh Telegram /diagnose, /model status, and /run output after the latest deploy.
-3. Confirm whether Spawner UI 401 is gone and whether hosted /run creates Canvas plus preview links.
-4. If it passes, help rotate SPARK_UI_API_KEY safely and re-test.
-5. If it fails, debug Spawner UI auth vs bridge auth vs provider auth without printing secrets.
+2. Check whether the provider-only task-label polish has been committed/deployed.
+3. Ask me for or inspect the next Telegram /run output and confirm no raw standalone provider line appears.
+4. Help rotate SPARK_UI_API_KEY safely and re-test /diagnose.
+5. Continue MiniMax and hosted provider smoke coverage.
 
 Constraints:
 - Use apply_patch for manual edits.

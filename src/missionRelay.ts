@@ -785,6 +785,14 @@ function cleanTaskLabel(label: string): string {
   return clipText(readable, 160);
 }
 
+function isProviderOnlyTaskLabel(label: string): boolean {
+  const normalized = label.trim().toLowerCase();
+  if (!normalized) return true;
+  return Object.entries(PROVIDER_DISPLAY_NAMES).some(([key, display]) =>
+    normalized === key || normalized === display.toLowerCase()
+  );
+}
+
 function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
   const number = taskNumberFromEvent(event);
   const taskLabel = cleanTaskLabel(event.taskName || event.taskId || 'Next build step');
@@ -797,14 +805,14 @@ function formatTaskStartedMessage(event: DeliverableRelayEvent): string {
   if (assignedTaskCount > 1) {
     return compactTelegramBlocks(
       number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
-      taskLabel,
+      isProviderOnlyTaskLabel(taskLabel) ? '' : taskLabel,
       `Spark is working through ${assignedTaskCount} build steps. I will send the next note when a step finishes or the focus changes.`
     );
   }
-  return [
+  return compactTelegramBlocks(
     number ? voiceLine('taskStarted', seed, { n: number }) : 'Step started',
-    taskLabel
-  ].join('\n');
+    isProviderOnlyTaskLabel(taskLabel) ? '' : taskLabel
+  );
 }
 
 function formatTaskCompletedMessage(event: DeliverableRelayEvent): string {
