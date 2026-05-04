@@ -384,6 +384,30 @@
     "expectedOutcome": "Reconstructs earlier episodic recall work with current truth separated from supporting episodic recall. Must include an authority boundary and avoid durable promotion."
   },
   {
+    "id": "memory-architecture-001c",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what did we decide today about memory?",
+    "expectedRoute": "memory_open_recall_query",
+    "expectedOutcome": "Refuses to invent a decision, separates supporting context from confirmed decisions, and requires explicit decision evidence before calling anything decided."
+  },
+  {
+    "id": "memory-architecture-001d",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what did we only discuss but not decide",
+    "expectedRoute": "memory_open_recall_query",
+    "expectedOutcome": "Lists discussion-only context without promoting it into durable decisions. Must not include rejected promotion probes as normal discussion."
+  },
+  {
+    "id": "memory-architecture-001e",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what is still open in our memory work?",
+    "expectedRoute": "memory_open_recall_query",
+    "expectedOutcome": "Names open memory work from current or source-labeled recall while preserving that old recall alone cannot close work. Must not fall back to a missing project trace."
+  },
+  {
     "id": "memory-architecture-002",
     "suite": "memory_architecture",
     "risk": "safe",
