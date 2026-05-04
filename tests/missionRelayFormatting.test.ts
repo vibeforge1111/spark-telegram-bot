@@ -110,6 +110,36 @@ test('keeps verbose completion summaries readable and non-console-like', () => {
   assert.doesNotMatch(message, /npm run|playwright|Changed files|README\.md/);
 });
 
+test('completion uses explicit preview URLs even when project path is missing', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'zai',
+    missionId: 'spark-preview-url',
+    response: JSON.stringify({
+      status: 'completed',
+      summary: 'Built the plant shop landing page.',
+      preview_url: 'https://spawner-ui-production.up.railway.app/preview/example/index.html'
+    })
+  });
+
+  assert.match(message, /Open it here:\nhttps:\/\/spawner-ui-production\.up\.railway\.app\/preview\/example\/index\.html/);
+  assert.match(message, /keep polishing/);
+});
+
+test('completion falls back to a board-derived preview link when provider omits project path', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'zai',
+    missionId: 'spark-board-preview',
+    response: JSON.stringify({
+      status: 'completed',
+      summary: 'Built the plant shop landing page.'
+    }),
+    fallbackOpenLink: 'https://spawner-ui-production.up.railway.app/preview/from-board/index.html'
+  });
+
+  assert.match(message, /Open it here:\nhttps:\/\/spawner-ui-production\.up\.railway\.app\/preview\/from-board\/index\.html/);
+  assert.match(message, /keep polishing/);
+});
+
 test('formats structured provider failures without raw JSON noise', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',

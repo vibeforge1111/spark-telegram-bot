@@ -1,11 +1,13 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
+import axios from 'axios';
 import type { Telegraf } from 'telegraf';
 import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
+import { spawnerAxiosOptions } from './spawnerAuth';
 
 type RelayEventType =
   | 'mission_created'
@@ -73,11 +75,22 @@ export interface DeliverableRelayEvent {
 
 interface MissionBoardEntry {
   missionId?: string;
+  missionName?: string | null;
   status?: string;
   lastEventType?: string;
   lastUpdated?: string;
   lastSummary?: string;
   taskName?: string | null;
+  providerSummary?: string;
+  providerResults?: Array<{
+    providerId?: string;
+    status?: string;
+    summary?: string;
+    projectPath?: string;
+    project_path?: string;
+    previewUrl?: string;
+    preview_url?: string;
+  }>;
 }
 
 const REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
@@ -368,6 +381,10 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 
 function spawnerUiUrl(): string {
   return (process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
+}
+
+function spawnerApiUrl(): string {
+  return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
 }
 
 export function buildMissionSurfaceLinks(
@@ -671,7 +688,7 @@ function localIndexLink(projectPath: string | null): string | null {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555').replace(/\/+$/, '');
+  return (process.env.SPARK_PROJECT_PREVIEW_URL || process.env.SPAWNER_UI_PUBLIC_URL || 'http://127.0.0.1:5555').replace(/\/+$/, '');
 }
 
 function projectPreviewLink(projectPath: string | null): string | null {
@@ -690,6 +707,10 @@ function openProjectLines(openLink: string | null): string[] {
   return openLink ? ['Open it here:', openLink] : [];
 }
 
+function messageHasOpenProjectLink(message: string): boolean {
+  return /\/preview\/[A-Za-z0-9_-]+\/index\.html/i.test(message) || /^Open it here:/im.test(message);
+}
+
 function nextPolishLine(): string {
   return 'Tell Spark what you want changed next and we can keep polishing from here.';
 }
@@ -706,6 +727,42 @@ function extractProjectPathFromText(text: string): string | null {
     if (match?.[1]) return match[1].trim().replace(/[.。]\s*$/, '');
   }
   return null;
+}
+
+function extractPreviewUrlFromText(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s)]+\/preview\/[A-Za-z0-9_-]+\/index\.html/i);
+  return match?.[0] || null;
+}
+
+function providerResultText(entry: MissionBoardEntry): string {
+  return [
+    entry.providerSummary,
+    ...(entry.providerResults || []).map((result) => [
+      result.summary,
+      result.projectPath,
+      result.project_path,
+      result.previewUrl,
+      result.preview_url
+    ].filter(Boolean).join('\n')),
+    entry.lastSummary,
+    entry.missionName || '',
+    entry.taskName || ''
+  ].filter((part): part is string => Boolean(part?.trim())).join('\n');
+}
+
+function projectOpenLinkForBoardEntry(entry: MissionBoardEntry): string | null {
+  const text = providerResultText(entry);
+  const projectPath = extractProjectPathFromText(text);
+  return extractPreviewUrlFromText(text) || projectOpenLink(projectPath);
+}
+
+async function missionOpenLinkFromBoard(missionId: string): Promise<string | null> {
+  const res = await axios.get(`${spawnerApiUrl()}/api/mission-control/board`, spawnerAxiosOptions(10000));
+  const board = res.data?.board || {};
+  const entries = ['completed', 'running', 'failed', 'created', 'paused']
+    .flatMap((bucket) => Array.isArray(board[bucket]) ? board[bucket] as MissionBoardEntry[] : []);
+  const entry = entries.find((candidate) => candidate.missionId === missionId);
+  return entry ? projectOpenLinkForBoardEntry(entry) : null;
 }
 
 function stripMarkdownFileLinks(text: string): string {
@@ -832,6 +889,7 @@ export function formatProviderCompletionForTelegram(input: {
   requestId?: string;
   goal?: string;
   verbosity?: TelegramRelayVerbosity;
+  fallbackOpenLink?: string | null;
 }): string {
   const provider = humanizeProviderLabel(input.providerLabel);
   const verbosity = input.verbosity || 'normal';
@@ -848,7 +906,7 @@ export function formatProviderCompletionForTelegram(input: {
       ].join('\n');
     }
     const projectPath = extractProjectPathFromText(input.response);
-    const openLink = projectOpenLink(projectPath);
+    const openLink = extractPreviewUrlFromText(input.response) || projectOpenLink(projectPath) || input.fallbackOpenLink || null;
     const shipped = extractSectionBullets(input.response, /^What shipped:/i, 4);
     const checks = extractSectionBullets(input.response, /^Verification passed:/i, 4);
     const lead = extractFreeformLeadSummary(input.response);
@@ -884,6 +942,12 @@ export function formatProviderCompletionForTelegram(input: {
   const status = stringField(parsed, 'status');
   const summary = stringField(parsed, 'summary') || stringField(parsed, 'message');
   const projectPath = stringField(parsed, 'project_path') || stringField(parsed, 'projectPath');
+  const explicitOpenLink =
+    stringField(parsed, 'preview_url') ||
+    stringField(parsed, 'previewUrl') ||
+    stringField(parsed, 'open_url') ||
+    stringField(parsed, 'openUrl');
+  const openLink = explicitOpenLink || projectOpenLink(projectPath) || input.fallbackOpenLink || null;
   const verification = stringArray(parsed.verification);
   const nextActions = stringArray(parsed.next_actions || parsed.nextActions);
 
@@ -891,7 +955,7 @@ export function formatProviderCompletionForTelegram(input: {
     return [
       voiceLine(status && ['failed', 'error', 'blocked'].includes(status.toLowerCase()) ? 'failed' : 'completed', `${input.missionId}:${provider}:minimal`),
       summary ? clipText(summary, 240) : null,
-      projectPath ? openProjectLines(projectOpenLink(projectPath) || projectPath).join('\n') : null,
+      openLink ? openProjectLines(openLink).join('\n') : null,
       `Mission: ${input.missionId}`
     ].filter(Boolean).join('\n');
   }
@@ -903,8 +967,8 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push('', `Goal: ${clipText(input.goal, 260)}`);
   }
 
-  if (projectPath) {
-    lines.push('', ...openProjectLines(projectOpenLink(projectPath) || projectPath));
+  if (openLink) {
+    lines.push('', ...openProjectLines(openLink));
   }
 
   if (verification.length > 0) {
@@ -919,7 +983,7 @@ export function formatProviderCompletionForTelegram(input: {
     lines.push(...nextActions.slice(0, 4).map((item) => `- ${clipText(item, 180)}`));
   }
 
-  if (projectPath && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
+  if (openLink && (!status || !['failed', 'error', 'blocked'].includes(status.toLowerCase()))) {
     lines.push('', nextPolishLine());
   }
 
@@ -1439,15 +1503,20 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         const extracted = extractProviderResponse(event);
         if (extracted) {
           clearHeartbeatForMission(event.missionId);
+          const fallbackOpenLink = await missionOpenLinkFromBoard(event.missionId).catch(() => null);
           const message = formatProviderCompletionForTelegram({
             providerLabel: extracted.providerLabel,
             response: extracted.response,
             missionId: event.missionId,
             requestId: subscription.requestId,
             goal: subscription.goal,
-            verbosity
+            verbosity,
+            fallbackOpenLink
           });
-          const chunks = chunkForTelegram(message);
+          const withFallbackLink = fallbackOpenLink && !messageHasOpenProjectLink(message)
+            ? compactTelegramBlocks(message, openProjectLines(fallbackOpenLink).join('\n'), nextPolishLine())
+            : message;
+          const chunks = chunkForTelegram(withFallbackLink);
           for (let i = 0; i < chunks.length; i++) {
             const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
             await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
