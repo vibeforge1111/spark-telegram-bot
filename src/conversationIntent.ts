@@ -501,6 +501,9 @@ function isMemoryDashboardTraceabilityRequest(normalized: string): boolean {
 
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
+  if (/\bwiki\s+says\b/i.test(normalized) && /\bcurrent\s+state\s+says\b/i.test(normalized)) {
+    return false;
+  }
   if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
     return false;
   }
@@ -516,6 +519,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   }
 
   const normalized = text.trim().toLowerCase();
+  if (/\bwiki\s+says\b/i.test(normalized) && /\bcurrent\s+state\s+says\b/i.test(normalized)) {
+    return false;
+  }
   if (isMemoryDashboardTraceabilityRequest(normalized)) {
     return false;
   }

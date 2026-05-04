@@ -251,6 +251,14 @@ test('keeps memory movement dashboard probes out of local Spawner routing', () =
   assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
 });
 
+test('keeps wiki current-state conflict probes out of local Spawner routing', () => {
+  const prompt = 'If your wiki says Spark memory is fully finished but current state says the evaluation is still open, how should you answer?';
+
+  assert.equal(isLocalSparkServiceRequest(prompt, 'Completed Spawner mission spark-123. Open Mission Control.'), false);
+  assert.equal(isAmbiguousLocalSparkServiceRequest(prompt, 'Completed Spawner mission spark-123. Open Mission Control.'), false);
+  assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
+});
+
 test('answers diagnostic follow-up testing questions from mission context', () => {
   assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
   const reply = buildDiagnosticFollowupTestReply(
