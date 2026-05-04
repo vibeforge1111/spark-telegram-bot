@@ -104,6 +104,10 @@ function renderCase(entry: CommandCase): string {
   ].join('\n');
 }
 
+function renderOutgoingMessage(entry: CommandCase): string {
+  return hasFlag('raw-prompts') ? entry.prompt : renderCase(entry);
+}
+
 function defaultChatId(): string | null {
   const explicit = process.env.TEST_TELEGRAM_CHAT_ID?.trim();
   if (explicit) return explicit;
@@ -126,7 +130,7 @@ async function sendPromptCards(selected: CommandCase[]): Promise<void> {
   const bot = new Telegraf(token);
   const delayMs = Number(argValue('delay-ms') || '1200');
   for (const entry of selected) {
-    await bot.telegram.sendMessage(chatId, renderCase(entry));
+    await bot.telegram.sendMessage(chatId, renderOutgoingMessage(entry));
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
@@ -147,9 +151,11 @@ async function main(): Promise<void> {
       '  npm run nl:live -- --send --case mission-001',
       '  npm run nl:live -- --send --suite smoke',
       '  npm run nl:live -- --profile primary --send --suite smoke',
+      '  npm run nl:live -- --profile primary --send --raw-prompts --suite memory_architecture',
       '',
       'Notes:',
-      '  --send only sends prompt cards. It does not start polling or read updates.',
+      '  --send sends prompt cards unless --raw-prompts is set. It does not start polling or read updates.',
+      '  --raw-prompts sends only the actual probe text, which is best for route-quality tests.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
       '  Risky suites are excluded from broad selection unless --include-risky is set.'
     ].join('\n'));
