@@ -472,6 +472,14 @@
     "expectedOutcome": "Natural short wording still routes to source debug, names the selected route or bridge mode, and separates current truth from supporting recall."
   },
   {
+    "id": "memory-architecture-008c",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "which parts were current truth versus supporting recall?",
+    "expectedRoute": "context_source_debug_or_memory_trace",
+    "expectedOutcome": "Explains current truth versus supporting recall directly before trace details, and does not only repeat the selected route dump."
+  },
+  {
     "id": "memory-architecture-009",
     "suite": "memory_architecture",
     "risk": "safe",
