@@ -68,6 +68,14 @@ test('uses explicit Telegram mission override before other mission defaults', ()
   assert.equal(resolveMissionDefaultProvider(env), 'minimax');
 });
 
+test('uses chat provider as the unsplit mission fallback', () => {
+  const env = {
+    SPARK_CHAT_LLM_PROVIDER: 'zai'
+  } as NodeJS.ProcessEnv;
+
+  assert.equal(resolveMissionDefaultProvider(env), 'zai');
+});
+
 test('does not invent a chat provider when provider env values are unknown', () => {
   const env = {
     BOT_DEFAULT_PROVIDER: 'mystery',

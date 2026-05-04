@@ -48,6 +48,8 @@ export function resolveMissionDefaultProvider(
     resolveKnownProviderId(env.SPARK_MISSION_LLM_PROVIDER) ||
     resolveKnownProviderId(env.DEFAULT_MISSION_PROVIDER) ||
     resolveKnownProviderId(spawnerDefaultProvider) ||
+    resolveKnownProviderId(env.SPARK_CHAT_LLM_PROVIDER) ||
+    resolveKnownProviderId(env.SPARK_CHAT_LLM_BOT_PROVIDER) ||
     resolveKnownProviderId(env.SPARK_BOT_DEFAULT_PROVIDER) ||
     resolveKnownProviderId(env.BOT_DEFAULT_PROVIDER) ||
     'codex'
