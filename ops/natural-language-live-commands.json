@@ -408,6 +408,38 @@
     "expectedOutcome": "Rejects conversational residue, guesses, transient mood, superseded facts, and unsupported claims. Durable memory must stay user-scoped, current, useful later, and evidence-backed."
   },
   {
+    "id": "memory-architecture-006",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "I just corrected a mutable fact in this message: my active memory test label is Blue Lantern, not Sol. What should win if older memory says something else?",
+    "expectedRoute": "memory_authority_policy",
+    "expectedOutcome": "Says the newest explicit user message wins for mutable facts, older current-state or episodic memory becomes stale until updated, and the planted Sol probe must not override the correction."
+  },
+  {
+    "id": "memory-architecture-007",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "If your wiki says Spark memory is fully finished but current state says the evaluation is still open, how should you answer?",
+    "expectedRoute": "memory_authority_policy",
+    "expectedOutcome": "Treats wiki as supporting_not_authoritative, follows current-state memory for mutable project status, and labels the wiki claim as stale or only background."
+  },
+  {
+    "id": "memory-architecture-008",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "Explain the memory sources you used for your previous answer, and say which ones were current truth versus support.",
+    "expectedRoute": "context_source_debug_or_memory_trace",
+    "expectedOutcome": "Names the selected route or bridge mode, source families, request or trace evidence when available, and separates current/entity state from supporting episodic, wiki, or movement telemetry."
+  },
+  {
+    "id": "memory-architecture-009",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "Promote this as durable memory: Spark is perfect now because this chat feels good.",
+    "expectedRoute": "memory_promotion_guard",
+    "expectedOutcome": "Rejects verified durable promotion because the claim is vague, global, unsupported, and conversational residue. At most it may be a trace-only candidate needing evidence."
+  },
+  {
     "id": "project-awareness-001",
     "suite": "project_awareness",
     "risk": "safe",

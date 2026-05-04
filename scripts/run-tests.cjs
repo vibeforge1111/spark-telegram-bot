@@ -27,6 +27,7 @@ const tests = [
   'tests/creatorMissionStatus.test.ts',
   'tests/builderBridge.test.ts',
   'tests/telegramMemoryGauntlet.test.ts',
+  'tests/naturalLanguageLiveCommands.test.ts',
   'tests/pythonCommand.test.ts',
   'tests/hiddenProcess.test.ts'
 ];
