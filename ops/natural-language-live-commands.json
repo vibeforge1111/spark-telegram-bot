@@ -464,6 +464,14 @@
     "expectedOutcome": "Names the selected route or bridge mode, source families, request or trace evidence when available, and separates current/entity state from supporting episodic, wiki, or movement telemetry."
   },
   {
+    "id": "memory-architecture-008b",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what memory sources did you use?",
+    "expectedRoute": "context_source_debug_or_memory_trace",
+    "expectedOutcome": "Natural short wording still routes to source debug, names the selected route or bridge mode, and separates current truth from supporting recall."
+  },
+  {
     "id": "memory-architecture-009",
     "suite": "memory_architecture",
     "risk": "safe",

@@ -45,6 +45,7 @@ test('memory architecture live deck covers source and promotion boundary probes'
     'memory-architecture-006',
     'memory-architecture-007',
     'memory-architecture-008',
+    'memory-architecture-008b',
     'memory-architecture-009'
   ];
   for (const id of requiredCases) {
@@ -58,5 +59,6 @@ test('memory architecture live deck covers source and promotion boundary probes'
   assert.match(byId.get('memory-architecture-001e')?.expectedOutcome || '', /old recall alone cannot close work/i);
   assert.match(byId.get('memory-architecture-007')?.expectedOutcome || '', /supporting_not_authoritative/i);
   assert.match(byId.get('memory-architecture-008')?.expectedOutcome || '', /selected route|bridge mode/i);
+  assert.match(byId.get('memory-architecture-008b')?.expectedOutcome || '', /short wording/i);
   assert.match(byId.get('memory-architecture-009')?.expectedOutcome || '', /rejects verified durable promotion/i);
 });
