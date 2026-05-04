@@ -392,6 +392,14 @@
     "expectedOutcome": "Indirectly recalls the earlier low-stakes memory probe from episodic memory without requiring the user to name Sol or Blue Lantern. Must not fall back to generic provider chat."
   },
   {
+    "id": "memory-architecture-001b3",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "We decided today that memory testing label Blue Lantern is retired. This is a real decision.",
+    "expectedRoute": "memory_explicit_decision_capture",
+    "expectedOutcome": "Captures explicit decision language as typed decision evidence with an accepted write count. Must not treat surrounding discussion as a decision."
+  },
+  {
     "id": "memory-architecture-001c",
     "suite": "memory_architecture",
     "risk": "safe",

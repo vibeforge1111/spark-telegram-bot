@@ -36,6 +36,7 @@ test('memory architecture live deck covers source and promotion boundary probes'
     'memory-architecture-001',
     'memory-architecture-001b',
     'memory-architecture-001b2',
+    'memory-architecture-001b3',
     'memory-architecture-001c',
     'memory-architecture-001d',
     'memory-architecture-001e',
@@ -57,6 +58,7 @@ test('memory architecture live deck covers source and promotion boundary probes'
   assert.match(byId.get('memory-architecture-006')?.expectedOutcome || '', /newest explicit user message wins/i);
   assert.match(byId.get('memory-architecture-001b')?.expectedOutcome || '', /current truth separated from supporting episodic recall/i);
   assert.match(byId.get('memory-architecture-001b2')?.expectedOutcome || '', /Indirectly recalls/i);
+  assert.match(byId.get('memory-architecture-001b3')?.expectedOutcome || '', /typed decision evidence/i);
   assert.match(byId.get('memory-architecture-001c')?.expectedOutcome || '', /Refuses to invent a decision/i);
   assert.match(byId.get('memory-architecture-001d')?.expectedOutcome || '', /discussion-only context/i);
   assert.match(byId.get('memory-architecture-001e')?.expectedOutcome || '', /old recall alone cannot close work/i);
