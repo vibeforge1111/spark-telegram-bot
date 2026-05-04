@@ -30,10 +30,11 @@ test('memory architecture live deck covers source and promotion boundary probes'
   const cases = loadCases().filter((entry) => entry.suite === 'memory_architecture');
   const byId = new Map(cases.map((entry) => [entry.id, entry]));
 
-  assert.equal(cases.length >= 9, true);
+  assert.equal(cases.length >= 10, true);
 
   const requiredCases = [
     'memory-architecture-001',
+    'memory-architecture-001b',
     'memory-architecture-002',
     'memory-architecture-003',
     'memory-architecture-004',
@@ -48,6 +49,7 @@ test('memory architecture live deck covers source and promotion boundary probes'
   }
 
   assert.match(byId.get('memory-architecture-006')?.expectedOutcome || '', /newest explicit user message wins/i);
+  assert.match(byId.get('memory-architecture-001b')?.expectedOutcome || '', /current truth separated from supporting episodic recall/i);
   assert.match(byId.get('memory-architecture-007')?.expectedOutcome || '', /supporting_not_authoritative/i);
   assert.match(byId.get('memory-architecture-008')?.expectedOutcome || '', /selected route|bridge mode/i);
   assert.match(byId.get('memory-architecture-009')?.expectedOutcome || '', /rejects verified durable promotion/i);

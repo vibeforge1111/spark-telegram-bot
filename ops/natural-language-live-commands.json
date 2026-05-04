@@ -376,6 +376,14 @@
     "expectedOutcome": "Separates current-state memory from supporting episodic recall. Must not answer as a generic status page or promote chat residue."
   },
   {
+    "id": "memory-architecture-001b",
+    "suite": "memory_architecture",
+    "risk": "safe",
+    "prompt": "what did we do earlier for episodic recall?",
+    "expectedRoute": "memory_open_recall_query",
+    "expectedOutcome": "Reconstructs earlier episodic recall work with current truth separated from supporting episodic recall. Must include an authority boundary and avoid durable promotion."
+  },
+  {
     "id": "memory-architecture-002",
     "suite": "memory_architecture",
     "risk": "safe",
