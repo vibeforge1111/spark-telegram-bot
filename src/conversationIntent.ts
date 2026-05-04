@@ -62,6 +62,9 @@ export function isSparkWikiStatusQuestion(text: string): boolean {
   if (parseBuildIntent(normalized)) {
     return false;
   }
+  if (/\bwiki\s+says\b/i.test(normalized) && /\bcurrent\s+state\s+says\b/i.test(normalized)) {
+    return false;
+  }
   const mentionsWiki =
     /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
     /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||

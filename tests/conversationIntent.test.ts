@@ -626,6 +626,12 @@ test('detects natural Spark LLM wiki status questions without stealing build pro
   assert.equal(isSparkWikiStatusQuestion('is your LLM wiki active right now?'), true);
   assert.equal(isSparkWikiStatusQuestion('can you check whether the Spark knowledge base is retrievable?'), true);
   assert.equal(isSparkWikiStatusQuestion('show me the Obsidian vault status'), true);
+  assert.equal(
+    isSparkWikiStatusQuestion(
+      'If your wiki says Spark memory is fully finished but current state says the evaluation is still open, how should you answer?'
+    ),
+    false
+  );
   assert.equal(isSparkWikiStatusQuestion('build me a wiki app for my team'), false);
   assert.equal(isSparkWikiStatusQuestion('what is a wiki?'), false);
 });
