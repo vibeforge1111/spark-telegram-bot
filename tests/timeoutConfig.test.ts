@@ -4,12 +4,16 @@ import {
   DEFAULT_BUILDER_BRIDGE_TIMEOUT_MS,
   DEFAULT_CONTEXT_BRIDGE_TIMEOUT_MS,
   DEFAULT_LOCAL_SERVICE_TIMEOUT_MS,
+  DEFAULT_SELF_BRIDGE_TIMEOUT_MS,
+  DEFAULT_WIKI_BRIDGE_TIMEOUT_MS,
   builderBridgeTimeoutMs,
   chatCommandTimeoutMs,
   contextBridgeTimeoutMs,
   localServiceDefaultTimeoutMs,
   positiveIntegerEnv,
+  selfAwarenessBridgeTimeoutMs,
   telegramHandlerTimeoutMs,
+  wikiBridgeTimeoutMs,
 } from '../src/timeoutConfig';
 
 function test(name: string, fn: () => void): void {
@@ -37,6 +41,13 @@ test('cold context bridge defaults above live memory startup latency', () => {
   assert.equal(contextBridgeTimeoutMs({}, 5000), 5000);
 });
 
+test('self-awareness and wiki bridges default above slow live wiki refresh latency', () => {
+  assert.equal(selfAwarenessBridgeTimeoutMs({}), DEFAULT_SELF_BRIDGE_TIMEOUT_MS);
+  assert.equal(wikiBridgeTimeoutMs({}), DEFAULT_WIKI_BRIDGE_TIMEOUT_MS);
+  assert.equal(selfAwarenessBridgeTimeoutMs({}, 5000), 5000);
+  assert.equal(wikiBridgeTimeoutMs({}, 5000), 5000);
+});
+
 test('timeout env parsing accepts positive integers only', () => {
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '12345' }, 'TEST_TIMEOUT_MS', 99), 12345);
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '0' }, 'TEST_TIMEOUT_MS', 99), 99);
@@ -49,5 +60,7 @@ test('specific timeout env vars override defaults', () => {
   assert.equal(chatCommandTimeoutMs({ SPARK_CHAT_COMMAND_TIMEOUT_MS: '800000' }), 800000);
   assert.equal(builderBridgeTimeoutMs({ SPARK_BUILDER_TIMEOUT_MS: '900000' }), 900000);
   assert.equal(contextBridgeTimeoutMs({ SPARK_CONTEXT_BRIDGE_TIMEOUT_MS: '22000' }), 22000);
+  assert.equal(selfAwarenessBridgeTimeoutMs({ SPARK_SELF_BRIDGE_TIMEOUT_MS: '91000' }), 91000);
+  assert.equal(wikiBridgeTimeoutMs({ SPARK_WIKI_BRIDGE_TIMEOUT_MS: '92000' }), 92000);
   assert.equal(localServiceDefaultTimeoutMs({ SPARK_LOCAL_SERVICE_TIMEOUT_MS: '1000000' }), 1000000);
 });

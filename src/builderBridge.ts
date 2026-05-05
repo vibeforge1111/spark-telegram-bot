@@ -6,7 +6,12 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
-import { builderBridgeTimeoutMs, contextBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
+import {
+  builderBridgeTimeoutMs,
+  contextBridgeTimeoutMs,
+  selfAwarenessBridgeTimeoutMs,
+  wikiBridgeTimeoutMs
+} from './timeoutConfig';
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
@@ -287,7 +292,7 @@ function formatClaimLines(title: string, claims: unknown, limit: number, compact
   const items = arrayValue(claims)
     .map(claimText)
     .filter(Boolean)
-    .map((item) => compact ? compactSelfAwarenessClaim(item) : item)
+    .map((item) => compact ? truncateForPrompt(compactSelfAwarenessClaim(item), 180) : item)
     .slice(0, limit);
   if (!items.length) {
     return [];
@@ -740,7 +745,34 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     lines.push('');
   }
   lines.push('Core rule: I can try the right route, but I should name missing evidence before claiming certainty.');
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const reply = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (reply.length <= 1800) {
+    return reply;
+  }
+
+  const compactLines = [
+    'Spark self-awareness',
+    '',
+    'Short version: I can see the live Spark stack, but I should keep this answer compact and evidence-bound.',
+    '',
+    `Workspace: ${stringValue(root.workspace_id) || 'default'}`,
+    `Checked: ${stringValue(root.generated_at) || 'unknown'}`,
+    '',
+    ...formatSelfAwarenessStyleLens(styleLens),
+    ...formatMemoryContinuityLines(root),
+    ...formatMemoryMovementLines(root),
+    ...formatClaimLines('What looks live', root.observed_now, 3, true),
+    ...formatClaimLines('What I recently proved', root.recently_verified, 1, true),
+    ...formatClaimLines('Where I still lack', root.lacks, 2, true),
+    ...formatClaimLines('What I should improve next', root.improvement_options, 2, true),
+  ];
+  if (routes.length) {
+    compactLines.push('Good next probe');
+    compactLines.push(`- ${routes[0].replace(/^Ask:\s*/, '')}`);
+    compactLines.push('');
+  }
+  compactLines.push('Core rule: current-state evidence wins; wiki and older context support but do not override live truth.');
+  return compactLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function formatSelfImprovementPlanReply(payload: unknown): string {
@@ -785,7 +817,39 @@ export function formatSelfImprovementPlanReply(payload: unknown): string {
   if (guardrail) {
     lines.push('', `Guardrail: ${guardrail}`);
   }
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const reply = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (reply.length <= 1800) {
+    return reply;
+  }
+
+  const compactLines = [
+    'Spark self-improvement plan',
+    '',
+    truncateForPrompt(
+      stringValue(root.summary) || 'I found live weak spots. The right move is probe-first, then the smallest bounded fix.',
+      260
+    ),
+    '',
+    `Mode: ${stringValue(root.mode) || 'plan_only_probe_first'}`,
+    `Evidence: ${stringValue(root.evidence_level) || 'unknown'}`,
+  ];
+  if (actions.length) {
+    compactLines.push('', 'Priority actions');
+    for (const [index, action] of actions.slice(0, 2).entries()) {
+      const title = truncateForPrompt(stringValue(action.title) || `Action ${index + 1}`, 120);
+      const weakSpot = truncateForPrompt(compactSelfAwarenessClaim(stringValue(action.weak_spot)), 160);
+      const nextProbe = truncateForPrompt(stringValue(action.next_probe), 160);
+      compactLines.push(`${index + 1}. ${title}`);
+      if (weakSpot) compactLines.push(`   - Weak spot: ${weakSpot}`);
+      if (nextProbe) compactLines.push(`   - Probe: ${nextProbe}`);
+    }
+  }
+  if (invocations.length) {
+    compactLines.push('', 'Say this next');
+    compactLines.push(`- ${truncateForPrompt(invocations[0], 180)}`);
+  }
+  compactLines.push('', 'Guardrail: this is probe-first, not autonomous self-modification.');
+  return compactLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function formatWikiStatusReply(payload: unknown): string {
@@ -854,7 +918,39 @@ export function formatWikiInventoryReply(payload: unknown): string {
     lines.push(...missing.slice(0, 8).map((item) => `- ${item}`));
   }
   lines.push('', 'Rule: this lists available project knowledge; retrieval and live traces decide what to use for an answer.');
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const reply = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (reply.length <= 1800) {
+    return reply;
+  }
+
+  const compactLines = [
+    'Spark LLM wiki inventory',
+    '',
+    `Vault: ${stringValue(root.output_dir) || 'unknown'}`,
+    `Pages: ${numericValue(root.page_count)} total, ${numericValue(root.returned_page_count)} shown`,
+    `Sections: ${truncateForPrompt(sections, 220)}`,
+    `Missing expected: ${missing.length ? missing.length : 'none'}`,
+  ];
+  if (root.refreshed) {
+    compactLines.push(`Refresh: regenerated ${numericValue(root.refreshed_file_count)} system pages`);
+  }
+  if (pages.length) {
+    compactLines.push('', 'Top pages');
+    for (const page of pages.slice(0, 5)) {
+      const pagePath = stringValue(page.path);
+      const title = stringValue(page.title) || pagePath;
+      const summary = truncateForPrompt(stringValue(page.summary), 120);
+      compactLines.push(`- ${pagePath}: ${title}`);
+      if (summary) {
+        compactLines.push(`  ${summary}`);
+      }
+    }
+  }
+  if (missing.length) {
+    compactLines.push('', `Missing: ${missing.slice(0, 4).join(', ')}`);
+  }
+  compactLines.push('', 'Rule: wiki lists supporting project knowledge; current live traces decide what is true now.');
+  return compactLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function formatWikiQueryReply(payload: unknown): string {
@@ -944,7 +1040,43 @@ export function formatWikiAnswerReply(payload: unknown): string {
     lines.push('', 'Warnings');
     lines.push(...warnings.map((item) => `- ${item}`));
   }
-  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const reply = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (reply.length <= 1800) {
+    return reply;
+  }
+
+  const compactLines = [
+    'Spark LLM wiki answer',
+    '',
+    truncateForPrompt(stringValue(root.answer) || 'I could not build a wiki-backed answer for that question.', 520),
+    '',
+    `Evidence: ${stringValue(root.evidence_level) || 'unknown'} (${numericValue(root.hit_count)} wiki hits)`,
+    `Knowledge priority: ${root.project_knowledge_first ? 'project/system first' : 'not confirmed'}`,
+  ];
+  if (stringValue(root.live_context_status) === 'included') {
+    compactLines.push('', 'Live self snapshot');
+    if (observed[0]) compactLines.push(`- Live: ${compactSelfAwarenessClaim(observed[0])}`);
+    if (lacks[0]) compactLines.push(`- Missing: ${compactSelfAwarenessClaim(lacks[0])}`);
+    if (improvements[0]) compactLines.push(`- Next: ${compactSelfAwarenessClaim(improvements[0])}`);
+  }
+  if (sources.length) {
+    compactLines.push('', 'Sources');
+    for (const source of sources.slice(0, 2)) {
+      const title = stringValue(source.title) || 'wiki source';
+      const sourcePath = stringValue(source.source_path);
+      compactLines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+    }
+  }
+  if (missing.length) {
+    compactLines.push('', 'Still needs live verification');
+    compactLines.push(...missing.slice(0, 2).map((item) => `- ${truncateForPrompt(item, 160)}`));
+  }
+  if (warnings.length) {
+    compactLines.push('', 'Warnings');
+    compactLines.push(...warnings.slice(0, 2).map((item) => `- ${truncateForPrompt(item, 160)}`));
+  }
+  compactLines.push('', 'Rule: wiki supports the answer; current-state evidence wins for mutable facts.');
+  return compactLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function formatWikiPromotionReply(payload: unknown): string {
@@ -1062,7 +1194,7 @@ export async function runBuilderSelfAwarenessStatus(
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
-      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
       maxBuffer: 1024 * 1024,
     })
   );
@@ -1112,7 +1244,7 @@ export async function runBuilderSelfImprovementPlan(
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
-      timeout: positiveIntegerEnv(process.env, 'SPARK_SELF_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
       maxBuffer: 1024 * 1024,
     })
   );
@@ -1154,7 +1286,7 @@ export async function runBuilderWikiStatus(input: { refresh?: boolean } = {}): P
       withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
-        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        timeout: wikiBridgeTimeoutMs(process.env, config.timeoutMs),
         maxBuffer: 1024 * 1024,
       })
     );
@@ -1206,7 +1338,7 @@ export async function runBuilderWikiInventory(input: { refresh?: boolean; limit?
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
-      timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      timeout: wikiBridgeTimeoutMs(process.env, config.timeoutMs),
       maxBuffer: 1024 * 1024,
     })
   );
@@ -1253,7 +1385,7 @@ export async function runBuilderWikiQuery(
       withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
-        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        timeout: wikiBridgeTimeoutMs(process.env, config.timeoutMs),
         maxBuffer: 1024 * 1024,
       })
     );
@@ -1323,7 +1455,7 @@ export async function runBuilderWikiAnswer(
       withHiddenWindows({
         cwd: config.builderRepo,
         env: pythonSourceEnv(config),
-        timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+        timeout: wikiBridgeTimeoutMs(process.env, config.timeoutMs),
         maxBuffer: 1024 * 1024,
       })
     );
@@ -1405,7 +1537,7 @@ export async function runBuilderWikiPromoteImprovement(
     withHiddenWindows({
       cwd: config.builderRepo,
       env: pythonSourceEnv(config),
-      timeout: positiveIntegerEnv(process.env, 'SPARK_WIKI_BRIDGE_TIMEOUT_MS', Math.min(config.timeoutMs, 30000)),
+      timeout: wikiBridgeTimeoutMs(process.env, config.timeoutMs),
       maxBuffer: 1024 * 1024,
     })
   );
@@ -1573,12 +1705,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
     const routingDecision = String(detail.routing_decision || '').trim();
     let responseText = String(detail.response_text || '').trim();
     const messageContext = telegramBridgeMessageContext(updatePayload);
-    if (
-      bridgeMode === 'self_awareness_direct' &&
-      (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) &&
-      messageContext.userId &&
-      messageContext.chatId
-    ) {
+    if (bridgeMode === 'self_awareness_direct' && messageContext.userId && messageContext.chatId) {
       try {
         const selfAwareness = await runBuilderSelfAwarenessStatus({
           userId: messageContext.userId,
@@ -1588,17 +1715,19 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         responseText = selfAwareness.replyText;
       } catch (error) {
         console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
-        try {
-          const selfAwareness = await runBuilderSelfAwarenessStatus({
-            userId: messageContext.userId,
-            chatId: messageContext.chatId,
-            currentMessage: messageContext.text,
-            refreshWiki: false,
-          });
-          responseText = selfAwareness.replyText;
-        } catch (fallbackError) {
-          console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
-          responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
+        if (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) {
+          try {
+            const selfAwareness = await runBuilderSelfAwarenessStatus({
+              userId: messageContext.userId,
+              chatId: messageContext.chatId,
+              currentMessage: messageContext.text,
+              refreshWiki: false,
+            });
+            responseText = selfAwareness.replyText;
+          } catch (fallbackError) {
+            console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
+            responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
+          }
         }
       }
     }

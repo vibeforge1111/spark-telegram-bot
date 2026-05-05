@@ -258,6 +258,53 @@ test('formats self-awareness payload as actionable Telegram report', () => {
   assert.equal(reply.length < 1800, true);
 });
 
+test('compacts oversized self-awareness payloads for Telegram launch probes', () => {
+  const reply = formatSelfAwarenessReply({
+    workspace_id: 'default',
+    generated_at: '2026-05-05T09:26:26Z',
+    observed_now: Array.from({ length: 8 }, (_, index) => ({
+      claim: `Spark capability ${index} is visible in the Builder registry with status=ready. ${'extra evidence detail '.repeat(20)}`
+    })),
+    recently_verified: Array.from({ length: 6 }, (_, index) => ({
+      claim: `Recent tool_result_received: capability-${index} status=succeeded. ${'long trace detail '.repeat(18)}`
+    })),
+    capability_evidence: Array.from({ length: 8 }, (_, index) => ({
+      capability_key: `capability-${index}`,
+      last_success_at: '2026-05-05T09:30:42Z',
+      route_latency_ms: 22000 + index,
+      eval_coverage_status: 'observed'
+    })),
+    lacks: Array.from({ length: 8 }, (_, index) => ({
+      claim: `Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn. gap ${index}.`
+    })),
+    improvement_options: Array.from({ length: 8 }, (_, index) => ({
+      claim: `Add per-capability last_success_at, last_failure_reason, and eval coverage fields. improvement ${index}.`
+    })),
+    source_ledger: [
+      {
+        source: 'memory_dashboard_movement',
+        movement_counts: {
+          captured: 16,
+          promoted: 336,
+          retrieved: 3080,
+          selected: 2198,
+          summarized: 10
+        }
+      }
+    ],
+    natural_language_routes: [
+      "Ask: 'Spark, test the browser route now' to turn browser availability into last-success evidence."
+    ]
+  });
+
+  assert.match(reply, /Spark self-awareness/);
+  assert.match(reply, /compact and evidence-bound/);
+  assert.match(reply, /Where I still lack/);
+  assert.match(reply, /current-state evidence wins/);
+  assert.doesNotMatch(reply, /Capability evidence/);
+  assert.equal(reply.length < 1800, true);
+});
+
 test('formats memory-lack self-awareness as memory-specific conversation', () => {
   const reply = formatSelfAwarenessReply({
     current_message: 'Where does your memory still lack right now, and how would we improve it?',
@@ -457,6 +504,42 @@ test('formats wiki inventory with page metadata and source boundary', () => {
   assert.match(reply, /live traces decide what to use/);
 });
 
+test('compacts oversized wiki inventory replies for Telegram launch probes', () => {
+  const pages = Array.from({ length: 12 }, (_, index) => ({
+    path: `system/page-${index + 1}.md`,
+    title: `System Page ${index + 1}`,
+    summary: 'Generated Spark system snapshot with a long operational summary. '.repeat(8)
+  }));
+  const reply = formatWikiInventoryReply({
+    output_dir: 'C:\\Users\\USER\\.spark-intelligence\\wiki',
+    page_count: 22,
+    returned_page_count: 12,
+    section_counts: {
+      diagnostics: 1,
+      environment: 1,
+      improvements: 3,
+      memory: 1,
+      projects: 1,
+      root: 1,
+      routes: 2,
+      system: 7,
+      tools: 3,
+      user: 2
+    },
+    missing_expected_files: [],
+    refreshed: true,
+    refreshed_file_count: 5,
+    pages
+  });
+
+  assert.match(reply, /Spark LLM wiki inventory/);
+  assert.match(reply, /Pages: 22 total, 12 shown/);
+  assert.match(reply, /system\/page-1\.md: System Page 1/);
+  assert.doesNotMatch(reply, /system\/page-10\.md/);
+  assert.match(reply, /current live traces decide what is true now/);
+  assert.equal(reply.length < 1800, true);
+});
+
 test('formats wiki query hits with source paths and authority boundary', () => {
   const reply = formatWikiQueryReply({
     query: 'recursive self-improvement loops',
@@ -517,6 +600,52 @@ test('formats wiki answer with sources and live verification boundary', () => {
   assert.match(reply, /Registry visibility is not proof a route worked this turn/);
   assert.match(reply, /system\/tracing-and-observability-map\.md/);
   assert.match(reply, /Still needs live verification/);
+});
+
+test('compacts oversized wiki answers while preserving authority boundary', () => {
+  const reply = formatWikiAnswerReply({
+    question: 'How should Spark use route tracing?',
+    answer: 'From the LLM wiki, use route traces as operating context and verify current runtime state before claiming health. '.repeat(18),
+    evidence_level: 'wiki_backed_supporting_context',
+    hit_count: 4,
+    project_knowledge_first: true,
+    sources: [
+      { title: 'Tracing and Observability Map', source_path: 'system/tracing-and-observability-map.md' },
+      { title: 'Memory Movement Map', source_path: 'memory/memory-movement-map.md' },
+      { title: 'Current System Status', source_path: 'system/current-system-status.md' }
+    ],
+    live_context_status: 'included',
+    live_self_awareness: {
+      observed_now: [
+        { claim: 'Spark Intelligence Builder is visible in the Builder registry with status=ready and route hooks attached for this workspace.' },
+        { claim: 'Spark LLM wiki retrieval returned current supporting pages for route tracing and memory movement.' }
+      ],
+      lacks: [
+        { claim: 'Registry visibility does not prove a chip, browser route, provider, or workflow succeeded this turn.' }
+      ],
+      improvement_options: [
+        { claim: 'Add per-capability last_success_at, last_failure_reason, and eval coverage fields.' }
+      ]
+    },
+    missing_live_verification: [
+      'Run `spark-intelligence self status --refresh-wiki --json` for current truth.',
+      'Check current Telegram runtime pids before claiming the bot is healthy.',
+      'Confirm provider credentials before claiming chat routes can answer.'
+    ],
+    warnings: [
+      'wiki_context_is_supporting_not_authoritative',
+      'live_snapshot_required_for_mutable_claims',
+      'old_conversation_context_must_not_override_current_state'
+    ]
+  });
+
+  assert.match(reply, /Spark LLM wiki answer/);
+  assert.match(reply, /wiki_backed_supporting_context \(4 wiki hits\)/);
+  assert.match(reply, /Live self snapshot/);
+  assert.match(reply, /Sources/);
+  assert.match(reply, /current-state evidence wins/);
+  assert.doesNotMatch(reply, /system\/current-system-status\.md/);
+  assert.equal(reply.length < 1800, true);
 });
 
 test('formats wiki improvement promotions with evidence boundary', () => {

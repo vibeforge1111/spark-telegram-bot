@@ -7,11 +7,13 @@ export function spawnerAuthHeaders(env: NodeJS.ProcessEnv = process.env): Record
     env.EVENTS_API_KEY?.trim() ||
     env.SPARK_UI_API_KEY?.trim();
   const uiKey = env.SPARK_UI_API_KEY?.trim() || controlKey;
+  const workspaceId = env.SPARK_WORKSPACE_ID?.trim();
 
   if (!controlKey && !uiKey) return {};
   return {
     ...(controlKey ? { 'x-api-key': controlKey } : {}),
-    ...(uiKey ? { 'x-spawner-ui-key': uiKey } : {})
+    ...(uiKey ? { 'x-spawner-ui-key': uiKey } : {}),
+    ...(workspaceId ? { 'x-spawner-workspace-id': workspaceId } : {})
   };
 }
 

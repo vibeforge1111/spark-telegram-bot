@@ -29,6 +29,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkChipStatusOverclaimQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
@@ -43,6 +44,7 @@ import {
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
+  shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from '../src/conversationIntent';
 import { buildConversationFrame } from '../src/conversationFrame';
@@ -457,16 +459,16 @@ test('keeps build flow language from becoming access changes', () => {
     null
   );
   assert.equal(
-    parseContextualAccessChangeIntent('let us do it', ['Done - I changed this chat to Level 4 - Full Access.']),
+    parseContextualAccessChangeIntent('let us do it', ['Done - I changed this chat to Access level 4.']),
     null
   );
   assert.equal(
-    parseContextualAccessChangeIntent('level 3', ['Done - I changed this chat to Level 4 - Full Access.']),
+    parseContextualAccessChangeIntent('level 3', ['Done - I changed this chat to Access level 4.']),
     '3'
   );
 
   const frame = buildConversationFrame('let us do it', [
-    { role: 'assistant', text: 'Done - I changed this chat to Level 4 - Full Access.' }
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 4.' }
   ]);
   assert.equal(frame.referenceResolution.kind, 'none');
 });
@@ -670,6 +672,13 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
 });
 
+test('recognizes chip status overclaim questions as anti-drift probes', () => {
+  assert.equal(isSparkChipStatusOverclaimQuestion('all your chips work, right?'), true);
+  assert.equal(isSparkChipStatusOverclaimQuestion('are all your chips healthy?'), true);
+  assert.equal(isSparkChipStatusOverclaimQuestion('I want to create a new domain chip for recipes'), false);
+  assert.equal(isSparkChipStatusOverclaimQuestion('how does the memory chip work?'), false);
+});
+
 test('extracts safe Spark wiki improvement promotion intents', () => {
   assert.deepEqual(
     extractSparkWikiPromotionIntent(
@@ -704,9 +713,27 @@ test('extracts explicit plain-chat memory directives', () => {
     extractPlainChatMemoryDirective('Please remember this session test code word: aurora mango.'),
     'this session test code word: aurora mango'
   );
+  assert.equal(
+    extractPlainChatMemoryDirective('remember this: my preferred mission updates are concise and outcome-focused'),
+    'my preferred mission updates are concise and outcome-focused'
+  );
   assert.equal(extractPlainChatMemoryDirective('remember: my preferred reply style is concise'), 'my preferred reply style is concise');
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
+});
+
+test('memory directives only accept Builder memory-route confirmations', () => {
+  assert.equal(
+    shouldUseBuilderReplyForMemoryDirective('Memory saved: preferred mission updates are concise.', 'memory_open_save'),
+    true
+  );
+  assert.equal(
+    shouldUseBuilderReplyForMemoryDirective(
+      'We were shaping passive Spark bug recognition.',
+      'provider_fallback_chat'
+    ),
+    false
+  );
 });
 
 test('memory fallback does not claim a no-op save succeeded', () => {
@@ -751,7 +778,7 @@ test('parses natural access change requests', () => {
 test('resolves contextual access change follow-ups from recent access turns', () => {
   const recent = [
     'User: Change my access level to three please',
-    'Spark: Done - I changed this chat to Level 3 - Research + Build.'
+    'Spark: Done - I changed this chat to Access level 3.'
   ];
 
   assert.equal(hasRecentAccessConversation(recent), true);

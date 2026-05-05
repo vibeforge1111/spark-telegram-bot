@@ -126,7 +126,7 @@ export function validateSparkAccessProfileForRuntime(
   return {
     ok: false,
     message: [
-      'Full Access is locked for hosted Spark Live right now.',
+      'Access level 4 is locked for hosted Spark Live right now.',
       '',
       'Use /access 3 for the default hosted experience: chat, memory, public research, and requested Spawner builds.',
       'Only enable /access 4 on a hosted/VPS install after operator approval guardrails are ready.',
@@ -155,7 +155,7 @@ export function renderSparkAccessDenial(profile: SparkAccessProfile, requirement
   if (requirement === 'external_research') {
     return [
       `This needs ${sparkAccessLabel('agent')} or ${sparkAccessLabel('developer')}, but this chat is at ${sparkAccessLabel(profile)}.`,
-      'You can say "change my access level to 3" for public links/docs/GitHub research, or "change my access level to 4" for Full Access.'
+      'You can say "change my access level to 3" for public links/docs/GitHub research, or "change my access level to 4" for local project and file access.'
     ].join('\n');
   }
   return [
@@ -167,14 +167,14 @@ export function renderSparkAccessDenial(profile: SparkAccessProfile, requirement
 export function describeSparkAccessProfile(profile: SparkAccessProfile): string {
   switch (profile) {
     case 'chat':
-      return 'Level 1 - Chat Only: Spark can talk, remember, recall, diagnose, and answer from configured memory. It cannot start Spawner builds.';
+      return 'Access level 1: Spark can talk, remember, recall, diagnose, and answer from configured memory. It cannot start builds or missions.';
     case 'agent':
-      return 'Level 3 - Research + Build: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests, but not local folders.';
+      return 'Access level 3: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests, but not local folders.';
     case 'developer':
-      return 'Level 4 - Full Access: Spark can use Spawner/Codex for operating-system work, local project builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
+      return 'Access level 4: Spark can use Spawner/Codex for operating-system work, local project builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
     case 'builder':
     default:
-      return 'Level 2 - Build When Asked: Spark can use Spawner only when you clearly ask it to build something or run a mission. Public web/GitHub inspection stays off until Level 3 or 4.';
+      return 'Access level 2: Spark can use Spawner only when you clearly ask it to build something or run a mission. Public web/GitHub inspection stays off until level 3 or 4.';
   }
 }
 
@@ -195,14 +195,14 @@ export function sparkAccessLevel(profile: SparkAccessProfile): number {
 export function sparkAccessLabel(profile: SparkAccessProfile): string {
   switch (profile) {
     case 'chat':
-      return 'Level 1 - Chat Only';
+      return 'Access level 1';
     case 'agent':
-      return 'Level 3 - Research + Build';
+      return 'Access level 3';
     case 'developer':
-      return 'Level 4 - Full Access';
+      return 'Access level 4';
     case 'builder':
     default:
-      return 'Level 2 - Build When Asked';
+      return 'Access level 2';
   }
 }
 
@@ -214,10 +214,10 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     renderSparkAccessLevelGuide(),
     '',
     'Change it with:',
-    '/access 1  Chat Only',
-    '/access 2  Build When Asked',
-    '/access 3  Research + Build',
-    '/access 4  Full Access (recommended for local builds)'
+    '/access 1  Chat, memory, recall, diagnostics',
+    '/access 2  Requested builds and missions',
+    '/access 3  Public research plus requested builds',
+    '/access 4  Local projects, files, debugging, deeper missions (recommended for local builds)'
   ].join('\n');
 }
 
@@ -304,22 +304,22 @@ export function renderSparkAccessRuntimeHint(profile: SparkAccessProfile): strin
 
 export function renderSparkAccessLevelGuide(): string {
   return [
-    'What each level means:',
+    'What each access level allows:',
     '',
-    '1. Chat Only',
+    '1. Chat, memory, recall, diagnostics',
     '- Talk with Spark, save memories, recall notes, and run diagnostics.',
     '- Spark will not start builds or missions.',
     '',
-    '2. Build When Asked',
+    '2. Requested builds and missions',
     '- Spark can start a Spawner build only after you clearly ask.',
     '- Good when you want control before anything gets built.',
     '',
-    '3. Research + Build',
+    '3. Public research plus requested builds',
     '- Spark can research public links, docs, and GitHub repos when you ask.',
     '- Spark can also start builds and missions you request.',
     '- Spark will not work across your computer or local project files.',
     '',
-    '4. Full Access (recommended for builders)',
+    '4. Local projects, files, debugging, deeper missions (recommended for local builders)',
     '- Spark can help with local projects, debugging, files, and deeper build missions.',
     '- Good when you want Spark to feel like a real local agent.',
     '- Spark still must not reveal secrets or run destructive actions without clear approval.'
@@ -332,10 +332,10 @@ export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile =
     '',
     renderSparkAccessLevelGuide(),
     '',
-    '/access 1  Chat Only',
-    '/access 2  Build When Asked',
-    '/access 3  Research + Build',
-    '/access 4  Full Access (recommended for local builds)',
+    '/access 1  Chat, memory, recall, diagnostics',
+    '/access 2  Requested builds and missions',
+    '/access 3  Public research plus requested builds',
+    '/access 4  Local projects, files, debugging, deeper missions (recommended for local builds)',
     '',
     `Default right now: ${sparkAccessLabel(defaultProfile)}.`,
     'You can change this later anytime by sending /access 1, /access 2, /access 3, or /access 4.'

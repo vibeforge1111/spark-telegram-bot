@@ -232,7 +232,7 @@ test('describes access diagnostics without leaking ids', () => {
     isAdmin: false,
     isAllowed: false
   };
-  const lines = describeAccessDiagnostics(subject, 'Level 3 - Research + Build', {
+  const lines = describeAccessDiagnostics(subject, 'Access level 3', {
     ADMIN_TELEGRAM_IDS: '111,222',
     ALLOWED_TELEGRAM_IDS: '333',
     TELEGRAM_PUBLIC_CHAT_ENABLED: '0'
@@ -240,7 +240,7 @@ test('describes access diagnostics without leaking ids', () => {
 
   assert.deepEqual(lines, [
     'Current user: ❌ not allowed',
-    'Access level: Level 3 - Research + Build',
+    'Access level: Access level 3',
     'Configured operators: admins=2, allowed=1, public=off'
   ]);
 });

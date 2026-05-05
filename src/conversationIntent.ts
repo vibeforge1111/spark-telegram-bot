@@ -210,6 +210,20 @@ export function isSparkSelfMemoryDiagnosticQuestion(text: string): boolean {
   );
 }
 
+export function isSparkChipStatusOverclaimQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  if (/^\s*how\s+does\b/i.test(normalized)) {
+    return false;
+  }
+  return (
+    /\b(?:all|every)\s+(?:of\s+)?(?:your\s+|spark\s+)?chips?\b.*\b(?:work|working|healthy|ready|attached|available|ok|okay|fine|good|right)\b/i.test(normalized) ||
+    /\b(?:do|are)\s+(?:all|every)\s+(?:of\s+)?(?:your\s+|spark\s+)?chips?\s+(?:work|working|healthy|ready|attached|available|ok|okay|fine|good)\b/i.test(normalized)
+  );
+}
+
 export interface SparkWikiPromotionIntent {
   title: string;
   summary: string;
@@ -1082,6 +1096,10 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDec
   return isLowInformationLlmReply(reply) || isMemoryAcknowledgementReply(reply);
 }
 
+export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {
+  return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
+}
+
 export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
   const base = bridgeFailed
     ? 'Spark can see the chat, but its reasoning path is not healthy right now.'
@@ -1104,6 +1122,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
   const patterns = [
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s+that\s+(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:can\s+you\s+)?remember\s+(?:this|that)\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s+(.+?)[.!?]?$/i,
     /^(?:please\s+)?keep\s+in\s+mind\s+that\s+(.+?)[.!?]?$/i,

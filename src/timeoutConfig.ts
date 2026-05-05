@@ -2,6 +2,8 @@ export const DEFAULT_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_BUILDER_BRIDGE_TIMEOUT_MS = 15 * 60 * 1000;
 export const DEFAULT_CONTEXT_BRIDGE_TIMEOUT_MS = 15000;
 export const DEFAULT_LOCAL_SERVICE_TIMEOUT_MS = 30 * 60 * 1000;
+export const DEFAULT_SELF_BRIDGE_TIMEOUT_MS = 90 * 1000;
+export const DEFAULT_WIKI_BRIDGE_TIMEOUT_MS = 90 * 1000;
 
 export function positiveIntegerEnv(
   env: NodeJS.ProcessEnv,
@@ -37,4 +39,26 @@ export function contextBridgeTimeoutMs(
 
 export function localServiceDefaultTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
   return positiveIntegerEnv(env, 'SPARK_LOCAL_SERVICE_TIMEOUT_MS', DEFAULT_LOCAL_SERVICE_TIMEOUT_MS);
+}
+
+export function selfAwarenessBridgeTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+  builderTimeoutMs = builderBridgeTimeoutMs(env)
+): number {
+  return positiveIntegerEnv(
+    env,
+    'SPARK_SELF_BRIDGE_TIMEOUT_MS',
+    Math.min(builderTimeoutMs, DEFAULT_SELF_BRIDGE_TIMEOUT_MS)
+  );
+}
+
+export function wikiBridgeTimeoutMs(
+  env: NodeJS.ProcessEnv = process.env,
+  builderTimeoutMs = builderBridgeTimeoutMs(env)
+): number {
+  return positiveIntegerEnv(
+    env,
+    'SPARK_WIKI_BRIDGE_TIMEOUT_MS',
+    Math.min(builderTimeoutMs, DEFAULT_WIKI_BRIDGE_TIMEOUT_MS)
+  );
 }

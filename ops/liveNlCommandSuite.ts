@@ -16,6 +16,10 @@ interface CommandCase {
   expectedOutcome: string;
 }
 
+const SUITE_ALIASES: Record<string, string[]> = {
+  memory_architecture: ['memory', 'self_awareness', 'wiki', 'anti_drift']
+};
+
 function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
@@ -29,10 +33,11 @@ function selectCases(cases: CommandCase[]): CommandCase[] {
   const caseId = argValue(process.argv, 'case');
   const suite = argValue(process.argv, 'suite');
   const includeRisky = hasFlag('include-risky');
+  const suiteNames = suite ? new Set(SUITE_ALIASES[suite] ?? [suite]) : null;
 
   let selected = cases;
   if (caseId) selected = selected.filter((entry) => entry.id === caseId);
-  if (suite) selected = selected.filter((entry) => entry.suite === suite);
+  if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
   if (!includeRisky && !caseId) selected = selected.filter((entry) => entry.risk === 'safe');
   return selected;
 }
@@ -98,6 +103,7 @@ async function main(): Promise<void> {
       'Notes:',
       '  --send only sends prompt cards. It does not start polling or read updates.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
+      '  Suite alias: memory_architecture expands to memory, self_awareness, wiki, and anti_drift.',
       '  Risky suites are excluded from broad selection unless --include-risky is set.'
     ].join('\n'));
     return;

@@ -112,6 +112,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkChipStatusOverclaimQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
@@ -124,6 +125,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
+  shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import { getLatestShippedProjectContext } from './shippedProjectContext';
@@ -146,6 +148,7 @@ import {
   isTelegramImageMessage,
   telegramImageMemoryText
 } from './telegramImageBridge';
+import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -319,6 +322,59 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   return true;
 }
 
+function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
+  return `Saved in Telegram memory: ${directive.replace(/[.!?]+$/g, '').trim()}.`;
+}
+
+function renderSparkChipStatusBoundaryFallbackReply(): string {
+  return [
+    'Spark chip status',
+    '',
+    'I should not claim all chips work from registration alone.',
+    '',
+    'Boundary',
+    '- Registered or attached means discoverable.',
+    '- Working means a recent authorized route succeeded with trace evidence.',
+    '',
+    'Next probe',
+    '- Run the target chip or self-awareness route, then record last_success_at and last_failure_reason.'
+  ].join('\n');
+}
+
+async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string, directive: string): Promise<void> {
+  let localSaved = false;
+  try {
+    await conversation.remember(user, text);
+    await conversation.learnAboutUser(user, `User asked Spark to remember: ${directive}`);
+    localSaved = true;
+  } catch (error) {
+    console.warn('[MemoryDirective] local memory save failed:', error);
+  }
+
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
+    if (
+      builderReply.used &&
+      builderReply.bridgeMode !== 'bridge_error' &&
+      shouldUseBuilderReplyForMemoryDirective(builderReply.responseText, builderReply.routingDecision)
+    ) {
+      await ctx.reply(builderReply.responseText);
+      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      return;
+    }
+  } catch (error) {
+    console.warn('[MemoryDirective] Builder memory confirmation unavailable:', error);
+  }
+
+  const reply = localSaved
+    ? formatLocalMemoryDirectiveAcknowledgement(directive)
+    : buildMemoryBridgeUnavailableReply('remember');
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(user, reply).catch(() => {});
+}
+
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
@@ -366,6 +422,8 @@ bot.use(async (ctx, next) => {
 bot.start(async (ctx) => {
   const user = ctx.from;
   const name = user.first_name || user.username || 'friend';
+  const startText = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+  const onboardingSession = extractStartSession(startText);
 
   const builderBridge = await getBuilderBridgeStatus();
 
@@ -401,7 +459,7 @@ bot.start(async (ctx) => {
       '/models - Show recommended model versions',
       '/wiki - Check Spark LLM wiki health; use /wiki pages for vault inventory',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
-      '/access <1|2|3|4> - Choose Chat Only, Build When Asked, Research + Build, or Full Access',
+      '/access <1|2|3|4> - Choose what this Telegram chat can do',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
     );
   }
@@ -412,6 +470,19 @@ bot.start(async (ctx) => {
   }
 
   await ctx.reply(lines.join('\n'));
+  if (onboardingSession) {
+    await recordTelegramFirstMessage({
+      event: 'telegram_first_message',
+      session: onboardingSession,
+      replied: true,
+      ts: new Date().toISOString(),
+      chat_id: String(ctx.chat?.id ?? ''),
+      user_id: String(user.id ?? ''),
+      profile: process.env.SPARK_TELEGRAM_PROFILE || 'default'
+    }).catch((error) => {
+      console.warn('[Onboarding] failed to write first-message event:', error);
+    });
+  }
   if (!spawnerAvailable && conversation.isAdmin(user)) {
     await ctx.reply('Spawner orchestration is offline.');
   }
@@ -1806,7 +1877,7 @@ bot.command('access', async (ctx) => {
 
   const next = normalizeSparkAccessProfile(raw);
   if (!next) {
-    await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
+    await ctx.reply('Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, or /access 4 local projects and files.');
     return;
   }
 
@@ -1828,7 +1899,7 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
 
   const next = normalizeSparkAccessProfile(raw);
   if (!next) {
-    await ctx.reply('Choose an access level: /access 1 Chat Only, /access 2 Build When Asked, /access 3 Research + Build, or /access 4 Full Access.');
+    await ctx.reply('Choose an access level: /access 1 chat/memory/diagnostics, /access 2 requested builds, /access 3 public research plus builds, or /access 4 local projects and files.');
     return true;
   }
 
@@ -1851,7 +1922,10 @@ function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: stri
     return null;
   }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
+  const asksRememberedPreference =
+    /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission updates?|updates?)\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:prefer|preferred|preference)\b.*\bremember\b/.test(normalized);
+  if (!asksRememberedPreference && !/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;
   }
 
@@ -1864,6 +1938,12 @@ function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: stri
     const codeWord = cleaned.match(/\b(?:session\s+test\s+)?code\s+word\s*[:\-]\s*(.+)$/i);
     if (codeWord?.[1]?.trim()) {
       return codeWord[1].trim().replace(/^["']|["']$/g, '');
+    }
+    if (asksRememberedPreference) {
+      const userFacing = cleaned
+        .replace(/^my\b/i, 'your')
+        .replace(/^i\b/i, 'you');
+      return `You told me ${userFacing}.`;
     }
     return cleaned;
   }
@@ -1996,6 +2076,29 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkAccessConversationHelp(accessProfile);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderSelfAwarenessStatus({
+        userId: user.id,
+        chatId: ctx.chat.id,
+        currentMessage: text,
+      });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      const reply = renderSparkChipStatusBoundaryFallbackReply();
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    }
+    return;
+  }
+  const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
+  if (memoryDirective) {
+    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective);
     return;
   }
   const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);
@@ -2424,11 +2527,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const memoryDirective = extractPlainChatMemoryDirective(text);
-    if (memoryDirective) {
-      await conversation.learnAboutUser(user, `User asked Spark to remember: ${memoryDirective}`).catch(() => {});
-    }
-
     let bridgeFailed = false;
     let builderReply = {
       used: false,
@@ -2448,9 +2546,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
       if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
-        if (memoryDirective) {
-          await conversation.remember(user, text).catch(() => {});
-        }
         await ctx.reply(builderReply.responseText);
         await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         return;

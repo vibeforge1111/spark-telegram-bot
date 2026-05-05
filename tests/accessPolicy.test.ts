@@ -115,42 +115,42 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessAllowsWorkspaceBuilds('agent'), false);
     assert.equal(sparkAccessAllowsWorkspaceBuilds('developer'), true);
     assert.equal(sparkAccessLevel('developer'), 4);
-    assert.equal(sparkAccessLabel('agent'), 'Level 3 - Research + Build');
-    assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
+    assert.equal(sparkAccessLabel('agent'), 'Access level 3');
+    assert.equal(sparkAccessLabel('developer'), 'Access level 4');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
     assert.match(describeSparkAccessProfile('developer'), /operating-system work/);
     assert.match(describeSparkAccessProfile('agent'), /not local folders/);
-    assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
-    assert.match(renderSparkAccessStatus('agent'), /What each level means/);
-    assert.match(renderSparkAccessStatus('agent'), /\/access 4  Full Access \(recommended for local builds\)/);
-    assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
+    assert.match(renderSparkAccessStatus('agent'), /Spark access: Access level 3/);
+    assert.match(renderSparkAccessStatus('agent'), /What each access level allows/);
+    assert.match(renderSparkAccessStatus('agent'), /\/access 4  Local projects, files, debugging, deeper missions \(recommended for local builds\)/);
+    assert.match(renderSparkAccessStatus('builder'), /Requested builds and missions/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
     assert.match(renderSparkAccessLevelGuide(), /Talk with Spark, save memories, recall notes/);
     assert.match(renderSparkAccessLevelGuide(), /start a Spawner build only after you clearly ask/);
     assert.match(renderSparkAccessLevelGuide(), /research public links, docs, and GitHub repos/);
-    assert.match(renderSparkAccessLevelGuide(), /Full Access \(recommended for builders\)/);
+    assert.match(renderSparkAccessLevelGuide(), /recommended for local builders/);
     assert.match(renderSparkAccessLevelGuide(), /local projects, debugging, files/);
     assert.match(renderSparkAccessLevelGuide(), /must not reveal secrets or run destructive actions/);
-    assert.match(renderSparkAccessOnboarding(), /Default right now: Level 4 - Full Access/);
+    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 4/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
-    assert.match(renderSparkAccessOnboarding('agent'), /What each level means/);
-    assert.match(renderSparkAccessOnboarding('agent'), /\/access 4  Full Access \(recommended for local builds\)/);
-    assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Level 3 - Research \+ Build/);
-    assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Level 4 - Full Access/);
+    assert.match(renderSparkAccessOnboarding('agent'), /What each access level allows/);
+    assert.match(renderSparkAccessOnboarding('agent'), /\/access 4  Local projects, files, debugging, deeper missions \(recommended for local builds\)/);
+    assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Access level 3/);
+    assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Access level 4/);
     assert.match(renderSparkAccessOnboarding('agent'), /change this later anytime by sending \/access 1/);
   });
 
   await test('renders compact conversational access replies', () => {
     const status = renderSparkAccessBriefStatus('developer');
-    assert.match(status, /You are on Level 4 - Full Access/);
+    assert.match(status, /You are on Access level 4/);
     assert.match(status, /change my access level to 3/);
-    assert.doesNotMatch(status, /What each level means/);
+    assert.doesNotMatch(status, /What each access level allows/);
 
     const confirmations = [
-      ['chat', 'Done - I changed this chat to Level 1 - Chat Only.'],
-      ['builder', 'Done - I changed this chat to Level 2 - Build When Asked.'],
-      ['agent', 'Done - I changed this chat to Level 3 - Research + Build.'],
-      ['developer', 'Done - I changed this chat to Level 4 - Full Access.']
+      ['chat', 'Done - I changed this chat to Access level 1.'],
+      ['builder', 'Done - I changed this chat to Access level 2.'],
+      ['agent', 'Done - I changed this chat to Access level 3.'],
+      ['developer', 'Done - I changed this chat to Access level 4.']
     ] as const;
     for (const [profile, expected] of confirmations) {
       const changed = renderSparkAccessChangeConfirmation(profile);
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
     }
 
     const help = renderSparkAccessConversationHelp('builder');
-    assert.match(help, /currently Level 2 - Build When Asked/);
+    assert.match(help, /currently Access level 2/);
     assert.match(help, /Level 4: local projects/);
     assert.doesNotMatch(help, /\/access 1/);
   });
@@ -176,10 +176,10 @@ async function main(): Promise<void> {
   });
 
   await test('renders runtime access hints that prevent filesystem access contradictions', () => {
-    assert.match(renderSparkAccessRuntimeHint('developer'), /Current Spark access: Level 4 - Full Access/);
+    assert.match(renderSparkAccessRuntimeHint('developer'), /Current Spark access: Access level 4/);
     assert.match(renderSparkAccessRuntimeHint('developer'), /do not say you cannot inspect local files/);
     assert.match(renderSparkAccessRuntimeHint('developer'), /Spawner\/Codex/);
-    assert.match(renderSparkAccessRuntimeHint('agent'), /Current Spark access: Level 3 - Research \+ Build/);
+    assert.match(renderSparkAccessRuntimeHint('agent'), /Current Spark access: Access level 3/);
     assert.match(renderSparkAccessRuntimeHint('agent'), /Use \/access 4/);
     assert.match(renderSparkAccessRuntimeHint('chat'), /Do not claim local filesystem access/);
   });
@@ -190,10 +190,10 @@ async function main(): Promise<void> {
     assert.equal(sparkMissionNeedsOperatingSystemAccess('debug my local project'), true);
     assert.equal(sparkMissionNeedsOperatingSystemAccess('create a small browser app', '/Users/me/app'), true);
 
-    assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /Build When Asked/);
+    assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /Access level 2/);
     assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /change my access level to 2/);
     assert.match(renderSparkAccessDenial('chat', 'spawner_build'), /\/access 2/);
-    assert.match(renderSparkAccessDenial('builder', 'external_research'), /Research \+ Build/);
+    assert.match(renderSparkAccessDenial('builder', 'external_research'), /Access level 3/);
     assert.match(renderSparkAccessDenial('builder', 'external_research'), /change my access level to 3/);
     assert.match(renderSparkAccessDenial('builder', 'external_research'), /change my access level to 4/);
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /operating system/);
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessDenial('agent', 'operating_system'), /\/access 4/);
   });
 
-  await test('gates full access on hosted Spark Live unless explicitly enabled', () => {
+  await test('gates access level 4 on hosted Spark Live unless explicitly enabled', () => {
     assert.equal(sparkIsHostedRuntime({}), false);
     assert.equal(sparkIsHostedRuntime({ SPARK_LIVE_CONTAINER: '1' }), true);
     assert.equal(sparkIsHostedRuntime({ SPARK_SPAWNER_HOST: '0.0.0.0' }), true);
@@ -224,7 +224,7 @@ async function main(): Promise<void> {
     const denied = validateSparkAccessProfileForRuntime('developer', { SPARK_SPAWNER_HOST: '0.0.0.0' });
     assert.equal(denied.ok, false);
     if (!denied.ok) {
-      assert.match(denied.message, /Full Access is locked/);
+      assert.match(denied.message, /Access level 4 is locked/);
       assert.match(denied.message, /\/access 3/);
       assert.match(denied.message, /SPARK_ALLOW_HOSTED_FULL_ACCESS=1/);
     }

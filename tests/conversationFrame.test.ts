@@ -45,7 +45,7 @@ test('does not pretend a 200k model reliably holds a full 200k assembled input',
 test('resolves access shorthand from recent access context', () => {
   const frame = buildConversationFrame('Change it to 4', [
     { role: 'user', text: 'Change my access level to three please' },
-    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' }
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 3.' }
   ]);
 
   assert.equal(frame.referenceResolution.kind, 'access_level');
@@ -71,9 +71,9 @@ test('resolves numbered references against the latest assistant list', () => {
 test('list references beat older access focus when both are in context', () => {
   const frame = buildConversationFrame('Let\'s do the second one', [
     { role: 'user', text: 'Change my access level to three please' },
-    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' },
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 3.' },
     { role: 'user', text: 'Change it to 4' },
-    { role: 'assistant', text: 'Done - I changed this chat to Level 4 - Full Access.' },
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 4.' },
     { role: 'user', text: 'Give me three build ideas for a memory dashboard' },
     {
       role: 'assistant',
@@ -93,7 +93,7 @@ test('list references beat older access focus when both are in context', () => {
 test('short action option references use newer list context instead of access context', () => {
   const frame = buildConversationFrame('Let\'s do two', [
     { role: 'user', text: 'Change my access level to three please' },
-    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' },
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 3.' },
     { role: 'user', text: 'Give me three build ideas for a memory dashboard' },
     {
       role: 'assistant',
@@ -197,7 +197,7 @@ test('acknowledges choice lists without prematurely selecting one', () => {
 test('access shorthand still works when no list reference is present', () => {
   const frame = buildConversationFrame('Actually make it four', [
     { role: 'user', text: 'Change my access level to three please' },
-    { role: 'assistant', text: 'Done - I changed this chat to Level 3 - Research + Build.' }
+    { role: 'assistant', text: 'Done - I changed this chat to Access level 3.' }
   ]);
 
   assert.equal(frame.referenceResolution.kind, 'access_level');
