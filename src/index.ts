@@ -586,8 +586,6 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     enrichedPrd = `${pending.prd}\n\n## User clarifications\n\n${pending.questions
       .map((q, i) => `Q${i + 1}: ${q}`)
       .join('\n')}\n\nAnswers: ${answersRaw}`;
-  } else if (runWithDefaults) {
-    await ctx.reply('Perfect, I will run with the default direction.');
   }
 
   const spawnerUrl = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
@@ -622,6 +620,16 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
       await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Clarification re-dispatch failed'), 'spawner', conversation.isAdmin(ctx.from)));
       return;
     }
+
+    await registerMissionRelay({
+      missionId,
+      chatId: String(ctx.chat.id),
+      userId: String(ctx.from.id),
+      requestId: newRequestId,
+      goal: pending.projectName || pending.prd,
+      createdAt: new Date().toISOString(),
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+    });
 
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
@@ -1396,6 +1404,17 @@ export async function handleBuildIntent(
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+
+    await registerMissionRelay({
+      missionId,
+      chatId: String(ctx.chat.id),
+      userId: String(ctx.from.id),
+      requestId,
+      goal: projectName || prd,
+      createdAt: new Date().toISOString(),
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+    });
+
     const ackLines = [
       'Got it. Spark picked up the build.',
       '',

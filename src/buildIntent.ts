@@ -120,6 +120,13 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
+  if (isConstrainedStaticSingleFileBuild(text)) {
+    return {
+      mode: 'direct',
+      reason: 'User asked for a constrained one-file static HTML build.'
+    };
+  }
+
   if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
@@ -148,6 +155,16 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     mode: 'direct',
     reason: 'Small explicit build request; direct execution is enough.'
   };
+}
+
+function isConstrainedStaticSingleFileBuild(text: string): boolean {
+  const lower = text.toLowerCase();
+  const namesIndex = /\bindex\.html\b/.test(lower);
+  const oneFileOnly = /\b(?:one|single)[-\s]?file\s+only\b|\bonly\s+(?:one|a\s+single)\s+file\b/.test(lower);
+  const staticHtmlOnly = /\bstatic\s+html\s+only\b|\bkeep\s+it\s+as\s+static\s+html\b|\bstatic\s+file\s+only\b/.test(lower);
+  const noPackage = /\bdo\s+not\s+add\s+package\b|\bno\s+package(?:\.json| files?)?\b/.test(lower);
+  const forbidsFullApp = /\bdo\s+not\s+(?:make|build|create)\s+(?:a\s+)?full\s+app\b|\bdon't\s+(?:make|build|create)\s+(?:a\s+)?full\s+app\b/.test(lower);
+  return namesIndex && (oneFileOnly || forbidsFullApp || (staticHtmlOnly && noPackage));
 }
 
 function normalizeBuildCommandText(text: string): string {

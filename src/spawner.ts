@@ -5,7 +5,10 @@ import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiv
 import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
-const PROJECT_PREVIEW_URL = process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555';
+const PROJECT_PREVIEW_URL =
+  process.env.SPARK_PROJECT_PREVIEW_URL ||
+  process.env.SPAWNER_UI_PUBLIC_URL ||
+  SPAWNER_UI_URL;
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';

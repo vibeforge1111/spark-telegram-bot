@@ -53,7 +53,12 @@ function normalizeLocalProjectPath(pathValue: string): string {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (process.env.SPARK_PROJECT_PREVIEW_URL || 'http://127.0.0.1:5555').replace(/\/+$/, '');
+  return (
+    process.env.SPARK_PROJECT_PREVIEW_URL ||
+    process.env.SPAWNER_UI_PUBLIC_URL ||
+    process.env.SPAWNER_UI_URL ||
+    'http://127.0.0.1:3333'
+  ).replace(/\/+$/, '');
 }
 
 export function projectPreviewUrlForPath(projectPath: string): string {

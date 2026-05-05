@@ -57,6 +57,17 @@ test('infers clean landing-page names from compact build prompts', () => {
   assert.equal(intent.buildMode, 'direct');
 });
 
+test('keeps constrained one-file static HTML prompts direct even when they say full app', () => {
+  const intent = parseBuildIntent(
+    'build one file only: index.html with a big heading "Spark relay is alive" and text "telegram progress updates reached me". Do not make a full app, do not add package files, and keep it as static HTML only.'
+  );
+
+  assert.ok(intent);
+  assert.equal(intent.buildMode, 'direct');
+  assert.equal(intent.buildModeReason, 'User asked for a constrained one-file static HTML build.');
+  assert.match(intent.prd, /index\.html/);
+});
+
 test('parses advanced PRD mode preface before build command', () => {
   const intent = parseBuildIntent(
     'Use advanced PRD mode. Build this at C:\\Users\\USER\\Desktop\\spark-galaxy-garden: a vanilla-JS single-page app called Spark Galaxy Garden. Files: index.html, styles.css, app.js, README.md. No build step. Users plant seeds, water them, harvest stardust, persist state, and see animated growth stages.'
