@@ -210,6 +210,20 @@ export function isSparkSelfMemoryDiagnosticQuestion(text: string): boolean {
   );
 }
 
+export function isSparkChipStatusOverclaimQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  if (/^\s*how\s+does\b/i.test(normalized)) {
+    return false;
+  }
+  return (
+    /\b(?:all|every)\s+(?:of\s+)?(?:your\s+|spark\s+)?chips?\b.*\b(?:work|working|healthy|ready|attached|available|ok|okay|fine|good|right)\b/i.test(normalized) ||
+    /\b(?:do|are)\s+(?:all|every)\s+(?:of\s+)?(?:your\s+|spark\s+)?chips?\s+(?:work|working|healthy|ready|attached|available|ok|okay|fine|good)\b/i.test(normalized)
+  );
+}
+
 export interface SparkWikiPromotionIntent {
   title: string;
   summary: string;

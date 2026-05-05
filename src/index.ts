@@ -112,6 +112,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkChipStatusOverclaimQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
@@ -323,6 +324,21 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
 
 function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
   return `Saved in Telegram memory: ${directive.replace(/[.!?]+$/g, '').trim()}.`;
+}
+
+function renderSparkChipStatusBoundaryFallbackReply(): string {
+  return [
+    'Spark chip status',
+    '',
+    'I should not claim all chips work from registration alone.',
+    '',
+    'Boundary',
+    '- Registered or attached means discoverable.',
+    '- Working means a recent authorized route succeeded with trace evidence.',
+    '',
+    'Next probe',
+    '- Run the target chip or self-awareness route, then record last_success_at and last_failure_reason.'
+  ].join('\n');
 }
 
 async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string, directive: string): Promise<void> {
@@ -2041,6 +2057,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkAccessConversationHelp(accessProfile);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const result = await runBuilderSelfAwarenessStatus({
+        userId: user.id,
+        chatId: ctx.chat.id,
+        currentMessage: text,
+      });
+      await ctx.reply(result.replyText);
+      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    } catch (err: any) {
+      const reply = renderSparkChipStatusBoundaryFallbackReply();
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    }
     return;
   }
   const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);

@@ -29,6 +29,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkChipStatusOverclaimQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
@@ -669,6 +670,13 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
+});
+
+test('recognizes chip status overclaim questions as anti-drift probes', () => {
+  assert.equal(isSparkChipStatusOverclaimQuestion('all your chips work, right?'), true);
+  assert.equal(isSparkChipStatusOverclaimQuestion('are all your chips healthy?'), true);
+  assert.equal(isSparkChipStatusOverclaimQuestion('I want to create a new domain chip for recipes'), false);
+  assert.equal(isSparkChipStatusOverclaimQuestion('how does the memory chip work?'), false);
 });
 
 test('extracts safe Spark wiki improvement promotion intents', () => {

@@ -320,6 +320,30 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('chip status overclaim probe does not fall through to provider fallback', async () => {
+		restoreAxios();
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 564, replies);
+		ctx.message.text = 'all your chips work, right?';
+		const indexModule: any = await import('../src/index');
+
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies.join('\n');
+		assert.match(reply, /Spark chip status/);
+		assert.match(reply, /Registered or attached means discoverable/);
+		assert.match(reply, /Working means a recent authorized route succeeded/);
+		assert.doesNotMatch(reply, /Missing provider keys/i);
+		assert.doesNotMatch(reply, /provider authentication/i);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('domain chip creation can use the build PRD bridge contract', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
