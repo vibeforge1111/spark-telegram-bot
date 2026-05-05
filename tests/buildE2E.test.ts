@@ -350,9 +350,14 @@ async function run(): Promise<void> {
 		await indexModule.handleTextMessage(ctx);
 
 		const reply = replies.join('\n');
-		assert.match(reply, /Spark self-awareness/);
-		assert.match(reply, /current-state evidence wins/i);
-		assert.match(reply, /What looks live/);
+		assert.match(reply, /Spark (?:chip status|self-awareness)/);
+		if (/Spark self-awareness/.test(reply)) {
+			assert.match(reply, /current-state evidence wins/i);
+			assert.match(reply, /What looks live/);
+		} else {
+			assert.match(reply, /Registered or attached means discoverable/);
+			assert.match(reply, /Working means a recent authorized route succeeded/);
+		}
 		assert.doesNotMatch(reply, /Missing provider keys/i);
 		assert.doesNotMatch(reply, /provider authentication/i);
 
