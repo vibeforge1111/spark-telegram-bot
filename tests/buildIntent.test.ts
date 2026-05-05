@@ -65,6 +65,7 @@ test('keeps constrained one-file static HTML prompts direct even when they say f
   assert.ok(intent);
   assert.equal(intent.buildMode, 'direct');
   assert.equal(intent.buildModeReason, 'User asked for a constrained one-file static HTML build.');
+  assert.equal(intent.projectName, 'Spark relay is alive');
   assert.match(intent.prd, /index\.html/);
 });
 

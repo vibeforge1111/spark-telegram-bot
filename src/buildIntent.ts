@@ -63,6 +63,17 @@ function inferConceptualProjectName(prd: string): string | null {
   return null;
 }
 
+function inferQuotedHeadingProjectName(prd: string): string | null {
+  const headingMatch = prd.match(
+    /\b(?:big\s+|large\s+|hero\s+)?(?:heading|headline|title|h1)\b(?:\s+(?:that\s+)?(?:says|reads|called|named))?\s*[:\-]?\s*["']([^"']{3,80})["']/i
+  );
+  if (!headingMatch) return null;
+  return headingMatch[1]
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/, '');
+}
+
 function inferProjectName(prd: string, projectPath: string | null): string {
   const nameMatch = prd.match(/\bcalled\s+([A-Z][\w\s-]{2,60}?)(?=[.,:;?]|\n|\s+(?:with|that|which|where|for|using)\b|\s+and\s+(?:make|build|create|ship|scaffold|generate)\b|$)/i);
   if (nameMatch) return nameMatch[1].trim();
@@ -72,6 +83,8 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   }
   const atMatch = prd.match(/(?:at|in)\s+(?:[A-Z]:[\\/]|\/)[\w\\/:\-. ]+[\\/]([\w.-]+)/);
   if (atMatch) return atMatch[1].replace(/[-_]/g, ' ').trim();
+  const quotedHeadingName = inferQuotedHeadingProjectName(prd);
+  if (quotedHeadingName) return quotedHeadingName;
   const conceptualName = inferConceptualProjectName(prd);
   if (conceptualName) return conceptualName;
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
