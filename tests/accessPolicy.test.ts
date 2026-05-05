@@ -71,12 +71,12 @@ async function main(): Promise<void> {
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
 
     assert.equal(await getConfiguredSparkAccessProfile(123), null);
-    assert.equal(await getSparkAccessProfile(123), 'agent');
+    assert.equal(await getSparkAccessProfile(123), 'developer');
     await setSparkAccessProfile(123, 'agent');
 
     assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
     assert.equal(await getSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(456), 'agent');
+    assert.equal(await getSparkAccessProfile(456), 'developer');
   });
 
   await test('allows environment override of default access profile', async () => {
@@ -119,20 +119,22 @@ async function main(): Promise<void> {
     assert.equal(sparkAccessLabel('developer'), 'Level 4 - Full Access');
     assert.match(describeSparkAccessProfile('developer'), /must not reveal secrets/);
     assert.match(describeSparkAccessProfile('developer'), /operating-system work/);
-    assert.match(describeSparkAccessProfile('agent'), /Default/);
+    assert.match(describeSparkAccessProfile('agent'), /not local folders/);
     assert.match(renderSparkAccessStatus('agent'), /Spark access: Level 3 - Research \+ Build/);
     assert.match(renderSparkAccessStatus('agent'), /What each level means/);
-    assert.match(renderSparkAccessStatus('agent'), /\/access 3  Research \+ Build \(default\)/);
+    assert.match(renderSparkAccessStatus('agent'), /\/access 4  Full Access \(recommended for local builds\)/);
     assert.match(renderSparkAccessStatus('builder'), /Build When Asked/);
     assert.match(renderSparkAccessStatus('agent'), /\/access 4/);
     assert.match(renderSparkAccessLevelGuide(), /Talk with Spark, save memories, recall notes/);
     assert.match(renderSparkAccessLevelGuide(), /start a Spawner build only after you clearly ask/);
     assert.match(renderSparkAccessLevelGuide(), /research public links, docs, and GitHub repos/);
+    assert.match(renderSparkAccessLevelGuide(), /Full Access \(recommended for builders\)/);
     assert.match(renderSparkAccessLevelGuide(), /local projects, debugging, files/);
     assert.match(renderSparkAccessLevelGuide(), /must not reveal secrets or run destructive actions/);
+    assert.match(renderSparkAccessOnboarding(), /Default right now: Level 4 - Full Access/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
     assert.match(renderSparkAccessOnboarding('agent'), /What each level means/);
-    assert.match(renderSparkAccessOnboarding('agent'), /\/access 3  Research \+ Build \(recommended\)/);
+    assert.match(renderSparkAccessOnboarding('agent'), /\/access 4  Full Access \(recommended for local builds\)/);
     assert.match(renderSparkAccessOnboarding('agent'), /Default right now: Level 3 - Research \+ Build/);
     assert.match(renderSparkAccessOnboarding('developer'), /Default right now: Level 4 - Full Access/);
     assert.match(renderSparkAccessOnboarding('agent'), /change this later anytime by sending \/access 1/);

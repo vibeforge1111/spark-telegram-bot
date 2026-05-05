@@ -37,7 +37,10 @@ export function normalizeSparkAccessProfile(value: unknown): SparkAccessProfile 
 }
 
 function defaultSparkAccessProfile(): SparkAccessProfile {
-  return normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE) || 'agent';
+  const configured = normalizeSparkAccessProfile(process.env.SPARK_AGENT_ACCESS_PROFILE);
+  if (configured) return configured;
+  if (sparkIsHostedRuntime() && !sparkHostedFullAccessAllowed()) return 'agent';
+  return 'developer';
 }
 
 async function readPreferences(): Promise<SparkAccessPreferences> {
@@ -166,7 +169,7 @@ export function describeSparkAccessProfile(profile: SparkAccessProfile): string 
     case 'chat':
       return 'Level 1 - Chat Only: Spark can talk, remember, recall, diagnose, and answer from configured memory. It cannot start Spawner builds.';
     case 'agent':
-      return 'Level 3 - Research + Build: Default. Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests.';
+      return 'Level 3 - Research + Build: Spark can inspect public links, docs, and GitHub repos when you ask. It can also use Spawner for explicit build requests, but not local folders.';
     case 'developer':
       return 'Level 4 - Full Access: Spark can use Spawner/Codex for operating-system work, local project builds, debugging, repo inspection, public research, and deeper missions. It still must not reveal secrets or run destructive actions without explicit approval.';
     case 'builder':
@@ -213,8 +216,8 @@ export function renderSparkAccessStatus(profile: SparkAccessProfile): string {
     'Change it with:',
     '/access 1  Chat Only',
     '/access 2  Build When Asked',
-    '/access 3  Research + Build (default)',
-    '/access 4  Full Access'
+    '/access 3  Research + Build',
+    '/access 4  Full Access (recommended for local builds)'
   ].join('\n');
 }
 
@@ -311,19 +314,19 @@ export function renderSparkAccessLevelGuide(): string {
     '- Spark can start a Spawner build only after you clearly ask.',
     '- Good when you want control before anything gets built.',
     '',
-    '3. Research + Build (recommended)',
+    '3. Research + Build',
     '- Spark can research public links, docs, and GitHub repos when you ask.',
     '- Spark can also start builds and missions you request.',
     '- Spark will not work across your computer or local project files.',
     '',
-    '4. Full Access',
+    '4. Full Access (recommended for builders)',
     '- Spark can help with local projects, debugging, files, and deeper build missions.',
     '- Good when you want Spark to feel like a real local agent.',
     '- Spark still must not reveal secrets or run destructive actions without clear approval.'
   ].join('\n');
 }
 
-export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile = 'agent'): string {
+export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile = defaultSparkAccessProfile()): string {
   return [
     'Choose how much access this Telegram chat has.',
     '',
@@ -331,8 +334,8 @@ export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile =
     '',
     '/access 1  Chat Only',
     '/access 2  Build When Asked',
-    '/access 3  Research + Build (recommended)',
-    '/access 4  Full Access',
+    '/access 3  Research + Build',
+    '/access 4  Full Access (recommended for local builds)',
     '',
     `Default right now: ${sparkAccessLabel(defaultProfile)}.`,
     'You can change this later anytime by sending /access 1, /access 2, /access 3, or /access 4.'

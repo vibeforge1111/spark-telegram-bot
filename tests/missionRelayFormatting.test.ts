@@ -5,10 +5,12 @@ import {
   formatProgressMessageForTelegram,
   getTelegramRelayIdentity,
   formatProviderCompletionForTelegram,
+  isCompletionDeliveryCachedForTests,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
+  sendFetchedCompletionSummaryForTests,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
   shouldSkipDuplicateForTests,
@@ -888,3 +890,67 @@ test('reports this relay identity from env', () => {
     else process.env.TELEGRAM_RELAY_URL = originalUrl;
   }
 });
+
+void (async () => {
+  const name = 'does not cache fetched completion summaries until Telegram delivery succeeds';
+  try {
+    resetMissionRelayDeliveryStateForTests();
+    const subscription = {
+      missionId: 'spark-delivery-retry',
+      chatId: '12345',
+      userId: '67890',
+      requestId: 'req-delivery-retry',
+      goal: 'Build a retryable completion.',
+      createdAt: '2026-05-05T00:00:00Z'
+    };
+    const event = {
+      type: 'mission_completed' as const,
+      missionId: subscription.missionId
+    };
+    const completion = {
+      providerLabel: 'codex',
+      response: JSON.stringify({
+        summary: 'Built the retryable completion handoff.',
+        status: 'completed'
+      })
+    };
+    const failingBot = {
+      telegram: {
+        sendMessage: async () => {
+          throw new Error('telegram unavailable');
+        }
+      }
+    };
+
+    await assert.rejects(
+      sendFetchedCompletionSummaryForTests(failingBot as any, 12345, subscription, event, 'normal', completion),
+      /telegram unavailable/
+    );
+    assert.equal(isCompletionDeliveryCachedForTests(subscription.missionId), false);
+
+    const sent: string[] = [];
+    const workingBot = {
+      telegram: {
+        sendMessage: async (_chatId: number, message: string) => {
+          sent.push(message);
+        }
+      }
+    };
+    const chunks = await sendFetchedCompletionSummaryForTests(
+      workingBot as any,
+      12345,
+      subscription,
+      event,
+      'normal',
+      completion
+    );
+
+    assert.equal(chunks, 1);
+    assert.equal(sent.length, 1);
+    assert.equal(isCompletionDeliveryCachedForTests(subscription.missionId), true);
+    console.log(`ok - ${name}`);
+  } catch (error) {
+    console.error(`not ok - ${name}`);
+    throw error;
+  }
+})();

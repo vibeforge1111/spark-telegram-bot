@@ -579,7 +579,6 @@ async function sendFetchedCompletionSummary(
   verbosity: TelegramRelayVerbosity,
   completion: MissionCompletionSummary
 ): Promise<number> {
-  completionDeliveryCache.add(event.missionId);
   clearHeartbeatForMission(event.missionId);
   const message = formatProviderCompletionForTelegram({
     providerLabel: completion.providerLabel,
@@ -596,6 +595,7 @@ async function sendFetchedCompletionSummary(
     const prefix = chunks.length > 1 ? `(part ${i + 1} of ${chunks.length})\n` : '';
     await bot.telegram.sendMessage(chatId, `${prefix}${chunks[i]}`);
   }
+  completionDeliveryCache.add(event.missionId);
   await rememberMissionCompletion(subscription, event, completion.providerLabel, completion.response);
   return chunks.length;
 }
@@ -1299,6 +1299,22 @@ export function shouldAcknowledgeRelayWithoutTelegramDelivery(env: NodeJS.Proces
 export function resetMissionRelayDeliveryStateForTests(): void {
   deliveryCache.clear();
   openTaskStartCache.clear();
+  completionDeliveryCache.clear();
+}
+
+export function isCompletionDeliveryCachedForTests(missionId: string): boolean {
+  return completionDeliveryCache.has(missionId);
+}
+
+export async function sendFetchedCompletionSummaryForTests(
+  bot: Telegraf,
+  chatId: number,
+  subscription: MissionSubscription,
+  event: DeliverableRelayEvent,
+  verbosity: TelegramRelayVerbosity,
+  completion: MissionCompletionSummary
+): Promise<number> {
+  return sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
 }
 
 function heartbeatKey(event: DeliverableRelayEvent): string {
