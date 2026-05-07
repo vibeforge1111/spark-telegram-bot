@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -243,11 +243,128 @@ const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
 const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:5173';
 const execFileAsync = promisify(execFile);
 
+const SWARM_API_ENV_NAMES = [
+  'SPARK_SWARM_API_URL',
+  'SPARK_SWARM_DEPLOYED_API_URL',
+  'SPARK_SWARM_BACKEND_URL'
+];
+const SWARM_WORKSPACE_ENV_NAMES = [
+  'SPARK_SWARM_WORKSPACE_ID',
+  'SPARK_SWARM_DEPLOYED_WORKSPACE_ID'
+];
+const SWARM_ACCESS_TOKEN_ENV_NAMES = [
+  'SPARK_SWARM_ACCESS_TOKEN',
+  'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
+  'SPARK_SWARM_BEARER_TOKEN'
+];
+
+function firstProcessEnvValue(names: string[]): string | null {
+  for (const name of names) {
+    const value = (process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function unquoteConfigValue(raw: string): string {
+  const trimmed = raw.trim().replace(/\s+#.*$/, '').trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function readEnvFileValue(filePath: string, key: string): string | null {
+  try {
+    if (!existsSync(filePath)) return null;
+    const prefix = `${key}=`;
+    for (const line of readFileSync(filePath, 'utf-8').split(/\r?\n/)) {
+      const trimmed = line.trim();
+      const normalized = trimmed.startsWith('export ') ? trimmed.slice('export '.length).trim() : trimmed;
+      if (normalized.startsWith(prefix)) {
+        const value = unquoteConfigValue(normalized.slice(prefix.length));
+        if (value) return value;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function builderHome(): string | null {
+  const explicitHome = (process.env.SPARK_BUILDER_HOME || '').trim();
+  if (explicitHome) return explicitHome;
+  const envFile = (process.env.SPARK_BUILDER_ENV_FILE || '').trim();
+  return envFile ? path.dirname(envFile) : null;
+}
+
+function builderEnvFilePath(): string | null {
+  const explicitEnvFile = (process.env.SPARK_BUILDER_ENV_FILE || '').trim();
+  if (explicitEnvFile) return explicitEnvFile;
+  const home = builderHome();
+  return home ? path.join(home, '.env') : null;
+}
+
+function firstBuilderEnvValue(names: string[]): string | null {
+  const envFile = builderEnvFilePath();
+  if (!envFile) return null;
+  for (const name of names) {
+    const value = readEnvFileValue(envFile, name);
+    if (value) return value;
+  }
+  return null;
+}
+
+function builderSwarmConfigValue(key: string): string | null {
+  const home = builderHome();
+  if (!home) return null;
+  const configPath = path.join(home, 'config.yaml');
+  try {
+    if (!existsSync(configPath)) return null;
+    let inSpark = false;
+    let sparkIndent = -1;
+    let inSwarm = false;
+    let swarmIndent = -1;
+    for (const line of readFileSync(configPath, 'utf-8').split(/\r?\n/)) {
+      if (!line.trim() || line.trim().startsWith('#')) continue;
+      const indent = line.match(/^\s*/)?.[0].length ?? 0;
+      const match = line.trim().match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+      if (!match) continue;
+      const [, currentKey, rawValue] = match;
+
+      if (inSwarm && indent <= swarmIndent) inSwarm = false;
+      if (inSpark && indent <= sparkIndent) inSpark = false;
+
+      if (currentKey === 'spark') {
+        inSpark = rawValue.trim() === '';
+        sparkIndent = indent;
+        continue;
+      }
+      if (inSpark && currentKey === 'swarm') {
+        inSwarm = rawValue.trim() === '';
+        swarmIndent = indent;
+        continue;
+      }
+      if (inSwarm && currentKey === key) {
+        const value = unquoteConfigValue(rawValue);
+        if (value) return value;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function sparkWorkspaceApiUrl(): string {
   return (
-    process.env.SPARK_SWARM_API_URL ||
-    process.env.SPARK_SWARM_DEPLOYED_API_URL ||
-    process.env.SPARK_SWARM_BACKEND_URL ||
+    firstProcessEnvValue(SWARM_API_ENV_NAMES) ||
+    firstBuilderEnvValue(SWARM_API_ENV_NAMES) ||
+    builderSwarmConfigValue('api_url') ||
     DEFAULT_SWARM_API_URL
   ).replace(/\/+$/, '');
 }
@@ -266,19 +383,19 @@ export function sparkWorkspaceRecursionsUrl(): string {
 
 function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessToken: string } {
   const workspaceId = (
-    process.env.SPARK_SWARM_WORKSPACE_ID ||
-    process.env.SPARK_SWARM_DEPLOYED_WORKSPACE_ID ||
+    firstProcessEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
+    firstBuilderEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
+    builderSwarmConfigValue('workspace_id') ||
     ''
   ).trim();
   const accessToken = (
-    process.env.SPARK_SWARM_ACCESS_TOKEN ||
-    process.env.SPARK_SWARM_DEPLOYED_ACCESS_TOKEN ||
-    process.env.SPARK_SWARM_BEARER_TOKEN ||
+    firstProcessEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
+    firstBuilderEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
     ''
   ).trim();
 
   if (!workspaceId || !accessToken) {
-    throw new Error('Spark Workspace is not configured. Set SPARK_SWARM_WORKSPACE_ID and SPARK_SWARM_ACCESS_TOKEN for Telegram recursive reads.');
+    throw new Error('Spark Workspace is not configured. Set SPARK_SWARM_WORKSPACE_ID and SPARK_SWARM_ACCESS_TOKEN, or configure SPARK_BUILDER_HOME with Swarm credentials for Telegram recursive reads.');
   }
 
   return {
@@ -288,27 +405,22 @@ function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessTo
   };
 }
 
-function sparkWorkspaceBridgeHints(): { apiUrl?: string; workspaceId?: string; accessToken?: string } {
-  const apiUrl = (
-    process.env.SPARK_SWARM_API_URL ||
-    process.env.SPARK_SWARM_DEPLOYED_API_URL ||
-    process.env.SPARK_SWARM_BACKEND_URL ||
-    ''
-  ).replace(/\/+$/, '');
+export function sparkWorkspaceBridgeHints(): { apiUrl?: string; workspaceId?: string; accessToken?: string } {
+  const apiUrl = sparkWorkspaceApiUrl();
   const workspaceId = (
-    process.env.SPARK_SWARM_WORKSPACE_ID ||
-    process.env.SPARK_SWARM_DEPLOYED_WORKSPACE_ID ||
+    firstProcessEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
+    firstBuilderEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
+    builderSwarmConfigValue('workspace_id') ||
     ''
   ).trim();
   const accessToken = (
-    process.env.SPARK_SWARM_ACCESS_TOKEN ||
-    process.env.SPARK_SWARM_DEPLOYED_ACCESS_TOKEN ||
-    process.env.SPARK_SWARM_BEARER_TOKEN ||
+    firstProcessEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
+    firstBuilderEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
     ''
   ).trim();
 
   return {
-    apiUrl: apiUrl || undefined,
+    apiUrl: apiUrl === DEFAULT_SWARM_API_URL ? undefined : apiUrl,
     workspaceId: workspaceId || undefined,
     accessToken: accessToken || undefined
   };
