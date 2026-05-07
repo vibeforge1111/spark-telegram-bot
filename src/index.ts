@@ -57,6 +57,7 @@ import {
   recursiveTraceView,
   renderRecursiveDecision,
   renderRecursiveCanvasQueue,
+  renderBuilderChipLoopCompletion,
   renderRecursiveHelp,
   renderRecursivePaths,
   renderRecursivePromotionPacket,
@@ -2122,23 +2123,14 @@ bot.command('recursive', async (ctx) => {
             await ctx.telegram.sendMessage(chatId, `Recursive loop failed: ${result.error || 'unknown error'}`);
             return;
           }
-          const lines = [
-            `Recursive loop complete: ${result.chipKey}`,
-            `Rounds: ${result.roundsCompleted}/${result.totalRounds}`,
-            result.statusPath ? `Status file: ${result.statusPath}` : ''
-          ].filter(Boolean);
+          let sync = null;
+          let syncError = null;
           try {
-            const sync = await syncBuilderChipLoopToWorkspace(result);
-            lines.push(
-              `Workspace sync: ${sync.synced ? 'ok' : 'skipped'}`,
-              `Workspace path: ${sync.pathId}`,
-              `Workspace: ${sync.workspaceUrl}`
-            );
+            sync = await syncBuilderChipLoopToWorkspace(result);
           } catch (syncErr: any) {
-            lines.push(`Workspace sync skipped: ${syncErr?.message || String(syncErr)}`);
+            syncError = syncErr?.message || String(syncErr);
           }
-          lines.push(`Next: /recursive report path_builder_chip_${String(result.chipKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'chip'}`);
-          await ctx.telegram.sendMessage(chatId, lines.join('\n'));
+          await ctx.telegram.sendMessage(chatId, renderBuilderChipLoopCompletion(result, sync, syncError));
         } catch (err: any) {
           await ctx.telegram.sendMessage(chatId, `Recursive loop crashed: ${err?.message || String(err)}`);
         }
