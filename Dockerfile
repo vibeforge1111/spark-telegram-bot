@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
+COPY scripts/deploy-doctor.mjs ./scripts/deploy-doctor.mjs
 COPY scripts/run-health-polling.cjs ./scripts/run-health-polling.cjs
 COPY scripts/run-health-runtime.cjs ./scripts/run-health-runtime.cjs
 COPY agent-knowledge ./agent-knowledge
