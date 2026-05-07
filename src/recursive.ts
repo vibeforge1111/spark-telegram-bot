@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { LoopResult } from './chipLoop';
 
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
 
@@ -183,6 +184,14 @@ interface SparkWorkspaceSnapshot {
   };
 }
 
+export interface RecursiveWorkspaceSyncResult {
+  synced: boolean;
+  pathId: string;
+  outcomeId: string | null;
+  detail: string;
+  workspaceUrl: string;
+}
+
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
 const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:5173';
 
@@ -337,6 +346,155 @@ export async function recursiveTraceView(id: string): Promise<RecursiveTraceView
   return workspaceTraceView(await loadSparkWorkspaceSnapshot(), id);
 }
 
+export function buildBuilderChipLoopWorkspacePayload(input: {
+  workspaceId: string;
+  chipKey: string;
+  roundsCompleted?: number;
+  totalRounds?: number;
+  history?: LoopResult['history'];
+  statusPath?: string;
+  emittedAt?: string;
+}): { payload: Record<string, unknown>; pathId: string; outcomeId: string | null } {
+  const emittedAt = input.emittedAt || new Date().toISOString();
+  const chipKey = input.chipKey.trim();
+  const chipSlug = normalizeWorkspaceIdPart(chipKey);
+  const chipLabel = labelFromKey(chipKey);
+  const agentId = `agent:${input.workspaceId}`;
+  const pathId = `path_builder_chip_${chipSlug}`;
+  const outcomeId = `outcome_builder_chip_${chipSlug}_${compactTimestamp(emittedAt)}`;
+  const roundsCompleted = input.roundsCompleted ?? input.history?.length ?? 0;
+  const totalRounds = input.totalRounds ?? roundsCompleted;
+  const finalRound = input.history?.slice(-1)[0] ?? null;
+  const verdict = inferOutcomeVerdict(finalRound?.best_verdict, finalRound?.best_metric);
+  const metricValue = typeof finalRound?.best_metric === 'number' ? finalRound.best_metric : null;
+  const summary = `Builder chip loop for ${chipLabel} completed ${roundsCompleted}/${totalRounds} round(s).`;
+  const artifactRefs = input.statusPath ? [{
+    id: `artifact_builder_chip_${chipSlug}_${compactTimestamp(emittedAt)}`,
+    kind: 'run_trace',
+    label: `${chipLabel} chip-loop status`,
+    path: input.statusPath,
+    url: null,
+    hash: null
+  }] : [];
+
+  return {
+    pathId,
+    outcomeId,
+    payload: {
+      workspaceId: input.workspaceId,
+      agentId,
+      runtimeSource: {
+        kind: 'spark_researcher',
+        version: 'telegram-builder-chip-loop.v1',
+        loopKind: 'chip',
+        sourceInstanceId: agentId,
+        sourceRunId: `spark-researcher:builder-chip-loop:${chipSlug}:${emittedAt}`,
+        chipKey,
+        chipLabel
+      },
+      specialization: null,
+      runtimePulse: {
+        agentId,
+        repoId: null,
+        runtimeState: 'idle',
+        passNumber: roundsCompleted,
+        stageKey: 'builder_chip_loop',
+        stageLabel: 'Builder Chip Loop',
+        blocker: null,
+        recommendation: 'Review the workspace recursion path and attach benchmark evidence before promoting reusable mastery.',
+        lastUpdatedAt: emittedAt,
+        intelligencePulse: null
+      },
+      intelligencePulse: null,
+      evolutionPaths: [{
+        id: pathId,
+        scope: 'workspace',
+        specializationId: null,
+        repoId: null,
+        repoLabel: 'spark-intelligence-builder',
+        summary,
+        status: 'open',
+        assignedAgentId: agentId,
+        bestOutcomeId: outcomeId,
+        expiresAt: null,
+        createdAt: emittedAt,
+        updatedAt: emittedAt
+      }],
+      insights: [],
+      masteries: [],
+      masteryReviews: [],
+      contradictions: [],
+      upgrades: [],
+      upgradeDeliveries: [],
+      outcomes: [{
+        id: outcomeId,
+        targetType: 'evolution_path',
+        targetId: pathId,
+        evidenceLane: 'live_evidence',
+        verdict,
+        summary: finalRound
+          ? `${summary} Final round best verdict: ${finalRound.best_verdict ?? 'unknown'}.`
+          : summary,
+        metricName: 'builder_chip_loop_best_metric',
+        metricValue,
+        context: {
+          scorecard: {
+            headlineLabel: 'Best metric',
+            headlineValue: metricValue,
+            headlineGoal: 'higher',
+            modelLabel: chipLabel,
+            components: metricValue === null ? [] : [{
+              key: 'best_metric',
+              label: 'Best metric',
+              value: metricValue,
+              goal: 'higher'
+            }],
+            details: [
+              { key: 'rounds', label: 'Rounds', value: `${roundsCompleted}/${totalRounds}` },
+              { key: 'suggestions', label: 'Final suggestions', value: String(finalRound?.suggestions_count ?? 0) }
+            ]
+          }
+        },
+        createdAt: emittedAt
+      }],
+      artifactRefs,
+      emittedAt
+    }
+  };
+}
+
+export async function syncBuilderChipLoopToWorkspace(result: LoopResult): Promise<RecursiveWorkspaceSyncResult> {
+  if (!result.ok || !result.chipKey) {
+    throw new Error('Builder chip loop did not complete successfully; no Workspace payload was synced.');
+  }
+  const config = sparkWorkspaceConfig();
+  const built = buildBuilderChipLoopWorkspacePayload({
+    workspaceId: config.workspaceId,
+    chipKey: result.chipKey,
+    roundsCompleted: result.roundsCompleted,
+    totalRounds: result.totalRounds,
+    history: result.history,
+    statusPath: result.statusPath
+  });
+  await axios.post(
+    `${config.apiUrl}/api/workspaces/${encodeURIComponent(config.workspaceId)}/collective/sync`,
+    built.payload,
+    {
+      timeout: 15000,
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`
+      }
+    }
+  );
+  return {
+    synced: true,
+    pathId: built.pathId,
+    outcomeId: built.outcomeId,
+    detail: 'Builder chip loop synced into Spark Workspace.',
+    workspaceUrl: sparkWorkspaceRecursionsUrl()
+  };
+}
+
 export function renderRecursiveHelp(): string {
   return [
     'Spark Workspace Recursions',
@@ -488,6 +646,31 @@ function truncate(value: string, limit: number): string {
 function formatDelta(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
   return `${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
+function normalizeWorkspaceIdPart(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'chip';
+}
+
+function compactTimestamp(iso: string): string {
+  return iso.replace(/[^0-9A-Za-z]+/g, '').slice(0, 18) || String(Date.now());
+}
+
+function labelFromKey(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') || value;
+}
+
+function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' {
+  const normalized = (rawVerdict || '').toLowerCase();
+  if (/\b(regress|worse|failed|revert)\b/.test(normalized)) return 'regressed';
+  if (/\b(flat|same|no[_ -]?gain)\b/.test(normalized)) return 'flat';
+  if (/\b(improv|kept|keep|accepted|better|pass)\b/.test(normalized)) return 'improved';
+  if (typeof metric === 'number' && metric > 0) return 'improved';
+  return 'flat';
 }
 
 function workspaceSessions(snapshot: SparkWorkspaceSnapshot): RecursiveSessionListItem[] {

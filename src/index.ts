@@ -65,7 +65,8 @@ import {
   renderRecursiveSwarmPacket,
   renderRecursiveTraceView,
   stageRecursivePromotionPacket,
-  stageRecursiveSwarmPacket
+  stageRecursiveSwarmPacket,
+  syncBuilderChipLoopToWorkspace
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import {
@@ -2124,9 +2125,19 @@ bot.command('recursive', async (ctx) => {
           const lines = [
             `Recursive loop complete: ${result.chipKey}`,
             `Rounds: ${result.roundsCompleted}/${result.totalRounds}`,
-            result.statusPath ? `Status file: ${result.statusPath}` : '',
-            `Next: /recursive report builder-chip-loop-${result.chipKey}`
+            result.statusPath ? `Status file: ${result.statusPath}` : ''
           ].filter(Boolean);
+          try {
+            const sync = await syncBuilderChipLoopToWorkspace(result);
+            lines.push(
+              `Workspace sync: ${sync.synced ? 'ok' : 'skipped'}`,
+              `Workspace path: ${sync.pathId}`,
+              `Workspace: ${sync.workspaceUrl}`
+            );
+          } catch (syncErr: any) {
+            lines.push(`Workspace sync skipped: ${syncErr?.message || String(syncErr)}`);
+          }
+          lines.push(`Next: /recursive report path_builder_chip_${String(result.chipKey).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'chip'}`);
           await ctx.telegram.sendMessage(chatId, lines.join('\n'));
         } catch (err: any) {
           await ctx.telegram.sendMessage(chatId, `Recursive loop crashed: ${err?.message || String(err)}`);
