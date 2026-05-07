@@ -139,6 +139,7 @@ interface SparkWorkspaceEvolutionPath {
   repoLabel?: string | null;
   summary: string;
   status: 'open' | 'expired' | 'resolved' | string;
+  bestOutcomeId?: string | null;
   updatedAt: string;
 }
 
@@ -161,6 +162,25 @@ interface SparkWorkspaceMastery {
   contradictionCount?: number | null;
 }
 
+interface SparkWorkspaceOutcome {
+  id: string;
+  targetType: string;
+  targetId: string;
+  verdict: string;
+  summary: string;
+  metricName?: string | null;
+  metricValue?: number | null;
+  createdAt: string;
+}
+
+interface SparkWorkspaceArtifactRef {
+  id: string;
+  kind: string;
+  label: string;
+  path?: string | null;
+  url?: string | null;
+}
+
 interface SparkWorkspaceInboxItem {
   id: string;
   kind: string;
@@ -178,6 +198,8 @@ interface SparkWorkspaceSnapshot {
   evolutionPaths: SparkWorkspaceEvolutionPath[];
   insights: SparkWorkspaceInsight[];
   masteries: SparkWorkspaceMastery[];
+  outcomes: SparkWorkspaceOutcome[];
+  artifactRefs: SparkWorkspaceArtifactRef[];
   specializations: SparkWorkspaceSpecialization[];
   inbox?: {
     items?: SparkWorkspaceInboxItem[];
@@ -252,6 +274,8 @@ async function loadSparkWorkspaceSnapshot(): Promise<SparkWorkspaceSnapshot> {
     evolutionPaths: Array.isArray(res.data?.evolutionPaths) ? res.data.evolutionPaths : [],
     insights: Array.isArray(res.data?.insights) ? res.data.insights : [],
     masteries: Array.isArray(res.data?.masteries) ? res.data.masteries : [],
+    outcomes: Array.isArray(res.data?.outcomes) ? res.data.outcomes : [],
+    artifactRefs: Array.isArray(res.data?.artifactRefs) ? res.data.artifactRefs : [],
     specializations: Array.isArray(res.data?.specializations) ? res.data.specializations : [],
     inbox: {
       items: Array.isArray(res.data?.inbox?.items) ? res.data.inbox.items : []
@@ -796,6 +820,7 @@ function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): Recur
   const spec = path ? specializationForPath(snapshot, path) : null;
   const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
   const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
+  const outcomes = path ? outcomesForPath(snapshot, path) : [];
   const decisions = path ? inboxForPath(snapshot, path) : [];
   return {
     session_id: id,
@@ -805,7 +830,7 @@ function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): Recur
     spawner: {
       board_entry: {
         status: path?.status || 'workspace',
-        taskCount: insights.length + masteries.length + decisions.length
+        taskCount: insights.length + masteries.length + outcomes.length + decisions.length
       },
       canvas_queue: {
         pipelineId: 'spark-workspace-recursions',
@@ -832,6 +857,12 @@ function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): Recur
         title: item.id,
         status: 'workspace',
         summary: item.summary
+      })),
+      ...outcomes.slice(-3).map((item) => ({
+        kind: 'outcome',
+        title: item.id,
+        status: item.verdict,
+        summary: item.summary
       }))
     ]
   };
@@ -843,9 +874,11 @@ function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: st
   const spec = specializationForPath(snapshot, path);
   const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
   const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
+  const latestOutcome = outcomesForPath(snapshot, path).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
   const decisions = inboxForPath(snapshot, path);
   const latestInsight = insights.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
   const strongestMastery = masteries.sort((a, b) => (b.benchmarkStrength || 0) - (a.benchmarkStrength || 0))[0];
+  const artifactCount = snapshot.artifactRefs.length;
 
   return [
     'Spark Workspace Recursion Report',
@@ -856,8 +889,10 @@ function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: st
     `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
     '',
     `Summary: ${path.summary}`,
+    latestOutcome ? `Latest outcome: ${latestOutcome.verdict} - ${latestOutcome.summary}` : 'Latest outcome: none yet',
     latestInsight ? `Latest insight: ${latestInsight.summary}` : 'Latest insight: none yet',
     strongestMastery ? `Strongest mastery: ${strongestMastery.summary}` : 'Strongest mastery: none yet',
+    `Artifact refs: ${artifactCount}`,
     `Decisions needed: ${decisions.length}`
   ].join('\n');
 }
@@ -888,6 +923,13 @@ function inboxForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvol
   return (snapshot.inbox?.items ?? []).filter((item) =>
     item.targetId === path.id ||
     (spec && item.specializationId === spec.id)
+  );
+}
+
+function outcomesForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceOutcome[] {
+  return snapshot.outcomes.filter((outcome) =>
+    (outcome.targetType === 'evolution_path' && outcome.targetId === path.id) ||
+    (path.bestOutcomeId !== null && outcome.id === path.bestOutcomeId)
   );
 }
 
