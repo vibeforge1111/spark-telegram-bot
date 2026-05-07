@@ -330,7 +330,7 @@ function bridgeSessionAccessToken(apiUrl: string, workspaceId: string): string |
   if (!sessionWorkspaceId || sessionWorkspaceId !== workspaceId) return null;
   const sessionApiUrl = bridgeSessionValue('api_url');
   if (sessionApiUrl && normalizedUrl(sessionApiUrl) !== normalizedUrl(apiUrl)) return null;
-  return bridgeSessionValue('access_token');
+  return bridgeSessionValue('cli_token') || bridgeSessionValue('access_token');
 }
 
 function builderHome(): string | null {
