@@ -1,4 +1,10 @@
 import axios from 'axios';
+import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import type { LoopResult } from './chipLoop';
 
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
@@ -216,6 +222,7 @@ export interface RecursiveWorkspaceSyncResult {
 
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
 const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:5173';
+const execFileAsync = promisify(execFile);
 
 export function sparkWorkspaceApiUrl(): string {
   return (
@@ -487,11 +494,99 @@ export function buildBuilderChipLoopWorkspacePayload(input: {
   };
 }
 
+export function buildBuilderChipLoopBridgeInput(result: LoopResult, emittedAt: string): Record<string, unknown> {
+  return {
+    chipKey: result.chipKey,
+    roundsCompleted: result.roundsCompleted,
+    totalRounds: result.totalRounds,
+    history: result.history || [],
+    statusPath: result.statusPath,
+    emittedAt
+  };
+}
+
+function resolveSparkSwarmBridgeSrc(): string | null {
+  const explicit = (process.env.SPARK_SWARM_BRIDGE_SRC || '').trim();
+  if (explicit) return explicit;
+  const sibling = path.resolve(process.cwd(), '..', 'spark-swarm', 'apps', 'bridge', 'src');
+  return existsSync(sibling) ? sibling : null;
+}
+
+function parseBridgeLine(stdout: string, label: string): string | null {
+  const pattern = new RegExp(`^${label}:\\s*(.+)$`, 'im');
+  return stdout.match(pattern)?.[1]?.trim() || null;
+}
+
+async function syncBuilderChipLoopViaBridge(
+  result: LoopResult,
+  config: { apiUrl: string; workspaceId: string; accessToken: string }
+): Promise<RecursiveWorkspaceSyncResult | null> {
+  if (process.env.SPARK_SWARM_DISABLE_BRIDGE_SYNC === '1') return null;
+  const emittedAt = new Date().toISOString();
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'spark-builder-chip-'));
+  const inputPath = path.join(tempDir, 'chip-loop-result.json');
+  const payloadPath = path.join(tempDir, 'collective-sync.json');
+  await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+
+  const python = (process.env.SPARK_SWARM_BRIDGE_PYTHON || process.env.PYTHON || 'python').trim();
+  const bridgeSrc = resolveSparkSwarmBridgeSrc();
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    SPARK_SWARM_API_URL: config.apiUrl,
+    SPARK_SWARM_WORKSPACE_ID: config.workspaceId,
+    SPARK_SWARM_ACCESS_TOKEN: config.accessToken
+  };
+  if (bridgeSrc) {
+    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
+  }
+
+  const { stdout } = await execFileAsync(
+    python,
+    [
+      '-m',
+      'spark_swarm_bridge.cli',
+      'builder-chip-loop',
+      '--input',
+      inputPath,
+      '--payload',
+      payloadPath,
+      '--workspace-id',
+      config.workspaceId,
+      '--api-url',
+      config.apiUrl,
+      '--access-token',
+      config.accessToken,
+      '--sync-collective'
+    ],
+    {
+      env,
+      timeout: 30000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    }
+  );
+
+  return {
+    synced: true,
+    pathId: parseBridgeLine(stdout, 'Path') || `path_builder_chip_${normalizeWorkspaceIdPart(result.chipKey || 'chip')}`,
+    outcomeId: parseBridgeLine(stdout, 'Outcome'),
+    detail: 'Builder chip loop synced through Spark Swarm bridge.',
+    workspaceUrl: sparkWorkspaceRecursionsUrl()
+  };
+}
+
 export async function syncBuilderChipLoopToWorkspace(result: LoopResult): Promise<RecursiveWorkspaceSyncResult> {
   if (!result.ok || !result.chipKey) {
     throw new Error('Builder chip loop did not complete successfully; no Workspace payload was synced.');
   }
   const config = sparkWorkspaceConfig();
+  try {
+    const bridgeSync = await syncBuilderChipLoopViaBridge(result, config);
+    if (bridgeSync) return bridgeSync;
+  } catch {
+    // Keep Telegram usable while the local bridge command rolls out across operator machines.
+  }
+
   const built = buildBuilderChipLoopWorkspacePayload({
     workspaceId: config.workspaceId,
     chipKey: result.chipKey,
@@ -690,9 +785,9 @@ function labelFromKey(value: string): string {
 
 function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' {
   const normalized = (rawVerdict || '').toLowerCase();
-  if (/\b(regress|worse|failed|revert)\b/.test(normalized)) return 'regressed';
+  if (/\b(regress\w*|worse|failed|revert\w*)\b/.test(normalized)) return 'regressed';
   if (/\b(flat|same|no[_ -]?gain)\b/.test(normalized)) return 'flat';
-  if (/\b(improv|kept|keep|accepted|better|pass)\b/.test(normalized)) return 'improved';
+  if (/\b(improv\w*|kept|keep|accepted|better|pass\w*)\b/.test(normalized)) return 'improved';
   if (typeof metric === 'number' && metric > 0) return 'improved';
   return 'flat';
 }
