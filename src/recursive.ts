@@ -2,7 +2,7 @@ import axios from 'axios';
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { LoopResult } from './chipLoop';
@@ -257,6 +257,14 @@ const SWARM_ACCESS_TOKEN_ENV_NAMES = [
   'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
   'SPARK_SWARM_BEARER_TOKEN'
 ];
+const SWARM_REFRESH_TOKEN_ENV_NAMES = [
+  'SPARK_SWARM_REFRESH_TOKEN',
+  'SPARK_SWARM_DEPLOYED_REFRESH_TOKEN'
+];
+const SWARM_AUTH_CLIENT_KEY_ENV_NAMES = [
+  'SPARK_SWARM_AUTH_CLIENT_KEY',
+  'SPARK_SWARM_DEPLOYED_AUTH_CLIENT_KEY'
+];
 
 function firstProcessEnvValue(names: string[]): string | null {
   for (const name of names) {
@@ -295,6 +303,36 @@ function readEnvFileValue(filePath: string, key: string): string | null {
   return null;
 }
 
+function normalizedUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
+function bridgeSessionFilePath(): string {
+  const explicit = (process.env.SPARK_SWARM_BRIDGE_SESSION_FILE || '').trim();
+  if (explicit) return explicit;
+  return path.join(homedir(), '.spark-swarm', 'bridge-session.json');
+}
+
+function bridgeSessionValue(key: string): string | null {
+  try {
+    const sessionPath = bridgeSessionFilePath();
+    if (!existsSync(sessionPath)) return null;
+    const parsed = JSON.parse(readFileSync(sessionPath, 'utf-8'));
+    const value = parsed?.[key];
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+function bridgeSessionAccessToken(apiUrl: string, workspaceId: string): string | null {
+  const sessionWorkspaceId = bridgeSessionValue('workspace_id');
+  if (!sessionWorkspaceId || sessionWorkspaceId !== workspaceId) return null;
+  const sessionApiUrl = bridgeSessionValue('api_url');
+  if (sessionApiUrl && normalizedUrl(sessionApiUrl) !== normalizedUrl(apiUrl)) return null;
+  return bridgeSessionValue('access_token');
+}
+
 function builderHome(): string | null {
   const explicitHome = (process.env.SPARK_BUILDER_HOME || '').trim();
   if (explicitHome) return explicitHome;
@@ -302,60 +340,90 @@ function builderHome(): string | null {
   return envFile ? path.dirname(envFile) : null;
 }
 
-function builderEnvFilePath(): string | null {
+function builderRepo(): string | null {
+  const explicitRepo = (process.env.SPARK_BUILDER_REPO || '').trim();
+  return explicitRepo || null;
+}
+
+function uniquePaths(paths: Array<string | null>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const candidate of paths) {
+    if (!candidate) continue;
+    const normalized = path.resolve(candidate);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(candidate);
+  }
+  return result;
+}
+
+function builderEnvFilePaths(): string[] {
   const explicitEnvFile = (process.env.SPARK_BUILDER_ENV_FILE || '').trim();
-  if (explicitEnvFile) return explicitEnvFile;
   const home = builderHome();
-  return home ? path.join(home, '.env') : null;
+  const repo = builderRepo();
+  return uniquePaths([
+    explicitEnvFile || null,
+    home ? path.join(home, '.env') : null,
+    repo ? path.join(repo, '.env') : null
+  ]);
 }
 
 function firstBuilderEnvValue(names: string[]): string | null {
-  const envFile = builderEnvFilePath();
-  if (!envFile) return null;
-  for (const name of names) {
-    const value = readEnvFileValue(envFile, name);
-    if (value) return value;
+  for (const envFile of builderEnvFilePaths()) {
+    for (const name of names) {
+      const value = readEnvFileValue(envFile, name);
+      if (value) return value;
+    }
   }
   return null;
 }
 
-function builderSwarmConfigValue(key: string): string | null {
+function builderConfigPaths(): string[] {
   const home = builderHome();
-  if (!home) return null;
-  const configPath = path.join(home, 'config.yaml');
-  try {
-    if (!existsSync(configPath)) return null;
-    let inSpark = false;
-    let sparkIndent = -1;
-    let inSwarm = false;
-    let swarmIndent = -1;
-    for (const line of readFileSync(configPath, 'utf-8').split(/\r?\n/)) {
-      if (!line.trim() || line.trim().startsWith('#')) continue;
-      const indent = line.match(/^\s*/)?.[0].length ?? 0;
-      const match = line.trim().match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
-      if (!match) continue;
-      const [, currentKey, rawValue] = match;
+  const repo = builderRepo();
+  return uniquePaths([
+    home ? path.join(home, 'config.yaml') : null,
+    repo ? path.join(repo, 'config.yaml') : null
+  ]);
+}
 
-      if (inSwarm && indent <= swarmIndent) inSwarm = false;
-      if (inSpark && indent <= sparkIndent) inSpark = false;
+function builderSwarmConfigValue(key: string): string | null {
+  for (const configPath of builderConfigPaths()) {
+    try {
+      if (!existsSync(configPath)) continue;
+      let inSpark = false;
+      let sparkIndent = -1;
+      let inSwarm = false;
+      let swarmIndent = -1;
+      for (const line of readFileSync(configPath, 'utf-8').split(/\r?\n/)) {
+        if (!line.trim() || line.trim().startsWith('#')) continue;
+        const indent = line.match(/^\s*/)?.[0].length ?? 0;
+        const match = line.trim().match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+        if (!match) continue;
+        const [, currentKey, rawValue] = match;
 
-      if (currentKey === 'spark') {
-        inSpark = rawValue.trim() === '';
-        sparkIndent = indent;
-        continue;
+        if (inSwarm && indent <= swarmIndent) inSwarm = false;
+        if (inSpark && indent <= sparkIndent) inSpark = false;
+
+        if (currentKey === 'spark') {
+          inSpark = rawValue.trim() === '';
+          sparkIndent = indent;
+          continue;
+        }
+        if (inSpark && currentKey === 'swarm') {
+          inSwarm = rawValue.trim() === '';
+          swarmIndent = indent;
+          continue;
+        }
+        if (inSwarm && currentKey === key) {
+          const value = unquoteConfigValue(rawValue);
+          if (value) return value;
+        }
       }
-      if (inSpark && currentKey === 'swarm') {
-        inSwarm = rawValue.trim() === '';
-        swarmIndent = indent;
-        continue;
-      }
-      if (inSwarm && currentKey === key) {
-        const value = unquoteConfigValue(rawValue);
-        if (value) return value;
-      }
+    } catch {
+      continue;
     }
-  } catch {
-    return null;
   }
   return null;
 }
@@ -382,6 +450,7 @@ export function sparkWorkspaceRecursionsUrl(): string {
 }
 
 function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessToken: string } {
+  const apiUrl = sparkWorkspaceApiUrl();
   const workspaceId = (
     firstProcessEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
     firstBuilderEnvValue(SWARM_WORKSPACE_ENV_NAMES) ||
@@ -390,6 +459,7 @@ function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessTo
   ).trim();
   const accessToken = (
     firstProcessEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
+    (workspaceId ? bridgeSessionAccessToken(apiUrl, workspaceId) : null) ||
     firstBuilderEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
     ''
   ).trim();
@@ -399,7 +469,7 @@ function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessTo
   }
 
   return {
-    apiUrl: sparkWorkspaceApiUrl(),
+    apiUrl,
     workspaceId,
     accessToken
   };
@@ -415,6 +485,7 @@ export function sparkWorkspaceBridgeHints(): { apiUrl?: string; workspaceId?: st
   ).trim();
   const accessToken = (
     firstProcessEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
+    (workspaceId ? bridgeSessionAccessToken(apiUrl, workspaceId) : null) ||
     firstBuilderEnvValue(SWARM_ACCESS_TOKEN_ENV_NAMES) ||
     ''
   ).trim();
@@ -685,7 +756,12 @@ async function syncBuilderChipLoopViaBridge(
   const payloadPath = path.join(tempDir, 'collective-sync.json');
   await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
 
-  const python = (process.env.SPARK_SWARM_BRIDGE_PYTHON || process.env.PYTHON || 'python').trim();
+  const python = (
+    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+    process.env.SPARK_BUILDER_PYTHON ||
+    process.env.PYTHON ||
+    'python'
+  ).trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
   const env: NodeJS.ProcessEnv = {
     ...process.env
@@ -693,6 +769,10 @@ async function syncBuilderChipLoopViaBridge(
   if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
   if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
   if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
+  const refreshToken = firstProcessEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES) || firstBuilderEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES);
+  const authClientKey = firstProcessEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES) || firstBuilderEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES);
+  if (refreshToken) env.SPARK_SWARM_REFRESH_TOKEN = refreshToken;
+  if (authClientKey) env.SPARK_SWARM_AUTH_CLIENT_KEY = authClientKey;
   if (bridgeSrc) {
     env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
   }
@@ -1116,6 +1196,21 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
   const outcomes = path ? outcomesForPath(snapshot, path) : [];
   const decisions = path ? inboxForPath(snapshot, path) : [];
   const artifacts = path ? artifactsForPath(snapshot, path) : [];
+  const outcomeTimeline = outcomes.length > 0
+    ? outcomes.slice(-3).map((item) => ({
+      kind: 'outcome',
+      title: item.id,
+      status: item.verdict,
+      summary: [item.summary, formatOutcomeMetric(item)].filter(Boolean).join(' ')
+    }))
+    : path?.bestOutcomeId
+      ? [{
+        kind: 'outcome',
+        title: path.bestOutcomeId,
+        status: 'recorded',
+        summary: path.summary
+      }]
+      : [];
   return {
     session_id: id,
     title: path?.summary || spec?.label || id,
@@ -1152,12 +1247,7 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
         status: 'workspace',
         summary: item.summary
       })),
-      ...outcomes.slice(-3).map((item) => ({
-        kind: 'outcome',
-        title: item.id,
-        status: item.verdict,
-        summary: [item.summary, formatOutcomeMetric(item)].filter(Boolean).join(' ')
-      })),
+      ...outcomeTimeline,
       ...artifacts.slice(-3).map((item) => ({
         kind: 'artifact',
         title: item.label || item.id,
@@ -1181,6 +1271,11 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const artifacts = artifactsForPath(snapshot, path);
   const metricLine = latestOutcome ? formatOutcomeMetric(latestOutcome) : null;
   const scorecardLine = latestOutcome ? formatOutcomeScorecard(latestOutcome) : null;
+  const outcomeLine = latestOutcome
+    ? `Latest outcome: ${latestOutcome.verdict} - ${latestOutcome.summary}`
+    : path.bestOutcomeId
+      ? `Latest outcome: recorded - ${path.bestOutcomeId}`
+      : 'Latest outcome: none yet';
 
   return [
     'Spark Workspace Recursion Report',
@@ -1191,7 +1286,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
     '',
     `Summary: ${path.summary}`,
-    latestOutcome ? `Latest outcome: ${latestOutcome.verdict} - ${latestOutcome.summary}` : 'Latest outcome: none yet',
+    outcomeLine,
     metricLine ? `Metric: ${metricLine}` : null,
     scorecardLine ? `Scorecard: ${scorecardLine}` : null,
     latestInsight ? `Latest insight: ${latestInsight.summary}` : 'Latest insight: none yet',

@@ -278,7 +278,9 @@ test('resolves Spark Workspace config from Builder home fallback', () => {
     'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
     'SPARK_SWARM_BEARER_TOKEN',
     'SPARK_BUILDER_HOME',
-    'SPARK_BUILDER_ENV_FILE'
+    'SPARK_BUILDER_ENV_FILE',
+    'SPARK_BUILDER_REPO',
+    'SPARK_SWARM_BRIDGE_SESSION_FILE'
   ];
   const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
   const dir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-'));
@@ -316,6 +318,119 @@ test('resolves Spark Workspace config from Builder home fallback', () => {
       else process.env[key] = value;
     }
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('resolves Spark Workspace access token from Builder repo fallback', () => {
+  const envKeys = [
+    'SPARK_SWARM_API_URL',
+    'SPARK_SWARM_DEPLOYED_API_URL',
+    'SPARK_SWARM_BACKEND_URL',
+    'SPARK_SWARM_WORKSPACE_ID',
+    'SPARK_SWARM_DEPLOYED_WORKSPACE_ID',
+    'SPARK_SWARM_ACCESS_TOKEN',
+    'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
+    'SPARK_SWARM_BEARER_TOKEN',
+    'SPARK_BUILDER_HOME',
+    'SPARK_BUILDER_ENV_FILE',
+    'SPARK_BUILDER_REPO'
+  ];
+  const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
+  const homeDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-home-'));
+  const repoDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-repo-'));
+  try {
+    for (const key of envKeys) delete process.env[key];
+    process.env.SPARK_BUILDER_HOME = homeDir;
+    process.env.SPARK_BUILDER_REPO = repoDir;
+    writeFileSync(
+      path.join(homeDir, 'config.yaml'),
+      [
+        'spark:',
+        '  swarm:',
+        '    api_url: https://swarm-live.example.test',
+        '    workspace_id: ws_live_home',
+        '    access_token_env: SPARK_SWARM_ACCESS_TOKEN'
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(
+      path.join(repoDir, '.env'),
+      'SPARK_SWARM_ACCESS_TOKEN=token_from_builder_repo\n',
+      'utf-8'
+    );
+
+    assert.deepEqual(sparkWorkspaceBridgeHints(), {
+      apiUrl: 'https://swarm-live.example.test',
+      workspaceId: 'ws_live_home',
+      accessToken: 'token_from_builder_repo'
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(homeDir, { recursive: true, force: true });
+    rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
+test('prefers matching refreshed bridge session token for Spark Workspace reads', () => {
+  const envKeys = [
+    'SPARK_SWARM_API_URL',
+    'SPARK_SWARM_DEPLOYED_API_URL',
+    'SPARK_SWARM_BACKEND_URL',
+    'SPARK_SWARM_WORKSPACE_ID',
+    'SPARK_SWARM_DEPLOYED_WORKSPACE_ID',
+    'SPARK_SWARM_ACCESS_TOKEN',
+    'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
+    'SPARK_SWARM_BEARER_TOKEN',
+    'SPARK_BUILDER_HOME',
+    'SPARK_BUILDER_ENV_FILE',
+    'SPARK_BUILDER_REPO',
+    'SPARK_SWARM_BRIDGE_SESSION_FILE'
+  ];
+  const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
+  const homeDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-home-'));
+  const repoDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-repo-'));
+  const sessionPath = path.join(homeDir, 'bridge-session.json');
+  try {
+    for (const key of envKeys) delete process.env[key];
+    process.env.SPARK_BUILDER_HOME = homeDir;
+    process.env.SPARK_BUILDER_REPO = repoDir;
+    process.env.SPARK_SWARM_BRIDGE_SESSION_FILE = sessionPath;
+    writeFileSync(
+      path.join(homeDir, 'config.yaml'),
+      [
+        'spark:',
+        '  swarm:',
+        '    api_url: https://swarm-live.example.test',
+        '    workspace_id: ws_live_home'
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(path.join(repoDir, '.env'), 'SPARK_SWARM_ACCESS_TOKEN=stale_builder_token\n', 'utf-8');
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({
+        api_url: 'https://swarm-live.example.test/',
+        workspace_id: 'ws_live_home',
+        access_token: 'fresh_bridge_token'
+      }),
+      'utf-8'
+    );
+
+    assert.deepEqual(sparkWorkspaceBridgeHints(), {
+      apiUrl: 'https://swarm-live.example.test',
+      workspaceId: 'ws_live_home',
+      accessToken: 'fresh_bridge_token'
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(homeDir, { recursive: true, force: true });
+    rmSync(repoDir, { recursive: true, force: true });
   }
 });
 
@@ -428,6 +543,37 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric=0.72');
   assert.equal(trace.timeline[1].kind, 'artifact');
   assert.equal(trace.timeline[1].status, 'run_trace');
+});
+
+test('reports Workspace best outcome id when snapshot omits outcome bodies', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path_builder_chip_startup_yc',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'spark-intelligence-builder',
+        summary: 'Builder chip loop for Startup Yc completed 1/1 round(s).',
+        status: 'open',
+        bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T151032889',
+        updatedAt: '2026-05-07T15:10:32.889Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [],
+    artifactRefs: [],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
+  assert.match(report, /Latest outcome: recorded - outcome_builder_chip_startup_yc_20260507T151032889/);
+
+  const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
+  assert.equal(trace.timeline[0].kind, 'outcome');
+  assert.equal(trace.timeline[0].title, 'outcome_builder_chip_startup_yc_20260507T151032889');
+  assert.equal(trace.timeline[0].status, 'recorded');
 });
 
 test('maps Workspace decision inbox items into Telegram review surfaces', () => {
