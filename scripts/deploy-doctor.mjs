@@ -1,10 +1,37 @@
+import { readFileSync } from "node:fs";
+
 const role = readArg("--role") || process.env.SPARK_DEPLOY_ROLE || "bot";
 
 const checks = [];
+loadEnvFile(readArg("--env-file"));
 
 function readArg(name) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : "";
+}
+
+function loadEnvFile(filePath) {
+  if (!filePath) return;
+  const text = readFileSync(filePath, "utf8");
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (process.env[key]) continue;
+    process.env[key] = stripEnvQuotes(rawValue.trim());
+  }
+}
+
+function stripEnvQuotes(value) {
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 function env(name) {
