@@ -84,6 +84,23 @@ function requireSecret(name, minLength = 24) {
   ok(name, "present");
 }
 
+function requireDataPath(name, detail) {
+  const value = env(name);
+  if (!value) {
+    fail(name, "missing");
+    return;
+  }
+  if (looksPlaceholder(value)) {
+    fail(name, "replace placeholder value");
+    return;
+  }
+  if (value !== "/data" && !value.startsWith("/data/")) {
+    fail(name, "must live under the persistent /data volume");
+    return;
+  }
+  ok(name, detail);
+}
+
 function isPrivateRailwayUrl(value) {
   return /\.railway\.internal(?::\d+)?(?:\/|$)/.test(value);
 }
@@ -141,8 +158,8 @@ function checkSpawner() {
   requireSecret("SPARK_UI_API_KEY", 24);
   requireSecret("SPARK_BRIDGE_API_KEY", 24);
   requireSecret("TELEGRAM_RELAY_SECRET", 24);
-  requireEnv("SPARK_WORKSPACE_ROOT", "persistent workspace path, usually /data/workspaces");
-  requireEnv("SPAWNER_STATE_DIR", "persistent state path, usually /data/spawner");
+  requireDataPath("SPARK_WORKSPACE_ROOT", "persistent workspace path");
+  requireDataPath("SPAWNER_STATE_DIR", "persistent state path");
   requireEnv("MISSION_CONTROL_WEBHOOK_URLS", "bot relay callback URL");
 
   const webhook = env("MISSION_CONTROL_WEBHOOK_URLS");
@@ -165,7 +182,7 @@ function checkBot() {
   requireSecret("TELEGRAM_RELAY_SECRET", 24);
   requireSecret("SPARK_BRIDGE_API_KEY", 24);
   requireSecret("SPARK_UI_API_KEY", 24);
-  requireEnv("SPARK_GATEWAY_STATE_DIR", "persistent state path, usually /data/spark-gateway");
+  requireDataPath("SPARK_GATEWAY_STATE_DIR", "persistent gateway state path");
   checkInternalUrl("TELEGRAM_RELAY_URL");
   checkInternalUrl("SPAWNER_UI_URL");
 
