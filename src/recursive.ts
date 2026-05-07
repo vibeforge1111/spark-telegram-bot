@@ -658,6 +658,47 @@ export async function syncBuilderChipLoopToWorkspace(result: LoopResult): Promis
   };
 }
 
+export function renderBuilderChipLoopCompletion(
+  result: LoopResult,
+  sync: RecursiveWorkspaceSyncResult | null = null,
+  syncError: string | null = null
+): string {
+  const chipKey = result.chipKey || 'unknown-chip';
+  const pathId = sync?.pathId || `path_builder_chip_${normalizeWorkspaceIdPart(chipKey)}`;
+  const finalRound = result.history?.slice(-1)[0] ?? null;
+  const lines = [
+    `Recursive loop complete: ${chipKey}`,
+    `Rounds: ${result.roundsCompleted ?? result.history?.length ?? 0}/${result.totalRounds ?? result.roundsCompleted ?? result.history?.length ?? 0}`
+  ];
+
+  if (finalRound) {
+    const verdict = finalRound.best_verdict || inferOutcomeVerdict(finalRound.best_verdict, finalRound.best_metric);
+    lines.push(`Final verdict: ${verdict}`);
+    if (typeof finalRound.best_metric === 'number') {
+      lines.push(`Metric: builder chip loop best metric=${formatNumber(finalRound.best_metric)}`);
+    }
+    lines.push(`Final suggestions: ${finalRound.suggestions_count}`);
+  } else {
+    lines.push('Final verdict: no rounds recorded');
+  }
+
+  if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
+
+  if (sync) {
+    lines.push(
+      `Workspace sync: ${sync.synced ? 'ok' : 'skipped'}`,
+      `Workspace path: ${sync.pathId}`
+    );
+    if (sync.outcomeId) lines.push(`Workspace outcome: ${sync.outcomeId}`);
+    lines.push(`Workspace: ${sync.workspaceUrl}`);
+  } else if (syncError) {
+    lines.push(`Workspace sync skipped: ${syncError}`);
+  }
+
+  lines.push(`Next: /recursive report ${pathId}`);
+  return lines.join('\n');
+}
+
 export function renderRecursiveHelp(): string {
   return [
     'Spark Workspace Recursions',

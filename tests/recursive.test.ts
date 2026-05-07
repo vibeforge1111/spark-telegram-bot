@@ -3,6 +3,7 @@ import {
   buildBuilderChipLoopBridgeInput,
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
+  renderBuilderChipLoopCompletion,
   renderRecursiveWorkspaceReport,
   renderRecursiveWorkspaceReview,
   renderRecursiveCanvasQueue,
@@ -259,6 +260,36 @@ test('builds bridge input for Builder chip loop sync', () => {
     ]
   });
   assert.equal((fallback.payload.outcomes as any[])[0].verdict, 'regressed');
+});
+
+test('renders Builder chip loop completion with Workspace sync details', () => {
+  const reply = renderBuilderChipLoopCompletion(
+    {
+      ok: true,
+      chipKey: 'startup-yc',
+      roundsCompleted: 2,
+      totalRounds: 2,
+      statusPath: 'C:\\status\\startup-yc.json',
+      history: [
+        { round_index: 2, suggestions_count: 4, best_verdict: 'improved', best_metric: 0.81234 }
+      ]
+    },
+    {
+      synced: true,
+      pathId: 'path_builder_chip_startup_yc',
+      outcomeId: 'outcome_builder_chip_startup_yc_20260507T100000000',
+      detail: 'Builder chip loop synced through Spark Swarm bridge.',
+      workspaceUrl: 'http://127.0.0.1:5173/runs?tab=recursions'
+    }
+  );
+
+  assert.match(reply, /Recursive loop complete: startup-yc/);
+  assert.match(reply, /Final verdict: improved/);
+  assert.match(reply, /Metric: builder chip loop best metric=0.8123/);
+  assert.match(reply, /Final suggestions: 4/);
+  assert.match(reply, /Workspace sync: ok/);
+  assert.match(reply, /Workspace outcome: outcome_builder_chip_startup_yc_20260507T100000000/);
+  assert.match(reply, /Next: \/recursive report path_builder_chip_startup_yc/);
 });
 
 test('maps workspace-scoped Builder chip loops into Telegram recursive sessions', () => {
