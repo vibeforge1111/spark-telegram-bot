@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
   renderRecursiveCanvasQueue,
   renderRecursiveDecision,
@@ -199,4 +200,27 @@ test('parses and renders stitched recursive trace views', () => {
   assert.match(reply, /Canvas: pending/);
   assert.match(reply, /swarm packets=0/);
   assert.match(reply, /round-003/);
+});
+
+test('builds a Workspace collective payload for Builder chip loops', () => {
+  const built = buildBuilderChipLoopWorkspacePayload({
+    workspaceId: 'ws_123',
+    chipKey: 'startup-yc',
+    roundsCompleted: 3,
+    totalRounds: 3,
+    emittedAt: '2026-05-07T10:00:00.000Z',
+    statusPath: 'C:\\status\\startup-yc.json',
+    history: [
+      { round_index: 3, suggestions_count: 2, best_verdict: 'improved', best_metric: 0.72 }
+    ]
+  });
+
+  assert.equal(built.pathId, 'path_builder_chip_startup_yc');
+  assert.equal(built.outcomeId, 'outcome_builder_chip_startup_yc_20260507T100000000');
+  assert.equal((built.payload.runtimeSource as any).loopKind, 'chip');
+  assert.equal((built.payload.runtimeSource as any).chipKey, 'startup-yc');
+  assert.equal((built.payload.runtimeSource as any).chipLabel, 'Startup Yc');
+  assert.equal((built.payload.evolutionPaths as any[])[0].scope, 'workspace');
+  assert.equal((built.payload.outcomes as any[])[0].verdict, 'improved');
+  assert.equal((built.payload.artifactRefs as any[])[0].kind, 'run_trace');
 });
