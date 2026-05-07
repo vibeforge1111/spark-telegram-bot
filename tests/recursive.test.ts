@@ -436,6 +436,69 @@ test('prefers matching refreshed bridge session token for Spark Workspace reads'
   }
 });
 
+test('prefers durable bridge CLI token over browser token residue for Spark Workspace reads', () => {
+  const envKeys = [
+    'SPARK_SWARM_API_URL',
+    'SPARK_SWARM_DEPLOYED_API_URL',
+    'SPARK_SWARM_BACKEND_URL',
+    'SPARK_SWARM_WORKSPACE_ID',
+    'SPARK_SWARM_DEPLOYED_WORKSPACE_ID',
+    'SPARK_SWARM_ACCESS_TOKEN',
+    'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
+    'SPARK_SWARM_BEARER_TOKEN',
+    'SPARK_BUILDER_HOME',
+    'SPARK_BUILDER_ENV_FILE',
+    'SPARK_BUILDER_REPO',
+    'SPARK_SWARM_BRIDGE_SESSION_FILE'
+  ];
+  const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
+  const homeDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-home-'));
+  const repoDir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-repo-'));
+  const sessionPath = path.join(homeDir, 'bridge-session.json');
+  try {
+    for (const key of envKeys) delete process.env[key];
+    process.env.SPARK_BUILDER_HOME = homeDir;
+    process.env.SPARK_BUILDER_REPO = repoDir;
+    process.env.SPARK_SWARM_BRIDGE_SESSION_FILE = sessionPath;
+    writeFileSync(
+      path.join(homeDir, 'config.yaml'),
+      [
+        'spark:',
+        '  swarm:',
+        '    api_url: https://swarm-live.example.test',
+        '    workspace_id: ws_live_home'
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(path.join(repoDir, '.env'), 'SPARK_SWARM_ACCESS_TOKEN=stale_builder_token\n', 'utf-8');
+    writeFileSync(
+      sessionPath,
+      JSON.stringify({
+        api_url: 'https://swarm-live.example.test/',
+        workspace_id: 'ws_live_home',
+        access_token: 'old_browser_access_token',
+        refresh_token: 'old_browser_refresh_token',
+        expires_at: 1778171271,
+        cli_token: 'sscli_workspace_agent_token'
+      }),
+      'utf-8'
+    );
+
+    assert.deepEqual(sparkWorkspaceBridgeHints(), {
+      apiUrl: 'https://swarm-live.example.test',
+      workspaceId: 'ws_live_home',
+      accessToken: 'sscli_workspace_agent_token'
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(homeDir, { recursive: true, force: true });
+    rmSync(repoDir, { recursive: true, force: true });
+  }
+});
+
 test('renders Builder chip loop completion with Workspace sync details', () => {
   const reply = renderBuilderChipLoopCompletion(
     {
