@@ -288,6 +288,32 @@ function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessTo
   };
 }
 
+function sparkWorkspaceBridgeHints(): { apiUrl?: string; workspaceId?: string; accessToken?: string } {
+  const apiUrl = (
+    process.env.SPARK_SWARM_API_URL ||
+    process.env.SPARK_SWARM_DEPLOYED_API_URL ||
+    process.env.SPARK_SWARM_BACKEND_URL ||
+    ''
+  ).replace(/\/+$/, '');
+  const workspaceId = (
+    process.env.SPARK_SWARM_WORKSPACE_ID ||
+    process.env.SPARK_SWARM_DEPLOYED_WORKSPACE_ID ||
+    ''
+  ).trim();
+  const accessToken = (
+    process.env.SPARK_SWARM_ACCESS_TOKEN ||
+    process.env.SPARK_SWARM_DEPLOYED_ACCESS_TOKEN ||
+    process.env.SPARK_SWARM_BEARER_TOKEN ||
+    ''
+  ).trim();
+
+  return {
+    apiUrl: apiUrl || undefined,
+    workspaceId: workspaceId || undefined,
+    accessToken: accessToken || undefined
+  };
+}
+
 async function loadSparkWorkspaceSnapshot(): Promise<SparkWorkspaceSnapshot> {
   const { apiUrl, workspaceId, accessToken } = sparkWorkspaceConfig();
   const res = await axios.get(`${apiUrl}/api/workspaces/${encodeURIComponent(workspaceId)}/collective-snapshot`, {
@@ -538,7 +564,7 @@ function parseBridgeLine(stdout: string, label: string): string | null {
 
 async function syncBuilderChipLoopViaBridge(
   result: LoopResult,
-  config: { apiUrl: string; workspaceId: string; accessToken: string }
+  config: { apiUrl?: string; workspaceId?: string; accessToken?: string }
 ): Promise<RecursiveWorkspaceSyncResult | null> {
   if (process.env.SPARK_SWARM_DISABLE_BRIDGE_SYNC === '1') return null;
   const emittedAt = new Date().toISOString();
@@ -550,33 +576,32 @@ async function syncBuilderChipLoopViaBridge(
   const python = (process.env.SPARK_SWARM_BRIDGE_PYTHON || process.env.PYTHON || 'python').trim();
   const bridgeSrc = resolveSparkSwarmBridgeSrc();
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    SPARK_SWARM_API_URL: config.apiUrl,
-    SPARK_SWARM_WORKSPACE_ID: config.workspaceId,
-    SPARK_SWARM_ACCESS_TOKEN: config.accessToken
+    ...process.env
   };
+  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
   if (bridgeSrc) {
     env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
   }
 
+  const args = [
+    '-m',
+    'spark_swarm_bridge.cli',
+    'builder-chip-loop',
+    '--input',
+    inputPath,
+    '--payload',
+    payloadPath,
+    '--sync-collective'
+  ];
+  if (config.workspaceId) args.push('--workspace-id', config.workspaceId);
+  if (config.apiUrl) args.push('--api-url', config.apiUrl);
+  if (config.accessToken) args.push('--access-token', config.accessToken);
+
   const { stdout } = await execFileAsync(
     python,
-    [
-      '-m',
-      'spark_swarm_bridge.cli',
-      'builder-chip-loop',
-      '--input',
-      inputPath,
-      '--payload',
-      payloadPath,
-      '--workspace-id',
-      config.workspaceId,
-      '--api-url',
-      config.apiUrl,
-      '--access-token',
-      config.accessToken,
-      '--sync-collective'
-    ],
+    args,
     {
       env,
       timeout: 30000,
@@ -598,14 +623,14 @@ export async function syncBuilderChipLoopToWorkspace(result: LoopResult): Promis
   if (!result.ok || !result.chipKey) {
     throw new Error('Builder chip loop did not complete successfully; no Workspace payload was synced.');
   }
-  const config = sparkWorkspaceConfig();
   try {
-    const bridgeSync = await syncBuilderChipLoopViaBridge(result, config);
+    const bridgeSync = await syncBuilderChipLoopViaBridge(result, sparkWorkspaceBridgeHints());
     if (bridgeSync) return bridgeSync;
   } catch {
     // Keep Telegram usable while the local bridge command rolls out across operator machines.
   }
 
+  const config = sparkWorkspaceConfig();
   const built = buildBuilderChipLoopWorkspacePayload({
     workspaceId: config.workspaceId,
     chipKey: result.chipKey,
