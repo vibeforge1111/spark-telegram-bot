@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildBuilderChipLoopBridgeInput,
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
   renderRecursiveCanvasQueue,
@@ -223,4 +224,34 @@ test('builds a Workspace collective payload for Builder chip loops', () => {
   assert.equal((built.payload.evolutionPaths as any[])[0].scope, 'workspace');
   assert.equal((built.payload.outcomes as any[])[0].verdict, 'improved');
   assert.equal((built.payload.artifactRefs as any[])[0].kind, 'run_trace');
+});
+
+test('builds bridge input for Builder chip loop sync', () => {
+  const input = buildBuilderChipLoopBridgeInput({
+    ok: true,
+    chipKey: 'startup-yc',
+    roundsCompleted: 2,
+    totalRounds: 3,
+    statusPath: 'C:\\status\\startup-yc.json',
+    history: [
+      { round_index: 2, suggestions_count: 5, best_verdict: 'regressed after patch', best_metric: 0.9 }
+    ]
+  }, '2026-05-07T10:00:00.000Z');
+
+  assert.equal(input.chipKey, 'startup-yc');
+  assert.equal(input.roundsCompleted, 2);
+  assert.equal(input.totalRounds, 3);
+  assert.equal(input.statusPath, 'C:\\status\\startup-yc.json');
+  assert.equal(input.emittedAt, '2026-05-07T10:00:00.000Z');
+  assert.equal((input.history as any[])[0].best_verdict, 'regressed after patch');
+
+  const fallback = buildBuilderChipLoopWorkspacePayload({
+    workspaceId: 'ws_123',
+    chipKey: 'startup-yc',
+    emittedAt: '2026-05-07T10:00:00.000Z',
+    history: [
+      { round_index: 2, suggestions_count: 5, best_verdict: 'regressed after patch', best_metric: 0.9 }
+    ]
+  });
+  assert.equal((fallback.payload.outcomes as any[])[0].verdict, 'regressed');
 });
