@@ -148,6 +148,15 @@ function checkPublicUrl(name) {
 }
 
 function checkSpawner() {
+  const host = env("HOST");
+  if (!host) {
+    warn("HOST", "set to 0.0.0.0 or :: for hosted deploys");
+  } else if (host === "127.0.0.1" || host === "localhost") {
+    fail("HOST", "loopback is not reachable by Railway/VPS ingress");
+  } else {
+    ok("HOST", host);
+  }
+
   if (env("SPARK_HOSTED_PRIVATE_PREVIEW") === "1") {
     ok("SPARK_HOSTED_PRIVATE_PREVIEW", "enabled");
   } else {
