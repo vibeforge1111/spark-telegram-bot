@@ -23,6 +23,7 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 - builds a per-turn conversation frame so shorthand follow-ups like "change it to 4" or "the second one" can resolve against recent context
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
+- sends `/recursive` reads, Canvas queue requests, audit-only review decisions, local promotion packet staging, and gated Swarm review packet staging into Spark Recursive
 - relays mission status and terminal updates back to Telegram
 
 ## Current Architecture
@@ -36,6 +37,7 @@ flowchart TD
   Builder --> Researcher["spark-researcher"]
   Gateway --> SpawnerBridge["Spawner bridge<br/>src/spawner.ts"]
   SpawnerBridge --> Spawner["spawner-ui APIs"]
+  Gateway --> Recursive["Spark Recursive<br/>127.0.0.1:3344"]
   Spawner --> Relay["mission relay<br/>127.0.0.1:8788 or private service URL"]
   Relay --> Gateway
 ```
@@ -81,6 +83,7 @@ Admin-only mission control:
 - `/mission <status|pause|resume|kill> <missionId>`
 - `/chip create <natural language description>`
 - `/loop <chip_key> [rounds]`
+- `/recursive sessions|paths|session|report|trace|canvas|review|approve|promote|sync|defer|reject|more-eval|start`
 - `/schedule "<cron>" mission <goal>`
 - `/schedule "<cron>" loop <chipKey> [rounds]`
 - `/schedules`
