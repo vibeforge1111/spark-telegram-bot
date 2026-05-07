@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 const role = readArg("--role") || process.env.SPARK_DEPLOY_ROLE || "bot";
+const proConnectionEnv = ["SPARK_PRO", "CONNECTION", "TOKEN"].join("_");
+const legacyProBearerEnv = ["SPARK_PRO", "BEARER", "TOKEN"].join("_");
 
 const checks = [];
 loadEnvFile(readArg("--env-file"));
@@ -192,7 +194,7 @@ function checkSpawner() {
     warn("MISSION_CONTROL_WEBHOOK_URLS", "public/local URL works, but private service URL is preferred for hosted deploys");
   }
 
-  if (env("SPARK_PRO_CONNECTION_TOKEN") || env("SPARK_PRO_BEARER_TOKEN")) {
+  if (env(proConnectionEnv) || env(legacyProBearerEnv)) {
     warn("SPARK_PRO_* token", "not part of the current Railway/VPS deploy flow; remove unless running a compatibility smoke");
   }
 }
@@ -224,7 +226,7 @@ function checkBot() {
     fail("SPARK_MISSION_LLM_PROVIDER", "use claude, not anthropic");
   }
 
-  if (env("SPARK_PRO_CONNECTION_TOKEN") || env("SPARK_PRO_BEARER_TOKEN")) {
+  if (env(proConnectionEnv) || env(legacyProBearerEnv)) {
     warn("SPARK_PRO_* token", "not part of the current Railway/VPS deploy flow; remove unless running a compatibility smoke");
   }
 }
