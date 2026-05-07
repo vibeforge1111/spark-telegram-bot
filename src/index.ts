@@ -65,6 +65,7 @@ import {
   renderRecursiveSessions,
   renderRecursiveSwarmPacket,
   renderRecursiveTraceView,
+  sparkWorkspaceRecursionsUrl,
   stageRecursivePromotionPacket,
   stageRecursiveSwarmPacket,
   syncBuilderChipLoopToWorkspace
@@ -2142,6 +2143,13 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
   } catch (err: any) {
     const status = err?.response?.status;
     const detail = err?.response?.data?.error || err?.message || String(err);
+    if (status === 401 && detail === 'authentication_required') {
+      return ctx.reply([
+        'Recursive command failed (401): Spark Workspace rejected this agent token for recursive reads.',
+        'Start/sync may still work, but /recursive report and /recursive trace need the deployed Workspace API with CLI-token collective-snapshot support.',
+        `Workspace: ${sparkWorkspaceRecursionsUrl()}`
+      ].join('\n'));
+    }
     return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}`);
   }
 }
