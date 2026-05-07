@@ -286,6 +286,21 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
         summary: 'Final round improved.',
         metricName: 'builder_chip_loop_best_metric',
         metricValue: 0.72,
+        context: {
+          scorecard: {
+            headlineLabel: 'Best metric',
+            headlineValue: 0.72,
+            headlineGoal: 'higher',
+            modelLabel: 'Startup Yc',
+            components: [
+              { key: 'best_metric', label: 'Best metric', value: 0.72, goal: 'higher' }
+            ],
+            details: [
+              { key: 'rounds', label: 'Rounds', value: '3/3' },
+              { key: 'suggestions', label: 'Final suggestions', value: '2' }
+            ]
+          }
+        },
         createdAt: '2026-05-07T10:00:00.000Z'
       }
     ],
@@ -312,13 +327,18 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
   assert.match(report, /Spark Workspace Recursion Report/);
   assert.match(report, /Latest outcome: improved - Final round improved\./);
-  assert.match(report, /Artifact refs: 1/);
+  assert.match(report, /Metric: builder chip loop best metric=0.72/);
+  assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup Yc; Rounds: 3\/3/);
+  assert.match(report, /Artifact refs: 1 \(run_trace:Startup Yc chip-loop status\)/);
   assert.match(report, /Decisions needed: 0/);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
-  assert.equal(trace.spawner.board_entry.taskCount, 1);
+  assert.equal(trace.spawner.board_entry.taskCount, 2);
   assert.equal(trace.timeline[0].kind, 'outcome');
   assert.equal(trace.timeline[0].status, 'improved');
+  assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric=0.72');
+  assert.equal(trace.timeline[1].kind, 'artifact');
+  assert.equal(trace.timeline[1].status, 'run_trace');
 });
 
 test('maps Workspace decision inbox items into Telegram review surfaces', () => {
