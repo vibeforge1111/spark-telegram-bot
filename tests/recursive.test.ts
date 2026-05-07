@@ -19,6 +19,7 @@ import {
   renderRecursiveTraceView,
   sparkWorkspaceApiUrl,
   sparkWorkspaceBridgeHints,
+  sparkWorkspaceDecisionsUrl,
   workspaceReviewCandidates,
   workspaceSessions,
   workspaceTraceView
@@ -96,7 +97,8 @@ test('renders review queue and audit-only decision records', () => {
   });
 
   assert.match(decision, /workspace_route_only/);
-  assert.match(decision, /Workspace:/);
+  assert.match(decision, /Workspace: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
+  assert.equal(sparkWorkspaceDecisionsUrl(), 'http://127.0.0.1:5173/runs?tab=decisions');
 });
 
 test('parses and renders local promotion packets', () => {

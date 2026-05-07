@@ -449,6 +449,10 @@ export function sparkWorkspaceRecursionsUrl(): string {
   return `${sparkWorkspaceWebUrl()}/runs?tab=recursions`;
 }
 
+export function sparkWorkspaceDecisionsUrl(): string {
+  return `${sparkWorkspaceWebUrl()}/runs?tab=decisions`;
+}
+
 function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessToken: string } {
   const apiUrl = sparkWorkspaceApiUrl();
   const workspaceId = (
@@ -956,7 +960,7 @@ export function renderRecursiveDecision(record: RecursiveDecisionRecord): string
   if (record.workspace_detail) {
     lines.push(record.workspace_detail);
   }
-  lines.push(`Workspace: ${sparkWorkspaceRecursionsUrl()}`);
+  lines.push(`Workspace: ${sparkWorkspaceDecisionsUrl()}`);
   return lines.join('\n');
 }
 
@@ -1125,7 +1129,7 @@ async function applySparkWorkspaceDecision(input: {
   if (!item) {
     return {
       applied: false,
-      detail: 'No matching Workspace inbox item was found; open Decisions before mutating.'
+      detail: `No matching Workspace inbox item was found; open Workspace Decisions before mutating: ${sparkWorkspaceDecisionsUrl()}`
     };
   }
 
@@ -1167,7 +1171,7 @@ async function applySparkWorkspaceDecision(input: {
     applied: false,
     targetType: item.targetType,
     targetId: item.targetId,
-    detail: `Workspace item ${item.kind} needs the dashboard action flow; Telegram did not mutate it.`
+    detail: `Workspace item ${item.kind} needs Workspace Decisions; Telegram did not mutate it. Open: ${sparkWorkspaceDecisionsUrl()}`
   };
 }
 
