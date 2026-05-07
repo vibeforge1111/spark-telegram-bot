@@ -3,6 +3,8 @@ import {
   buildBuilderChipLoopBridgeInput,
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
+  renderRecursiveWorkspaceReport,
+  renderRecursiveWorkspaceReview,
   renderRecursiveCanvasQueue,
   renderRecursiveDecision,
   renderRecursivePaths,
@@ -10,7 +12,10 @@ import {
   renderRecursiveReviewCandidates,
   renderRecursiveSessions,
   renderRecursiveSwarmPacket,
-  renderRecursiveTraceView
+  renderRecursiveTraceView,
+  workspaceReviewCandidates,
+  workspaceSessions,
+  workspaceTraceView
 } from '../src/recursive';
 
 function test(name: string, fn: () => void): void {
@@ -254,4 +259,116 @@ test('builds bridge input for Builder chip loop sync', () => {
     ]
   });
   assert.equal((fallback.payload.outcomes as any[])[0].verdict, 'regressed');
+});
+
+test('maps workspace-scoped Builder chip loops into Telegram recursive sessions', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path_builder_chip_startup_yc',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'spark-intelligence-builder',
+        summary: 'Builder chip loop for Startup Yc completed 3/3 round(s).',
+        status: 'open',
+        bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T100000000',
+        updatedAt: '2026-05-07T10:00:00.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_builder_chip_startup_yc_20260507T100000000',
+        targetType: 'evolution_path',
+        targetId: 'path_builder_chip_startup_yc',
+        verdict: 'improved',
+        summary: 'Final round improved.',
+        metricName: 'builder_chip_loop_best_metric',
+        metricValue: 0.72,
+        createdAt: '2026-05-07T10:00:00.000Z'
+      }
+    ],
+    artifactRefs: [
+      {
+        id: 'artifact_builder_chip_startup_yc_20260507T100000000',
+        kind: 'run_trace',
+        label: 'Startup Yc chip-loop status',
+        path: 'C:\\status\\startup-yc.json',
+        url: null
+      }
+    ],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const sessions = workspaceSessions(snapshot);
+  assert.equal(sessions.length, 1);
+  assert.equal(sessions[0].session_id, 'path_builder_chip_startup_yc');
+  assert.equal(sessions[0].domain, 'spark-intelligence-builder');
+  assert.equal(sessions[0].kanban_bucket, 'active');
+  assert.equal(sessions[0].review_required, false);
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
+  assert.match(report, /Spark Workspace Recursion Report/);
+  assert.match(report, /Latest outcome: improved - Final round improved\./);
+  assert.match(report, /Artifact refs: 1/);
+  assert.match(report, /Decisions needed: 0/);
+
+  const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
+  assert.equal(trace.spawner.board_entry.taskCount, 1);
+  assert.equal(trace.timeline[0].kind, 'outcome');
+  assert.equal(trace.timeline[0].status, 'improved');
+});
+
+test('maps Workspace decision inbox items into Telegram review surfaces', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path_builder_chip_startup_yc',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'spark-intelligence-builder',
+        summary: 'Builder chip loop needs review.',
+        status: 'open',
+        bestOutcomeId: null,
+        updatedAt: '2026-05-07T10:00:00.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [],
+    artifactRefs: [],
+    specializations: [],
+    inbox: {
+      items: [
+        {
+          id: 'inbox_review_builder_chip',
+          kind: 'review_outcome',
+          title: 'Review Builder chip outcome',
+          summary: 'Outcome needs dashboard action.',
+          targetType: 'evolution_path',
+          targetId: 'path_builder_chip_startup_yc',
+          specializationId: null,
+          repoId: null,
+          priority: 'medium',
+          recommendedAction: 'Open Recursions and inspect the run trace.'
+        }
+      ]
+    }
+  };
+
+  const candidates = workspaceReviewCandidates(snapshot);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0].session_id, 'path_builder_chip_startup_yc');
+  assert.equal(candidates[0].domain, 'evolution_path');
+  assert.equal(candidates[0].risk, 'medium');
+
+  const sessions = workspaceSessions(snapshot);
+  assert.equal(sessions[0].review_required, true);
+
+  const review = renderRecursiveWorkspaceReview(snapshot, 'path_builder_chip_startup_yc');
+  assert.match(review, /Spark Workspace Review/);
+  assert.match(review, /medium review_outcome/);
+  assert.match(review, /Open Recursions and inspect the run trace/);
 });

@@ -792,7 +792,7 @@ function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: numb
   return 'flat';
 }
 
-function workspaceSessions(snapshot: SparkWorkspaceSnapshot): RecursiveSessionListItem[] {
+export function workspaceSessions(snapshot: SparkWorkspaceSnapshot): RecursiveSessionListItem[] {
   return snapshot.evolutionPaths.map((path) => {
     const spec = specializationForPath(snapshot, path);
     return {
@@ -809,7 +809,7 @@ function workspaceSessions(snapshot: SparkWorkspaceSnapshot): RecursiveSessionLi
   });
 }
 
-function workspaceReviewCandidates(snapshot: SparkWorkspaceSnapshot): RecursiveReviewCandidate[] {
+export function workspaceReviewCandidates(snapshot: SparkWorkspaceSnapshot): RecursiveReviewCandidate[] {
   const items = snapshot.inbox?.items ?? [];
   return items.map((item) => {
     const spec = item.specializationId
@@ -910,7 +910,7 @@ async function postSparkWorkspaceMutation(
   );
 }
 
-function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): RecursiveTraceView {
+export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): RecursiveTraceView {
   const path = findPath(snapshot, id);
   const spec = path ? specializationForPath(snapshot, path) : null;
   const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
@@ -963,7 +963,7 @@ function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): Recur
   };
 }
 
-function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: string): string {
+export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: string): string {
   const path = findPath(snapshot, id);
   if (!path) return `Recursive loop not found in Spark Workspace: ${id}\n${sparkWorkspaceRecursionsUrl()}`;
   const spec = specializationForPath(snapshot, path);
@@ -992,7 +992,7 @@ function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: st
   ].join('\n');
 }
 
-function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
+export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
   const path = findPath(snapshot, id);
   const items = path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id);
   if (items.length === 0) return `No Spark Workspace decisions found for ${id}.`;
