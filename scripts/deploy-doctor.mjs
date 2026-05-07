@@ -140,11 +140,23 @@ function checkPublicUrl(name) {
     fail(name, "replace placeholder value");
     return;
   }
+  if (!isHttpsUrl(value)) {
+    fail(name, "public URL must use https");
+    return;
+  }
   if (isPrivateRailwayUrl(value)) {
     fail(name, "public URL cannot use railway.internal");
     return;
   }
   ok(name, "public URL");
+}
+
+function isHttpsUrl(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function checkSpawner() {
