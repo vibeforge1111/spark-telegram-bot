@@ -79,11 +79,11 @@ test('renders review queue and audit-only decision records', () => {
     actor: 'telegram:test',
     rationale: 'ok',
     created_at: '2026-05-07T00:00:00Z',
-    effect: 'audit_only'
+    effect: 'workspace_route_only'
   });
 
-  assert.match(decision, /audit_only/);
-  assert.match(decision, /No memory, Swarm, Builder, or source artifacts were mutated/);
+  assert.match(decision, /workspace_route_only/);
+  assert.match(decision, /Workspace:/);
 });
 
 test('parses and renders local promotion packets', () => {
@@ -195,7 +195,7 @@ test('parses and renders stitched recursive trace views', () => {
     ]
   });
 
-  assert.match(reply, /Spark Recursive Trace/);
+  assert.match(reply, /Spark Workspace Recursion Trace/);
   assert.match(reply, /Canvas: pending/);
   assert.match(reply, /swarm packets=0/);
   assert.match(reply, /round-003/);

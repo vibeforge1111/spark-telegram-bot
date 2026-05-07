@@ -42,7 +42,7 @@ export interface RecursiveDecisionRecord {
   actor: string;
   rationale: string;
   created_at: string;
-  effect: 'audit_only';
+  effect: 'spark_workspace_review' | 'workspace_route_only';
 }
 
 export interface RecursivePromotionPacket {
@@ -122,10 +122,129 @@ export interface RecursiveTraceView {
   }>;
 }
 
-const DEFAULT_RECURSIVE_URL = 'http://127.0.0.1:3344';
+interface SparkWorkspaceSpecialization {
+  id: string;
+  key: string;
+  label: string;
+}
 
-export function sparkRecursiveUrl(): string {
-  return (process.env.SPARK_RECURSIVE_URL || DEFAULT_RECURSIVE_URL).replace(/\/+$/, '');
+interface SparkWorkspaceEvolutionPath {
+  id: string;
+  scope: string;
+  specializationId: string | null;
+  repoLabel?: string | null;
+  summary: string;
+  status: 'open' | 'expired' | 'resolved' | string;
+  updatedAt: string;
+}
+
+interface SparkWorkspaceInsight {
+  id: string;
+  specializationId?: string | null;
+  summary: string;
+  confidence?: number | null;
+  status?: string | null;
+  updatedAt?: string | null;
+}
+
+interface SparkWorkspaceMastery {
+  id: string;
+  specializationScope?: string | null;
+  summary: string;
+  benchmarkStrength?: number | null;
+  liveStrength?: number | null;
+  supportCount?: number | null;
+  contradictionCount?: number | null;
+}
+
+interface SparkWorkspaceInboxItem {
+  id: string;
+  kind: string;
+  title: string;
+  summary: string;
+  targetType: string;
+  targetId: string;
+  specializationId?: string | null;
+  repoId?: string | null;
+  priority: 'low' | 'medium' | 'high' | string;
+  recommendedAction?: string | null;
+}
+
+interface SparkWorkspaceSnapshot {
+  evolutionPaths: SparkWorkspaceEvolutionPath[];
+  insights: SparkWorkspaceInsight[];
+  masteries: SparkWorkspaceMastery[];
+  specializations: SparkWorkspaceSpecialization[];
+  inbox?: {
+    items?: SparkWorkspaceInboxItem[];
+  };
+}
+
+const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
+const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:5173';
+
+export function sparkWorkspaceApiUrl(): string {
+  return (
+    process.env.SPARK_SWARM_API_URL ||
+    process.env.SPARK_SWARM_DEPLOYED_API_URL ||
+    process.env.SPARK_SWARM_BACKEND_URL ||
+    DEFAULT_SWARM_API_URL
+  ).replace(/\/+$/, '');
+}
+
+export function sparkWorkspaceWebUrl(): string {
+  return (
+    process.env.SPARK_SWARM_WEB_URL ||
+    process.env.SPARK_SWARM_DEPLOYED_WEB_URL ||
+    DEFAULT_SWARM_WEB_URL
+  ).replace(/\/+$/, '');
+}
+
+export function sparkWorkspaceRecursionsUrl(): string {
+  return `${sparkWorkspaceWebUrl()}/runs?tab=recursions`;
+}
+
+function sparkWorkspaceConfig(): { apiUrl: string; workspaceId: string; accessToken: string } {
+  const workspaceId = (
+    process.env.SPARK_SWARM_WORKSPACE_ID ||
+    process.env.SPARK_SWARM_DEPLOYED_WORKSPACE_ID ||
+    ''
+  ).trim();
+  const accessToken = (
+    process.env.SPARK_SWARM_ACCESS_TOKEN ||
+    process.env.SPARK_SWARM_DEPLOYED_ACCESS_TOKEN ||
+    process.env.SPARK_SWARM_BEARER_TOKEN ||
+    ''
+  ).trim();
+
+  if (!workspaceId || !accessToken) {
+    throw new Error('Spark Workspace is not configured. Set SPARK_SWARM_WORKSPACE_ID and SPARK_SWARM_ACCESS_TOKEN for Telegram recursive reads.');
+  }
+
+  return {
+    apiUrl: sparkWorkspaceApiUrl(),
+    workspaceId,
+    accessToken
+  };
+}
+
+async function loadSparkWorkspaceSnapshot(): Promise<SparkWorkspaceSnapshot> {
+  const { apiUrl, workspaceId, accessToken } = sparkWorkspaceConfig();
+  const res = await axios.get(`${apiUrl}/api/workspaces/${encodeURIComponent(workspaceId)}/collective-snapshot`, {
+    timeout: 15000,
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  });
+  return {
+    evolutionPaths: Array.isArray(res.data?.evolutionPaths) ? res.data.evolutionPaths : [],
+    insights: Array.isArray(res.data?.insights) ? res.data.insights : [],
+    masteries: Array.isArray(res.data?.masteries) ? res.data.masteries : [],
+    specializations: Array.isArray(res.data?.specializations) ? res.data.specializations : [],
+    inbox: {
+      items: Array.isArray(res.data?.inbox?.items) ? res.data.inbox.items : []
+    }
+  };
 }
 
 export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
@@ -158,31 +277,23 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
 }
 
 export async function recursiveSessions(): Promise<RecursiveSessionListItem[]> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/sessions`, { timeout: 10000 });
-  return Array.isArray(res.data?.sessions) ? res.data.sessions : [];
+  return workspaceSessions(await loadSparkWorkspaceSnapshot());
 }
 
 export async function recursiveSessionStatus(id: string): Promise<string> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}`, { timeout: 10000 });
-  return String(res.data?.status || '');
+  return renderRecursiveWorkspaceReport(await loadSparkWorkspaceSnapshot(), id);
 }
 
 export async function recursiveSessionReview(id: string): Promise<string> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}`, { timeout: 10000 });
-  return String(res.data?.review || '');
+  return renderRecursiveWorkspaceReview(await loadSparkWorkspaceSnapshot(), id);
 }
 
 export async function recursiveSessionReport(id: string): Promise<string> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}/report?format=text`, {
-    timeout: 10000,
-    responseType: 'text'
-  });
-  return String(res.data || '');
+  return renderRecursiveWorkspaceReport(await loadSparkWorkspaceSnapshot(), id);
 }
 
 export async function recursiveReviewCandidates(): Promise<RecursiveReviewCandidate[]> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/review-candidates`, { timeout: 10000 });
-  return Array.isArray(res.data?.candidates) ? res.data.candidates : [];
+  return workspaceReviewCandidates(await loadSparkWorkspaceSnapshot());
 }
 
 export async function recordRecursiveDecision(input: {
@@ -191,54 +302,37 @@ export async function recordRecursiveDecision(input: {
   actor: string;
   rationale?: string;
 }): Promise<RecursiveDecisionRecord> {
-  const decision = decisionForAction(input.action);
-  const res = await axios.post(
-    `${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(input.id)}/review-decisions`,
-    {
-      decision,
-      actor: input.actor,
-      rationale: input.rationale || ''
-    },
-    { timeout: 10000 }
-  );
-  return res.data?.decision as RecursiveDecisionRecord;
+  return {
+    decision_id: `workspace-route-${Date.now()}`,
+    session_id: input.id,
+    decision: decisionForAction(input.action),
+    scope: 'local',
+    actor: input.actor,
+    rationale: input.rationale || '',
+    created_at: new Date().toISOString(),
+    effect: 'workspace_route_only'
+  };
 }
 
 export async function stageRecursivePromotionPacket(id: string): Promise<RecursivePromotionPacket> {
-  const res = await axios.post(
-    `${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}/promotion-packets`,
-    {},
-    { timeout: 10000 }
-  );
-  return res.data?.packet as RecursivePromotionPacket;
+  throw new Error(`Standalone local promotion packets are retired. Review ${id} in Spark Workspace: ${sparkWorkspaceRecursionsUrl()}`);
 }
 
 export async function stageRecursiveSwarmPacket(id: string): Promise<RecursiveSwarmPacket> {
-  const res = await axios.post(
-    `${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}/swarm-packets`,
-    {},
-    { timeout: 10000 }
-  );
-  return res.data?.packet as RecursiveSwarmPacket;
+  throw new Error(`Standalone Swarm staging packets are retired. Sync recursive evidence through Spark Workspace collective sync: ${sparkWorkspaceRecursionsUrl()}`);
 }
 
 export async function queueRecursiveCanvas(id: string): Promise<RecursiveCanvasQueueResult> {
-  const res = await axios.post(
-    `${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}/spawner-canvas-load`,
-    {},
-    { timeout: 10000 }
-  );
-  return res.data as RecursiveCanvasQueueResult;
+  throw new Error(`Standalone Canvas queueing is retired for ${id}. Use Spark Workspace recursions: ${sparkWorkspaceRecursionsUrl()}`);
 }
 
 export async function recursiveTraceView(id: string): Promise<RecursiveTraceView> {
-  const res = await axios.get(`${sparkRecursiveUrl()}/api/recursive/sessions/${encodeURIComponent(id)}/trace`, { timeout: 10000 });
-  return res.data?.trace as RecursiveTraceView;
+  return workspaceTraceView(await loadSparkWorkspaceSnapshot(), id);
 }
 
 export function renderRecursiveHelp(): string {
   return [
-    'Spark Recursive',
+    'Spark Workspace Recursions',
     '',
     'Usage:',
     '/recursive sessions',
@@ -246,21 +340,20 @@ export function renderRecursiveHelp(): string {
     '/recursive session <id>',
     '/recursive report <id>',
     '/recursive trace <id>',
-    '/recursive canvas <id>',
     '/recursive review [id]',
     '/recursive approve <id> [rationale]',
-    '/recursive promote <id>',
-    '/recursive sync <id>',
     '/recursive defer <id> <rationale>',
     '/recursive reject <id> <rationale>',
     '/recursive more-eval <id> <rationale>',
-    '/recursive start <chipKey> [rounds <n>]'
+    '/recursive start <chipKey> [rounds <n>]',
+    '',
+    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`
   ].join('\n');
 }
 
 export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): string {
   if (sessions.length === 0) return 'No recursive sessions found.';
-  const lines = ['Spark Recursive Sessions'];
+  const lines = ['Spark Workspace Recursive Loops'];
   for (const session of sessions.slice(0, 12)) {
     lines.push(
       `- ${session.session_id} [${session.status}] ${session.domain || session.source_kind} - ${truncate(session.title, 88)}`
@@ -273,12 +366,12 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
 export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): string {
   const domains = [...new Set(sessions.map((session) => session.domain || session.source_kind).filter(Boolean))].sort();
   if (domains.length === 0) return 'No recursive paths found yet.';
-  return ['Spark Recursive Paths', ...domains.map((domain) => `- ${domain}`)].join('\n');
+  return ['Spark Workspace Recursive Paths', ...domains.map((domain) => `- ${domain}`)].join('\n');
 }
 
 export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandidate[]): string {
   if (candidates.length === 0) return 'No recursive candidates need review.';
-  const lines = ['Spark Recursive Review Queue'];
+  const lines = ['Spark Workspace Decisions'];
   for (const candidate of candidates.slice(0, 10)) {
     const delta = candidate.score_delta === null ? '' : ` delta=${formatDelta(candidate.score_delta)}`;
     lines.push(`- ${candidate.session_id} risk=${candidate.risk}${delta} - ${truncate(candidate.reason, 96)}`);
@@ -289,12 +382,12 @@ export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandi
 
 export function renderRecursiveDecision(record: RecursiveDecisionRecord): string {
   return [
-    'Recursive review decision recorded.',
+    'Recursive review decision routed.',
     `Session: ${record.session_id}`,
     `Decision: ${record.decision}`,
     `Scope: ${record.scope}`,
     `Effect: ${record.effect}`,
-    'No memory, Swarm, Builder, or source artifacts were mutated.'
+    `Workspace: ${sparkWorkspaceRecursionsUrl()}`
   ].join('\n');
 }
 
@@ -342,7 +435,7 @@ export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
   const timeline = trace.timeline.slice(-6).map((item) => `- ${item.kind}: ${item.title} [${item.status}]`);
   return [
-    'Spark Recursive Trace',
+    'Spark Workspace Recursion Trace',
     `Session: ${trace.session_id}`,
     `Status: ${trace.status}`,
     `Source: ${trace.source_kind}`,
@@ -375,4 +468,141 @@ function truncate(value: string, limit: number): string {
 function formatDelta(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
   return `${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
+function workspaceSessions(snapshot: SparkWorkspaceSnapshot): RecursiveSessionListItem[] {
+  return snapshot.evolutionPaths.map((path) => {
+    const spec = specializationForPath(snapshot, path);
+    return {
+      trace_id: path.id,
+      session_id: path.id,
+      source_kind: 'spark_workspace_evolution_path',
+      title: path.summary,
+      status: path.status,
+      domain: spec?.key || path.repoLabel || path.scope || null,
+      updated_at: path.updatedAt || null,
+      kanban_bucket: path.status === 'open' ? 'active' : path.status,
+      review_required: inboxForPath(snapshot, path).length > 0
+    };
+  });
+}
+
+function workspaceReviewCandidates(snapshot: SparkWorkspaceSnapshot): RecursiveReviewCandidate[] {
+  const items = snapshot.inbox?.items ?? [];
+  return items.map((item) => {
+    const spec = item.specializationId
+      ? snapshot.specializations.find((entry) => entry.id === item.specializationId)
+      : undefined;
+    return {
+      session_id: item.targetId || item.id,
+      source_kind: 'spark_workspace_decision',
+      title: item.title,
+      domain: spec?.key || item.repoId || item.targetType || null,
+      status: item.kind,
+      risk: item.priority,
+      reason: item.recommendedAction || item.summary,
+      gate_ids: [item.kind],
+      score_delta: null
+    };
+  });
+}
+
+function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): RecursiveTraceView {
+  const path = findPath(snapshot, id);
+  const spec = path ? specializationForPath(snapshot, path) : null;
+  const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
+  const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
+  const decisions = path ? inboxForPath(snapshot, path) : [];
+  return {
+    session_id: id,
+    title: path?.summary || spec?.label || id,
+    status: path?.status || 'unknown',
+    source_kind: 'spark_workspace_evolution_path',
+    spawner: {
+      board_entry: {
+        status: path?.status || 'workspace',
+        taskCount: insights.length + masteries.length + decisions.length
+      },
+      canvas_queue: {
+        pipelineId: 'spark-workspace-recursions',
+        pending: false,
+        latest: true,
+        autoRun: false
+      }
+    },
+    review: {
+      required: decisions.length > 0,
+      decisions,
+      local_packets: [],
+      swarm_packets: []
+    },
+    timeline: [
+      ...insights.slice(-3).map((item) => ({
+        kind: 'insight',
+        title: item.id,
+        status: item.status || 'observed',
+        summary: item.summary
+      })),
+      ...masteries.slice(-3).map((item) => ({
+        kind: 'mastery',
+        title: item.id,
+        status: 'workspace',
+        summary: item.summary
+      }))
+    ]
+  };
+}
+
+function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot, id: string): string {
+  const path = findPath(snapshot, id);
+  if (!path) return `Recursive loop not found in Spark Workspace: ${id}\n${sparkWorkspaceRecursionsUrl()}`;
+  const spec = specializationForPath(snapshot, path);
+  const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
+  const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
+  const decisions = inboxForPath(snapshot, path);
+  const latestInsight = insights.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
+  const strongestMastery = masteries.sort((a, b) => (b.benchmarkStrength || 0) - (a.benchmarkStrength || 0))[0];
+
+  return [
+    'Spark Workspace Recursion Report',
+    `Loop: ${path.id}`,
+    `Status: ${path.status}`,
+    `Path: ${spec?.label || path.repoLabel || path.scope}`,
+    `Updated: ${path.updatedAt}`,
+    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
+    '',
+    `Summary: ${path.summary}`,
+    latestInsight ? `Latest insight: ${latestInsight.summary}` : 'Latest insight: none yet',
+    strongestMastery ? `Strongest mastery: ${strongestMastery.summary}` : 'Strongest mastery: none yet',
+    `Decisions needed: ${decisions.length}`
+  ].join('\n');
+}
+
+function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
+  const path = findPath(snapshot, id);
+  const items = path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id);
+  if (items.length === 0) return `No Spark Workspace decisions found for ${id}.`;
+  return [
+    'Spark Workspace Review',
+    `Target: ${id}`,
+    ...items.slice(0, 8).map((item) => `- ${item.priority} ${item.kind}: ${item.title} - ${item.recommendedAction || item.summary}`)
+  ].join('\n');
+}
+
+function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
+  return snapshot.evolutionPaths.find((path) => path.id === id || path.specializationId === id) ?? null;
+}
+
+function specializationForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceSpecialization | null {
+  return path.specializationId
+    ? snapshot.specializations.find((entry) => entry.id === path.specializationId) ?? null
+    : null;
+}
+
+function inboxForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceInboxItem[] {
+  const spec = specializationForPath(snapshot, path);
+  return (snapshot.inbox?.items ?? []).filter((item) =>
+    item.targetId === path.id ||
+    (spec && item.specializationId === spec.id)
+  );
 }
