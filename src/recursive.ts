@@ -176,6 +176,25 @@ interface SparkWorkspaceOutcome {
   summary: string;
   metricName?: string | null;
   metricValue?: number | null;
+  context?: {
+    scorecard?: {
+      headlineLabel?: string | null;
+      headlineValue?: number | null;
+      headlineGoal?: string | null;
+      modelLabel?: string | null;
+      components?: Array<{
+        key: string;
+        label: string;
+        value: number;
+        goal: string;
+      }>;
+      details?: Array<{
+        key: string;
+        label: string;
+        value: string;
+      }>;
+    } | null;
+  } | null;
   createdAt: string;
 }
 
@@ -917,6 +936,7 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
   const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
   const outcomes = path ? outcomesForPath(snapshot, path) : [];
   const decisions = path ? inboxForPath(snapshot, path) : [];
+  const artifacts = path ? artifactsForPath(snapshot, path) : [];
   return {
     session_id: id,
     title: path?.summary || spec?.label || id,
@@ -925,7 +945,7 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
     spawner: {
       board_entry: {
         status: path?.status || 'workspace',
-        taskCount: insights.length + masteries.length + outcomes.length + decisions.length
+        taskCount: insights.length + masteries.length + outcomes.length + decisions.length + artifacts.length
       },
       canvas_queue: {
         pipelineId: 'spark-workspace-recursions',
@@ -957,7 +977,13 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
         kind: 'outcome',
         title: item.id,
         status: item.verdict,
-        summary: item.summary
+        summary: [item.summary, formatOutcomeMetric(item)].filter(Boolean).join(' ')
+      })),
+      ...artifacts.slice(-3).map((item) => ({
+        kind: 'artifact',
+        title: item.label || item.id,
+        status: item.kind,
+        summary: item.path || item.url || item.id
       }))
     ]
   };
@@ -973,7 +999,9 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const decisions = inboxForPath(snapshot, path);
   const latestInsight = insights.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
   const strongestMastery = masteries.sort((a, b) => (b.benchmarkStrength || 0) - (a.benchmarkStrength || 0))[0];
-  const artifactCount = snapshot.artifactRefs.length;
+  const artifacts = artifactsForPath(snapshot, path);
+  const metricLine = latestOutcome ? formatOutcomeMetric(latestOutcome) : null;
+  const scorecardLine = latestOutcome ? formatOutcomeScorecard(latestOutcome) : null;
 
   return [
     'Spark Workspace Recursion Report',
@@ -985,11 +1013,13 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     '',
     `Summary: ${path.summary}`,
     latestOutcome ? `Latest outcome: ${latestOutcome.verdict} - ${latestOutcome.summary}` : 'Latest outcome: none yet',
+    metricLine ? `Metric: ${metricLine}` : null,
+    scorecardLine ? `Scorecard: ${scorecardLine}` : null,
     latestInsight ? `Latest insight: ${latestInsight.summary}` : 'Latest insight: none yet',
     strongestMastery ? `Strongest mastery: ${strongestMastery.summary}` : 'Strongest mastery: none yet',
-    `Artifact refs: ${artifactCount}`,
+    formatArtifactRefs(artifacts),
     `Decisions needed: ${decisions.length}`
-  ].join('\n');
+  ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
 export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
@@ -1026,6 +1056,50 @@ function outcomesForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceE
     (outcome.targetType === 'evolution_path' && outcome.targetId === path.id) ||
     (path.bestOutcomeId !== null && outcome.id === path.bestOutcomeId)
   );
+}
+
+function artifactsForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceArtifactRef[] {
+  const chipSlug = path.id.startsWith('path_builder_chip_') ? path.id.replace(/^path_builder_chip_/, '') : null;
+  if (!chipSlug) return snapshot.artifactRefs;
+  const normalizedChipSlug = normalizeWorkspaceIdPart(chipSlug);
+  return snapshot.artifactRefs.filter((artifact) =>
+    normalizeWorkspaceIdPart(`${artifact.id} ${artifact.label} ${artifact.path || ''} ${artifact.url || ''}`).includes(normalizedChipSlug)
+  );
+}
+
+function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
+  if (typeof outcome.metricValue !== 'number') return null;
+  return `${formatMetricLabel(outcome.metricName)}=${formatNumber(outcome.metricValue)}`;
+}
+
+function formatOutcomeScorecard(outcome: SparkWorkspaceOutcome): string | null {
+  const scorecard = outcome.context?.scorecard;
+  if (!scorecard) return null;
+  const headline = typeof scorecard.headlineValue === 'number'
+    ? `${scorecard.headlineLabel || formatMetricLabel(outcome.metricName)} ${formatNumber(scorecard.headlineValue)}`
+    : null;
+  const goal = scorecard.headlineGoal ? `goal=${scorecard.headlineGoal}` : null;
+  const model = scorecard.modelLabel ? `model=${scorecard.modelLabel}` : null;
+  const details = (scorecard.details || []).slice(0, 2).map((detail) => `${detail.label}: ${detail.value}`);
+  return [headline, goal, model, ...details].filter(Boolean).join('; ') || null;
+}
+
+function formatArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): string {
+  if (artifacts.length === 0) return 'Artifact refs: 0';
+  const labels = artifacts
+    .slice(0, 3)
+    .map((artifact) => `${artifact.kind}:${artifact.label || artifact.id}`)
+    .join(', ');
+  const suffix = artifacts.length > 3 ? `, +${artifacts.length - 3} more` : '';
+  return `Artifact refs: ${artifacts.length} (${labels}${suffix})`;
+}
+
+function formatMetricLabel(value: string | null | undefined): string {
+  return (value || 'metric').replace(/_/g, ' ');
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 10000) / 10000);
 }
 
 function findInboxItemForDecision(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceInboxItem | null {
