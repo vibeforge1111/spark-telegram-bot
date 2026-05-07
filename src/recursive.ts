@@ -802,6 +802,7 @@ export function renderBuilderChipLoopCompletion(
       `Workspace path: ${sync.pathId}`
     );
     if (sync.outcomeId) lines.push(`Workspace outcome: ${sync.outcomeId}`);
+    if (sync.detail) lines.push(`Workspace detail: ${sync.detail}`);
     lines.push(`Workspace: ${sync.workspaceUrl}`);
   } else if (syncError) {
     lines.push(`Workspace sync skipped: ${syncError}`);
