@@ -214,6 +214,11 @@ project environment and use Railway private DNS between them:
 - `SPARK_BRIDGE_API_KEY=<same long value as spawner-ui>`
 - `SPARK_GATEWAY_STATE_DIR=/data/spark-gateway`
 
+This service is the only Telegram long-polling owner in the split shape. Do not
+also set `TELEGRAM_BOT_TOKEN` on a Spark Live monolith or VPS supervisor that can
+start `spark-telegram-bot`; otherwise Telegram will return `409 Conflict` and
+one poller will be terminated.
+
 `SPAWNER_UI_URL` is for private service-to-service calls only. If it uses
 `railway.internal`, also set `SPAWNER_UI_PUBLIC_URL` so Telegram mission links
 open the protected public Spawner UI instead of Railway's private DNS.
