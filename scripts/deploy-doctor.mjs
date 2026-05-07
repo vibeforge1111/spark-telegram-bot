@@ -11,6 +11,10 @@ function env(name) {
   return (process.env[name] || "").trim();
 }
 
+function looksPlaceholder(value) {
+  return /<[^>]+>|your[_-]|changeme|replace[_-]?me|example\.com|private-non-guessable/i.test(value);
+}
+
 function ok(name, detail) {
   checks.push({ status: "ok", name, detail });
 }
@@ -24,14 +28,26 @@ function fail(name, detail) {
 }
 
 function requireEnv(name, detail = "required") {
-  if (env(name)) ok(name, detail);
-  else fail(name, "missing");
+  const value = env(name);
+  if (!value) {
+    fail(name, "missing");
+    return;
+  }
+  if (looksPlaceholder(value)) {
+    fail(name, "replace placeholder value");
+    return;
+  }
+  ok(name, detail);
 }
 
 function requireSecret(name, minLength = 24) {
   const value = env(name);
   if (!value) {
     fail(name, "missing");
+    return;
+  }
+  if (looksPlaceholder(value)) {
+    fail(name, "replace placeholder value");
     return;
   }
   if (value.length < minLength) {
@@ -59,6 +75,10 @@ function checkInternalUrl(name) {
     fail(name, "missing");
     return;
   }
+  if (looksPlaceholder(value)) {
+    fail(name, "replace placeholder value");
+    return;
+  }
   if (isPrivateRailwayUrl(value) && !hasExplicitPort(value)) {
     fail(name, "Railway private DNS needs an explicit port");
     return;
@@ -70,6 +90,10 @@ function checkPublicUrl(name) {
   const value = env(name);
   if (!value) {
     fail(name, "missing");
+    return;
+  }
+  if (looksPlaceholder(value)) {
+    fail(name, "replace placeholder value");
     return;
   }
   if (isPrivateRailwayUrl(value)) {
