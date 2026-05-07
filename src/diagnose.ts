@@ -15,8 +15,9 @@ import {
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { relayHealthUrl } from './healthRuntime';
 import { spawnerAxiosOptions } from './spawnerAuth';
+import { resolveSpawnerUiUrl } from './spawnerUrl';
 
-const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
+const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
 const BOT_DEFAULT_PROVIDER = resolveChatDefaultProvider();
 
@@ -97,7 +98,7 @@ function spawnerPublicUrlFromEnv(env: NodeJS.ProcessEnv = process.env): string |
 }
 
 export function describeSpawnerPublicLinkHealth(env: NodeJS.ProcessEnv = process.env): string | null {
-  const internalUrl = env.SPAWNER_UI_URL || SPAWNER_UI_URL;
+  const internalUrl = resolveSpawnerUiUrl(env);
   if (!isRailwayPrivateUrl(internalUrl)) {
     return null;
   }

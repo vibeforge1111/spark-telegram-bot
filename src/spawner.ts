@@ -1,14 +1,12 @@
 import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
+import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
 
-const SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
-const PROJECT_PREVIEW_URL =
-  process.env.SPARK_PROJECT_PREVIEW_URL ||
-  process.env.SPAWNER_UI_PUBLIC_URL ||
-  SPAWNER_UI_URL;
+const SPAWNER_UI_URL = resolveSpawnerUiUrl();
+const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
@@ -349,7 +347,7 @@ function formatLatestMission(entry: BoardEntry): string[] {
 }
 
 function spawnerPublicUrl(): string {
-  return (process.env.SPAWNER_UI_PUBLIC_URL || SPAWNER_UI_URL).replace(/\/+$/, '');
+  return resolveSpawnerPublicUrl().replace(/\/+$/, '');
 }
 
 function creatorMissionKanbanUrl(missionId: string, baseUrl = spawnerPublicUrl()): string {

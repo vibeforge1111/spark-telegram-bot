@@ -1,3 +1,5 @@
+import { resolveSpawnerUiUrl } from './spawnerUrl';
+
 export interface MissionControlEvent {
   type: string;
   missionId: string;
@@ -19,7 +21,6 @@ export interface ChipCreateMissionContext {
 
 export type MissionControlPost = (url: string, payload: MissionControlEvent) => Promise<void>;
 
-const DEFAULT_SPAWNER_UI_URL = 'http://127.0.0.1:3333';
 const SOURCE = 'spark-telegram-bot';
 
 function truncate(value: string, maxLength: number): string {
@@ -39,9 +40,8 @@ function missionControlDisabled(): boolean {
 export function getMissionControlEventsUrl(): string | null {
   if (missionControlDisabled()) return null;
   const base = (
-    process.env.SPAWNER_UI_URL ||
     process.env.MISSION_CONTROL_URL ||
-    DEFAULT_SPAWNER_UI_URL
+    resolveSpawnerUiUrl()
   ).trim();
   if (!base) return null;
   return `${base.replace(/\/+$/, '')}/api/events`;

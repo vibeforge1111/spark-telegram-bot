@@ -19,6 +19,7 @@ const tests = [
   'tests/redaction.test.ts',
   'tests/errorExplain.test.ts',
   'tests/spawner.test.ts',
+  'tests/spawnerUrl.test.ts',
   'tests/timeoutConfig.test.ts',
   'tests/localWorkspace.test.ts',
   'tests/llmProvider.test.ts',

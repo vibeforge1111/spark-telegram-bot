@@ -141,6 +141,20 @@ function checkInternalUrl(name) {
   ok(name, isPrivateRailwayUrl(value) ? "private Railway URL" : "public/local URL");
 }
 
+function checkSpawnerUiUrl() {
+  if (env("SPAWNER_UI_URL")) {
+    checkInternalUrl("SPAWNER_UI_URL");
+    return "SPAWNER_UI_URL";
+  }
+  if (env("SPARK_SPAWNER_URL")) {
+    checkInternalUrl("SPARK_SPAWNER_URL");
+    warn("SPARK_SPAWNER_URL", "compatibility alias accepted; prefer SPAWNER_UI_URL in new docs");
+    return "SPARK_SPAWNER_URL";
+  }
+  fail("SPAWNER_UI_URL", "missing");
+  return "SPAWNER_UI_URL";
+}
+
 function checkPublicUrl(name) {
   const value = env(name);
   if (!value) {
@@ -222,9 +236,9 @@ function checkBot() {
   requireDifferentSecrets("SPARK_BRIDGE_API_KEY", "TELEGRAM_RELAY_SECRET");
   requireDataPath("SPARK_GATEWAY_STATE_DIR", "persistent gateway state path");
   checkInternalUrl("TELEGRAM_RELAY_URL");
-  checkInternalUrl("SPAWNER_UI_URL");
+  const spawnerUrlName = checkSpawnerUiUrl();
 
-  if (isPrivateRailwayUrl(env("SPAWNER_UI_URL"))) {
+  if (isPrivateRailwayUrl(env(spawnerUrlName))) {
     checkPublicUrl("SPAWNER_UI_PUBLIC_URL");
   }
 

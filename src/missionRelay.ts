@@ -6,6 +6,7 @@ import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
+import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 
@@ -428,16 +429,11 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 };
 
 function spawnerUiUrl(): string {
-  return (process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333').replace(/\/+$/, '');
+  return resolveSpawnerUiUrl().replace(/\/+$/, '');
 }
 
 function spawnerPublicUrl(): string {
-  return (
-    process.env.SPAWNER_UI_PUBLIC_URL ||
-    process.env.PUBLIC_SPAWNER_UI_URL ||
-    process.env.SPAWNER_PUBLIC_URL ||
-    spawnerUiUrl()
-  ).replace(/\/+$/, '');
+  return resolveSpawnerPublicUrl().replace(/\/+$/, '');
 }
 
 export function buildMissionSurfaceLinks(
@@ -889,12 +885,7 @@ function localIndexLink(projectPath: string | null): string | null {
 }
 
 function projectPreviewBaseUrl(): string {
-  const baseUrl =
-    process.env.SPARK_PROJECT_PREVIEW_URL ||
-    process.env.SPAWNER_UI_PUBLIC_URL ||
-    process.env.SPAWNER_UI_URL ||
-    'http://127.0.0.1:3333';
-  return baseUrl.replace(/\/+$/, '');
+  return resolveProjectPreviewBaseUrl().replace(/\/+$/, '');
 }
 
 function projectPreviewLink(projectPath: string | null): string | null {

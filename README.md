@@ -181,7 +181,7 @@ is the execution plane behind the gateway.
 4. Set `TELEGRAM_RELAY_SECRET` to a random 24+ character value. Spark CLI
    generates this for bundled installs.
 5. Keep `TELEGRAM_GATEWAY_MODE=polling`.
-6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work. For hosted two-service deploys, set `SPAWNER_UI_URL` to the private spawner-ui service URL, set this bot's `TELEGRAM_RELAY_URL` to its private `/spawner-events` URL, and put the same callback URL in spawner-ui `MISSION_CONTROL_WEBHOOK_URLS`.
+6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work. For hosted two-service deploys, set `SPAWNER_UI_URL` to the private spawner-ui service URL, set this bot's `TELEGRAM_RELAY_URL` to its private `/spawner-events` URL, and put the same callback URL in spawner-ui `MISSION_CONTROL_WEBHOOK_URLS`. `SPARK_SPAWNER_URL` is accepted as a legacy alias for `SPAWNER_UI_URL`.
 7. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
 8. Start the bot:
@@ -217,6 +217,8 @@ project environment and use Railway private DNS between them:
 `SPAWNER_UI_URL` is for private service-to-service calls only. If it uses
 `railway.internal`, also set `SPAWNER_UI_PUBLIC_URL` so Telegram mission links
 open the protected public Spawner UI instead of Railway's private DNS.
+`SPARK_SPAWNER_URL` is accepted as a legacy compatibility alias, but new setup
+should use `SPAWNER_UI_URL`.
 
 Mount a persistent volume at `/data` for gateway state. Keep `BOT_TOKEN`,
 `ADMIN_TELEGRAM_IDS`, `TELEGRAM_RELAY_SECRET`, and provider keys in Railway
