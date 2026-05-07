@@ -346,6 +346,7 @@ test('renders Builder chip loop completion with Workspace sync details', () => {
   assert.match(reply, /Final suggestions: 4/);
   assert.match(reply, /Workspace sync: ok/);
   assert.match(reply, /Workspace outcome: outcome_builder_chip_startup_yc_20260507T100000000/);
+  assert.match(reply, /Workspace detail: Builder chip loop synced through Spark Swarm bridge\./);
   assert.match(reply, /Next: \/recursive report path_builder_chip_startup_yc/);
 });
 
