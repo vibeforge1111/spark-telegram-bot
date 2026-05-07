@@ -2031,10 +2031,10 @@ bot.command('loop', async (ctx) => {
   })();
 });
 
-bot.command('recursive', async (ctx) => {
+export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/recursive', '').trim();
+  const raw = rawOverride ?? ctx.message.text.replace('/recursive', '').trim();
   const parsed = parseRecursiveCommand(raw);
   if (!parsed) return ctx.reply(renderRecursiveHelp());
 
@@ -2144,7 +2144,9 @@ bot.command('recursive', async (ctx) => {
     const detail = err?.response?.data?.error || err?.message || String(err);
     return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}`);
   }
-});
+}
+
+bot.command('recursive', async (ctx) => handleRecursiveCommand(ctx));
 
 bot.command('schedule', async (ctx) => {
   if (!requireAdmin(ctx)) return;

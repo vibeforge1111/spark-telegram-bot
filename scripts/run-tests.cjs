@@ -27,6 +27,7 @@ const tests = [
   'tests/healthPolling.test.ts',
   'tests/diagnose.test.ts',
   'tests/recursive.test.ts',
+  'tests/recursiveCommand.test.ts',
   'tests/creatorMissionStatus.test.ts',
   'tests/builderBridge.test.ts',
   'tests/pythonCommand.test.ts',
