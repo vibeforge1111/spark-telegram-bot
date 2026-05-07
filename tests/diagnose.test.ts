@@ -198,6 +198,14 @@ test('warns when Railway Spawner links would point at private DNS', () => {
     } as NodeJS.ProcessEnv),
     null
   );
+
+  assert.equal(
+    describeSpawnerPublicLinkHealth({
+      SPARK_SPAWNER_URL: 'http://spawner-ui.railway.internal:3000',
+      SPAWNER_UI_PUBLIC_URL: 'https://spawner-ui-production.up.railway.app'
+    } as NodeJS.ProcessEnv),
+    'Spawner public links: ✅ spawner-ui-production.up.railway.app'
+  );
 });
 
 test('describes plain chat bridge and provider health', () => {

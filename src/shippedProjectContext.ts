@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
+import { resolveProjectPreviewBaseUrl } from './spawnerUrl';
 
 export interface ShippedProjectContext {
   chatId: string;
@@ -53,12 +54,7 @@ function normalizeLocalProjectPath(pathValue: string): string {
 }
 
 function projectPreviewBaseUrl(): string {
-  return (
-    process.env.SPARK_PROJECT_PREVIEW_URL ||
-    process.env.SPAWNER_UI_PUBLIC_URL ||
-    process.env.SPAWNER_UI_URL ||
-    'http://127.0.0.1:3333'
-  ).replace(/\/+$/, '');
+  return resolveProjectPreviewBaseUrl().replace(/\/+$/, '');
 }
 
 export function projectPreviewUrlForPath(projectPath: string): string {
