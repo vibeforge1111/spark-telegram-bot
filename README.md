@@ -23,7 +23,7 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 - builds a per-turn conversation frame so shorthand follow-ups like "change it to 4" or "the second one" can resolve against recent context
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
-- sends `/recursive` reads and review pointers into the Spark Swarm Workspace Recursions surface
+- sends `/recursive` reads and supported review decisions into the Spark Swarm Workspace Recursions surface
 - relays mission status and terminal updates back to Telegram
 
 ## Current Architecture
@@ -87,6 +87,8 @@ Admin-only mission control:
 - `/schedule "<cron>" mission <goal>`
 - `/schedule "<cron>" loop <chipKey> [rounds]`
 - `/schedules`
+
+`/recursive approve|defer|reject|more-eval` mutates Spark Swarm Workspace only for supported inbox items. Insight absorb items support approve; mastery review items support approve, defer, reject, and more-eval. Upgrade delivery, contradiction resolution, and evolution-mode changes still route operators to Workspace Decisions.
 
 Natural language build requests also work for admins. For example: "build a landing page for my app" can route into the Spawner PRD/canvas path instead of returning command help.
 

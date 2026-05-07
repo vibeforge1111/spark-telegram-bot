@@ -38,11 +38,14 @@ export interface RecursiveDecisionRecord {
   decision_id: string;
   session_id: string;
   decision: RecursiveDecision;
-  scope: 'local';
+  scope: 'local' | 'workspace';
   actor: string;
   rationale: string;
   created_at: string;
   effect: 'spark_workspace_review' | 'workspace_route_only';
+  target_type?: string;
+  target_id?: string;
+  workspace_detail?: string;
 }
 
 export interface RecursivePromotionPacket {
@@ -302,15 +305,19 @@ export async function recordRecursiveDecision(input: {
   actor: string;
   rationale?: string;
 }): Promise<RecursiveDecisionRecord> {
+  const applied = await applySparkWorkspaceDecision(input);
   return {
     decision_id: `workspace-route-${Date.now()}`,
     session_id: input.id,
     decision: decisionForAction(input.action),
-    scope: 'local',
+    scope: applied.applied ? 'workspace' : 'local',
     actor: input.actor,
     rationale: input.rationale || '',
     created_at: new Date().toISOString(),
-    effect: 'workspace_route_only'
+    effect: applied.applied ? 'spark_workspace_review' : 'workspace_route_only',
+    target_type: applied.targetType,
+    target_id: applied.targetId,
+    workspace_detail: applied.detail
   };
 }
 
@@ -381,14 +388,21 @@ export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandi
 }
 
 export function renderRecursiveDecision(record: RecursiveDecisionRecord): string {
-  return [
+  const lines = [
     'Recursive review decision routed.',
     `Session: ${record.session_id}`,
     `Decision: ${record.decision}`,
     `Scope: ${record.scope}`,
     `Effect: ${record.effect}`,
-    `Workspace: ${sparkWorkspaceRecursionsUrl()}`
-  ].join('\n');
+  ];
+  if (record.target_type && record.target_id) {
+    lines.push(`Target: ${record.target_type} ${record.target_id}`);
+  }
+  if (record.workspace_detail) {
+    lines.push(record.workspace_detail);
+  }
+  lines.push(`Workspace: ${sparkWorkspaceRecursionsUrl()}`);
+  return lines.join('\n');
 }
 
 export function renderRecursivePromotionPacket(packet: RecursivePromotionPacket): string {
@@ -454,6 +468,12 @@ function decisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval')
   return action;
 }
 
+function workspaceDecisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval'): 'approve' | 'defer' | 'reject' {
+  if (action === 'approve') return 'approve';
+  if (action === 'reject') return 'reject';
+  return 'defer';
+}
+
 function parseRounds(parts: string[]): number {
   const roundIndex = parts.findIndex((part) => part.toLowerCase() === 'rounds');
   const raw = roundIndex >= 0 ? parts[roundIndex + 1] : parts[0];
@@ -505,6 +525,87 @@ function workspaceReviewCandidates(snapshot: SparkWorkspaceSnapshot): RecursiveR
       score_delta: null
     };
   });
+}
+
+async function applySparkWorkspaceDecision(input: {
+  id: string;
+  action: 'approve' | 'defer' | 'reject' | 'more-eval';
+  rationale?: string;
+}): Promise<{
+  applied: boolean;
+  targetType?: string;
+  targetId?: string;
+  detail: string;
+}> {
+  const config = sparkWorkspaceConfig();
+  const snapshot = await loadSparkWorkspaceSnapshot();
+  const item = findInboxItemForDecision(snapshot, input.id);
+  const reason = input.rationale?.trim() || `Telegram /recursive ${input.action}`;
+
+  if (!item) {
+    return {
+      applied: false,
+      detail: 'No matching Workspace inbox item was found; open Decisions before mutating.'
+    };
+  }
+
+  if (item.kind === 'absorb' && item.targetType === 'insight') {
+    if (input.action !== 'approve') {
+      return {
+        applied: false,
+        targetType: item.targetType,
+        targetId: item.targetId,
+        detail: 'Insight inbox items only support approve/absorb from Telegram right now.'
+      };
+    }
+    await postSparkWorkspaceMutation(config, `/insights/${encodeURIComponent(item.targetId)}/absorb`, { reason });
+    return {
+      applied: true,
+      targetType: item.targetType,
+      targetId: item.targetId,
+      detail: 'Workspace insight absorb request submitted.'
+    };
+  }
+
+  if (item.kind === 'review_mastery' && item.targetType === 'mastery') {
+    const decision = workspaceDecisionForAction(input.action);
+    await postSparkWorkspaceMutation(config, `/masteries/${encodeURIComponent(item.targetId)}/review`, {
+      decision,
+      reason,
+      recommendedNextStep: input.action === 'more-eval' ? reason : null,
+      rollbackCondition: decision === 'approve' ? 'Reopen review if follow-up evidence contradicts this mastery.' : null
+    });
+    return {
+      applied: true,
+      targetType: item.targetType,
+      targetId: item.targetId,
+      detail: `Workspace mastery review submitted as ${decision}.`
+    };
+  }
+
+  return {
+    applied: false,
+    targetType: item.targetType,
+    targetId: item.targetId,
+    detail: `Workspace item ${item.kind} needs the dashboard action flow; Telegram did not mutate it.`
+  };
+}
+
+async function postSparkWorkspaceMutation(
+  config: { apiUrl: string; workspaceId: string; accessToken: string },
+  relativePath: string,
+  body: unknown
+): Promise<void> {
+  await axios.post(
+    `${config.apiUrl}/api/workspaces/${encodeURIComponent(config.workspaceId)}${relativePath}`,
+    body,
+    {
+      timeout: 15000,
+      headers: {
+        Authorization: `Bearer ${config.accessToken}`
+      }
+    }
+  );
 }
 
 function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string): RecursiveTraceView {
@@ -605,4 +706,14 @@ function inboxForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvol
     item.targetId === path.id ||
     (spec && item.specializationId === spec.id)
   );
+}
+
+function findInboxItemForDecision(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceInboxItem | null {
+  const items = snapshot.inbox?.items ?? [];
+  const exact = items.find((item) => item.id === id || item.targetId === id);
+  if (exact) return exact;
+
+  const path = findPath(snapshot, id);
+  if (!path) return null;
+  return inboxForPath(snapshot, path)[0] ?? null;
 }
