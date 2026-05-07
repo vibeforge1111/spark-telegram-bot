@@ -222,6 +222,11 @@ Mount a persistent volume at `/data` for gateway state. Keep `BOT_TOKEN`,
 `ADMIN_TELEGRAM_IDS`, `TELEGRAM_RELAY_SECRET`, and provider keys in Railway
 service variables, not in the image or repo.
 
+Before the first deploy, run `npm run deploy:doctor -- --role bot` in the
+hosted environment. It catches loopback relay hosts, missing public Spawner
+links, short shared secrets, missing `/data` state paths, and the
+`SPARK_MISSION_LLM_PROVIDER=anthropic` provider-name mistake.
+
 ## First User Flow
 
 ```mermaid

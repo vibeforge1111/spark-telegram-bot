@@ -10,6 +10,7 @@
     "sync:runtime": "node scripts/sync-runtime.cjs",
     "sync:check": "node scripts/sync-runtime.cjs --check",
     "build:sync": "npm run build && npm run sync:runtime",
+    "deploy:doctor": "node scripts/deploy-doctor.mjs",
     "health:polling": "node scripts/run-health-polling.cjs",
     "health:runtime": "node scripts/run-health-runtime.cjs",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
