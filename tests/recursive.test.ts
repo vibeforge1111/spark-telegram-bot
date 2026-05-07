@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
   buildBuilderChipLoopBridgeInput,
   buildBuilderChipLoopWorkspacePayload,
@@ -14,6 +17,8 @@ import {
   renderRecursiveSessions,
   renderRecursiveSwarmPacket,
   renderRecursiveTraceView,
+  sparkWorkspaceApiUrl,
+  sparkWorkspaceBridgeHints,
   workspaceReviewCandidates,
   workspaceSessions,
   workspaceTraceView
@@ -260,6 +265,58 @@ test('builds bridge input for Builder chip loop sync', () => {
     ]
   });
   assert.equal((fallback.payload.outcomes as any[])[0].verdict, 'regressed');
+});
+
+test('resolves Spark Workspace config from Builder home fallback', () => {
+  const envKeys = [
+    'SPARK_SWARM_API_URL',
+    'SPARK_SWARM_DEPLOYED_API_URL',
+    'SPARK_SWARM_BACKEND_URL',
+    'SPARK_SWARM_WORKSPACE_ID',
+    'SPARK_SWARM_DEPLOYED_WORKSPACE_ID',
+    'SPARK_SWARM_ACCESS_TOKEN',
+    'SPARK_SWARM_DEPLOYED_ACCESS_TOKEN',
+    'SPARK_SWARM_BEARER_TOKEN',
+    'SPARK_BUILDER_HOME',
+    'SPARK_BUILDER_ENV_FILE'
+  ];
+  const previous = new Map(envKeys.map((key) => [key, process.env[key]]));
+  const dir = mkdtempSync(path.join(tmpdir(), 'spark-telegram-recursive-'));
+  try {
+    for (const key of envKeys) delete process.env[key];
+    process.env.SPARK_BUILDER_HOME = dir;
+    writeFileSync(
+      path.join(dir, '.env'),
+      [
+        'SPARK_SWARM_WORKSPACE_ID=ws_from_builder_env',
+        'SPARK_SWARM_ACCESS_TOKEN="token_from_builder_env"'
+      ].join('\n'),
+      'utf-8'
+    );
+    writeFileSync(
+      path.join(dir, 'config.yaml'),
+      [
+        'spark:',
+        '  swarm:',
+        '    api_url: https://swarm.example.test',
+        '    workspace_id: ws_from_builder_config'
+      ].join('\n'),
+      'utf-8'
+    );
+
+    assert.equal(sparkWorkspaceApiUrl(), 'https://swarm.example.test');
+    assert.deepEqual(sparkWorkspaceBridgeHints(), {
+      apiUrl: 'https://swarm.example.test',
+      workspaceId: 'ws_from_builder_env',
+      accessToken: 'token_from_builder_env'
+    });
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('renders Builder chip loop completion with Workspace sync details', () => {
