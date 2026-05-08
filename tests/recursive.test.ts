@@ -610,6 +610,124 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(trace.timeline[1].status, 'run_trace');
 });
 
+test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'benchmark-prompt-engineer',
+        summary: 'Prompt Engineer Benchmark completed 1 benchmark run(s).',
+        status: 'open',
+        bestOutcomeId: 'outcome_benchmark_prompt_engineer_20260508t030923z_65b30a0f_20260508T031000000',
+        updatedAt: '2026-05-08T03:10:00.000Z'
+      },
+      {
+        id: 'path_domain_autoloop_crypto_trading',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'domain-autoloop',
+        summary: 'Crypto trading autoloop cycle state synced.',
+        status: 'open',
+        bestOutcomeId: 'outcome_domain_autoloop_crypto_trading_20260508T025000000',
+        updatedAt: '2026-05-08T02:50:00.000Z'
+      },
+      {
+        id: 'path_domain_chip_lab_workspace_smoke_loop',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'domain-chip-lab',
+        summary: 'Domain chip lab Workspace Smoke Loop reached target.',
+        status: 'open',
+        bestOutcomeId: 'outcome_domain_chip_lab_workspace_smoke_loop_20260508T031200000',
+        updatedAt: '2026-05-08T03:12:00.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_benchmark_prompt_engineer_20260508t030923z_65b30a0f_20260508T031000000',
+        targetType: 'evolution_path',
+        targetId: 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+        verdict: 'improved',
+        summary: 'Prompt Engineer Benchmark average composite score: 2.1.',
+        metricName: 'average_composite_score',
+        metricValue: 2.1,
+        createdAt: '2026-05-08T03:10:00.000Z'
+      },
+      {
+        id: 'outcome_domain_autoloop_crypto_trading_20260508T025000000',
+        targetType: 'evolution_path',
+        targetId: 'path_domain_autoloop_crypto_trading',
+        verdict: 'flat',
+        summary: 'Domain autoloop state synced for crypto trading.',
+        metricName: 'autoloop_cycle_count',
+        metricValue: 4,
+        createdAt: '2026-05-08T02:50:00.000Z'
+      },
+      {
+        id: 'outcome_domain_chip_lab_workspace_smoke_loop_20260508T031200000',
+        targetType: 'evolution_path',
+        targetId: 'path_domain_chip_lab_workspace_smoke_loop',
+        verdict: 'improved',
+        summary: 'Domain chip lab final score reached 100.',
+        metricName: 'domain_chip_quality_score',
+        metricValue: 100,
+        createdAt: '2026-05-08T03:12:00.000Z'
+      }
+    ],
+    artifactRefs: [
+      {
+        id: 'artifact_prompt_benchmark_run_20260508t030923z_65b30a0f_20260508T031000000',
+        kind: 'benchmark_run',
+        label: 'Prompt benchmark run JSON',
+        path: 'artifacts/prompt-benchmark-hosted-smoke/prompt-run-output.json',
+        url: null
+      },
+      {
+        id: 'artifact_domain_autoloop_manifest_crypto_trading_20260508T025000000',
+        kind: 'manifest',
+        label: 'Domain autoloop manifest',
+        path: 'docs/recursion/autoloop-manifest.json',
+        url: null
+      },
+      {
+        id: 'artifact_domain_chip_lab_telemetry_workspace_smoke_loop_20260508T031200000',
+        kind: 'loop_telemetry',
+        label: 'Domain chip lab telemetry',
+        path: 'artifacts/domain-chip-lab-hosted-smoke/domain-chip-workspace-smoke-loop/loop_telemetry.json',
+        url: null
+      },
+      {
+        id: 'artifact_unrelated_builder_chip_startup_yc_20260507T100000000',
+        kind: 'run_trace',
+        label: 'Startup Yc chip-loop status',
+        path: 'C:\\status\\startup-yc.json',
+        url: null
+      }
+    ],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const benchmarkReport = renderRecursiveWorkspaceReport(snapshot, 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f');
+  assert.match(benchmarkReport, /Metric: average composite score=2.1/);
+  assert.match(benchmarkReport, /Artifact refs: 1 \(benchmark_run:Prompt benchmark run JSON\)/);
+  assert.doesNotMatch(benchmarkReport, /Domain autoloop manifest/);
+  assert.doesNotMatch(benchmarkReport, /Startup Yc chip-loop status/);
+
+  const autoloopReport = renderRecursiveWorkspaceReport(snapshot, 'path_domain_autoloop_crypto_trading');
+  assert.match(autoloopReport, /Metric: autoloop cycle count=4/);
+  assert.match(autoloopReport, /Artifact refs: 1 \(manifest:Domain autoloop manifest\)/);
+  assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
+
+  const labTrace = workspaceTraceView(snapshot, 'path_domain_chip_lab_workspace_smoke_loop');
+  assert.equal(labTrace.timeline.filter((item) => item.kind === 'artifact').length, 1);
+  assert.equal(labTrace.timeline.find((item) => item.kind === 'artifact')?.title, 'Domain chip lab telemetry');
+});
+
 test('reports Workspace best outcome id when snapshot omits outcome bodies', () => {
   const snapshot: any = {
     evolutionPaths: [
