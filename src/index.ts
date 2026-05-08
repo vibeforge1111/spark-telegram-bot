@@ -188,6 +188,7 @@ import {
   isTelegramImageMessage,
   telegramImageMemoryText
 } from './telegramImageBridge';
+import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
@@ -3143,7 +3144,8 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    const bridgeUpdate = await buildVoiceBridgeUpdate(ctx);
+    const builderReply = await runBuilderTelegramBridge(bridgeUpdate);
     console.log(`[VoiceBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
