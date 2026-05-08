@@ -1078,7 +1078,7 @@ export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): stri
     const latest = group
       .slice()
       .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0];
-    const review = reviewCount > 0 ? `${pluralize(reviewCount, 'loop')} needs review` : 'clear';
+    const review = reviewCount > 0 ? `${reviewCount} ${reviewCount === 1 ? 'needs' : 'need'} review` : 'clear';
     lines.push(`${index + 1}. ${domain} - ${pluralize(group.length, 'loop')}, ${review}, latest ${formatUpdatedAt(latest?.updated_at)}.`);
   }
   lines.push('', 'Next:', '1. /recursive sessions', '2. /recursive report <id> after choosing a loop');

@@ -94,6 +94,24 @@ test('renders compact recursive session and path lists', () => {
   const pathList = renderRecursivePaths(sessions);
   assert.match(pathList, /startup-yc - 1 loop, clear/);
   assert.match(pathList, /Next:/);
+
+  const reviewPathList = renderRecursivePaths([
+    ...sessions,
+    {
+      ...sessions[0],
+      trace_id: 't2',
+      session_id: 's2',
+      review_required: true
+    },
+    {
+      ...sessions[0],
+      trace_id: 't3',
+      session_id: 's3',
+      review_required: true
+    }
+  ]);
+  assert.match(reviewPathList, /startup-yc - 3 loops, 2 need review/);
+  assert.doesNotMatch(reviewPathList, /2 loops needs review/);
 });
 
 test('renders review queue and audit-only decision records', () => {
