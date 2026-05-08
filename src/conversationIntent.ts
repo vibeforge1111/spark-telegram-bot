@@ -1189,6 +1189,79 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   return null;
 }
 
+function cleanAgentDoctrinePreference(raw: string): string {
+  return raw
+    .replace(/\s+/g, ' ')
+    .replace(/^(?:that\s+)?(?:spark|you|my\s+agent|the\s+agent)\s+(?:should|must|needs?\s+to|can|could|will|would)\s+/i, '')
+    .replace(/^(?:you|spark|my\s+agent|the\s+agent)\s+(?:to\s+)?/i, '')
+    .replace(/^["']|["']$/g, '')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+}
+
+function classifyAgentDoctrinePreference(text: string): string {
+  const lower = text.toLowerCase();
+  if (/\b(?:paragraph|spacing|blank lines?|format|structure|bullets?|checklists?|markdown|wall of text)\b/.test(lower)) {
+    return 'format';
+  }
+  if (/\b(?:concise|brief|short|terse|detailed|depth|explain|summary|summarize)\b/.test(lower)) {
+    return 'detail';
+  }
+  if (/\b(?:decisive|opinionated|direct|blunt|recommend|push back|call it|your call|choose)\b/.test(lower)) {
+    return 'decision';
+  }
+  if (/\b(?:proactive|notice|patterns?|read the room|infer|anticipate|call out|adjust)\b/.test(lower)) {
+    return 'initiative';
+  }
+  if (/\b(?:tool|tools|mission|missions|build|run|ask before|approval|confirm|start)\b/.test(lower)) {
+    return 'tool_behavior';
+  }
+  if (/\b(?:collaborat|brainstorm|think with me|work with me|back and forth|conversation)\b/.test(lower)) {
+    return 'collaboration';
+  }
+  if (/\b(?:warm|friendly|casual|formal|gentle|playful|serious|energy|vibe|tone)\b/.test(lower)) {
+    return 'tone';
+  }
+  return 'general';
+}
+
+export function extractAgentDoctrinePreference(text: string): string | null {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+  if (
+    /\b(?:just|only)\s+for\s+(?:this|the)\s+(?:reply|turn|message|answer|once)\b/.test(lower) ||
+    /\b(?:for now|right now|in this reply|in this answer|this time only)\b/.test(lower) ||
+    /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b/.test(lower) ||
+    /\b(?:globally|system-wide|production doctrine|default doctrine)\b/.test(lower)
+  ) {
+    return null;
+  }
+
+  const patterns = [
+    /\b(?:from now on|going forward|for future replies|in future replies|for my agent|when you talk to me|with me)\s*,?\s*(.+)$/i,
+    /\b(?:let'?s\s+)?keep\s+(?:things|replies|answers|our\s+chat|this\s+agent|my\s+agent|the\s+agent)\s+(?:always\s+)?(.+)$/i,
+    /\b(?:remember|save|keep|store)\s+(?:this\s+)?(?:as\s+)?(?:my\s+)?(?:agent\s+)?(?:personality|style|tone|format|interaction|collaboration|working|reply|response|communication)\s+(?:preference|rule|doctrine|guidance)?\s*[:,-]?\s*(.+)$/i,
+    /\b(?:adjust|change|update|improve|tune|adapt|shift)\s+(?:your|the|my\s+agent'?s|spark'?s)?\s*(?:personality|style|tone|format|interaction|collaboration|working|reply|response|communication|rules|doctrine)\s+(?:to|so\s+you|so\s+it|toward|around)\s+(.+)$/i,
+    /\b(?:i\s+prefer|i'?d\s+prefer|i\s+want|i'?d\s+like)\s+(?:you|spark|my\s+agent|the\s+agent)\s+to\s+(.+)$/i,
+    /\b(?:be|stay|keep|use|act|respond|reply|talk|speak|write)\s+(?:more\s+|less\s+)?(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|gentle|blunt|structured|paragraph|checklist|dense|friendly)\b.*$/i,
+    /\b(?:do not|don't|dont|stop)\s+(?:be|being|sound|sounding|write|writing|reply|respond|use|give)\b.*$/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = trimmed.match(pattern);
+    const raw = (match?.[1] || match?.[0] || '').trim();
+    const cleaned = cleanAgentDoctrinePreference(raw);
+    if (cleaned && cleaned.length >= 4 && cleaned.length <= 220) {
+      const dimension = classifyAgentDoctrinePreference(`${trimmed} ${cleaned}`);
+      return `Agent interaction preference [${dimension}]: ${cleaned}`;
+    }
+  }
+
+  return null;
+}
+
 export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {
   if (action === 'remember') {
     return 'I could not confirm that through Spark memory yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';

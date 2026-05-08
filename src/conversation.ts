@@ -318,6 +318,25 @@ export class ConversationMemory {
     return null;
   }
 
+  async storeAgentDoctrinePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
+    await this.ensureLoaded();
+    const normalized = preference.trim();
+    if (!normalized) return null;
+
+    const key = this.userKey(user);
+    const items = this.notesByUser.get(key) || [];
+    const dimension = normalized.match(/^Agent interaction preference \[([a-z_]+)\]:/i)?.[1]?.toLowerCase();
+    const prefix = dimension ? `agent interaction preference [${dimension}]:` : null;
+    const next = items.filter((item) => {
+      const lower = item.toLowerCase();
+      return lower !== normalized.toLowerCase() && (!prefix || !lower.startsWith(prefix));
+    });
+    next.push(normalized);
+    this.notesByUser.set(key, next.slice(-this.maxNotes));
+    await this.persist();
+    return null;
+  }
+
   async recordInterruptedTask(
     user: TelegramUser,
     input: { message: string; failure: string; stage?: string }

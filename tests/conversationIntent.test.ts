@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  extractAgentDoctrinePreference,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -780,6 +781,44 @@ test('extracts explicit plain-chat memory directives', () => {
   assert.equal(extractPlainChatMemoryDirective('remember: my preferred reply style is concise'), 'my preferred reply style is concise');
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
+});
+
+test('extracts explicit user-scoped agent doctrine preferences', () => {
+  assert.equal(
+    extractAgentDoctrinePreference('From now on, use short paragraphs with blank lines between thoughts.'),
+    'Agent interaction preference [format]: use short paragraphs with blank lines between thoughts'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference('I want my agent to be more decisive and push back when a safer path is better.'),
+    'Agent interaction preference [decision]: be more decisive and push back when a safer path is better'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference("let's keep things always conversational and friendly with me"),
+    'Agent interaction preference [tone]: conversational and friendly with me'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference('Adjust your personality so you read the room and match my energy.'),
+    'Agent interaction preference [initiative]: read the room and match my energy'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference('Keep this as my communication rule: ask before starting missions from casual brainstorming.'),
+    'Agent interaction preference [tool_behavior]: ask before starting missions from casual brainstorming'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference('With me, think with me before turning ideas into tasks.'),
+    'Agent interaction preference [collaboration]: think with me before turning ideas into tasks'
+  );
+  assert.equal(
+    extractAgentDoctrinePreference('Do not give chatbot-like generic answers.'),
+    'Agent interaction preference [general]: Do not give chatbot-like generic answers'
+  );
+});
+
+test('does not persist one-off or global doctrine requests as personal agent guidance', () => {
+  assert.equal(extractAgentDoctrinePreference('Just for this reply, be blunt.'), null);
+  assert.equal(extractAgentDoctrinePreference('For now use bullets while we debug this.'), null);
+  assert.equal(extractAgentDoctrinePreference('All Spark agents should be conversational by default.'), null);
+  assert.equal(extractAgentDoctrinePreference('We should change production doctrine to be warmer.'), null);
 });
 
 test('memory directives only accept Builder memory-route confirmations', () => {

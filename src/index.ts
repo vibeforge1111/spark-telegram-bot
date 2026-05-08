@@ -133,6 +133,7 @@ import {
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
+  extractAgentDoctrinePreference,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
@@ -2458,6 +2459,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
+  const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
+  if (agentDoctrinePreference) {
+    await conversation.storeAgentDoctrinePreference(ctx.from, agentDoctrinePreference).catch(() => {});
+  }
 
   if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);

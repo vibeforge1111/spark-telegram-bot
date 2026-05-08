@@ -74,6 +74,24 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('keeps explicit agent doctrine preferences scoped and updatable by dimension', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be concise');
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [format]: use paragraph spacing between thoughts');
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be more detailed when tradeoffs matter');
+
+    const context = await memory.getContext(user, 'how should you reply?');
+    const otherContext = await memory.getContext({ id: 67890 }, 'how should you reply?');
+
+    assert.match(context, /Agent interaction preference \[detail\]: be more detailed when tradeoffs matter/);
+    assert.match(context, /Agent interaction preference \[format\]: use paragraph spacing between thoughts/);
+    assert.doesNotMatch(context, /Agent interaction preference \[detail\]: be concise/);
+    assert.equal(otherContext, 'No prior memories.');
+  });
+  });
+
   await test('exposes recent user turns for follow-up mission inference', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();
