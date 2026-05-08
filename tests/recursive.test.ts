@@ -922,6 +922,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.match(report, /Spark Intelligence Builder improved\./);
   assert.match(report, /Change: improved/);
   assert.match(report, /Compare: matches current best\./);
+  assert.match(report, /Updated: May 7, 2026, 10:00 UTC/);
   assert.match(report, /What happened:\nFinal round improved\./);
   assert.match(report, /Score: builder chip loop best metric 0.72/);
   assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup YC; Rounds: 3\/3/);

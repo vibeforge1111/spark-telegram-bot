@@ -1296,6 +1296,16 @@ function formatMasteryLine(mastery: SparkWorkspaceMastery): string {
   return `Mastery: ${ensureSentence(summary)}${evidence ? ` ${evidence}` : ''}`;
 }
 
+function formatUpdatedAt(value: string | null | undefined): string {
+  if (!value) return 'unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getUTCMonth()];
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()}, ${hour}:${minute} UTC`;
+}
+
 function formatMasteryEvidence(mastery: SparkWorkspaceMastery): string | null {
   const parts = [
     typeof mastery.benchmarkStrength === 'number' ? `benchmark ${formatNumber(mastery.benchmarkStrength)}` : null,
@@ -1581,7 +1591,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     metricLine ? `Score: ${metricLine}` : null,
     `Change: ${friendlyOutcomeChange(verdict)}`,
     comparisonLine,
-    `Updated: ${path.updatedAt || 'unknown'}`,
+    `Updated: ${formatUpdatedAt(path.updatedAt)}`,
     '',
     'What happened:',
     truncate(outcomeLine, 220),
