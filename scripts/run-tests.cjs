@@ -15,6 +15,7 @@ const tests = [
   'tests/providerRouting.test.ts',
   'tests/modelSwitch.test.ts',
   'tests/missionRelayFormatting.test.ts',
+  'tests/missionRelayHealth.test.ts',
   'tests/outboundSanitize.test.ts',
   'tests/redaction.test.ts',
   'tests/errorExplain.test.ts',

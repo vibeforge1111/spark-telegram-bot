@@ -116,6 +116,7 @@ import {
   markMissionRelayResumed,
   registerMissionRelay,
   shouldSuppressMissionHandoff,
+  setMissionRelayRuntimeStatus,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
   startMissionRelay
@@ -3116,6 +3117,10 @@ async function start() {
       mode: launchConfig.mode
     });
   }
+  setMissionRelayRuntimeStatus({
+    telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting',
+    pollingStartedAt: null
+  });
   const relay = await startMissionRelay(bot);
 
   // Check launch-critical connections.
@@ -3139,6 +3144,10 @@ async function start() {
   await ensurePollingReady();
   await bot.launch();
   pollingActive = true;
+  setMissionRelayRuntimeStatus({
+    telegramPolling: 'active',
+    pollingStartedAt: new Date().toISOString()
+  });
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
 }
 
