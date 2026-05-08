@@ -1007,6 +1007,61 @@ test('compares latest Workspace outcome against the current best metric', () => 
   assert.match(report, /Compare: below current best by 0.0687 \(best 0.7\)\./);
 });
 
+test('keeps Workspace best signal to a clean sentence', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:startup-yc',
+        scope: 'specialization_path',
+        specializationId: 'spec_startup_yc',
+        repoLabel: 'specialization-path-startup-yc',
+        summary: 'Improve Startup YC on Startup Bench.',
+        status: 'open',
+        bestOutcomeId: 'outcome_latest',
+        updatedAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    insights: [
+      {
+        id: 'insight_startup_yc_signal',
+        specializationId: 'spec_startup_yc',
+        summary: 'Startup YC emitted a smoke benchmark signal on zero_to_one_design_partner_001 at 62.2%. Validation across the current lane held on 7/7 scenarios with 66.5% mean score, led by risk management while team health remains the next frontier.',
+        status: 'observed',
+        updatedAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_latest',
+        targetType: 'evolution_path',
+        targetId: 'path:startup-yc',
+        verdict: 'flat',
+        summary: 'Startup YC tested the benchmark but did not beat the current score.',
+        metricName: 'scenario_score',
+        metricValue: 0.6313,
+        createdAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [
+      {
+        id: 'spec_startup_yc',
+        key: 'startup-yc',
+        label: 'Startup YC',
+        lane: 'public',
+        status: 'active'
+      }
+    ],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:startup-yc');
+  assert.match(report, /Best signal: Startup YC emitted a smoke benchmark signal on zero_to_one_design_partner_001 at 62\.2%\./);
+  assert.doesNotMatch(report, /team health remains th\.\.\./);
+  assert.doesNotMatch(report, /Validation across the current lane/);
+});
+
 test('uses lower-is-better goals when comparing Workspace outcomes', () => {
   const snapshot: any = {
     evolutionPaths: [

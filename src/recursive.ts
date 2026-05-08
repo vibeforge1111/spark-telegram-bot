@@ -1284,6 +1284,21 @@ function truncate(value: string, limit: number): string {
   return clean.length <= limit ? clean : `${clean.slice(0, limit - 1).trim()}...`;
 }
 
+function formatBestSignal(value: string): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  const firstSentence = /^(.+?[.!?])(?:\s|$)/.exec(clean)?.[1];
+  return truncateAtWord(firstSentence || clean, 180);
+}
+
+function truncateAtWord(value: string, limit: number): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  if (clean.length <= limit) return clean;
+  const clipped = clean.slice(0, limit - 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  const prefix = lastSpace > Math.floor(limit * 0.6) ? clipped.slice(0, lastSpace) : clipped;
+  return `${prefix.trim()}...`;
+}
+
 function formatDelta(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
   return `${rounded > 0 ? '+' : ''}${rounded}`;
@@ -1543,7 +1558,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     'What happened:',
     truncate(outcomeLine, 220),
     scorecardLine ? `Scorecard: ${scorecardLine}` : null,
-    latestInsight ? `Best signal: ${truncate(latestInsight.summary, 220)}` : 'Best signal: none yet',
+    latestInsight ? `Best signal: ${formatBestSignal(latestInsight.summary)}` : 'Best signal: none yet',
     strongestMastery ? `Strongest mastery: ${truncate(strongestMastery.summary, 160)}` : 'Strongest mastery: none yet',
     formatArtifactRefs(artifacts),
     decisionLine,
