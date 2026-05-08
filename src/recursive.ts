@@ -947,7 +947,7 @@ export function renderBuilderChipLoopCompletion(
   if (sync) {
     lines.push(
       sync.synced ? 'Workspace is updated.' : 'Workspace update was skipped.',
-      `Dashboard: ${sync.workspaceUrl}`
+      `Open: Recursions ${sync.workspaceUrl}`
     );
   } else if (syncError) {
     lines.push(`Workspace update skipped: ${syncError}`);
@@ -989,7 +989,7 @@ export function renderSpecializationPathLoopCompletion(result: PathLoopResult): 
 
   lines.push(
     'Workspace is updated.',
-    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
+    `Open: Recursions ${sparkWorkspaceRecursionsUrl()}`,
     '',
     'Next:',
     `1. /recursive report ${pathId}`,
@@ -1004,7 +1004,7 @@ export function renderRecursiveArtifactSyncCompletion(result: RecursiveWorkspace
     result.synced ? 'Workspace is updated.' : 'Workspace update was skipped.'
   ];
   lines.push(
-    `Dashboard: ${result.workspaceUrl}`,
+    `Open: Recursions ${result.workspaceUrl}`,
     '',
     'Next:',
     `1. /recursive report ${result.pathId}`,

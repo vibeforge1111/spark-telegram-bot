@@ -447,7 +447,7 @@ test('renders specialization path loop completion with workspace next step', () 
   assert.match(reply, /What happened:\nStartup YC tested a benchmark-backed YC doctrine mutation\./);
   assert.match(reply, /Saved locally: session summary, collective payload\./);
   assert.match(reply, /Workspace is updated\./);
-  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
   assert.match(reply, /1\. \/recursive report path_startup_yc/);
   assert.doesNotMatch(reply, /C:\\paths/);
   assert.doesNotMatch(reply, /Workspace outcome/);
@@ -464,7 +464,7 @@ test('renders recursive artifact sync completion as a compact next step', () => 
 
   assert.match(reply, /Artifact sync finished\./);
   assert.match(reply, /Workspace is updated\./);
-  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
   assert.match(reply, /1\. \/recursive report path_prompt_benchmark/);
   assert.match(reply, /2\. \/recursive trace path_prompt_benchmark/);
   assert.doesNotMatch(reply, /Workspace outcome/);
@@ -834,6 +834,7 @@ test('renders Builder chip loop completion with Workspace sync details', () => {
   assert.match(reply, /Spark reviewed 4 suggestions\. The best result improved\./);
   assert.match(reply, /Saved locally: status file\./);
   assert.match(reply, /Workspace is updated\./);
+  assert.match(reply, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
   assert.match(reply, /1\. \/recursive report path_builder_chip_startup_yc/);
   assert.doesNotMatch(reply, /C:\\status/);
   assert.doesNotMatch(reply, /Workspace outcome/);
