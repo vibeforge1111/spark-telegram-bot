@@ -1941,13 +1941,31 @@ function formatOutcomeScorecard(outcome: SparkWorkspaceOutcome): string | null {
 }
 
 function formatArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): string {
-  if (artifacts.length === 0) return 'Saved evidence: 0 items';
-  const labels = artifacts
-    .slice(0, 3)
-    .map((artifact) => `${artifact.kind}:${artifact.label || artifact.id}`)
-    .join(', ');
-  const suffix = artifacts.length > 3 ? `, +${artifacts.length - 3} more` : '';
-  return `Saved evidence: ${pluralize(artifacts.length, 'item')} (${labels}${suffix})`;
+  if (artifacts.length === 0) return 'Evidence: none saved yet.';
+  const highlights = uniqueArtifactLabels(artifacts).slice(0, 3);
+  if (artifacts.length === 1) {
+    const label = highlights[0];
+    return `Evidence: saved ${friendlyArtifactKind(artifacts[0].kind)}${label ? ` - ${label}` : ''}.`;
+  }
+  const highlightLine = highlights.length > 0 ? ` Highlights: ${highlights.join('; ')}.` : '';
+  return `Evidence: ${pluralize(artifacts.length, 'saved item')}.${highlightLine}`;
+}
+
+function uniqueArtifactLabels(artifacts: SparkWorkspaceArtifactRef[]): string[] {
+  const labels: string[] = [];
+  for (const artifact of artifacts) {
+    const label = truncate((artifact.label || artifact.id || '').replace(/[_:]+/g, ' ').trim(), 60);
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return labels;
+}
+
+function friendlyArtifactKind(kind: string | null | undefined): string {
+  const normalized = (kind || '').toLowerCase();
+  if (normalized === 'run_trace') return 'run trace';
+  if (normalized === 'benchmark_run') return 'benchmark run';
+  if (normalized === 'loop_telemetry') return 'loop telemetry';
+  return formatMetricLabel(normalized || 'artifact');
 }
 
 function formatMetricLabel(value: string | null | undefined): string {

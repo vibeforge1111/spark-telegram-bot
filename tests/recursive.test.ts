@@ -925,7 +925,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.match(report, /What happened:\nFinal round improved\./);
   assert.match(report, /Score: builder chip loop best metric 0.72/);
   assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup YC; Rounds: 3\/3/);
-  assert.match(report, /Saved evidence: 1 item \(run_trace:Startup YC chip-loop status\)/);
+  assert.match(report, /Evidence: saved run trace - Startup YC chip-loop status\./);
   assert.match(report, /Needs review: clear\./);
   assert.match(report, /1\. \/recursive trace path_builder_chip_startup_yc/);
   assert.match(report, /2\. \/recursive start startup-yc rounds 3/);
@@ -1066,6 +1066,74 @@ test('uses lower-is-better goals when comparing Workspace outcomes', () => {
   assert.match(report, /Compare: above current best by 0.04 \(best 0.08\)\./);
 });
 
+test('summarizes large Workspace evidence sets with clean highlights', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path_builder_chip_startup_yc',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'spark-intelligence-builder',
+        summary: 'Builder chip loop for Startup YC completed 1/1 round(s).',
+        status: 'open',
+        bestOutcomeId: 'outcome_builder_chip_startup_yc_20260508T060000000',
+        updatedAt: '2026-05-08T06:00:00.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_builder_chip_startup_yc_20260508T060000000',
+        targetType: 'evolution_path',
+        targetId: 'path_builder_chip_startup_yc',
+        verdict: 'flat',
+        summary: 'Startup YC held the current score.',
+        metricName: 'builder_chip_loop_best_metric',
+        metricValue: 0.6313,
+        createdAt: '2026-05-08T06:00:00.000Z'
+      }
+    ],
+    artifactRefs: [
+      {
+        id: 'artifact_builder_chip_startup_yc_run_dir',
+        kind: 'run_trace',
+        label: 'Run directory',
+        path: 'C:\\runs\\startup-yc',
+        url: null
+      },
+      {
+        id: 'artifact_builder_chip_startup_yc_run_log',
+        kind: 'run_trace',
+        label: 'Run log',
+        path: 'C:\\runs\\startup-yc\\run.log',
+        url: null
+      },
+      {
+        id: 'artifact_builder_chip_startup_yc_trace',
+        kind: 'run_trace',
+        label: 'Trace file',
+        path: 'C:\\runs\\startup-yc\\trace.jsonl',
+        url: null
+      },
+      {
+        id: 'artifact_builder_chip_startup_yc_summary',
+        kind: 'summary',
+        label: 'Session summary',
+        path: 'C:\\runs\\startup-yc\\summary.json',
+        url: null
+      }
+    ],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
+  assert.match(report, /Evidence: 4 saved items\. Highlights: Run directory; Run log; Trace file\./);
+  assert.doesNotMatch(report, /run_trace:Run directory/);
+  assert.doesNotMatch(report, /Session summary/);
+});
+
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
   const snapshot: any = {
     evolutionPaths: [
@@ -1177,13 +1245,13 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
 
   const benchmarkReport = renderRecursiveWorkspaceReport(snapshot, 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f');
   assert.match(benchmarkReport, /Score: average composite score 2.1/);
-  assert.match(benchmarkReport, /Saved evidence: 1 item \(benchmark_run:Prompt benchmark run JSON\)/);
+  assert.match(benchmarkReport, /Evidence: saved benchmark run - Prompt benchmark run JSON\./);
   assert.doesNotMatch(benchmarkReport, /Domain autoloop manifest/);
   assert.doesNotMatch(benchmarkReport, /Startup YC chip-loop status/);
 
   const autoloopReport = renderRecursiveWorkspaceReport(snapshot, 'path_domain_autoloop_crypto_trading');
   assert.match(autoloopReport, /Score: autoloop cycle count 4/);
-  assert.match(autoloopReport, /Saved evidence: 1 item \(manifest:Domain autoloop manifest\)/);
+  assert.match(autoloopReport, /Evidence: saved manifest - Domain autoloop manifest\./);
   assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
 
   const labTrace = workspaceTraceView(snapshot, 'path_domain_chip_lab_workspace_smoke_loop');
