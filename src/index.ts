@@ -315,6 +315,7 @@ interface PendingDomainChipBuild {
 const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
+const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
 
 function extractCommandName(text: string | undefined): string | null {
@@ -331,6 +332,10 @@ async function ensurePollingReady(): Promise<void> {
     console.warn(`Telegram webhook was active at ${webhookInfo.url}; deleting it before long polling.`);
     await bot.telegram.deleteWebhook({ drop_pending_updates: false });
   }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function requireAdmin(ctx: any): boolean {
@@ -3142,13 +3147,31 @@ async function start() {
   }
 
   await ensurePollingReady();
-  await bot.launch();
+  const launchPromise = bot.launch();
+  const launchProbe = await Promise.race([
+    launchPromise.then(
+      () => ({ status: 'settled' as const }),
+      (error) => ({ status: 'failed' as const, error })
+    ),
+    wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
+  ]);
+  if (launchProbe.status === 'failed') {
+    throw launchProbe.error;
+  }
+  if (launchProbe.status === 'settled') {
+    throw new Error('Telegram polling stopped during startup.');
+  }
   pollingActive = true;
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
     pollingStartedAt: new Date().toISOString()
   });
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+  void launchPromise.catch((err) => {
+    void releaseGatewayOwnership();
+    console.error('Telegram polling stopped:', err);
+    process.exit(1);
+  });
 }
 
 // Guard: only auto-start when run as the main module. Importing this file
