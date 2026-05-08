@@ -261,13 +261,16 @@ test('parses and renders stitched recursive trace views', () => {
   });
 
   assert.match(reply, /Startup YC recursive autoloop is completed\./);
-  assert.match(reply, /Needs review: no\./);
+  assert.match(reply, /Needs review: clear\./);
+  assert.match(reply, /Workspace: completed, 5 tracked items\./);
   assert.match(reply, /Canvas: pending/);
   assert.match(reply, /round-003/);
   assert.match(reply, /outcome: baseline \[flat\]/);
   assert.doesNotMatch(reply, /outcome:startup-yc:baseline/);
-  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
-  assert.match(reply, /1\. \/recursive review session-startup-yc-001/);
+  assert.match(reply, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.doesNotMatch(reply, /Review decisions:/);
+  assert.doesNotMatch(reply, /\/recursive review session-startup-yc-001/);
+  assert.match(reply, /1\. \/recursive report session-startup-yc-001/);
 });
 
 test('renders long path trace titles as readable labels', () => {
@@ -298,7 +301,12 @@ test('renders long path trace titles as readable labels', () => {
 
   assert.match(reply, /Startup YC is open\./);
   assert.match(reply, /Needs review: 7 decisions waiting\./);
+  assert.match(reply, /Workspace: open, 96 tracked items\./);
+  assert.match(reply, /Canvas: latest workspace view \(spark-workspace-recursions\)\./);
   assert.match(reply, /outcome: round 20260423T105059878039Z \[improved\]/);
+  assert.match(reply, /Review decisions: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
+  assert.match(reply, /1\. \/recursive review path:startup-yc/);
+  assert.match(reply, /2\. \/recursive report path:startup-yc/);
   assert.doesNotMatch(reply, /Improve Startup YC on Startup Bench by iterating/);
 });
 

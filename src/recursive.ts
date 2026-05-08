@@ -1138,23 +1138,26 @@ export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const timeline = trace.timeline.slice(-6).map(formatTraceTimelineItem);
   const reviewLine = trace.review.required
     ? `Needs review: ${pluralize(trace.review.decisions.length, 'decision')} waiting.`
-    : 'Needs review: no.';
+    : 'Needs review: clear.';
+  const nextActions = [
+    trace.review.required ? `1. /recursive review ${trace.session_id}` : null,
+    `${trace.review.required ? '2' : '1'}. /recursive report ${trace.session_id}`
+  ].filter((line): line is string => Boolean(line));
   return [
     `${traceDisplayTitle(trace)} is ${trace.status}.`,
     reviewLine,
-    `Board: ${trace.spawner.board_entry.status}, ${pluralize(trace.spawner.board_entry.taskCount, 'item')}.`,
-    `Canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'latest' : 'not queued'} (${canvas.pipelineId}).`,
+    `Workspace: ${trace.spawner.board_entry.status}, ${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')}.`,
+    `Canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'latest workspace view' : 'not queued'} (${canvas.pipelineId}).`,
     '',
     'Recent movement:',
     ...(timeline.length > 0 ? timeline : ['- no timeline events']),
     '',
-    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
-    `Decisions: ${sparkWorkspaceDecisionsUrl()}`,
+    `Open: Recursions ${sparkWorkspaceRecursionsUrl()}`,
+    trace.review.required ? `Review decisions: ${sparkWorkspaceDecisionsUrl()}` : null,
     '',
     'Next:',
-    `1. /recursive review ${trace.session_id}`,
-    `2. /recursive report ${trace.session_id}`
-  ].join('\n');
+    ...nextActions
+  ].filter((line): line is string => line !== null).join('\n');
 }
 
 function decisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval'): RecursiveDecision {
