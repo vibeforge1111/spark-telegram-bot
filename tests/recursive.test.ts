@@ -928,6 +928,8 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup YC; Rounds: 3\/3/);
   assert.match(report, /Evidence: saved run trace - Startup YC chip-loop status\./);
   assert.match(report, /Needs review: clear\./);
+  assert.match(report, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.doesNotMatch(report, /Review decisions:/);
   assert.match(report, /1\. \/recursive trace path_builder_chip_startup_yc/);
   assert.match(report, /2\. \/recursive start startup-yc rounds 3/);
 
@@ -1452,6 +1454,8 @@ test('maps Workspace decision inbox items into Telegram review surfaces', () => 
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
   assert.match(report, /Needs review: 1 decision waiting\./);
+  assert.match(report, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(report, /Review decisions: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
   assert.match(report, /1\. \/recursive review path_builder_chip_startup_yc/);
   assert.match(report, /2\. \/recursive trace path_builder_chip_startup_yc/);
   assert.match(report, /3\. After review: \/recursive start startup-yc rounds 3/);
