@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   await test('recursive command export renders help through command path', async () => {
     const ctx = fakeCtx('/recursive help');
     await handleRecursiveCommand(ctx);
-    assert.match(ctx.replies.join('\n'), /\/recursive start <targetKey> \[rounds <n>\]/);
+    assert.match(ctx.replies.join('\n'), /\/recursive start <targetKey> rounds <n> - run another loop/);
   });
 
   await test('recursive command export validates start usage through command path', async () => {

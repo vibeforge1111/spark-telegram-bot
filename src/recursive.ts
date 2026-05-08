@@ -1017,52 +1017,91 @@ export function renderRecursiveHelp(): string {
   return [
     'Spark Workspace Recursions',
     '',
-    'Usage:',
-    '/recursive sessions',
-    '/recursive paths',
-    '/recursive session <id>',
-    '/recursive report <id>',
-    '/recursive trace <id>',
-    '/recursive review [id]',
+    'Start here:',
+    '/recursive sessions - recent loops and next action',
+    '/recursive report <id> - readable result summary',
+    '/recursive start <targetKey> rounds <n> - run another loop',
+    '',
+    'When something needs you:',
+    '/recursive review [id] - decisions waiting',
     '/recursive approve <id> [rationale]',
     '/recursive defer <id> <rationale>',
     '/recursive reject <id> <rationale>',
     '/recursive more-eval <id> <rationale>',
-    '/recursive start <targetKey> [rounds <n>]',
+    '',
+    'Deep cuts:',
+    '/recursive paths - specialization lanes',
+    '/recursive trace <id> - detailed timeline',
     '/recursive sync prompt-benchmark <runJson> [report <reportPath>]',
     '/recursive sync domain-chip-lab <telemetryJson> <chipKey> [chip-path <path>] [packet <path>]',
     '/recursive sync domain-autoloop <manifestJson> <stateJson> [policy <path>] [journal <path>] [lane-report <path>]',
     '',
-    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`
+    `Open: Recursions ${sparkWorkspaceRecursionsUrl()}`
   ].join('\n');
 }
 
 export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): string {
   if (sessions.length === 0) return 'No recursive sessions found.';
-  const lines = ['Spark Workspace Recursive Loops'];
-  for (const session of sessions.slice(0, 12)) {
+  const visible = sessions.slice(0, 8);
+  const lines = ['Spark recursive loops'];
+  for (const [index, session] of visible.entries()) {
+    const domain = session.domain || labelFromKey(session.source_kind);
+    const review = session.review_required ? 'needs review' : 'clear';
     lines.push(
-      `- ${session.session_id} [${session.status}] ${session.domain || session.source_kind} - ${truncate(session.title, 88)}`
+      '',
+      `${index + 1}. ${session.session_id}`,
+      `Status: ${session.status}, ${domain}, ${review}.`,
+      `Updated: ${formatUpdatedAt(session.updated_at)}.`,
+      `What happened: ${ensureSentence(truncateAtWord(session.title, 112))}`,
+      `Next: /recursive report ${session.session_id}`
     );
   }
-  if (sessions.length > 12) lines.push(`...and ${sessions.length - 12} more.`);
+  if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more loops hidden. Use /recursive paths to choose a lane.`);
+  lines.push('', `Open: Recursions ${sparkWorkspaceRecursionsUrl()}`);
   return lines.join('\n');
 }
 
 export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): string {
-  const domains = [...new Set(sessions.map((session) => session.domain || session.source_kind).filter(Boolean))].sort();
+  const pathGroups = new Map<string, RecursiveSessionListItem[]>();
+  for (const session of sessions) {
+    const domain = session.domain || labelFromKey(session.source_kind);
+    const group = pathGroups.get(domain) ?? [];
+    group.push(session);
+    pathGroups.set(domain, group);
+  }
+  const domains = [...pathGroups.keys()].sort();
   if (domains.length === 0) return 'No recursive paths found yet.';
-  return ['Spark Workspace Recursive Paths', ...domains.map((domain) => `- ${domain}`)].join('\n');
+  const lines = ['Spark recursive paths'];
+  for (const [index, domain] of domains.entries()) {
+    const group = pathGroups.get(domain) ?? [];
+    const reviewCount = group.filter((session) => session.review_required).length;
+    const latest = group
+      .slice()
+      .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0];
+    const review = reviewCount > 0 ? `${pluralize(reviewCount, 'loop')} needs review` : 'clear';
+    lines.push(`${index + 1}. ${domain} - ${pluralize(group.length, 'loop')}, ${review}, latest ${formatUpdatedAt(latest?.updated_at)}.`);
+  }
+  lines.push('', 'Next:', '1. /recursive sessions', '2. /recursive report <id> after choosing a loop');
+  return lines.join('\n');
 }
 
 export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandidate[]): string {
   if (candidates.length === 0) return 'No recursive candidates need review.';
   const lines = ['Spark Workspace Decisions'];
-  for (const candidate of candidates.slice(0, 10)) {
-    const delta = candidate.score_delta === null ? '' : ` delta=${formatDelta(candidate.score_delta)}`;
-    lines.push(`- ${candidate.session_id} risk=${candidate.risk}${delta} - ${truncate(candidate.reason, 96)}`);
+  const visible = candidates.slice(0, 8);
+  for (const [index, candidate] of visible.entries()) {
+    const scoreLine = candidate.score_delta === null ? null : `Score moved ${formatDelta(candidate.score_delta)}.`;
+    lines.push(...[
+      '',
+      `${index + 1}. ${candidate.session_id}`,
+      `Risk: ${candidate.risk}.`,
+      scoreLine,
+      `Why it matters: ${ensureSentence(truncateAtWord(candidate.reason, 112))}`,
+      `Next: /recursive review ${candidate.session_id}`
+    ].filter((line): line is string => Boolean(line)));
   }
-  if (candidates.length > 10) lines.push(`...and ${candidates.length - 10} more.`);
+  if (candidates.length > visible.length) lines.push('', `${candidates.length - visible.length} more decisions hidden. Open Decisions for the full queue.`);
+  lines.push('', `Open: Decisions ${sparkWorkspaceDecisionsUrl()}`);
   return lines.join('\n');
 }
 

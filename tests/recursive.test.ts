@@ -85,8 +85,15 @@ test('renders compact recursive session and path lists', () => {
     }
   ];
 
-  assert.match(renderRecursiveSessions(sessions), /s1 \[completed\] startup-yc/);
-  assert.match(renderRecursivePaths(sessions), /startup-yc/);
+  const sessionList = renderRecursiveSessions(sessions);
+  assert.match(sessionList, /1\. s1/);
+  assert.match(sessionList, /Status: completed, startup-yc, clear\./);
+  assert.match(sessionList, /Next: \/recursive report s1/);
+  assert.match(sessionList, /Open: Recursions http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+
+  const pathList = renderRecursivePaths(sessions);
+  assert.match(pathList, /startup-yc - 1 loop, clear/);
+  assert.match(pathList, /Next:/);
 });
 
 test('renders review queue and audit-only decision records', () => {
@@ -105,7 +112,9 @@ test('renders review queue and audit-only decision records', () => {
   ]);
 
   assert.match(queue, /creator-mission-001/);
-  assert.match(queue, /delta=\+0.14/);
+  assert.match(queue, /Score moved \+0.14\./);
+  assert.match(queue, /Next: \/recursive review creator-mission-001/);
+  assert.doesNotMatch(queue, /delta=/);
 
   const decision = renderRecursiveDecision({
     decision_id: 'review-1',
