@@ -57,6 +57,7 @@ import {
   recursiveTraceView,
   renderRecursiveDecision,
   renderRecursiveCanvasQueue,
+  renderRecursiveArtifactSyncCompletion,
   renderBuilderChipLoopCompletion,
   renderRecursiveHelp,
   renderRecursivePaths,
@@ -68,7 +69,8 @@ import {
   sparkWorkspaceRecursionsUrl,
   stageRecursivePromotionPacket,
   stageRecursiveSwarmPacket,
-  syncBuilderChipLoopToWorkspace
+  syncBuilderChipLoopToWorkspace,
+  syncRecursiveArtifactToWorkspace
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import {
@@ -2104,6 +2106,14 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
     }
 
     if (parsed.action === 'sync') {
+      if (parsed.syncKind) {
+        await safeSendChatAction(ctx, 'typing');
+        const result = await syncRecursiveArtifactToWorkspace({
+          kind: parsed.syncKind,
+          args: parsed.syncArgs || []
+        });
+        return ctx.reply(renderRecursiveArtifactSyncCompletion(result));
+      }
       if (!parsed.id) return ctx.reply('Usage: /recursive sync <id>');
       await safeSendChatAction(ctx, 'typing');
       const packet = await stageRecursiveSwarmPacket(parsed.id);

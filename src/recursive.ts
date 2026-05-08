@@ -15,7 +15,11 @@ export interface RecursiveCommand {
   chipKey?: string;
   rounds?: number;
   rationale?: string;
+  syncKind?: RecursiveArtifactSyncKind;
+  syncArgs?: string[];
 }
+
+export type RecursiveArtifactSyncKind = 'prompt-benchmark' | 'domain-chip-lab' | 'domain-autoloop';
 
 export interface RecursiveSessionListItem {
   trace_id: string;
@@ -237,6 +241,11 @@ export interface RecursiveWorkspaceSyncResult {
   outcomeId: string | null;
   detail: string;
   workspaceUrl: string;
+}
+
+export interface RecursiveArtifactSyncInput {
+  kind: RecursiveArtifactSyncKind;
+  args: string[];
 }
 
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
@@ -527,12 +536,16 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
   const action = (parts.shift() || 'help').toLowerCase();
 
   if (action === 'sessions' || action === 'paths' || action === 'help') return { action };
+  if (action === 'sync') {
+    const syncKind = normalizeRecursiveArtifactSyncKind(parts[0]);
+    if (syncKind) return { action, syncKind, syncArgs: parts.slice(1) };
+    return { action, id: parts[0] };
+  }
   if (
     action === 'session' ||
     action === 'report' ||
     action === 'review' ||
     action === 'promote' ||
-    action === 'sync' ||
     action === 'canvas' ||
     action === 'trace'
   ) {
@@ -599,6 +612,51 @@ export async function stageRecursivePromotionPacket(id: string): Promise<Recursi
 
 export async function stageRecursiveSwarmPacket(id: string): Promise<RecursiveSwarmPacket> {
   throw new Error(`Standalone Swarm staging packets are retired. Sync recursive evidence through Spark Workspace collective sync: ${sparkWorkspaceRecursionsUrl()}`);
+}
+
+export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactSyncInput): Promise<RecursiveWorkspaceSyncResult> {
+  const config = sparkWorkspaceBridgeHints();
+  const tempDir = await mkdtemp(path.join(tmpdir(), `spark-recursive-${input.kind}-`));
+  const payloadPath = path.join(tempDir, 'collective-sync.json');
+  const python = (
+    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+    process.env.SPARK_BUILDER_PYTHON ||
+    process.env.PYTHON ||
+    'python'
+  ).trim();
+  const bridgeSrc = resolveSparkSwarmBridgeSrc();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
+  if (bridgeSrc) {
+    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
+  }
+
+  const bridgeArgs = buildRecursiveArtifactBridgeArgs(input, {
+    payloadPath,
+    apiUrl: config.apiUrl,
+    workspaceId: config.workspaceId,
+    accessToken: config.accessToken
+  });
+  const { stdout } = await execFileAsync(
+    python,
+    bridgeArgs,
+    {
+      env,
+      timeout: 30000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    }
+  );
+
+  return {
+    synced: true,
+    pathId: parseBridgeLine(stdout, 'Path') || 'unknown',
+    outcomeId: parseBridgeLine(stdout, 'Outcome'),
+    detail: `${input.kind} artifact synced through Spark Swarm bridge.`,
+    workspaceUrl: sparkWorkspaceRecursionsUrl()
+  };
 }
 
 export async function queueRecursiveCanvas(id: string): Promise<RecursiveCanvasQueueResult> {
@@ -896,6 +954,21 @@ export function renderBuilderChipLoopCompletion(
   return lines.join('\n');
 }
 
+export function renderRecursiveArtifactSyncCompletion(result: RecursiveWorkspaceSyncResult): string {
+  const lines = [
+    'Recursive artifact sync complete.',
+    `Workspace sync: ${result.synced ? 'ok' : 'skipped'}`,
+    `Workspace path: ${result.pathId}`
+  ];
+  if (result.outcomeId) lines.push(`Workspace outcome: ${result.outcomeId}`);
+  if (result.detail) lines.push(`Workspace detail: ${result.detail}`);
+  lines.push(
+    `Workspace: ${result.workspaceUrl}`,
+    `Next: /recursive report ${result.pathId}`
+  );
+  return lines.join('\n');
+}
+
 export function renderRecursiveHelp(): string {
   return [
     'Spark Workspace Recursions',
@@ -912,6 +985,9 @@ export function renderRecursiveHelp(): string {
     '/recursive reject <id> <rationale>',
     '/recursive more-eval <id> <rationale>',
     '/recursive start <chipKey> [rounds <n>]',
+    '/recursive sync prompt-benchmark <runJson> [report <reportPath>]',
+    '/recursive sync domain-chip-lab <telemetryJson> <chipKey> [chip-path <path>] [packet <path>]',
+    '/recursive sync domain-autoloop <manifestJson> <stateJson> [policy <path>] [journal <path>] [lane-report <path>]',
     '',
     `Dashboard: ${sparkWorkspaceRecursionsUrl()}`
   ].join('\n');
@@ -1037,6 +1113,110 @@ function parseRounds(parts: string[]): number {
   const roundIndex = parts.findIndex((part) => part.toLowerCase() === 'rounds');
   const raw = roundIndex >= 0 ? parts[roundIndex + 1] : parts[0];
   return Math.max(1, Math.min(10, Number.parseInt(raw || '3', 10) || 3));
+}
+
+function normalizeRecursiveArtifactSyncKind(value: string | undefined): RecursiveArtifactSyncKind | null {
+  const normalized = (value || '').toLowerCase().replace(/_/g, '-');
+  if (normalized === 'prompt-benchmark' || normalized === 'benchmark') return 'prompt-benchmark';
+  if (normalized === 'domain-chip-lab' || normalized === 'domain-chip-lab-loop' || normalized === 'chip-lab') return 'domain-chip-lab';
+  if (normalized === 'domain-autoloop' || normalized === 'autoloop') return 'domain-autoloop';
+  return null;
+}
+
+function optionValue(tokens: string[], names: string[]): string | null {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (normalizedNames.has(tokens[index].toLowerCase())) return tokens[index + 1];
+  }
+  return null;
+}
+
+function repeatedOptionValues(tokens: string[], names: string[]): string[] {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  const values: string[] = [];
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (normalizedNames.has(tokens[index].toLowerCase())) values.push(tokens[index + 1]);
+  }
+  return values;
+}
+
+function positionalTokens(tokens: string[]): string[] {
+  const optionNames = new Set([
+    'report',
+    'report-path',
+    '--report-path',
+    'chip-key',
+    '--chip-key',
+    'chip-path',
+    '--chip-path',
+    'packet',
+    '--packet',
+    'policy',
+    '--policy',
+    'journal',
+    '--journal',
+    'lane-report',
+    '--lane-report'
+  ]);
+  const values: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (optionNames.has(token.toLowerCase()) && index < tokens.length - 1) {
+      index += 1;
+      continue;
+    }
+    values.push(token);
+  }
+  return values;
+}
+
+export function buildRecursiveArtifactBridgeArgs(
+  input: RecursiveArtifactSyncInput,
+  options: {
+    payloadPath: string;
+    apiUrl?: string;
+    workspaceId?: string;
+    accessToken?: string;
+  }
+): string[] {
+  const positionals = positionalTokens(input.args);
+  const args = ['-m', 'spark_swarm_bridge.cli'];
+
+  if (input.kind === 'prompt-benchmark') {
+    const runJson = positionals[0];
+    if (!runJson) throw new Error('Usage: /recursive sync prompt-benchmark <runJson> [report <reportPath>]');
+    args.push('prompt-benchmark', '--input', runJson);
+    const reportPath = optionValue(input.args, ['report', 'report-path', '--report-path']);
+    if (reportPath) args.push('--report-path', reportPath);
+  } else if (input.kind === 'domain-chip-lab') {
+    const telemetryJson = positionals[0];
+    const chipKey = optionValue(input.args, ['chip-key', '--chip-key']) || positionals[1];
+    if (!telemetryJson || !chipKey) {
+      throw new Error('Usage: /recursive sync domain-chip-lab <telemetryJson> <chipKey> [chip-path <path>] [packet <path>]');
+    }
+    args.push('domain-chip-lab-loop', '--telemetry', telemetryJson, '--chip-key', chipKey);
+    const chipPath = optionValue(input.args, ['chip-path', '--chip-path']);
+    if (chipPath) args.push('--chip-path', chipPath);
+    for (const packet of repeatedOptionValues(input.args, ['packet', '--packet'])) args.push('--packet', packet);
+  } else {
+    const manifestJson = positionals[0];
+    const stateJson = positionals[1];
+    if (!manifestJson || !stateJson) {
+      throw new Error('Usage: /recursive sync domain-autoloop <manifestJson> <stateJson> [policy <path>] [journal <path>] [lane-report <path>]');
+    }
+    args.push('domain-autoloop', '--manifest', manifestJson, '--state', stateJson);
+    const policyPath = optionValue(input.args, ['policy', '--policy']);
+    const journalPath = optionValue(input.args, ['journal', '--journal']);
+    if (policyPath) args.push('--policy', policyPath);
+    if (journalPath) args.push('--journal', journalPath);
+    for (const laneReport of repeatedOptionValues(input.args, ['lane-report', '--lane-report'])) args.push('--lane-report', laneReport);
+  }
+
+  args.push('--payload', options.payloadPath, '--sync-collective');
+  if (options.workspaceId) args.push('--workspace-id', options.workspaceId);
+  if (options.apiUrl) args.push('--api-url', options.apiUrl);
+  if (options.accessToken) args.push('--access-token', options.accessToken);
+  return args;
 }
 
 function truncate(value: string, limit: number): string {
@@ -1352,11 +1532,28 @@ function artifactsForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspace
     normalizeWorkspaceIdPart(latestOutcome?.id || path.bestOutcomeId || '')
   ].filter((key) => key.length > 3);
 
-  return snapshot.artifactRefs.filter((artifact) =>
+  return uniqueArtifactRefs(snapshot.artifactRefs.filter((artifact) =>
     matchKeys.some((key) =>
       normalizeWorkspaceIdPart(`${artifact.id} ${artifact.label} ${artifact.path || ''} ${artifact.url || ''}`).includes(key)
     )
-  );
+  ));
+}
+
+function uniqueArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): SparkWorkspaceArtifactRef[] {
+  const seen = new Set<string>();
+  const unique: SparkWorkspaceArtifactRef[] = [];
+  for (const artifact of artifacts) {
+    const key = [
+      artifact.kind,
+      artifact.label,
+      artifact.path || '',
+      artifact.url || ''
+    ].join('\n');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(artifact);
+  }
+  return unique;
 }
 
 function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {

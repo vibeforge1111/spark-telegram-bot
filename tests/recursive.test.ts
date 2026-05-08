@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   buildBuilderChipLoopBridgeInput,
+  buildRecursiveArtifactBridgeArgs,
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
   renderBuilderChipLoopCompletion,
@@ -45,6 +46,21 @@ test('parses recursive review decisions with rationale', () => {
     action: 'start',
     chipKey: 'startup-yc',
     rounds: 4
+  });
+  assert.deepEqual(parseRecursiveCommand('sync prompt-benchmark C:\\runs\\prompt.json report C:\\runs\\report.md'), {
+    action: 'sync',
+    syncKind: 'prompt-benchmark',
+    syncArgs: ['C:\\runs\\prompt.json', 'report', 'C:\\runs\\report.md']
+  });
+  assert.deepEqual(parseRecursiveCommand('sync domain-chip-lab C:\\lab\\loop_telemetry.json workspace-smoke-loop'), {
+    action: 'sync',
+    syncKind: 'domain-chip-lab',
+    syncArgs: ['C:\\lab\\loop_telemetry.json', 'workspace-smoke-loop']
+  });
+  assert.deepEqual(parseRecursiveCommand('sync domain-autoloop C:\\crypto\\manifest.json C:\\crypto\\state.json'), {
+    action: 'sync',
+    syncKind: 'domain-autoloop',
+    syncArgs: ['C:\\crypto\\manifest.json', 'C:\\crypto\\state.json']
   });
 });
 
@@ -267,6 +283,112 @@ test('builds bridge input for Builder chip loop sync', () => {
     ]
   });
   assert.equal((fallback.payload.outcomes as any[])[0].verdict, 'regressed');
+});
+
+test('builds bridge args for non-Builder recursive artifact sync commands', () => {
+  assert.deepEqual(
+    buildRecursiveArtifactBridgeArgs(
+      {
+        kind: 'prompt-benchmark',
+        args: ['C:\\runs\\prompt.json', 'report', 'C:\\runs\\report.md']
+      },
+      {
+        payloadPath: 'C:\\tmp\\collective-sync.json',
+        apiUrl: 'https://api.example.test',
+        workspaceId: 'ws_123',
+        accessToken: 'sscli_test'
+      }
+    ),
+    [
+      '-m',
+      'spark_swarm_bridge.cli',
+      'prompt-benchmark',
+      '--input',
+      'C:\\runs\\prompt.json',
+      '--report-path',
+      'C:\\runs\\report.md',
+      '--payload',
+      'C:\\tmp\\collective-sync.json',
+      '--sync-collective',
+      '--workspace-id',
+      'ws_123',
+      '--api-url',
+      'https://api.example.test',
+      '--access-token',
+      'sscli_test'
+    ]
+  );
+
+  assert.deepEqual(
+    buildRecursiveArtifactBridgeArgs(
+      {
+        kind: 'domain-chip-lab',
+        args: [
+          'C:\\lab\\loop_telemetry.json',
+          'workspace-smoke-loop',
+          'chip-path',
+          'C:\\lab\\domain-chip-workspace-smoke-loop',
+          'packet',
+          'C:\\lab\\packet.json'
+        ]
+      },
+      { payloadPath: 'C:\\tmp\\collective-sync.json' }
+    ),
+    [
+      '-m',
+      'spark_swarm_bridge.cli',
+      'domain-chip-lab-loop',
+      '--telemetry',
+      'C:\\lab\\loop_telemetry.json',
+      '--chip-key',
+      'workspace-smoke-loop',
+      '--chip-path',
+      'C:\\lab\\domain-chip-workspace-smoke-loop',
+      '--packet',
+      'C:\\lab\\packet.json',
+      '--payload',
+      'C:\\tmp\\collective-sync.json',
+      '--sync-collective'
+    ]
+  );
+
+  assert.deepEqual(
+    buildRecursiveArtifactBridgeArgs(
+      {
+        kind: 'domain-autoloop',
+        args: [
+          'C:\\crypto\\manifest.json',
+          'C:\\crypto\\state.json',
+          'journal',
+          'C:\\crypto\\cycle_journal.jsonl',
+          'lane-report',
+          'C:\\crypto\\learning_loop_report.json'
+        ]
+      },
+      { payloadPath: 'C:\\tmp\\collective-sync.json' }
+    ),
+    [
+      '-m',
+      'spark_swarm_bridge.cli',
+      'domain-autoloop',
+      '--manifest',
+      'C:\\crypto\\manifest.json',
+      '--state',
+      'C:\\crypto\\state.json',
+      '--journal',
+      'C:\\crypto\\cycle_journal.jsonl',
+      '--lane-report',
+      'C:\\crypto\\learning_loop_report.json',
+      '--payload',
+      'C:\\tmp\\collective-sync.json',
+      '--sync-collective'
+    ]
+  );
+
+  assert.throws(
+    () => buildRecursiveArtifactBridgeArgs({ kind: 'domain-autoloop', args: ['C:\\crypto\\manifest.json'] }, { payloadPath: 'C:\\tmp\\collective-sync.json' }),
+    /Usage: \/recursive sync domain-autoloop/
+  );
 });
 
 test('resolves Spark Workspace config from Builder home fallback', () => {
@@ -681,6 +803,13 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
     artifactRefs: [
       {
         id: 'artifact_prompt_benchmark_run_20260508t030923z_65b30a0f_20260508T031000000',
+        kind: 'benchmark_run',
+        label: 'Prompt benchmark run JSON',
+        path: 'artifacts/prompt-benchmark-hosted-smoke/prompt-run-output.json',
+        url: null
+      },
+      {
+        id: 'artifact_prompt_benchmark_run_20260508t030923z_65b30a0f_20260508T034341361',
         kind: 'benchmark_run',
         label: 'Prompt benchmark run JSON',
         path: 'artifacts/prompt-benchmark-hosted-smoke/prompt-run-output.json',
