@@ -189,6 +189,7 @@ import {
   telegramImageMemoryText
 } from './telegramImageBridge';
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
+import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
@@ -396,8 +397,10 @@ function voiceMediaCaption(
   voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>,
   fallbackText = ''
 ): string | undefined {
-  const caption = (voiceMedia.spokenText || fallbackText || '').trim();
-  return caption && caption.length <= 1024 ? caption : undefined;
+  return formatVoiceMediaCaption({
+    responseText: fallbackText,
+    spokenText: voiceMedia.spokenText
+  });
 }
 
 async function sendBuilderVoiceMedia(
@@ -413,7 +416,7 @@ async function sendBuilderVoiceMedia(
   const caption = voiceMediaCaption(voiceMedia, fallbackText);
   const options = caption ? { caption } : undefined;
   console.log(
-    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length} spokenChars=${(voiceMedia.spokenText || '').length}`
+    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length} captionChars=${caption?.length || 0} spokenChars=${(voiceMedia.spokenText || '').length}`
   );
   if (voiceMedia.voiceCompatible) {
     await ctx.replyWithVoice(inputFile, options);
