@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { constants as fsConstants } from 'node:fs';
+import { constants as fsConstants, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -15,6 +15,13 @@ import {
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
+
+function processOutputText(value: unknown): string {
+  if (Buffer.isBuffer(value)) {
+    return value.toString('utf8');
+  }
+  return typeof value === 'string' ? value : '';
+}
 
 type BuilderBridgeMode = 'auto' | 'off' | 'required';
 
@@ -214,10 +221,41 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
     ...process.env,
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
+  mergeEnvFile(env, path.join(config.builderHome, '.env'));
   if (process.env.BOT_TOKEN && !env.TELEGRAM_BOT_TOKEN) {
     env.TELEGRAM_BOT_TOKEN = process.env.BOT_TOKEN;
   }
   return env;
+}
+
+function mergeEnvFile(env: NodeJS.ProcessEnv, envPath: string): void {
+  let text = '';
+  try {
+    text = readFileSync(envPath, 'utf-8');
+  } catch {
+    return;
+  }
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const index = line.indexOf('=');
+    if (index <= 0) continue;
+    const key = line.slice(0, index).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (env[key]) continue;
+    env[key] = unquoteEnvValue(line.slice(index + 1).trim());
+  }
+}
+
+function unquoteEnvValue(value: string): string {
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return value.slice(1, -1);
+    }
+  }
+  return value;
 }
 
 function pythonModuleInvocation(config: BuilderBridgeConfig, moduleName: string, args: string[]): string[] {
@@ -1385,18 +1423,33 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
     '--json',
   ];
 
-  const { stdout, stderr } = await execFileAsync(
-    config.pythonCommand,
-    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
-    withHiddenWindows({
-      cwd: config.builderRepo,
-      env: pythonSourceEnv(config),
-      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
-      maxBuffer: 1024 * 1024,
-    })
-  );
+  let stdout = '';
+  let stderr = '';
+  let commandError: unknown = null;
+  try {
+    const result = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    stdout = processOutputText(result.stdout);
+    stderr = processOutputText(result.stderr);
+  } catch (error) {
+    const execError = error as { stdout?: unknown; stderr?: unknown };
+    stdout = processOutputText(execError.stdout);
+    stderr = processOutputText(execError.stderr);
+    commandError = error;
+  }
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
+    if (commandError) {
+      throw commandError;
+    }
     throw new Error(`Builder route probe returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
   const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
