@@ -29,9 +29,12 @@ function discoverSyncedPaths() {
 	const folders = [
 		{ dir: 'src', ext: '.ts' },
 		{ dir: 'dist', ext: '.js' },
+		{ dir: 'scripts', ext: '.cjs' },
 		{ dir: 'agent-knowledge', ext: '.md' }
 	];
 	const singletonPaths = [
+		'package.json',
+		'spark.toml',
 		'ops/capability-natural-language-matrix.json'
 	];
 	const paths = [...singletonPaths.filter((rel) => exists(path.join(SOURCE_ROOT, rel)))];

@@ -177,12 +177,24 @@ async function main(): Promise<void> {
 
   await test('agent operating context uses Telegram-safe command aliases', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+    const distIndexSource = await readFile(path.join(__dirname, '..', 'dist', 'index.js'), 'utf8');
     assert.match(indexSource, /bot\.command\('context', handleAgentOperatingContextCommand\)/);
     assert.match(indexSource, /bot\.command\('operating_context', handleAgentOperatingContextCommand\)/);
     assert.match(indexSource, /bot\.command\('agent_context', handleAgentOperatingContextCommand\)/);
     assert.match(indexSource, /bot\.command\('probe', handleAgentRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('route_probe', handleAgentRouteProbeCommand\)/);
+    assert.match(indexSource, /bot\.command\('ledger', handleCapabilityLedgerReviewCommand\)/);
+    assert.match(indexSource, /bot\.command\('capabilities', handleCapabilityLedgerReviewCommand\)/);
+    assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);
+    assert.match(indexSource, /replyViaBuilder\(ctx, ctx\.message\?\.text \|\| '\/voice'\)/);
     assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
+    const sparkSource = await readFile(path.join(__dirname, '..', 'src', 'spark.ts'), 'utf8');
+    const distSparkSource = await readFile(path.join(__dirname, '..', 'dist', 'spark.js'), 'utf8');
+    assert.doesNotMatch(sparkSource, /getVoice/);
+    assert.doesNotMatch(distSparkSource, /getVoice/);
+    assert.match(distIndexSource, /bot\.command\('voice', async \(ctx\) => \{/);
+    assert.match(distIndexSource, /replyViaBuilder\(ctx, .*'\/voice'/);
+    assert.doesNotMatch(distIndexSource, /spark_1\.spark\.getVoice\(\)/);
     assert.match(indexSource, /AOC_CORE_ROUTE_KEYS/);
     assert.match(indexSource, /firstArg === 'core'/);
     assert.match(indexSource, /firstArg === 'all'/);

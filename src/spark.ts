@@ -9,10 +9,6 @@ const DASHBOARD_DEFERRED =
   'The Spark dashboard/resonance surface is not part of this launch build yet. ' +
   'Core chat, LLM, Builder memory, and Spawner relay are the supported launch path.';
 
-const VOICE_BUILDER_ROUTED =
-  'Voice is handled by the Builder voice chip now. Run `/voice` for current voice status, ' +
-  'then use `/voice onboard local` or `/voice onboard paid` to finish setup.';
-
 export const spark = {
   /**
    * Spark itself is available when the bot process is running. Legacy dashboard
@@ -40,10 +36,6 @@ export const spark = {
 
   async getInsights(_limit = 5): Promise<string> {
     return DASHBOARD_DEFERRED;
-  },
-
-  async getVoice(): Promise<string> {
-    return VOICE_BUILDER_ROUTED;
   },
 
   async getSurprises(): Promise<string> {

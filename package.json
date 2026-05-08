@@ -4,6 +4,7 @@
   "description": "Spark Telegram ingress gateway for Builder and Spawner",
   "main": "dist/index.js",
   "scripts": {
+    "prestart": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "build": "tsc",
