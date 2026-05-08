@@ -1062,6 +1062,63 @@ test('keeps Workspace best signal to a clean sentence', () => {
   assert.doesNotMatch(report, /Validation across the current lane/);
 });
 
+test('renders Workspace mastery as a readable signal with evidence counts', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:startup-yc',
+        scope: 'specialization_path',
+        specializationId: 'spec_startup_yc',
+        repoLabel: 'specialization-path-startup-yc',
+        summary: 'Improve Startup YC on Startup Bench.',
+        status: 'open',
+        bestOutcomeId: 'outcome_latest',
+        updatedAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [
+      {
+        id: 'mastery_startup_yc_research',
+        specializationScope: 'startup-yc',
+        summary: 'research benchmark-backed mastery candidate',
+        benchmarkStrength: 0.82,
+        liveStrength: 0.64,
+        supportCount: 12,
+        contradictionCount: 1
+      }
+    ],
+    outcomes: [
+      {
+        id: 'outcome_latest',
+        targetType: 'evolution_path',
+        targetId: 'path:startup-yc',
+        verdict: 'flat',
+        summary: 'Startup YC tested the benchmark but did not beat the current score.',
+        metricName: 'scenario_score',
+        metricValue: 0.6313,
+        createdAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [
+      {
+        id: 'spec_startup_yc',
+        key: 'startup-yc',
+        label: 'Startup YC',
+        lane: 'public',
+        status: 'active'
+      }
+    ],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:startup-yc');
+  assert.match(report, /Mastery: Research benchmark-backed candidate\. Evidence: benchmark 0\.82, live 0\.64, 12 supports, 1 contradiction\./);
+  assert.doesNotMatch(report, /Strongest mastery/);
+  assert.doesNotMatch(report, /mastery candidate/);
+});
+
 test('uses lower-is-better goals when comparing Workspace outcomes', () => {
   const snapshot: any = {
     evolutionPaths: [

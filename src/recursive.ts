@@ -1290,6 +1290,34 @@ function formatBestSignal(value: string): string {
   return truncateAtWord(firstSentence || clean, 180);
 }
 
+function formatMasteryLine(mastery: SparkWorkspaceMastery): string {
+  const summary = sentenceCaseFirst(formatBestSignal(mastery.summary).replace(/\bmastery candidate\b/i, 'candidate'));
+  const evidence = formatMasteryEvidence(mastery);
+  return `Mastery: ${ensureSentence(summary)}${evidence ? ` ${evidence}` : ''}`;
+}
+
+function formatMasteryEvidence(mastery: SparkWorkspaceMastery): string | null {
+  const parts = [
+    typeof mastery.benchmarkStrength === 'number' ? `benchmark ${formatNumber(mastery.benchmarkStrength)}` : null,
+    typeof mastery.liveStrength === 'number' ? `live ${formatNumber(mastery.liveStrength)}` : null,
+    typeof mastery.supportCount === 'number' ? pluralize(mastery.supportCount, 'support') : null,
+    typeof mastery.contradictionCount === 'number' && mastery.contradictionCount > 0
+      ? pluralize(mastery.contradictionCount, 'contradiction')
+      : null
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? `Evidence: ${parts.join(', ')}.` : null;
+}
+
+function ensureSentence(value: string): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  return /[.!?]$/.test(clean) ? clean : `${clean}.`;
+}
+
+function sentenceCaseFirst(value: string): string {
+  const clean = value.trim();
+  return clean ? `${clean.charAt(0).toUpperCase()}${clean.slice(1)}` : clean;
+}
+
 function truncateAtWord(value: string, limit: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
   if (clean.length <= limit) return clean;
@@ -1559,7 +1587,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     truncate(outcomeLine, 220),
     scorecardLine ? `Scorecard: ${scorecardLine}` : null,
     latestInsight ? `Best signal: ${formatBestSignal(latestInsight.summary)}` : 'Best signal: none yet',
-    strongestMastery ? `Strongest mastery: ${truncate(strongestMastery.summary, 160)}` : 'Strongest mastery: none yet',
+    strongestMastery ? formatMasteryLine(strongestMastery) : 'Mastery: none yet.',
     formatArtifactRefs(artifacts),
     decisionLine,
     '',
