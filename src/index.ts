@@ -354,13 +354,17 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   if (isLowInformationLlmReply(builderReply.responseText)) {
     return false;
   }
+  await deliverBuilderReply(ctx, builderReply);
+  return true;
+}
+
+async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>): Promise<void> {
   if (builderReply.responseText) {
     await ctx.reply(builderReply.responseText);
   }
   if (builderReply.voiceMedia) {
     await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia);
   }
-  return true;
 }
 
 async function sendBuilderVoiceMedia(ctx: any, voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>): Promise<void> {
@@ -3076,6 +3080,43 @@ export async function handleImageMessage(ctx: any): Promise<void> {
   }
 }
 
+export async function handleVoiceMessage(ctx: any): Promise<void> {
+  const user = ctx.from;
+
+  await conversation.remember(user, '[voice message]').catch(() => {});
+  await safeSendChatAction(ctx, 'typing');
+
+  try {
+    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(`[VoiceBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
+
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
+      await deliverBuilderReply(ctx, builderReply);
+      if (builderReply.responseText) {
+        await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      }
+      return;
+    }
+
+    const fallback = 'I received the voice note, but Spark did not return a transcription or voice reply. Run `/voice`, then try one short voice note again.';
+    await ctx.reply(fallback);
+    await conversation.recordInterruptedTask(user, {
+      message: '[voice message]',
+      failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
+      stage: 'telegram_voice_handler'
+    }).catch(() => {});
+  } catch (err) {
+    console.error('Voice handling error:', err);
+    const detail = err instanceof Error ? err.message : String(err);
+    await conversation.recordInterruptedTask(user, {
+      message: '[voice message]',
+      failure: detail,
+      stage: 'telegram_voice_handler'
+    }).catch(() => {});
+    await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
+  }
+}
+
 bot.on(message('text'), handleTextMessage);
 bot.on(message('photo'), handleImageMessage);
 bot.on(message('document'), async (ctx) => {
@@ -3084,6 +3125,8 @@ bot.on(message('document'), async (ctx) => {
   }
   await handleImageMessage(ctx);
 });
+bot.on(message('voice'), handleVoiceMessage);
+bot.on(message('audio'), handleVoiceMessage);
 
 // Graceful shutdown
 process.once('SIGINT', () => {
