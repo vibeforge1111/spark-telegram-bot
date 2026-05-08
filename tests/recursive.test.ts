@@ -228,6 +228,7 @@ test('parses and renders stitched recursive trace views', () => {
     },
     timeline: [
       { kind: 'round', title: 'round-003', status: 'kept', summary: 'improved' },
+      { kind: 'outcome', title: 'outcome:startup-yc:baseline', status: 'flat', summary: 'baseline held' },
       { kind: 'canvas', title: 'Spawner Canvas load', status: 'pending', summary: 'queued' }
     ]
   });
@@ -236,8 +237,42 @@ test('parses and renders stitched recursive trace views', () => {
   assert.match(reply, /Needs review: no\./);
   assert.match(reply, /Canvas: pending/);
   assert.match(reply, /round-003/);
+  assert.match(reply, /outcome: baseline \[flat\]/);
+  assert.doesNotMatch(reply, /outcome:startup-yc:baseline/);
   assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
   assert.match(reply, /1\. \/recursive review session-startup-yc-001/);
+});
+
+test('renders long path trace titles as readable labels', () => {
+  const reply = renderRecursiveTraceView({
+    session_id: 'path:startup-yc',
+    title: 'Improve Startup YC on Startup Bench by iterating the active YC sub-doctrine on benchmarks/startup-yc.tool_calls.json.',
+    status: 'open',
+    source_kind: 'spark_workspace_evolution_path',
+    spawner: {
+      board_entry: { status: 'open', taskCount: 96 },
+      canvas_queue: {
+        pipelineId: 'spark-workspace-recursions',
+        pending: false,
+        latest: true,
+        autoRun: false
+      }
+    },
+    review: {
+      required: true,
+      decisions: new Array(7).fill({}),
+      local_packets: [],
+      swarm_packets: []
+    },
+    timeline: [
+      { kind: 'outcome', title: 'outcome:startup-yc:round:20260423T105059878039Z', status: 'improved', summary: 'improved' }
+    ]
+  });
+
+  assert.match(reply, /Startup YC is open\./);
+  assert.match(reply, /Needs review: 7 decisions waiting\./);
+  assert.match(reply, /outcome: round 20260423T105059878039Z \[improved\]/);
+  assert.doesNotMatch(reply, /Improve Startup YC on Startup Bench by iterating/);
 });
 
 test('builds a Workspace collective payload for Builder chip loops', () => {

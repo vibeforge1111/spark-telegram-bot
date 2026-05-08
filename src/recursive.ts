@@ -1126,12 +1126,12 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
-  const timeline = trace.timeline.slice(-6).map((item) => `- ${item.kind}: ${item.title} [${item.status}]`);
+  const timeline = trace.timeline.slice(-6).map(formatTraceTimelineItem);
   const reviewLine = trace.review.required
-    ? `Needs review: ${pluralize(trace.review.decisions.length, 'decision')}.`
+    ? `Needs review: ${pluralize(trace.review.decisions.length, 'decision')} waiting.`
     : 'Needs review: no.';
   return [
-    `${trace.title || trace.session_id} is ${trace.status}.`,
+    `${traceDisplayTitle(trace)} is ${trace.status}.`,
     reviewLine,
     `Board: ${trace.spawner.board_entry.status}, ${pluralize(trace.spawner.board_entry.taskCount, 'item')}.`,
     `Canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'latest' : 'not queued'} (${canvas.pipelineId}).`,
@@ -1661,6 +1661,33 @@ function friendlyOutcomeChange(verdict: string | null | undefined): string {
   if (normalized.includes('unknown')) return 'not enough signal yet';
   if (normalized.includes('no rounds')) return 'not started';
   return normalized || 'recorded';
+}
+
+function traceDisplayTitle(trace: RecursiveTraceView): string {
+  const id = trace.session_id || '';
+  if (id.startsWith('path:')) return labelFromKey(id.slice('path:'.length));
+  const builderChipMatch = /^path_builder_chip_(.+)$/.exec(id);
+  if (builderChipMatch) return labelFromKey(builderChipMatch[1]);
+  const simplePathMatch = /^path_(.+)$/.exec(id);
+  if (simplePathMatch) return labelFromKey(simplePathMatch[1]);
+  const title = (trace.title || '').trim();
+  if (title && title.length <= 80) return title.replace(/[.]+$/, '');
+  return id || 'Recursive loop';
+}
+
+function formatTraceTimelineItem(item: RecursiveTraceView['timeline'][number]): string {
+  const title = cleanTraceTimelineTitle(item.title);
+  return `- ${item.kind}: ${title} [${item.status}]`;
+}
+
+function cleanTraceTimelineTitle(title: string): string {
+  const outcomeMatch = /^outcome[:_][^:_]+[:_](.+)$/i.exec(title);
+  const cleaned = (outcomeMatch ? outcomeMatch[1] : title)
+    .replace(/^round[:_]/i, 'round ')
+    .replace(/[_:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || title;
 }
 
 function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
