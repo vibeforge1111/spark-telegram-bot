@@ -12,6 +12,8 @@ import {
   buildRecentBuildContextReply,
   extractAgentDoctrinePreference,
   formatAgentDoctrinePreferenceAcknowledgement,
+  formatAgentDoctrinePreferenceForBuilderSync,
+  formatAgentDoctrinePreferenceStatus,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -40,6 +42,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  isAgentDoctrinePreferenceStatusQuestion,
   isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -837,6 +840,41 @@ test('identifies standalone agent doctrine turns for a natural acknowledgement',
   assert.match(reply, /preference for how I talk with you/);
   assert.match(reply, /use short paragraphs/);
   assert.match(reply, /\n\n/);
+});
+
+test('answers user questions about saved agent interaction preferences', () => {
+  assert.equal(isAgentDoctrinePreferenceStatusQuestion('what style preferences do you have for me?'), true);
+  assert.equal(isAgentDoctrinePreferenceStatusQuestion('show my agent communication rules'), true);
+  assert.equal(isAgentDoctrinePreferenceStatusQuestion('what preferences are you using when talking with me'), true);
+  assert.equal(isAgentDoctrinePreferenceStatusQuestion('build a preference dashboard'), false);
+
+  const reply = formatAgentDoctrinePreferenceStatus([
+    'Agent interaction preference [format]: use short paragraphs with blank lines',
+    'Agent interaction preference [tool_behavior]: ask before starting missions'
+  ]);
+  assert.match(reply, /how I talk with you/);
+  assert.match(reply, /format: use short paragraphs/);
+  assert.match(reply, /tool behavior: ask before starting missions/);
+  assert.equal(
+    formatAgentDoctrinePreferenceStatus([]),
+    'I do not have any saved interaction preferences for this chat yet.'
+  );
+});
+
+test('formats agent doctrine preferences for Builder persona sync', () => {
+  const replyShape = formatAgentDoctrinePreferenceForBuilderSync(
+    'Agent interaction preference [format]: Use short paragraphs with blank lines'
+  );
+
+  assert.match(replyShape, /Your style should follow this saved agent interaction preference/);
+  assert.match(replyShape, /When you talk to me, use short paragraphs with blank lines\./);
+  assert.doesNotMatch(replyShape, /Agent interaction preference \[format\]/);
+
+  const ruleShape = formatAgentDoctrinePreferenceForBuilderSync(
+    'Agent interaction preference [tone]: Do not give chatbot-like generic answers.'
+  );
+
+  assert.match(ruleShape, /When you talk to me, do not give chatbot-like generic answers\./);
 });
 
 test('memory directives only accept Builder memory-route confirmations', () => {

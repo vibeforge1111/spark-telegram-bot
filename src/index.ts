@@ -135,6 +135,8 @@ import {
   extractSparkWikiQuery,
   extractAgentDoctrinePreference,
   formatAgentDoctrinePreferenceAcknowledgement,
+  formatAgentDoctrinePreferenceForBuilderSync,
+  formatAgentDoctrinePreferenceStatus,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
@@ -154,6 +156,7 @@ import {
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  isAgentDoctrinePreferenceStatusQuestion,
   isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -361,6 +364,22 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   return true;
 }
 
+async function syncAgentDoctrinePreferenceViaBuilder(ctx: any, preference: string): Promise<boolean> {
+  if (process.env.SPARK_AGENT_PERSONA_BUILDER_SYNC === '0') {
+    return false;
+  }
+  const syncText = formatAgentDoctrinePreferenceForBuilderSync(preference);
+  if (!syncText) {
+    return false;
+  }
+  try {
+    const builderReply = await runBuilderTelegramBridge(buildUpdateWithText(ctx.update as Record<string, unknown>, syncText));
+    return Boolean(builderReply.used && builderReply.bridgeMode !== 'bridge_error');
+  } catch (error) {
+    console.warn('[AgentDoctrine] Builder persona preference sync unavailable:', error);
+    return false;
+  }
+}
 async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>): Promise<void> {
   if (builderReply.responseText) {
     await ctx.reply(builderReply.responseText);
@@ -2464,6 +2483,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
   if (agentDoctrinePreference) {
     await conversation.storeAgentDoctrinePreference(ctx.from, agentDoctrinePreference).catch(() => {});
+    const builderSynced = await syncAgentDoctrinePreferenceViaBuilder(ctx, agentDoctrinePreference);
+    if (!builderSynced) {
+      console.warn('[AgentDoctrine] kept preference in Telegram hot memory; Builder persona sync was unavailable.');
+    }
     if (!extractPlainChatMemoryDirective(text) && isStandaloneAgentDoctrinePreference(text)) {
       const reply = formatAgentDoctrinePreferenceAcknowledgement(agentDoctrinePreference);
       await conversation.remember(user, text).catch(() => {});
@@ -2473,6 +2496,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
+  if (!earlyBuildIntent && isAgentDoctrinePreferenceStatusQuestion(text)) {
+    const preferences = await conversation.getAgentDoctrinePreferences(user).catch(() => []);
+    const reply = formatAgentDoctrinePreferenceStatus(preferences);
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
   if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {

@@ -337,6 +337,12 @@ export class ConversationMemory {
     return null;
   }
 
+  async getAgentDoctrinePreferences(user: TelegramUser): Promise<string[]> {
+    await this.ensureLoaded();
+    const notes = this.notesByUser.get(this.userKey(user)) || [];
+    return notes.filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
+  }
+
   async recordInterruptedTask(
     user: TelegramUser,
     input: { message: string; failure: string; stage?: string }

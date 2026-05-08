@@ -89,6 +89,12 @@ async function main(): Promise<void> {
     assert.match(context, /Agent interaction preference \[format\]: use paragraph spacing between thoughts/);
     assert.doesNotMatch(context, /Agent interaction preference \[detail\]: be concise/);
     assert.equal(otherContext, 'No prior memories.');
+
+    assert.deepEqual(await memory.getAgentDoctrinePreferences(user), [
+      'Agent interaction preference [format]: use paragraph spacing between thoughts',
+      'Agent interaction preference [detail]: be more detailed when tradeoffs matter'
+    ]);
+    assert.deepEqual(await memory.getAgentDoctrinePreferences({ id: 67890 }), []);
   });
   });
 

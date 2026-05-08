@@ -1280,14 +1280,62 @@ export function isStandaloneAgentDoctrinePreference(text: string): boolean {
 }
 
 export function formatAgentDoctrinePreferenceAcknowledgement(preference: string): string {
-  const detail = preference
-    .replace(/^Agent interaction preference \[[^\]]+\]:\s*/i, '')
-    .replace(/[.!?]+$/g, '')
-    .trim();
+  const detail = extractAgentDoctrinePreferenceDetail(preference);
   return [
     'Got it. I will keep that as a preference for how I talk with you.',
     detail ? `I will adjust around this from here: ${detail}.` : 'I will adjust from here.'
   ].join('\n\n');
+}
+
+function extractAgentDoctrinePreferenceDetail(preference: string): string {
+  return preference
+    .replace(/^Agent interaction preference \[[^\]]+\]:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+}
+
+function lowerFirstAgentPreferenceClause(detail: string): string {
+  return detail ? `${detail[0].toLowerCase()}${detail.slice(1)}` : detail;
+}
+
+export function formatAgentDoctrinePreferenceForBuilderSync(preference: string): string {
+  const detail = extractAgentDoctrinePreferenceDetail(preference);
+  if (!detail) return '';
+  const clause = lowerFirstAgentPreferenceClause(detail).slice(0, 220);
+  return [
+    'Your style should follow this saved agent interaction preference.',
+    `When you talk to me, ${clause}.`
+  ].join('\n');
+}
+
+export function isAgentDoctrinePreferenceStatusQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  return (
+    /\b(?:what|which|show|list|tell)\b/.test(normalized) &&
+    /\b(?:preferences?|rules?|guidance|doctrine|style|tone|personality|interaction|communication)\b/.test(normalized) &&
+    /\b(?:remember|saved|carrying|using|have|know|for me|with me|my agent|you)\b/.test(normalized)
+  );
+}
+
+export function formatAgentDoctrinePreferenceStatus(preferences: string[]): string {
+  if (preferences.length === 0) {
+    return 'I do not have any saved interaction preferences for this chat yet.';
+  }
+
+  const lines = preferences.map((preference) => {
+    const match = preference.match(/^Agent interaction preference \[([a-z_]+)\]:\s*(.+)$/i);
+    if (!match) {
+      return `- ${preference}`;
+    }
+    const dimension = match[1].replace(/_/g, ' ');
+    return `${dimension}: ${match[2]}`;
+  });
+
+  return ['Here is what I am using for how I talk with you.', ...lines].join('\n\n');
 }
 
 export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {
