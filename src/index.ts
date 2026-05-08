@@ -1133,11 +1133,22 @@ bot.command('insights', async (ctx) => {
   await ctx.reply(insights);
 });
 
-// /voice - what Spark learned about user
+// /voice - Builder-owned voice status/onboarding. Do not fall back to the
+// deferred dashboard placeholder; voice is a Builder/chip capability now.
 bot.command('voice', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
-  const voice = await spark.getVoice();
-  await ctx.reply(voice);
+  console.log(`[Voice] /voice command received user=${ctx.from?.id || 'unknown'} chat_type=${ctx.chat?.type || 'unknown'}`);
+  try {
+    const routed = await replyViaBuilder(ctx, ctx.message?.text || '/voice');
+    if (routed) {
+      console.log('[Voice] Builder voice route replied');
+      return;
+    }
+    console.log('[Voice] Builder voice route unavailable');
+  } catch (err) {
+    console.warn('[Bridge] /voice Builder route failed:', err);
+  }
+  await ctx.reply('Voice is routed through Builder now, but the Builder voice route did not answer this turn. Run `/diagnose`, then try `/voice` again.');
 });
 
 // /lessons - surprise lessons
