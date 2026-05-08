@@ -132,6 +132,21 @@ Default behavior is `auto`, which looks for a sibling `spark-intelligence-builde
 
 Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 
+### Agent Style Preference Sync
+
+The Telegram gateway recognizes explicit, durable agent-style requests such as "when you talk to me, use short paragraphs" or "I want my agent to be more conversational". These are not treated as ordinary memory facts.
+
+The safe flow is:
+
+1. Telegram stores the preference in per-user local conversation notes so the next reply can adapt immediately.
+2. Telegram sends a canonical style-authoring turn to Builder.
+3. Builder persists the rule in the paired agent's `agent_persona_profiles` / `agent_persona_mutations` path.
+4. If Builder is unavailable, Telegram keeps the local hot preference and logs the sync miss instead of claiming a durable Builder save failed or succeeded.
+
+Users can ask what interaction preferences Spark is using for them. The gateway answers from the same per-user local preference notes.
+
+This path deliberately does not write to `domain-chip-memory`, does not mutate global `spark-character`, and does not change human trait-memory overlays. Set `SPARK_AGENT_PERSONA_BUILDER_SYNC=0` to disable the Builder sync while leaving local hot preferences intact.
+
 Operator check:
 
 ```bash

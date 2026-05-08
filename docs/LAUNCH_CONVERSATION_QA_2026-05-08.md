@@ -30,6 +30,8 @@ energy while staying grounded and useful.
 - Cold memory context is filtered and bounded before prompt injection.
 - Memory directives require Builder memory-route confirmation before claiming a
   save succeeded.
+- Explicit durable agent-style preferences are captured per user, applied in
+  Telegram hot context, and synced into Builder's per-agent persona profile.
 - Cross-user local conversation context is isolated.
 - Outbound Telegram text strips bold emphasis, replaces dash-family characters,
   chunks long replies, and redacts secrets.
@@ -45,7 +47,33 @@ energy while staying grounded and useful.
 - Active persona resolution and agent/user/session scoping.
 - Telegram ingress ownership or relay identity behavior.
 - Provider routing, model switching, or Builder bridge execution paths.
-- Any automatic style-to-memory learning.
+- Broad automatic style-to-memory learning from passive conversation residue.
+
+## Launch-safe persona preference path
+
+Users can explicitly tune how their agent talks without touching the durable
+memory system. The accepted launch-safe scope is narrow:
+
+- Only explicit durable requests are captured, not one-off "just this reply"
+  instructions.
+- Global requests such as "all agents" or "default doctrine" are ignored by the
+  Telegram preference extractor.
+- Telegram stores the preference in per-user local hot context for immediate
+  continuity.
+- Telegram syncs a canonical style-authoring turn to Builder.
+- Builder writes the rule to `agent_persona_profiles` and records an
+  `agent_persona_mutations` audit row.
+- The path must not write to `domain-chip-memory`, mutate `spark-character`, or
+  create `personality_trait_profiles` rows for these agent-authored rules.
+
+Rollback flag:
+
+```text
+SPARK_AGENT_PERSONA_BUILDER_SYNC=0
+```
+
+This disables the Builder sync while leaving local Telegram hot preferences in
+place.
 
 ## Launch conversation checks
 
@@ -175,3 +203,29 @@ After launch, in a separate hardening pass:
 3. Introduce a shared style packet only after offline parity tests pass.
 4. Scope active persona lookup by agent, user, pairing, or explicit override.
 5. Preserve memory movement traceability before changing any recall context.
+
+## Future path
+
+Next safe increments:
+
+1. Add user-visible edit and remove flows for saved interaction preferences.
+2. Surface persona provenance: last changed time, source surface, and latest
+   mutation kind.
+3. Add natural-language tests for status, update, duplicate, remove, and
+   conflict cases across multiple Telegram users.
+4. Teach Builder to explain the active persona in plain language without leaking
+   table names or internal routing details.
+5. Add a shadow evaluator that compares replies before and after a preference
+   update for warmth, spacing, specificity, and "chatbox generic" drift.
+
+Riskier work for a later design review:
+
+1. Passive personality learning from repeated behavior signals.
+2. Global personality evolution through `spark-character`.
+3. Cross-agent preference inheritance.
+4. Memory-side calibration between user facts, agent style, and procedural
+   lessons.
+5. Automatic promotion of conversation observations into persona doctrine.
+
+Those later phases need explicit provenance, undo, per-user/per-agent scoping,
+and memory movement traces before they should ship.
