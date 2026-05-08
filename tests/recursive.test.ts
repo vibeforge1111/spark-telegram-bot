@@ -1450,6 +1450,13 @@ test('maps Workspace decision inbox items into Telegram review surfaces', () => 
   const sessions = workspaceSessions(snapshot);
   assert.equal(sessions[0].review_required, true);
 
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
+  assert.match(report, /Needs review: 1 decision waiting\./);
+  assert.match(report, /1\. \/recursive review path_builder_chip_startup_yc/);
+  assert.match(report, /2\. \/recursive trace path_builder_chip_startup_yc/);
+  assert.match(report, /3\. After review: \/recursive start startup-yc rounds 3/);
+  assert.doesNotMatch(report, /3\. \/recursive start startup-yc rounds 3/);
+
   const review = renderRecursiveWorkspaceReview(snapshot, 'path_builder_chip_startup_yc');
   assert.match(review, /1 decision waiting for Spark Intelligence Builder\./);
   assert.match(review, /Start with the first review outcome item\./);

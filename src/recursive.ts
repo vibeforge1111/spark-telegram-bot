@@ -1583,7 +1583,9 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const nextActions = [
     decisions.length > 0 ? `1. /recursive review ${path.id}` : null,
     `${decisions.length > 0 ? '2' : '1'}. /recursive trace ${path.id}`,
-    recursiveStartTargetForPath(path, spec) ? `${decisions.length > 0 ? '3' : '2'}. /recursive start ${recursiveStartTargetForPath(path, spec)} rounds 3` : null
+    recursiveStartTargetForPath(path, spec)
+      ? `${decisions.length > 0 ? '3. After review: ' : '2. '}/recursive start ${recursiveStartTargetForPath(path, spec)} rounds 3`
+      : null
   ].filter((line): line is string => Boolean(line));
 
   return [
