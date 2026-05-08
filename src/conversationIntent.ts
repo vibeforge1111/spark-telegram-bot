@@ -163,6 +163,9 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (!normalized || parseBuildIntent(normalized)) {
     return null;
   }
+  if (isVoiceOnboardingSetupQuestion(normalized)) {
+    return null;
+  }
   if (
     /\bwhere\s+(?:do|does|are|is)\b/i.test(normalized) &&
     /\b(?:lack|lacks|weak|weakness|weaknesses|missing|limitations?)\b/i.test(normalized) &&
@@ -208,6 +211,18 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   }
 
   return null;
+}
+
+function isVoiceOnboardingSetupQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  const simplified = normalized.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (
+    /\bvoice\b/.test(simplified) &&
+    (
+      /\b(?:set up|setup|configure|onboard|onboarding)\b/.test(normalized) ||
+      /\b(?:set up|setup|configure|onboard|onboarding)\b/.test(simplified)
+    )
+  );
 }
 
 export function isSparkSelfMemoryDiagnosticQuestion(text: string): boolean {

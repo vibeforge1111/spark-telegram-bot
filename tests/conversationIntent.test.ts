@@ -684,6 +684,8 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
+  assert.equal(extractSparkSelfImprovementGoal('Can you help me set up voice locally for Spark?'), null);
+  assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
   assert.match(
     extractSparkSelfImprovementGoal('Can you add a capability for Spark to read my emails?') || '',
     /Improve Spark capability safely/
