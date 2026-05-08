@@ -1674,18 +1674,18 @@ export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot,
   const networkLine = path ? `Network: ${friendlyReviewNetwork(path.scope)}` : null;
   const firstHighPriority = groups.find((group) => reviewPriorityRank(group.item.priority) >= reviewPriorityRank('high'));
   const reviewCall = firstHighPriority
-    ? `Start with ${firstHighPriority.item.title}.`
-    : `Start with the first ${reviewKindLabel(groups[0].item.kind).toLowerCase()} item.`;
+    ? `Start here: ${firstHighPriority.item.title}.`
+    : `Start here: first ${reviewKindLabel(groups[0].item.kind).toLowerCase()}.`;
 
   return [
-    `${pluralize(items.length, 'decision')} waiting for ${targetLabel}.`,
-    groups.length < items.length ? `${pluralize(groups.length, 'blocker')} shown after grouping similar items.` : null,
+    `${pluralize(items.length, 'decision')} waiting for your call on ${targetLabel}.`,
+    groups.length < items.length ? `${pluralize(groups.length, 'blocker')} shown after grouping repeats.` : null,
     reviewCall,
     scopeLine,
     networkLine,
     `Open: Decisions ${sparkWorkspaceDecisionsUrl()}`,
     '',
-    'Queue:',
+    'Items:',
     ...groups.slice(0, 8).flatMap((group, index) => renderReviewGroup(group, index + 1)),
     groups.length > 8 ? `...and ${groups.length - 8} more.` : null
   ].filter((line): line is string => Boolean(line)).join('\n');
@@ -1862,20 +1862,20 @@ function renderReviewGroup(group: ReviewItemGroup, index: number): string[] {
   const item = group.item;
   const suffix = group.count > 1 ? ` (${pluralize(group.count, 'item')})` : '';
   const lines = [
-    `${index}. ${reviewKindLabel(item.kind)}: ${item.title}${suffix}`,
-    `Priority: ${item.priority}`,
-    `Why it matters: ${reviewGroupSummary(group)}`
+    `${index}. ${item.title}${suffix}`,
+    `Type: ${reviewKindLabel(item.kind)}, priority ${item.priority}.`,
+    `Why: ${ensureSentence(reviewGroupSummary(group))}`
   ];
   if (item.recommendedAction) {
-    lines.push(`Recommended move: ${truncate(item.recommendedAction, 140)}`);
+    lines.push(`Suggested: ${ensureSentence(truncate(item.recommendedAction, 140))}`);
   }
 
   const actions = reviewTelegramActions(item);
   if (actions.length > 0) {
-    lines.push('Actions:', ...actions.map((action) => `- ${action}`));
+    lines.push('Telegram actions:', ...actions.map((action) => `- ${action}`));
   } else {
     lines.push(
-      'Action: open Decisions for this one.',
+      'Next: open Decisions for this item.',
       `- ${sparkWorkspaceDecisionsUrl()}`
     );
   }

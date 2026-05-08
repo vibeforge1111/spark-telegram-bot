@@ -1489,15 +1489,16 @@ test('maps Workspace decision inbox items into Telegram review surfaces', () => 
   assert.doesNotMatch(report, /3\. \/recursive start startup-yc rounds 3/);
 
   const review = renderRecursiveWorkspaceReview(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(review, /1 decision waiting for Spark Intelligence Builder\./);
-  assert.match(review, /Start with the first review outcome item\./);
+  assert.match(review, /1 decision waiting for your call on Spark Intelligence Builder\./);
+  assert.match(review, /Start here: first review outcome\./);
   assert.match(review, /Scope: private workspace/);
   assert.match(review, /Network: not submitted/);
-  assert.match(review, /1\. Review outcome: Review Builder chip outcome/);
-  assert.match(review, /Priority: medium/);
-  assert.match(review, /Why it matters: Outcome needs dashboard action\./);
+  assert.match(review, /Items:/);
+  assert.match(review, /1\. Review Builder chip outcome/);
+  assert.match(review, /Type: Review outcome, priority medium\./);
+  assert.match(review, /Why: Outcome needs dashboard action\./);
   assert.match(review, /Open Recursions and inspect the run trace/);
-  assert.match(review, /Action: open Decisions for this one\./);
+  assert.match(review, /Next: open Decisions for this item\./);
   assert.doesNotMatch(review, /review_outcome/);
 });
 
@@ -1553,14 +1554,15 @@ test('renders supported Workspace review items with Telegram actions', () => {
   };
 
   const review = renderRecursiveWorkspaceReview(snapshot, 'path:startup-yc');
-  assert.match(review, /2 decisions waiting for Startup YC\./);
-  assert.match(review, /Start with Review team-health mastery\./);
-  assert.match(review, /1\. Review mastery: Review team-health mastery/);
-  assert.match(review, /Priority: high/);
+  assert.match(review, /2 decisions waiting for your call on Startup YC\./);
+  assert.match(review, /Start here: Review team-health mastery\./);
+  assert.match(review, /1\. Review team-health mastery/);
+  assert.match(review, /Type: Review mastery, priority high\./);
+  assert.match(review, /Telegram actions:/);
   assert.match(review, /Approve: \/recursive approve inbox_high_mastery evidence is strong enough/);
   assert.match(review, /More eval: \/recursive more-eval inbox_high_mastery needs another benchmark pass/);
   assert.match(review, /Reject: \/recursive reject inbox_high_mastery evidence is not strong enough/);
-  assert.match(review, /2\. Absorb insight: Absorb risk-management insight/);
+  assert.match(review, /2\. Absorb risk-management insight/);
   assert.match(review, /Approve: \/recursive approve inbox_low_absorb absorb this insight/);
   assert.doesNotMatch(review, /review_mastery/);
 });
@@ -1617,11 +1619,12 @@ test('groups repeated dashboard-only Workspace review blockers', () => {
   };
 
   const review = renderRecursiveWorkspaceReview(snapshot, 'path:startup-yc');
-  assert.match(review, /2 decisions waiting for Startup YC\./);
-  assert.match(review, /1 blocker shown after grouping similar items\./);
+  assert.match(review, /2 decisions waiting for your call on Startup YC\./);
+  assert.match(review, /1 blocker shown after grouping repeats\./);
   assert.match(review, /Scope: specialization path/);
   assert.match(review, /Network: review required/);
-  assert.match(review, /1\. Rewrite Insight: Rewrite blocked insight \(2 items\)/);
+  assert.match(review, /1\. Rewrite blocked insight \(2 items\)/);
+  assert.match(review, /Type: Rewrite Insight, priority high\./);
   assert.match(review, /Reasons: Primary message exceeds the network readability limit; Contains a suspicious long opaque token/);
   assert.doesNotMatch(review, /2\. Rewrite Insight/);
 });
