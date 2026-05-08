@@ -39,6 +39,16 @@ export interface BuilderBridgeReply {
   decision: string;
   bridgeMode: string;
   routingDecision: string;
+  voiceMedia?: BuilderBridgeVoiceMedia;
+}
+
+export interface BuilderBridgeVoiceMedia {
+  audioBase64: string;
+  mimeType: string;
+  filename: string;
+  voiceCompatible: boolean;
+  providerId?: string;
+  voiceId?: string;
 }
 
 export interface BuilderDiagnosticsScanJson {
@@ -1834,6 +1844,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
         response_text?: unknown;
         bridge_mode?: unknown;
         routing_decision?: unknown;
+        voice_media?: unknown;
       };
     };
 
@@ -1874,6 +1885,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       decision: String(parsed.decision || '').trim(),
       bridgeMode,
       routingDecision,
+      voiceMedia: parseBuilderBridgeVoiceMedia(detail.voice_media),
     };
   } catch (error) {
     if (config.mode === 'required') {
@@ -1890,4 +1902,23 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+function parseBuilderBridgeVoiceMedia(value: unknown): BuilderBridgeVoiceMedia | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const media = value as Record<string, unknown>;
+  const audioBase64 = String(media.audio_base64 || '').trim();
+  if (!audioBase64) {
+    return undefined;
+  }
+  return {
+    audioBase64,
+    mimeType: String(media.mime_type || 'audio/mpeg').trim() || 'audio/mpeg',
+    filename: String(media.filename || 'telegram-reply.audio').trim() || 'telegram-reply.audio',
+    voiceCompatible: Boolean(media.voice_compatible),
+    providerId: String(media.provider_id || '').trim() || undefined,
+    voiceId: String(media.voice_id || '').trim() || undefined,
+  };
 }

@@ -354,8 +354,29 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   if (isLowInformationLlmReply(builderReply.responseText)) {
     return false;
   }
-  await ctx.reply(builderReply.responseText);
+  if (builderReply.responseText) {
+    await ctx.reply(builderReply.responseText);
+  }
+  if (builderReply.voiceMedia) {
+    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia);
+  }
   return true;
+}
+
+async function sendBuilderVoiceMedia(ctx: any, voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>): Promise<void> {
+  const audioBuffer = Buffer.from(voiceMedia.audioBase64, 'base64');
+  const inputFile = {
+    source: audioBuffer,
+    filename: voiceMedia.filename,
+  };
+  console.log(
+    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length}`
+  );
+  if (voiceMedia.voiceCompatible) {
+    await ctx.replyWithVoice(inputFile);
+    return;
+  }
+  await ctx.replyWithAudio(inputFile);
 }
 
 function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
