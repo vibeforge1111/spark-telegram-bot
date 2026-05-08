@@ -106,5 +106,5 @@ function truncateCaption(value: string, maxChars: number): string {
       slice = slice.slice(0, sentenceCut + 1).trimEnd();
     }
   }
-  return `${slice.replace(/[,\s]+$/g, '')}${marker}`.slice(0, maxChars);
+  return `${slice.replace(/[.!?,;:\s]+$/g, '')}${marker}`.slice(0, maxChars);
 }
