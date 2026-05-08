@@ -1067,20 +1067,29 @@ export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandi
 }
 
 export function renderRecursiveDecision(record: RecursiveDecisionRecord): string {
+  const applied = record.effect === 'spark_workspace_review';
+  const action = friendlyDecisionLabel(record.decision);
+  const target = record.target_type && record.target_id
+    ? `${labelFromKey(record.target_type)} ${record.target_id}`
+    : record.session_id;
+  const reportTarget = decisionReportTarget(record);
   const lines = [
-    'Recursive review decision routed.',
-    `Session: ${record.session_id}`,
-    `Decision: ${record.decision}`,
-    `Scope: ${record.scope}`,
-    `Effect: ${record.effect}`,
+    applied ? `Decision applied: ${action}.` : `Decision not applied in Telegram: ${action}.`,
+    `Target: ${target}`
   ];
-  if (record.target_type && record.target_id) {
-    lines.push(`Target: ${record.target_type} ${record.target_id}`);
-  }
+  if (record.rationale) lines.push(`Reason: ${record.rationale}`);
   if (record.workspace_detail) {
-    lines.push(record.workspace_detail);
+    lines.push(`Status: ${friendlyWorkspaceDecisionDetail(record.workspace_detail)}`);
   }
-  lines.push(`Workspace: ${sparkWorkspaceDecisionsUrl()}`);
+  lines.push(
+    `Decisions: ${sparkWorkspaceDecisionsUrl()}`,
+    '',
+    'Next:',
+    applied
+      ? `1. /recursive review ${record.target_id || record.session_id}`
+      : '1. Open Decisions and finish this one there.',
+    reportTarget ? `2. /recursive report ${reportTarget}` : `2. ${sparkWorkspaceDecisionsUrl()}`
+  );
   return lines.join('\n');
 }
 
@@ -1680,6 +1689,38 @@ function friendlyOutcomeChange(verdict: string | null | undefined): string {
   if (normalized.includes('unknown')) return 'not enough signal yet';
   if (normalized.includes('no rounds')) return 'not started';
   return normalized || 'recorded';
+}
+
+function friendlyDecisionLabel(decision: RecursiveDecision): string {
+  if (decision === 'approve_local') return 'approved';
+  if (decision === 'request_more_eval') return 'more eval requested';
+  if (decision === 'defer') return 'deferred';
+  if (decision === 'reject') return 'rejected';
+  return decision;
+}
+
+function friendlyWorkspaceDecisionDetail(detail: string): string {
+  if (/No matching Workspace inbox item/i.test(detail)) {
+    return 'No matching decision was found. Open Decisions and refresh the queue.';
+  }
+  if (/only support approve\/absorb/i.test(detail)) {
+    return 'This item only supports approve from Telegram.';
+  }
+  if (/Workspace insight absorb request submitted/i.test(detail)) {
+    return 'Insight absorb request submitted.';
+  }
+  const masteryMatch = /Workspace mastery review submitted as ([^.]+)\./i.exec(detail);
+  if (masteryMatch) return `Mastery review submitted as ${masteryMatch[1]}.`;
+  if (/needs Workspace Decisions|Telegram did not mutate it/i.test(detail)) {
+    return 'This item has to be handled in Workspace Decisions.';
+  }
+  return detail;
+}
+
+function decisionReportTarget(record: RecursiveDecisionRecord): string | null {
+  if (record.target_type === 'evolution_path' && record.target_id) return record.target_id;
+  if (/^path[:_]/.test(record.session_id)) return record.session_id;
+  return null;
 }
 
 interface ReviewItemGroup {

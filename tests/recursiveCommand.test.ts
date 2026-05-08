@@ -159,10 +159,11 @@ async function main(): Promise<void> {
       await handleRecursiveCommand(ctx);
       const reply = ctx.replies.join('\n');
       assert.equal(mutationPosts, 0);
-      assert.match(reply, /Telegram did not mutate it/);
+      assert.match(reply, /Decision not applied in Telegram: approved\./);
+      assert.match(reply, /Status: This item has to be handled in Workspace Decisions\./);
+      assert.match(reply, /2\. \/recursive report path_domain_autoloop_crypto_trading/);
       assert.match(reply, /http:\/\/workspace\.example\.test\/runs\?tab=decisions/);
-      assert.match(reply, /Scope: local/);
-      assert.match(reply, /Effect: workspace_route_only/);
+      assert.doesNotMatch(reply, /workspace_route_only/);
     } finally {
       if (previousApiUrl === undefined) delete process.env.SPARK_SWARM_API_URL;
       else process.env.SPARK_SWARM_API_URL = previousApiUrl;

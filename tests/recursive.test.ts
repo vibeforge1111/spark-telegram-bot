@@ -118,9 +118,36 @@ test('renders review queue and audit-only decision records', () => {
     effect: 'workspace_route_only'
   });
 
-  assert.match(decision, /workspace_route_only/);
-  assert.match(decision, /Workspace: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
+  assert.match(decision, /Decision not applied in Telegram: approved\./);
+  assert.match(decision, /Target: creator-mission-001/);
+  assert.match(decision, /Reason: ok/);
+  assert.match(decision, /Decisions: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
+  assert.doesNotMatch(decision, /\/recursive report creator-mission-001/);
+  assert.doesNotMatch(decision, /workspace_route_only/);
   assert.equal(sparkWorkspaceDecisionsUrl(), 'http://127.0.0.1:5173/runs?tab=decisions');
+});
+
+test('renders applied recursive decisions as plain confirmations', () => {
+  const decision = renderRecursiveDecision({
+    decision_id: 'review-2',
+    session_id: 'inbox_high_mastery',
+    decision: 'request_more_eval',
+    scope: 'workspace',
+    actor: 'telegram:test',
+    rationale: 'needs another benchmark pass',
+    created_at: '2026-05-07T00:00:00Z',
+    effect: 'spark_workspace_review',
+    target_type: 'mastery',
+    target_id: 'mastery_startup_yc_team_health',
+    workspace_detail: 'Workspace mastery review submitted as defer.'
+  });
+
+  assert.match(decision, /Decision applied: more eval requested\./);
+  assert.match(decision, /Target: Mastery mastery_startup_yc_team_health/);
+  assert.match(decision, /Status: Mastery review submitted as defer\./);
+  assert.match(decision, /1\. \/recursive review mastery_startup_yc_team_health/);
+  assert.doesNotMatch(decision, /\/recursive report mastery_startup_yc_team_health/);
+  assert.doesNotMatch(decision, /spark_workspace_review/);
 });
 
 test('parses and renders local promotion packets', () => {
