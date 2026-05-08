@@ -14,6 +14,7 @@ import {
   formatAgentDoctrinePreferenceAcknowledgement,
   formatAgentDoctrinePreferenceForBuilderSync,
   formatAgentDoctrinePreferenceStatus,
+  formatGlobalAgentDoctrineRequestReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -43,6 +44,7 @@ import {
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
+  isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -824,6 +826,11 @@ test('does not persist one-off or global doctrine requests as personal agent gui
   assert.equal(extractAgentDoctrinePreference('For now use bullets while we debug this.'), null);
   assert.equal(extractAgentDoctrinePreference('All Spark agents should be conversational by default.'), null);
   assert.equal(extractAgentDoctrinePreference('We should change production doctrine to be warmer.'), null);
+
+  assert.equal(isGlobalAgentDoctrineRequest('Make all Spark agents use this style globally.'), true);
+  assert.equal(isGlobalAgentDoctrineRequest('Make every agent reply with this tone.'), true);
+  assert.equal(isGlobalAgentDoctrineRequest('build a global dashboard for agents'), false);
+  assert.match(formatGlobalAgentDoctrineRequestReply(), /cannot change all Spark agents globally/);
 });
 
 test('identifies standalone agent doctrine turns for a natural acknowledgement', () => {

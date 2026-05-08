@@ -1279,6 +1279,24 @@ export function isStandaloneAgentDoctrinePreference(text: string): boolean {
   return true;
 }
 
+export function isGlobalAgentDoctrineRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b/.test(normalized) ||
+    /\b(?:globally|system-wide|production doctrine|default doctrine)\b/.test(normalized)
+  ) && /\b(?:style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference)\b/.test(normalized);
+}
+
+export function formatGlobalAgentDoctrineRequestReply(): string {
+  return [
+    'I cannot change all Spark agents globally from this chat.',
+    'I can keep a preference for this agent with you, though. Say something like: "when you talk to me, use short paragraphs with blank lines."'
+  ].join('\n\n');
+}
+
 export function formatAgentDoctrinePreferenceAcknowledgement(preference: string): string {
   const detail = extractAgentDoctrinePreferenceDetail(preference);
   return [

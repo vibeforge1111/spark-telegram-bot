@@ -137,6 +137,7 @@ import {
   formatAgentDoctrinePreferenceAcknowledgement,
   formatAgentDoctrinePreferenceForBuilderSync,
   formatAgentDoctrinePreferenceStatus,
+  formatGlobalAgentDoctrineRequestReply,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
@@ -157,6 +158,7 @@ import {
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
+  isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -2519,6 +2521,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isAgentDoctrinePreferenceStatusQuestion(text)) {
     const preferences = await conversation.getAgentDoctrinePreferences(user).catch(() => []);
     const reply = formatAgentDoctrinePreferenceStatus(preferences);
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (!earlyBuildIntent && isGlobalAgentDoctrineRequest(text)) {
+    const reply = formatGlobalAgentDoctrineRequestReply();
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
