@@ -1512,12 +1512,14 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const spec = specializationForPath(snapshot, path);
   const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
   const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
-  const latestOutcome = outcomesForPath(snapshot, path).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+  const pathOutcomes = outcomesForPath(snapshot, path);
+  const latestOutcome = pathOutcomes.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
   const decisions = inboxForPath(snapshot, path);
   const latestInsight = insights.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
   const strongestMastery = masteries.sort((a, b) => (b.benchmarkStrength || 0) - (a.benchmarkStrength || 0))[0];
   const artifacts = artifactsForPath(snapshot, path);
   const metricLine = latestOutcome ? formatOutcomeMetric(latestOutcome) : null;
+  const comparisonLine = latestOutcome ? formatOutcomeComparison(latestOutcome, pathOutcomes, path.bestOutcomeId) : null;
   const scorecardLine = latestOutcome ? formatOutcomeScorecard(latestOutcome) : null;
   const label = pathDisplayLabel(path, spec);
   const verdict = latestOutcome?.verdict || (path.bestOutcomeId ? 'recorded' : path.status);
@@ -1535,6 +1537,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     outcomeHeadline(label, verdict),
     metricLine ? `Score: ${metricLine}` : null,
     `Change: ${friendlyOutcomeChange(verdict)}`,
+    comparisonLine,
     `Updated: ${path.updatedAt || 'unknown'}`,
     '',
     'What happened:',
@@ -1870,6 +1873,59 @@ function cleanTraceTimelineTitle(title: string): string {
 function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
   if (typeof outcome.metricValue !== 'number') return null;
   return `${formatMetricLabel(outcome.metricName)} ${formatNumber(outcome.metricValue)}`;
+}
+
+function formatOutcomeComparison(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): string | null {
+  const bestOutcome = bestComparableOutcome(latestOutcome, outcomes, bestOutcomeId);
+  if (!bestOutcome || typeof latestOutcome.metricValue !== 'number' || typeof bestOutcome.metricValue !== 'number') return null;
+
+  const delta = latestOutcome.metricValue - bestOutcome.metricValue;
+  if (Math.abs(delta) < 0.000001) return 'Compare: matches current best.';
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  const latestIsBetter = lowerIsBetter ? delta < 0 : delta > 0;
+  const direction = latestIsBetter
+    ? 'beats current best by'
+    : lowerIsBetter
+      ? 'above current best by'
+      : 'below current best by';
+  return `Compare: ${direction} ${formatNumber(Math.abs(delta))} (best ${formatNumber(bestOutcome.metricValue)}).`;
+}
+
+function bestComparableOutcome(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): SparkWorkspaceOutcome | null {
+  if (typeof latestOutcome.metricValue !== 'number') return null;
+  const comparable = outcomes.filter((outcome) =>
+    outcome.metricName === latestOutcome.metricName &&
+    typeof outcome.metricValue === 'number'
+  );
+  if (comparable.length === 0) return null;
+
+  const selectedBest = bestOutcomeId
+    ? comparable.find((outcome) => outcome.id === bestOutcomeId)
+    : null;
+  if (selectedBest) return selectedBest;
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  return comparable.slice().sort((a, b) =>
+    lowerIsBetter
+      ? (a.metricValue as number) - (b.metricValue as number)
+      : (b.metricValue as number) - (a.metricValue as number)
+  )[0] ?? null;
+}
+
+function metricGoalPrefersLower(outcome: SparkWorkspaceOutcome): boolean {
+  const scorecardGoal = outcome.context?.scorecard?.headlineGoal || '';
+  if (/\b(lower|minimi[sz]e|smaller|less)\b/i.test(scorecardGoal)) return true;
+  const componentGoals = outcome.context?.scorecard?.components?.map((component) => component.goal).join(' ') || '';
+  return /\b(lower|minimi[sz]e|smaller|less)\b/i.test(componentGoals);
 }
 
 function formatOutcomeScorecard(outcome: SparkWorkspaceOutcome): string | null {

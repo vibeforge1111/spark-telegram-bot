@@ -921,6 +921,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
   assert.match(report, /Spark Intelligence Builder improved\./);
   assert.match(report, /Change: improved/);
+  assert.match(report, /Compare: matches current best\./);
   assert.match(report, /What happened:\nFinal round improved\./);
   assert.match(report, /Score: builder chip loop best metric 0.72/);
   assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup YC; Rounds: 3\/3/);
@@ -936,6 +937,133 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric 0.72');
   assert.equal(trace.timeline[1].kind, 'artifact');
   assert.equal(trace.timeline[1].status, 'run_trace');
+});
+
+test('compares latest Workspace outcome against the current best metric', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:startup-yc',
+        scope: 'specialization_path',
+        specializationId: 'spec_startup_yc',
+        repoLabel: 'specialization-path-startup-yc',
+        summary: 'Improve Startup YC on Startup Bench.',
+        status: 'open',
+        bestOutcomeId: 'outcome_best',
+        updatedAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_best',
+        targetType: 'evolution_path',
+        targetId: 'path:startup-yc',
+        verdict: 'improved',
+        summary: 'Startup YC improved an earlier round.',
+        metricName: 'scenario_score',
+        metricValue: 0.7,
+        context: {
+          scorecard: {
+            headlineGoal: 'higher'
+          }
+        },
+        createdAt: '2026-05-08T05:00:00.000Z'
+      },
+      {
+        id: 'outcome_latest',
+        targetType: 'evolution_path',
+        targetId: 'path:startup-yc',
+        verdict: 'flat',
+        summary: 'Startup YC tested the benchmark but did not beat the current score.',
+        metricName: 'scenario_score',
+        metricValue: 0.6313,
+        context: {
+          scorecard: {
+            headlineGoal: 'higher'
+          }
+        },
+        createdAt: '2026-05-08T06:02:50.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [
+      {
+        id: 'spec_startup_yc',
+        key: 'startup-yc',
+        label: 'Startup YC',
+        lane: 'public',
+        status: 'active'
+      }
+    ],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:startup-yc');
+  assert.match(report, /Startup YC held steady\./);
+  assert.match(report, /Score: scenario score 0.6313/);
+  assert.match(report, /Change: no improvement this round/);
+  assert.match(report, /Compare: below current best by 0.0687 \(best 0.7\)\./);
+});
+
+test('uses lower-is-better goals when comparing Workspace outcomes', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:error-rate',
+        scope: 'workspace',
+        specializationId: null,
+        repoLabel: 'error-rate',
+        summary: 'Reduce error rate.',
+        status: 'open',
+        bestOutcomeId: 'outcome_best',
+        updatedAt: '2026-05-08T06:10:00.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_best',
+        targetType: 'evolution_path',
+        targetId: 'path:error-rate',
+        verdict: 'improved',
+        summary: 'Earlier run reduced errors.',
+        metricName: 'error_rate',
+        metricValue: 0.08,
+        context: {
+          scorecard: {
+            headlineGoal: 'lower'
+          }
+        },
+        createdAt: '2026-05-08T05:00:00.000Z'
+      },
+      {
+        id: 'outcome_latest',
+        targetType: 'evolution_path',
+        targetId: 'path:error-rate',
+        verdict: 'regressed',
+        summary: 'Latest run increased errors.',
+        metricName: 'error_rate',
+        metricValue: 0.12,
+        context: {
+          scorecard: {
+            headlineGoal: 'lower'
+          }
+        },
+        createdAt: '2026-05-08T06:10:00.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:error-rate');
+  assert.match(report, /Error Rate regressed\./);
+  assert.match(report, /Score: error rate 0.12/);
+  assert.match(report, /Compare: above current best by 0.04 \(best 0.08\)\./);
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
