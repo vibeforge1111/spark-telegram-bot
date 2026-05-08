@@ -3055,7 +3055,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
       if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
-        await ctx.reply(builderReply.responseText);
+        if (builderReply.voiceMedia) {
+          await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
+        } else if (builderReply.responseText) {
+          await ctx.reply(builderReply.responseText);
+        }
         await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         return;
       }
