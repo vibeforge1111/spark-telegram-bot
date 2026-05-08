@@ -1262,6 +1262,34 @@ export function extractAgentDoctrinePreference(text: string): string | null {
   return null;
 }
 
+export function isStandaloneAgentDoctrinePreference(text: string): boolean {
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!extractAgentDoctrinePreference(trimmed)) {
+    return false;
+  }
+  if (parseBuildIntent(trimmed)) {
+    return false;
+  }
+  if (/\b(?:and|then)\s+(?:build|create|run|start|explain|tell|show|send|open|search|find|what|why|how|which|where)\b/i.test(trimmed)) {
+    return false;
+  }
+  if (/\?\s*$/.test(trimmed) && !/\b(?:can|could|would)\s+you\b.*\b(?:remember|save|keep|adjust|change|update|use|be|respond|reply|talk|write)\b/i.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
+export function formatAgentDoctrinePreferenceAcknowledgement(preference: string): string {
+  const detail = preference
+    .replace(/^Agent interaction preference \[[^\]]+\]:\s*/i, '')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+  return [
+    'Got it. I will keep that as a preference for how I talk with you.',
+    detail ? `I will adjust around this from here: ${detail}.` : 'I will adjust from here.'
+  ].join('\n\n');
+}
+
 export function buildMemoryBridgeUnavailableReply(action: 'remember' | 'recall' | 'about'): string {
   if (action === 'remember') {
     return 'I could not confirm that through Spark memory yet. Please run /diagnose, or ask the operator to run `spark fix telegram` and `spark verify --deep`.';

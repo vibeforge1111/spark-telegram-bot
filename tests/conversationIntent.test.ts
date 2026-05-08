@@ -11,6 +11,7 @@ import {
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractAgentDoctrinePreference,
+  formatAgentDoctrinePreferenceAcknowledgement,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -39,6 +40,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isLowInformationLlmReply,
+  isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -819,6 +821,22 @@ test('does not persist one-off or global doctrine requests as personal agent gui
   assert.equal(extractAgentDoctrinePreference('For now use bullets while we debug this.'), null);
   assert.equal(extractAgentDoctrinePreference('All Spark agents should be conversational by default.'), null);
   assert.equal(extractAgentDoctrinePreference('We should change production doctrine to be warmer.'), null);
+});
+
+test('identifies standalone agent doctrine turns for a natural acknowledgement', () => {
+  assert.equal(isStandaloneAgentDoctrinePreference('From now on, use short paragraphs with blank lines.'), true);
+  assert.equal(isStandaloneAgentDoctrinePreference('Can you keep replies more conversational with me?'), true);
+  assert.equal(
+    isStandaloneAgentDoctrinePreference('From now on, be more concise and then explain the memory architecture.'),
+    false
+  );
+
+  const reply = formatAgentDoctrinePreferenceAcknowledgement(
+    'Agent interaction preference [format]: use short paragraphs with blank lines'
+  );
+  assert.match(reply, /preference for how I talk with you/);
+  assert.match(reply, /use short paragraphs/);
+  assert.match(reply, /\n\n/);
 });
 
 test('memory directives only accept Builder memory-route confirmations', () => {

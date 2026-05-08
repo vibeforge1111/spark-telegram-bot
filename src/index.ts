@@ -134,6 +134,7 @@ import {
   extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
   extractAgentDoctrinePreference,
+  formatAgentDoctrinePreferenceAcknowledgement,
   extractPlainChatMemoryDirective,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
@@ -153,6 +154,7 @@ import {
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  isStandaloneAgentDoctrinePreference,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -2462,6 +2464,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
   if (agentDoctrinePreference) {
     await conversation.storeAgentDoctrinePreference(ctx.from, agentDoctrinePreference).catch(() => {});
+    if (!extractPlainChatMemoryDirective(text) && isStandaloneAgentDoctrinePreference(text)) {
+      const reply = formatAgentDoctrinePreferenceAcknowledgement(agentDoctrinePreference);
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      return;
+    }
   }
 
   if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
