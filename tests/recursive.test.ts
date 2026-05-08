@@ -8,6 +8,7 @@ import {
   buildBuilderChipLoopWorkspacePayload,
   parseRecursiveCommand,
   renderBuilderChipLoopCompletion,
+  renderRecursiveArtifactSyncCompletion,
   renderRecursiveWorkspaceReport,
   renderRecursiveWorkspaceReview,
   renderRecursiveCanvasQueue,
@@ -231,10 +232,12 @@ test('parses and renders stitched recursive trace views', () => {
     ]
   });
 
-  assert.match(reply, /Spark Workspace Recursion Trace/);
+  assert.match(reply, /session-startup-yc-001 trace is completed\./);
+  assert.match(reply, /Review needed: no\./);
   assert.match(reply, /Canvas: pending/);
-  assert.match(reply, /swarm packets=0/);
   assert.match(reply, /round-003/);
+  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Review: \/recursive review session-startup-yc-001/);
 });
 
 test('builds a Workspace collective payload for Builder chip loops', () => {
@@ -254,7 +257,7 @@ test('builds a Workspace collective payload for Builder chip loops', () => {
   assert.equal(built.outcomeId, 'outcome_builder_chip_startup_yc_20260507T100000000');
   assert.equal((built.payload.runtimeSource as any).loopKind, 'chip');
   assert.equal((built.payload.runtimeSource as any).chipKey, 'startup-yc');
-  assert.equal((built.payload.runtimeSource as any).chipLabel, 'Startup Yc');
+  assert.equal((built.payload.runtimeSource as any).chipLabel, 'Startup YC');
   assert.equal((built.payload.evolutionPaths as any[])[0].scope, 'workspace');
   assert.equal((built.payload.outcomes as any[])[0].verdict, 'improved');
   assert.equal((built.payload.artifactRefs as any[])[0].kind, 'run_trace');
@@ -371,16 +374,37 @@ test('renders specialization path loop completion with workspace next step', () 
     pathId: 'path_startup_yc',
     outcomeId: 'outcome_startup_yc_20260508T054500000',
     verdict: 'flat',
-    metricName: 'startup_bench_score',
+    metricName: 'scenario_score:baseline',
     metricValue: 0.61,
     summary: 'Startup YC tested a benchmark-backed YC doctrine mutation.'
   });
 
-  assert.match(reply, /Recursive path loop complete: startup-yc/);
-  assert.match(reply, /Metric: startup_bench_score=0.61/);
-  assert.match(reply, /Workspace sync: ok/);
-  assert.match(reply, /Workspace outcome: outcome_startup_yc_20260508T054500000/);
-  assert.match(reply, /Next: \/recursive report path_startup_yc/);
+  assert.match(reply, /Startup YC loop finished: flat\./);
+  assert.match(reply, /Score: scenario score \/ baseline 0.61/);
+  assert.match(reply, /Artifacts saved locally: session summary, collective payload\./);
+  assert.match(reply, /Workspace sync is in\./);
+  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Report: \/recursive report path_startup_yc/);
+  assert.doesNotMatch(reply, /C:\\paths/);
+  assert.doesNotMatch(reply, /Workspace outcome/);
+});
+
+test('renders recursive artifact sync completion as a compact next step', () => {
+  const reply = renderRecursiveArtifactSyncCompletion({
+    synced: true,
+    pathId: 'path_prompt_benchmark',
+    outcomeId: 'outcome_prompt_benchmark_001',
+    detail: 'Prompt benchmark synced through bridge.',
+    workspaceUrl: 'http://127.0.0.1:5173/runs?tab=recursions'
+  });
+
+  assert.match(reply, /Artifact sync finished\./);
+  assert.match(reply, /Workspace sync is in\./);
+  assert.match(reply, /Dashboard: http:\/\/127\.0\.0\.1:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Report: \/recursive report path_prompt_benchmark/);
+  assert.match(reply, /Trace: \/recursive trace path_prompt_benchmark/);
+  assert.doesNotMatch(reply, /Workspace outcome/);
+  assert.doesNotMatch(reply, /bridge/);
 });
 
 test('builds bridge args for non-Builder recursive artifact sync commands', () => {
@@ -740,14 +764,14 @@ test('renders Builder chip loop completion with Workspace sync details', () => {
     }
   );
 
-  assert.match(reply, /Recursive loop complete: startup-yc/);
-  assert.match(reply, /Final verdict: improved/);
-  assert.match(reply, /Metric: builder chip loop best metric=0.8123/);
-  assert.match(reply, /Final suggestions: 4/);
-  assert.match(reply, /Workspace sync: ok/);
-  assert.match(reply, /Workspace outcome: outcome_builder_chip_startup_yc_20260507T100000000/);
-  assert.match(reply, /Workspace detail: Builder chip loop synced through Spark Swarm bridge\./);
-  assert.match(reply, /Next: \/recursive report path_builder_chip_startup_yc/);
+  assert.match(reply, /Startup YC loop finished: improved\./);
+  assert.match(reply, /Best score: 0.8123/);
+  assert.match(reply, /Suggestions reviewed: 4/);
+  assert.match(reply, /Artifacts saved locally: status file\./);
+  assert.match(reply, /Workspace sync is in\./);
+  assert.match(reply, /Report: \/recursive report path_builder_chip_startup_yc/);
+  assert.doesNotMatch(reply, /C:\\status/);
+  assert.doesNotMatch(reply, /Workspace outcome/);
 });
 
 test('maps workspace-scoped Builder chip loops into Telegram recursive sessions', () => {
@@ -758,7 +782,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
         scope: 'workspace',
         specializationId: null,
         repoLabel: 'spark-intelligence-builder',
-        summary: 'Builder chip loop for Startup Yc completed 3/3 round(s).',
+        summary: 'Builder chip loop for Startup YC completed 3/3 round(s).',
         status: 'open',
         bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T100000000',
         updatedAt: '2026-05-07T10:00:00.000Z'
@@ -780,7 +804,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
             headlineLabel: 'Best metric',
             headlineValue: 0.72,
             headlineGoal: 'higher',
-            modelLabel: 'Startup Yc',
+            modelLabel: 'Startup YC',
             components: [
               { key: 'best_metric', label: 'Best metric', value: 0.72, goal: 'higher' }
             ],
@@ -797,7 +821,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
       {
         id: 'artifact_builder_chip_startup_yc_20260507T100000000',
         kind: 'run_trace',
-        label: 'Startup Yc chip-loop status',
+        label: 'Startup YC chip-loop status',
         path: 'C:\\status\\startup-yc.json',
         url: null
       }
@@ -814,12 +838,12 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(sessions[0].review_required, false);
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(report, /Spark Workspace Recursion Report/);
-  assert.match(report, /Latest outcome: improved - Final round improved\./);
-  assert.match(report, /Metric: builder chip loop best metric=0.72/);
-  assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup Yc; Rounds: 3\/3/);
-  assert.match(report, /Artifact refs: 1 \(run_trace:Startup Yc chip-loop status\)/);
-  assert.match(report, /Decisions needed: 0/);
+  assert.match(report, /spark-intelligence-builder is open\./);
+  assert.match(report, /Latest result: improved: Final round improved\./);
+  assert.match(report, /Score: builder chip loop best metric=0.72/);
+  assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup YC; Rounds: 3\/3/);
+  assert.match(report, /Artifact refs: 1 \(run_trace:Startup YC chip-loop status\)/);
+  assert.match(report, /Review queue: clear\./);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.spawner.board_entry.taskCount, 2);
@@ -930,7 +954,7 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
       {
         id: 'artifact_unrelated_builder_chip_startup_yc_20260507T100000000',
         kind: 'run_trace',
-        label: 'Startup Yc chip-loop status',
+        label: 'Startup YC chip-loop status',
         path: 'C:\\status\\startup-yc.json',
         url: null
       }
@@ -940,13 +964,13 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
   };
 
   const benchmarkReport = renderRecursiveWorkspaceReport(snapshot, 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f');
-  assert.match(benchmarkReport, /Metric: average composite score=2.1/);
+  assert.match(benchmarkReport, /Score: average composite score=2.1/);
   assert.match(benchmarkReport, /Artifact refs: 1 \(benchmark_run:Prompt benchmark run JSON\)/);
   assert.doesNotMatch(benchmarkReport, /Domain autoloop manifest/);
-  assert.doesNotMatch(benchmarkReport, /Startup Yc chip-loop status/);
+  assert.doesNotMatch(benchmarkReport, /Startup YC chip-loop status/);
 
   const autoloopReport = renderRecursiveWorkspaceReport(snapshot, 'path_domain_autoloop_crypto_trading');
-  assert.match(autoloopReport, /Metric: autoloop cycle count=4/);
+  assert.match(autoloopReport, /Score: autoloop cycle count=4/);
   assert.match(autoloopReport, /Artifact refs: 1 \(manifest:Domain autoloop manifest\)/);
   assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
 
@@ -963,7 +987,7 @@ test('reports Workspace best outcome id when snapshot omits outcome bodies', () 
         scope: 'workspace',
         specializationId: null,
         repoLabel: 'spark-intelligence-builder',
-        summary: 'Builder chip loop for Startup Yc completed 1/1 round(s).',
+        summary: 'Builder chip loop for Startup YC completed 1/1 round(s).',
         status: 'open',
         bestOutcomeId: 'outcome_builder_chip_startup_yc_20260507T151032889',
         updatedAt: '2026-05-07T15:10:32.889Z'
@@ -978,7 +1002,7 @@ test('reports Workspace best outcome id when snapshot omits outcome bodies', () 
   };
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(report, /Latest outcome: recorded - outcome_builder_chip_startup_yc_20260507T151032889/);
+  assert.match(report, /Latest result: recorded: outcome_builder_chip_startup_yc_20260507T151032889/);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.timeline[0].kind, 'outcome');
