@@ -222,8 +222,10 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
   mergeEnvFile(env, path.join(config.builderHome, '.env'));
-  if (process.env.BOT_TOKEN && !env.TELEGRAM_BOT_TOKEN) {
-    env.TELEGRAM_BOT_TOKEN = process.env.BOT_TOKEN;
+  const profileBotToken = process.env.BOT_TOKEN?.trim();
+  if (profileBotToken) {
+    // Telegram file IDs are bot-scoped, so Builder must use the active runner profile token.
+    env.TELEGRAM_BOT_TOKEN = profileBotToken;
   }
   return env;
 }
