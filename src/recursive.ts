@@ -1121,7 +1121,7 @@ export function renderRecursiveDecision(record: RecursiveDecisionRecord): string
     lines.push(`Status: ${friendlyWorkspaceDecisionDetail(record.workspace_detail)}`);
   }
   lines.push(
-    `Decisions: ${sparkWorkspaceDecisionsUrl()}`,
+    `Open: Decisions ${sparkWorkspaceDecisionsUrl()}`,
     '',
     'Next:',
     applied
@@ -1134,41 +1134,49 @@ export function renderRecursiveDecision(record: RecursiveDecisionRecord): string
 
 export function renderRecursivePromotionPacket(packet: RecursivePromotionPacket): string {
   return [
-    'Recursive local promotion packet staged.',
+    'Local promotion packet is staged.',
     `Session: ${packet.session_id}`,
     `Packet: ${packet.packet_id}`,
-    `State: ${packet.publication_state}`,
-    `Effect: ${packet.effect}`,
-    `Network absorbable: ${packet.network_absorbable}`,
-    'No memory, Swarm, Builder, or source artifacts were mutated.'
+    'Sharing: private workspace only.',
+    `Network: ${packet.network_absorbable ? 'eligible for review' : 'not eligible yet'}.`,
+    'Changed: nothing live. This only prepared a review packet.',
+    '',
+    'Next:',
+    `1. /recursive review ${packet.session_id}`,
+    `2. /recursive sync ${packet.session_id}`
   ].join('\n');
 }
 
 export function renderRecursiveSwarmPacket(packet: RecursiveSwarmPacket): string {
+  const publication = packet.publication_allowed ? 'allowed' : 'blocked';
+  const network = packet.network_absorbable ? 'ready for network review' : 'not published';
   return [
-    'Recursive Swarm review packet staged.',
+    'Swarm review packet is staged.',
     `Session: ${packet.session_id}`,
     `Packet: ${packet.swarm_packet_id}`,
-    `Stage: ${packet.stage}`,
-    `Effect: ${packet.effect}`,
-    `Publication allowed: ${packet.publication_allowed}`,
-    `Network absorbable: ${packet.network_absorbable}`,
-    `Publication gate: ${packet.publication_gate.status} (${packet.publication_gate.reason})`,
-    `Required next command: ${packet.publication_gate.required_next_command}`,
-    'No network publication, memory mutation, Builder absorption, or source artifacts were mutated.'
+    `Publication: ${publication}.`,
+    `Network: ${network}.`,
+    `Why: ${ensureSentence(sentenceCaseFirst(labelFromKey(packet.publication_gate.reason).toLowerCase()))}`,
+    'Changed: nothing public. This only staged the review handoff.',
+    '',
+    'Next:',
+    `1. ${packet.publication_gate.required_next_command}`,
+    `2. /recursive review ${packet.session_id}`
   ].join('\n');
 }
 
 export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): string {
   return [
-    'Recursive Canvas load queued.',
+    'Canvas load is queued.',
     `Pipeline: ${result.load.pipelineId}`,
     `Mission: ${result.load.relay.missionId}`,
-    `Nodes: ${result.load.nodes.length}`,
-    `Connections: ${result.load.connections.length}`,
-    `Canvas: ${result.canvasUrl}`,
-    `Effect: ${result.effect}`,
-    'Inspect-only: autoRun is false.'
+    `Shape: ${pluralize(result.load.nodes.length, 'node')}, ${pluralize(result.load.connections.length, 'connection')}.`,
+    `Open: Canvas ${result.canvasUrl}`,
+    `Run mode: ${result.load.autoRun ? 'auto-run' : 'inspect only'}.`,
+    '',
+    'Next:',
+    `1. Open the Canvas view.`,
+    `2. /recursive trace ${result.load.relay.missionId}`
   ].join('\n');
 }
 
@@ -1675,7 +1683,7 @@ export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot,
     reviewCall,
     scopeLine,
     networkLine,
-    `Dashboard: ${sparkWorkspaceDecisionsUrl()}`,
+    `Open: Decisions ${sparkWorkspaceDecisionsUrl()}`,
     '',
     'Queue:',
     ...groups.slice(0, 8).flatMap((group, index) => renderReviewGroup(group, index + 1)),

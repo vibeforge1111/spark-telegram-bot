@@ -130,7 +130,7 @@ test('renders review queue and audit-only decision records', () => {
   assert.match(decision, /Decision not applied in Telegram: approved\./);
   assert.match(decision, /Target: creator-mission-001/);
   assert.match(decision, /Reason: ok/);
-  assert.match(decision, /Decisions: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
+  assert.match(decision, /Open: Decisions http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
   assert.doesNotMatch(decision, /\/recursive report creator-mission-001/);
   assert.doesNotMatch(decision, /workspace_route_only/);
   assert.equal(sparkWorkspaceDecisionsUrl(), 'http://127.0.0.1:5173/runs?tab=decisions');
@@ -180,8 +180,11 @@ test('parses and renders local promotion packets', () => {
     }
   });
 
-  assert.match(packet, /local promotion packet staged/);
-  assert.match(packet, /Network absorbable: false/);
+  assert.match(packet, /Local promotion packet is staged/);
+  assert.match(packet, /Network: not eligible yet\./);
+  assert.match(packet, /Changed: nothing live/);
+  assert.match(packet, /Next:\n1\. \/recursive review creator-mission-001/);
+  assert.doesNotMatch(packet, /local_packet_only/);
 });
 
 test('parses and renders gated Swarm review packets', () => {
@@ -204,9 +207,12 @@ test('parses and renders gated Swarm review packets', () => {
     }
   });
 
-  assert.match(reply, /Swarm review packet staged/);
-  assert.match(reply, /Publication allowed: false/);
-  assert.match(reply, /No network publication/);
+  assert.match(reply, /Swarm review packet is staged/);
+  assert.match(reply, /Publication: blocked\./);
+  assert.match(reply, /Network: not published\./);
+  assert.match(reply, /Why: Explicit swarm publication not implemented\./);
+  assert.match(reply, /1\. \/recursive sync-publish/);
+  assert.doesNotMatch(reply, /swarm_packet_staged_only/);
 });
 
 test('parses and renders recursive canvas queue results', () => {
@@ -232,8 +238,11 @@ test('parses and renders recursive canvas queue results', () => {
     }
   });
 
-  assert.match(reply, /Recursive Canvas load queued/);
-  assert.match(reply, /Inspect-only: autoRun is false/);
+  assert.match(reply, /Canvas load is queued/);
+  assert.match(reply, /Shape: 1 node, 1 connection\./);
+  assert.match(reply, /Run mode: inspect only\./);
+  assert.match(reply, /2\. \/recursive trace recursive-session-startup-yc-001/);
+  assert.doesNotMatch(reply, /spawner_canvas_queue_only/);
 });
 
 test('parses and renders stitched recursive trace views', () => {
