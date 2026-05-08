@@ -50,6 +50,11 @@ function compactDetail(text: string): string {
     .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, '[REDACTED]')
     .trim();
   if (!oneLine) return 'Spark did not receive a detailed error from the failed component.';
+  if (
+    /spark_intelligence\.cli|spark-intelligence-builder|simulate-telegram-update|runpy\.run_module/i.test(oneLine)
+  ) {
+    return 'Builder bridge command did not finish cleanly. Run /diagnose for the current Builder and memory status.';
+  }
   return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
 }
 

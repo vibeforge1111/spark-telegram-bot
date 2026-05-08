@@ -84,7 +84,7 @@ test('formats route probe replies with evidence boundary', () => {
   assert.match(reply, /Status: success/);
   assert.match(reply, /Latency: 3837ms/);
   assert.match(reply, /Evidence: memory smoke write=succeeded\/1 read_records=1 cleanup=ok/);
-  assert.match(reply, /Event: evt-123 \(tool_result_received\)/);
+  assert.match(reply, /Event: evt-123 \(tool result received\)/);
   assert.match(reply, /Run \/aoc/);
 });
 

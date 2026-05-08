@@ -1348,7 +1348,7 @@ export function formatRouteProbeReply(payload: Record<string, unknown>): string 
     lines.push(`- Evidence: ${summary}`);
   }
   if (eventId) {
-    lines.push(`- Event: ${eventId}${eventType ? ` (${eventType})` : ''}`);
+    lines.push(`- Event: ${eventId}${eventType ? ` (${eventType.replace(/_/g, ' ')})` : ''}`);
   }
   lines.push('', 'Run /aoc to see how this changed Agent Operating Context.');
   return lines.join('\n');
