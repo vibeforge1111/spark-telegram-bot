@@ -285,6 +285,14 @@ test('infers likely diagnose issue from user-facing failure class', () => {
       ...base,
       chatProviderOk: false
     }),
+    /Spawner mission routing is healthy/
+  );
+  assert.match(
+    inferDiagnoseLikelyIssue({
+      ...base,
+      chatProviderOk: false,
+      missionPingOk: false
+    }),
     /plain chat provider is unhealthy/
   );
   assert.match(
