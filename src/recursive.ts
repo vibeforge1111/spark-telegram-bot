@@ -1337,11 +1337,25 @@ function outcomesForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceE
 }
 
 function artifactsForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceArtifactRef[] {
-  const chipSlug = path.id.startsWith('path_builder_chip_') ? path.id.replace(/^path_builder_chip_/, '') : null;
-  if (!chipSlug) return snapshot.artifactRefs;
-  const normalizedChipSlug = normalizeWorkspaceIdPart(chipSlug);
+  const latestOutcome = outcomesForPath(snapshot, path)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+  const pathKey = normalizeWorkspaceIdPart(path.id);
+  const pathSourceSuffix = pathKey.replace(
+    /^path_(?:builder_chip|benchmark_prompt_engineer|domain_autoloop|domain_chip_lab)_/,
+    ''
+  );
+  const matchKeys = [
+    pathKey,
+    pathKey.replace(/^path_/, ''),
+    pathSourceSuffix,
+    normalizeWorkspaceIdPart(path.repoLabel || ''),
+    normalizeWorkspaceIdPart(latestOutcome?.id || path.bestOutcomeId || '')
+  ].filter((key) => key.length > 3);
+
   return snapshot.artifactRefs.filter((artifact) =>
-    normalizeWorkspaceIdPart(`${artifact.id} ${artifact.label} ${artifact.path || ''} ${artifact.url || ''}`).includes(normalizedChipSlug)
+    matchKeys.some((key) =>
+      normalizeWorkspaceIdPart(`${artifact.id} ${artifact.label} ${artifact.path || ''} ${artifact.url || ''}`).includes(key)
+    )
   );
 }
 
