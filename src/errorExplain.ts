@@ -231,8 +231,8 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       category: 'telegram_polling_conflict',
       userLine: 'Telegram says another Spark process is already polling this bot token.',
       detail,
-      check: 'Run /diagnose to confirm which Telegram profile and relay port are active.',
-      repair: 'Operator fix: stop duplicate bot processes, then run spark restart spark-telegram-bot for the intended profile.'
+      check: 'Check the intended Telegram profile logs and confirm no other local, hosted, WSL, Docker, or old laptop session is polling the same BotFather token.',
+      repair: 'Operator fix: stop the other poller or rotate the BotFather token, then start only the intended Spark Telegram profile.'
     };
   }
 

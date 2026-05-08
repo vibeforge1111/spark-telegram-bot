@@ -98,8 +98,10 @@ test('directs duplicate Telegram polling to one live process', () => {
   );
 
   assert.match(reply, /already polling this bot token/);
-  assert.match(reply, /stop duplicate bot processes/);
-  assert.match(reply, /spark restart spark-telegram-bot/);
+  assert.match(reply, /same BotFather token/);
+  assert.match(reply, /stop the other poller or rotate the BotFather token/);
+  assert.doesNotMatch(reply, /Builder memory path/);
+  assert.doesNotMatch(reply, /provider authentication/);
 });
 
 test('redacts secrets from user-facing errors', () => {
