@@ -220,6 +220,16 @@ test('system prompt prioritizes local list references over older memory', () => 
   assert.match(prompt, /Do not offer to scaffold/);
 });
 
+test('system prompt reads the room without promoting style hints to memory', () => {
+  const prompt = buildSparkChatSystemPrompt('', '');
+
+  assert.match(prompt, /Read the room/);
+  assert.match(prompt, /repeating "go"/);
+  assert.match(prompt, /frustrated, repair first/);
+  assert.match(prompt, /corrects your tone, format, or answer/);
+  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
+});
+
 test('uses Claude Code print mode when Anthropic is selected for chat', () => {
   const config = resolveChatProviderConfig({
     SPARK_CHAT_LLM_PROVIDER: 'anthropic',

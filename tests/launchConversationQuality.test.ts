@@ -49,8 +49,11 @@ test('launch prompt keeps conversation style bounded away from memory authority'
   assert.match(prompt, /Not a generic assistant/);
   assert.match(prompt, /Lead with the answer/);
   assert.match(prompt, /Reply briefly by default/);
+  assert.match(prompt, /Read the room/);
+  assert.match(prompt, /corrects your tone, format, or answer/);
   assert.match(prompt, /most recent list/);
   assert.match(prompt, /Memory must not override/);
+  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
   assert.match(prompt, /Use Spark module names only when the user asks/);
   assert.match(prompt, /Do not offer to scaffold/);
 });
