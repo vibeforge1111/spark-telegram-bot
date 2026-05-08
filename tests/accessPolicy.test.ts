@@ -182,6 +182,7 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('agent_context', handleAgentOperatingContextCommand\)/);
     assert.match(indexSource, /bot\.command\('probe', handleAgentRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('route_probe', handleAgentRouteProbeCommand\)/);
+    assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
     assert.match(indexSource, /AOC_CORE_ROUTE_KEYS/);
     assert.match(indexSource, /firstArg === 'core'/);
     assert.match(indexSource, /firstArg === 'all'/);
