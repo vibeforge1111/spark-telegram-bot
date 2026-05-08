@@ -1115,7 +1115,139 @@ test('maps Workspace decision inbox items into Telegram review surfaces', () => 
   assert.equal(sessions[0].review_required, true);
 
   const review = renderRecursiveWorkspaceReview(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(review, /Spark Workspace Review/);
-  assert.match(review, /medium review_outcome/);
+  assert.match(review, /1 decision waiting for Spark Intelligence Builder\./);
+  assert.match(review, /Start with the first review outcome item\./);
+  assert.match(review, /Scope: private workspace/);
+  assert.match(review, /Network: not submitted/);
+  assert.match(review, /1\. Review outcome: Review Builder chip outcome/);
+  assert.match(review, /Priority: medium/);
+  assert.match(review, /Why it matters: Outcome needs dashboard action\./);
   assert.match(review, /Open Recursions and inspect the run trace/);
+  assert.match(review, /Action: open Decisions for this one\./);
+  assert.doesNotMatch(review, /review_outcome/);
+});
+
+test('renders supported Workspace review items with Telegram actions', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:startup-yc',
+        scope: 'workspace',
+        specializationId: 'spec_startup_yc',
+        repoLabel: 'specialization-path-startup-yc',
+        summary: 'Startup YC path needs review.',
+        status: 'open',
+        bestOutcomeId: null,
+        updatedAt: '2026-05-08T06:02:50.083434+00:00'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [],
+    artifactRefs: [],
+    specializations: [
+      { id: 'spec_startup_yc', key: 'startup-yc', label: 'Startup YC' }
+    ],
+    inbox: {
+      items: [
+        {
+          id: 'inbox_low_absorb',
+          kind: 'absorb',
+          title: 'Absorb risk-management insight',
+          summary: 'Candidate insight is useful but lower urgency.',
+          targetType: 'insight',
+          targetId: 'insight_startup_yc_risk',
+          specializationId: 'spec_startup_yc',
+          repoId: null,
+          priority: 'low',
+          recommendedAction: 'Absorb after checking source evidence.'
+        },
+        {
+          id: 'inbox_high_mastery',
+          kind: 'review_mastery',
+          title: 'Review team-health mastery',
+          summary: 'Mastery candidate affects Startup YC team-health scoring.',
+          targetType: 'mastery',
+          targetId: 'mastery_startup_yc_team_health',
+          specializationId: 'spec_startup_yc',
+          repoId: null,
+          priority: 'high',
+          recommendedAction: 'Approve only if the latest benchmark evidence holds.'
+        }
+      ]
+    }
+  };
+
+  const review = renderRecursiveWorkspaceReview(snapshot, 'path:startup-yc');
+  assert.match(review, /2 decisions waiting for Startup YC\./);
+  assert.match(review, /Start with Review team-health mastery\./);
+  assert.match(review, /1\. Review mastery: Review team-health mastery/);
+  assert.match(review, /Priority: high/);
+  assert.match(review, /Approve: \/recursive approve inbox_high_mastery evidence is strong enough/);
+  assert.match(review, /More eval: \/recursive more-eval inbox_high_mastery needs another benchmark pass/);
+  assert.match(review, /Reject: \/recursive reject inbox_high_mastery evidence is not strong enough/);
+  assert.match(review, /2\. Absorb insight: Absorb risk-management insight/);
+  assert.match(review, /Approve: \/recursive approve inbox_low_absorb absorb this insight/);
+  assert.doesNotMatch(review, /review_mastery/);
+});
+
+test('groups repeated dashboard-only Workspace review blockers', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:startup-yc',
+        scope: 'specialization',
+        specializationId: 'spec_startup_yc',
+        repoLabel: 'specialization-path-startup-yc',
+        summary: 'Startup YC path needs rewrite review.',
+        status: 'open',
+        bestOutcomeId: null,
+        updatedAt: '2026-05-08T06:02:50.083434+00:00'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [],
+    artifactRefs: [],
+    specializations: [
+      { id: 'spec_startup_yc', key: 'startup-yc', label: 'Startup YC' }
+    ],
+    inbox: {
+      items: [
+        {
+          id: 'rewrite_1',
+          kind: 'rewrite_insight',
+          title: 'Rewrite blocked insight',
+          summary: 'This insight was withheld from the network. Reasons: Primary message exceeds the network readability limit.',
+          targetType: 'insight',
+          targetId: 'insight_1',
+          specializationId: 'spec_startup_yc',
+          repoId: null,
+          priority: 'high',
+          recommendedAction: 'Rewrite this insight in plain English before sharing it.'
+        },
+        {
+          id: 'rewrite_2',
+          kind: 'rewrite_insight',
+          title: 'Rewrite blocked insight',
+          summary: 'This insight was withheld from the network. Reasons: Contains a suspicious long opaque token.',
+          targetType: 'insight',
+          targetId: 'insight_2',
+          specializationId: 'spec_startup_yc',
+          repoId: null,
+          priority: 'high',
+          recommendedAction: 'Rewrite this insight in plain English before sharing it.'
+        }
+      ]
+    }
+  };
+
+  const review = renderRecursiveWorkspaceReview(snapshot, 'path:startup-yc');
+  assert.match(review, /2 decisions waiting for Startup YC\./);
+  assert.match(review, /1 blocker shown after grouping similar items\./);
+  assert.match(review, /Scope: specialization path/);
+  assert.match(review, /Network: review required/);
+  assert.match(review, /1\. Rewrite Insight: Rewrite blocked insight \(2 items\)/);
+  assert.match(review, /Reasons: Primary message exceeds the network readability limit; Contains a suspicious long opaque token/);
+  assert.doesNotMatch(review, /2\. Rewrite Insight/);
 });

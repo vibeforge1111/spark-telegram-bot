@@ -1546,13 +1546,32 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
 
 export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
   const path = findPath(snapshot, id);
-  const items = path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id);
+  const spec = path ? specializationForPath(snapshot, path) : null;
+  const items = (path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id))
+    .slice()
+    .sort((a, b) => reviewPriorityRank(b.priority) - reviewPriorityRank(a.priority));
   if (items.length === 0) return `No Spark Workspace decisions found for ${id}.`;
+  const groups = groupReviewItems(items);
+  const targetLabel = path ? pathDisplayLabel(path, spec) : labelFromKey(id);
+  const scopeLine = path ? `Scope: ${friendlyReviewScope(path.scope)}` : null;
+  const networkLine = path ? `Network: ${friendlyReviewNetwork(path.scope)}` : null;
+  const firstHighPriority = groups.find((group) => reviewPriorityRank(group.item.priority) >= reviewPriorityRank('high'));
+  const reviewCall = firstHighPriority
+    ? `Start with ${firstHighPriority.item.title}.`
+    : `Start with the first ${reviewKindLabel(groups[0].item.kind).toLowerCase()} item.`;
+
   return [
-    'Spark Workspace Review',
-    `Target: ${id}`,
-    ...items.slice(0, 8).map((item) => `- ${item.priority} ${item.kind}: ${item.title} - ${item.recommendedAction || item.summary}`)
-  ].join('\n');
+    `${pluralize(items.length, 'decision')} waiting for ${targetLabel}.`,
+    groups.length < items.length ? `${pluralize(groups.length, 'blocker')} shown after grouping similar items.` : null,
+    reviewCall,
+    scopeLine,
+    networkLine,
+    `Dashboard: ${sparkWorkspaceDecisionsUrl()}`,
+    '',
+    'Queue:',
+    ...groups.slice(0, 8).flatMap((group, index) => renderReviewGroup(group, index + 1)),
+    groups.length > 8 ? `...and ${groups.length - 8} more.` : null
+  ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
 function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
@@ -1661,6 +1680,123 @@ function friendlyOutcomeChange(verdict: string | null | undefined): string {
   if (normalized.includes('unknown')) return 'not enough signal yet';
   if (normalized.includes('no rounds')) return 'not started';
   return normalized || 'recorded';
+}
+
+interface ReviewItemGroup {
+  item: SparkWorkspaceInboxItem;
+  count: number;
+  summaries: string[];
+}
+
+function groupReviewItems(items: SparkWorkspaceInboxItem[]): ReviewItemGroup[] {
+  const groups = new Map<string, ReviewItemGroup>();
+  for (const item of items) {
+    const key = [
+      item.kind,
+      item.title,
+      item.priority,
+      item.recommendedAction || '',
+      reviewTelegramActions(item).length > 0 ? item.id : 'dashboard-only'
+    ].join('\n');
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (!existing.summaries.includes(item.summary)) existing.summaries.push(item.summary);
+    } else {
+      groups.set(key, { item, count: 1, summaries: [item.summary] });
+    }
+  }
+  return [...groups.values()];
+}
+
+function renderReviewGroup(group: ReviewItemGroup, index: number): string[] {
+  const item = group.item;
+  const suffix = group.count > 1 ? ` (${pluralize(group.count, 'item')})` : '';
+  const lines = [
+    `${index}. ${reviewKindLabel(item.kind)}: ${item.title}${suffix}`,
+    `Priority: ${item.priority}`,
+    `Why it matters: ${reviewGroupSummary(group)}`
+  ];
+  if (item.recommendedAction) {
+    lines.push(`Recommended move: ${truncate(item.recommendedAction, 140)}`);
+  }
+
+  const actions = reviewTelegramActions(item);
+  if (actions.length > 0) {
+    lines.push('Actions:', ...actions.map((action) => `- ${action}`));
+  } else {
+    lines.push(
+      'Action: open Decisions for this one.',
+      `- ${sparkWorkspaceDecisionsUrl()}`
+    );
+  }
+  return ['', ...lines];
+}
+
+function reviewGroupSummary(group: ReviewItemGroup): string {
+  if (group.count === 1) return truncate(group.summaries[0], 160);
+  const reasons = uniqueReviewReasons(group.summaries);
+  if (reasons.length > 0) {
+    return `${pluralize(group.count, 'related decision')} need the same move. Reasons: ${truncate(reasons.join('; '), 150)}`;
+  }
+  return `${pluralize(group.count, 'related decision')} need the same move.`;
+}
+
+function uniqueReviewReasons(summaries: string[]): string[] {
+  const reasons = new Set<string>();
+  for (const summary of summaries) {
+    const match = /Reasons?:\s*(.+)$/i.exec(summary);
+    reasons.add((match ? match[1] : summary).replace(/[.]+$/, '').trim());
+  }
+  return [...reasons].filter(Boolean).slice(0, 4);
+}
+
+function reviewTelegramActions(item: SparkWorkspaceInboxItem): string[] {
+  if (item.kind === 'absorb' && item.targetType === 'insight') {
+    return [
+      `Approve: /recursive approve ${item.id} absorb this insight`
+    ];
+  }
+  if (item.kind === 'review_mastery' && item.targetType === 'mastery') {
+    return [
+      `Approve: /recursive approve ${item.id} evidence is strong enough`,
+      `More eval: /recursive more-eval ${item.id} needs another benchmark pass`,
+      `Defer: /recursive defer ${item.id} hold for later`,
+      `Reject: /recursive reject ${item.id} evidence is not strong enough`
+    ];
+  }
+  return [];
+}
+
+function reviewKindLabel(kind: string): string {
+  const normalized = kind.toLowerCase();
+  if (normalized === 'review_mastery') return 'Review mastery';
+  if (normalized === 'review_outcome') return 'Review outcome';
+  if (normalized === 'absorb') return 'Absorb insight';
+  return labelFromKey(kind);
+}
+
+function reviewPriorityRank(priority: string | null | undefined): number {
+  const normalized = (priority || '').toLowerCase();
+  if (normalized === 'high') return 3;
+  if (normalized === 'medium') return 2;
+  if (normalized === 'low') return 1;
+  return 0;
+}
+
+function friendlyReviewScope(scope: string | null | undefined): string {
+  const normalized = (scope || '').toLowerCase();
+  if (normalized.includes('public') || normalized.includes('network')) return 'public network';
+  if (normalized.includes('specialization')) return 'specialization path';
+  if (normalized.includes('workspace') || normalized.includes('private') || normalized.includes('local')) return 'private workspace';
+  return scope || 'workspace';
+}
+
+function friendlyReviewNetwork(scope: string | null | undefined): string {
+  const normalized = (scope || '').toLowerCase();
+  if (normalized.includes('public') || normalized.includes('network')) return 'official path';
+  if (normalized.includes('specialization')) return 'review required';
+  return 'not submitted';
 }
 
 function traceDisplayTitle(trace: RecursiveTraceView): string {
