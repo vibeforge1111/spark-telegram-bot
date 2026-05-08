@@ -381,29 +381,45 @@ async function syncAgentDoctrinePreferenceViaBuilder(ctx: any, preference: strin
     return false;
   }
 }
+
 async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>): Promise<void> {
+  if (builderReply.voiceMedia) {
+    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
+    return;
+  }
   if (builderReply.responseText) {
     await ctx.reply(builderReply.responseText);
   }
-  if (builderReply.voiceMedia) {
-    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia);
-  }
 }
 
-async function sendBuilderVoiceMedia(ctx: any, voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>): Promise<void> {
+function voiceMediaCaption(
+  voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>,
+  fallbackText = ''
+): string | undefined {
+  const caption = (voiceMedia.spokenText || fallbackText || '').trim();
+  return caption && caption.length <= 1024 ? caption : undefined;
+}
+
+async function sendBuilderVoiceMedia(
+  ctx: any,
+  voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>,
+  fallbackText = ''
+): Promise<void> {
   const audioBuffer = Buffer.from(voiceMedia.audioBase64, 'base64');
   const inputFile = {
     source: audioBuffer,
     filename: voiceMedia.filename,
   };
+  const caption = voiceMediaCaption(voiceMedia, fallbackText);
+  const options = caption ? { caption } : undefined;
   console.log(
-    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length}`
+    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length} spokenChars=${(voiceMedia.spokenText || '').length}`
   );
   if (voiceMedia.voiceCompatible) {
-    await ctx.replyWithVoice(inputFile);
+    await ctx.replyWithVoice(inputFile, options);
     return;
   }
-  await ctx.replyWithAudio(inputFile);
+  await ctx.replyWithAudio(inputFile, options);
 }
 
 function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
@@ -3139,17 +3155,28 @@ export async function handleImageMessage(ctx: any): Promise<void> {
 
 export async function handleVoiceMessage(ctx: any): Promise<void> {
   const user = ctx.from;
+  const startedAt = Date.now();
 
   await conversation.remember(user, '[voice message]').catch(() => {});
+  const rememberedAt = Date.now();
   await safeSendChatAction(ctx, 'typing');
 
   try {
     const bridgeUpdate = await buildVoiceBridgeUpdate(ctx);
+    const mediaReadyAt = Date.now();
     const builderReply = await runBuilderTelegramBridge(bridgeUpdate);
-    console.log(`[VoiceBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
+    const builderReadyAt = Date.now();
+    const voiceTiming = builderReply.voiceTiming && Object.keys(builderReply.voiceTiming).length
+      ? ` voiceTiming=${JSON.stringify(builderReply.voiceTiming)}`
+      : '';
+    console.log(`[VoiceBridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}${voiceTiming}`);
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
       await deliverBuilderReply(ctx, builderReply);
+      const deliveredAt = Date.now();
+      console.log(
+        `[VoiceBridgeTiming] user=${ctx.from?.id} remember_ms=${rememberedAt - startedAt} media_ms=${mediaReadyAt - rememberedAt} builder_ms=${builderReadyAt - mediaReadyAt} deliver_ms=${deliveredAt - builderReadyAt} total_ms=${deliveredAt - startedAt}`
+      );
       if (builderReply.responseText) {
         await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
       }

@@ -47,6 +47,7 @@ export async function buildVoiceBridgeUpdate(
   }
 
   try {
+    const startedAt = Date.now();
     const maxBytes = voiceDownloadMaxBytes();
     const fileLink = await ctx.telegram.getFileLink(fileId);
     const response = await fetchImpl(fileLink);
@@ -65,6 +66,8 @@ export async function buildVoiceBridgeUpdate(
 
     const mimeType = String(media.mime_type || response.headers.get('content-type') || (voice ? 'audio/ogg' : 'application/octet-stream'));
     const filename = `${voice ? 'telegram-voice' : 'telegram-audio'}${mediaExtension(mimeType)}`;
+    const downloadMs = Date.now() - startedAt;
+    console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
     return {
       ...update,
       message: {
@@ -75,6 +78,7 @@ export async function buildVoiceBridgeUpdate(
           mime_type: mimeType,
           source: 'telegram_runner_download',
           size_bytes: audioBuffer.length,
+          download_ms: downloadMs,
         },
       },
     };
