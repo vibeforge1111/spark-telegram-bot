@@ -1105,15 +1105,20 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
-  const timeline = trace.timeline.slice(0, 6).map(formatTraceTimelineItem);
-  const reviewState = trace.review.required ? `${pluralize(trace.review.decisions.length, 'decision')} waiting` : 'review clear';
+  const timeline = dedupeRenderedTraceLines(trace.timeline.slice(0, 6).map(formatTraceTimelineItem));
+  const statusLines = [
+    shouldShowTraceStatus(trace.status) ? friendlyTraceStatus(trace.status) : null,
+    canvas.pending ? 'canvas pending' : null
+  ].filter(isRenderableLine);
+
   return [
     `${traceDisplayTitle(trace)} trace`,
-    '',
-    'Status',
-    `${trace.status} · ${reviewState}`,
-    `${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')} in Workspace`,
-    canvas.pending ? 'canvas pending' : null,
+    trace.review.required ? '' : null,
+    trace.review.required ? 'Review' : null,
+    trace.review.required ? `${pluralize(trace.review.decisions.length, 'decision')} waiting` : null,
+    statusLines.length > 0 ? '' : null,
+    statusLines.length > 0 ? 'Status' : null,
+    ...statusLines,
     '',
     'Recent',
     ...(timeline.length > 0 ? timeline : ['- no timeline events']),
@@ -1122,6 +1127,30 @@ export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
     sparkWorkspaceRecursionsUrl(),
     trace.review.required ? sparkWorkspaceDecisionsUrl() : null
   ].filter(isRenderableLine).join('\n');
+}
+
+function dedupeRenderedTraceLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const key = line.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(line);
+  }
+  return result;
+}
+
+function shouldShowTraceStatus(status: string): boolean {
+  return !/^(open|unknown|workspace)$/i.test((status || '').trim());
+}
+
+function friendlyTraceStatus(status: string): string {
+  const normalized = (status || '').trim().toLowerCase();
+  if (normalized === 'completed' || normalized === 'complete') return 'completed';
+  if (normalized === 'failed') return 'failed';
+  if (normalized === 'paused') return 'paused';
+  return normalized.replace(/[_-]+/g, ' ') || status;
 }
 
 function decisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval'): RecursiveDecision {
@@ -1775,7 +1804,7 @@ function traceTimelineDetail(item: RecursiveTraceView['timeline'][number]): stri
   if (item.kind !== 'outcome') return null;
   const metricMatch = /(overall score|scenario score|builder chip loop best metric|average composite score|autoloop cycle count|domain chip quality score)\s+[-+]?\d+(?:\.\d+)?/i.exec(item.summary);
   if (metricMatch) return metricMatch[0].toLowerCase();
-  return truncate(item.summary, 90);
+  return null;
 }
 
 function dedupeOutcomeTraceItems(

@@ -237,9 +237,9 @@ test('parses and renders stitched recursive trace views', () => {
   });
 
   assert.match(reply, /Startup YC recursive autoloop trace/);
-  assert.match(reply, /Status/);
-  assert.match(reply, /completed · review clear/);
-  assert.match(reply, /5 tracked items in Workspace/);
+  assert.match(reply, /Status\ncompleted\ncanvas pending/);
+  assert.doesNotMatch(reply, /review clear/);
+  assert.doesNotMatch(reply, /tracked items in Workspace/);
   assert.match(reply, /canvas pending/);
   assert.match(reply, /- round: round-003 \(kept\)/);
   assert.match(reply, /Workspace\nhttp:\/\/localhost:5173\/runs\?tab=recursions/);
