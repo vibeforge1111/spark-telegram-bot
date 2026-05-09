@@ -621,6 +621,10 @@ export async function recursiveTraceView(id: string): Promise<RecursiveTraceView
   return workspaceTraceView(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
+export async function recursiveTraceReply(id: string): Promise<string> {
+  return renderRecursiveTraceView(await recursiveTraceView(id));
+}
+
 export function buildBuilderChipLoopWorkspacePayload(input: {
   workspaceId: string;
   chipKey: string;
