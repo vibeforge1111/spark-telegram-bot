@@ -26,7 +26,7 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
       tsNodeBin,
       resolve(repoRoot, 'ops/routeBoundaryHandlerHarness.ts'),
       '--cases',
-      'guard-006,guard-007,domain-chip-003',
+      'guard-006,guard-007,build-004,domain-chip-003',
       '--out',
       reportPath
     ],
@@ -64,11 +64,12 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
   );
   assert.match(result.stdout, /PASS guard-006: agent_doctrine\.global_blocked -> agent_doctrine\.global_blocked/);
   assert.match(result.stdout, /PASS guard-007: agent_doctrine\.global_blocked -> agent_doctrine\.global_blocked/);
+  assert.match(result.stdout, /PASS build-004: conversation\.ideation -> conversation\.ideation/);
   assert.match(result.stdout, /PASS domain-chip-003: conversation\.ideation -> conversation\.ideation/);
   assert.ok(existsSync(reportPath));
 
   const report = readFileSync(reportPath, 'utf8');
-  assert.match(report, /Summary: 3\/3 cases passed\./);
+  assert.match(report, /Summary: 4\/4 cases passed\./);
   assert.match(report, /Actual route: agent_doctrine\.global_blocked/);
   assert.match(report, /Actual route: conversation\.ideation/);
   assert.doesNotMatch(report, /BOT_TOKEN|TELEGRAM_BOT_TOKEN|sk-[A-Za-z0-9]/i);

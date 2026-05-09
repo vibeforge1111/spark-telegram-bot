@@ -86,6 +86,7 @@ function expectedExecutedRoutes(expectedRoute: string): string[] {
   const aliases: Record<string, string[]> = {
     global_doctrine_blocked: ['agent_doctrine.global_blocked'],
     conversation_ideation: ['conversation.ideation'],
+    conversation: ['conversation.ideation', 'plain_chat'],
     memory_recall: ['memory.recall'],
     memory_directive: ['memory.write'],
     context_recall: ['build_context.recall']
@@ -94,12 +95,28 @@ function expectedExecutedRoutes(expectedRoute: string): string[] {
 }
 
 function installHarnessLlm(): void {
-  const reply = [
-    'Let us keep this in shaping mode, not execution.',
-    'For a route-confidence domain chip, I would first define the route families, the ambiguity probes, the wrong-system failure cases, and the replay assertions before creating anything.'
-  ].join('\n\n');
-  (llm as any).chat = async () => reply;
-  (llm as any).chatStream = async (_userMessage: string, _history: string, _memories: string, onProgress?: (text: string) => unknown) => {
+  const replyFor = (userMessage: string) => {
+    const normalized = userMessage.toLowerCase();
+    if (/\bdomain[-\s]?chip\b/.test(normalized)) {
+      return [
+        'Let us keep this in shaping mode, not execution.',
+        'For a route-confidence domain chip, I would first define the route families, the ambiguity probes, the wrong-system failure cases, and the replay assertions before creating anything.'
+      ].join('\n\n');
+    }
+    if (/\b(?:project|dashboard|build|kanban|canvas)\b/.test(normalized)) {
+      return [
+        'Let us keep this in design mode, not execution.',
+        'I would first shape the user, workflow, smallest useful version, and acceptance checks before starting any build.'
+      ].join('\n\n');
+    }
+    return [
+      'Let us keep this in shaping mode, not execution.',
+      'I would clarify the intended route, useful outcome, and safest next step before creating or running anything.'
+    ].join('\n\n');
+  };
+  (llm as any).chat = async (userMessage: string) => replyFor(String(userMessage || ''));
+  (llm as any).chatStream = async (userMessage: string, _history: string, _memories: string, onProgress?: (text: string) => unknown) => {
+    const reply = replyFor(String(userMessage || ''));
     await onProgress?.(reply);
     return reply;
   };
@@ -208,7 +225,7 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npx ts-node ops/routeBoundaryHandlerHarness.ts',
-      '  npx ts-node ops/routeBoundaryHandlerHarness.ts --cases guard-006,guard-007,domain-chip-003',
+      '  npx ts-node ops/routeBoundaryHandlerHarness.ts --cases guard-006,guard-007,build-004,domain-chip-003',
       '  npx ts-node ops/routeBoundaryHandlerHarness.ts --real-llm',
       '',
       'This runs Telegram-shaped inbound updates through the real text handler without starting polling.'
@@ -248,7 +265,7 @@ async function main(): Promise<void> {
   const casesPath = path.join(process.cwd(), 'ops', 'natural-language-live-commands.json');
   const allCases = parseLiveNlCommandCases(JSON.parse(await readFile(casesPath, 'utf8')));
   const selected = selectLiveNlCommandCases(allCases, {
-    caseIds: argList('cases').length > 0 ? argList('cases') : ['guard-006', 'guard-007', 'domain-chip-003']
+    caseIds: argList('cases').length > 0 ? argList('cases') : ['guard-006', 'guard-007', 'build-004', 'domain-chip-003']
   });
   if (selected.length === 0) throw new Error('No route-boundary cases selected.');
 
