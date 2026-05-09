@@ -373,7 +373,6 @@ export function inferDiagnoseLikelyIssue(args: {
 
 export async function buildDiagnoseReport(adminId: number, subject?: Partial<DiagnoseSubject>): Promise<string> {
   const started = Date.now();
-  const lines: string[] = ['🩺 Diagnostic Report', ''];
   const relayIdentity = getRelayIdentityFromEnv();
   const diagnoseSubject: DiagnoseSubject = {
     userId: subject?.userId || adminId,
@@ -406,97 +405,76 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
   );
   const selectedIds = new Set([spawnerDefaultProvider, telegramRunProvider, chatProvider].filter(Boolean) as string[]);
 
-  lines.push('Services');
-  lines.push(describeRelayHealth(botRelay, relayIdentity));
-  lines.push(
-    `• Spawner UI (${httpPortLabel(SPAWNER_UI_URL)}): ${
-      spawnerProviders.ok ? '✅' : `❌ ${spawnerProviders.err || spawnerProviders.status}`
-    }`
-  );
+  const providerDescriptions = providers.map((provider) => describeProviderStatus(provider, selectedIds));
+  const readyProviderCount = providerDescriptions.filter((description) => description.ready).length;
   const spawnerPublicLinkHealth = describeSpawnerPublicLinkHealth();
-  if (spawnerPublicLinkHealth) {
-    lines.push(`• ${spawnerPublicLinkHealth}`);
-  }
-  if (CODEX_SHIM_URL) {
-    lines.push(
-      `• Codex shim optional (${httpPortLabel(CODEX_SHIM_URL)}): ${
-        shimHealth?.ok ? '✅' : `⚪ ${shimHealth?.err || shimHealth?.status || 'not running'}`
-      }`
-    );
-  }
-  lines.push('');
-
-  lines.push('Providers (Spawner)');
-  if (providers.length === 0) {
-    lines.push('• No provider metadata available from Spawner UI.');
-  }
-  for (const provider of providers) {
-    const description = describeProviderStatus(provider, selectedIds);
-    const kindNote = provider.kind === 'terminal_cli' ? ' local CLI' : provider.kind ? ` ${provider.kind}` : '';
-    lines.push(
-      `• ${provider.label} [${provider.id}] ${provider.model || 'default'}${kindNote} ${description.icon} ${description.note}`
-    );
-  }
-  lines.push('');
-
-  lines.push('Plain chat');
-  lines.push(`• ${describeBuilderBridgeHealth(builderBridge)}`);
-  lines.push(`• ${describeChatProviderHealth(chatProviderPing, chatProviderLabel(chatProvider, providers))}`);
-  lines.push('');
-
-  lines.push('Access');
-  for (const line of describeAccessDiagnostics(diagnoseSubject, sparkAccessLabel(accessProfile))) {
-    lines.push(`• ${line}`);
-  }
-  lines.push('');
-
-  lines.push('Routing');
-  lines.push(`• Telegram /run default: ${providerLabel(telegramRunProvider, providers)}`);
-  lines.push(`• Telegram plain chat: SIB → ${chatProviderLabel(chatProvider, providers)}`);
-  lines.push(`• Spawner missions default: ${providerLabel(spawnerDefaultProvider, providers)}`);
-  lines.push('• Overrides: "claude, ...", "minimax: ...", "glm, ...", "all models: ..."');
-  lines.push('');
-
-  lines.push('Spawner mission ping (PING_OK test)');
   const pingIds = selectPingProviderIds(providers, [telegramRunProvider, spawnerDefaultProvider]);
   let missionPingOk: boolean | null = null;
+  let pingSummary = 'not checked';
   if (pingIds.length === 0) {
-    lines.push('• No configured or selected providers to ping.');
+    pingSummary = 'no selected provider to ping';
   } else {
     const pings = await Promise.all(pingIds.map((providerId) => pingProvider(providerId)));
     missionPingOk = pings.every((ping) => ping.ok);
-    for (const ping of pings) {
-      const icon = ping.ok ? '✅' : '❌';
-      const ms = ping.ms ? `${(ping.ms / 1000).toFixed(1)}s` : '';
-      const err = ping.error ? ` (${ping.error})` : '';
-      lines.push(`• ${ping.providerId} ${icon} ${ms}${err}`);
-    }
+    const failed = pings.filter((ping) => !ping.ok).map((ping) => ping.providerId);
+    pingSummary = failed.length > 0 ? `${failed.join(', ')} failed` : 'passed';
   }
-  lines.push('');
 
+  let boardSummary = 'unavailable';
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, spawnerAxiosOptions(3000));
     const board = res.data?.board || {};
     const running = (board.running || []).length;
     const completed = (board.completed || []).length;
     const failed = (board.failed || []).length;
-    lines.push(`Mission board snapshot after ping: ${running} running / ${completed} completed / ${failed} failed`);
+    boardSummary = `${running} running / ${completed} completed / ${failed} failed`;
   } catch {
-    lines.push('Mission board: ❌ unreachable');
+    boardSummary = 'unreachable';
   }
 
-  lines.push('');
-  lines.push(inferDiagnoseLikelyIssue({
+  const likelyIssue = inferDiagnoseLikelyIssue({
     subject: diagnoseSubject,
     botRelayOk: botRelay.ok,
     spawnerOk: spawnerProviders.ok,
     builder: builderBridge,
     chatProviderOk: chatProviderPing.ok,
     missionPingOk
-  }));
-  lines.push('');
-  lines.push(`Admin ID: ${adminId}`);
-  lines.push(`Total diagnose time: ${((Date.now() - started) / 1000).toFixed(1)}s`);
+  });
+  const issueText = likelyIssue.replace(/^Likely issue:\s*/i, '');
+  const hasIssue = !/no obvious fault/i.test(likelyIssue);
+  const hardFailure =
+    !diagnoseSubject.isAllowed ||
+    !botRelay.ok ||
+    !spawnerProviders.ok ||
+    !chatProviderPing.ok ||
+    (builderBridge.mode === 'required' && !builderBridge.available);
+  const headlineIcon = hasIssue ? (hardFailure ? '🔴' : '🟡') : '🟢';
+  const lines: string[] = [
+    `${headlineIcon} Spark diagnostics ${hasIssue ? 'found an issue' : 'look healthy'}.`,
+    '',
+    'Health',
+    `${botRelay.ok ? '🟢' : '🔴'} Relay ${botRelay.ok ? 'ready' : botRelay.err || botRelay.status || 'unreachable'}`,
+    `${chatProviderPing.ok && builderBridge.available ? '🟢' : '🔴'} Chat ${chatProviderPing.ok ? 'ready' : 'degraded'}`,
+    `${spawnerProviders.ok && missionPingOk !== false ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === false ? 'degraded' : 'ready') : 'offline'}`,
+    `${diagnoseSubject.isAllowed ? '🟢' : '🔴'} Access ${sparkAccessLabel(accessProfile)}${diagnoseSubject.isAdmin ? ' / admin' : ''}`,
+    '',
+    'Issue',
+    issueText,
+    '',
+    'Routes',
+    `Chat: ${chatProviderLabel(chatProvider, providers)}`,
+    `Builds: ${providerLabel(telegramRunProvider, providers)}`,
+    `Providers: ${providers.length > 0 ? `${readyProviderCount}/${providers.length} ready` : 'metadata unavailable'}`,
+    `Ping: ${pingSummary}`,
+    '',
+    'Workspace',
+    `Board: ${boardSummary}`,
+    `Spawner: ${httpPortLabel(SPAWNER_UI_URL)}`,
+    spawnerPublicLinkHealth && /❌/.test(spawnerPublicLinkHealth) ? spawnerPublicLinkHealth : null,
+    CODEX_SHIM_URL && shimHealth && !shimHealth.ok ? `Codex shim: ${shimHealth.err || shimHealth.status || 'not running'}` : null,
+    '',
+    `Checked in ${((Date.now() - started) / 1000).toFixed(1)}s.`
+  ].filter((line): line is string => Boolean(line));
 
   return lines.join('\n');
 }
