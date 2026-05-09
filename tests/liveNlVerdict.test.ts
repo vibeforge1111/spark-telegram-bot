@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   formatLiveNlVerdictReport,
   parseLiveNlCommandCases,
@@ -78,5 +80,21 @@ test('rejects malformed command cases', () => {
   assert.throws(
     () => parseLiveNlCommandCases([{ id: 'bad', suite: 'memory', risk: 'danger', prompt: 'x', expectedRoute: 'x', expectedOutcome: 'x' }]),
     /unsupported risk/
+  );
+});
+
+test('actual live command catalog keeps route-boundary prompt cards', () => {
+  const catalogPath = resolve(__dirname, '../ops/natural-language-live-commands.json');
+  const actualCases = parseLiveNlCommandCases(JSON.parse(readFileSync(catalogPath, 'utf8')));
+  const ids = actualCases.map((entry) => entry.id);
+
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(actualCases.length >= 62);
+  assert.ok(ids.includes('memory-002'));
+  assert.ok(ids.includes('guard-006'));
+  assert.ok(ids.includes('domain-chip-003'));
+  assert.deepEqual(
+    selectLiveNlCommandCases(actualCases, { suite: 'domain_chip' }).map((entry) => entry.id),
+    ['domain-chip-001', 'domain-chip-002', 'domain-chip-003']
   );
 });
