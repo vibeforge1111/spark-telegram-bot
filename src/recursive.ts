@@ -555,16 +555,27 @@ export async function recursiveSessions(): Promise<RecursiveSessionListItem[]> {
   return workspaceSessions(await loadSparkWorkspaceSnapshot());
 }
 
+function resolveRecursiveSessionId(snapshot: SparkWorkspaceSnapshot, id: string): string {
+  const trimmed = id.trim();
+  if (!/^\d+$/.test(trimmed)) return id;
+  const index = Number.parseInt(trimmed, 10) - 1;
+  const session = orderedRecursiveSessions(workspaceSessions(snapshot))[index];
+  return session?.session_id || id;
+}
+
 export async function recursiveSessionStatus(id: string): Promise<string> {
-  return renderRecursiveWorkspaceReport(await loadSparkWorkspaceSnapshot(), id);
+  const snapshot = await loadSparkWorkspaceSnapshot();
+  return renderRecursiveWorkspaceReport(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveSessionReview(id: string): Promise<string> {
-  return renderRecursiveWorkspaceReview(await loadSparkWorkspaceSnapshot(), id);
+  const snapshot = await loadSparkWorkspaceSnapshot();
+  return renderRecursiveWorkspaceReview(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveSessionReport(id: string): Promise<string> {
-  return renderRecursiveWorkspaceReport(await loadSparkWorkspaceSnapshot(), id);
+  const snapshot = await loadSparkWorkspaceSnapshot();
+  return renderRecursiveWorkspaceReport(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveReviewCandidates(): Promise<RecursiveReviewCandidate[]> {
@@ -606,7 +617,8 @@ export async function queueRecursiveCanvas(id: string): Promise<RecursiveCanvasQ
 }
 
 export async function recursiveTraceView(id: string): Promise<RecursiveTraceView> {
-  return workspaceTraceView(await loadSparkWorkspaceSnapshot(), id);
+  const snapshot = await loadSparkWorkspaceSnapshot();
+  return workspaceTraceView(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export function buildBuilderChipLoopWorkspacePayload(input: {
@@ -919,14 +931,33 @@ export function renderRecursiveHelp(): string {
 
 export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): string {
   if (sessions.length === 0) return 'No recursive sessions found.';
-  const lines = ['Spark Workspace Recursive Loops'];
-  for (const session of sessions.slice(0, 12)) {
-    lines.push(
-      `- ${session.session_id} [${session.status}] ${session.domain || session.source_kind} - ${truncate(session.title, 88)}`
-    );
+  const ordered = orderedRecursiveSessions(sessions);
+  const visible = ordered.slice(0, 5);
+  const lines = ['Spark recursive loops'];
+  let currentGroup: string | null = null;
+  for (const [index, session] of visible.entries()) {
+    const group = session.review_required ? 'Needs review' : 'Clear';
+    if (group !== currentGroup) {
+      lines.push('', group);
+      currentGroup = group;
+    } else {
+      lines.push('');
+    }
+    const status = session.status && session.status !== 'open' ? ` (${session.status})` : '';
+    lines.push(`${index + 1}. ${sessionDisplayTitle(session)}${status}`);
   }
-  if (sessions.length > 12) lines.push(`...and ${sessions.length - 12} more.`);
+  if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more hidden. Use /recursive paths for lanes.`);
+  lines.push('', 'Use', '- /recursive report 1', '- /recursive trace 1', '', 'Workspace', `- ${sparkWorkspaceRecursionsUrl()}`);
   return lines.join('\n');
+}
+
+export function orderedRecursiveSessions(sessions: RecursiveSessionListItem[]): RecursiveSessionListItem[] {
+  return sessions
+    .slice()
+    .sort((a, b) =>
+      Number(b.review_required) - Number(a.review_required) ||
+      String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+    );
 }
 
 export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): string {
@@ -1058,11 +1089,38 @@ function compactTimestamp(iso: string): string {
 }
 
 function labelFromKey(value: string): string {
+  const acronyms = new Set(['agi', 'api', 'cli', 'db', 'gpt', 'gtm', 'llm', 'qa', 'ui', 'ux', 'yc']);
   return value
     .split(/[-_\s]+/)
     .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) => {
+      const lower = part.toLowerCase();
+      return acronyms.has(lower) ? lower.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1);
+    })
     .join(' ') || value;
+}
+
+function sessionDisplayTitle(session: RecursiveSessionListItem): string {
+  const id = session.session_id || '';
+  const pathMatch = /^path:(.+)$/.exec(id);
+  if (pathMatch) return labelFromKey(pathMatch[1]);
+  const knownPathMatch = /^path_(?:builder_chip|benchmark_prompt_engineer|domain_autoloop|domain_chip_lab)_(.+)$/.exec(id);
+  const title = session.title ? sessionTitleLabel(session.title) : null;
+  if (knownPathMatch) {
+    if (/^\d/.test(knownPathMatch[1]) && title) return title;
+    return labelFromKey(knownPathMatch[1]);
+  }
+  if (title) return title;
+  return id || 'Recursive loop';
+}
+
+function sessionTitleLabel(title: string): string {
+  const cleaned = title
+    .replace(/\bcompleted\b[\s\S]*$/i, '')
+    .replace(/\bstatus=.*$/i, '')
+    .replace(/[.]+$/, '')
+    .trim();
+  return truncate(labelFromKey(cleaned || title), 64);
 }
 
 function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' {
@@ -1216,7 +1274,7 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
       }]
       : [];
   return {
-    session_id: id,
+    session_id: path?.id || id,
     title: path?.summary || spec?.label || id,
     status: path?.status || 'unknown',
     source_kind: 'spark_workspace_evolution_path',
@@ -1312,7 +1370,8 @@ export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot,
 }
 
 function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
-  return snapshot.evolutionPaths.find((path) => path.id === id || path.specializationId === id) ?? null;
+  const resolvedId = resolveRecursiveSessionId(snapshot, id);
+  return snapshot.evolutionPaths.find((path) => path.id === resolvedId || path.specializationId === resolvedId) ?? null;
 }
 
 function specializationForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceSpecialization | null {

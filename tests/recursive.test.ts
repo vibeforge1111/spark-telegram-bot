@@ -63,7 +63,8 @@ test('renders compact recursive session and path lists', () => {
     }
   ];
 
-  assert.match(renderRecursiveSessions(sessions), /s1 \[completed\] startup-yc/);
+  assert.match(renderRecursiveSessions(sessions), /1\. Startup YC Builder Chip Loop \(completed\)/);
+  assert.match(renderRecursiveSessions(sessions), /\/recursive report 1/);
   assert.match(renderRecursivePaths(sessions), /startup-yc/);
 });
 
@@ -233,7 +234,7 @@ test('builds a Workspace collective payload for Builder chip loops', () => {
   assert.equal(built.outcomeId, 'outcome_builder_chip_startup_yc_20260507T100000000');
   assert.equal((built.payload.runtimeSource as any).loopKind, 'chip');
   assert.equal((built.payload.runtimeSource as any).chipKey, 'startup-yc');
-  assert.equal((built.payload.runtimeSource as any).chipLabel, 'Startup Yc');
+  assert.equal((built.payload.runtimeSource as any).chipLabel, 'Startup YC');
   assert.equal((built.payload.evolutionPaths as any[])[0].scope, 'workspace');
   assert.equal((built.payload.outcomes as any[])[0].verdict, 'improved');
   assert.equal((built.payload.artifactRefs as any[])[0].kind, 'run_trace');
@@ -601,6 +602,10 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.match(report, /Artifact refs: 1 \(run_trace:Startup Yc chip-loop status\)/);
   assert.match(report, /Decisions needed: 0/);
 
+  const numericReport = renderRecursiveWorkspaceReport(snapshot, '1');
+  assert.match(numericReport, /Loop: path_builder_chip_startup_yc/);
+  assert.match(numericReport, /Latest outcome: improved - Final round improved\./);
+
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.spawner.board_entry.taskCount, 2);
   assert.equal(trace.timeline[0].kind, 'outcome');
@@ -608,6 +613,9 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric=0.72');
   assert.equal(trace.timeline[1].kind, 'artifact');
   assert.equal(trace.timeline[1].status, 'run_trace');
+
+  const numericTrace = workspaceTraceView(snapshot, '1');
+  assert.equal(numericTrace.session_id, 'path_builder_chip_startup_yc');
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
