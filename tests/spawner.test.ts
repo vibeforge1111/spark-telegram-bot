@@ -248,16 +248,17 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission planned/);
-    assert.match(message, /Mission: mission-creator-1/);
-    assert.match(message, /Mode: full path/);
-    assert.match(message, /Domain: Startup YC/);
-    assert.match(message, /Privacy: github_pr/);
-    assert.match(message, /Risk: high/);
-    assert.match(message, /Artifacts: domain_chip, benchmark_pack, autoloop_policy/);
-    assert.match(message, /Tasks: 2 queued/);
+    assert.match(message, /Creator plan ready/);
+    assert.doesNotMatch(message, /Scope/);
+    assert.match(message, /Startup YC/);
+    assert.match(message, /github_pr \/ high risk/);
+    assert.match(message, /domain chip, benchmark pack, autoloop policy/);
+    assert.match(message, /2 tasks queued/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
-    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /say: run it/);
+    assert.doesNotMatch(message, /\/creator run mission-creator-1/);
+    assert.doesNotMatch(message, /- Canvas:/);
   });
 
   await test('creatorMissionExecute posts a planned creator mission run request to Spawner', async () => {
@@ -316,12 +317,14 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission execution started/);
-    assert.match(message, /Mission: mission-creator-1/);
-    assert.match(message, /Provider: Codex/);
-    assert.match(message, /Workspace: C:\\Users\\USER\\Desktop/);
+    assert.match(message, /Creator mission started/);
+    assert.match(message, /running now/);
+    assert.match(message, /Builder: Codex/);
+    assert.doesNotMatch(message, /mission: mission-creator-1/);
+    assert.doesNotMatch(message, /local workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
-    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.doesNotMatch(message, /- Board:/);
   });
 
   await test('creatorMissionStatus reads a creator mission trace from Spawner', async () => {

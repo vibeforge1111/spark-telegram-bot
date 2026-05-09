@@ -387,6 +387,10 @@ function formatValidationResultLine(result: CreatorValidationCommandResult): str
   return `- ${status}: ${artifact} - ${command}${suffix}`;
 }
 
+function formatArtifactLabel(value: string): string {
+  return value.replace(/_/g, ' ');
+}
+
 export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUrl = spawnerPublicUrl()): string {
   if (!result.success) {
     return `Creator mission failed: ${result.error || 'unknown error'}`;
@@ -395,9 +399,6 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
   const trace = result.trace || {};
   const intent = trace.intent_packet || {};
   const missionId = result.missionId || trace.mission_id || 'unknown';
-  const artifacts = Array.isArray(trace.artifacts) && trace.artifacts.length > 0
-    ? trace.artifacts.join(', ')
-    : 'none yet';
   const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
   const taskCount = typeof result.taskCount === 'number'
     ? result.taskCount
@@ -405,19 +406,26 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
       ? trace.tasks.length
       : null;
   const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
+  const domain = String(intent.target_domain || 'creator path');
+  const artifacts = Array.isArray(trace.artifacts) && trace.artifacts.length > 0
+    ? trace.artifacts.slice(0, 6).map(formatArtifactLabel).join(', ')
+    : 'artifact plan pending';
 
   const lines = [
-    'Creator mission planned.',
+    '🧩 Creator plan ready.',
     '',
-    `Mission: ${missionId}`,
-    `Mode: ${formatCreatorMode(trace.creator_mode)}`,
-    `Domain: ${intent.target_domain || 'unknown'}`,
-    `Privacy: ${intent.privacy_mode || 'unknown'}`,
-    `Risk: ${intent.risk_level || 'unknown'}`,
-    `Artifacts: ${artifacts}`,
-    ...(taskCount !== null ? [`Tasks: ${taskCount} queued`] : []),
+    'Build',
+    domain,
+    artifacts,
+    ...(taskCount !== null ? [`${taskCount} tasks queued`] : []),
+    `${intent.privacy_mode || 'local_only'} / ${intent.risk_level || 'unknown'} risk`,
+    '',
+    'Workspace',
     ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Mission board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    '',
+    'Next',
+    'say: run it'
   ];
 
   return lines.join('\n');
@@ -472,20 +480,22 @@ export function formatCreatorMissionExecutionSummary(
   const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
   const kanbanUrl = trace.links?.kanban || (missionId !== 'unknown' ? creatorMissionKanbanUrl(missionId, baseUrl) : `${baseUrl}/kanban`);
   const headline = result.started
-    ? 'Creator mission execution started.'
+    ? '🟢 Creator mission started.'
     : result.skipped
-      ? 'Creator mission execution skipped.'
-      : 'Creator mission execution accepted.';
+      ? '🟡 Creator mission was already handled.'
+      : '🟢 Creator mission accepted.';
 
   return [
     headline,
     '',
-    `Mission: ${missionId}`,
-    ...(result.providerId ? [`Provider: ${formatProviderLabel(result.providerId)}`] : []),
-    ...(result.reason ? [`Reason: ${result.reason}`] : []),
-    ...(result.projectPath ? [`Workspace: ${result.projectPath}`] : []),
+    'Build',
+    result.started ? 'running now' : result.skipped ? 'already handled' : 'queued',
+    ...(result.providerId ? [`Builder: ${formatProviderLabel(result.providerId)}`] : []),
+    ...(result.reason ? [`Note: ${result.reason}`] : []),
+    '',
+    'Workspace',
     ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Mission board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`
   ].join('\n');
 }
 
