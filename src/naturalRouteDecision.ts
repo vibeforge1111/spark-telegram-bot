@@ -363,20 +363,6 @@ export function decideNaturalRoute(
     });
   }
 
-  if (isSparkWikiStatusQuestion(normalized)) {
-    return decision({
-      route: 'spark_wiki.status',
-      owner_system: 'spark-intelligence-builder',
-      confidence: 'explicit',
-      action: 'spark_wiki.status',
-      payload: {},
-      context_source: 'latest_message',
-      matched_signals: ['spark_wiki_status_question'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
   if (isSparkWikiInventoryQuestion(normalized)) {
     return decision({
       route: 'spark_wiki.inventory',
@@ -416,6 +402,20 @@ export function decideNaturalRoute(
       payload: { query: wikiQuery },
       context_source: 'cold_memory',
       matched_signals: ['spark_wiki_query'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isSparkWikiStatusQuestion(normalized)) {
+    return decision({
+      route: 'spark_wiki.status',
+      owner_system: 'spark-intelligence-builder',
+      confidence: 'explicit',
+      action: 'spark_wiki.status',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['spark_wiki_status_question'],
       blocked_by: [],
       requires_confirmation: false
     });

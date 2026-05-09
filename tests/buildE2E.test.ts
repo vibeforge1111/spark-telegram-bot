@@ -269,6 +269,44 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('/run exact reply probes with negated file creation stay on simple Spark run path', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/spark/run')) {
+				return { data: { success: true, missionId: 'spark-realpath-probe', requestId: body.requestId, providers: ['codex'] } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 558, replies);
+		const indexModule: any = await import('../src/index');
+
+		const missionId = await indexModule.handleRunCommand(
+			ctx,
+			'Reply exactly TESTER_REALPATH_OK and do not create files.',
+			['codex'],
+			undefined,
+			{ allowBuildIntent: true }
+		);
+
+		assert.equal(missionId, 'spark-realpath-probe');
+		assert.ok(captured.some((c) => c.url.includes('/api/spark/run')), 'expected exact reply probe to POST to /api/spark/run');
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'negated file creation should not use the PRD bridge');
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('build intent keeps going when the prompt also changes update preferences', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

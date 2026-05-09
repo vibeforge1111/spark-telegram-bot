@@ -140,13 +140,19 @@ test('routes contextual access changes only after access-focused turns', () => {
   assert.equal(decideNaturalRoute('4', { recentMessages: ['User: I like the fourth design'] }).route, 'plain_chat');
 });
 
-test('routes wiki status and wiki query requests to Builder-owned memory surfaces', () => {
+test('routes wiki status, inventory, answer, and query requests to Builder-owned memory surfaces', () => {
   const status = decideNaturalRoute('is your Spark wiki connected and healthy?');
+  const inventory = decideNaturalRoute('what pages are in your LLM wiki?');
+  const answer = decideNaturalRoute('answer from your LLM wiki how should route tracing work?');
   const query = decideNaturalRoute('search your wiki for Telegram route mistakes');
 
   assert.equal(status.route, 'spark_wiki.status');
   assert.equal(status.owner_system, 'spark-intelligence-builder');
   assert.equal(status.context_source, 'latest_message');
+  assert.equal(inventory.route, 'spark_wiki.inventory');
+  assert.equal(inventory.context_source, 'latest_message');
+  assert.equal(answer.route, 'spark_wiki.answer');
+  assert.equal(answer.context_source, 'cold_memory');
   assert.equal(query.route, 'spark_wiki.query');
   assert.equal(query.context_source, 'cold_memory');
   assert.equal(query.payload.query, 'Telegram route mistakes');

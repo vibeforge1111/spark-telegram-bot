@@ -180,6 +180,10 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent("Let's build you an email reader so you can summarize my inbox."), null);
   assert.equal(parseBuildIntent('Create a capability for Spark to read my calendar.'), null);
   assert.equal(parseBuildIntent('Build a skill that lets you browse my project files.'), null);
+  assert.equal(parseBuildIntent('Reply exactly TESTER_REALPATH_OK and do not create files.'), null);
+  assert.equal(parseBuildIntent('Reply exactly SPARK_AGI_REALPATH_OK and do not build anything.'), null);
+  assert.equal(parseBuildIntent('we were gonna build something do you remember what it was'), null);
+  assert.equal(parseBuildIntent('what were we going to build?'), null);
   assert.ok(parseBuildIntent('make a daily report dashboard for investors'));
   assert.ok(parseBuildIntent('Build a private local-first dashboard for memory reports'));
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
