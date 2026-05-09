@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Telegraf } from 'telegraf';
+import { loadSparkTelegramProfileEnv } from './profileEnv';
 
+loadSparkTelegramProfileEnv(process.argv.slice(2));
 // Load .env.override LAST with override=true. Wins over anything spark-cli
-// rewrites in .env. Never committed (.gitignored).
+// rewrites in .env or profile config. Never committed (.gitignored).
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import {
@@ -163,6 +165,8 @@ import {
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
+  parseNaturalCreatorMissionIntent,
+  parseNaturalRecursiveCommandIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -193,6 +197,14 @@ import {
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
+import {
+  createTelegramDraftStreamer,
+  parseTelegramStreamingConfigText,
+  replayTelegramDraftPreview,
+  renderTelegramStreamingConfigStatus,
+  type TelegramStreamingConfigAction
+} from './telegramDraft';
+import { logTelegramCommand, type TelegramCommandTelemetryPhase } from './commandTelemetry';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -209,6 +221,101 @@ const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
+
+function activeTelegramProfile(): string {
+  try {
+    return getTelegramRelayIdentity().profile;
+  } catch {
+    return process.env.SPARK_TELEGRAM_PROFILE || process.env.TELEGRAM_PROFILE || 'unknown';
+  }
+}
+
+function recordCommandTelemetry(ctx: any, command: string, phase: TelegramCommandTelemetryPhase, error?: unknown): void {
+  logTelegramCommand({
+    command,
+    phase,
+    profile: activeTelegramProfile(),
+    userId: ctx.from?.id,
+    chatId: ctx.chat?.id,
+    chatType: ctx.chat?.type,
+    errorName: error instanceof Error ? error.name : error ? 'UnknownError' : null
+  });
+}
+
+async function chatWithOptionalDraftStreaming(
+  ctx: any,
+  userMessage: string,
+  conversationHistory: string = '',
+  memories: string = ''
+): Promise<string> {
+  const api = ctx.telegram?.callApi ? ctx.telegram : bot.telegram;
+  const streamer = createTelegramDraftStreamer(ctx, api);
+  if (!streamer) {
+    return llm.chat(userMessage, conversationHistory, memories);
+  }
+
+  return llm.chatStream(userMessage, conversationHistory, memories, async (partialText) => {
+    await streamer.push(partialText);
+  });
+}
+
+async function replyWithOptionalDraftPreview(ctx: any, text: string, extra?: any): Promise<any> {
+  const api = ctx.telegram?.callApi ? ctx.telegram : bot.telegram;
+  await replayTelegramDraftPreview(ctx, api, text);
+  return ctx.reply(text, extra);
+}
+
+function runtimeEnvOverridePath(): string {
+  return path.join(__dirname, '..', '.env.override');
+}
+
+async function persistRuntimeEnvOverride(action: Extract<TelegramStreamingConfigAction, { kind: 'set' }>): Promise<void> {
+  const overridePath = runtimeEnvOverridePath();
+  let content = '';
+  try {
+    content = await readFile(overridePath, 'utf-8');
+  } catch {
+    content = '';
+  }
+
+  const lines = content.split(/\r?\n/).filter((line, index, all) => index < all.length - 1 || line.length > 0);
+  const nextLine = `${action.key}=${action.value}`;
+  let replaced = false;
+  const nextLines = lines.map((line) => {
+    if (line.match(new RegExp(`^\\s*${action.key}\\s*=`))) {
+      replaced = true;
+      return nextLine;
+    }
+    return line;
+  });
+  if (!replaced) {
+    nextLines.push(nextLine);
+  }
+
+  await writeFile(overridePath, `${nextLines.join('\n')}\n`, 'utf-8');
+}
+
+async function handleTelegramStreamingConfigAction(ctx: any, action: TelegramStreamingConfigAction): Promise<void> {
+  if (action.kind === 'status') {
+    await ctx.reply(renderTelegramStreamingConfigStatus());
+    return;
+  }
+
+  process.env[action.key] = action.value;
+  await persistRuntimeEnvOverride(action);
+  await ctx.reply(renderTelegramStreamingConfigStatus());
+}
+
+async function handleTelegramStreamingConfigText(ctx: any, text: string): Promise<boolean> {
+  const action = parseTelegramStreamingConfigText(text);
+  if (!action) return false;
+  if (!conversation.isAdmin(ctx.from)) {
+    await ctx.reply('Admin only. Streaming settings are operator controls.');
+    return true;
+  }
+  await handleTelegramStreamingConfigAction(ctx, action);
+  return true;
+}
 
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
@@ -317,9 +424,17 @@ interface PendingDomainChipBuild {
   timestamp: number;
 }
 const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
+interface PendingCreatorMission {
+  missionId: string;
+  requestId: string;
+  brief: string;
+  timestamp: number;
+}
+const pendingCreatorMissions = new Map<string, PendingCreatorMission>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 let pollingActive = false;
+let pollingStartedAt: string | null = null;
 
 function extractCommandName(text: string | undefined): string | null {
   if (!text?.startsWith('/')) {
@@ -357,6 +472,10 @@ function buildUpdateWithText(update: Record<string, unknown>, text: string): Rec
 }
 
 async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
+  const user = ctx.from;
+  if (user) {
+    await conversation.remember(user, text).catch(() => {});
+  }
   const builderReply = await runBuilderTelegramBridge(buildUpdateWithText(ctx.update as Record<string, unknown>, text));
   if (!builderReply.used || builderReply.bridgeMode === 'bridge_error') {
     return false;
@@ -365,6 +484,9 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
     return false;
   }
   await deliverBuilderReply(ctx, builderReply);
+  if (user && builderReply.responseText) {
+    await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+  }
   return true;
 }
 
@@ -565,6 +687,7 @@ bot.start(async (ctx) => {
       '/wiki - Check Spark LLM wiki health; use /wiki pages for vault inventory',
       '/context - Show Agent Operating Context',
       '/probe <route> - Run a route probe and record AOC evidence',
+      '/ledger or /capabilities - Review capability ledger boundaries',
       '/operating_context or /agent_context - Same, Telegram-safe aliases',
       '/conversation_context - Show conversation-frame diagnostics',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -606,26 +729,34 @@ bot.start(async (ctx) => {
 
 // /status command
 bot.command('status', async (ctx) => {
-  await safeSendChatAction(ctx, 'typing');
+  recordCommandTelemetry(ctx, '/status', 'received');
+  try {
+    await safeSendChatAction(ctx, 'typing');
 
-  const builderBridge = await getBuilderBridgeStatus();
-  const isAdmin = conversation.isAdmin(ctx.from);
+    const builderBridge = await getBuilderBridgeStatus();
+    const isAdmin = conversation.isAdmin(ctx.from);
 
-  let status = 'System Status\n\n';
+    let status = 'System Status\n\n';
 
-  status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
+    status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
-  status += 'Spark launch core: ONLINE\n';
-  status += 'Dashboard/resonance: deferred\n';
+    status += 'Spark launch core: ONLINE\n';
+    status += 'Dashboard/resonance: deferred\n';
 
-  if (isAdmin) status += '\nAdmin access';
+    if (isAdmin) status += '\nAdmin access';
 
-  await ctx.reply(status);
+    await ctx.reply(status);
+    recordCommandTelemetry(ctx, '/status', 'replied');
+  } catch (err: any) {
+    recordCommandTelemetry(ctx, '/status', 'failed', err);
+    await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+  }
 });
 
 // /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
+  recordCommandTelemetry(ctx, '/diagnose', 'received');
   await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Running diagnostics - checks chat, access, relay, Spawner, and provider ping. Takes ~30s...');
   try {
@@ -637,7 +768,9 @@ bot.command('diagnose', async (ctx) => {
     });
     // Telegram limit is 4096 chars; diagnose is always well under.
     await ctx.reply(report);
+    recordCommandTelemetry(ctx, '/diagnose', 'replied');
   } catch (err: any) {
+    recordCommandTelemetry(ctx, '/diagnose', 'failed', err);
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
 });
@@ -855,6 +988,27 @@ async function handleAgentRouteProbeCommand(ctx: any): Promise<void> {
 
 bot.command('probe', handleAgentRouteProbeCommand);
 bot.command('route_probe', handleAgentRouteProbeCommand);
+
+async function handleCapabilityLedgerReviewCommand(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+    console.log(
+      `[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`
+    );
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText.trim()) {
+      await ctx.reply(builderReply.responseText);
+      return;
+    }
+    await ctx.reply('Capability ledger review is unavailable right now. Run /diagnose to check the Builder bridge.');
+  } catch (err: any) {
+    await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
+  }
+}
+
+bot.command('ledger', handleCapabilityLedgerReviewCommand);
+bot.command('capabilities', handleCapabilityLedgerReviewCommand);
 
 bot.command('conversation_context', async (ctx) => {
   if (!requireAdmin(ctx)) return;
@@ -1617,6 +1771,65 @@ async function handlePendingDomainChipBuild(ctx: any, text: string): Promise<boo
   return true;
 }
 
+function isPendingCreatorCancel(text: string): boolean {
+  return /^(?:cancel|stop|never mind|nevermind|not now|no)$/i.test(text.trim());
+}
+
+function pendingCreatorAction(text: string): 'run' | 'validate' | 'status' | null {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  if (/^(?:run|start|execute|kick off|go|go ahead|do it|run it|start it|kick it off|yes|yeah|yep|ok|okay|sure|perfect)$/i.test(normalized)) {
+    return 'run';
+  }
+  if (/^(?:validate|validate it|check it|run validation|run the checks|test it)$/i.test(normalized)) {
+    return 'validate';
+  }
+  if (/^(?:status|status please|where is it|what happened|show status|mission status)$/i.test(normalized)) {
+    return 'status';
+  }
+  return null;
+}
+
+async function handlePendingCreatorMission(ctx: any, text: string): Promise<boolean> {
+  const key = `${ctx.chat.id}-${ctx.from.id}`;
+  const pending = pendingCreatorMissions.get(key);
+  if (!pending) return false;
+
+  if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) {
+    pendingCreatorMissions.delete(key);
+    await ctx.reply('That creator plan expired. Ask for the QA benchmark/path work again and I will plan a fresh one.');
+    return true;
+  }
+
+  if (isPendingCreatorCancel(text)) {
+    pendingCreatorMissions.delete(key);
+    await ctx.reply('No problem. I will leave that creator mission planned but I will not run it from Telegram.');
+    return true;
+  }
+
+  const action = pendingCreatorAction(text);
+  if (!action) return false;
+
+  if (action === 'status') {
+    const result = await spawner.creatorMissionStatus({ missionId: pending.missionId });
+    await ctx.reply(formatCreatorMissionStatusSummary(result));
+    return true;
+  }
+
+  if (action === 'validate') {
+    await ctx.reply('Running creator validation checks...');
+    const result = await spawner.creatorMissionValidate({ missionId: pending.missionId });
+    await ctx.reply(formatCreatorMissionValidationSummary(result));
+    return true;
+  }
+
+  pendingCreatorMissions.delete(key);
+  await ctx.reply('Starting the creator mission now.');
+  const result = await spawner.creatorMissionExecute({ missionId: pending.missionId });
+  await ctx.reply(formatCreatorMissionExecutionSummary(result));
+  return true;
+}
+
 function isPendingClarificationFollowup(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return false;
@@ -1868,9 +2081,12 @@ export async function handleBuildIntent(
 }
 
 function parseRunCommand(text: string, command: string): string {
-  const idx = text.indexOf(command);
-  if (idx === -1) return text.trim();
-  return text.slice(idx + command.length).trim();
+  const trimmed = text.trim();
+  const [firstToken = ''] = trimmed.split(/\s+/, 1);
+  if (firstToken.split('@', 1)[0].toLowerCase() !== command.toLowerCase()) {
+    return trimmed;
+  }
+  return trimmed.slice(firstToken.length).trim();
 }
 
 function missionDefaultProvider(): string {
@@ -1890,13 +2106,23 @@ const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> 
 
 for (const variant of RUN_VARIANTS) {
   bot.command(variant.name, async (ctx) => {
+    const command = `/${variant.name}`;
+    recordCommandTelemetry(ctx, command, 'received');
     if (!requireAdmin(ctx)) return;
-    const goal = parseRunCommand(ctx.message.text, `/${variant.name}`);
+    const goal = parseRunCommand(ctx.message.text, command);
     if (!goal) {
-      return ctx.reply(`Usage: ${variant.usage}`);
+      await ctx.reply(`Usage: ${variant.usage}`);
+      recordCommandTelemetry(ctx, command, 'replied');
+      return;
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
-    await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
+    try {
+      await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
+      recordCommandTelemetry(ctx, command, 'replied');
+    } catch (err) {
+      recordCommandTelemetry(ctx, command, 'failed', err);
+      throw err;
+    }
   });
 }
 
@@ -1940,10 +2166,16 @@ bot.command('models', async (ctx) => {
 
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
-
-  await safeSendChatAction(ctx, 'typing');
-  const result = await spawner.board();
-  await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+  recordCommandTelemetry(ctx, '/board', 'received');
+  try {
+    await safeSendChatAction(ctx, 'typing');
+    const result = await spawner.board();
+    await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+    recordCommandTelemetry(ctx, '/board', result.success ? 'replied' : 'failed');
+  } catch (err: any) {
+    recordCommandTelemetry(ctx, '/board', 'failed', err);
+    await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
+  }
 });
 
 bot.command('creator', async (ctx) => {
@@ -2337,6 +2569,16 @@ bot.command('updates', async (ctx) => {
   await ctx.reply(`Live mission updates set to ${next}.\n${describeTelegramRelayVerbosity(next)}`);
 });
 
+bot.command('streaming', async (ctx) => {
+  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '/streaming';
+  await handleTelegramStreamingConfigText(ctx, text);
+});
+
+bot.command('drafts', async (ctx) => {
+  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '/drafts';
+  await handleTelegramStreamingConfigText(ctx, text);
+});
+
 bot.command('access', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -2501,6 +2743,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  if (await handleTelegramStreamingConfigText(ctx, text)) {
+    return;
+  }
+
   const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
   const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
   if (agentDoctrinePreference) {
@@ -2526,6 +2772,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+
   if (!earlyBuildIntent && isGlobalAgentDoctrineRequest(text)) {
     const reply = formatGlobalAgentDoctrineRequestReply();
     await conversation.remember(user, text).catch(() => {});
@@ -2533,6 +2780,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+
   if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {
@@ -2756,6 +3004,48 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // detailed project brief from becoming a mission.
     if (pendingClarification && isPendingClarificationFollowup(text)) {
       await handleClarificationAnswers(ctx, text);
+      return;
+    }
+
+    if (await handlePendingCreatorMission(ctx, text)) {
+      await conversation.remember(user, text).catch(() => {});
+      return;
+    }
+
+    const naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
+      recentMessages: contextualTurns.filter(Boolean)
+    });
+    if (naturalRecursiveIntent) {
+      await conversation.remember(user, text).catch(() => {});
+      await conversation.rememberAssistantReply(user, `Recursive command routed from natural language: ${naturalRecursiveIntent.rawCommand}`).catch(() => {});
+      await handleRecursiveCommand(ctx, naturalRecursiveIntent.rawCommand);
+      return;
+    }
+
+    const creatorMissionIntent = parseNaturalCreatorMissionIntent(text);
+    if (creatorMissionIntent) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply('Planning creator mission...');
+      const requestId = `tg-creator-natural-${ctx.chat.id}-${(ctx.message as any)?.message_id || Date.now()}-${Date.now()}`;
+      const result = await spawner.creatorMission({
+        brief: creatorMissionIntent.brief,
+        requestId,
+        privacyMode: creatorMissionIntent.privacyMode,
+        riskLevel: creatorMissionIntent.riskLevel
+      });
+      if (result.success && result.missionId) {
+        pendingCreatorMissions.set(`${ctx.chat.id}-${ctx.from.id}`, {
+          missionId: result.missionId,
+          requestId: result.requestId || requestId,
+          brief: creatorMissionIntent.brief,
+          timestamp: Date.now()
+        });
+      }
+      await ctx.reply(formatCreatorMissionSummary(result));
+      await conversation.rememberAssistantReply(user, result.success
+        ? `Creator mission planned: ${result.missionId || 'unknown'}`
+        : `Creator mission failed: ${result.error || 'unknown error'}`
+      ).catch(() => {});
       return;
     }
 
@@ -3023,7 +3313,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
-      const llmResponse = await llm.chat(
+      const llmResponse = await chatWithOptionalDraftStreaming(
+        ctx,
         ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
         memories
@@ -3049,7 +3340,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   try {
     let bridgeFailed = false;
-    let builderReply = {
+    let builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>> = {
       used: false,
       responseText: '',
       decision: '',
@@ -3062,7 +3353,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       bridgeFailed = true;
       console.warn('[Bridge] local chat fallback after bridge error:', bridgeError);
     }
-    console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
+    console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
@@ -3070,7 +3361,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         if (builderReply.voiceMedia) {
           await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
         } else if (builderReply.responseText) {
-          await ctx.reply(builderReply.responseText);
+          await replyWithOptionalDraftPreview(ctx, builderReply.responseText);
         }
         await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         return;
@@ -3085,7 +3376,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const chatPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
 
     // Get LLM response with Spark context
-    const response = await llm.chat(chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
+    const response = await chatWithOptionalDraftStreaming(ctx, chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {
@@ -3256,7 +3547,13 @@ async function start() {
       mode: launchConfig.mode
     });
   }
-  const relay = await startMissionRelay(bot);
+  const relay = await startMissionRelay(bot, {
+    getRuntimeStatus: () => ({
+      telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled_smoke' : pollingActive ? 'active' : 'starting',
+      pollingActive,
+      pollingStartedAt
+    })
+  });
 
   // Check launch-critical connections.
   const llmHealthy = await llm.isAvailable();
@@ -3277,9 +3574,11 @@ async function start() {
   }
 
   await ensurePollingReady();
-  await bot.launch();
-  pollingActive = true;
-  console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+  await bot.launch(() => {
+    pollingActive = true;
+    pollingStartedAt = new Date().toISOString();
+    console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+  });
 }
 
 // Guard: only auto-start when run as the main module. Importing this file

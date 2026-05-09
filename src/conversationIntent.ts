@@ -360,6 +360,219 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   return brief.length >= 3 ? brief : null;
 }
 
+export interface NaturalCreatorMissionIntent {
+  brief: string;
+  privacyMode: 'local_only' | 'github_pr' | 'swarm_shared';
+  riskLevel: 'low' | 'medium' | 'high';
+  reason: string;
+}
+
+export interface NaturalRecursiveCommandIntent {
+  rawCommand: string;
+  reason: string;
+}
+
+export interface NaturalRecursiveCommandContext {
+  recentMessages?: string[];
+}
+
+function normalizeCreatorMissionPrivacy(text: string): NaturalCreatorMissionIntent['privacyMode'] {
+  if (/\b(?:github|pull\s+request|pr)\b/i.test(text)) return 'github_pr';
+  if (/\b(?:swarm|network|shared|publish|public)\b/i.test(text)) return 'swarm_shared';
+  return 'local_only';
+}
+
+function normalizeCreatorMissionRisk(text: string): NaturalCreatorMissionIntent['riskLevel'] {
+  if (/\b(?:public|network|publish|production|secret|token|auth|payment|financial|trading|delete|destructive)\b/i.test(text)) {
+    return 'high';
+  }
+  if (/\b(?:recursive|autoloop|specialization|benchmark|swarm|creator|qa|test|validator|review)\b/i.test(text)) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function isQaOperatorCreatorMission(text: string): boolean {
+  return (
+    /\b(?:spark\s+qa\s+operator|qa\s+operator|qa\s+tester|quality\s+tester|tester\s+for\s+spark|spark\s+tester)\b/i.test(text) &&
+    /\b(?:benchmark|benchmarks|eval|evals|test\s+suite|qa|recursive|recursion|autoloop|specialization|path|creator|improve|better|standard|standardize|create|build|make|prepare|wire|connect)\b/i.test(text)
+  );
+}
+
+function isCreatorSystemMission(text: string): boolean {
+  if (/^\s*\//.test(text)) return false;
+  if (/\b(?:what|why|how)\s+(?:is|are|does|do)\b/i.test(text) && !/\b(?:create|build|make|prepare|wire|connect|improve|run)\b/i.test(text)) {
+    return false;
+  }
+  return (
+    /\b(?:creator\s+mission|creator\s+system|domain[-\s]*chip|benchmark\s+pack|benchmarks?|evals?|specialization\s+path|autoloop(?:\s+policy)?|swarm\s+review\s+packet)\b/i.test(text) &&
+    /\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand)\b/i.test(text)
+  );
+}
+
+function qaOperatorCreatorBrief(text: string): string {
+  const focusParts = [];
+  if (/\btelegram\b/i.test(text)) focusParts.push('Telegram natural-language QA flows');
+  if (/\b(?:workspace|swarm)\b/i.test(text)) focusParts.push('Spark Swarm Workspace sync and reporting');
+  if (/\b(?:spawner|canvas|kanban)\b/i.test(text)) focusParts.push('Spawner UI, Canvas, and Kanban creator missions');
+  if (/\b(?:auth|pairing|login)\b/i.test(text)) focusParts.push('auth pairing and failure-message quality');
+  if (/\b(?:recursive|recursion|autoloop)\b/i.test(text)) focusParts.push('recursive autoloop reports and keep/revert decisions');
+  if (/\b(?:benchmark|eval|test\s+suite)\b/i.test(text)) focusParts.push('richer benchmark packs with visible and held-out cases');
+  const focus = focusParts.length > 0
+    ? focusParts.join(', ')
+    : 'Telegram flows, Workspace reports, creator missions, recursive reports, Spawner UI, Canvas, Kanban, auth pairing, and specialization autoloops';
+
+  return [
+    'Improve Spark QA Operator as a private benchmarked specialization path with a gated autoloop.',
+    'Canonical target domain: spark-qa-operator.',
+    'Do not create Spark Telegram, Spark Swarm Workspace, Spawner UI, Canvas, or Kanban as separate root domains; treat them as benchmark lanes and product QA surfaces under Spark QA Operator.',
+    'Reuse and extend the existing Spark QA Operator system first: domain-chip-spark-qa-operator, spark-qa-operator-bench, and specialization-path-spark-qa-operator.',
+    'Make Spark better at QA testing Spark-built products first, then only transfer lessons to user apps after evidence supports it.',
+    `Focus areas: ${focus}.`,
+    'Expand richer benchmark packs with visible cases, held-out cases, trap cases, scoring rubrics, and replayable evidence.',
+    'Use Spark creator-system standards: domain chip contract, benchmark pack, specialization path, autoloop policy, adapter map, validation ledger, local/private boundary, and Swarm review packet only when gates allow it.',
+    'Keep Telegram replies concise and put detailed evidence, traces, screenshots, and benchmark artifacts in Workspace.'
+  ].join(' ');
+}
+
+function normalizeCreatorMissionBrief(text: string): string {
+  const normalized = text.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/g, '');
+  if (isQaOperatorCreatorMission(normalized)) {
+    return qaOperatorCreatorBrief(normalized);
+  }
+  return [
+    normalized,
+    'Use Spark creator-system standards: creator intent packet, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review packet only when gates allow it.'
+  ].join(' ');
+}
+
+export function parseNaturalCreatorMissionIntent(text: string): NaturalCreatorMissionIntent | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  if (!isQaOperatorCreatorMission(normalized) && !isCreatorSystemMission(normalized)) return null;
+  if (/\b(?:show|list|status|report|trace|review)\b/i.test(normalized) && !/\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|improve|upgrade|expand)\b/i.test(normalized)) {
+    return null;
+  }
+
+  const privacyMode = normalizeCreatorMissionPrivacy(normalized);
+  return {
+    brief: normalizeCreatorMissionBrief(normalized),
+    privacyMode,
+    riskLevel: privacyMode === 'swarm_shared' ? 'high' : normalizeCreatorMissionRisk(normalized),
+    reason: isQaOperatorCreatorMission(normalized)
+      ? 'Spark QA Operator creator work needs benchmark packs, held-out checks, autoloop policy, and private Workspace evidence before any network sharing.'
+      : 'Creator-system work needs artifact manifests, benchmark gates, rollback notes, and review boundaries.'
+  };
+}
+
+function naturalRoundCount(text: string): number {
+  const normalized = text.toLowerCase();
+  const numeric = normalized.match(/\b(?:rounds?|passes|iterations?)\s+(\d{1,2})\b/) || normalized.match(/\b(\d{1,2})\s+(?:rounds?|passes|iterations?)\b/);
+  if (numeric) return Math.max(1, Math.min(10, Number.parseInt(numeric[1], 10) || 1));
+  if (/\b(?:one|single|a)\s+(?:round|pass|iteration)\b/i.test(text)) return 1;
+  if (/\btwo\s+(?:rounds|passes|iterations)\b/i.test(text)) return 2;
+  if (/\bthree\s+(?:rounds|passes|iterations)\b/i.test(text)) return 3;
+  return 1;
+}
+
+function knownNaturalRecursiveTarget(text: string): { pathId: string; chipKey: string; label: string } | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const explicitPath = normalized.match(/\bpath:[A-Za-z0-9:_-]+\b/);
+  if (explicitPath) {
+    const pathId = explicitPath[0];
+    if (pathId === 'path:spark-qa-operator') return { pathId, chipKey: 'spark-qa-operator', label: 'Spark QA Operator' };
+    if (pathId === 'path:startup-yc') return { pathId, chipKey: 'startup-yc', label: 'Startup YC' };
+    return { pathId, chipKey: pathId.replace(/^path:/, ''), label: pathId };
+  }
+  if (/\b(?:spark\s+qa\s+operator|qa\s+operator|qa\s+tester|quality\s+tester|tester\s+for\s+spark|spark\s+tester)\b/i.test(normalized) ||
+      (/\bqa\b/i.test(normalized) && /\b(?:recursive|recursion|loop|round|report|trace|review|decision|improve|improvement)\b/i.test(normalized))) {
+    return { pathId: 'path:spark-qa-operator', chipKey: 'spark-qa-operator', label: 'Spark QA Operator' };
+  }
+  if (/\bstartup[-\s]+yc\b/i.test(normalized)) {
+    return { pathId: 'path:startup-yc', chipKey: 'startup-yc', label: 'Startup YC' };
+  }
+  if (/\bdomain[-\s]+chip[-\s]+creator\b/i.test(normalized)) {
+    return {
+      pathId: 'path_builder_chip_domain_chip_creator',
+      chipKey: 'domain-chip-creator',
+      label: 'Domain Chip Creator'
+    };
+  }
+  return null;
+}
+
+function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandContext = {}): { pathId: string; chipKey: string; label: string } | null {
+  const direct = knownNaturalRecursiveTarget(text);
+  if (direct) return direct;
+
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|report|readout|summary|status|trace|timeline|evidence|receipts|review|decisions?|blockers?|weakest|weak\s+spot|how'?s|how\s+is|where\s+are\s+we|keep\s+going|continue|my\s+call|needs\s+me)\b/i.test(normalized);
+  if (!canUseContext) return null;
+
+  const recent = (context.recentMessages || [])
+    .filter(Boolean)
+    .slice(-8)
+    .join('\n');
+  return recent ? knownNaturalRecursiveTarget(recent) : null;
+}
+
+export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || normalized.startsWith('/')) return null;
+
+  if (/\b(?:show|list|what|which|get|give\s+me)\b.*\b(?:recursive\s+)?(?:loops?|sessions?|runs?)\b/i.test(normalized) ||
+      /\b(?:what|which)\s+(?:loops?|runs?)\s+(?:are|do)\s+(?:open|running|available|we\s+have)\b/i.test(normalized)) {
+    return {
+      rawCommand: 'sessions',
+      reason: 'Natural-language request to list recursive loops.'
+    };
+  }
+
+  if (/\b(?:show|list|what|which|get|give\s+me)\b.*\b(?:recursive\s+)?(?:paths?|lanes?)\b/i.test(normalized)) {
+    return {
+      rawCommand: 'paths',
+      reason: 'Natural-language request to list recursive paths.'
+    };
+  }
+
+  const target = naturalRecursiveTarget(normalized, context);
+  if (!target) return null;
+
+  if (/\b(?:start|run|kick\s+off|launch|do)\b.*\b(?:recursive|recursion|loop|round|iteration)\b/i.test(normalized) ||
+      /\b(?:start|run|kick\s+off|launch|do)\b.*\b(?:qa\s+tester|qa\s+operator|startup[-\s]+yc|domain[-\s]+chip[-\s]+creator)\b/i.test(normalized) ||
+      /\b(?:improve|make\s+better)\b.*\b(?:qa\s+tester|qa\s+operator)\b.*\b(?:round|loop|iteration)\b/i.test(normalized) ||
+      /\b(?:run|start|do|try)\s+(?:another|one\s+more|a|one|same)\s+(?:round|pass|iteration|loop)\b/i.test(normalized) ||
+      /\b(?:keep\s+going|continue|iterate\s+again|let\s+it\s+cook)\b/i.test(normalized)) {
+    return {
+      rawCommand: `start ${target.chipKey} rounds ${naturalRoundCount(normalized)}`,
+      reason: `Natural-language request to start a recursive loop for ${target.label}.`
+    };
+  }
+
+  if (/\b(?:trace|timeline|recent\s+movement|what\s+happened|show\s+the\s+evidence|show\s+evidence|show\s+the\s+receipts|receipts|audit\s+trail|what\s+went\s+on|what\s+did\s+it\s+do)\b/i.test(normalized)) {
+    return {
+      rawCommand: `trace ${target.pathId}`,
+      reason: `Natural-language request to trace ${target.label}.`
+    };
+  }
+
+  if (/\b(?:review|decisions?|blockers?|blocked|needs\s+review|waiting\s+for\s+review|needs\s+my\s+call|need\s+my\s+call|what\s+needs\s+me|anything\s+stuck|what\s+is\s+stuck)\b/i.test(normalized)) {
+    return {
+      rawCommand: `review ${target.pathId}`,
+      reason: `Natural-language request to review ${target.label} decisions.`
+    };
+  }
+
+  if (/\b(?:report|status|score|scores|result|results|doing|health|how'?s|how\s+is|readout|summary|where\s+are\s+we|what\s+should\s+.*improve\s+next|weakest|weak\s+spot|what\s+is\s+next|what'?s\s+next)\b/i.test(normalized)) {
+    return {
+      rawCommand: `report ${target.pathId}`,
+      reason: `Natural-language request for ${target.label} recursive report.`
+    };
+  }
+
+  return null;
+}
+
 export function isMissionExecutionConfirmation(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;

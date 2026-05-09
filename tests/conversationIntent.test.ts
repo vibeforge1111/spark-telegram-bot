@@ -49,6 +49,8 @@ import {
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
+  parseNaturalCreatorMissionIntent,
+  parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
@@ -580,6 +582,113 @@ test('extracts natural domain chip create requests without slash-command handoff
     'Telegram memory routing'
   );
   assert.equal(parseNaturalChipCreateIntent('which chips are active?'), null);
+});
+
+test('extracts natural creator mission requests for QA Operator benchmark work', () => {
+  const intent = parseNaturalCreatorMissionIntent(
+    'make the QA tester better by creating better benchmarks and autoloops for Spark Telegram and Workspace'
+  );
+  assert.equal(intent?.privacyMode, 'local_only');
+  assert.equal(intent?.riskLevel, 'medium');
+  assert.match(intent?.brief || '', /Improve Spark QA Operator/);
+  assert.match(intent?.brief || '', /richer benchmark packs/);
+  assert.match(intent?.brief || '', /Telegram natural-language QA flows/);
+  assert.match(intent?.brief || '', /Spark Swarm Workspace sync/);
+  assert.match(intent?.brief || '', /Canonical target domain: spark-qa-operator/);
+  assert.match(intent?.brief || '', /benchmark lanes and product QA surfaces under Spark QA Operator/);
+  assert.match(intent?.brief || '', /domain-chip-spark-qa-operator/);
+
+  assert.equal(
+    parseNaturalCreatorMissionIntent('show me the Spark QA Operator report'),
+    null
+  );
+  assert.equal(
+    parseNaturalCreatorMissionIntent('create a private benchmarked specialization path with an autoloop for AI security questionnaires')?.privacyMode,
+    'local_only'
+  );
+});
+
+test('extracts natural recursive commands for QA Operator loops', () => {
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show me the QA tester report'),
+    {
+      rawCommand: 'report path:spark-qa-operator',
+      reason: 'Natural-language request for Spark QA Operator recursive report.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('trace the QA operator loop'),
+    {
+      rawCommand: 'trace path:spark-qa-operator',
+      reason: 'Natural-language request to trace Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('start one QA improvement loop'),
+    {
+      rawCommand: 'start spark-qa-operator rounds 1',
+      reason: 'Natural-language request to start a recursive loop for Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('run the QA operator for 3 rounds'),
+    {
+      rawCommand: 'start spark-qa-operator rounds 3',
+      reason: 'Natural-language request to start a recursive loop for Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('what QA decisions need review?'),
+    {
+      rawCommand: 'review path:spark-qa-operator',
+      reason: 'Natural-language request to review Spark QA Operator decisions.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show recursive loops'),
+    {
+      rawCommand: 'sessions',
+      reason: 'Natural-language request to list recursive loops.'
+    }
+  );
+});
+
+test('extracts contextual recursive commands from conversational follow-ups', () => {
+  const qaContext = {
+    recentMessages: [
+      'We are working on Spark QA Operator and path:spark-qa-operator.',
+      'The QA tester should improve Telegram and Workspace reports.'
+    ]
+  };
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('give me the readout', qaContext),
+    {
+      rawCommand: 'report path:spark-qa-operator',
+      reason: 'Natural-language request for Spark QA Operator recursive report.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show the receipts', qaContext),
+    {
+      rawCommand: 'trace path:spark-qa-operator',
+      reason: 'Natural-language request to trace Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('what needs my call?', qaContext),
+    {
+      rawCommand: 'review path:spark-qa-operator',
+      reason: 'Natural-language request to review Spark QA Operator decisions.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('run another round', qaContext),
+    {
+      rawCommand: 'start spark-qa-operator rounds 1',
+      reason: 'Natural-language request to start a recursive loop for Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(parseNaturalRecursiveCommandIntent('give me the readout'), null);
 });
 
 test('detects empty or generic LLM failures', () => {
