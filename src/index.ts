@@ -3037,7 +3037,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && isPendingTaskRecoveryQuestion(text)) {
+  if (!earlyBuildIntent && naturalRouteShadow?.route !== 'memory.doctor' && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {
       const reply = renderPendingTaskRecoveryReply(pendingTask);

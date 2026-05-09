@@ -424,6 +424,60 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('memory doctor blankness requests bypass pending-task recovery', async () => {
+		restoreAxios();
+		const testUserId = 8319079565;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const capturedBridgeTexts: string[] = [];
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			const messagePayload = (updatePayload as any).message || {};
+			capturedBridgeTexts.push(String(messagePayload.text || ''));
+			return {
+				used: true,
+				responseText: 'Builder memory doctor handled the blankness.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'plain_chat'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const priorReplies: string[] = [];
+			const priorCtx = makeFakeCtx(testUserId, testUserId, 5651, priorReplies);
+			priorCtx.message.text = 'what is route confidence in one sentence';
+			(priorCtx as any).update = { update_id: 5651, message: priorCtx.message };
+			await indexModule.handleTextMessage(priorCtx);
+			await conversationModule.conversation.recordInterruptedTask(
+				{ id: testUserId, username: 'memory-test' },
+				{ message: 'What do you know about yourself and where do you lack?', failure: 'message is too long', stage: 'telegram_message_handler' }
+			);
+
+			const blankReplies: string[] = [];
+			const blankCtx = makeFakeCtx(testUserId, testUserId, 5652, blankReplies);
+			blankCtx.message.text = 'you went blank and lost context, what happened?';
+			(blankCtx as any).update = { update_id: 5652, message: blankCtx.message };
+			await indexModule.handleTextMessage(blankCtx);
+
+			const blankPayload = capturedBridgeTexts[capturedBridgeTexts.length - 1] || '';
+			assert.match(blankReplies.join('\n'), /Builder memory doctor handled the blankness/);
+			assert.doesNotMatch(blankReplies.join('\n'), /I recovered the last interrupted task/i);
+			assert.match(blankPayload, /Spark Telegram Memory Doctor evidence/);
+			assert.match(blankPayload, /- user: what is route confidence in one sentence/);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('chip status overclaim probe does not fall through to provider fallback', async () => {
 		restoreAxios();
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
