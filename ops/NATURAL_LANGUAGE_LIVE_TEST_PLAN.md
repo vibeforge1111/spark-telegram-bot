@@ -60,6 +60,20 @@ npm run nl:live -- --profile primary --send --suite smoke
 
 The prompt card tells the human tester what to paste into Telegram and what to observe. It does not simulate inbound Telegram updates.
 
+Create a verdict worksheet for the same cases:
+
+```powershell
+npx ts-node ops/liveNlVerdictReport.ts --suite smoke
+```
+
+Print the worksheet instead of writing a report file:
+
+```powershell
+npx ts-node ops/liveNlVerdictReport.ts --suite memory --stdout
+```
+
+Verdicts are human-scored and separate from the redacted route ledger. Use the ledger for route-selection evidence; use the worksheet for whether the actual Telegram reply was conversational, contextual, and safe.
+
 ## Session Log
 
 | Date | Case | Actual route/outcome | Issue | Fix/Test added |

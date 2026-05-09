@@ -1,0 +1,156 @@
+export type LiveNlRisk = 'safe' | 'mission' | 'writes_files' | 'external';
+
+export interface LiveNlCommandCase {
+  id: string;
+  suite: string;
+  risk: LiveNlRisk;
+  prompt: string;
+  expectedRoute: string;
+  expectedOutcome: string;
+}
+
+export interface LiveNlSelection {
+  caseId?: string | null;
+  suite?: string | null;
+  includeRisky?: boolean;
+}
+
+export interface LiveNlVerdictReportOptions {
+  generatedAt?: Date;
+  title?: string;
+  suite?: string | null;
+}
+
+export const LIVE_NL_SUITE_ALIASES: Record<string, string[]> = {
+  memory_architecture: ['memory', 'self_awareness', 'wiki', 'anti_drift']
+};
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringField(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCase {
+  const record = objectValue(value);
+  if (!record) {
+    throw new Error(`Live NL case ${index + 1} is not an object.`);
+  }
+
+  const parsed = {
+    id: stringField(record, 'id'),
+    suite: stringField(record, 'suite'),
+    risk: stringField(record, 'risk') as LiveNlRisk,
+    prompt: stringField(record, 'prompt'),
+    expectedRoute: stringField(record, 'expectedRoute'),
+    expectedOutcome: stringField(record, 'expectedOutcome')
+  };
+
+  if (!parsed.id || !parsed.suite || !parsed.prompt || !parsed.expectedRoute || !parsed.expectedOutcome) {
+    throw new Error(`Live NL case ${index + 1} needs id, suite, prompt, expectedRoute, and expectedOutcome.`);
+  }
+  if (!['safe', 'mission', 'writes_files', 'external'].includes(parsed.risk)) {
+    throw new Error(`Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}.`);
+  }
+
+  return parsed;
+}
+
+export function parseLiveNlCommandCases(value: unknown): LiveNlCommandCase[] {
+  if (!Array.isArray(value)) {
+    throw new Error('Live NL command cases must be a JSON array.');
+  }
+  return value.map(parseLiveNlCommandCase);
+}
+
+export function selectLiveNlCommandCases(
+  cases: LiveNlCommandCase[],
+  selection: LiveNlSelection = {}
+): LiveNlCommandCase[] {
+  const caseId = selection.caseId?.trim();
+  const suite = selection.suite?.trim();
+  const suiteNames = suite ? new Set(LIVE_NL_SUITE_ALIASES[suite] ?? [suite]) : null;
+
+  let selected = cases;
+  if (caseId) selected = selected.filter((entry) => entry.id === caseId);
+  if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
+  if (!selection.includeRisky && !caseId) selected = selected.filter((entry) => entry.risk === 'safe');
+  return selected;
+}
+
+function riskCounts(cases: LiveNlCommandCase[]): string {
+  const counts = new Map<LiveNlRisk, number>();
+  for (const entry of cases) {
+    counts.set(entry.risk, (counts.get(entry.risk) || 0) + 1);
+  }
+  return ['safe', 'mission', 'writes_files', 'external']
+    .map((risk) => `${risk}: ${counts.get(risk as LiveNlRisk) || 0}`)
+    .join(', ');
+}
+
+function indentedBlock(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => `    ${line}`)
+    .join('\n');
+}
+
+export function formatLiveNlVerdictReport(
+  cases: LiveNlCommandCase[],
+  options: LiveNlVerdictReportOptions = {}
+): string {
+  const generatedAt = (options.generatedAt || new Date()).toISOString();
+  const title = options.title || 'Natural Language Live Verdict Report';
+  const suiteLine = options.suite ? `Suite filter: ${options.suite}` : 'Suite filter: all selected safe cases';
+  const lines = [
+    `# ${title}`,
+    '',
+    `Generated: ${generatedAt}`,
+    suiteLine,
+    `Cases: ${cases.length} (${riskCounts(cases)})`,
+    '',
+    'Use this report after sending prompt cards with `ops/liveNlCommandSuite.ts`.',
+    'Do not paste secrets, full raw logs, or private user text into verdict notes.',
+    '',
+    'Verdict values: pass, fail, blocked, needs-retest, untested.',
+    '',
+    '## Session Summary',
+    '',
+    '- Profile:',
+    '- Tester:',
+    '- Bot/runtime commit:',
+    '- Ledger path, if enabled:',
+    '- Overall verdict:',
+    '- Follow-up commits/tests:',
+    ''
+  ];
+
+  for (const entry of cases) {
+    lines.push(
+      `## ${entry.id}`,
+      '',
+      `- Suite: ${entry.suite}`,
+      `- Risk: ${entry.risk}`,
+      `- Expected route: ${entry.expectedRoute}`,
+      `- Expected outcome: ${entry.expectedOutcome}`,
+      '- Verdict: untested',
+      '- Actual route:',
+      '- Actual outcome:',
+      '- Evidence:',
+      '- Issue:',
+      '- Fix/Test added:',
+      '',
+      'Prompt:',
+      '',
+      indentedBlock(entry.prompt),
+      ''
+    );
+  }
+
+  return lines.join('\n').trimEnd() + '\n';
+}
