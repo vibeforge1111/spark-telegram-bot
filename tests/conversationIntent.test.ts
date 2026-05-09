@@ -1164,6 +1164,14 @@ test('does not persist one-off or global doctrine requests as personal agent gui
   assert.equal(isGlobalAgentDoctrineRequest('build a global dashboard for agents'), false);
   assert.match(formatGlobalAgentDoctrineRequestReply(), /global Spark behavior change/);
   assert.match(formatGlobalAgentDoctrineRequestReply(), /explicit doctrine proposal/);
+  assert.match(
+    formatGlobalAgentDoctrineRequestReply('make all Spark systems understand workflow context more conversationally'),
+    /active workflow, and uncertainty signals/
+  );
+  assert.match(
+    formatGlobalAgentDoctrineRequestReply('all Spark agents should ask clarifying questions before missions'),
+    /ask before launching missions/
+  );
 });
 
 test('identifies standalone agent doctrine turns for a natural acknowledgement', () => {

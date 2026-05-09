@@ -3029,7 +3029,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   if (globalAgentDoctrineRequest) {
-    const reply = formatGlobalAgentDoctrineRequestReply();
+    const reply = formatGlobalAgentDoctrineRequestReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');
     await ctx.reply(reply);

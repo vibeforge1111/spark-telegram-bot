@@ -1695,10 +1695,14 @@ export function isGlobalAgentDoctrineRequest(text: string): boolean {
   ) && /\b(?:style|tone|personality|persona|conversation|conversational|natural language|nlp|context|understand|understanding|interpret|routing|route|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/.test(normalized);
 }
 
-export function formatGlobalAgentDoctrineRequestReply(): string {
+export function formatGlobalAgentDoctrineRequestReply(text = ''): string {
+  const localPrinciple = /\b(?:context|workflow|understand|understanding|conversational|conversation|natural language|nlp|routing|route)\b/i.test(text)
+    ? 'For this conversation, I can still apply the local version: I will use the current thread, active workflow, and uncertainty signals before choosing a route, and I will ask when context is ambiguous.'
+    : 'For this conversation, I can still follow the principle: I will ask before launching missions when the target or route is ambiguous.';
+
   return [
     'That is a global Spark behavior change, so I should not silently apply it from one chat.',
-    'The right move is an explicit doctrine proposal with scope, affected agents, tests, and rollback. For this conversation, I can still follow the principle: I will ask before launching missions when the target or route is ambiguous.'
+    `The right move is an explicit doctrine proposal with scope, affected agents, tests, and rollback. ${localPrinciple}`
   ].join('\n\n');
 }
 
