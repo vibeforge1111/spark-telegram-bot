@@ -152,6 +152,17 @@
     "expectedOutcome": "Saves the current-plan directive through Builder memory. Must not run diagnostics, start a mission, or expose the raw directive in route telemetry."
   },
   {
+    "id": "memory-004",
+    "suite": "memory",
+    "risk": "safe",
+    "turns": [
+      "what is route confidence in one sentence",
+      "run memory doctor for the last request"
+    ],
+    "expectedRoute": "memory.doctor",
+    "expectedOutcome": "Second turn routes to Memory Doctor with immediate prior-turn evidence. Must not ask the user to paste the previous turn, audit stale creator context, or start a mission."
+  },
+  {
     "id": "context-window-001",
     "suite": "context_window",
     "risk": "safe",
@@ -214,6 +225,28 @@
     "prompt": "Let's do two",
     "expectedRoute": "contextual_list_reference",
     "expectedOutcome": "Selects memory timeline explorer from the earlier list. Must not change access level to 2."
+  },
+  {
+    "id": "context-window-009",
+    "suite": "context_window",
+    "risk": "safe",
+    "turns": [
+      "please help me design a project called Relay Workshop with kanban and canvas, but do not build yet",
+      "make this more Spark-colored and easier to scan, but do not start a new project"
+    ],
+    "expectedRoute": "plain_chat",
+    "expectedOutcome": "Second turn refines the just-designed Relay Workshop artifact conversationally. Must not start a new build, creator mission, or generic project scaffold."
+  },
+  {
+    "id": "context-window-010",
+    "suite": "context_window",
+    "risk": "safe",
+    "turns": [
+      "do not build yet, help me think through a tiny route confidence test harness",
+      "run it"
+    ],
+    "expectedRoute": "plain_chat",
+    "expectedOutcome": "Second turn uses the immediate ideation context and either asks for confirmation or proposes the exact next step. Must not execute a stale pending mission or unrelated build."
   },
   {
     "id": "local-001",

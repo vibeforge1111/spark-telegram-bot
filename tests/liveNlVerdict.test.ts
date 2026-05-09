@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import {
   formatLiveNlCopyPastePrompts,
   formatLiveNlVerdictReport,
+  liveNlCaseTurns,
   parseLiveNlCommandCases,
   selectLiveNlCommandCases
 } from '../src/liveNlVerdict';
@@ -98,6 +99,33 @@ test('formats copy-paste prompts without leaking route expectations into Telegra
   assert.match(promptSheet, /CASE safe-001/);
   assert.match(promptSheet, /<paste Spark reply here>/);
   assert.doesNotMatch(promptSheet, /Expected route|Expected outcome|memory_directive|Saves the preference/);
+});
+
+test('formats multi-turn live probes as sequential copy-paste messages', () => {
+  const [entry] = parseLiveNlCommandCases([
+    {
+      id: 'context-001',
+      suite: 'context_window',
+      risk: 'safe',
+      turns: ['shape a tiny route-confidence harness but do not build yet', 'run it'],
+      expectedRoute: 'plain_chat',
+      expectedOutcome: 'Uses the prior turn without launching an unrelated system.'
+    }
+  ]);
+  const promptSheet = formatLiveNlCopyPastePrompts([entry], { title: 'Multi Turn Smoke' });
+  const report = formatLiveNlVerdictReport([entry], {
+    generatedAt: new Date('2026-05-09T00:00:00.000Z')
+  });
+
+  assert.deepEqual(liveNlCaseTurns(entry), [
+    'shape a tiny route-confidence harness but do not build yet',
+    'run it'
+  ]);
+  assert.match(promptSheet, /Telegram message 1 of 2/);
+  assert.match(promptSheet, /CASE context-001 TURN 2/);
+  assert.match(report, /Prompts:/);
+  assert.match(report, /Turn 2:\n\s+run it/);
+  assert.doesNotMatch(promptSheet, /plain_chat|Uses the prior turn/);
 });
 
 test('live command copy-paste output keeps metadata out of Telegram blocks', () => {

@@ -5,6 +5,7 @@ export interface LiveNlCommandCase {
   suite: string;
   risk: LiveNlRisk;
   prompt: string;
+  turns?: string[];
   expectedRoute: string;
   expectedOutcome: string;
 }
@@ -41,23 +42,31 @@ function stringField(record: Record<string, unknown>, key: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function stringArrayField(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => typeof entry === 'string' ? entry.trim() : '').filter(Boolean);
+}
+
 function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCase {
   const record = objectValue(value);
   if (!record) {
     throw new Error(`Live NL case ${index + 1} is not an object.`);
   }
 
+  const turns = stringArrayField(record, 'turns');
   const parsed = {
     id: stringField(record, 'id'),
     suite: stringField(record, 'suite'),
     risk: stringField(record, 'risk') as LiveNlRisk,
-    prompt: stringField(record, 'prompt'),
+    prompt: stringField(record, 'prompt') || turns[0] || '',
+    turns: turns.length > 0 ? turns : undefined,
     expectedRoute: stringField(record, 'expectedRoute'),
     expectedOutcome: stringField(record, 'expectedOutcome')
   };
 
   if (!parsed.id || !parsed.suite || !parsed.prompt || !parsed.expectedRoute || !parsed.expectedOutcome) {
-    throw new Error(`Live NL case ${index + 1} needs id, suite, prompt, expectedRoute, and expectedOutcome.`);
+    throw new Error(`Live NL case ${index + 1} needs id, suite, prompt or turns, expectedRoute, and expectedOutcome.`);
   }
   if (!['safe', 'mission', 'writes_files', 'external'].includes(parsed.risk)) {
     throw new Error(`Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}.`);
@@ -71,6 +80,11 @@ export function parseLiveNlCommandCases(value: unknown): LiveNlCommandCase[] {
     throw new Error('Live NL command cases must be a JSON array.');
   }
   return value.map(parseLiveNlCommandCase);
+}
+
+export function liveNlCaseTurns(entry: LiveNlCommandCase): string[] {
+  const turns = entry.turns?.map((turn) => turn.trim()).filter(Boolean) || [];
+  return turns.length > 0 ? turns : [entry.prompt];
 }
 
 export function selectLiveNlCommandCases(
@@ -142,6 +156,7 @@ export function formatLiveNlVerdictReport(
   ];
 
   for (const entry of cases) {
+    const turns = liveNlCaseTurns(entry);
     lines.push(
       `## ${entry.id}`,
       '',
@@ -156,9 +171,11 @@ export function formatLiveNlVerdictReport(
       '- Issue:',
       '- Fix/Test added:',
       '',
-      'Prompt:',
+      turns.length === 1 ? 'Prompt:' : 'Prompts:',
       '',
-      indentedBlock(entry.prompt),
+      indentedBlock(turns.length === 1
+        ? turns[0]
+        : turns.map((turn, index) => `Turn ${index + 1}:\n${turn}`).join('\n\n')),
       ''
     );
   }
@@ -181,24 +198,32 @@ export function formatLiveNlCopyPastePrompts(
   ];
 
   cases.forEach((entry, index) => {
+    const turns = liveNlCaseTurns(entry);
     lines.push(
       `## ${index + 1}. ${entry.id}`,
-      '',
-      'Telegram message:',
-      '',
-      '```text',
-      entry.prompt,
-      '```',
-      '',
-      'Reply capture:',
-      '',
-      '```text',
-      `CASE ${entry.id}`,
-      'REPLY:',
-      '<paste Spark reply here>',
-      '```',
       ''
     );
+
+    turns.forEach((turn, turnIndex) => {
+      const suffix = turns.length > 1 ? ` ${turnIndex + 1} of ${turns.length}` : '';
+      const captureCase = turns.length > 1 ? `CASE ${entry.id} TURN ${turnIndex + 1}` : `CASE ${entry.id}`;
+      lines.push(
+        `Telegram message${suffix}:`,
+        '',
+        '```text',
+        turn,
+        '```',
+        '',
+        `Reply capture${suffix}:`,
+        '',
+        '```text',
+        captureCase,
+        'REPLY:',
+        '<paste Spark reply here>',
+        '```',
+        ''
+      );
+    });
   });
 
   return lines.join('\n').trimEnd() + '\n';

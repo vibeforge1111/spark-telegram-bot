@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { Telegraf } from 'telegraf';
 import {
   formatLiveNlCopyPastePrompts,
+  liveNlCaseTurns,
   parseLiveNlCommandCases,
   selectLiveNlCommandCases,
   type LiveNlCommandCase
@@ -29,11 +30,16 @@ function loadCases(): LiveNlCommandCase[] {
 }
 
 function renderCase(entry: LiveNlCommandCase): string {
+  const turns = liveNlCaseTurns(entry);
   return [
     `TEST CARD ${entry.id}`,
     '',
-    'Send this as a new message to the bot:',
-    entry.prompt,
+    turns.length === 1
+      ? 'Send this as a new message to the bot:'
+      : 'Send these messages to the bot, one at a time:',
+    turns.length === 1
+      ? turns[0]
+      : turns.map((turn, index) => `Turn ${index + 1}:\n${turn}`).join('\n\n'),
     '',
     `Suite: ${entry.suite}`,
     `Risk: ${entry.risk}`,

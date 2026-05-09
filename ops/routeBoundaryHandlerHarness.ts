@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { llm } from '../src/llm';
 import {
+  liveNlCaseTurns,
   parseLiveNlCommandCases,
   selectLiveNlCommandCases,
   type LiveNlCommandCase
@@ -87,6 +88,8 @@ function expectedExecutedRoutes(expectedRoute: string): string[] {
     global_doctrine_blocked: ['agent_doctrine.global_blocked'],
     conversation_ideation: ['conversation.ideation'],
     conversation: ['conversation.ideation', 'plain_chat'],
+    memory_doctor: ['memory.doctor'],
+    project_iteration: ['project.iteration'],
     memory_recall: ['memory.recall'],
     memory_directive: ['memory.write'],
     context_recall: ['build_context.recall']
@@ -296,45 +299,56 @@ async function main(): Promise<void> {
   };
 
   const turns: HarnessTurn[] = [];
+  let messageId = 1;
+  let ledgerIndex = 0;
   for (let index = 0; index < selected.length; index += 1) {
     const entry = selected[index];
+    const prompts = liveNlCaseTurns(entry);
     const replies: string[] = [];
-    const messageId = index + 1;
-    const update = {
-      update_id: Date.now() + messageId,
-      message: {
-        message_id: messageId,
-        date: Math.floor(Date.now() / 1000),
-        chat,
-        from: user,
-        text: entry.prompt
-      }
-    };
-    const ctx = {
-      update,
-      from: user,
-      chat,
-      message: update.message,
-      sendChatAction: async () => undefined,
-      reply: async (text: unknown) => {
-        replies.push(String(text ?? ''));
-        return { message_id: replies.length + 1 };
-      },
-      telegram: {
-        sendMessage: async (_chatId: unknown, text: unknown) => {
-          replies.push(String(text ?? ''));
-          return { message_id: replies.length + 1 };
-        }
-      }
-    };
-
     const started = Date.now();
-    await handleTextMessage(ctx);
-    const record = await waitForLedgerRecord(ledgerPath, index);
+    let record: NaturalRouteExecutionRecord | null = null;
+
+    for (let turnIndex = 0; turnIndex < prompts.length; turnIndex += 1) {
+      const prompt = prompts[turnIndex];
+      const update = {
+        update_id: Date.now() + messageId,
+        message: {
+          message_id: messageId,
+          date: Math.floor(Date.now() / 1000),
+          chat,
+          from: user,
+          text: prompt
+        }
+      };
+      const addReply = (text: unknown) => {
+        const reply = String(text ?? '');
+        replies.push(prompts.length > 1 ? `Turn ${turnIndex + 1}: ${reply}` : reply);
+        return { message_id: replies.length + 1 };
+      };
+      const ctx = {
+        update,
+        from: user,
+        chat,
+        message: update.message,
+        sendChatAction: async () => undefined,
+        reply: async (text: unknown) => addReply(text),
+        telegram: {
+          sendMessage: async (_chatId: unknown, text: unknown) => addReply(text)
+        }
+      };
+
+      messageId += 1;
+      await handleTextMessage(ctx);
+      record = await waitForLedgerRecord(ledgerPath, ledgerIndex);
+      ledgerIndex += 1;
+    }
+
     const scored = scoreTurn(entry, replies, record);
     const turn: HarnessTurn = {
       caseId: entry.id,
-      prompt: entry.prompt,
+      prompt: prompts.length === 1
+        ? prompts[0]
+        : prompts.map((prompt, promptIndex) => `Turn ${promptIndex + 1}: ${prompt}`).join('\n\n'),
       expectedRoute: entry.expectedRoute,
       replies,
       latencyMs: Date.now() - started,
