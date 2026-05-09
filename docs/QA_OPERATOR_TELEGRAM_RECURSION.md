@@ -86,6 +86,14 @@ Contextual follow-ups after the chat is already about Spark QA Operator:
 
 These follow-ups should inherit the active loop from recent conversation. If the loop is ambiguous, Spark should ask or list recursive sessions instead of guessing.
 
+Dynamic Workspace names should work too. When `/recursive sessions` has shown a loop, users can say things like:
+
+`show the prompt benchmark report`
+
+`show me the proof for the frontier benchmark`
+
+Spark should resolve that against the recent Workspace session list. It should only use this contextual routing when the last 10-15 messages are actually about recursive loops, reports, traces, review decisions, scores, or Workspace recursions.
+
 ## Expected Artifact Map
 
 - Domain chip: `domain-chip-spark-qa-operator`

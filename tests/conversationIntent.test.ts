@@ -717,6 +717,61 @@ test('extracts contextual recursive commands from conversational follow-ups', ()
     }
   );
   assert.deepEqual(parseNaturalRecursiveCommandIntent('give me the readout'), null);
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('where did we land?', {
+      recentMessages: [
+        'We are designing a QA tester homepage.',
+        'The QA tester card should look cleaner for the product page.'
+      ]
+    }),
+    null
+  );
+});
+
+test('extracts dynamic recursive targets from Workspace sessions and recent context', () => {
+  const targets = [
+    {
+      pathId: 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+      label: 'Frontier Prompt Delta Benchmark',
+      aliases: [
+        'benchmark-prompt-engineer',
+        'frontier_prompt_delta_benchmark completed 1 benchmark run(s).'
+      ]
+    },
+    {
+      pathId: 'path:spark-qa-operator',
+      chipKey: 'spark-qa-operator',
+      label: 'Spark QA Operator',
+      aliases: ['QA tester']
+    }
+  ];
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show the prompt benchmark report', { targets }),
+    {
+      rawCommand: 'report path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+      reason: 'Natural-language request for Frontier Prompt Delta Benchmark recursive report.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show me the proof for the frontier benchmark', { targets }),
+    {
+      rawCommand: 'trace path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+      reason: 'Natural-language request to trace Frontier Prompt Delta Benchmark.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('where did we land?', {
+      recentMessages: [
+        'Spark recursive loops',
+        'Frontier Prompt Delta Benchmark - benchmark-prompt-engineer | clear'
+      ],
+      targets
+    }),
+    {
+      rawCommand: 'report path_benchmark_prompt_engineer_20260508t030923z_65b30a0f',
+      reason: 'Natural-language request for Frontier Prompt Delta Benchmark recursive report.'
+    }
+  );
 });
 
 test('detects empty or generic LLM failures', () => {

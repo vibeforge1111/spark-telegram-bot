@@ -167,6 +167,7 @@ import {
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
   parseNaturalRecursiveCommandIntent,
+  type NaturalRecursiveCommandTarget,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -469,6 +470,56 @@ function buildUpdateWithText(update: Record<string, unknown>, text: string): Rec
   }
   (messagePayload as Record<string, unknown>).text = text;
   return cloned;
+}
+
+function labelFromRecursiveKey(value: string): string {
+  return value
+    .replace(/^path:/i, '')
+    .replace(/^path_(?:builder_chip|benchmark_prompt_engineer|domain_autoloop|domain_chip_lab)_/i, '')
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function startKeyFromRecursivePathId(pathId: string): string | null {
+  if (/^path:/i.test(pathId)) return pathId.replace(/^path:/i, '');
+  const builderChip = pathId.match(/^path_builder_chip_(.+)$/i)?.[1];
+  return builderChip ? builderChip.replace(/_/g, '-') : null;
+}
+
+function recursiveTargetsFromSessions(sessions: Awaited<ReturnType<typeof recursiveSessions>>): NaturalRecursiveCommandTarget[] {
+  return sessions.map((session) => {
+    const startKey = startKeyFromRecursivePathId(session.session_id);
+    const domainLabel = session.domain ? labelFromRecursiveKey(session.domain) : '';
+    const pathLabel = labelFromRecursiveKey(session.session_id);
+    const label = domainLabel || pathLabel || session.title || session.session_id;
+    return {
+      pathId: session.session_id,
+      chipKey: startKey,
+      label,
+      aliases: [
+        session.trace_id,
+        session.session_id,
+        session.domain || '',
+        domainLabel,
+        pathLabel,
+        session.title
+      ].filter(Boolean)
+    };
+  });
+}
+
+function shouldLoadRecursiveWorkspaceTargets(text: string, recentContext: string[]): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (/\b(?:recursive|recursion|recursions|autoloop|loop|rounds?|passes|iterations?|benchmark|score|trace|review|decisions?|readout|receipts|proof|approve|path:[A-Za-z0-9:_-]+)\b/i.test(normalized)) {
+    return true;
+  }
+  if (/\b(?:report|status|summary|where\s+did\s+we\s+land|what\s+changed|what'?s\s+next|what\s+needs\s+my\s+call|give\s+it\s+another\s+pass|keep\s+going|continue)\b/i.test(normalized)) {
+    return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(recentContext.slice(-15).join('\n'));
+  }
+  return false;
 }
 
 async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
@@ -2993,9 +3044,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
-    const recentMessages = await conversation.getRecentMessages(user, 8);
+    const recentMessages = await conversation.getRecentMessages(user, 15);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
+    const recentRecursiveContext = [...recentMessages, conversationFrameContext].filter(Boolean);
     const buildIntent = earlyBuildIntent;
     const pendingClarification = pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text);
 
@@ -3012,9 +3064,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
-      recentMessages: contextualTurns.filter(Boolean)
+    let naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
+      recentMessages: recentRecursiveContext
     });
+    if (!naturalRecursiveIntent && shouldLoadRecursiveWorkspaceTargets(text, recentRecursiveContext)) {
+      const targets = await recursiveSessions()
+        .then(recursiveTargetsFromSessions)
+        .catch((error) => {
+          console.warn('[RecursiveIntent] Skipping Workspace target lookup:', error);
+          return [] as NaturalRecursiveCommandTarget[];
+        });
+      if (targets.length > 0) {
+        naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
+          recentMessages: recentRecursiveContext,
+          targets
+        });
+      }
+    }
     if (naturalRecursiveIntent) {
       await conversation.remember(user, text).catch(() => {});
       await conversation.rememberAssistantReply(user, `Recursive command routed from natural language: ${naturalRecursiveIntent.rawCommand}`).catch(() => {});

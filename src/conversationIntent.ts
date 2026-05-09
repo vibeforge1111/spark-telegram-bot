@@ -372,8 +372,16 @@ export interface NaturalRecursiveCommandIntent {
   reason: string;
 }
 
+export interface NaturalRecursiveCommandTarget {
+  pathId: string;
+  chipKey?: string | null;
+  label: string;
+  aliases?: string[];
+}
+
 export interface NaturalRecursiveCommandContext {
   recentMessages?: string[];
+  targets?: NaturalRecursiveCommandTarget[];
 }
 
 function normalizeCreatorMissionPrivacy(text: string): NaturalCreatorMissionIntent['privacyMode'] {
@@ -475,7 +483,72 @@ function naturalRoundCount(text: string): number {
   return 1;
 }
 
-function knownNaturalRecursiveTarget(text: string): { pathId: string; chipKey: string; label: string } | null {
+const NATURAL_TARGET_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'at', 'for', 'from', 'in', 'is', 'it', 'me', 'my', 'of', 'on', 'or', 'path', 'report',
+  'show', 'status', 'the', 'this', 'to', 'trace', 'what', 'with'
+]);
+
+function naturalTargetKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function naturalTargetTokens(value: string): string[] {
+  return naturalTargetKey(value)
+    .split(' ')
+    .filter((token) => token.length >= 3 && !NATURAL_TARGET_STOP_WORDS.has(token));
+}
+
+function recursiveChipKeyFromPathId(pathId: string): string | null {
+  const pathKey = pathId.trim();
+  if (/^path:/i.test(pathKey)) return pathKey.replace(/^path:/i, '');
+  const builderChip = pathKey.match(/^path_builder_chip_(.+)$/i)?.[1];
+  if (builderChip) return builderChip.replace(/_/g, '-');
+  return null;
+}
+
+function normalizeNaturalRecursiveTarget(target: NaturalRecursiveCommandTarget): NaturalRecursiveCommandTarget {
+  return {
+    pathId: target.pathId,
+    chipKey: target.chipKey || recursiveChipKeyFromPathId(target.pathId),
+    label: target.label,
+    aliases: target.aliases || []
+  };
+}
+
+function dynamicNaturalRecursiveTarget(text: string, targets: NaturalRecursiveCommandTarget[] | undefined): NaturalRecursiveCommandTarget | null {
+  if (!targets?.length) return null;
+  const textKey = naturalTargetKey(text);
+  const textTokens = new Set(naturalTargetTokens(text));
+  const candidates: Array<{ target: NaturalRecursiveCommandTarget; score: number }> = [];
+
+  for (const rawTarget of targets) {
+    const target = normalizeNaturalRecursiveTarget(rawTarget);
+    const aliases = [target.pathId, target.chipKey || '', target.label, ...(target.aliases || [])]
+      .map(naturalTargetKey)
+      .filter((alias) => alias.length >= 3);
+    let score = 0;
+    for (const alias of aliases) {
+      if (alias.length >= 6 && textKey.includes(alias)) score = Math.max(score, 100 + alias.length);
+      const aliasTokens = naturalTargetTokens(alias);
+      if (aliasTokens.length === 0) continue;
+      const overlap = aliasTokens.filter((token) => textTokens.has(token)).length;
+      const needed = Math.min(3, Math.max(2, Math.ceil(aliasTokens.length * 0.6)));
+      if (overlap >= needed) score = Math.max(score, overlap * 10 + aliasTokens.length);
+    }
+    if (score > 0) candidates.push({ target, score });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  if (!candidates[0]) return null;
+  if (candidates[1] && candidates[1].score === candidates[0].score) return null;
+  return candidates[0].target;
+}
+
+function hasRecursiveContextSignal(text: string): boolean {
+  return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(text);
+}
+
+function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarget | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   const explicitPath = normalized.match(/\bpath:[A-Za-z0-9:_-]+\b/);
   if (explicitPath) {
@@ -501,9 +574,11 @@ function knownNaturalRecursiveTarget(text: string): { pathId: string; chipKey: s
   return null;
 }
 
-function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandContext = {}): { pathId: string; chipKey: string; label: string } | null {
+function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandTarget | null {
   const direct = knownNaturalRecursiveTarget(text);
   if (direct) return direct;
+  const dynamicDirect = dynamicNaturalRecursiveTarget(text, context.targets);
+  if (dynamicDirect) return dynamicDirect;
 
   const normalized = text.replace(/\s+/g, ' ').trim();
   const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|report|readout|summary|status|trace|timeline|evidence|proof|trail|receipts|review|approve|approval|decisions?|blockers?|weakest|weak\s+spot|signal|changed|land|short\s+version|vibe|how'?s|how\s+is|where\s+are\s+we|where\s+did\s+we\s+land|keep\s+going|continue|keep\s+pushing|push\s+it|my\s+call|calls?\s+for\s+me|needs\s+me)\b/i.test(normalized);
@@ -513,7 +588,8 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
     .filter(Boolean)
     .slice(-8)
     .join('\n');
-  return recent ? knownNaturalRecursiveTarget(recent) : null;
+  if (!recent || !hasRecursiveContextSignal(recent)) return null;
+  return knownNaturalRecursiveTarget(recent) || dynamicNaturalRecursiveTarget(recent, context.targets);
 }
 
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
@@ -543,6 +619,7 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
       /\b(?:improve|make\s+better)\b.*\b(?:qa\s+tester|qa\s+operator)\b.*\b(?:round|loop|iteration)\b/i.test(normalized) ||
       /\b(?:run|start|do|try)\s+(?:another|one\s+more|a|one|same)\s+(?:round|pass|iteration|loop)\b/i.test(normalized) ||
       /\b(?:keep\s+going|continue|iterate\s+again|let\s+it\s+cook|keep\s+pushing|push\s+it\s+further|send\s+it\s+again|give\s+it\s+another\s+pass|one\s+more\s+pass)\b/i.test(normalized)) {
+    if (!target.chipKey) return null;
     return {
       rawCommand: `start ${target.chipKey} rounds ${naturalRoundCount(normalized)}`,
       reason: `Natural-language request to start a recursive loop for ${target.label}.`
