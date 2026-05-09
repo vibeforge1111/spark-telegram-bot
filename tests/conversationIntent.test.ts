@@ -63,6 +63,8 @@ import {
 import { buildConversationFrame } from '../src/conversationFrame';
 import {
   buildMemoryDoctorEvidencePrompt,
+  isMemoryDoctorBridgeDetourReply,
+  renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
   shouldAttachMemoryDoctorEvidence
 } from '../src/memoryDoctorBridge';
@@ -694,6 +696,21 @@ test('selects immediate prior turns for contextual Memory Doctor evidence', () =
     { role: 'user', text: 'what is route confidence in one sentence' },
     { role: 'assistant', text: 'Route confidence is evidence-backed route selection.' }
   ]);
+});
+
+test('renders local fallback for Memory Doctor tool detours', () => {
+  assert.equal(isMemoryDoctorBridgeDetourReply('Both Spark MCP tools need permission to run.'), true);
+  assert.equal(isMemoryDoctorBridgeDetourReply('I do not have visibility into what happened.'), true);
+  assert.equal(isMemoryDoctorBridgeDetourReply('The previous turn was routed correctly.'), false);
+
+  const reply = renderMemoryDoctorEvidenceFallback('run memory doctor for last request', [
+    { role: 'user', text: 'run memory doctor for last request' },
+    { role: 'assistant', text: 'Both Spark MCP tools need permission to run.' }
+  ]);
+
+  assert.match(reply, /Memory Doctor/);
+  assert.match(reply, /without MCP\/tool approval/);
+  assert.match(reply, /detoured into MCP\/tool permission/);
 });
 
 test('uses recent working context for ambiguous creator-system follow-ups', () => {

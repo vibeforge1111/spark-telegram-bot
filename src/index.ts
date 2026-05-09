@@ -197,6 +197,8 @@ import {
 } from './telegramImageBridge';
 import {
   buildMemoryDoctorEvidencePrompt,
+  isMemoryDoctorBridgeDetourReply,
+  renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
   shouldAttachMemoryDoctorEvidence
 } from './memoryDoctorBridge';
@@ -3677,6 +3679,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
+      if (naturalRouteShadow?.route === 'memory.doctor' && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
+        const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
+        await replyWithOptionalDraftPreview(ctx, fallback);
+        await conversation.rememberAssistantReply(user, fallback).catch(() => {});
+        return;
+      }
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
       if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {

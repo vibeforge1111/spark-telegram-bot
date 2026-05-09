@@ -68,3 +68,63 @@ export function buildMemoryDoctorEvidencePrompt(
     ...turns.map((turn) => `- ${turn.role}: ${turn.text}`),
   ].join('\n');
 }
+
+export function isMemoryDoctorBridgeDetourReply(reply: string): boolean {
+  const normalized = reply.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    /\bmcp\b.*\bpermission/.test(normalized) ||
+    /\bpermission\b.*\bmcp\b/.test(normalized) ||
+    /\bapprove\b.*\btool/.test(normalized) ||
+    /\btool prompt\b/.test(normalized) ||
+    /\brun\s+\/diagnose\b/.test(normalized) ||
+    /\bi do(?:n't| not) have visibility\b/.test(normalized) ||
+    /\btell me which route\b/.test(normalized) ||
+    /\bwhich (?:one|route) do you prefer\b/.test(normalized)
+  );
+}
+
+export function renderMemoryDoctorEvidenceFallback(
+  userRequest: string,
+  recentTurns: MemoryDoctorEvidenceTurn[]
+): string {
+  const turns = recentTurns
+    .map((turn) => ({
+      role: normalizeEvidenceRole(String(turn.role || 'user')),
+      text: compactEvidenceText(String(turn.text || ''), 500),
+    }))
+    .filter((turn) => turn.text.length > 0);
+
+  const lines = [
+    'Memory Doctor',
+    '',
+    'I can audit this from Telegram recent-turn evidence without MCP/tool approval.'
+  ];
+
+  if (!turns.length) {
+    return [
+      ...lines,
+      '',
+      'No recent visible turn pair was available in the local Telegram buffer for this request.',
+      `Request: ${compactEvidenceText(userRequest, 500)}`
+    ].join('\n');
+  }
+
+  lines.push('', 'Visible evidence:');
+  for (const turn of turns) {
+    lines.push(`- ${turn.role}: ${turn.text}`);
+  }
+
+  const assistantText = [...turns].reverse().find((turn) => turn.role === 'assistant')?.text.toLowerCase() || '';
+  let diagnosis = 'The prior exchange is present in Telegram hot context. Memory Doctor should answer from this local evidence first, then ask for deeper tooling only if trace-level evidence is truly needed.';
+  if (/\bmcp\b.*\bpermission|\bpermission\b.*\bmcp|\bapprove\b.*\btool|\btool prompt\b|\brun\s+\/diagnose\b/.test(assistantText)) {
+    diagnosis = 'The last answer detoured into MCP/tool permission instead of answering the audit in-band. For recent-turn audits, local Telegram evidence is enough for a first diagnosis.';
+  } else if (/\bcreator\b|\bmission\b|\bplanning\b/.test(assistantText)) {
+    diagnosis = 'The last answer looks like a route misfire into mission/build planning. A diagnostic request should stay in-band unless the user explicitly asks to create or run a mission.';
+  } else if (/\bi do(?:n['’]?t| not) have visibility|\bcan(?:not|\'t) verify|\bpaste\b/.test(assistantText)) {
+    diagnosis = 'The last answer under-used available Telegram context. It should inspect the visible recent turn pair before asking you to paste or choose another route.';
+  }
+
+  lines.push('', 'Diagnosis:', diagnosis);
+  return lines.join('\n');
+}

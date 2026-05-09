@@ -424,6 +424,55 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('memory doctor replaces Builder tool detours with local evidence fallback', async () => {
+		restoreAxios();
+		const testUserId = 8319079566;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			const messageText = String(((updatePayload as any).message || {}).text || '');
+			return {
+				used: true,
+				responseText: /memory doctor/i.test(messageText)
+					? 'Both Spark MCP tools need permission to run. Which do you prefer?'
+					: 'Route confidence is evidence-backed route selection.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'plain_chat'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const firstReplies: string[] = [];
+			const firstCtx = makeFakeCtx(testUserId, testUserId, 5643, firstReplies);
+			firstCtx.message.text = 'what is route confidence in one sentence';
+			(firstCtx as any).update = { update_id: 5643, message: firstCtx.message };
+			await indexModule.handleTextMessage(firstCtx);
+
+			const doctorReplies: string[] = [];
+			const doctorCtx = makeFakeCtx(testUserId, testUserId, 5644, doctorReplies);
+			doctorCtx.message.text = 'run memory doctor for last request';
+			(doctorCtx as any).update = { update_id: 5644, message: doctorCtx.message };
+			await indexModule.handleTextMessage(doctorCtx);
+
+			const reply = doctorReplies.join('\n');
+			assert.match(reply, /Memory Doctor/);
+			assert.match(reply, /without MCP\/tool approval/);
+			assert.doesNotMatch(reply, /Which do you prefer/);
+			assert.match(reply, /Route confidence is evidence-backed route selection/);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('memory doctor blankness requests bypass pending-task recovery', async () => {
 		restoreAxios();
 		const testUserId = 8319079565;
