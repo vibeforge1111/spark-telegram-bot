@@ -19,6 +19,7 @@ import {
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
+  resolveReadyProjectOpenLinkForTests,
   sendFetchedCompletionSummaryForTests,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
@@ -165,6 +166,21 @@ test('warns cleanly when structured provider output is malformed', () => {
   assert.match(message, /Claude finished, but returned a structured result I could not summarize cleanly\./);
   assert.match(message, /Mission: spark-bad-json/);
   assert.doesNotMatch(message, /"status"/);
+});
+
+test('uses neutral completion copy when there is no preview link', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-no-preview-link',
+    verbosity: 'normal',
+    openLink: null,
+    response: 'NO_PREVIEW_LINK_OK'
+  });
+
+  assert.match(message, /Spark/);
+  assert.match(message, /NO_PREVIEW_LINK_OK/);
+  assert.doesNotMatch(message, /Open it here:/);
+  assert.doesNotMatch(message, /something you can open|build ready|finished the build/i);
 });
 
 test('strips hidden reasoning and relay plumbing from freeform provider results', () => {
@@ -973,6 +989,22 @@ async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 void (async () => {
+  await asyncTest('rejects unreachable preview links before Telegram completion handoff', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async () => new Response('missing', { status: 404 })) as typeof fetch;
+
+      const link = await resolveReadyProjectOpenLinkForTests(
+        'http://127.0.0.1:3333/preview/default/index.html',
+        'C:\\Users\\USER\\.spark\\workspaces\\default'
+      );
+
+      assert.equal(link, null);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   await asyncTest('does not cache fetched completion summaries until Telegram delivery succeeds', async () => {
     const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
     try {
@@ -1034,6 +1066,76 @@ void (async () => {
       assert.equal(sent.length, 1);
       assert.doesNotMatch(sent.join('\n'), /Mission lesson candidate/);
       assert.doesNotMatch(sent.join('\n'), /I will not save the completion log as memory automatically/);
+      assert.equal(isCompletionDeliveryCachedForTests(subscription.missionId), true);
+    } finally {
+      if (originalPromptEnv === undefined) delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+      else process.env.SPARK_MISSION_LESSON_PROMPTS = originalPromptEnv;
+    }
+  });
+
+  await asyncTest('suppresses concurrent fetched completion summary duplicates', async () => {
+    const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
+    try {
+      delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+      resetJsonStateForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-dedupe-test-'));
+      resetMissionRelayDeliveryStateForTests();
+      const subscription = {
+        missionId: 'spark-concurrent-completion',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-concurrent-completion',
+        goal: 'Reply exactly once.',
+        createdAt: '2026-05-05T00:00:00Z'
+      };
+      const event = {
+        type: 'mission_completed' as const,
+        missionId: subscription.missionId
+      };
+      const completion = {
+        providerLabel: 'codex',
+        response: JSON.stringify({
+          summary: 'CONCURRENT_COMPLETION_OK',
+          status: 'completed'
+        })
+      };
+      let releaseFirstSend!: () => void;
+      const firstSendStarted = new Promise<void>((resolve) => {
+        releaseFirstSend = resolve;
+      });
+      const sent: string[] = [];
+      const bot = {
+        telegram: {
+          sendMessage: async (_chatId: number, message: string) => {
+            sent.push(message);
+            await firstSendStarted;
+          }
+        }
+      };
+
+      const first = sendFetchedCompletionSummaryForTests(
+        bot as any,
+        12345,
+        subscription,
+        event,
+        'normal',
+        completion
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const second = await sendFetchedCompletionSummaryForTests(
+        bot as any,
+        12345,
+        subscription,
+        event,
+        'normal',
+        completion
+      );
+      releaseFirstSend();
+      const firstChunks = await first;
+
+      assert.equal(firstChunks, 1);
+      assert.equal(second, 0);
+      assert.equal(sent.length, 1);
       assert.equal(isCompletionDeliveryCachedForTests(subscription.missionId), true);
     } finally {
       if (originalPromptEnv === undefined) delete process.env.SPARK_MISSION_LESSON_PROMPTS;

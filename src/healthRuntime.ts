@@ -26,10 +26,22 @@ export async function validateRelayRuntime(
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    const payload = await response.json() as { relay?: { profile?: string; port?: number }; pid?: number };
+    const payload = await response.json() as {
+      relay?: { profile?: string; port?: number };
+      pid?: number;
+      runtime?: { telegramPolling?: string; pollingActive?: boolean };
+    };
+    const pollingState = payload.runtime?.telegramPolling;
+    if (!pollingState) {
+      throw new Error('Telegram polling status is missing');
+    }
+    if (pollingState !== 'active' && pollingState !== 'disabled_smoke') {
+      throw new Error(`Telegram polling is ${pollingState}`);
+    }
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;
-    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}`;
+    const polling = ` polling=${pollingState}`;
+    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Telegram relay runtime is not reachable at ${url}: ${message}`);
