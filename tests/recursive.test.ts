@@ -212,8 +212,8 @@ test('parses and renders stitched recursive trace views', () => {
   });
 
   assert.match(reply, /Startup YC recursive autoloop trace/);
-  assert.match(reply, /- canvas: pending/);
-  assert.match(reply, /- review: clear/);
+  assert.match(reply, /State/);
+  assert.match(reply, /- review clear/);
   assert.match(reply, /- round: round-003 \(kept\)/);
 });
 
@@ -690,7 +690,7 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
   assert.equal(trace.timeline[0].status, 'improved');
 
   const reply = renderRecursiveTraceView(trace);
-  assert.match(reply, /- outcome: latest run \(improved\) - overall score 0\.8538/);
+  assert.match(reply, /- 🟢 latest run improved - overall score 0\.8538/);
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {

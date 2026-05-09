@@ -1036,16 +1036,14 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 }
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
-  const canvas = trace.spawner.canvas_queue;
   const timeline = trace.timeline.slice(0, 6).map(formatTraceTimelineItem);
   return [
     `${traceDisplayTitle(trace)} trace`,
     '',
-    'Status',
+    'State',
     `- ${trace.status}`,
-    trace.review.required ? `- review: ${pluralize(trace.review.decisions.length, 'decision')} waiting` : '- review: clear',
-    `- workspace: ${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')}`,
-    `- canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'ready' : 'not queued'}`,
+    trace.review.required ? `- ${pluralize(trace.review.decisions.length, 'decision')} waiting` : '- review clear',
+    `- ${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')}`,
     '',
     'Recent',
     ...(timeline.length > 0 ? timeline : ['- no timeline events']),
@@ -1297,6 +1295,22 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
         summary: path.summary
       }]
       : [];
+  const supportingTimeline = outcomeTimeline.length > 0
+    ? []
+    : [
+      ...insights.slice(-3).map((item) => ({
+        kind: 'insight',
+        title: item.id,
+        status: item.status || 'observed',
+        summary: item.summary
+      })),
+      ...masteries.slice(-3).map((item) => ({
+        kind: 'mastery',
+        title: item.id,
+        status: 'workspace',
+        summary: item.summary
+      }))
+    ];
   return {
     session_id: path?.id || id,
     title: path?.summary || spec?.label || id,
@@ -1321,19 +1335,8 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
       swarm_packets: []
     },
     timeline: [
-      ...insights.slice(-3).map((item) => ({
-        kind: 'insight',
-        title: item.id,
-        status: item.status || 'observed',
-        summary: item.summary
-      })),
-      ...masteries.slice(-3).map((item) => ({
-        kind: 'mastery',
-        title: item.id,
-        status: 'workspace',
-        summary: item.summary
-      })),
       ...outcomeTimeline,
+      ...supportingTimeline,
       ...artifacts.slice(-3).reverse().map((item) => ({
         kind: 'artifact',
         title: item.label || item.id,
@@ -1672,10 +1675,22 @@ function traceDisplayTitle(trace: RecursiveTraceView): string {
 }
 
 function formatTraceTimelineItem(item: RecursiveTraceView['timeline'][number]): string {
-  if (item.kind === 'artifact') return `- artifact: ${cleanTraceArtifactTitle(item.title, item.status)}`;
+  if (item.kind === 'artifact') return `- ${cleanTraceArtifactTitle(item.title, item.status)}`;
+  if (item.kind === 'outcome') {
+    const detail = traceTimelineDetail(item);
+    return `- ${outcomeStatusIcon(item.status)} ${cleanTraceTimelineTitle(item.title)} ${traceOutcomeStatusLabel(item.status)}${detail ? ` - ${detail}` : ''}`;
+  }
   const title = cleanTraceTimelineTitle(item.title);
   const detail = traceTimelineDetail(item);
   return `- ${item.kind}: ${title} (${item.status})${detail ? ` - ${detail}` : ''}`;
+}
+
+function traceOutcomeStatusLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === 'improved') return 'improved';
+  if (normalized === 'flat') return 'held steady';
+  if (normalized === 'regressed') return 'regressed';
+  return normalized || 'recorded';
 }
 
 function outcomeTraceTitle(outcome: SparkWorkspaceOutcome, index: number): string {
