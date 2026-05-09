@@ -2268,7 +2268,6 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const pathOutcomes = outcomesForPath(snapshot, path);
   const latestOutcome = pathOutcomes.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
   const decisions = inboxForPath(snapshot, path);
-  const artifacts = artifactsForPath(snapshot, path);
   const metricLine = latestOutcome ? formatOutcomeMetric(latestOutcome) : null;
   const comparisonLine = latestOutcome ? formatOutcomeComparison(latestOutcome, pathOutcomes, path.bestOutcomeId) : null;
   const label = pathDisplayLabel(path, spec);
@@ -2290,7 +2289,6 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     decisions.length > 0 ? `• ${sparkWorkspaceDecisionsUrl()}` : null,
     '',
     'Workspace',
-    artifacts.length > 0 ? `• ${pluralize(artifacts.length, 'saved item')}` : null,
     `• ${sparkWorkspaceRecursionsUrl()}`,
   ].filter(isRenderableLine).join('\n');
 }
@@ -2724,7 +2722,24 @@ function formatOutcomeComparison(
   bestOutcomeId: string | null | undefined
 ): string | null {
   const bestOutcome = bestComparableOutcome(latestOutcome, outcomes, bestOutcomeId);
-  if (!bestOutcome || typeof latestOutcome.metricValue !== 'number' || typeof bestOutcome.metricValue !== 'number') return null;
+  if (typeof latestOutcome.metricValue !== 'number') return null;
+
+  const previousOutcome = previousComparableOutcome(latestOutcome, outcomes);
+  if (previousOutcome && typeof previousOutcome.metricValue === 'number') {
+    const previousDelta = latestOutcome.metricValue - previousOutcome.metricValue;
+    if (Math.abs(previousDelta) >= 0.000001) {
+      const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+      const latestIsBetter = lowerIsBetter ? previousDelta < 0 : previousDelta > 0;
+      if (latestIsBetter && /improved/i.test(latestOutcome.verdict || '')) {
+        return `Change: improved from ${formatNumber(previousOutcome.metricValue)}.`;
+      }
+      if (!latestIsBetter && /regressed/i.test(latestOutcome.verdict || '')) {
+        return `Change: regressed from ${formatNumber(previousOutcome.metricValue)}.`;
+      }
+    }
+  }
+
+  if (!bestOutcome || typeof bestOutcome.metricValue !== 'number') return null;
 
   const delta = latestOutcome.metricValue - bestOutcome.metricValue;
   if (Math.abs(delta) < 0.000001) return 'Compare: current best for this path.';
@@ -2740,7 +2755,7 @@ function formatOutcomeComparison(
 }
 
 function formatCompareFragment(line: string): string {
-  return line.replace(/^Compare:\s*/i, '').replace(/[.]+$/, '');
+  return line.replace(/^(Compare|Change):\s*/i, '').replace(/[.]+$/, '');
 }
 
 function bestComparableOutcome(
@@ -2765,6 +2780,28 @@ function bestComparableOutcome(
     lowerIsBetter
       ? (a.metricValue as number) - (b.metricValue as number)
       : (b.metricValue as number) - (a.metricValue as number)
+  )[0] ?? null;
+}
+
+function previousComparableOutcome(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[]
+): SparkWorkspaceOutcome | null {
+  if (typeof latestOutcome.metricValue !== 'number') return null;
+  const latestCreatedAt = String(latestOutcome.createdAt || '');
+  const comparable = outcomes.filter((outcome) =>
+    outcome.id !== latestOutcome.id &&
+    outcome.metricName === latestOutcome.metricName &&
+    typeof outcome.metricValue === 'number'
+  );
+  if (comparable.length === 0) return null;
+
+  const earlier = latestCreatedAt
+    ? comparable.filter((outcome) => String(outcome.createdAt || '') < latestCreatedAt)
+    : comparable;
+  const candidates = earlier.length > 0 ? earlier : comparable;
+  return candidates.slice().sort((a, b) =>
+    String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
   )[0] ?? null;
 }
 

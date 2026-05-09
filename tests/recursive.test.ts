@@ -1108,6 +1108,11 @@ test('dedupes repeated Workspace trace movement rows', () => {
   assert.match(reply, /2 previous rounds held steady - overall score 0\.834/);
   assert.equal((reply.match(/previous round held steady/g) || []).length, 0);
   assert.doesNotMatch(reply, /candidate trace saved/);
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:spark-qa-operator');
+  assert.match(report, /Score\n• overall score 0\.8538\n• improved from 0\.834/);
+  assert.doesNotMatch(report, /current best for this path/);
+  assert.doesNotMatch(report, /saved item/);
 });
 
 test('dedupes identical rendered trace rows', () => {
@@ -1211,7 +1216,8 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.match(report, /🟢 Latest Spark Intelligence Builder run improved\./);
   assert.match(report, /Score\n• builder chip loop best metric 0.72\n• current best for this path/);
   assert.doesNotMatch(report, /Startup Yc/);
-  assert.match(report, /Workspace\n• 1 saved item\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.match(report, /Workspace\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.doesNotMatch(report, /saved item/);
   assert.doesNotMatch(report, /Scorecard:/);
   assert.doesNotMatch(report, /Mastery:/);
   assert.doesNotMatch(report, /Signal/);
@@ -1527,7 +1533,7 @@ test('uses lower-is-better goals when comparing Workspace outcomes', () => {
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path:error-rate');
   assert.match(report, /🔴 Latest Error Rate run regressed\./);
-  assert.match(report, /Score\n• error rate 0.12\n• above current best by 0.04 \(best 0.08\)/);
+  assert.match(report, /Score\n• error rate 0.12\n• regressed from 0.08/);
 });
 
 test('summarizes large Workspace evidence sets with clean highlights', () => {
@@ -1593,7 +1599,8 @@ test('summarizes large Workspace evidence sets with clean highlights', () => {
   };
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(report, /Workspace\n• 4 saved items\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.match(report, /Workspace\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.doesNotMatch(report, /saved item/);
   assert.doesNotMatch(report, /run_trace:Run directory/);
   assert.doesNotMatch(report, /Session summary/);
 });
@@ -1709,13 +1716,15 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
 
   const benchmarkReport = renderRecursiveWorkspaceReport(snapshot, 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f');
   assert.match(benchmarkReport, /Score\n• average composite score 2.1/);
-  assert.match(benchmarkReport, /Workspace\n• 1 saved item/);
+  assert.match(benchmarkReport, /Workspace\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.doesNotMatch(benchmarkReport, /saved item/);
   assert.doesNotMatch(benchmarkReport, /Domain autoloop manifest/);
   assert.doesNotMatch(benchmarkReport, /Startup YC chip-loop status/);
 
   const autoloopReport = renderRecursiveWorkspaceReport(snapshot, 'path_domain_autoloop_crypto_trading');
   assert.match(autoloopReport, /Score\n• autoloop cycle count 4/);
-  assert.match(autoloopReport, /Workspace\n• 1 saved item/);
+  assert.match(autoloopReport, /Workspace\n• http:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
+  assert.doesNotMatch(autoloopReport, /saved item/);
   assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
 
   const labTrace = workspaceTraceView(snapshot, 'path_domain_chip_lab_workspace_smoke_loop');
