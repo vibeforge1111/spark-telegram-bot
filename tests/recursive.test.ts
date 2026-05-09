@@ -679,7 +679,15 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
         createdAt: '2026-05-09T05:00:00.000Z'
       }
     ],
-    artifactRefs: [],
+    artifactRefs: [
+      {
+        id: 'artifact:spark-qa-operator:candidate-trace',
+        kind: 'run_trace',
+        label: 'Spark QA Operator candidate trace',
+        path: 'C:\\runs\\spark-qa-operator\\candidate-trace.json',
+        url: null
+      }
+    ],
     specializations: [],
     inbox: { items: [] }
   };
@@ -692,6 +700,8 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
   const reply = renderRecursiveTraceView(trace);
   assert.match(reply, /🟢 latest run improved - overall score 0\.8538/);
   assert.doesNotMatch(reply, /- 🟢 latest run improved/);
+  assert.match(reply, /candidate trace saved/);
+  assert.doesNotMatch(reply, /- candidate trace saved/);
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
