@@ -1037,19 +1037,23 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
-  const timeline = trace.timeline.slice(-6).map((item) => `- ${item.kind}: ${item.title} [${item.status}]`);
+  const timeline = trace.timeline.slice(-6).map(formatTraceTimelineItem);
   return [
-    'Spark Workspace Recursion Trace',
-    `Session: ${trace.session_id}`,
-    `Status: ${trace.status}`,
-    `Source: ${trace.source_kind}`,
-    `Board: ${trace.spawner.board_entry.status}, tasks=${trace.spawner.board_entry.taskCount}`,
-    `Canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'latest' : 'not queued'} (${canvas.pipelineId})`,
-    `Review: required=${trace.review.required}, decisions=${trace.review.decisions.length}, local packets=${trace.review.local_packets.length}, swarm packets=${trace.review.swarm_packets.length}`,
+    `${traceDisplayTitle(trace)} trace`,
     '',
-    'Recent timeline:',
-    ...(timeline.length > 0 ? timeline : ['- no timeline events'])
-  ].join('\n');
+    'Status',
+    `- ${trace.status}`,
+    trace.review.required ? `- review: ${pluralize(trace.review.decisions.length, 'decision')} waiting` : '- review: clear',
+    `- workspace: ${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')}`,
+    `- canvas: ${canvas.pending ? 'pending' : canvas.latest ? 'ready' : 'not queued'}`,
+    '',
+    'Recent',
+    ...(timeline.length > 0 ? timeline : ['- no timeline events']),
+    '',
+    'Workspace',
+    `- ${sparkWorkspaceRecursionsUrl()}`,
+    trace.review.required ? `- ${sparkWorkspaceDecisionsUrl()}` : null
+  ].filter(isRenderableLine).join('\n');
 }
 
 function decisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval'): RecursiveDecision {
@@ -1073,6 +1077,22 @@ function parseRounds(parts: string[]): number {
 function truncate(value: string, limit: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
   return clean.length <= limit ? clean : `${clean.slice(0, limit - 1).trim()}...`;
+}
+
+function hasSameDisplayedImprovement(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const number = '-?\\d+(?:\\.\\d+)?';
+  return new RegExp(`\\b(?:improved|improving)\\b[\\s\\S]*?\\bfrom\\s+(${number})\\s+to\\s+\\1\\b`, 'i').test(value);
+}
+
+function ensureSentence(value: string): string {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  return /[.!?]$/.test(clean) ? clean : `${clean}.`;
+}
+
+function sentenceCaseFirst(value: string): string {
+  const clean = value.trim();
+  return clean ? `${clean.charAt(0).toUpperCase()}${clean.slice(1)}` : clean;
 }
 
 function formatDelta(value: number): string {
@@ -1324,49 +1344,68 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const path = findPath(snapshot, id);
   if (!path) return `Recursive loop not found in Spark Workspace: ${id}\n${sparkWorkspaceRecursionsUrl()}`;
   const spec = specializationForPath(snapshot, path);
-  const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
-  const masteries = spec ? snapshot.masteries.filter((item) => item.specializationScope === spec.key) : [];
-  const latestOutcome = outcomesForPath(snapshot, path).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+  const pathOutcomes = outcomesForPath(snapshot, path);
+  const latestOutcome = pathOutcomes.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
   const decisions = inboxForPath(snapshot, path);
-  const latestInsight = insights.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
-  const strongestMastery = masteries.sort((a, b) => (b.benchmarkStrength || 0) - (a.benchmarkStrength || 0))[0];
   const artifacts = artifactsForPath(snapshot, path);
   const metricLine = latestOutcome ? formatOutcomeMetric(latestOutcome) : null;
-  const scorecardLine = latestOutcome ? formatOutcomeScorecard(latestOutcome) : null;
-  const outcomeLine = latestOutcome
-    ? `Latest outcome: ${latestOutcome.verdict} - ${latestOutcome.summary}`
-    : path.bestOutcomeId
-      ? `Latest outcome: recorded - ${path.bestOutcomeId}`
-      : 'Latest outcome: none yet';
+  const comparisonLine = latestOutcome ? formatOutcomeComparison(latestOutcome, pathOutcomes, path.bestOutcomeId) : null;
+  const label = pathDisplayLabel(path, spec);
+  const verdict = latestOutcome?.verdict || (path.bestOutcomeId ? 'recorded' : path.status);
+  const sameDisplayedImprovement = latestOutcome ? hasSameDisplayedImprovement(latestOutcome.summary) : false;
+  const scoreLines = [
+    metricLine ? `- ${metricLine}` : null,
+    comparisonLine ? `- ${formatCompareFragment(comparisonLine)}` : null
+  ].filter(isRenderableLine);
 
   return [
-    'Spark Workspace Recursion Report',
-    `Loop: ${path.id}`,
-    `Status: ${path.status}`,
-    `Path: ${spec?.label || path.repoLabel || path.scope}`,
-    `Updated: ${path.updatedAt}`,
-    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`,
+    `${outcomeStatusIcon(verdict)} ${workspaceReportHeadline(label, verdict, Boolean(latestOutcome), sameDisplayedImprovement)}`,
+    scoreLines.length > 0 ? '' : null,
+    scoreLines.length > 0 ? 'Score' : null,
+    ...scoreLines,
+    decisions.length > 0 ? '' : null,
+    decisions.length > 0 ? 'Review' : null,
+    decisions.length > 0 ? `- ${pluralize(decisions.length, 'decision')} waiting` : null,
+    decisions.length > 0 ? `- ${sparkWorkspaceDecisionsUrl()}` : null,
     '',
-    `Summary: ${path.summary}`,
-    outcomeLine,
-    metricLine ? `Metric: ${metricLine}` : null,
-    scorecardLine ? `Scorecard: ${scorecardLine}` : null,
-    latestInsight ? `Latest insight: ${latestInsight.summary}` : 'Latest insight: none yet',
-    strongestMastery ? `Strongest mastery: ${strongestMastery.summary}` : 'Strongest mastery: none yet',
-    formatArtifactRefs(artifacts),
-    `Decisions needed: ${decisions.length}`
-  ].filter((line): line is string => Boolean(line)).join('\n');
+    'Workspace',
+    artifacts.length > 0 ? `- ${pluralize(artifacts.length, 'saved item')}` : null,
+    `- ${sparkWorkspaceRecursionsUrl()}`
+  ].filter(isRenderableLine).join('\n');
 }
 
 export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot, id: string): string {
   const path = findPath(snapshot, id);
-  const items = path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id);
+  const spec = path ? specializationForPath(snapshot, path) : null;
+  const items = (path ? inboxForPath(snapshot, path) : (snapshot.inbox?.items ?? []).filter((item) => item.id === id || item.targetId === id))
+    .slice()
+    .sort((a, b) => reviewPriorityRank(b.priority) - reviewPriorityRank(a.priority));
   if (items.length === 0) return `No Spark Workspace decisions found for ${id}.`;
+  const groups = groupReviewItems(items);
+  const targetLabel = path ? pathDisplayLabel(path, spec) : labelFromKey(id);
+  const topGroup = groups[0];
+  const reasonLines = topGroup ? reviewReasonLines(topGroup) : [];
+  const topActions = topGroup ? reviewTelegramActions(topGroup.item) : [];
+
   return [
-    'Spark Workspace Review',
-    `Target: ${id}`,
-    ...items.slice(0, 8).map((item) => `- ${item.priority} ${item.kind}: ${item.title} - ${item.recommendedAction || item.summary}`)
-  ].join('\n');
+    `${targetLabel} review`,
+    '',
+    'Review',
+    `- ${pluralize(items.length, 'decision')} waiting`,
+    topGroup ? `- blocker: ${topGroup.item.title}${topGroup.count > 1 ? ` (${pluralize(topGroup.count, 'item')})` : ''}` : null,
+    reasonLines.length > 0 ? '' : null,
+    reasonLines.length > 0 ? 'Why' : null,
+    ...reasonLines.map((reason) => `- ${reason}`),
+    topGroup?.item.recommendedAction ? '' : null,
+    topGroup?.item.recommendedAction ? 'Move' : null,
+    topGroup?.item.recommendedAction ? `- ${ensureSentence(truncate(topGroup.item.recommendedAction, 130))}` : null,
+    topActions.length > 0 ? '' : null,
+    topActions.length > 0 ? 'Actions' : null,
+    ...topActions.map((action, index) => `${index + 1}. ${action}`),
+    '',
+    'Workspace',
+    `- ${sparkWorkspaceDecisionsUrl()}`
+  ].filter(isRenderableLine).join('\n');
 }
 
 function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
@@ -1411,46 +1450,261 @@ function artifactsForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspace
     normalizeWorkspaceIdPart(latestOutcome?.id || path.bestOutcomeId || '')
   ].filter((key) => key.length > 3);
 
-  return snapshot.artifactRefs.filter((artifact) =>
+  return uniqueArtifactRefs(snapshot.artifactRefs.filter((artifact) =>
     matchKeys.some((key) =>
       normalizeWorkspaceIdPart(`${artifact.id} ${artifact.label} ${artifact.path || ''} ${artifact.url || ''}`).includes(key)
     )
+  ));
+}
+
+function uniqueArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): SparkWorkspaceArtifactRef[] {
+  const seen = new Set<string>();
+  const unique: SparkWorkspaceArtifactRef[] = [];
+  for (const artifact of artifacts) {
+    const key = [artifact.kind, artifact.label, artifact.path || '', artifact.url || ''].join('\n');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(artifact);
+  }
+  return unique;
+}
+
+function isRenderableLine(line: string | null): line is string {
+  return line !== null;
+}
+
+function pathDisplayLabel(path: SparkWorkspaceEvolutionPath, spec: SparkWorkspaceSpecialization | null): string {
+  if (spec?.label) return spec.label;
+  if (path.id.startsWith('path:')) return labelFromKey(path.id.slice('path:'.length));
+  const builderChipMatch = /^path_builder_chip_(.+)$/.exec(path.id);
+  if (builderChipMatch) return labelFromKey(builderChipMatch[1]);
+  const namedPathMatch = /^path_(?:domain_autoloop|domain_chip_lab)_(.+)$/.exec(path.id);
+  if (namedPathMatch) return labelFromKey(namedPathMatch[1]);
+  const summaryLabel = sessionTitleLabel(path.summary || '');
+  if (summaryLabel) return summaryLabel;
+  return labelFromKey(path.repoLabel || path.scope || path.id);
+}
+
+function workspaceReportHeadline(
+  label: string,
+  verdict: string | null | undefined,
+  hasOutcome: boolean,
+  sameDisplayedImprovement = false
+): string {
+  if (!hasOutcome) return `${label} ${friendlyOutcomeVerb(verdict)}.`;
+  if (sameDisplayedImprovement) return `Latest ${label} run improved slightly.`;
+  return `Latest ${label} run ${friendlyOutcomeVerb(verdict)}.`;
+}
+
+function outcomeStatusIcon(verdict: string | null | undefined): string {
+  const normalized = (verdict || '').toLowerCase();
+  if (normalized.includes('regress')) return '\u{1F534}';
+  if (normalized.includes('improv')) return '\u{1F7E2}';
+  if (normalized.includes('flat')) return '\u{26AA}';
+  if (normalized.includes('unknown') || normalized.includes('no rounds')) return '\u{1F7E1}';
+  return '\u{26AA}';
+}
+
+function friendlyOutcomeVerb(verdict: string | null | undefined): string {
+  const normalized = (verdict || '').toLowerCase();
+  if (normalized.includes('regress')) return 'regressed';
+  if (normalized.includes('improv')) return 'improved';
+  if (normalized.includes('flat')) return 'held steady';
+  if (normalized.includes('record')) return 'was recorded';
+  if (normalized.includes('open')) return 'is open';
+  if (normalized.includes('resolved') || normalized.includes('completed')) return 'is complete';
+  if (normalized.includes('expired')) return 'expired';
+  if (normalized.includes('unknown')) return 'needs more signal';
+  if (normalized.includes('no rounds')) return 'has no rounds yet';
+  return normalized || 'is recorded';
+}
+
+function formatOutcomeComparison(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): string | null {
+  const bestOutcome = bestComparableOutcome(latestOutcome, outcomes, bestOutcomeId);
+  if (!bestOutcome || typeof latestOutcome.metricValue !== 'number' || typeof bestOutcome.metricValue !== 'number') return null;
+
+  const delta = latestOutcome.metricValue - bestOutcome.metricValue;
+  if (Math.abs(delta) < 0.000001) return 'Compare: current best for this path.';
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  const latestIsBetter = lowerIsBetter ? delta < 0 : delta > 0;
+  const direction = latestIsBetter
+    ? 'beats current best by'
+    : lowerIsBetter
+      ? 'above current best by'
+      : 'below current best by';
+  return `Compare: ${direction} ${formatNumber(Math.abs(delta))} (best ${formatNumber(bestOutcome.metricValue)}).`;
+}
+
+function formatCompareFragment(line: string): string {
+  return line.replace(/^Compare:\s*/i, '').replace(/[.]+$/, '');
+}
+
+function bestComparableOutcome(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): SparkWorkspaceOutcome | null {
+  if (typeof latestOutcome.metricValue !== 'number') return null;
+  const comparable = outcomes.filter((outcome) =>
+    outcome.metricName === latestOutcome.metricName &&
+    typeof outcome.metricValue === 'number'
   );
+  if (comparable.length === 0) return null;
+
+  const selectedBest = bestOutcomeId
+    ? comparable.find((outcome) => outcome.id === bestOutcomeId)
+    : null;
+  if (selectedBest) return selectedBest;
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  return comparable.slice().sort((a, b) =>
+    lowerIsBetter
+      ? (a.metricValue as number) - (b.metricValue as number)
+      : (b.metricValue as number) - (a.metricValue as number)
+  )[0] ?? null;
+}
+
+function metricGoalPrefersLower(outcome: SparkWorkspaceOutcome): boolean {
+  const scorecardGoal = outcome.context?.scorecard?.headlineGoal || '';
+  if (/\b(lower|minimi[sz]e|smaller|less)\b/i.test(scorecardGoal)) return true;
+  const componentGoals = outcome.context?.scorecard?.components?.map((component) => component.goal).join(' ') || '';
+  return /\b(lower|minimi[sz]e|smaller|less)\b/i.test(componentGoals);
 }
 
 function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
   if (typeof outcome.metricValue !== 'number') return null;
-  return `${formatMetricLabel(outcome.metricName)}=${formatNumber(outcome.metricValue)}`;
+  return `${formatMetricLabel(outcome.metricName)} ${formatNumber(outcome.metricValue)}`;
 }
 
-function formatOutcomeScorecard(outcome: SparkWorkspaceOutcome): string | null {
-  const scorecard = outcome.context?.scorecard;
-  if (!scorecard) return null;
-  const headline = typeof scorecard.headlineValue === 'number'
-    ? `${scorecard.headlineLabel || formatMetricLabel(outcome.metricName)} ${formatNumber(scorecard.headlineValue)}`
-    : null;
-  const goal = scorecard.headlineGoal ? `goal=${scorecard.headlineGoal}` : null;
-  const model = scorecard.modelLabel ? `model=${scorecard.modelLabel}` : null;
-  const details = (scorecard.details || []).slice(0, 2).map((detail) => `${detail.label}: ${detail.value}`);
-  return [headline, goal, model, ...details].filter(Boolean).join('; ') || null;
+interface ReviewItemGroup {
+  item: SparkWorkspaceInboxItem;
+  count: number;
+  summaries: string[];
 }
 
-function formatArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): string {
-  if (artifacts.length === 0) return 'Artifact refs: 0';
-  const labels = artifacts
-    .slice(0, 3)
-    .map((artifact) => `${artifact.kind}:${artifact.label || artifact.id}`)
-    .join(', ');
-  const suffix = artifacts.length > 3 ? `, +${artifacts.length - 3} more` : '';
-  return `Artifact refs: ${artifacts.length} (${labels}${suffix})`;
+function groupReviewItems(items: SparkWorkspaceInboxItem[]): ReviewItemGroup[] {
+  const groups = new Map<string, ReviewItemGroup>();
+  for (const item of items) {
+    const key = [
+      item.kind,
+      item.title,
+      item.priority,
+      item.recommendedAction || '',
+      reviewTelegramActions(item).length > 0 ? item.id : 'dashboard-only'
+    ].join('\n');
+    const existing = groups.get(key);
+    if (existing) {
+      existing.count += 1;
+      if (!existing.summaries.includes(item.summary)) existing.summaries.push(item.summary);
+    } else {
+      groups.set(key, { item, count: 1, summaries: [item.summary] });
+    }
+  }
+  return [...groups.values()];
+}
+
+function reviewReasonLines(group: ReviewItemGroup): string[] {
+  if (group.count === 1) return [ensureSentence(truncate(group.summaries[0], 120))];
+  const reasons = uniqueReviewReasons(group.summaries).map(friendlyReviewReason);
+  if (reasons.length > 0) return reasons.map(ensureSentence);
+  return [`${pluralize(group.count, 'related decision')} need the same move.`];
+}
+
+function uniqueReviewReasons(summaries: string[]): string[] {
+  const reasons = new Set<string>();
+  for (const summary of summaries) {
+    const match = /Reasons?:\s*(.+)$/i.exec(summary);
+    reasons.add((match ? match[1] : summary).replace(/[.]+$/, '').trim());
+  }
+  return [...reasons].filter(Boolean).slice(0, 4);
+}
+
+function friendlyReviewReason(reason: string): string {
+  const cleaned = reason.replace(/[.]+$/, '').trim();
+  if (/primary message exceeds the network readability limit/i.test(cleaned)) return 'Message is too long for network sharing';
+  if (/contains a suspicious long opaque token/i.test(cleaned)) return 'Suspicious long opaque token';
+  if (/contains inline code fencing/i.test(cleaned)) return 'Inline code fencing';
+  return sentenceCaseFirst(cleaned.replace(/^contains\s+/i, ''));
+}
+
+function reviewTelegramActions(item: SparkWorkspaceInboxItem): string[] {
+  if (item.kind === 'absorb' && item.targetType === 'insight') {
+    return [`Approve: /recursive approve ${item.id} absorb this insight`];
+  }
+  if (item.kind === 'review_mastery' && item.targetType === 'mastery') {
+    return [
+      `Approve: /recursive approve ${item.id} evidence is strong enough`,
+      `More eval: /recursive more-eval ${item.id} needs another benchmark pass`,
+      `Defer: /recursive defer ${item.id} hold for later`,
+      `Reject: /recursive reject ${item.id} evidence is not strong enough`
+    ];
+  }
+  return [];
+}
+
+function reviewPriorityRank(priority: string | null | undefined): number {
+  const normalized = (priority || '').toLowerCase();
+  if (normalized === 'high') return 3;
+  if (normalized === 'medium') return 2;
+  if (normalized === 'low') return 1;
+  return 0;
+}
+
+function traceDisplayTitle(trace: RecursiveTraceView): string {
+  const id = trace.session_id || '';
+  if (id.startsWith('path:')) return labelFromKey(id.slice('path:'.length));
+  const builderChipMatch = /^path_builder_chip_(.+)$/.exec(id);
+  if (builderChipMatch) return labelFromKey(builderChipMatch[1]);
+  const simplePathMatch = /^path_(.+)$/.exec(id);
+  if (simplePathMatch) return labelFromKey(simplePathMatch[1]);
+  const title = (trace.title || '').trim();
+  if (title && title.length <= 80) return title.replace(/[.]+$/, '');
+  return id || 'Recursive loop';
+}
+
+function formatTraceTimelineItem(item: RecursiveTraceView['timeline'][number]): string {
+  if (item.kind === 'artifact') return `- artifact: ${cleanTraceArtifactTitle(item.title, item.status)}`;
+  const title = cleanTraceTimelineTitle(item.title);
+  return `- ${item.kind}: ${title} (${item.status})`;
+}
+
+function cleanTraceArtifactTitle(title: string, status: string): string {
+  if (/candidate score/i.test(title)) return 'candidate score saved';
+  if (/baseline trace/i.test(title)) return 'baseline trace saved';
+  if (/candidate trace/i.test(title)) return 'candidate trace saved';
+  const cleaned = cleanTraceTimelineTitle(title)
+    .replace(/\b\d{8}T\d{6,}\w*\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || labelFromKey(status);
+}
+
+function cleanTraceTimelineTitle(title: string): string {
+  const outcomeMatch = /^outcome[:_][^:_]+[:_](.+)$/i.exec(title);
+  const cleaned = (outcomeMatch ? outcomeMatch[1] : title)
+    .replace(/^round[:_]/i, 'round ')
+    .replace(/[_:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^round\s+\d{8}T\d+/i.test(cleaned)) return 'previous round';
+  return cleaned || title;
 }
 
 function formatMetricLabel(value: string | null | undefined): string {
-  return (value || 'metric').replace(/_/g, ' ');
+  return (value || 'metric').replace(/_/g, ' ').replace(/\s*:\s*/g, ' / ');
 }
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : String(Math.round(value * 10000) / 10000);
+}
+
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 function findInboxItemForDecision(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceInboxItem | null {

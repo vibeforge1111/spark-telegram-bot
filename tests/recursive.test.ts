@@ -211,10 +211,10 @@ test('parses and renders stitched recursive trace views', () => {
     ]
   });
 
-  assert.match(reply, /Spark Workspace Recursion Trace/);
-  assert.match(reply, /Canvas: pending/);
-  assert.match(reply, /swarm packets=0/);
-  assert.match(reply, /round-003/);
+  assert.match(reply, /Startup YC recursive autoloop trace/);
+  assert.match(reply, /- canvas: pending/);
+  assert.match(reply, /- review: clear/);
+  assert.match(reply, /- round: round-003 \(kept\)/);
 });
 
 test('builds a Workspace collective payload for Builder chip loops', () => {
@@ -595,22 +595,21 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(sessions[0].review_required, false);
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(report, /Spark Workspace Recursion Report/);
-  assert.match(report, /Latest outcome: improved - Final round improved\./);
-  assert.match(report, /Metric: builder chip loop best metric=0.72/);
-  assert.match(report, /Scorecard: Best metric 0.72; goal=higher; model=Startup Yc; Rounds: 3\/3/);
-  assert.match(report, /Artifact refs: 1 \(run_trace:Startup Yc chip-loop status\)/);
-  assert.match(report, /Decisions needed: 0/);
+  assert.match(report, /Latest Startup YC run improved\./);
+  assert.match(report, /Score/);
+  assert.match(report, /- builder chip loop best metric 0.72/);
+  assert.match(report, /- current best for this path/);
+  assert.match(report, /Workspace/);
+  assert.match(report, /- 1 saved item/);
 
   const numericReport = renderRecursiveWorkspaceReport(snapshot, '1');
-  assert.match(numericReport, /Loop: path_builder_chip_startup_yc/);
-  assert.match(numericReport, /Latest outcome: improved - Final round improved\./);
+  assert.match(numericReport, /Latest Startup YC run improved\./);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.spawner.board_entry.taskCount, 2);
   assert.equal(trace.timeline[0].kind, 'outcome');
   assert.equal(trace.timeline[0].status, 'improved');
-  assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric=0.72');
+  assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric 0.72');
   assert.equal(trace.timeline[1].kind, 'artifact');
   assert.equal(trace.timeline[1].status, 'run_trace');
 
@@ -721,14 +720,14 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
   };
 
   const benchmarkReport = renderRecursiveWorkspaceReport(snapshot, 'path_benchmark_prompt_engineer_20260508t030923z_65b30a0f');
-  assert.match(benchmarkReport, /Metric: average composite score=2.1/);
-  assert.match(benchmarkReport, /Artifact refs: 1 \(benchmark_run:Prompt benchmark run JSON\)/);
+  assert.match(benchmarkReport, /- average composite score 2.1/);
+  assert.match(benchmarkReport, /- 1 saved item/);
   assert.doesNotMatch(benchmarkReport, /Domain autoloop manifest/);
   assert.doesNotMatch(benchmarkReport, /Startup Yc chip-loop status/);
 
   const autoloopReport = renderRecursiveWorkspaceReport(snapshot, 'path_domain_autoloop_crypto_trading');
-  assert.match(autoloopReport, /Metric: autoloop cycle count=4/);
-  assert.match(autoloopReport, /Artifact refs: 1 \(manifest:Domain autoloop manifest\)/);
+  assert.match(autoloopReport, /- autoloop cycle count 4/);
+  assert.match(autoloopReport, /- 1 saved item/);
   assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
 
   const labTrace = workspaceTraceView(snapshot, 'path_domain_chip_lab_workspace_smoke_loop');
@@ -759,7 +758,8 @@ test('reports Workspace best outcome id when snapshot omits outcome bodies', () 
   };
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(report, /Latest outcome: recorded - outcome_builder_chip_startup_yc_20260507T151032889/);
+  assert.match(report, /Startup YC was recorded\./);
+  assert.match(report, /Workspace/);
 
   const trace = workspaceTraceView(snapshot, 'path_builder_chip_startup_yc');
   assert.equal(trace.timeline[0].kind, 'outcome');
@@ -814,7 +814,7 @@ test('maps Workspace decision inbox items into Telegram review surfaces', () => 
   assert.equal(sessions[0].review_required, true);
 
   const review = renderRecursiveWorkspaceReview(snapshot, 'path_builder_chip_startup_yc');
-  assert.match(review, /Spark Workspace Review/);
-  assert.match(review, /medium review_outcome/);
+  assert.match(review, /Startup YC review/);
+  assert.match(review, /- 1 decision waiting/);
   assert.match(review, /Open Recursions and inspect the run trace/);
 });
