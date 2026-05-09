@@ -214,6 +214,7 @@ export function decideNaturalRoute(
   }
 
   const buildIntent = parseBuildIntent(normalized);
+  const chipBrief = parseNaturalChipCreateIntent(normalized);
   const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
     ? null
     : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
@@ -243,6 +244,19 @@ export function decideNaturalRoute(
       },
       context_source: 'visible_exact_artifact',
       matched_signals: ['shipped_project_context', 'project_improvement_request'],
+      blocked_by: [],
+      requires_confirmation: true
+    });
+  }
+  if (chipBrief) {
+    return decision({
+      route: 'domain_chip.create',
+      owner_system: 'domain-chip',
+      confidence: 'explicit',
+      action: 'domain_chip.create',
+      payload: { brief: chipBrief },
+      context_source: 'latest_message',
+      matched_signals: ['natural_domain_chip_create'],
       blocked_by: [],
       requires_confirmation: true
     });
@@ -584,21 +598,6 @@ export function decideNaturalRoute(
       matched_signals: ['mission_update_preference'],
       blocked_by: [],
       requires_confirmation: false
-    });
-  }
-
-  const chipBrief = parseNaturalChipCreateIntent(normalized);
-  if (chipBrief) {
-    return decision({
-      route: 'domain_chip.create',
-      owner_system: 'domain-chip',
-      confidence: 'explicit',
-      action: 'domain_chip.create',
-      payload: { brief: chipBrief },
-      context_source: 'latest_message',
-      matched_signals: ['natural_domain_chip_create'],
-      blocked_by: [],
-      requires_confirmation: true
     });
   }
 

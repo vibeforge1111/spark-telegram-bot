@@ -123,6 +123,16 @@ test('routes contextual creator-system follow-ups to Spawner creator missions', 
   assert.match(String(route.payload.brief), /Improve Spark QA Operator/);
 });
 
+test('routes explicit domain-chip creation before creator or build routes', () => {
+  const route = decideNaturalRoute('build a domain-chip for Telegram memory routing');
+
+  assert.equal(route.route, 'domain_chip.create');
+  assert.equal(route.owner_system, 'domain-chip');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.payload.brief, 'Telegram memory routing');
+  assert.equal(route.requires_confirmation, true);
+});
+
 test('routes contextual access changes only after access-focused turns', () => {
   const recentMessages = [
     'User: Change my access level to three please',

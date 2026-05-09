@@ -3280,6 +3280,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
+    const naturalChipBrief = parseNaturalChipCreateIntent(text);
+    if (naturalChipBrief) {
+      await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.create', 'domain-chip', 'domain_chip.create');
+      const mode = domainChipBuildModeForBrief(naturalChipBrief);
+      pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
+        brief: naturalChipBrief,
+        prd: buildDomainChipPrd(naturalChipBrief),
+        projectName: projectNameForDomainChipBrief(naturalChipBrief),
+        buildMode: mode.buildMode,
+        buildModeReason: mode.reason,
+        capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(naturalChipBrief),
+        timestamp: Date.now()
+      });
+      await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
+      return;
+    }
+
     const creatorMissionIntent = parseNaturalCreatorMissionIntent(text, {
       recentMessages: contextualTurns.filter(Boolean).slice(-15)
     });
@@ -3430,24 +3448,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     const localServiceContext = contextualTurns.join('\n');
-
-    const naturalChipBrief = parseNaturalChipCreateIntent(text);
-    if (naturalChipBrief) {
-      await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.create', 'domain-chip', 'domain_chip.create');
-      const mode = domainChipBuildModeForBrief(naturalChipBrief);
-      pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
-        brief: naturalChipBrief,
-        prd: buildDomainChipPrd(naturalChipBrief),
-        projectName: projectNameForDomainChipBrief(naturalChipBrief),
-        buildMode: mode.buildMode,
-        buildModeReason: mode.reason,
-        capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(naturalChipBrief),
-        timestamp: Date.now()
-      });
-      await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
-      return;
-    }
 
     const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
     if (spawnerBoardIntent) {

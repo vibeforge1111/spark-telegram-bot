@@ -519,6 +519,38 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(reply, /Canvas:/);
 	});
 
+	await test('domain chip text route previews before creator or generic build routes', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 562, replies);
+		ctx.message.text = 'build a domain-chip for Telegram memory routing';
+		const indexModule: any = await import('../src/index');
+
+		await indexModule.handleTextMessage(ctx);
+
+		assert.match(replies.join('\n'), /I can build this as domain-chip-telegram-memory-routing/);
+		assert.match(replies.join('\n'), /Reply "go"/);
+		assert.ok(!captured.some((c) => c.url.includes('/api/creator-mission')), 'domain chip creation should not start a creator mission');
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'domain chip creation should wait for confirmation before PRD write');
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('canvas ready summary stays readable and includes canvas link', async () => {
 		const indexModule: any = await import('../src/index');
 		const reply = indexModule.formatCanvasReadySummary({
