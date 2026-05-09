@@ -84,6 +84,19 @@ function httpPortLabel(url: string): string {
   }
 }
 
+export function readableLocalServiceUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const localHosts = new Set(['127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+    const host = localHosts.has(parsed.hostname) ? 'localhost' : parsed.hostname;
+    const port = parsed.port ? `:${parsed.port}` : '';
+    const path = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/$/, '');
+    return `${parsed.protocol}//${host}${port}${path}`;
+  } catch {
+    return url;
+  }
+}
+
 function isRailwayPrivateUrl(url: string | undefined): boolean {
   if (!url) return false;
   try {
@@ -469,7 +482,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     '',
     'Workspace',
     `Board: ${boardSummary}`,
-    `Spawner: ${httpPortLabel(SPAWNER_UI_URL)}`,
+    `Spawner UI: ${readableLocalServiceUrl(SPAWNER_UI_URL)}`,
     spawnerPublicLinkHealth && /❌/.test(spawnerPublicLinkHealth) ? spawnerPublicLinkHealth : null,
     CODEX_SHIM_URL && shimHealth && !shimHealth.ok ? `Codex shim: ${shimHealth.err || shimHealth.status || 'not running'}` : null,
     '',

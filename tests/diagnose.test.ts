@@ -8,6 +8,7 @@ import {
   describeSpawnerPublicLinkHealth,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
+  readableLocalServiceUrl,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
@@ -174,6 +175,13 @@ test('describes HTTP failures as relay errors', () => {
     describeRelayHealth({ ok: false, status: 401, err: 'HTTP 401' }, { port: 8788, profile: 'primary' }),
     /HTTP 401$/
   );
+});
+
+test('formats local service URLs as localhost links', () => {
+  assert.equal(readableLocalServiceUrl('http://127.0.0.1:3333'), 'http://localhost:3333');
+  assert.equal(readableLocalServiceUrl('http://0.0.0.0:3333/'), 'http://localhost:3333');
+  assert.equal(readableLocalServiceUrl('http://[::1]:3333/'), 'http://localhost:3333');
+  assert.equal(readableLocalServiceUrl('https://spawner.example.app/path/'), 'https://spawner.example.app/path');
 });
 
 test('warns when Railway Spawner links would point at private DNS', () => {
