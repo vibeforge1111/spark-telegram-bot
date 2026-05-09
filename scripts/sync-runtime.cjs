@@ -30,10 +30,14 @@ function discoverSyncedPaths() {
 		{ dir: 'src', ext: '.ts' },
 		{ dir: 'dist', ext: '.js' },
 		{ dir: 'scripts', ext: '.cjs' },
+		{ dir: 'ops', ext: '.ts' },
+		{ dir: 'ops', ext: '.json' },
 		{ dir: 'agent-knowledge', ext: '.md' }
 	];
 	const singletonPaths = [
 		'package.json',
+		'package-lock.json',
+		'tsconfig.json',
 		'spark.toml',
 		'ops/capability-natural-language-matrix.json'
 	];

@@ -4,7 +4,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   checkRuntimeFreshness,
-  formatRuntimeFreshnessReport
+  formatRuntimeFreshnessReport,
+  ROUTE_CRITICAL_RUNTIME_PATHS
 } from '../src/runtimeFreshness';
 
 function test(name: string, fn: () => void): void {
@@ -96,4 +97,15 @@ test('runtime freshness reports missing source as environment failure', () => {
     assert.equal(result.summary.missingSource, 1);
     assert.equal(result.paths[0].status, 'missing_source');
   });
+});
+
+test('default runtime freshness paths cover conversational routing and sync guard files', () => {
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('spark.toml'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/memoryDoctorBridge.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/recursive.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/pathLoop.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/runtimeFreshnessCheck.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/memoryDoctorBridge.js'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/recursive.js'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/pathLoop.js'));
 });

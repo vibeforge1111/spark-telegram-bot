@@ -17,6 +17,7 @@ const tests = [
   'tests/liveNlVerdict.test.ts',
   'tests/routeBoundaryHandlerHarness.test.ts',
   'tests/runtimeFreshness.test.ts',
+  'tests/runtimeSyncCompatibility.test.ts',
   'tests/conversationMemory.test.ts',
   'tests/commandTelemetry.test.ts',
   'tests/accessPolicy.test.ts',
