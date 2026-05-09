@@ -1,6 +1,6 @@
 import type { NaturalRouteDecision } from './naturalRouteDecision';
 
-export type NaturalRouteTelemetryPhase = 'shadow' | 'probe';
+export type NaturalRouteTelemetryPhase = 'shadow' | 'probe' | 'execute';
 
 export interface NaturalRouteTelemetryInput {
   decision: NaturalRouteDecision;
@@ -10,6 +10,10 @@ export interface NaturalRouteTelemetryInput {
   chatId?: string | number | null;
   chatType?: string | null;
   admin?: boolean;
+  executedRoute?: string | null;
+  executedOwner?: string | null;
+  executedAction?: string | null;
+  outcome?: string | null;
 }
 
 function safeField(value: string | number | boolean | null | undefined, fallback = 'unknown'): string {
@@ -39,8 +43,12 @@ export function naturalRouteTelemetryLine(input: NaturalRouteTelemetryInput): st
     `user=${safeField(input.userId)}`,
     `chat=${safeField(input.chatId)}`,
     `chat_type=${safeField(input.chatType)}`,
-    `admin=${safeField(Boolean(input.admin))}`
-  ].join(' ');
+    `admin=${safeField(Boolean(input.admin))}`,
+    input.executedRoute ? `executed=${safeField(input.executedRoute)}` : null,
+    input.executedOwner ? `executed_owner=${safeField(input.executedOwner)}` : null,
+    input.executedAction ? `executed_action=${safeField(input.executedAction)}` : null,
+    input.outcome ? `outcome=${safeField(input.outcome)}` : null
+  ].filter((part): part is string => Boolean(part)).join(' ');
 }
 
 export function logNaturalRouteDecision(
@@ -48,6 +56,28 @@ export function logNaturalRouteDecision(
   logger: Pick<Console, 'log'> = console
 ): void {
   logger.log(naturalRouteTelemetryLine(input));
+}
+
+export function naturalRouteExecutionOutcome(
+  decision: NaturalRouteDecision,
+  executedRoute: string
+): 'matched' | 'mismatch' {
+  return decision.route === executedRoute ? 'matched' : 'mismatch';
+}
+
+export function logNaturalRouteExecution(
+  input: Omit<NaturalRouteTelemetryInput, 'phase' | 'outcome'> & {
+    executedRoute: string;
+    executedOwner: string;
+    executedAction: string;
+  },
+  logger: Pick<Console, 'log'> = console
+): void {
+  logger.log(naturalRouteTelemetryLine({
+    ...input,
+    phase: 'execute',
+    outcome: naturalRouteExecutionOutcome(input.decision, input.executedRoute)
+  }));
 }
 
 export function renderNaturalRouteDecisionReply(decision: NaturalRouteDecision): string {

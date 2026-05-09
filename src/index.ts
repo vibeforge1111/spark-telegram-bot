@@ -206,8 +206,17 @@ import {
   type TelegramStreamingConfigAction
 } from './telegramDraft';
 import { logTelegramCommand, type TelegramCommandTelemetryPhase } from './commandTelemetry';
-import { decideNaturalRoute, type NaturalRouteDecisionContext } from './naturalRouteDecision';
-import { logNaturalRouteDecision, renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
+import {
+  decideNaturalRoute,
+  type NaturalRouteDecision,
+  type NaturalRouteDecisionContext,
+  type NaturalRouteOwnerSystem
+} from './naturalRouteDecision';
+import {
+  logNaturalRouteDecision,
+  logNaturalRouteExecution,
+  renderNaturalRouteDecisionReply
+} from './naturalRouteTelemetry';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -294,7 +303,7 @@ async function buildNaturalRouteDecisionContext(
   };
 }
 
-async function recordNaturalRouteShadow(ctx: any, text: string): Promise<void> {
+async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
   try {
     const decision = decideNaturalRoute(
       text,
@@ -309,9 +318,32 @@ async function recordNaturalRouteShadow(ctx: any, text: string): Promise<void> {
       chatType: ctx.chat?.type,
       admin: conversation.isAdmin(ctx.from)
     });
+    return decision;
   } catch (error) {
     console.warn('[NaturalRoute] shadow decision failed:', error);
+    return null;
   }
+}
+
+function recordNaturalRouteExecution(
+  ctx: any,
+  decision: NaturalRouteDecision | null,
+  executedRoute: string,
+  executedOwner: NaturalRouteOwnerSystem,
+  executedAction: string
+): void {
+  if (!decision) return;
+  logNaturalRouteExecution({
+    decision,
+    profile: activeTelegramProfile(),
+    userId: ctx.from?.id,
+    chatId: ctx.chat?.id,
+    chatType: ctx.chat?.type,
+    admin: conversation.isAdmin(ctx.from),
+    executedRoute,
+    executedOwner,
+    executedAction
+  });
 }
 
 async function chatWithOptionalDraftStreaming(
@@ -2908,11 +2940,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  await recordNaturalRouteShadow(ctx, text);
+  const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
 
   if (conversation.isAdmin(ctx.from)) {
     const pendingClarification = pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text);
     if (pendingClarification && isPendingClarificationFollowup(text)) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
       await handleClarificationAnswers(ctx, text);
       return;
     }
@@ -2929,6 +2962,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (!extractPlainChatMemoryDirective(text) && isStandaloneAgentDoctrinePreference(text)) {
       const reply = formatAgentDoctrinePreferenceAcknowledgement(agentDoctrinePreference);
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.preference', 'spark-intelligence-builder', 'agent_doctrine.preference');
       await ctx.reply(reply);
       await conversation.rememberAssistantReply(user, reply).catch(() => {});
       return;
@@ -2939,6 +2973,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const preferences = await conversation.getAgentDoctrinePreferences(user).catch(() => []);
     const reply = formatAgentDoctrinePreferenceStatus(preferences);
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.status', 'spark-intelligence-builder', 'agent_doctrine.status');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
@@ -2947,6 +2982,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isGlobalAgentDoctrineRequest(text)) {
     const reply = formatGlobalAgentDoctrineRequestReply();
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
@@ -2966,6 +3002,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const naturalAccessChange = earlyBuildIntent ? null : parseNaturalAccessChangeIntent(text);
   if (naturalAccessChange) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, naturalAccessChange);
     return;
   }
@@ -2977,6 +3014,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     : null;
   if (frameAccessChange) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, frameAccessChange);
     return;
   }
@@ -2987,6 +3025,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     : parseContextualAccessChangeIntent(text, recentAccessMessages);
   if (contextualAccessChange) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, contextualAccessChange);
     return;
   }
@@ -2995,6 +3034,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessBriefStatus(accessProfile);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.status', 'spark-telegram-bot', 'access.status');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
@@ -3004,12 +3044,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessConversationHelp(accessProfile);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.help', 'spark-telegram-bot', 'access.help');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.chip_status_probe', 'spark-intelligence-builder', 'spark.chip_status_probe');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfAwarenessStatus({
@@ -3028,12 +3070,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   if (memoryDirective) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.write', 'spark-intelligence-builder', 'memory.write');
     await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective);
     return;
   }
   const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);
   if (selfImprovementGoal) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.self_improvement', 'spark-intelligence-builder', 'spark.self_improvement');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfImprovementPlan({
@@ -3052,6 +3096,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiPromotion = earlyBuildIntent ? null : extractSparkWikiPromotionIntent(text);
   if (wikiPromotion) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.promote', 'spark-intelligence-builder', 'spark_wiki.promote');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiPromoteImprovement({
@@ -3072,6 +3117,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
@@ -3085,6 +3131,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiAnswerQuestion = earlyBuildIntent ? null : extractSparkWikiAnswerQuestion(text);
   if (wikiAnswerQuestion) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiAnswer({
@@ -3105,6 +3152,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiQuery = earlyBuildIntent ? null : extractSparkWikiQuery(text);
   if (wikiQuery) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
@@ -3117,6 +3165,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   if (!earlyBuildIntent && isSparkWikiStatusQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiStatus({ refresh: true });
@@ -3175,6 +3224,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
     if (pendingClarification && isPendingClarificationFollowup(text)) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
       await handleClarificationAnswers(ctx, text);
       return;
     }
@@ -3204,6 +3254,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (naturalRecursiveIntent) {
       await conversation.remember(user, text).catch(() => {});
       await conversation.rememberAssistantReply(user, `Recursive command routed from natural language: ${naturalRecursiveIntent.rawCommand}`).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, `recursive.${naturalRecursiveIntent.rawCommand.trim().split(/\s+/)[0] || 'command'}`, 'spark-telegram-bot', 'recursive.command');
       await handleRecursiveCommand(ctx, naturalRecursiveIntent.rawCommand);
       return;
     }
@@ -3213,6 +3264,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     });
     if (creatorMissionIntent) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'creator.mission', 'spawner-ui', 'creator.mission');
       await ctx.reply('Planning creator mission...');
       const requestId = `tg-creator-natural-${ctx.chat.id}-${(ctx.message as any)?.message_id || Date.now()}-${Date.now()}`;
       const result = await spawner.creatorMission({
@@ -3242,6 +3294,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
       if (improvementGoal && latestShippedProject) {
         await conversation.remember(user, text).catch(() => {});
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'project.iteration', 'spawner-ui', 'project.iteration');
         await ctx.reply([
           `Got it. I will improve ${latestShippedProject.projectName}.`,
           '',
@@ -3262,6 +3315,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.build', 'spawner-ui', 'spawner.build');
       const accessPreference = parseNaturalAccessChangeIntent(text);
       const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
       if (normalizedAccessPreference) {
@@ -3316,6 +3370,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (pendingClarification && !buildIntent) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
       await handleClarificationAnswers(ctx, text);
       return;
     }
@@ -3323,6 +3378,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const defaultBuild = inferDefaultBuildFromRecentScoping(text, recentMessages);
     if (defaultBuild) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.default_build', 'spawner-ui', 'spawner.default_build');
       await ctx.reply(`I will choose the default and start it: ${defaultBuild.projectName}.`);
       await handleBuildIntent(
         ctx,
@@ -3338,6 +3394,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);
     if (missionUpdatePreference) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'mission_updates.preference', 'spark-telegram-bot', 'mission_updates.preference');
       const detailLines: string[] = [];
       if (missionUpdatePreference.verbosity) {
         await setTelegramRelayVerbosity(ctx.chat.id, missionUpdatePreference.verbosity);
@@ -3356,6 +3413,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.create', 'domain-chip', 'domain_chip.create');
       const mode = domainChipBuildModeForBrief(naturalChipBrief);
       pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
         brief: naturalChipBrief,
@@ -3373,6 +3431,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
     if (spawnerBoardIntent) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, `spawner.${spawnerBoardIntent}`, 'spawner-ui', 'spawner.board_read');
       await safeSendChatAction(ctx, 'typing');
       const result = spawnerBoardIntent === 'latest_provider'
         ? await spawner.latestProviderSummary()
@@ -3387,12 +3446,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'local_service.open', 'spark-telegram-bot', 'local_service.open');
       await ctx.reply(buildLocalSparkServiceReply(await spawner.isAvailable()));
       return;
     }
 
     if (isAmbiguousLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'local_service.clarify', 'spark-telegram-bot', 'clarify');
       await ctx.reply(buildLocalSparkServiceClarificationReply());
       return;
     }
@@ -3400,6 +3461,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isBuildContextRecallQuestion(text)) {
       const recentBuildContext = buildRecentBuildContextReply(contextualTurns);
       if (recentBuildContext) {
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'build_context.recall', 'spark-telegram-bot', 'build_context.recall');
         await ctx.reply(recentBuildContext);
         return;
       }
@@ -3409,6 +3471,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const reply = buildDiagnosticFollowupTestReply(sessionContext);
       if (reply) {
         await conversation.remember(user, text).catch(() => {});
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'diagnostics.followup_test', 'spark-intelligence-builder', 'diagnostics.followup_test');
         await ctx.reply(reply);
         return;
       }
@@ -3416,6 +3479,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isDiagnosticsScanRequest(text)) {
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'diagnostics.scan', 'spark-cli', 'diagnostics.scan');
       await safeSendChatAction(ctx, 'typing');
       try {
         const scan = await runBuilderDiagnosticsScan();
@@ -3448,6 +3512,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (improvementGoal) {
         console.log(`[ConversationIntent] inferred contextual improvement mission user=${ctx.from?.id} textLen=${text.length}`);
         await conversation.remember(user, text).catch(() => {});
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.contextual_mission', 'spawner-ui', 'spawner.contextual_mission');
         const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()], undefined, {
           missionName: 'Spark Diagnostic Agent Integration'
         });
@@ -3465,6 +3530,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         return;
       }
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'external_research.inspect', 'spark-intelligence-builder', 'external_research.inspect');
       const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [missionDefaultProvider()], 'external_research');
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
@@ -3476,6 +3542,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (inferredMission) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);
       await conversation.remember(user, text).catch(() => {});
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.contextual_mission', 'spawner-ui', 'spawner.contextual_mission');
       const missionId = await handleRunCommand(ctx, inferredMission.goal, [missionDefaultProvider()], undefined, {
         missionName: inferredMission.missionName
       });
@@ -3489,6 +3556,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
       await safeSendChatAction(ctx, 'typing');
       if (isShortResolvedListPick(text, conversationFrame)) {
         const fastReply = buildSelectedListFastReply(conversationFrame);
@@ -3518,12 +3586,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // Single-provider run intent: "minimax, draft...", "ask claude to...", "all models: ..."
     const intent = parseNaturalRunIntent(text);
     if (intent) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.run', 'spark-intelligence-builder', 'spark.run');
       await handleRunCommand(ctx, intent.goal, intent.providers);
       return;
     }
   }
 
   // Show typing indicator
+  recordNaturalRouteExecution(ctx, naturalRouteShadow, 'plain_chat', 'spark-intelligence-builder', 'plain_chat');
   await safeSendChatAction(ctx, 'typing');
 
   try {
