@@ -1678,7 +1678,7 @@ function formatTraceTimelineItem(item: RecursiveTraceView['timeline'][number]): 
   if (item.kind === 'artifact') return `- ${cleanTraceArtifactTitle(item.title, item.status)}`;
   if (item.kind === 'outcome') {
     const detail = traceTimelineDetail(item);
-    return `- ${outcomeStatusIcon(item.status)} ${cleanTraceTimelineTitle(item.title)} ${traceOutcomeStatusLabel(item.status)}${detail ? ` - ${detail}` : ''}`;
+    return `${outcomeStatusIcon(item.status)} ${cleanTraceTimelineTitle(item.title)} ${traceOutcomeStatusLabel(item.status)}${detail ? ` - ${detail}` : ''}`;
   }
   const title = cleanTraceTimelineTitle(item.title);
   const detail = traceTimelineDetail(item);

@@ -690,7 +690,8 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
   assert.equal(trace.timeline[0].status, 'improved');
 
   const reply = renderRecursiveTraceView(trace);
-  assert.match(reply, /- 🟢 latest run improved - overall score 0\.8538/);
+  assert.match(reply, /🟢 latest run improved - overall score 0\.8538/);
+  assert.doesNotMatch(reply, /- 🟢 latest run improved/);
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
