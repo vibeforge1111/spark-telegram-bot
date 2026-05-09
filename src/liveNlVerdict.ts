@@ -11,6 +11,7 @@ export interface LiveNlCommandCase {
 
 export interface LiveNlSelection {
   caseId?: string | null;
+  caseIds?: string[];
   suite?: string | null;
   includeRisky?: boolean;
 }
@@ -73,13 +74,15 @@ export function selectLiveNlCommandCases(
   selection: LiveNlSelection = {}
 ): LiveNlCommandCase[] {
   const caseId = selection.caseId?.trim();
+  const caseIds = (selection.caseIds || []).map((id) => id.trim()).filter(Boolean);
+  const selectedCaseIds = new Set([...(caseId ? [caseId] : []), ...caseIds]);
   const suite = selection.suite?.trim();
   const suiteNames = suite ? new Set(LIVE_NL_SUITE_ALIASES[suite] ?? [suite]) : null;
 
   let selected = cases;
-  if (caseId) selected = selected.filter((entry) => entry.id === caseId);
+  if (selectedCaseIds.size > 0) selected = selected.filter((entry) => selectedCaseIds.has(entry.id));
   if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
-  if (!selection.includeRisky && !caseId) selected = selected.filter((entry) => entry.risk === 'safe');
+  if (!selection.includeRisky && selectedCaseIds.size === 0) selected = selected.filter((entry) => entry.risk === 'safe');
   return selected;
 }
 

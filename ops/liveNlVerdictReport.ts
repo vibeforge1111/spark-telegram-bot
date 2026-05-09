@@ -17,6 +17,12 @@ function hasFlag(args: string[], name: string): boolean {
   return args.includes(`--${name}`);
 }
 
+function argList(args: string[], name: string): string[] {
+  const value = argValue(args, name);
+  if (!value) return [];
+  return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
 function timestampForFile(date = new Date()): string {
   return date.toISOString().replace(/[:.]/g, '-');
 }
@@ -28,6 +34,7 @@ async function main(): Promise<void> {
   const suite = argValue(args, 'suite');
   const selected = selectLiveNlCommandCases(allCases, {
     caseId: argValue(args, 'case'),
+    caseIds: argList(args, 'cases'),
     suite,
     includeRisky: hasFlag(args, 'include-risky')
   });

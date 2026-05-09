@@ -56,6 +56,12 @@ test('keeps explicit risky case selection available', () => {
   assert.deepEqual(selected.map((entry) => entry.id), ['mission-001']);
 });
 
+test('keeps explicit multi-case selection available', () => {
+  const selected = selectLiveNlCommandCases(cases, { caseIds: ['mission-001', 'wiki-001'] });
+
+  assert.deepEqual(selected.map((entry) => entry.id), ['mission-001', 'wiki-001']);
+});
+
 test('expands suite aliases for verdict reports', () => {
   const selected = selectLiveNlCommandCases(cases, { suite: 'memory_architecture' });
 

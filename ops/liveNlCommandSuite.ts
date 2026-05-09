@@ -16,6 +16,12 @@ function hasFlag(name: string): boolean {
   return process.argv.includes(`--${name}`);
 }
 
+function argList(name: string): string[] {
+  const value = argValue(process.argv, name);
+  if (!value) return [];
+  return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+}
+
 function loadCases(): LiveNlCommandCase[] {
   const file = path.join(__dirname, 'natural-language-live-commands.json');
   return parseLiveNlCommandCases(JSON.parse(fs.readFileSync(file, 'utf-8')));
@@ -67,6 +73,7 @@ async function main(): Promise<void> {
   const cases = loadCases();
   const selected = selectLiveNlCommandCases(cases, {
     caseId: argValue(process.argv, 'case'),
+    caseIds: argList('cases'),
     suite: argValue(process.argv, 'suite'),
     includeRisky: hasFlag('include-risky')
   });
@@ -78,8 +85,10 @@ async function main(): Promise<void> {
       'Usage:',
       '  npm run nl:live -- --list',
       '  npm run nl:live -- --case mission-001',
+      '  npm run nl:live -- --cases guard-006,domain-chip-003',
       '  npm run nl:live -- --suite smoke',
       '  npm run nl:live -- --send --case mission-001',
+      '  npm run nl:live -- --send --cases guard-006,domain-chip-003',
       '  npm run nl:live -- --send --suite smoke',
       '  npm run nl:live -- --profile primary --send --suite smoke',
       '',
