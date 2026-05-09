@@ -1349,12 +1349,12 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
     .slice(0, 3);
   const outcomeTimeline = outcomes.length > 0
-    ? recentOutcomes.map((item, index) => ({
+    ? dedupeOutcomeTraceItems(recentOutcomes.map((item, index) => ({
       kind: 'outcome',
       title: outcomeTraceTitle(item, index),
       status: item.verdict,
       summary: [item.summary, formatOutcomeMetric(item)].filter(Boolean).join(' ')
-    }))
+    })))
     : path?.bestOutcomeId
       ? [{
         kind: 'outcome',
@@ -1774,6 +1774,33 @@ function traceTimelineDetail(item: RecursiveTraceView['timeline'][number]): stri
   const metricMatch = /(overall score|scenario score|builder chip loop best metric|average composite score|autoloop cycle count|domain chip quality score)\s+[-+]?\d+(?:\.\d+)?/i.exec(item.summary);
   if (metricMatch) return metricMatch[0].toLowerCase();
   return truncate(item.summary, 90);
+}
+
+function dedupeOutcomeTraceItems(
+  items: Array<RecursiveTraceView['timeline'][number]>
+): Array<RecursiveTraceView['timeline'][number]> {
+  const groups: Array<{ item: RecursiveTraceView['timeline'][number]; count: number; key: string }> = [];
+  for (const item of items) {
+    const detail = traceTimelineDetail(item) || '';
+    const key = `${item.title}|${item.status}|${detail}`;
+    const previous = groups[groups.length - 1];
+    if (previous && previous.key === key && item.title !== 'latest run') {
+      previous.count += 1;
+      previous.item = {
+        ...previous.item,
+        title: repeatedOutcomeTraceTitle(previous.item.title, previous.count)
+      };
+      continue;
+    }
+    groups.push({ item, count: 1, key });
+  }
+  return groups.map((group) => group.item);
+}
+
+function repeatedOutcomeTraceTitle(title: string, count: number): string {
+  if (title === 'previous round') return `${count} previous rounds`;
+  if (title === 'baseline') return `${count} baseline runs`;
+  return `${count} ${title}`;
 }
 
 function cleanTraceArtifactTitle(title: string, status: string): string {

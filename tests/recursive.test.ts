@@ -723,6 +723,8 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
 
   const reply = renderRecursiveTraceView(trace);
   assert.match(reply, /🟢 latest run improved - overall score 0\.8538/);
+  assert.match(reply, /2 previous rounds held steady - overall score 0\.834/);
+  assert.equal((reply.match(/previous round held steady/g) || []).length, 0);
   assert.doesNotMatch(reply, /- 🟢 latest run improved/);
   assert.doesNotMatch(reply, /candidate trace saved/);
   assert.doesNotMatch(reply, /candidate score saved/);
