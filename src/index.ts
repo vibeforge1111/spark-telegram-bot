@@ -56,7 +56,7 @@ import {
   recursiveSessions,
   recursiveSessionReview,
   recursiveSessionStatus,
-  recursiveTraceView,
+  recursiveTraceReply,
   renderRecursiveDecision,
   renderRecursiveCanvasQueue,
   renderBuilderChipLoopCompletion,
@@ -66,7 +66,6 @@ import {
   renderRecursiveReviewCandidates,
   renderRecursiveSessions,
   renderRecursiveSwarmPacket,
-  renderRecursiveTraceView,
   sparkWorkspaceRecursionsUrl,
   stageRecursivePromotionPacket,
   stageRecursiveSwarmPacket,
@@ -1643,6 +1642,30 @@ export function parseNaturalRunIntent(text: string): { providers: string[]; goal
   return null;
 }
 
+export interface NaturalRecursiveProposalIntent {
+  target: string;
+  submit: boolean;
+}
+
+export function parseNaturalRecursiveProposalIntent(text: string): NaturalRecursiveProposalIntent | null {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return null;
+
+  const wantsReviewPacket = /\b(prepare|propose|package|submit|share|send)\b/.test(normalized) &&
+    /\b(review|network|swarm|spark swarm|workspace)\b/.test(normalized);
+  if (!wantsReviewPacket) return null;
+
+  const submit = /\b(submit|share|send)\b/.test(normalized) &&
+    /\b(network|swarm|spark swarm|review)\b/.test(normalized);
+  if (/\bcrypto[-\s]+trading\b/.test(normalized)) return { target: 'crypto-trading', submit };
+  if (/\bstartup[-\s]+yc\b/.test(normalized)) return { target: 'startup-yc', submit };
+  return null;
+}
+
 function humanProviderList(providers: string[]): string {
   const labels = providers.map((id) => PROVIDER_LABELS[id] || id);
   if (labels.length === 1) return labels[0];
@@ -2596,7 +2619,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
     if (parsed.action === 'trace') {
       if (!parsed.id) return ctx.reply('Usage: /recursive trace <id>');
       await safeSendChatAction(ctx, 'typing');
-      return ctx.reply(renderRecursiveTraceView(await recursiveTraceView(parsed.id)));
+      return ctx.reply(await recursiveTraceReply(parsed.id));
     }
 
     if (parsed.action === 'canvas') {
@@ -2638,7 +2661,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
     }
 
     if (parsed.action === 'start') {
-      if (!parsed.chipKey) return ctx.reply('Usage: /recursive start <chipKey> [rounds <n>]');
+      if (!parsed.chipKey) return ctx.reply('Usage: /recursive start <targetKey> [rounds <n>]');
       const chatId = ctx.chat.id;
       const rounds = parsed.rounds || 3;
       await safeSendChatAction(ctx, 'typing');
