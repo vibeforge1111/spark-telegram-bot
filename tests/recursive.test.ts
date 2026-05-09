@@ -617,6 +617,82 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(numericTrace.session_id, 'path_builder_chip_startup_yc');
 });
 
+test('orders Workspace trace outcomes by newest run before rendering', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:spark-qa-operator',
+        scope: 'workspace',
+        specializationId: 'spark-qa-operator',
+        repoLabel: 'spark-qa-operator',
+        summary: 'Spark QA Operator validates Telegram and Workspace flows.',
+        status: 'open',
+        bestOutcomeId: 'outcome:spark-qa-operator:round:20260509T081339811029Z',
+        updatedAt: '2026-05-09T08:13:39.811Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome:spark-qa-operator:round:20260509T081339811029Z',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'improved',
+        summary: 'Candidate kept benchmark-backed QA mutation.',
+        metricName: 'overall_score',
+        metricValue: 0.8538,
+        context: {},
+        createdAt: '2026-05-09T08:13:39.811Z'
+      },
+      {
+        id: 'outcome:spark-qa-operator:round:20260509T070000000000Z',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'flat',
+        summary: 'Previous QA Operator run held steady.',
+        metricName: 'overall_score',
+        metricValue: 0.834,
+        context: {},
+        createdAt: '2026-05-09T07:00:00.000Z'
+      },
+      {
+        id: 'outcome:spark-qa-operator:round:20260509T060000000000Z',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'flat',
+        summary: 'Previous QA Operator run held steady.',
+        metricName: 'overall_score',
+        metricValue: 0.834,
+        context: {},
+        createdAt: '2026-05-09T06:00:00.000Z'
+      },
+      {
+        id: 'outcome:spark-qa-operator:baseline',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'flat',
+        summary: 'Baseline QA Operator fixture score.',
+        metricName: 'overall_score',
+        metricValue: 0.834,
+        context: {},
+        createdAt: '2026-05-09T05:00:00.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const trace = workspaceTraceView(snapshot, 'path:spark-qa-operator');
+  assert.equal(trace.timeline[0].kind, 'outcome');
+  assert.equal(trace.timeline[0].title, 'latest run');
+  assert.equal(trace.timeline[0].status, 'improved');
+
+  const reply = renderRecursiveTraceView(trace);
+  assert.match(reply, /- outcome: latest run \(improved\) - overall score 0\.8538/);
+});
+
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
   const snapshot: any = {
     evolutionPaths: [

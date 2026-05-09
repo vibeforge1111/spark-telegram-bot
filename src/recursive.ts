@@ -1037,7 +1037,7 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
-  const timeline = trace.timeline.slice(-6).map(formatTraceTimelineItem);
+  const timeline = trace.timeline.slice(0, 6).map(formatTraceTimelineItem);
   return [
     `${traceDisplayTitle(trace)} trace`,
     '',
@@ -1278,10 +1278,14 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
   const outcomes = path ? outcomesForPath(snapshot, path) : [];
   const decisions = path ? inboxForPath(snapshot, path) : [];
   const artifacts = path ? artifactsForPath(snapshot, path) : [];
+  const recentOutcomes = outcomes
+    .slice()
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    .slice(0, 3);
   const outcomeTimeline = outcomes.length > 0
-    ? outcomes.slice(-3).map((item) => ({
+    ? recentOutcomes.map((item, index) => ({
       kind: 'outcome',
-      title: item.id,
+      title: outcomeTraceTitle(item, index),
       status: item.verdict,
       summary: [item.summary, formatOutcomeMetric(item)].filter(Boolean).join(' ')
     }))
@@ -1330,7 +1334,7 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
         summary: item.summary
       })),
       ...outcomeTimeline,
-      ...artifacts.slice(-3).map((item) => ({
+      ...artifacts.slice(-3).reverse().map((item) => ({
         kind: 'artifact',
         title: item.label || item.id,
         status: item.kind,
@@ -1670,7 +1674,21 @@ function traceDisplayTitle(trace: RecursiveTraceView): string {
 function formatTraceTimelineItem(item: RecursiveTraceView['timeline'][number]): string {
   if (item.kind === 'artifact') return `- artifact: ${cleanTraceArtifactTitle(item.title, item.status)}`;
   const title = cleanTraceTimelineTitle(item.title);
-  return `- ${item.kind}: ${title} (${item.status})`;
+  const detail = traceTimelineDetail(item);
+  return `- ${item.kind}: ${title} (${item.status})${detail ? ` - ${detail}` : ''}`;
+}
+
+function outcomeTraceTitle(outcome: SparkWorkspaceOutcome, index: number): string {
+  if (/(^|[:_])baseline$/i.test(outcome.id)) return 'baseline';
+  if (index === 0) return 'latest run';
+  return 'previous round';
+}
+
+function traceTimelineDetail(item: RecursiveTraceView['timeline'][number]): string | null {
+  if (item.kind !== 'outcome') return null;
+  const metricMatch = /(overall score|scenario score|builder chip loop best metric|average composite score|autoloop cycle count|domain chip quality score)\s+[-+]?\d+(?:\.\d+)?/i.exec(item.summary);
+  if (metricMatch) return metricMatch[0].toLowerCase();
+  return truncate(item.summary, 90);
 }
 
 function cleanTraceArtifactTitle(title: string, status: string): string {
