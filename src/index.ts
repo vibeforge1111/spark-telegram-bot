@@ -195,6 +195,10 @@ import {
   isTelegramImageMessage,
   telegramImageMemoryText
 } from './telegramImageBridge';
+import {
+  buildMemoryDoctorEvidencePrompt,
+  shouldAttachMemoryDoctorEvidence
+} from './memoryDoctorBridge';
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
@@ -3652,7 +3656,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       routingDecision: ''
     };
     try {
-      builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
+      const bridgeUpdate = naturalRouteShadow?.route === 'memory.doctor' && shouldAttachMemoryDoctorEvidence(text)
+        ? buildUpdateWithText(
+            ctx.update as unknown as Record<string, unknown>,
+            buildMemoryDoctorEvidencePrompt(
+              text,
+              await conversation.getRecentTurns(user, 8).catch(() => [])
+            )
+          )
+        : ctx.update as unknown as Record<string, unknown>;
+      builderReply = await runBuilderTelegramBridge(bridgeUpdate);
     } catch (bridgeError) {
       bridgeFailed = true;
       console.warn('[Bridge] local chat fallback after bridge error:', bridgeError);
