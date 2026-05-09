@@ -943,11 +943,12 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
     } else {
       lines.push('');
     }
-    const status = session.status && session.status !== 'open' ? ` (${session.status})` : '';
-    lines.push(`${index + 1}. ${sessionDisplayTitle(session)}${status}`);
+    const icon = session.review_required ? '🟡' : '⚪';
+    const status = session.status && session.status !== 'open' ? ` · ${labelFromKey(session.status)}` : '';
+    lines.push(`${icon} ${index + 1}. ${sessionDisplayTitle(session)}${status}`);
   }
   if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more hidden. Use /recursive paths for lanes.`);
-  lines.push('', 'Use', '- /recursive report 1', '- /recursive trace 1', '', 'Workspace', `- ${sparkWorkspaceRecursionsUrl()}`);
+  lines.push('', 'Use /recursive report 1 or /recursive trace 1.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
   return lines.join('\n');
 }
 

@@ -74,8 +74,11 @@ test('renders compact recursive session and path lists', () => {
     }
   ];
 
-  assert.match(renderRecursiveSessions(sessions), /1\. Startup YC/);
-  assert.match(renderRecursiveSessions(sessions), /\/recursive report 1/);
+  const sessionList = renderRecursiveSessions(sessions);
+  assert.match(sessionList, /🟡 1\. Startup YC/);
+  assert.match(sessionList, /⚪ 2\. Startup YC Builder Chip Loop · Completed/);
+  assert.match(sessionList, /Use \/recursive report 1 or \/recursive trace 1\./);
+  assert.doesNotMatch(sessionList, /- \/recursive report 1/);
   const paths = renderRecursivePaths(sessions);
   assert.match(paths, /🟡 1\. Startup YC/);
   assert.match(paths, /2 loops · 1 loop need review/);
