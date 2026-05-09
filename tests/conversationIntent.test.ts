@@ -1024,6 +1024,17 @@ test('extracts explicit plain-chat memory directives', () => {
     'my preferred mission updates are concise and outcome-focused'
   );
   assert.equal(extractPlainChatMemoryDirective('remember: my preferred reply style is concise'), 'my preferred reply style is concise');
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
+    ),
+    'my current plan is Neon Harbor Telegram memory test'
+  );
+  assert.equal(
+    extractPlainChatMemoryDirective('Please save this as my current plan: Neon Harbor Telegram memory test.'),
+    'Neon Harbor Telegram memory test'
+  );
+  assert.equal(extractPlainChatMemoryDirective('Actually, my current plan is run a fresh diagnostics scan.'), null);
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
 });

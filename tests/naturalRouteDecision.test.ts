@@ -207,6 +207,23 @@ test('routes explicit memory directives to Builder memory write', () => {
   assert.equal(route.payload.directive, 'I prefer concise Telegram replies');
 });
 
+test('routes explicit current-plan saves to Builder memory write', () => {
+  const route = decideNaturalRoute(
+    'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
+  );
+
+  assert.equal(route.route, 'memory.write');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.payload.directive, 'my current plan is Neon Harbor Telegram memory test');
+});
+
+test('keeps casual current-plan mentions conversational', () => {
+  const route = decideNaturalRoute('Actually, my current plan is run a fresh diagnostics scan.');
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'none');
+});
+
 test('blocks global agent doctrine changes from a chat turn', () => {
   const route = decideNaturalRoute('make all Spark agents globally more conversational');
 

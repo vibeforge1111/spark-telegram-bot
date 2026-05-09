@@ -1500,6 +1500,25 @@ export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: bo
 
 export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
+  const cleanDirective = (value: string): string => value
+    .replace(/^["']|["']$/g, '')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+
+  const explicitSavePatterns = [
+    /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i
+  ];
+
+  for (const pattern of explicitSavePatterns) {
+    const match = trimmed.match(pattern);
+    const value = match?.[1]?.trim();
+    if (value) {
+      return cleanDirective(value);
+    }
+  }
+
   const patterns = [
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s+that\s+(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:can\s+you\s+)?remember\s+(?:this|that)\s*[:,-]\s*(.+?)[.!?]?$/i,
@@ -1513,7 +1532,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
     const match = trimmed.match(pattern);
     const value = match?.[1]?.trim();
     if (value) {
-      return value.replace(/^["']|["']$/g, '').trim();
+      return cleanDirective(value);
     }
   }
 
