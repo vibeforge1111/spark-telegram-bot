@@ -206,6 +206,8 @@ import {
   type TelegramStreamingConfigAction
 } from './telegramDraft';
 import { logTelegramCommand, type TelegramCommandTelemetryPhase } from './commandTelemetry';
+import { decideNaturalRoute, type NaturalRouteDecisionContext } from './naturalRouteDecision';
+import { logNaturalRouteDecision, renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -241,6 +243,75 @@ function recordCommandTelemetry(ctx: any, command: string, phase: TelegramComman
     chatType: ctx.chat?.type,
     errorName: error instanceof Error ? error.name : error ? 'UnknownError' : null
   });
+}
+
+async function buildNaturalRouteDecisionContext(
+  ctx: any,
+  user: any,
+  text: string,
+  options: { rich?: boolean; workspaceTargets?: boolean } = {}
+): Promise<NaturalRouteDecisionContext> {
+  const recentMessages = await conversation.getRecentMessages(user, 15).catch(() => []);
+  const contextPieces = [...recentMessages];
+
+  if (options.rich) {
+    const [sessionContext, frame] = await Promise.all([
+      conversation.getContext(user, text).catch(() => ''),
+      conversation.getConversationFrame(user, text).catch(() => null as ConversationFrame | null)
+    ]);
+    if (sessionContext) contextPieces.push(sessionContext);
+    if (frame) contextPieces.push(renderConversationFrameContext(frame, 12_000));
+  }
+
+  const recentRecursiveContext = contextPieces.filter(Boolean);
+  let recursiveTargets: NaturalRecursiveCommandTarget[] = [];
+  if (options.workspaceTargets && shouldLoadRecursiveWorkspaceTargets(text, recentRecursiveContext)) {
+    recursiveTargets = await recursiveSessions()
+      .then(recursiveTargetsFromSessions)
+      .catch((error) => {
+        console.warn('[NaturalRoute] Skipping Workspace target lookup:', error);
+        return [] as NaturalRecursiveCommandTarget[];
+      });
+  }
+
+  const shippedProject = ctx.chat?.id
+    ? await getLatestShippedProjectContext(ctx.chat.id).catch(() => null)
+    : null;
+
+  return {
+    recentMessages: contextPieces.filter(Boolean).slice(-15),
+    recursiveTargets,
+    shippedProject,
+    localSparkContext: contextPieces.filter(Boolean).join('\n'),
+    pendingBuildClarification: Boolean(
+      ctx.chat?.id &&
+      ctx.from?.id &&
+      shouldUsePendingClarificationForMessage(
+        pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`),
+        text
+      )
+    )
+  };
+}
+
+async function recordNaturalRouteShadow(ctx: any, text: string): Promise<void> {
+  try {
+    const decision = decideNaturalRoute(
+      text,
+      await buildNaturalRouteDecisionContext(ctx, ctx.from, text)
+    );
+    logNaturalRouteDecision({
+      decision,
+      phase: 'shadow',
+      profile: activeTelegramProfile(),
+      userId: ctx.from?.id,
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      admin: conversation.isAdmin(ctx.from)
+    });
+  } catch (error) {
+    console.warn('[NaturalRoute] shadow decision failed:', error);
+  }
 }
 
 async function chatWithOptionalDraftStreaming(
@@ -1037,8 +1108,47 @@ async function handleAgentRouteProbeCommand(ctx: any): Promise<void> {
   }
 }
 
+async function handleNaturalRouteProbeCommand(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const probeText = text.replace(/^\/(?:nl_route|natural_route)(?:@\w+)?\s*/i, '').trim();
+    if (!probeText || /^(?:help|usage)$/i.test(probeText)) {
+      await ctx.reply([
+        'Natural route probe',
+        'Usage: /nl_route <message>',
+        '',
+        'This shows the diagnostic route decision only. It does not execute the route.'
+      ].join('\n'));
+      return;
+    }
+    const decision = decideNaturalRoute(
+      probeText,
+      await buildNaturalRouteDecisionContext(ctx, ctx.from, probeText, {
+        rich: true,
+        workspaceTargets: true
+      })
+    );
+    logNaturalRouteDecision({
+      decision,
+      phase: 'probe',
+      profile: activeTelegramProfile(),
+      userId: ctx.from?.id,
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      admin: conversation.isAdmin(ctx.from)
+    });
+    await ctx.reply(renderNaturalRouteDecisionReply(decision));
+  } catch (err: any) {
+    await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(ctx.from)));
+  }
+}
+
 bot.command('probe', handleAgentRouteProbeCommand);
 bot.command('route_probe', handleAgentRouteProbeCommand);
+bot.command('nl_route', handleNaturalRouteProbeCommand);
+bot.command('natural_route', handleNaturalRouteProbeCommand);
 
 async function handleCapabilityLedgerReviewCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
@@ -2798,6 +2908,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  await recordNaturalRouteShadow(ctx, text);
+
+  if (conversation.isAdmin(ctx.from)) {
+    const pendingClarification = pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text);
+    if (pendingClarification && isPendingClarificationFollowup(text)) {
+      await handleClarificationAnswers(ctx, text);
+      return;
+    }
+  }
+
   const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
   const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
   if (agentDoctrinePreference) {
@@ -3117,6 +3237,29 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
+    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
+    if (isProjectImprovementRequest(text, latestShippedProject)) {
+      const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
+      if (improvementGoal && latestShippedProject) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply([
+          `Got it. I will improve ${latestShippedProject.projectName}.`,
+          '',
+          'I will keep the existing project intact and ship this as the next polish pass.',
+          latestShippedProject.previewUrl ? `Current preview: ${latestShippedProject.previewUrl}` : null
+        ].filter(Boolean).join('\n'));
+        await handleBuildIntent(
+          ctx,
+          improvementGoal,
+          `${latestShippedProject.projectName} polish ${latestShippedProject.iteration + 1}`,
+          latestShippedProject.projectPath,
+          'advanced_prd',
+          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.'
+        );
+        return;
+      }
+    }
+
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
       const accessPreference = parseNaturalAccessChangeIntent(text);
@@ -3190,29 +3333,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         'User asked Spark to choose the recommended direction after collaborative scoping.'
       );
       return;
-    }
-
-    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
-    if (isProjectImprovementRequest(text, latestShippedProject)) {
-      const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
-      if (improvementGoal && latestShippedProject) {
-        await conversation.remember(user, text).catch(() => {});
-        await ctx.reply([
-          `Got it. I will improve ${latestShippedProject.projectName}.`,
-          '',
-          'I will keep the existing project intact and ship this as the next polish pass.',
-          latestShippedProject.previewUrl ? `Current preview: ${latestShippedProject.previewUrl}` : null
-        ].filter(Boolean).join('\n'));
-        await handleBuildIntent(
-          ctx,
-          improvementGoal,
-          `${latestShippedProject.projectName} polish ${latestShippedProject.iteration + 1}`,
-          latestShippedProject.projectPath,
-          'advanced_prd',
-          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.'
-        );
-        return;
-      }
     }
 
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);

@@ -935,7 +935,7 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
   const visible = ordered.slice(0, 5);
   const lines = ['Spark recursive loops'];
   let currentGroup: string | null = null;
-  for (const [index, session] of visible.entries()) {
+  for (const session of visible) {
     const group = session.review_required ? 'Needs review' : 'Clear';
     if (group !== currentGroup) {
       lines.push('', group);
@@ -945,7 +945,7 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
     }
     const icon = session.review_required ? '🟡' : '⚪';
     const status = session.status && session.status !== 'open' ? ` · ${labelFromKey(session.status)}` : '';
-    lines.push(`${icon} ${index + 1}. ${sessionDisplayTitle(session)}${status}`);
+    lines.push(`${icon} ${sessionDisplayTitle(session)}${status}`);
   }
   if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more hidden. Use /recursive paths for lanes.`);
   lines.push('', 'Use /recursive report 1 or /recursive trace 1.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
@@ -966,10 +966,10 @@ export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): stri
   if (groups.length === 0) return 'No recursive paths found yet.';
   const visible = groups.slice(0, 12);
   const lines = ['Spark recursive paths'];
-  for (const [index, group] of visible.entries()) {
+  for (const group of visible) {
     const icon = group.reviewCount > 0 ? '🟡' : '⚪';
     const review = group.reviewCount > 0 ? `${pluralize(group.reviewCount, 'loop')} need review` : 'clear';
-    lines.push('', `${icon} ${index + 1}. ${labelFromKey(group.domain)}`, `${pluralize(group.count, 'loop')} · ${review}`);
+    lines.push('', `${icon} ${labelFromKey(group.domain)}`, `${pluralize(group.count, 'loop')} · ${review}`);
   }
   if (groups.length > visible.length) lines.push('', `${groups.length - visible.length} more hidden.`);
   lines.push('', 'Use /recursive sessions to pick a loop.', '', 'Workspace', sparkWorkspaceRecursionsUrl());

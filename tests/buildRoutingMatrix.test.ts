@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { parseBuildIntent } from '../src/buildIntent';
 import {
   isLocalSparkServiceRequest,
@@ -122,6 +124,8 @@ test('non-build utility requests still route away from builder', () => {
     null
   );
   assert.equal(parseBuildIntent('lets make this chat about improving Spark in convos'), null);
+  assert.equal(parseBuildIntent('make this better with benchmarks and autoloops'), null);
+  assert.equal(parseBuildIntent('make this more Spark colored'), null);
   assert.equal(parseBuildIntent('make Spark read my emails as a new capability'), null);
   assert.equal(parseBuildIntent('make my Spark read my emails as a new capability'), null);
   assert.equal(parseBuildIntent('make your brain handle my workflow differently'), null);
@@ -134,4 +138,13 @@ test('non-build utility requests still route away from builder', () => {
   assert.ok(parseBuildIntent('Build a private local-first dashboard for memory reports'));
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
   assert.ok(parseBuildIntent('Build a tool for Spark users to manage reminders.'));
+});
+
+test('text handler checks latest-project iteration before generic build intent', () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  const projectIterationIndex = indexSource.indexOf('isProjectImprovementRequest(text, latestShippedProject)');
+  const genericBuildIndex = indexSource.indexOf('if (buildIntent) {', projectIterationIndex);
+
+  assert.ok(projectIterationIndex > 0, 'expected latest-project iteration guard in text handler');
+  assert.ok(genericBuildIndex > projectIterationIndex, 'latest-project iteration must beat broad parseBuildIntent matches');
 });

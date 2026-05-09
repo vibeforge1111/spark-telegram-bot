@@ -183,6 +183,8 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('agent_context', handleAgentOperatingContextCommand\)/);
     assert.match(indexSource, /bot\.command\('probe', handleAgentRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('route_probe', handleAgentRouteProbeCommand\)/);
+    assert.match(indexSource, /bot\.command\('nl_route', handleNaturalRouteProbeCommand\)/);
+    assert.match(indexSource, /bot\.command\('natural_route', handleNaturalRouteProbeCommand\)/);
     assert.match(indexSource, /bot\.command\('ledger', handleCapabilityLedgerReviewCommand\)/);
     assert.match(indexSource, /bot\.command\('capabilities', handleCapabilityLedgerReviewCommand\)/);
     assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);

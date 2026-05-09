@@ -15,6 +15,7 @@
     "health:polling": "node scripts/run-health-polling.cjs",
     "health:runtime": "node scripts/run-health-runtime.cjs",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
+    "nl:replay": "ts-node ops/naturalRouteReplay.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
     "test": "node scripts/run-tests.cjs",
