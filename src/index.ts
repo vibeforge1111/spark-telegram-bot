@@ -3647,6 +3647,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
+    const memoryDoctorEvidenceTurns = naturalRouteShadow?.route === 'memory.doctor' && shouldAttachMemoryDoctorEvidence(text)
+      ? await conversation.getRecentTurns(user, 8).catch(() => [])
+      : [];
+    await conversation.remember(user, text).catch(() => {});
     let bridgeFailed = false;
     let builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>> = {
       used: false,
@@ -3661,7 +3665,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             ctx.update as unknown as Record<string, unknown>,
             buildMemoryDoctorEvidencePrompt(
               text,
-              await conversation.getRecentTurns(user, 8).catch(() => [])
+              memoryDoctorEvidenceTurns
             )
           )
         : ctx.update as unknown as Record<string, unknown>;
