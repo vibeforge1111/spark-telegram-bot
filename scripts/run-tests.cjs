@@ -12,6 +12,7 @@ const tests = [
   'tests/conversationIntent.test.ts',
   'tests/naturalRouteDecision.test.ts',
   'tests/naturalRouteTelemetry.test.ts',
+  'tests/naturalRouteLedger.test.ts',
   'tests/naturalRouteReplay.test.ts',
   'tests/conversationMemory.test.ts',
   'tests/accessPolicy.test.ts',

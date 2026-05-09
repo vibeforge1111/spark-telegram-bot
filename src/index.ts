@@ -217,6 +217,11 @@ import {
   logNaturalRouteExecution,
   renderNaturalRouteDecisionReply
 } from './naturalRouteTelemetry';
+import {
+  appendNaturalRouteExecutionRecord,
+  createNaturalRouteExecutionRecord,
+  shouldWriteNaturalRouteLedger
+} from './naturalRouteLedger';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -344,6 +349,22 @@ function recordNaturalRouteExecution(
     executedOwner,
     executedAction
   });
+  if (shouldWriteNaturalRouteLedger()) {
+    const record = createNaturalRouteExecutionRecord({
+      decision,
+      profile: activeTelegramProfile(),
+      userId: ctx.from?.id,
+      chatId: ctx.chat?.id,
+      chatType: ctx.chat?.type,
+      admin: conversation.isAdmin(ctx.from),
+      executedRoute,
+      executedOwner,
+      executedAction
+    });
+    void appendNaturalRouteExecutionRecord(record).catch((error) => {
+      console.warn('[NaturalRoute] execution ledger write failed:', error);
+    });
+  }
 }
 
 async function chatWithOptionalDraftStreaming(
