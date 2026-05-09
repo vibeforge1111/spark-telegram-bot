@@ -2971,7 +2971,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
   }
 
-  const earlyBuildIntent = conversation.isAdmin(ctx.from) ? parseBuildIntent(text) : null;
+  const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
+  const earlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
   const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
   if (agentDoctrinePreference) {
     await conversation.storeAgentDoctrinePreference(ctx.from, agentDoctrinePreference).catch(() => {});
@@ -2999,7 +3000,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && isGlobalAgentDoctrineRequest(text)) {
+  if (globalAgentDoctrineRequest) {
     const reply = formatGlobalAgentDoctrineRequestReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');

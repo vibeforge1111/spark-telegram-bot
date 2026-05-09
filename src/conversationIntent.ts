@@ -1593,7 +1593,7 @@ export function extractAgentDoctrinePreference(text: string): string | null {
   if (
     /\b(?:just|only)\s+for\s+(?:this|the)\s+(?:reply|turn|message|answer|once)\b/.test(lower) ||
     /\b(?:for now|right now|in this reply|in this answer|this time only)\b/.test(lower) ||
-    /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b/.test(lower) ||
+    /\b(?:all|every|each)\s+(?:spark\s+)?(?:agents?|systems?|surfaces?|workflows?|tools?|routes?)\b/.test(lower) ||
     /\b(?:globally|system-wide|production doctrine|default doctrine)\b/.test(lower)
   ) {
     return null;
@@ -1645,14 +1645,14 @@ export function isGlobalAgentDoctrineRequest(text: string): boolean {
     return false;
   }
   return (
-    /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b/.test(normalized) ||
+    /\b(?:all|every|each)\s+(?:spark\s+)?(?:agents?|systems?|surfaces?|workflows?|tools?|routes?)\b/.test(normalized) ||
     /\b(?:globally|system-wide|production doctrine|default doctrine)\b/.test(normalized)
-  ) && /\b(?:style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/.test(normalized);
+  ) && /\b(?:style|tone|personality|persona|conversation|conversational|natural language|nlp|context|understand|understanding|interpret|routing|route|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/.test(normalized);
 }
 
 export function formatGlobalAgentDoctrineRequestReply(): string {
   return [
-    'I cannot change all Spark agents globally from this chat.',
+    'I cannot change all Spark agents or systems globally from this chat.',
     'I can keep a preference for this agent with you, though. Say something like: "when you talk to me, use short paragraphs with blank lines."'
   ].join('\n\n');
 }

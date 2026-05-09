@@ -248,3 +248,12 @@ test('blocks global clarification doctrine changes from a chat turn', () => {
   assert.equal(route.confidence, 'blocked');
   assert.equal(route.requires_confirmation, true);
 });
+
+test('blocks global Spark system natural-language doctrine changes from a chat turn', () => {
+  const route = decideNaturalRoute('make all Spark systems understand workflow context more conversationally');
+
+  assert.equal(route.route, 'agent_doctrine.global_blocked');
+  assert.equal(route.confidence, 'blocked');
+  assert.equal(route.requires_confirmation, true);
+  assert.deepEqual(route.blocked_by, ['chat_cannot_change_global_agent_doctrine']);
+});

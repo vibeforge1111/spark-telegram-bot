@@ -95,9 +95,10 @@ test('actual live command catalog keeps route-boundary prompt cards', () => {
   const ids = actualCases.map((entry) => entry.id);
 
   assert.equal(new Set(ids).size, ids.length);
-  assert.ok(actualCases.length >= 62);
+  assert.ok(actualCases.length >= 63);
   assert.ok(ids.includes('memory-002'));
   assert.ok(ids.includes('guard-006'));
+  assert.ok(ids.includes('guard-007'));
   assert.ok(ids.includes('domain-chip-003'));
   assert.deepEqual(
     selectLiveNlCommandCases(actualCases, { suite: 'domain_chip' }).map((entry) => entry.id),

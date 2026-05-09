@@ -25,6 +25,8 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
     [
       tsNodeBin,
       resolve(repoRoot, 'ops/routeBoundaryHandlerHarness.ts'),
+      '--cases',
+      'guard-006,guard-007,domain-chip-003',
       '--out',
       reportPath
     ],
@@ -33,12 +35,24 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
       env: {
         ...process.env,
         SPARK_BOT_TEST_MODE: '1',
-        BOT_TOKEN: '0:route-boundary-handler-test'
+        BOT_TOKEN: '0:route-boundary-handler-test',
+        SPARK_TELEGRAM_CHAT_STREAMING: '0',
+        SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES: '0'
       },
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: 60000
     }
   );
 
+  assert.equal(
+    result.error,
+    undefined,
+    [
+      'routeBoundaryHandlerHarness did not finish cleanly.',
+      `stdout:\n${result.stdout}`,
+      `stderr:\n${result.stderr}`
+    ].join('\n\n')
+  );
   assert.equal(
     result.status,
     0,
@@ -49,11 +63,12 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
     ].join('\n\n')
   );
   assert.match(result.stdout, /PASS guard-006: agent_doctrine\.global_blocked -> agent_doctrine\.global_blocked/);
+  assert.match(result.stdout, /PASS guard-007: agent_doctrine\.global_blocked -> agent_doctrine\.global_blocked/);
   assert.match(result.stdout, /PASS domain-chip-003: conversation\.ideation -> conversation\.ideation/);
   assert.ok(existsSync(reportPath));
 
   const report = readFileSync(reportPath, 'utf8');
-  assert.match(report, /Summary: 2\/2 cases passed\./);
+  assert.match(report, /Summary: 3\/3 cases passed\./);
   assert.match(report, /Actual route: agent_doctrine\.global_blocked/);
   assert.match(report, /Actual route: conversation\.ideation/);
   assert.doesNotMatch(report, /BOT_TOKEN|TELEGRAM_BOT_TOKEN|sk-[A-Za-z0-9]/i);
