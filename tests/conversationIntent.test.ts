@@ -521,6 +521,12 @@ test('keeps explicit design-only project prompts in conversation', () => {
 
   assert.equal(shouldPreferConversationalIdeation(prompt), true);
   assert.equal(parseMissionUpdatePreferenceIntent(prompt), null);
+
+  const hint = buildIdeationSystemHint(prompt);
+  assert.match(hint, /explicitly asked not to build yet/);
+  assert.match(hint, /small starter scaffold/);
+  assert.match(hint, /do not only ask the user to pick a direction/i);
+  assert.match(hint, /Do not scold the user/);
 });
 
 test('keeps mission-control product refinement in conversation', () => {

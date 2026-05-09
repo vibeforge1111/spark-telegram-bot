@@ -1459,12 +1459,19 @@ export function buildIdeationSystemHint(text: string): string {
   return [
     modeLine,
     'Do not start a build, canvas, mission, or PRD yet.',
+    /\b(?:do\s+not|don'?t|not)\s+build\s+yet\b/i.test(text)
+      ? 'The user explicitly asked not to build yet. Acknowledge that boundary, then still be useful: give a small starter scaffold before asking a clarifying question.'
+      : '',
+    /\b(?:design|shape|plan|think\s+through|map)\b/i.test(text) && /\b(?:project|app|tool|workspace|kanban|canvas)\b/i.test(text)
+      ? 'For design-only project prompts, do not only ask the user to pick a direction. Provide a tentative v1 structure, likely surfaces or workflows, and one focused question to refine it.'
+      : '',
+    'Do not scold the user, say you already asked, or imply the conversation is blocked. If context is unresolved, offer a provisional interpretation and ask one question.',
     existingSpawnerSurface
       ? 'Do not suggest building a standalone Kanban app or ask whether this should be standalone. Frame suggestions as changes to existing spawner-ui routes, state, and relay behavior.'
       : '',
     'If the user later says yes, create it, run it, spin it up, or kick it off, the Telegram gateway can start the mission. Do not claim you started it during ideation.',
     'If the user refers to no.1, no2, option 2, the second one, or a similar local list reference, resolve it against the most recent list in the conversation before using older memory. If the list is missing, ask one clarifying question instead of guessing.',
-    'Reply like a collaborative product partner: propose 2-4 directions, ask one or two useful questions, and offer a next step.',
+    'Reply like a collaborative product partner: propose 2-4 directions, ask one useful question, and offer a next step.',
     'Keep it concise and natural for Telegram.'
   ].filter(Boolean).join('\n');
 }

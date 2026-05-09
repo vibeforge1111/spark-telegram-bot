@@ -161,6 +161,17 @@ function scoreTurn(entry: LiveNlCommandCase, replies: string[], record: NaturalR
   if (entry.id === 'domain-chip-003' && !/\b(?:shaping mode|not execution|before creating anything|before creating)\b/i.test(text)) {
     return { verdict: 'fail', issue: 'Domain-chip shaping reply did not clearly stay in ideation mode.' };
   }
+  if (entry.id === 'build-004') {
+    if (!/\b(?:design mode|not execution|not start|not build|do not build)\b/i.test(text)) {
+      return { verdict: 'fail', issue: 'Design-only reply did not clearly respect the no-build boundary.' };
+    }
+    if (/\b(?:i'?ve asked|i have asked|asked twice|one more time|pick one and i'?ll)\b/i.test(text)) {
+      return { verdict: 'fail', issue: 'Design-only reply sounded scolding or withheld help behind a forced picker.' };
+    }
+    if (!/\b(?:kanban|canvas|workflow|surface|handoff|scope|v1|first version)\b/i.test(text)) {
+      return { verdict: 'fail', issue: 'Design-only reply did not provide a useful starter scaffold.' };
+    }
+  }
   return { verdict: 'pass', issue: '' };
 }
 
