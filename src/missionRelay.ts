@@ -9,6 +9,7 @@ import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
+let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
 
 type RelayEventType =
   | 'mission_created'
@@ -42,6 +43,20 @@ export interface MissionSubscription {
 
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
 export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
+export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled';
+
+export interface MissionRelayRuntimeStatus {
+  telegramPolling?: MissionRelayTelegramPollingState;
+  pollingStartedAt?: string | null;
+}
+
+export interface MissionRelayHealthPayload extends Record<string, unknown> {
+  ok: boolean;
+  service: 'spark-telegram-bot';
+  relay: ReturnType<typeof getTelegramRelayIdentity>;
+  pid: number;
+  runtime: MissionRelayRuntimeStatus;
+}
 
 interface TelegramRelayPreferences {
   relayVerbosityByChatId?: Record<string, TelegramRelayVerbosity>;
@@ -1816,17 +1831,23 @@ export function relayEventMatchesSubscription(
   return identity.chatId === subscription.chatId && identity.userId === subscription.userId;
 }
 
-export interface MissionRelayRuntimeStatus {
-  telegramPolling?: 'active' | 'starting' | 'disabled_smoke';
-  pollingActive?: boolean;
-  pollingStartedAt?: string | null;
+export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus): void {
+  relayRuntimeStatus = { ...status };
 }
 
-export interface MissionRelayOptions {
-  getRuntimeStatus?: () => MissionRelayRuntimeStatus;
+export function missionRelayHealthPayload(): MissionRelayHealthPayload {
+  const polling = relayRuntimeStatus.telegramPolling;
+  const ready = polling !== 'starting';
+  return {
+    ok: ready,
+    service: 'spark-telegram-bot',
+    relay: getTelegramRelayIdentity(),
+    pid: process.pid,
+    runtime: relayRuntimeStatus
+  };
 }
 
-export async function startMissionRelay(bot: Telegraf, options: MissionRelayOptions = {}): Promise<{ port: number }> {
+export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
 
   if (relayServer) {
@@ -1837,13 +1858,8 @@ export async function startMissionRelay(bot: Telegraf, options: MissionRelayOpti
 
 	relayServer = createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
-      writeJson(res, 200, {
-        ok: true,
-        service: 'spark-telegram-bot',
-        relay: getTelegramRelayIdentity(),
-        pid: process.pid,
-        runtime: options.getRuntimeStatus?.()
-      });
+      const payload = missionRelayHealthPayload();
+      writeJson(res, payload.ok ? 200 : 503, payload);
       return;
     }
 

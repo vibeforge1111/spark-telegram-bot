@@ -33,7 +33,8 @@ import {
 } from '../src/recursive';
 import {
   buildSpecializationPathAutoloopBridgeArgs,
-  classifyBuilderAttachmentTargetFromSnapshot
+  classifyBuilderAttachmentTargetFromSnapshot,
+  resolveLocalSpecializationPathTarget
 } from '../src/pathLoop';
 
 function test(name: string, fn: () => void): void {
@@ -560,6 +561,24 @@ test('classifies recursive start targets from Builder attachment snapshots', () 
   });
 });
 
+test('resolves local specialization path repos when attachment snapshot is unavailable', () => {
+  const tempRoot = mkdtempSync(path.join(tmpdir(), 'spark-path-target-'));
+  const previous = process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO;
+  try {
+    writeFileSync(path.join(tempRoot, 'specialization-path.json'), JSON.stringify({ key: 'spark-qa-operator' }));
+    process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO = tempRoot;
+    assert.deepEqual(resolveLocalSpecializationPathTarget('spark-qa-operator'), {
+      kind: 'path',
+      key: 'spark-qa-operator',
+      repoRoot: path.resolve(tempRoot)
+    });
+  } finally {
+    if (previous === undefined) delete process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO;
+    else process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO = previous;
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('builds Spark Swarm bridge args for specialization path autoloops', () => {
   assert.deepEqual(
     buildSpecializationPathAutoloopBridgeArgs({
@@ -638,6 +657,73 @@ test('renders specialization path loop completion with workspace next step', () 
   assert.doesNotMatch(reply, /Next:/);
   assert.doesNotMatch(reply, /C:\\paths/);
   assert.doesNotMatch(reply, /Workspace outcome/);
+});
+
+test('renders QA Operator baseline metric as current run in path completion', () => {
+  const reply = renderSpecializationPathLoopCompletion({
+    ok: true,
+    pathKey: 'spark-qa-operator',
+    roundsCompleted: 1,
+    totalRounds: 1,
+    workspaceSynced: true,
+    pathId: 'path:spark-qa-operator',
+    verdict: 'flat',
+    metricName: 'overall_score:baseline',
+    metricValue: 0.8655
+  });
+
+  assert.match(reply, /Score\n• 1\/1 rounds\n• current run 0.8655/);
+  assert.doesNotMatch(reply, /overall score/);
+  assert.doesNotMatch(reply, /baseline/);
+});
+
+test('describes held-steady Workspace reports as unchanged from previous run', () => {
+  const snapshot: any = {
+    evolutionPaths: [
+      {
+        id: 'path:spark-qa-operator',
+        scope: 'workspace',
+        specializationId: 'spark-qa-operator',
+        repoLabel: 'spark-qa-operator',
+        summary: 'Spark QA Operator validates Telegram and Workspace flows.',
+        status: 'open',
+        bestOutcomeId: 'outcome_previous',
+        updatedAt: '2026-05-09T16:33:08.000Z'
+      }
+    ],
+    insights: [],
+    masteries: [],
+    outcomes: [
+      {
+        id: 'outcome_latest',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'flat',
+        summary: 'Spark QA Operator held steady.',
+        metricName: 'overall_score',
+        metricValue: 0.8655,
+        createdAt: '2026-05-09T16:33:08.000Z'
+      },
+      {
+        id: 'outcome_previous',
+        targetType: 'evolution_path',
+        targetId: 'path:spark-qa-operator',
+        verdict: 'improved',
+        summary: 'Spark QA Operator improved.',
+        metricName: 'overall_score',
+        metricValue: 0.8655,
+        createdAt: '2026-05-09T16:20:00.000Z'
+      }
+    ],
+    artifactRefs: [],
+    specializations: [],
+    inbox: { items: [] }
+  };
+
+  const report = renderRecursiveWorkspaceReport(snapshot, 'path:spark-qa-operator');
+  assert.match(report, /⚪ Latest Spark QA Operator run held steady\./);
+  assert.match(report, /Score\n• current run 0.8655\n• unchanged from previous run/);
+  assert.doesNotMatch(report, /current best for this path/);
 });
 
 test('renders recursive artifact sync completion as a compact next step', () => {
@@ -1042,7 +1128,7 @@ test('renders regressed Builder chip loop completion without softening the verdi
   assert.doesNotMatch(reply, /The best result regressed\./);
 });
 
-test('dedupes repeated Workspace trace movement rows', () => {
+test('renders recent Workspace trace movement with distinct run labels', () => {
   const snapshot: any = {
     evolutionPaths: [
       {
@@ -1104,13 +1190,15 @@ test('dedupes repeated Workspace trace movement rows', () => {
   };
 
   const reply = renderRecursiveTraceView(workspaceTraceView(snapshot, 'path:spark-qa-operator'));
-  assert.match(reply, /latest run improved - overall score 0\.8538/);
-  assert.match(reply, /2 previous rounds held steady - overall score 0\.834/);
+  assert.match(reply, /latest run improved/);
+  assert.match(reply, /previous run held steady/);
+  assert.match(reply, /2 runs back held steady/);
+  assert.doesNotMatch(reply, /overall score/);
   assert.equal((reply.match(/previous round held steady/g) || []).length, 0);
   assert.doesNotMatch(reply, /candidate trace saved/);
 
   const report = renderRecursiveWorkspaceReport(snapshot, 'path:spark-qa-operator');
-  assert.match(report, /Score\n• overall score 0\.8538\n• improved from 0\.834/);
+  assert.match(report, /Score\n• current run 0\.8538\n• improved from 0\.834/);
   assert.doesNotMatch(report, /current best for this path/);
   assert.doesNotMatch(report, /saved item/);
 });

@@ -2652,13 +2652,15 @@ function traceOutcomeStatusLabel(status: string): string {
 function outcomeTraceTitle(outcome: SparkWorkspaceOutcome, index: number): string {
   if (/(^|[:_])baseline$/i.test(outcome.id)) return 'baseline';
   if (index === 0) return 'latest run';
-  return 'previous round';
+  if (index === 1) return 'previous run';
+  if (index === 2) return '2 runs back';
+  return `${index} runs back`;
 }
 
 function traceTimelineDetail(item: RecursiveTraceView['timeline'][number]): string | null {
   if (item.kind !== 'outcome') return null;
   const metricMatch = /(overall score|scenario score|builder chip loop best metric|average composite score|autoloop cycle count|domain chip quality score)\s+[-+]?\d+(?:\.\d+)?/i.exec(item.summary);
-  if (metricMatch) return metricMatch[0].toLowerCase();
+  if (metricMatch) return metricMatch[0].toLowerCase().replace(/^overall score\b/, 'current run');
   return null;
 }
 
@@ -2684,7 +2686,7 @@ function dedupeOutcomeTraceItems(
 }
 
 function repeatedOutcomeTraceTitle(title: string, count: number): string {
-  if (title === 'previous round') return `${count} previous rounds`;
+  if (title === 'previous run' || title === 'previous round') return `${count} previous runs`;
   if (title === 'baseline') return `${count} baseline runs`;
   return `${count} ${title}`;
 }
@@ -2727,6 +2729,9 @@ function formatOutcomeComparison(
   const previousOutcome = previousComparableOutcome(latestOutcome, outcomes);
   if (previousOutcome && typeof previousOutcome.metricValue === 'number') {
     const previousDelta = latestOutcome.metricValue - previousOutcome.metricValue;
+    if (Math.abs(previousDelta) < 0.000001 && /flat|steady|held/i.test(latestOutcome.verdict || '')) {
+      return 'Change: unchanged from previous run.';
+    }
     if (Math.abs(previousDelta) >= 0.000001) {
       const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
       const latestIsBetter = lowerIsBetter ? previousDelta < 0 : previousDelta > 0;
@@ -2855,7 +2860,9 @@ function friendlyArtifactKind(kind: string | null | undefined): string {
 }
 
 function formatMetricLabel(value: string | null | undefined): string {
-  return (value || 'metric').replace(/_/g, ' ').replace(/\s*:\s*/g, ' / ');
+  const normalized = (value || 'metric').replace(/_/g, ' ').replace(/\s*:\s*/g, ' / ');
+  if (normalized === 'overall score' || normalized.startsWith('overall score / ')) return 'current run';
+  return normalized;
 }
 
 function formatNumber(value: number): string {

@@ -1,14 +1,12 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { Telegraf } from 'telegraf';
-import { loadSparkTelegramProfileEnv } from './profileEnv';
 
-loadSparkTelegramProfileEnv(process.argv.slice(2));
 // Load .env.override LAST with override=true. Wins over anything spark-cli
-// rewrites in .env or profile config. Never committed (.gitignored).
+// rewrites in .env. Never committed (.gitignored).
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import {
@@ -35,7 +33,7 @@ import {
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
-import { installConsoleRedaction } from './redaction';
+import { installConsoleRedaction, redactText } from './redaction';
 import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
@@ -47,8 +45,10 @@ import {
 } from './spawner';
 import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
+import { resolveRecursiveStartTarget, runSpecializationPathAutoloop } from './pathLoop';
 import {
   parseRecursiveCommand,
+  proposeRecursiveWorkspaceEvidence,
   queueRecursiveCanvas,
   recordRecursiveDecision,
   recursiveReviewCandidates,
@@ -59,17 +59,23 @@ import {
   recursiveTraceReply,
   renderRecursiveDecision,
   renderRecursiveCanvasQueue,
+  renderRecursiveArtifactSyncCompletion,
   renderBuilderChipLoopCompletion,
   renderRecursiveHelp,
   renderRecursivePaths,
+  renderRecursiveNetworkProposal,
   renderRecursivePromotionPacket,
   renderRecursiveReviewCandidates,
   renderRecursiveSessions,
   renderRecursiveSwarmPacket,
+  renderSpecializationPathLoopCompletion,
+  sparkWorkspaceBridgeHints,
+  sparkWorkspaceConfigured,
   sparkWorkspaceRecursionsUrl,
   stageRecursivePromotionPacket,
   stageRecursiveSwarmPacket,
-  syncBuilderChipLoopToWorkspace
+  syncBuilderChipLoopToWorkspace,
+  syncRecursiveArtifactToWorkspace
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import {
@@ -112,6 +118,7 @@ import {
   markMissionRelayResumed,
   registerMissionRelay,
   shouldSuppressMissionHandoff,
+  setMissionRelayRuntimeStatus,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
   startMissionRelay
@@ -134,12 +141,8 @@ import {
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
-  extractAgentDoctrinePreference,
-  formatAgentDoctrinePreferenceAcknowledgement,
-  formatAgentDoctrinePreferenceForBuilderSync,
-  formatAgentDoctrinePreferenceStatus,
-  formatGlobalAgentDoctrineRequestReply,
   extractPlainChatMemoryDirective,
+  formatGlobalAgentDoctrineRequestReply,
   formatMissionUpdatePreferenceAcknowledgement,
   inferDefaultBuildFromRecentScoping,
   inferMissionFromRecentContext,
@@ -152,22 +155,16 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isGlobalAgentDoctrineRequest,
   isSparkChipStatusOverclaimQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
-  isAgentDoctrinePreferenceStatusQuestion,
-  isGlobalAgentDoctrineRequest,
-  isStandaloneAgentDoctrinePreference,
-  isUserMemoryRecallQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
-  parseNaturalCreatorMissionIntent,
-  parseNaturalRecursiveCommandIntent,
-  type NaturalRecursiveCommandTarget,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -175,6 +172,17 @@ import {
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import {
+  decideNaturalRoute,
+  type NaturalRouteDecision,
+  type NaturalRouteOwnerSystem
+} from './naturalRouteDecision';
+import { renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
+import {
+  appendNaturalRouteExecutionRecord,
+  createNaturalRouteExecutionRecord,
+  shouldWriteNaturalRouteLedger
+} from './naturalRouteLedger';
 import { getLatestShippedProjectContext } from './shippedProjectContext';
 import axios from 'axios';
 import { getTierForUser } from './userTier';
@@ -200,36 +208,12 @@ import {
   isMemoryDoctorBridgeDetourReply,
   renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
-  shouldPreferMemoryDoctorEvidenceFallback,
-  shouldAttachMemoryDoctorEvidence
+  shouldAttachMemoryDoctorEvidence,
+  shouldPreferMemoryDoctorEvidenceFallback
 } from './memoryDoctorBridge';
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
-import {
-  createTelegramDraftStreamer,
-  parseTelegramStreamingConfigText,
-  replayTelegramDraftPreview,
-  renderTelegramStreamingConfigStatus,
-  type TelegramStreamingConfigAction
-} from './telegramDraft';
-import { logTelegramCommand, type TelegramCommandTelemetryPhase } from './commandTelemetry';
-import {
-  decideNaturalRoute,
-  type NaturalRouteDecision,
-  type NaturalRouteDecisionContext,
-  type NaturalRouteOwnerSystem
-} from './naturalRouteDecision';
-import {
-  logNaturalRouteDecision,
-  logNaturalRouteExecution,
-  renderNaturalRouteDecisionReply
-} from './naturalRouteTelemetry';
-import {
-  appendNaturalRouteExecutionRecord,
-  createNaturalRouteExecutionRecord,
-  shouldWriteNaturalRouteLedger
-} from './naturalRouteLedger';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 
@@ -247,6 +231,21 @@ const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
 
+async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
+  try {
+    await ctx.sendChatAction(action);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[Telegram] ignored sendChatAction failure: ${detail}`);
+  }
+}
+
+function renderTelegramError(prefix: string, error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'unknown error');
+  const detail = redactText(raw).trim() || 'unknown error';
+  return `${prefix}: ${detail}`;
+}
+
 function activeTelegramProfile(): string {
   try {
     return getTelegramRelayIdentity().profile;
@@ -255,83 +254,16 @@ function activeTelegramProfile(): string {
   }
 }
 
-function recordCommandTelemetry(ctx: any, command: string, phase: TelegramCommandTelemetryPhase, error?: unknown): void {
-  logTelegramCommand({
-    command,
-    phase,
-    profile: activeTelegramProfile(),
-    userId: ctx.from?.id,
-    chatId: ctx.chat?.id,
-    chatType: ctx.chat?.type,
-    errorName: error instanceof Error ? error.name : error ? 'UnknownError' : null
-  });
-}
-
-async function buildNaturalRouteDecisionContext(
-  ctx: any,
-  user: any,
-  text: string,
-  options: { rich?: boolean; workspaceTargets?: boolean } = {}
-): Promise<NaturalRouteDecisionContext> {
-  const recentMessages = await conversation.getRecentMessages(user, 15).catch(() => []);
-  const contextPieces = [...recentMessages];
-
-  if (options.rich) {
-    const [sessionContext, frame] = await Promise.all([
-      conversation.getContext(user, text).catch(() => ''),
-      conversation.getConversationFrame(user, text).catch(() => null as ConversationFrame | null)
-    ]);
-    if (sessionContext) contextPieces.push(sessionContext);
-    if (frame) contextPieces.push(renderConversationFrameContext(frame, 12_000));
-  }
-
-  const recentRecursiveContext = contextPieces.filter(Boolean);
-  let recursiveTargets: NaturalRecursiveCommandTarget[] = [];
-  if (options.workspaceTargets && shouldLoadRecursiveWorkspaceTargets(text, recentRecursiveContext)) {
-    recursiveTargets = await recursiveSessions()
-      .then(recursiveTargetsFromSessions)
-      .catch((error) => {
-        console.warn('[NaturalRoute] Skipping Workspace target lookup:', error);
-        return [] as NaturalRecursiveCommandTarget[];
-      });
-  }
-
-  const shippedProject = ctx.chat?.id
-    ? await getLatestShippedProjectContext(ctx.chat.id).catch(() => null)
-    : null;
-
-  return {
-    recentMessages: contextPieces.filter(Boolean).slice(-15),
-    recursiveTargets,
-    shippedProject,
-    localSparkContext: contextPieces.filter(Boolean).join('\n'),
-    pendingBuildClarification: Boolean(
-      ctx.chat?.id &&
-      ctx.from?.id &&
-      shouldUsePendingClarificationForMessage(
-        pendingClarifications.get(`${ctx.chat.id}-${ctx.from.id}`),
-        text
-      )
-    )
-  };
-}
-
 async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
   try {
-    const decision = decideNaturalRoute(
-      text,
-      await buildNaturalRouteDecisionContext(ctx, ctx.from, text)
-    );
-    logNaturalRouteDecision({
-      decision,
-      phase: 'shadow',
-      profile: activeTelegramProfile(),
-      userId: ctx.from?.id,
-      chatId: ctx.chat?.id,
-      chatType: ctx.chat?.type,
-      admin: conversation.isAdmin(ctx.from)
+    return decideNaturalRoute(text, {
+      recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      pendingBuildClarification: Boolean(
+        ctx.chat?.id &&
+        ctx.from?.id &&
+        pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text)
+      )
     });
-    return decision;
   } catch (error) {
     console.warn('[NaturalRoute] shadow decision failed:', error);
     return null;
@@ -345,8 +277,8 @@ function recordNaturalRouteExecution(
   executedOwner: NaturalRouteOwnerSystem,
   executedAction: string
 ): void {
-  if (!decision) return;
-  logNaturalRouteExecution({
+  if (!decision || !shouldWriteNaturalRouteLedger()) return;
+  const record = createNaturalRouteExecutionRecord({
     decision,
     profile: activeTelegramProfile(),
     userId: ctx.from?.id,
@@ -357,106 +289,9 @@ function recordNaturalRouteExecution(
     executedOwner,
     executedAction
   });
-  if (shouldWriteNaturalRouteLedger()) {
-    const record = createNaturalRouteExecutionRecord({
-      decision,
-      profile: activeTelegramProfile(),
-      userId: ctx.from?.id,
-      chatId: ctx.chat?.id,
-      chatType: ctx.chat?.type,
-      admin: conversation.isAdmin(ctx.from),
-      executedRoute,
-      executedOwner,
-      executedAction
-    });
-    void appendNaturalRouteExecutionRecord(record).catch((error) => {
-      console.warn('[NaturalRoute] execution ledger write failed:', error);
-    });
-  }
-}
-
-async function chatWithOptionalDraftStreaming(
-  ctx: any,
-  userMessage: string,
-  conversationHistory: string = '',
-  memories: string = ''
-): Promise<string> {
-  const api = ctx.telegram?.callApi ? ctx.telegram : bot.telegram;
-  const streamer = createTelegramDraftStreamer(ctx, api);
-  if (!streamer) {
-    return llm.chat(userMessage, conversationHistory, memories);
-  }
-
-  return llm.chatStream(userMessage, conversationHistory, memories, async (partialText) => {
-    await streamer.push(partialText);
+  void appendNaturalRouteExecutionRecord(record).catch((error) => {
+    console.warn('[NaturalRoute] execution ledger write failed:', error);
   });
-}
-
-async function replyWithOptionalDraftPreview(ctx: any, text: string, extra?: any): Promise<any> {
-  const api = ctx.telegram?.callApi ? ctx.telegram : bot.telegram;
-  await replayTelegramDraftPreview(ctx, api, text);
-  return ctx.reply(text, extra);
-}
-
-function runtimeEnvOverridePath(): string {
-  return path.join(__dirname, '..', '.env.override');
-}
-
-async function persistRuntimeEnvOverride(action: Extract<TelegramStreamingConfigAction, { kind: 'set' }>): Promise<void> {
-  const overridePath = runtimeEnvOverridePath();
-  let content = '';
-  try {
-    content = await readFile(overridePath, 'utf-8');
-  } catch {
-    content = '';
-  }
-
-  const lines = content.split(/\r?\n/).filter((line, index, all) => index < all.length - 1 || line.length > 0);
-  const nextLine = `${action.key}=${action.value}`;
-  let replaced = false;
-  const nextLines = lines.map((line) => {
-    if (line.match(new RegExp(`^\\s*${action.key}\\s*=`))) {
-      replaced = true;
-      return nextLine;
-    }
-    return line;
-  });
-  if (!replaced) {
-    nextLines.push(nextLine);
-  }
-
-  await writeFile(overridePath, `${nextLines.join('\n')}\n`, 'utf-8');
-}
-
-async function handleTelegramStreamingConfigAction(ctx: any, action: TelegramStreamingConfigAction): Promise<void> {
-  if (action.kind === 'status') {
-    await ctx.reply(renderTelegramStreamingConfigStatus());
-    return;
-  }
-
-  process.env[action.key] = action.value;
-  await persistRuntimeEnvOverride(action);
-  await ctx.reply(renderTelegramStreamingConfigStatus());
-}
-
-async function handleTelegramStreamingConfigText(ctx: any, text: string): Promise<boolean> {
-  const action = parseTelegramStreamingConfigText(text);
-  if (!action) return false;
-  if (!conversation.isAdmin(ctx.from)) {
-    await ctx.reply('Admin only. Streaming settings are operator controls.');
-    return true;
-  }
-  await handleTelegramStreamingConfigAction(ctx, action);
-  return true;
-}
-
-async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
-  try {
-    await ctx.sendChatAction(action);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.warn(`[Telegram] ignored sendChatAction failure: ${detail}`);
-  }
 }
 
 function nodeOutboundAuditPath(): string {
@@ -557,17 +392,10 @@ interface PendingDomainChipBuild {
   timestamp: number;
 }
 const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
-interface PendingCreatorMission {
-  missionId: string;
-  requestId: string;
-  brief: string;
-  timestamp: number;
-}
-const pendingCreatorMissions = new Map<string, PendingCreatorMission>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
+const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
-let pollingStartedAt: string | null = null;
 
 function extractCommandName(text: string | undefined): string | null {
   if (!text?.startsWith('/')) {
@@ -583,6 +411,10 @@ async function ensurePollingReady(): Promise<void> {
     console.warn(`Telegram webhook was active at ${webhookInfo.url}; deleting it before long polling.`);
     await bot.telegram.deleteWebhook({ drop_pending_updates: false });
   }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function requireAdmin(ctx: any): boolean {
@@ -604,56 +436,6 @@ function buildUpdateWithText(update: Record<string, unknown>, text: string): Rec
   return cloned;
 }
 
-function labelFromRecursiveKey(value: string): string {
-  return value
-    .replace(/^path:/i, '')
-    .replace(/^path_(?:builder_chip|benchmark_prompt_engineer|domain_autoloop|domain_chip_lab)_/i, '')
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function startKeyFromRecursivePathId(pathId: string): string | null {
-  if (/^path:/i.test(pathId)) return pathId.replace(/^path:/i, '');
-  const builderChip = pathId.match(/^path_builder_chip_(.+)$/i)?.[1];
-  return builderChip ? builderChip.replace(/_/g, '-') : null;
-}
-
-function recursiveTargetsFromSessions(sessions: Awaited<ReturnType<typeof recursiveSessions>>): NaturalRecursiveCommandTarget[] {
-  return sessions.map((session) => {
-    const startKey = startKeyFromRecursivePathId(session.session_id);
-    const domainLabel = session.domain ? labelFromRecursiveKey(session.domain) : '';
-    const pathLabel = labelFromRecursiveKey(session.session_id);
-    const label = domainLabel || pathLabel || session.title || session.session_id;
-    return {
-      pathId: session.session_id,
-      chipKey: startKey,
-      label,
-      aliases: [
-        session.trace_id,
-        session.session_id,
-        session.domain || '',
-        domainLabel,
-        pathLabel,
-        session.title
-      ].filter(Boolean)
-    };
-  });
-}
-
-function shouldLoadRecursiveWorkspaceTargets(text: string, recentContext: string[]): boolean {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!normalized || normalized.startsWith('/')) return false;
-  if (/\b(?:recursive|recursion|recursions|autoloop|loop|rounds?|passes|iterations?|benchmark|score|trace|review|decisions?|readout|receipts|proof|approve|path:[A-Za-z0-9:_-]+)\b/i.test(normalized)) {
-    return true;
-  }
-  if (/\b(?:report|status|summary|where\s+did\s+we\s+land|what\s+changed|what'?s\s+next|what\s+needs\s+my\s+call|give\s+it\s+another\s+pass|keep\s+going|continue)\b/i.test(normalized)) {
-    return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(recentContext.slice(-15).join('\n'));
-  }
-  return false;
-}
-
 async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
   const user = ctx.from;
   if (user) {
@@ -671,23 +453,6 @@ async function replyViaBuilder(ctx: any, text: string): Promise<boolean> {
     await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
   }
   return true;
-}
-
-async function syncAgentDoctrinePreferenceViaBuilder(ctx: any, preference: string): Promise<boolean> {
-  if (process.env.SPARK_AGENT_PERSONA_BUILDER_SYNC === '0') {
-    return false;
-  }
-  const syncText = formatAgentDoctrinePreferenceForBuilderSync(preference);
-  if (!syncText) {
-    return false;
-  }
-  try {
-    const builderReply = await runBuilderTelegramBridge(buildUpdateWithText(ctx.update as Record<string, unknown>, syncText));
-    return Boolean(builderReply.used && builderReply.bridgeMode !== 'bridge_error');
-  } catch (error) {
-    console.warn('[AgentDoctrine] Builder persona preference sync unavailable:', error);
-    return false;
-  }
 }
 
 async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>): Promise<void> {
@@ -870,7 +635,6 @@ bot.start(async (ctx) => {
       '/wiki - Check Spark LLM wiki health; use /wiki pages for vault inventory',
       '/context - Show Agent Operating Context',
       '/probe <route> - Run a route probe and record AOC evidence',
-      '/ledger or /capabilities - Review capability ledger boundaries',
       '/operating_context or /agent_context - Same, Telegram-safe aliases',
       '/conversation_context - Show conversation-frame diagnostics',
       '/updates <minimal|normal|verbose> - Tune live mission updates',
@@ -912,34 +676,26 @@ bot.start(async (ctx) => {
 
 // /status command
 bot.command('status', async (ctx) => {
-  recordCommandTelemetry(ctx, '/status', 'received');
-  try {
-    await safeSendChatAction(ctx, 'typing');
+  await safeSendChatAction(ctx, 'typing');
 
-    const builderBridge = await getBuilderBridgeStatus();
-    const isAdmin = conversation.isAdmin(ctx.from);
+  const builderBridge = await getBuilderBridgeStatus();
+  const isAdmin = conversation.isAdmin(ctx.from);
 
-    let status = 'System Status\n\n';
+  let status = 'System Status\n\n';
 
-    status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
+  status += `Builder memory bridge: ${builderBridge.available ? 'ONLINE' : 'OFFLINE'} (${builderBridge.mode})\n`;
 
-    status += 'Spark launch core: ONLINE\n';
-    status += 'Dashboard/resonance: deferred\n';
+  status += 'Spark launch core: ONLINE\n';
+  status += 'Dashboard/resonance: deferred\n';
 
-    if (isAdmin) status += '\nAdmin access';
+  if (isAdmin) status += '\nAdmin access';
 
-    await ctx.reply(status);
-    recordCommandTelemetry(ctx, '/status', 'replied');
-  } catch (err: any) {
-    recordCommandTelemetry(ctx, '/status', 'failed', err);
-    await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
-  }
+  await ctx.reply(status);
 });
 
 // /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
-  recordCommandTelemetry(ctx, '/diagnose', 'received');
   await safeSendChatAction(ctx, 'typing');
   await ctx.reply('Running diagnostics - checks chat, access, relay, Spawner, and provider ping. Takes ~30s...');
   try {
@@ -951,9 +707,7 @@ bot.command('diagnose', async (ctx) => {
     });
     // Telegram limit is 4096 chars; diagnose is always well under.
     await ctx.reply(report);
-    recordCommandTelemetry(ctx, '/diagnose', 'replied');
   } catch (err: any) {
-    recordCommandTelemetry(ctx, '/diagnose', 'failed', err);
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
 });
@@ -1184,21 +938,13 @@ async function handleNaturalRouteProbeCommand(ctx: any): Promise<void> {
       ].join('\n'));
       return;
     }
-    const decision = decideNaturalRoute(
-      probeText,
-      await buildNaturalRouteDecisionContext(ctx, ctx.from, probeText, {
-        rich: true,
-        workspaceTargets: true
-      })
-    );
-    logNaturalRouteDecision({
-      decision,
-      phase: 'probe',
-      profile: activeTelegramProfile(),
-      userId: ctx.from?.id,
-      chatId: ctx.chat?.id,
-      chatType: ctx.chat?.type,
-      admin: conversation.isAdmin(ctx.from)
+    const decision = decideNaturalRoute(probeText, {
+      recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      pendingBuildClarification: Boolean(
+        ctx.chat?.id &&
+        ctx.from?.id &&
+        pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, probeText)
+      )
     });
     await ctx.reply(renderNaturalRouteDecisionReply(decision));
   } catch (err: any) {
@@ -1206,19 +952,11 @@ async function handleNaturalRouteProbeCommand(ctx: any): Promise<void> {
   }
 }
 
-bot.command('probe', handleAgentRouteProbeCommand);
-bot.command('route_probe', handleAgentRouteProbeCommand);
-bot.command('nl_route', handleNaturalRouteProbeCommand);
-bot.command('natural_route', handleNaturalRouteProbeCommand);
-
 async function handleCapabilityLedgerReviewCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
   try {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
-    console.log(
-      `[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`
-    );
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText.trim()) {
       await ctx.reply(builderReply.responseText);
       return;
@@ -1229,6 +967,10 @@ async function handleCapabilityLedgerReviewCommand(ctx: any): Promise<void> {
   }
 }
 
+bot.command('probe', handleAgentRouteProbeCommand);
+bot.command('route_probe', handleAgentRouteProbeCommand);
+bot.command('nl_route', handleNaturalRouteProbeCommand);
+bot.command('natural_route', handleNaturalRouteProbeCommand);
 bot.command('ledger', handleCapabilityLedgerReviewCommand);
 bot.command('capabilities', handleCapabilityLedgerReviewCommand);
 
@@ -1662,13 +1404,10 @@ export function parseNaturalRecursiveProposalIntent(text: string): NaturalRecurs
     .replace(/\s+/g, ' ')
     .trim();
   if (!normalized) return null;
-
   const wantsReviewPacket = /\b(prepare|propose|package|submit|share|send)\b/.test(normalized) &&
     /\b(review|network|swarm|spark swarm|workspace)\b/.test(normalized);
   if (!wantsReviewPacket) return null;
-
-  const submit = /\b(submit|share|send)\b/.test(normalized) &&
-    /\b(network|swarm|spark swarm|review)\b/.test(normalized);
+  const submit = /\b(submit|share|send)\b/.test(normalized) && /\b(network|swarm|spark swarm|review)\b/.test(normalized);
   if (/\bcrypto[-\s]+trading\b/.test(normalized)) return { target: 'crypto-trading', submit };
   if (/\bstartup[-\s]+yc\b/.test(normalized)) return { target: 'startup-yc', submit };
   return null;
@@ -1711,6 +1450,17 @@ type ParsedCreatorCommand = {
   privacyMode?: 'local_only' | 'github_pr' | 'swarm_shared';
   riskLevel?: 'low' | 'medium' | 'high';
 };
+
+type NaturalCreatorMissionIntent = ParsedCreatorCommand & {
+  artifactLabel: string;
+};
+
+type PendingCreatorMission = {
+  missionId: string;
+  timestamp: number;
+};
+
+const pendingCreatorMissions = new Map<string, PendingCreatorMission>();
 
 const CREATOR_USAGE = [
   'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
@@ -1849,6 +1599,76 @@ function parseCreatorMissionControlCommand(raw: string): ParsedCreatorMissionCon
 
 function isValidCreatorMissionId(missionId: string): boolean {
   return /^mission-creator-[A-Za-z0-9_-]+$/.test(missionId);
+}
+
+function pendingCreatorMissionKey(ctx: any): string {
+  return `${ctx.chat.id}-${ctx.from.id}`;
+}
+
+function parsePendingCreatorMissionAction(text: string): ParsedCreatorMissionControlCommand['action'] | null {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  if (/^(?:run|start|execute|kick off|go|go ahead|do it|run it|start it|execute it|kick it off)(?:\s+(?:the\s+)?(?:creator\s+)?mission)?$/i.test(normalized)) {
+    return 'run';
+  }
+  if (/^(?:validate|check|verify|test)(?:\s+(?:it|the\s+creator\s+mission|the\s+mission))?$/i.test(normalized)) {
+    return 'validate';
+  }
+  if (/^(?:status|show status|what'?s happening|what happened|show me status|check status)(?:\s+(?:for\s+)?(?:it|the\s+creator\s+mission|the\s+mission))?$/i.test(normalized)) {
+    return 'status';
+  }
+  return null;
+}
+
+function normalizeNaturalCreatorText(text: string): string {
+  return text.toLowerCase().replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function inferNaturalCreatorPrivacyMode(normalized: string): ParsedCreatorCommand['privacyMode'] | undefined {
+  if (/\b(?:private|local|locally|workspace only|personal workspace)\b/.test(normalized)) return 'local_only';
+  if (/\b(?:github|pull request|pr)\b/.test(normalized)) return 'github_pr';
+  if (/\b(?:swarm|network|public|share|shared)\b/.test(normalized)) return 'swarm_shared';
+  return 'local_only';
+}
+
+function inferNaturalCreatorRiskLevel(normalized: string): ParsedCreatorCommand['riskLevel'] | undefined {
+  const match = normalized.match(/\brisk\s+(low|medium|high)\b/);
+  return match ? (match[1] as ParsedCreatorCommand['riskLevel']) : 'medium';
+}
+
+export function parseNaturalCreatorMissionIntent(text: string): NaturalCreatorMissionIntent | null {
+  const normalized = normalizeNaturalCreatorText(text);
+  if (!normalized || normalized.startsWith('/')) return null;
+  if (/\b(?:what|which|show|list|status|report|review|trace)\b/.test(normalized) && !/\b(?:create|build|make|plan|scaffold|generate)\b/.test(normalized)) {
+    return null;
+  }
+
+  const hasCreateVerb = /\b(?:create|build|make|plan|scaffold|generate|set up|spin up)\b/.test(normalized);
+  if (!hasCreateVerb) return null;
+
+  const artifactPatterns: Array<{ label: string; pattern: RegExp }> = [
+    { label: 'full creator system', pattern: /\b(?:creator system|creator mission|creator run|full path|domain chip.*benchmark.*(?:specialization|path|autoloop)|specialization.*benchmark.*autoloop)\b/ },
+    { label: 'specialization path', pattern: /\b(?:specialization path|specialisation path|learning path|mastery path)\b/ },
+    { label: 'autoloop', pattern: /\b(?:autoloop|auto loop|recursive loop|self-improvement loop)\b/ },
+    { label: 'benchmark pack', pattern: /\b(?:benchmark pack|benchmark|eval pack|evaluation pack|test suite)\b/ },
+    { label: 'domain chip', pattern: /\b(?:domain chip|domain-chip)\b/ }
+  ];
+  const artifact = artifactPatterns.find((entry) => entry.pattern.test(normalized));
+  if (!artifact) return null;
+
+  const brief = text.trim().replace(/\s+/g, ' ');
+  if (brief.length < 8) return null;
+  return {
+    brief: [
+      brief,
+      '',
+      'Use Spark creator-system standards: creator intent packet, adapter map, artifact manifests, benchmark gates, evidence ladder, local/private boundary, and Swarm review packet only when gates allow it.',
+      'Keep Telegram user-facing output natural and concise; keep detailed evidence in Workspace/Canvas/Kanban.'
+    ].join('\n'),
+    privacyMode: inferNaturalCreatorPrivacyMode(normalized),
+    riskLevel: inferNaturalCreatorRiskLevel(normalized),
+    artifactLabel: artifact.label
+  };
 }
 
 export function formatBuildClarificationReply(projectName: string, questions: string[], assumptions: string[]): string {
@@ -2017,44 +1837,48 @@ async function handlePendingDomainChipBuild(ctx: any, text: string): Promise<boo
   return true;
 }
 
-function isPendingCreatorCancel(text: string): boolean {
-  return /^(?:cancel|stop|never mind|nevermind|not now|no)$/i.test(text.trim());
+async function handleCreatorMissionPlan(ctx: any, parsed: ParsedCreatorCommand): Promise<void> {
+  const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+  if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+    await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+    return;
+  }
+
+  await safeSendChatAction(ctx, 'typing');
+  const requestId = `tg-creator-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
+  const result = await spawner.creatorMission({
+    brief: parsed.brief,
+    requestId,
+    privacyMode: parsed.privacyMode,
+    riskLevel: parsed.riskLevel
+  });
+
+  await ctx.reply(formatCreatorMissionSummary(result));
+  if (result.success && result.missionId) {
+    pendingCreatorMissions.set(pendingCreatorMissionKey(ctx), {
+      missionId: result.missionId,
+      timestamp: Date.now()
+    });
+    await conversation.learnAboutUser(
+      ctx.from,
+      `Planned creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
+    ).catch(() => {});
+  }
 }
 
-function pendingCreatorAction(text: string): 'run' | 'validate' | 'status' | null {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (!normalized) return null;
-  if (/^(?:run|start|execute|kick off|go|go ahead|do it|run it|start it|kick it off|yes|yeah|yep|ok|okay|sure|perfect)$/i.test(normalized)) {
-    return 'run';
-  }
-  if (/^(?:validate|validate it|check it|run validation|run the checks|test it)$/i.test(normalized)) {
-    return 'validate';
-  }
-  if (/^(?:status|status please|where is it|what happened|show status|mission status)$/i.test(normalized)) {
-    return 'status';
-  }
-  return null;
-}
-
-async function handlePendingCreatorMission(ctx: any, text: string): Promise<boolean> {
-  const key = `${ctx.chat.id}-${ctx.from.id}`;
+async function handlePendingCreatorMissionControl(ctx: any, text: string): Promise<boolean> {
+  const key = pendingCreatorMissionKey(ctx);
   const pending = pendingCreatorMissions.get(key);
   if (!pending) return false;
-
   if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) {
     pendingCreatorMissions.delete(key);
-    await ctx.reply('That creator plan expired. Ask for the QA benchmark/path work again and I will plan a fresh one.');
-    return true;
+    return false;
   }
 
-  if (isPendingCreatorCancel(text)) {
-    pendingCreatorMissions.delete(key);
-    await ctx.reply('No problem. I will leave that creator mission planned but I will not run it from Telegram.');
-    return true;
-  }
-
-  const action = pendingCreatorAction(text);
+  const action = parsePendingCreatorMissionAction(text);
   if (!action) return false;
+  await conversation.remember(ctx.from, text).catch(() => {});
+  await safeSendChatAction(ctx, 'typing');
 
   if (action === 'status') {
     const result = await spawner.creatorMissionStatus({ missionId: pending.missionId });
@@ -2063,14 +1887,11 @@ async function handlePendingCreatorMission(ctx: any, text: string): Promise<bool
   }
 
   if (action === 'validate') {
-    await ctx.reply('Running creator validation checks...');
     const result = await spawner.creatorMissionValidate({ missionId: pending.missionId });
     await ctx.reply(formatCreatorMissionValidationSummary(result));
     return true;
   }
 
-  pendingCreatorMissions.delete(key);
-  await ctx.reply('Starting the creator mission now.');
   const result = await spawner.creatorMissionExecute({ missionId: pending.missionId });
   await ctx.reply(formatCreatorMissionExecutionSummary(result));
   return true;
@@ -2327,12 +2148,9 @@ export async function handleBuildIntent(
 }
 
 function parseRunCommand(text: string, command: string): string {
-  const trimmed = text.trim();
-  const [firstToken = ''] = trimmed.split(/\s+/, 1);
-  if (firstToken.split('@', 1)[0].toLowerCase() !== command.toLowerCase()) {
-    return trimmed;
-  }
-  return trimmed.slice(firstToken.length).trim();
+  const idx = text.indexOf(command);
+  if (idx === -1) return text.trim();
+  return text.slice(idx + command.length).trim();
 }
 
 function missionDefaultProvider(): string {
@@ -2352,23 +2170,13 @@ const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> 
 
 for (const variant of RUN_VARIANTS) {
   bot.command(variant.name, async (ctx) => {
-    const command = `/${variant.name}`;
-    recordCommandTelemetry(ctx, command, 'received');
     if (!requireAdmin(ctx)) return;
-    const goal = parseRunCommand(ctx.message.text, command);
+    const goal = parseRunCommand(ctx.message.text, `/${variant.name}`);
     if (!goal) {
-      await ctx.reply(`Usage: ${variant.usage}`);
-      recordCommandTelemetry(ctx, command, 'replied');
-      return;
+      return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
-    try {
-      await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
-      recordCommandTelemetry(ctx, command, 'replied');
-    } catch (err) {
-      recordCommandTelemetry(ctx, command, 'failed', err);
-      throw err;
-    }
+    await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
   });
 }
 
@@ -2412,16 +2220,10 @@ bot.command('models', async (ctx) => {
 
 bot.command('board', async (ctx) => {
   if (!requireAdmin(ctx)) return;
-  recordCommandTelemetry(ctx, '/board', 'received');
-  try {
-    await safeSendChatAction(ctx, 'typing');
-    const result = await spawner.board();
-    await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
-    recordCommandTelemetry(ctx, '/board', result.success ? 'replied' : 'failed');
-  } catch (err: any) {
-    recordCommandTelemetry(ctx, '/board', 'failed', err);
-    await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
-  }
+
+  await safeSendChatAction(ctx, 'typing');
+  const result = await spawner.board();
+  await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
 });
 
 bot.command('creator', async (ctx) => {
@@ -2488,23 +2290,8 @@ bot.command('creator', async (ctx) => {
     return ctx.reply(CREATOR_USAGE);
   }
 
-  await ctx.reply('Planning creator mission through Spawner...');
-
-  const requestId = `tg-creator-${ctx.chat.id}-${ctx.message.message_id}-${Date.now()}`;
-  const result = await spawner.creatorMission({
-    brief: parsed.brief,
-    requestId,
-    privacyMode: parsed.privacyMode,
-    riskLevel: parsed.riskLevel
-  });
-
-  await ctx.reply(formatCreatorMissionSummary(result));
-  if (result.success && result.missionId) {
-    await conversation.learnAboutUser(
-      ctx.from,
-      `Started creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
-    ).catch(() => {});
-  }
+  await ctx.reply('Planning creator mission...');
+  await handleCreatorMissionPlan(ctx, parsed);
 });
 
 bot.command('chip', async (ctx) => {
@@ -2525,7 +2312,7 @@ bot.command('chip', async (ctx) => {
   const result = await createChipFromPrompt(prompt);
 
   if (!result.ok) {
-    return ctx.reply(`Chip create failed: ${result.error || 'unknown error'}`);
+    return ctx.reply(renderTelegramError('Chip create failed', result.error));
   }
 
   const lines = [
@@ -2565,7 +2352,7 @@ bot.command('loop', async (ctx) => {
     try {
       const result = await runChipLoop(chipKey, rounds, 3);
       if (!result.ok) {
-        await ctx.telegram.sendMessage(chatId, `Loop failed: ${result.error || 'unknown error'}`);
+        await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop failed', result.error));
         return;
       }
       const lines = [
@@ -2585,7 +2372,7 @@ bot.command('loop', async (ctx) => {
       if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
       await ctx.telegram.sendMessage(chatId, lines.join('\n'));
     } catch (err: any) {
-      await ctx.telegram.sendMessage(chatId, `Loop crashed: ${err?.message || String(err)}`);
+      await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop crashed', err));
     }
   })();
 });
@@ -2662,36 +2449,65 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
     }
 
     if (parsed.action === 'sync') {
+      if (parsed.syncKind) {
+        await safeSendChatAction(ctx, 'typing');
+        const result = await syncRecursiveArtifactToWorkspace({
+          kind: parsed.syncKind,
+          args: parsed.syncArgs || []
+        });
+        return ctx.reply(renderRecursiveArtifactSyncCompletion(result));
+      }
       if (!parsed.id) return ctx.reply('Usage: /recursive sync <id>');
       await safeSendChatAction(ctx, 'typing');
       const packet = await stageRecursiveSwarmPacket(parsed.id);
       return ctx.reply(renderRecursiveSwarmPacket(packet));
     }
 
+    if (parsed.action === 'propose') {
+      if (!parsed.id) return ctx.reply('Usage: /recursive propose <chip-or-path-name> [submit]');
+      await safeSendChatAction(ctx, 'typing');
+      const result = await proposeRecursiveWorkspaceEvidence(parsed.id, parsed.proposeArgs || []);
+      return ctx.reply(renderRecursiveNetworkProposal(result));
+    }
+
     if (parsed.action === 'start') {
       if (!parsed.chipKey) return ctx.reply('Usage: /recursive start <targetKey> [rounds <n>]');
       const chatId = ctx.chat.id;
       const rounds = parsed.rounds || 3;
+      const startTarget = await resolveRecursiveStartTarget(parsed.chipKey);
       await safeSendChatAction(ctx, 'typing');
-      await ctx.reply(`Starting recursive Builder chip loop on ${parsed.chipKey} for ${rounds} round(s). I will post the summary when it finishes.`);
+      const targetLabel = startTarget.kind === 'path' ? 'Spark Swarm specialization path loop' : 'recursive Builder chip loop';
+      await ctx.reply(`Starting ${targetLabel} on ${startTarget.key} for ${rounds} round(s). I will post the summary when it finishes.`);
 
       void (async () => {
         try {
+          if (startTarget.kind === 'path') {
+            const result = await runSpecializationPathAutoloop(startTarget, rounds, sparkWorkspaceBridgeHints());
+            if (!result.ok) {
+              await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive path loop failed', result.error));
+              return;
+            }
+            await ctx.telegram.sendMessage(chatId, renderSpecializationPathLoopCompletion(result));
+            return;
+          }
+
           const result = await runChipLoop(parsed.chipKey!, rounds, 3);
           if (!result.ok) {
-            await ctx.telegram.sendMessage(chatId, `Recursive loop failed: ${result.error || 'unknown error'}`);
+            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', result.error));
             return;
           }
           let sync = null;
           let syncError = null;
-          try {
-            sync = await syncBuilderChipLoopToWorkspace(result);
-          } catch (syncErr: any) {
-            syncError = syncErr?.message || String(syncErr);
+          if (sparkWorkspaceConfigured()) {
+            try {
+              sync = await syncBuilderChipLoopToWorkspace(result);
+            } catch (syncErr: any) {
+              syncError = syncErr?.message || String(syncErr);
+            }
           }
           await ctx.telegram.sendMessage(chatId, renderBuilderChipLoopCompletion(result, sync, syncError));
         } catch (err: any) {
-          await ctx.telegram.sendMessage(chatId, `Recursive loop crashed: ${err?.message || String(err)}`);
+          await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop crashed', err));
         }
       })();
       return;
@@ -2700,7 +2516,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
     return ctx.reply(renderRecursiveHelp());
   } catch (err: any) {
     const status = err?.response?.status;
-    const detail = err?.response?.data?.error || err?.message || String(err);
+    const detail = redactText(err?.response?.data?.error || err?.message || String(err));
     if (status === 401 && detail === 'authentication_required') {
       return ctx.reply([
         'Recursive command failed (401): Spark Workspace rejected this agent token for recursive reads.',
@@ -2815,16 +2631,6 @@ bot.command('updates', async (ctx) => {
   await ctx.reply(`Live mission updates set to ${next}.\n${describeTelegramRelayVerbosity(next)}`);
 });
 
-bot.command('streaming', async (ctx) => {
-  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '/streaming';
-  await handleTelegramStreamingConfigText(ctx, text);
-});
-
-bot.command('drafts', async (ctx) => {
-  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '/drafts';
-  await handleTelegramStreamingConfigText(ctx, text);
-});
-
 bot.command('access', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
@@ -2882,7 +2688,9 @@ function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: stri
     return null;
   }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  const asksRememberedPreference = isUserMemoryRecallQuestion(normalized);
+  const asksRememberedPreference =
+    /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission updates?|updates?)\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:prefer|preferred|preference)\b.*\bremember\b/.test(normalized);
   if (!asksRememberedPreference && !/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;
   }
@@ -2987,49 +2795,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (await handleTelegramStreamingConfigText(ctx, text)) {
-    return;
-  }
-
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
-
-  if (conversation.isAdmin(ctx.from)) {
-    const pendingClarification = pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text);
-    if (pendingClarification && isPendingClarificationFollowup(text)) {
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
-      await handleClarificationAnswers(ctx, text);
-      return;
-    }
-  }
-
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const earlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
-  const agentDoctrinePreference = earlyBuildIntent ? null : extractAgentDoctrinePreference(text);
-  if (agentDoctrinePreference) {
-    await conversation.storeAgentDoctrinePreference(ctx.from, agentDoctrinePreference).catch(() => {});
-    const builderSynced = await syncAgentDoctrinePreferenceViaBuilder(ctx, agentDoctrinePreference);
-    if (!builderSynced) {
-      console.warn('[AgentDoctrine] kept preference in Telegram hot memory; Builder persona sync was unavailable.');
-    }
-    if (!extractPlainChatMemoryDirective(text) && isStandaloneAgentDoctrinePreference(text)) {
-      const reply = formatAgentDoctrinePreferenceAcknowledgement(agentDoctrinePreference);
-      await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.preference', 'spark-intelligence-builder', 'agent_doctrine.preference');
-      await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
-      return;
-    }
-  }
-
-  if (!earlyBuildIntent && isAgentDoctrinePreferenceStatusQuestion(text)) {
-    const preferences = await conversation.getAgentDoctrinePreferences(user).catch(() => []);
-    const reply = formatAgentDoctrinePreferenceStatus(preferences);
-    await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.status', 'spark-intelligence-builder', 'agent_doctrine.status');
-    await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
-    return;
-  }
 
   if (globalAgentDoctrineRequest) {
     const reply = formatGlobalAgentDoctrineRequestReply(text);
@@ -3040,7 +2808,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && naturalRouteShadow?.route !== 'memory.doctor' && isPendingTaskRecoveryQuestion(text)) {
+  if (!earlyBuildIntent && !shouldAttachMemoryDoctorEvidence(text) && isPendingTaskRecoveryQuestion(text)) {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {
       const reply = renderPendingTaskRecoveryReply(pendingTask);
@@ -3054,7 +2822,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const naturalAccessChange = earlyBuildIntent ? null : parseNaturalAccessChangeIntent(text);
   if (naturalAccessChange) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, naturalAccessChange);
     return;
   }
@@ -3066,7 +2833,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     : null;
   if (frameAccessChange) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, frameAccessChange);
     return;
   }
@@ -3077,7 +2843,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     : parseContextualAccessChangeIntent(text, recentAccessMessages);
   if (contextualAccessChange) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change');
     await handleAccessChangeRequest(ctx, contextualAccessChange);
     return;
   }
@@ -3086,7 +2851,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessBriefStatus(accessProfile);
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.status', 'spark-telegram-bot', 'access.status');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
@@ -3096,14 +2860,81 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessConversationHelp(accessProfile);
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'access.help', 'spark-telegram-bot', 'access.help');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+  const activePendingClarification = conversation.isAdmin(ctx.from)
+    ? pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text)
+    : null;
+  if (activePendingClarification && isPendingClarificationFollowup(text)) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
+    await handleClarificationAnswers(ctx, text);
+    return;
+  }
+  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && await handlePendingCreatorMissionControl(ctx, text)) {
+    return;
+  }
+  if (!earlyBuildIntent && shouldPreferConversationalIdeation(text)) {
+    console.log(`[ConversationIntent] early ideation route user=${ctx.from?.id} textLen=${text.length}`);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
+    await safeSendChatAction(ctx, 'typing');
+    if (isShortResolvedListPick(text, conversationFrame)) {
+      const fastReply = buildSelectedListFastReply(conversationFrame);
+      if (fastReply) {
+        await ctx.reply(fastReply);
+        await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
+        return;
+      }
+    }
+    const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
+    const llmResponse = await llm.chat(
+      ideationPrompt,
+      [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
+      memories
+    );
+    const response = isLowInformationLlmReply(llmResponse)
+      ? buildIdeationFallbackReply(text)
+      : llmResponse;
+    await ctx.reply(response);
+    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    return;
+  }
+  const earlyNaturalChipBrief = conversation.isAdmin(ctx.from) ? parseNaturalChipCreateIntent(text) : null;
+  if (earlyNaturalChipBrief) {
+    await conversation.remember(user, text).catch(() => {});
+    const mode = domainChipBuildModeForBrief(earlyNaturalChipBrief);
+    pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
+      brief: earlyNaturalChipBrief,
+      prd: buildDomainChipPrd(earlyNaturalChipBrief),
+      projectName: projectNameForDomainChipBrief(earlyNaturalChipBrief),
+      buildMode: mode.buildMode,
+      buildModeReason: mode.reason,
+      capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(earlyNaturalChipBrief),
+      timestamp: Date.now()
+    });
+    await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
+    return;
+  }
+  const naturalCreatorIntent = conversation.isAdmin(ctx.from) ? parseNaturalCreatorMissionIntent(text) : null;
+  if (naturalCreatorIntent) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(`Planning ${naturalCreatorIntent.artifactLabel} creator mission...`);
+    await handleCreatorMissionPlan(ctx, naturalCreatorIntent);
+    return;
+  }
+  const naturalRecursiveProposal = earlyBuildIntent ? null : parseNaturalRecursiveProposalIntent(text);
+  if (naturalRecursiveProposal && conversation.isAdmin(ctx.from)) {
+    await conversation.remember(user, text).catch(() => {});
+    const submitArg = naturalRecursiveProposal.submit ? ' submit' : '';
+    await handleRecursiveCommand(ctx, `propose ${naturalRecursiveProposal.target}${submitArg}`);
+    return;
+  }
   if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.chip_status_probe', 'spark-intelligence-builder', 'spark.chip_status_probe');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfAwarenessStatus({
@@ -3122,14 +2953,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   if (memoryDirective) {
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.write', 'spark-intelligence-builder', 'memory.write');
     await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective);
     return;
   }
   const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);
   if (selfImprovementGoal) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.self_improvement', 'spark-intelligence-builder', 'spark.self_improvement');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfImprovementPlan({
@@ -3148,7 +2977,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiPromotion = earlyBuildIntent ? null : extractSparkWikiPromotionIntent(text);
   if (wikiPromotion) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.promote', 'spark-intelligence-builder', 'spark_wiki.promote');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiPromoteImprovement({
@@ -3169,7 +2997,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
@@ -3183,7 +3010,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiAnswerQuestion = earlyBuildIntent ? null : extractSparkWikiAnswerQuestion(text);
   if (wikiAnswerQuestion) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiAnswer({
@@ -3204,7 +3030,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const wikiQuery = earlyBuildIntent ? null : extractSparkWikiQuery(text);
   if (wikiQuery) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
@@ -3217,7 +3042,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   if (!earlyBuildIntent && isSparkWikiStatusQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status');
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiStatus({ refresh: true });
@@ -3233,7 +3057,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ...await conversation.getRecentTurns(user, 40)
   ]);
   if (recentRememberedAnswer) {
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall');
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(recentRememberedAnswer);
     await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});
@@ -3266,10 +3089,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // Routes to Spawner UI's PRD bridge so the canvas auto-loads and Spark can
   // execute the project with the selected build mode.
   if (conversation.isAdmin(ctx.from)) {
-    const recentMessages = await conversation.getRecentMessages(user, 15);
+    const recentMessages = await conversation.getRecentMessages(user, 8);
     const sessionContext = await conversation.getContext(user, text);
     const contextualTurns = [...recentMessages, sessionContext, conversationFrameContext];
-    const recentRecursiveContext = [...recentMessages, conversationFrameContext].filter(Boolean);
     const buildIntent = earlyBuildIntent;
     const pendingClarification = pendingClarificationForMessage(`${ctx.chat.id}-${ctx.from.id}`, text);
 
@@ -3277,86 +3099,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
     if (pendingClarification && isPendingClarificationFollowup(text)) {
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
       await handleClarificationAnswers(ctx, text);
-      return;
-    }
-
-    if (await handlePendingCreatorMission(ctx, text)) {
-      await conversation.remember(user, text).catch(() => {});
-      return;
-    }
-
-    let naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
-      recentMessages: recentRecursiveContext
-    });
-    if (!naturalRecursiveIntent && shouldLoadRecursiveWorkspaceTargets(text, recentRecursiveContext)) {
-      const targets = await recursiveSessions()
-        .then(recursiveTargetsFromSessions)
-        .catch((error) => {
-          console.warn('[RecursiveIntent] Skipping Workspace target lookup:', error);
-          return [] as NaturalRecursiveCommandTarget[];
-        });
-      if (targets.length > 0) {
-        naturalRecursiveIntent = parseNaturalRecursiveCommandIntent(text, {
-          recentMessages: recentRecursiveContext,
-          targets
-        });
-      }
-    }
-    if (naturalRecursiveIntent) {
-      await conversation.remember(user, text).catch(() => {});
-      await conversation.rememberAssistantReply(user, `Recursive command routed from natural language: ${naturalRecursiveIntent.rawCommand}`).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, `recursive.${naturalRecursiveIntent.rawCommand.trim().split(/\s+/)[0] || 'command'}`, 'spark-telegram-bot', 'recursive.command');
-      await handleRecursiveCommand(ctx, naturalRecursiveIntent.rawCommand);
-      return;
-    }
-
-    const naturalChipBrief = parseNaturalChipCreateIntent(text);
-    if (naturalChipBrief) {
-      await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'domain_chip.create', 'domain-chip', 'domain_chip.create');
-      const mode = domainChipBuildModeForBrief(naturalChipBrief);
-      pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
-        brief: naturalChipBrief,
-        prd: buildDomainChipPrd(naturalChipBrief),
-        projectName: projectNameForDomainChipBrief(naturalChipBrief),
-        buildMode: mode.buildMode,
-        buildModeReason: mode.reason,
-        capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(naturalChipBrief),
-        timestamp: Date.now()
-      });
-      await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
-      return;
-    }
-
-    const creatorMissionIntent = parseNaturalCreatorMissionIntent(text, {
-      recentMessages: contextualTurns.filter(Boolean).slice(-15)
-    });
-    if (creatorMissionIntent) {
-      await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'creator.mission', 'spawner-ui', 'creator.mission');
-      await ctx.reply('Planning creator mission...');
-      const requestId = `tg-creator-natural-${ctx.chat.id}-${(ctx.message as any)?.message_id || Date.now()}-${Date.now()}`;
-      const result = await spawner.creatorMission({
-        brief: creatorMissionIntent.brief,
-        requestId,
-        privacyMode: creatorMissionIntent.privacyMode,
-        riskLevel: creatorMissionIntent.riskLevel
-      });
-      if (result.success && result.missionId) {
-        pendingCreatorMissions.set(`${ctx.chat.id}-${ctx.from.id}`, {
-          missionId: result.missionId,
-          requestId: result.requestId || requestId,
-          brief: creatorMissionIntent.brief,
-          timestamp: Date.now()
-        });
-      }
-      await ctx.reply(formatCreatorMissionSummary(result));
-      await conversation.rememberAssistantReply(user, result.success
-        ? `Creator mission planned: ${result.missionId || 'unknown'}`
-        : `Creator mission failed: ${result.error || 'unknown error'}`
-      ).catch(() => {});
       return;
     }
 
@@ -3365,7 +3108,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
       if (improvementGoal && latestShippedProject) {
         await conversation.remember(user, text).catch(() => {});
-        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'project.iteration', 'spawner-ui', 'project.iteration');
         await ctx.reply([
           `Got it. I will improve ${latestShippedProject.projectName}.`,
           '',
@@ -3386,7 +3128,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (buildIntent) {
       console.log(`[BuildIntent] route user=${ctx.from?.id} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.build', 'spawner-ui', 'spawner.build');
       const accessPreference = parseNaturalAccessChangeIntent(text);
       const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
       if (normalizedAccessPreference) {
@@ -3441,7 +3182,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (pendingClarification && !buildIntent) {
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
       await handleClarificationAnswers(ctx, text);
       return;
     }
@@ -3449,7 +3189,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const defaultBuild = inferDefaultBuildFromRecentScoping(text, recentMessages);
     if (defaultBuild) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.default_build', 'spawner-ui', 'spawner.default_build');
       await ctx.reply(`I will choose the default and start it: ${defaultBuild.projectName}.`);
       await handleBuildIntent(
         ctx,
@@ -3465,7 +3204,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const missionUpdatePreference = parseMissionUpdatePreferenceIntent(text);
     if (missionUpdatePreference) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'mission_updates.preference', 'spark-telegram-bot', 'mission_updates.preference');
       const detailLines: string[] = [];
       if (missionUpdatePreference.verbosity) {
         await setTelegramRelayVerbosity(ctx.chat.id, missionUpdatePreference.verbosity);
@@ -3481,10 +3219,26 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     const localServiceContext = contextualTurns.join('\n');
 
+    const naturalChipBrief = parseNaturalChipCreateIntent(text);
+    if (naturalChipBrief) {
+      await conversation.remember(user, text).catch(() => {});
+      const mode = domainChipBuildModeForBrief(naturalChipBrief);
+      pendingDomainChipBuilds.set(`${ctx.chat.id}-${ctx.from.id}`, {
+        brief: naturalChipBrief,
+        prd: buildDomainChipPrd(naturalChipBrief),
+        projectName: projectNameForDomainChipBrief(naturalChipBrief),
+        buildMode: mode.buildMode,
+        buildModeReason: mode.reason,
+        capabilityProposalPacket: buildDomainChipCapabilityProposalPacket(naturalChipBrief),
+        timestamp: Date.now()
+      });
+      await ctx.reply(formatDomainChipBuildPreview(naturalChipBrief));
+      return;
+    }
+
     const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
     if (spawnerBoardIntent) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, `spawner.${spawnerBoardIntent}`, 'spawner-ui', 'spawner.board_read');
       await safeSendChatAction(ctx, 'typing');
       const result = spawnerBoardIntent === 'latest_provider'
         ? await spawner.latestProviderSummary()
@@ -3499,14 +3253,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'local_service.open', 'spark-telegram-bot', 'local_service.open');
       await ctx.reply(buildLocalSparkServiceReply(await spawner.isAvailable()));
       return;
     }
 
     if (isAmbiguousLocalSparkServiceRequest(text, localServiceContext)) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'local_service.clarify', 'spark-telegram-bot', 'clarify');
       await ctx.reply(buildLocalSparkServiceClarificationReply());
       return;
     }
@@ -3514,7 +3266,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isBuildContextRecallQuestion(text)) {
       const recentBuildContext = buildRecentBuildContextReply(contextualTurns);
       if (recentBuildContext) {
-        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'build_context.recall', 'spark-telegram-bot', 'build_context.recall');
         await ctx.reply(recentBuildContext);
         return;
       }
@@ -3524,7 +3275,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const reply = buildDiagnosticFollowupTestReply(sessionContext);
       if (reply) {
         await conversation.remember(user, text).catch(() => {});
-        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'diagnostics.followup_test', 'spark-intelligence-builder', 'diagnostics.followup_test');
         await ctx.reply(reply);
         return;
       }
@@ -3532,7 +3282,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isDiagnosticsScanRequest(text)) {
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'diagnostics.scan', 'spark-cli', 'diagnostics.scan');
       await safeSendChatAction(ctx, 'typing');
       try {
         const scan = await runBuilderDiagnosticsScan();
@@ -3565,7 +3314,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (improvementGoal) {
         console.log(`[ConversationIntent] inferred contextual improvement mission user=${ctx.from?.id} textLen=${text.length}`);
         await conversation.remember(user, text).catch(() => {});
-        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.contextual_mission', 'spawner-ui', 'spawner.contextual_mission');
         const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()], undefined, {
           missionName: 'Spark Diagnostic Agent Integration'
         });
@@ -3583,7 +3331,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         return;
       }
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'external_research.inspect', 'spark-intelligence-builder', 'external_research.inspect');
       const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [missionDefaultProvider()], 'external_research');
       if (missionId) {
         await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
@@ -3595,7 +3342,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (inferredMission) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${ctx.from?.id} textLen=${text.length}`);
       await conversation.remember(user, text).catch(() => {});
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.contextual_mission', 'spawner-ui', 'spawner.contextual_mission');
       const missionId = await handleRunCommand(ctx, inferredMission.goal, [missionDefaultProvider()], undefined, {
         missionName: inferredMission.missionName
       });
@@ -3609,7 +3355,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${ctx.from?.id} textLen=${text.length}`);
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
       await safeSendChatAction(ctx, 'typing');
       if (isShortResolvedListPick(text, conversationFrame)) {
         const fastReply = buildSelectedListFastReply(conversationFrame);
@@ -3622,8 +3367,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const memories = [await conversation.getContext(user, text), conversationFrameContext].join('\n\n');
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       const ideationPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
-      const llmResponse = await chatWithOptionalDraftStreaming(
-        ctx,
+      const llmResponse = await llm.chat(
         ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
         memories
@@ -3639,28 +3383,26 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // Single-provider run intent: "minimax, draft...", "ask claude to...", "all models: ..."
     const intent = parseNaturalRunIntent(text);
     if (intent) {
-      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.run', 'spark-intelligence-builder', 'spark.run');
       await handleRunCommand(ctx, intent.goal, intent.providers);
       return;
     }
   }
 
   // Show typing indicator
-  const builderExecutedRoute = naturalRouteShadow?.route === 'memory.doctor' ? 'memory.doctor' : 'plain_chat';
-  recordNaturalRouteExecution(ctx, naturalRouteShadow, builderExecutedRoute, 'spark-intelligence-builder', builderExecutedRoute);
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const memoryDoctorEvidenceTurns = naturalRouteShadow?.route === 'memory.doctor' && shouldAttachMemoryDoctorEvidence(text)
+    const memoryDoctorEvidenceTurns = shouldAttachMemoryDoctorEvidence(text)
       ? selectMemoryDoctorEvidenceTurns(text, await conversation.getRecentTurns(user, 8).catch(() => []))
       : [];
     await conversation.remember(user, text).catch(() => {});
-    if (naturalRouteShadow?.route === 'memory.doctor' && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
+    if (memoryDoctorEvidenceTurns.length > 0 && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
       const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
-      await replyWithOptionalDraftPreview(ctx, fallback);
+      await ctx.reply(fallback);
       await conversation.rememberAssistantReply(user, fallback).catch(() => {});
       return;
     }
+
     let bridgeFailed = false;
     let builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>> = {
       used: false,
@@ -3670,13 +3412,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       routingDecision: ''
     };
     try {
-      const bridgeUpdate = naturalRouteShadow?.route === 'memory.doctor' && shouldAttachMemoryDoctorEvidence(text)
+      const bridgeUpdate = memoryDoctorEvidenceTurns.length > 0
         ? buildUpdateWithText(
             ctx.update as unknown as Record<string, unknown>,
-            buildMemoryDoctorEvidencePrompt(
-              text,
-              memoryDoctorEvidenceTurns
-            )
+            buildMemoryDoctorEvidencePrompt(text, memoryDoctorEvidenceTurns)
           )
         : ctx.update as unknown as Record<string, unknown>;
       builderReply = await runBuilderTelegramBridge(bridgeUpdate);
@@ -3686,21 +3425,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     console.log(`[Bridge] user=${ctx.from?.id} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
-      if (naturalRouteShadow?.route === 'memory.doctor' && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
+      if (memoryDoctorEvidenceTurns.length > 0 && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
         const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
-        await replyWithOptionalDraftPreview(ctx, fallback);
+        await ctx.reply(fallback);
         await conversation.rememberAssistantReply(user, fallback).catch(() => {});
         return;
       }
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
       if (!contradictsResolvedList && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
-        if (builderReply.voiceMedia) {
-          await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
-        } else if (builderReply.responseText) {
-          await replyWithOptionalDraftPreview(ctx, builderReply.responseText);
+        await deliverBuilderReply(ctx, builderReply);
+        if (builderReply.responseText) {
+          await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         }
-        await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
         return;
       }
       console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);
@@ -3713,7 +3450,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const chatPrompt = buildSelectedListReferencePrompt(conversationFrame) || text;
 
     // Get LLM response with Spark context
-    const response = await chatWithOptionalDraftStreaming(ctx, chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
+    const response = await llm.chat(chatPrompt, renderSparkAccessRuntimeHint(accessProfile), memories);
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {
@@ -3884,13 +3621,11 @@ async function start() {
       mode: launchConfig.mode
     });
   }
-  const relay = await startMissionRelay(bot, {
-    getRuntimeStatus: () => ({
-      telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled_smoke' : pollingActive ? 'active' : 'starting',
-      pollingActive,
-      pollingStartedAt
-    })
+  setMissionRelayRuntimeStatus({
+    telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting',
+    pollingStartedAt: null
   });
+  const relay = await startMissionRelay(bot);
 
   // Check launch-critical connections.
   const llmHealthy = await llm.isAvailable();
@@ -3911,10 +3646,30 @@ async function start() {
   }
 
   await ensurePollingReady();
-  await bot.launch(() => {
-    pollingActive = true;
-    pollingStartedAt = new Date().toISOString();
-    console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+  const launchPromise = bot.launch();
+  const launchProbe = await Promise.race([
+    launchPromise.then(
+      () => ({ status: 'settled' as const }),
+      (error) => ({ status: 'failed' as const, error })
+    ),
+    wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
+  ]);
+  if (launchProbe.status === 'failed') {
+    throw launchProbe.error;
+  }
+  if (launchProbe.status === 'settled') {
+    throw new Error('Telegram polling stopped during startup.');
+  }
+  pollingActive = true;
+  setMissionRelayRuntimeStatus({
+    telegramPolling: 'active',
+    pollingStartedAt: new Date().toISOString()
+  });
+  console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+  void launchPromise.catch((err) => {
+    void releaseGatewayOwnership();
+    console.error('Telegram polling stopped:', err);
+    process.exit(1);
   });
 }
 
