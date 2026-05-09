@@ -128,3 +128,26 @@ export function renderMemoryDoctorEvidenceFallback(
   lines.push('', 'Diagnosis:', diagnosis);
   return lines.join('\n');
 }
+
+export function shouldPreferMemoryDoctorEvidenceFallback(
+  userRequest: string,
+  recentTurns: MemoryDoctorEvidenceTurn[]
+): boolean {
+  const normalizedRequest = userRequest.replace(/\s+/g, ' ').trim().toLowerCase();
+  const asksAboutBlankness =
+    /\b(?:went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about|what\s+happened)\b/.test(normalizedRequest);
+  if (!asksAboutBlankness) {
+    return false;
+  }
+
+  const assistantText = [...recentTurns]
+    .reverse()
+    .find((turn) => normalizeEvidenceRole(String(turn.role || 'user')) === 'assistant')
+    ?.text || '';
+  const normalizedAssistant = assistantText.replace(/\s+/g, ' ').trim().toLowerCase();
+  return (
+    isMemoryDoctorBridgeDetourReply(assistantText) ||
+    /\bcreator\b|\bmission\b|\bplanning\b/.test(normalizedAssistant) ||
+    /\bi do(?:n['’]?t| not) have visibility|\bcan(?:not|'t) verify|\bpaste\b/.test(normalizedAssistant)
+  );
+}

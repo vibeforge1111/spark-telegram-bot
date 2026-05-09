@@ -200,6 +200,7 @@ import {
   isMemoryDoctorBridgeDetourReply,
   renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
+  shouldPreferMemoryDoctorEvidenceFallback,
   shouldAttachMemoryDoctorEvidence
 } from './memoryDoctorBridge';
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
@@ -3654,6 +3655,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       ? selectMemoryDoctorEvidenceTurns(text, await conversation.getRecentTurns(user, 8).catch(() => []))
       : [];
     await conversation.remember(user, text).catch(() => {});
+    if (naturalRouteShadow?.route === 'memory.doctor' && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
+      const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
+      await replyWithOptionalDraftPreview(ctx, fallback);
+      await conversation.rememberAssistantReply(user, fallback).catch(() => {});
+      return;
+    }
     let bridgeFailed = false;
     let builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>> = {
       used: false,

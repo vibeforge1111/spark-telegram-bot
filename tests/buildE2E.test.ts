@@ -484,13 +484,12 @@ async function run(): Promise<void> {
 		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 		const originalBridge = builderBridge.runBuilderTelegramBridge;
-		const capturedBridgeTexts: string[] = [];
+		let bridgeCalls = 0;
 		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
-			const messagePayload = (updatePayload as any).message || {};
-			capturedBridgeTexts.push(String(messagePayload.text || ''));
+			bridgeCalls += 1;
 			return {
 				used: true,
-				responseText: 'Builder memory doctor handled the blankness.',
+				responseText: 'Builder should not handle this blankness request.',
 				decision: 'test',
 				bridgeMode: 'test',
 				routingDecision: 'plain_chat'
@@ -504,6 +503,14 @@ async function run(): Promise<void> {
 			priorCtx.message.text = 'what is route confidence in one sentence';
 			(priorCtx as any).update = { update_id: 5651, message: priorCtx.message };
 			await indexModule.handleTextMessage(priorCtx);
+			await conversationModule.conversation.remember(
+				{ id: testUserId, username: 'memory-test' },
+				'run memory doctor for last request'
+			);
+			await conversationModule.conversation.rememberAssistantReply(
+				{ id: testUserId, username: 'memory-test' },
+				'Both Spark MCP tools need permission to run. Which do you prefer?'
+			);
 			await conversationModule.conversation.recordInterruptedTask(
 				{ id: testUserId, username: 'memory-test' },
 				{ message: 'What do you know about yourself and where do you lack?', failure: 'message is too long', stage: 'telegram_message_handler' }
@@ -515,11 +522,11 @@ async function run(): Promise<void> {
 			(blankCtx as any).update = { update_id: 5652, message: blankCtx.message };
 			await indexModule.handleTextMessage(blankCtx);
 
-			const blankPayload = capturedBridgeTexts[capturedBridgeTexts.length - 1] || '';
-			assert.match(blankReplies.join('\n'), /Builder memory doctor handled the blankness/);
+			assert.equal(bridgeCalls, 1);
+			assert.match(blankReplies.join('\n'), /Memory Doctor/);
+			assert.match(blankReplies.join('\n'), /detoured into MCP\/tool permission/);
 			assert.doesNotMatch(blankReplies.join('\n'), /I recovered the last interrupted task/i);
-			assert.match(blankPayload, /Spark Telegram Memory Doctor evidence/);
-			assert.match(blankPayload, /- user: what is route confidence in one sentence/);
+			assert.doesNotMatch(blankReplies.join('\n'), /Builder should not handle/);
 		} finally {
 			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
 			restoreAxios();

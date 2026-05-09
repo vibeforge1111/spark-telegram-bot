@@ -66,6 +66,7 @@ import {
   isMemoryDoctorBridgeDetourReply,
   renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
+  shouldPreferMemoryDoctorEvidenceFallback,
   shouldAttachMemoryDoctorEvidence
 } from '../src/memoryDoctorBridge';
 
@@ -717,6 +718,19 @@ test('renders local fallback for Memory Doctor tool detours', () => {
   assert.match(reply, /Memory Doctor/);
   assert.match(reply, /without MCP\/tool approval/);
   assert.match(reply, /detoured into MCP\/tool permission/);
+  assert.equal(
+    shouldPreferMemoryDoctorEvidenceFallback('you went blank and lost context, what happened?', [
+      { role: 'user', text: 'run memory doctor for last request' },
+      { role: 'assistant', text: 'Both Spark MCP tools need permission to run.' }
+    ]),
+    true
+  );
+  assert.equal(
+    shouldPreferMemoryDoctorEvidenceFallback('run memory doctor for last request', [
+      { role: 'assistant', text: 'Both Spark MCP tools need permission to run.' }
+    ]),
+    false
+  );
 });
 
 test('uses recent working context for ambiguous creator-system follow-ups', () => {
