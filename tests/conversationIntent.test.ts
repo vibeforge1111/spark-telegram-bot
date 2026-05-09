@@ -707,6 +707,7 @@ test('selects immediate prior turns for contextual Memory Doctor evidence', () =
 
 test('renders local fallback for Memory Doctor tool detours', () => {
   assert.equal(isMemoryDoctorBridgeDetourReply('Both Spark MCP tools need permission to run.'), true);
+  assert.equal(isMemoryDoctorBridgeDetourReply('Still hitting the permissions gate. Approve `mcpsparkspark_reflect`.'), true);
   assert.equal(isMemoryDoctorBridgeDetourReply('I do not have visibility into what happened.'), true);
   assert.equal(isMemoryDoctorBridgeDetourReply('The previous turn was routed correctly.'), false);
 

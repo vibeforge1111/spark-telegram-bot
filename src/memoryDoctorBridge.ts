@@ -75,7 +75,10 @@ export function isMemoryDoctorBridgeDetourReply(reply: string): boolean {
   return (
     /\bmcp\b.*\bpermission/.test(normalized) ||
     /\bpermission\b.*\bmcp\b/.test(normalized) ||
+    /\bpermissions?\s+gate\b/.test(normalized) ||
     /\bapprove\b.*\btool/.test(normalized) ||
+    /\bapprove\b.*\bmcp/.test(normalized) ||
+    /\bmcpspark/.test(normalized) ||
     /\btool prompt\b/.test(normalized) ||
     /\brun\s+\/diagnose\b/.test(normalized) ||
     /\bi do(?:n't| not) have visibility\b/.test(normalized) ||
