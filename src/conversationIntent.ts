@@ -166,6 +166,9 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (isVoiceOnboardingSetupQuestion(normalized)) {
     return null;
   }
+  if (shouldPreferConversationalIdeation(normalized)) {
+    return null;
+  }
   if (
     /\bwhere\s+(?:do|does|are|is)\b/i.test(normalized) &&
     /\b(?:lack|lacks|weak|weakness|weaknesses|missing|limitations?)\b/i.test(normalized) &&
@@ -336,7 +339,10 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
 
   if (
     /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/i.test(normalized) &&
-    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(normalized) &&
+    (
+      /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(normalized) ||
+      /\b(?:do\s+not|don't|dont)\s+(?:build|create|make|scaffold|generate|start)\s+yet\b/i.test(normalized)
+    ) &&
     /\b(?:domain[-\s]*chip|chip)\b/i.test(normalized)
   ) {
     return null;
@@ -816,6 +822,9 @@ export function isExplicitContextualBuildRequest(text: string): boolean {
 
 export function isBuildContextRecallQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  if (isUserMemoryRecallQuestion(normalized)) {
+    return false;
+  }
   return (
     /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:did|have)\s+(?:you|we)\s+(?:just\s+)?(?:build|make|create|ship)\b/.test(normalized) ||
@@ -1686,6 +1695,24 @@ export function isAgentDoctrinePreferenceStatusQuestion(text: string): boolean {
     /\b(?:what|which|show|list|tell)\b/.test(normalized) &&
     /\b(?:preferences?|rules?|guidance|doctrine|style|tone|personality|interaction|communication)\b/.test(normalized) &&
     /\b(?:remember|saved|carrying|using|have|know|for me|with me|my agent|you)\b/.test(normalized)
+  );
+}
+
+export function isUserMemoryRecallQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (
+    /^memory\s+update\s*:/.test(normalized) ||
+    /\b(?:please\s+)?(?:remember|save)\s+(?:this|that)\b/.test(normalized)
+  ) {
+    return false;
+  }
+
+  return (
+    /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission\s+updates?|updates?|about\s+me|about\s+how\s+i|how\s+i\s+work|work\s+style)\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:prefer|preferred|preference|like)\b.*\bremember\b/.test(normalized) ||
+    /\bwhat\s+do\s+you\s+know\s+about\s+how\s+i\s+like\s+to\s+work\b/.test(normalized) ||
+    /\bwhat\b.*\b(?:stable\s+user\s+memory|recent\s+context|only\s+recent\s+context)\b/.test(normalized)
   );
 }
 

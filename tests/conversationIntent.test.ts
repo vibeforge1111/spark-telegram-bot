@@ -46,6 +46,7 @@ import {
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
+  isUserMemoryRecallQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -170,6 +171,16 @@ test('answers what we were going to build from recent context', () => {
   assert.ok(reply);
   assert.match(reply, /passive Spark bug recognition/);
   assert.match(reply, /Obsidian-friendly diagnostic notes/);
+});
+
+test('separates user memory recall from build context recall', () => {
+  assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
+  assert.equal(isBuildContextRecallQuestion('what do you remember about how I like mission updates?'), false);
+  assert.equal(
+    isUserMemoryRecallQuestion('what do you know about how I like to work, and what is only recent context?'),
+    true
+  );
+  assert.equal(isBuildContextRecallQuestion('we were gonna build something do you remember what it was'), true);
 });
 
 test('answers what was just built from completed diagnostic mission notes', () => {
@@ -593,6 +604,10 @@ test('extracts natural domain chip create requests without slash-command handoff
     parseNaturalChipCreateIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null
   );
+  assert.equal(
+    parseNaturalChipCreateIntent('do not build yet, help me think through a domain chip for route confidence'),
+    null
+  );
   assert.equal(parseNaturalChipCreateIntent('which chips are active?'), null);
 });
 
@@ -932,6 +947,10 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
   assert.equal(extractSparkSelfImprovementGoal('Can you help me set up voice locally for Spark?'), null);
   assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
+  assert.equal(
+    extractSparkSelfImprovementGoal('do not build yet, help me think through a domain chip for route confidence'),
+    null
+  );
   assert.match(
     extractSparkSelfImprovementGoal('Can you add a capability for Spark to read my emails?') || '',
     /Improve Spark capability safely/

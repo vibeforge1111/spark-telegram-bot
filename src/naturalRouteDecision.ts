@@ -29,6 +29,7 @@ import {
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isStandaloneAgentDoctrinePreference,
+  isUserMemoryRecallQuestion,
   parseContextualAccessChangeIntent,
   parseMissionUpdatePreferenceIntent,
   parseNaturalAccessChangeIntent,
@@ -149,7 +150,7 @@ function isReadoutOnlyFollowup(text: string): boolean {
 function isGlobalDoctrineLikeRequest(text: string): boolean {
   return isGlobalAgentDoctrineRequest(text) || (
     /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b|\bglobally\b|\bsystem-wide\b/i.test(text) &&
-    /\b(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference)\b/i.test(text)
+    /\b(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/i.test(text)
   );
 }
 
@@ -215,7 +216,8 @@ export function decideNaturalRoute(
 
   const buildIntent = parseBuildIntent(normalized);
   const chipBrief = parseNaturalChipCreateIntent(normalized);
-  const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
+  const conversationalIdeation = shouldPreferConversationalIdeation(normalized);
+  const earlyCreatorMission = isReadoutOnlyFollowup(normalized) || conversationalIdeation
     ? null
     : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
   if (isGlobalDoctrineLikeRequest(normalized)) {
@@ -372,6 +374,20 @@ export function decideNaturalRoute(
       payload: { directive: memoryDirective },
       context_source: 'latest_message',
       matched_signals: ['plain_chat_memory_directive'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isUserMemoryRecallQuestion(normalized)) {
+    return decision({
+      route: 'memory.recall',
+      owner_system: 'spark-intelligence-builder',
+      confidence: 'explicit',
+      action: 'memory.recall',
+      payload: {},
+      context_source: 'cold_memory',
+      matched_signals: ['user_memory_recall_question'],
       blocked_by: [],
       requires_confirmation: false
     });
@@ -673,7 +689,7 @@ export function decideNaturalRoute(
     });
   }
 
-  if (shouldPreferConversationalIdeation(normalized)) {
+  if (conversationalIdeation) {
     return decision({
       route: 'conversation.ideation',
       owner_system: 'spark-intelligence-builder',

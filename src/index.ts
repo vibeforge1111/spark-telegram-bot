@@ -162,6 +162,7 @@ import {
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
+  isUserMemoryRecallQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -2850,9 +2851,7 @@ function answerFromRememberTurns(text: string, turns: ReadonlyArray<{ role: stri
     return null;
   }
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  const asksRememberedPreference =
-    /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission updates?|updates?)\b/.test(normalized) ||
-    /\bwhat\b.*\b(?:prefer|preferred|preference)\b.*\bremember\b/.test(normalized);
+  const asksRememberedPreference = isUserMemoryRecallQuestion(normalized);
   if (!asksRememberedPreference && !/\b(?:asked you to remember|told you to remember|session test code word|code word)\b/.test(normalized)) {
     return null;
   }
@@ -3202,6 +3201,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ...await conversation.getRecentTurns(user, 40)
   ]);
   if (recentRememberedAnswer) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall');
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(recentRememberedAnswer);
     await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});

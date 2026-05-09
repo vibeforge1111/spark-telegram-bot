@@ -217,6 +217,14 @@ test('routes explicit current-plan saves to Builder memory write', () => {
   assert.equal(route.payload.directive, 'my current plan is Neon Harbor Telegram memory test');
 });
 
+test('routes user memory recall questions away from build-context recall', () => {
+  const route = decideNaturalRoute('what do you remember about how I like mission updates?');
+
+  assert.equal(route.route, 'memory.recall');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.context_source, 'cold_memory');
+});
+
 test('keeps casual current-plan mentions conversational', () => {
   const route = decideNaturalRoute('Actually, my current plan is run a fresh diagnostics scan.');
 
@@ -231,4 +239,12 @@ test('blocks global agent doctrine changes from a chat turn', () => {
   assert.equal(route.confidence, 'blocked');
   assert.equal(route.requires_confirmation, true);
   assert.deepEqual(route.blocked_by, ['chat_cannot_change_global_agent_doctrine']);
+});
+
+test('blocks global clarification doctrine changes from a chat turn', () => {
+  const route = decideNaturalRoute('all Spark agents should ask clarifying questions before missions');
+
+  assert.equal(route.route, 'agent_doctrine.global_blocked');
+  assert.equal(route.confidence, 'blocked');
+  assert.equal(route.requires_confirmation, true);
 });
