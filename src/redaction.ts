@@ -14,6 +14,7 @@ const GENERIC_TOKEN_PATTERNS = [
   /\bnpm_[A-Za-z0-9]{20,}\b/g,
   /\bpypi-[A-Za-z0-9_-]{20,}\b/g,
   /\bdop_v1_[A-Za-z0-9_-]{20,}\b/g,
+  /\bsscli_[A-Za-z0-9._-]{20,}\b/g,
 ];
 const ENV_SECRET_ASSIGNMENT =
   /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*)(["']?)([^\s"',;]+)/gi;

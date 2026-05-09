@@ -29,7 +29,7 @@
     "ai"
   ],
   "author": "",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
     "axios": "^1.15.2",

@@ -3,6 +3,7 @@ import { maskSecret, redactForLog, redactText } from '../src/redaction';
 
 const openAiKeyFixture = `sk-${'abcdefghijklmnopqrstuvwxyz'}123456`;
 const telegramTokenFixture = ['1234567890', 'AA' + 'B'.repeat(34)].join(':');
+const swarmCliTokenFixture = `sscli_v1.${'a'.repeat(48)}.${'b'.repeat(43)}`;
 
 function test(name: string, fn: () => void): void {
   try {
@@ -23,12 +24,14 @@ test('redacts common credential shapes', () => {
     `OPENAI_API_KEY=${openAiKeyFixture}`,
     'Authorization: Bearer github_pat_1234567890abcdefghijklmnopqrstuvwxyz',
     `BOT_TOKEN=${telegramTokenFixture}`,
+    `--access-token ${swarmCliTokenFixture}`,
     '"password":"super-secret-value"',
     'postgres://user:pass@localhost/db',
   ].join('\n');
   const redacted = redactText(text);
   assert(!redacted.includes('abcdefghijklmnopqrstuvwxyz123456'));
   assert(!redacted.includes(telegramTokenFixture));
+  assert(!redacted.includes(swarmCliTokenFixture));
   assert(!redacted.includes('super-secret-value'));
   assert(!redacted.includes('user:pass'));
 });

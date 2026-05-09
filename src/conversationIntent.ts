@@ -163,6 +163,9 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (!normalized || parseBuildIntent(normalized)) {
     return null;
   }
+  if (isVoiceAnswerRequest(normalized)) {
+    return null;
+  }
   if (isVoiceOnboardingSetupQuestion(normalized)) {
     return null;
   }
@@ -214,6 +217,22 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   }
 
   return null;
+}
+
+export function isVoiceAnswerRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+  const lowered = normalized.toLowerCase();
+  if (/^\/voice\s+(?:ask|answer)\s+\S/i.test(normalized)) {
+    return true;
+  }
+  return [
+    /^(?=.{8,})(.+?)\s+(?:as|in|with)\s+(?:a\s+)?(?:voice|audio|spoken)\s+(?:message|reply|note)$/i,
+    /^(?:send|reply)\s+(?:me\s+)?(?:a\s+)?(?:voice|audio|spoken)\s+(?:message|reply|note)\s+(?:about|on|for)\s+.+$/i,
+    /^(?:answer|respond\s+to)\s+.+?\s+(?:by|with|in)\s+(?:voice|audio|speech)$/i,
+  ].some((pattern) => pattern.test(lowered));
 }
 
 function isVoiceOnboardingSetupQuestion(text: string): boolean {

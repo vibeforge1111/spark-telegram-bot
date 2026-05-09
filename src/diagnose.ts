@@ -370,6 +370,9 @@ export function inferDiagnoseLikelyIssue(args: {
     return 'Likely issue: Telegram relay runtime is not reachable or profile/port identity is wrong.';
   }
   if (!args.chatProviderOk) {
+    if (args.spawnerOk && args.missionPingOk === true) {
+      return 'Likely issue: plain chat provider is unhealthy, but Spawner mission routing is healthy. Plain chat may need a provider timeout/key/base URL check; /run builds can still work.';
+    }
     return 'Likely issue: plain chat provider is unhealthy. Check the selected chat model key/base URL, then restart the Telegram gateway.';
   }
   if (args.builder.mode === 'required' && !args.builder.available) {

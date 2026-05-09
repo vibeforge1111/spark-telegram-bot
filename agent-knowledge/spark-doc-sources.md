@@ -4,6 +4,9 @@ This knowledge pack is distilled from the local Spark docs and installed module 
 
 Public docs source:
 
+- `C:\Users\USER\Desktop\spark-domain-chip-labs\docs\SPARK_SYSTEM_MAP.md`
+- `C:\Users\USER\Desktop\spark-domain-chip-labs\docs\PUBLIC_EXPERIMENT_HANDOFF_2026-05-09.md`
+- `C:\Users\USER\Desktop\spark-domain-chip-labs\docs\creator_system\PUBLIC_EXPERIMENT_TASKS_2026-05-09.md`
 - `C:\Users\USER\Desktop\spark-agent-site\docs\index.md`
 - `C:\Users\USER\Desktop\spark-agent-site\docs\commands.md`
 - `C:\Users\USER\Desktop\spark-agent-site\docs\providers.md`

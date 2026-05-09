@@ -23,7 +23,9 @@ Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a 
 - builds a per-turn conversation frame so shorthand follow-ups like "change it to 4" or "the second one" can resolve against recent context
 - keeps admin-only mission control commands in Telegram
 - sends `/run` goals into `Spawner UI`
-- sends `/recursive` reads and supported review decisions into the Spark Swarm Workspace Recursions surface
+- runs local recursive Builder chip loops and renders concise `/recursive` reports in Telegram
+- can read/sync Workspace recursion state in operator environments where Spark Swarm is installed
+- sends `/recursive` reads and supported review decisions into Spark Swarm Workspace when operator sync is configured
 - relays mission status and terminal updates back to Telegram
 
 ## Current Architecture
@@ -37,7 +39,8 @@ flowchart TD
   Builder --> Researcher["spark-researcher"]
   Gateway --> SpawnerBridge["Spawner bridge<br/>src/spawner.ts"]
   SpawnerBridge --> Spawner["spawner-ui APIs"]
-  Gateway --> Workspace["Spark Swarm Workspace<br/>/runs?tab=recursions"]
+  Gateway --> Recursive["Local recursive status files<br/>Builder chip loops"]
+  Gateway -. "operator/private" .-> Workspace["Spark Swarm Workspace<br/>/runs?tab=recursions"]
   Spawner --> Relay["mission relay<br/>127.0.0.1:8788 or private service URL"]
   Relay --> Gateway
 ```
@@ -88,7 +91,9 @@ Admin-only mission control:
 - `/schedule "<cron>" loop <chipKey> [rounds]`
 - `/schedules`
 
-`/recursive approve|defer|reject|more-eval` mutates Spark Swarm Workspace only for supported inbox items. Insight absorb items support approve; mastery review items support approve, defer, reject, and more-eval. Upgrade delivery, contradiction resolution, and evolution-mode changes still route operators to Workspace Decisions.
+`/recursive start <chipKey> rounds <n>` has a public local path for Builder chip loops. It can run without Spark Swarm by using local status files and the Builder runtime installed by the Spark starter stack.
+
+`/recursive approve|defer|reject|more-eval` mutates Spark Swarm Workspace only in operator environments where Workspace sync is configured and only for supported inbox items. Insight absorb items support approve; mastery review items support approve, defer, reject, and more-eval. Upgrade delivery, contradiction resolution, and evolution-mode changes still route operators to Workspace Decisions.
 
 Natural language build requests also work for admins. For example: "build a landing page for my app" can route into the Spawner PRD/canvas path instead of returning command help.
 
@@ -289,6 +294,16 @@ If you are Claude Code, Codex, or another LLM agent operating this repo:
 - [TELEGRAM_WEBHOOK_FUTURE.md](./TELEGRAM_WEBHOOK_FUTURE.md)
 
 Historical webhook/tunnel architecture notes were removed from the public launch docs because they are not part of this release.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
+
+Spark Swarm is AGPL-licensed. Other Spark repos are MIT unless their
+LICENSE file says otherwise. Spark Pro hosted services, private corpuses,
+brand assets, deployment secrets, and Pro drops are not included in
+open-source licenses. Pro drops do not grant redistribution rights unless
+a separate written license says so.
 
 ## Notes
 

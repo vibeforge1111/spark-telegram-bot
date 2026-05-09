@@ -363,11 +363,93 @@ function absoluteSpawnerUrl(value: string | undefined, baseUrl = spawnerPublicUr
 }
 
 function formatCreatorMode(value: string | undefined): string {
-  return (value || 'unknown').replace(/_/g, ' ');
+  const normalized = (value || 'unknown').replace(/_/g, ' ');
+  if (value === 'full_path') return 'full creator system';
+  if (value === 'specialization_path') return 'specialization path';
+  if (value === 'domain_chip') return 'domain chip';
+  return normalized;
 }
 
 function formatCreatorReadiness(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
+}
+
+function formatCreatorPrivacy(value: string | undefined): string {
+  if (value === 'local_only') return 'private workspace';
+  if (value === 'github_pr') return 'GitHub review';
+  if (value === 'swarm_shared') return 'Swarm sharing';
+  return value || 'private workspace';
+}
+
+function formatCreatorCheckHeadline(status: string): string {
+  if (status === 'passed') return '🟢 Creator checks passed.';
+  if (status === 'failed') return '🔴 Creator checks need attention.';
+  if (status === 'blocked') return '🟡 Creator checks are blocked.';
+  return '🟡 Creator checks finished.';
+}
+
+export function formatCreatorDomainLabel(value: string | undefined): string {
+  const raw = (value || '').trim();
+  if (!raw) return 'Unknown domain';
+
+  const words = raw
+    .replace(/[_/]+/g, '-')
+    .split(/-|\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+  const controlWords = new Set([
+    'a',
+    'an',
+    'the',
+    'private',
+    'local',
+    'public',
+    'shared',
+    'network',
+    'benchmark',
+    'benchmarked',
+    'specialization',
+    'specialisation',
+    'path',
+    'autoloop',
+    'auto',
+    'loop',
+    'use',
+    'create',
+    'creator',
+    'mission',
+    'with',
+    'for'
+  ]);
+  const kept = words.filter((word) => !controlWords.has(word.toLowerCase()));
+  const labelWords = kept.length > 0 ? kept : words;
+
+  return labelWords
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (['ai', 'api', 'llm', 'ui', 'ux', 'yc'].includes(lower)) return lower.toUpperCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
+}
+
+function formatCreatorArtifactLabel(value: string): string {
+  const labels: Record<string, string> = {
+    domain_chip: 'domain chip',
+    benchmark_pack: 'benchmark pack',
+    specialization_path: 'specialization path',
+    autoloop_policy: 'autoloop policy',
+    tool_integration: 'Telegram/Spawner wiring',
+    swarm_publish_packet: 'Swarm review packet',
+    creator_report: 'creator report'
+  };
+  return labels[value] || value.replace(/_/g, ' ');
+}
+
+function formatCreatorArtifactLines(artifacts: string[] | undefined): string[] {
+  const usable = Array.isArray(artifacts) ? artifacts.filter((artifact) => artifact.trim()) : [];
+  if (usable.length === 0) return ['- workspace plan'];
+  return usable.slice(0, 6).map((artifact) => `- ${formatCreatorArtifactLabel(artifact)}`);
 }
 
 function latestCreatorValidationRun(trace: CreatorMissionTrace): CreatorValidationRun | null {
@@ -413,7 +495,7 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
       ? trace.tasks.length
       : null;
   const canvasUrl = absoluteSpawnerUrl(result.canvasUrl || trace.links?.canvas, baseUrl);
-  const domain = String(intent.target_domain || 'creator path');
+  const domain = formatCreatorDomainLabel(intent.target_domain);
   const artifacts = Array.isArray(trace.artifacts) && trace.artifacts.length > 0
     ? trace.artifacts.slice(0, 6).map(formatArtifactLabel).join(', ')
     : 'artifact plan pending';
@@ -455,7 +537,7 @@ export function formatCreatorMissionStatusSummary(
   const blockers = Array.isArray(trace.blockers) ? trace.blockers.filter((blocker) => String(blocker).trim()) : [];
   const artifactCount = Array.isArray(trace.artifact_manifests) ? trace.artifact_manifests.length : trace.artifacts?.length || 0;
   const issueCount = Array.isArray(trace.artifact_manifest_validation_issues) ? trace.artifact_manifest_validation_issues.length : 0;
-  const domain = String(intent.target_domain || 'Creator');
+  const domain = formatCreatorDomainLabel(intent.target_domain);
   const statusIcon = blockers.length > 0 || issueCount > 0 ? '🟡' : creatorValidationIcon(latestRun?.status || trace.stage_status);
 
   return [
