@@ -332,8 +332,17 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   const wantPattern =
     /\bi\s+(?:need|want|could\s+use|would\s+like)\b[^.\n]{0,30}\b(?:a|an|another|new)?\s*(?:domain[-\s]*chip|chip)\b/i;
   const imperativePattern = /^\s*(?:a\s+)?new\s+(?:domain[-\s]*)?chip\s+(?:for|that|which|to)\b/i;
+  const namedPattern = /^\s*(?:a\s+)?(?:new\s+)?domain[-\s]*chip\s+(?:called|named)\s+\S/i;
 
-  if (!createPattern.test(normalized) && !wantPattern.test(normalized) && !imperativePattern.test(normalized)) {
+  if (
+    /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/i.test(normalized) &&
+    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(normalized) &&
+    /\b(?:domain[-\s]*chip|chip)\b/i.test(normalized)
+  ) {
+    return null;
+  }
+
+  if (!createPattern.test(normalized) && !wantPattern.test(normalized) && !imperativePattern.test(normalized) && !namedPattern.test(normalized)) {
     return null;
   }
 

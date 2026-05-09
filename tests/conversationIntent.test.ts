@@ -581,6 +581,18 @@ test('extracts natural domain chip create requests without slash-command handoff
     parseNaturalChipCreateIntent('build a domain-chip for Telegram memory routing'),
     'Telegram memory routing'
   );
+  assert.equal(
+    parseNaturalChipCreateIntent('make me a chip that turns meeting notes into action items'),
+    'turns meeting notes into action items'
+  );
+  assert.equal(
+    parseNaturalChipCreateIntent('domain-chip named Spark Memory Watcher for memory drift'),
+    'Spark Memory Watcher for memory drift'
+  );
+  assert.equal(
+    parseNaturalChipCreateIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
+    null
+  );
   assert.equal(parseNaturalChipCreateIntent('which chips are active?'), null);
 });
 

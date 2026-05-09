@@ -278,6 +278,14 @@ function isBuildContextRecallProbe(text: string): boolean {
   );
 }
 
+function isPreBuildShapingRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
+    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+  );
+}
+
 function isExactReplyNoFileProbe(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
@@ -387,6 +395,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
+  if (isPreBuildShapingRequest(trimmed)) return null;
 
   const stripped = extractBuildDescription(trimmed);
 

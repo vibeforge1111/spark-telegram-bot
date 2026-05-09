@@ -184,6 +184,10 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Reply exactly SPARK_AGI_REALPATH_OK and do not build anything.'), null);
   assert.equal(parseBuildIntent('we were gonna build something do you remember what it was'), null);
   assert.equal(parseBuildIntent('what were we going to build?'), null);
+  assert.equal(
+    parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
+    null
+  );
   assert.ok(parseBuildIntent('make a daily report dashboard for investors'));
   assert.ok(parseBuildIntent('Build a private local-first dashboard for memory reports'));
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
