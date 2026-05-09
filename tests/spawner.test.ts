@@ -397,16 +397,15 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission status/);
-    assert.match(message, /Mission: mission-creator-1/);
-    assert.match(message, /Domain: Startup YC/);
-    assert.match(message, /Stage: validation failed \(failed\)/);
-    assert.match(message, /Publish readiness: workspace prepared/);
-    assert.match(message, /Artifacts: 2/);
-    assert.match(message, /Manifest issues: 1/);
-    assert.match(message, /Latest validation: failed \(1 passed, 1 failed, 1 skipped\)/);
-    assert.match(message, /Blockers: One or more validation commands failed/);
-    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Startup YC creator status/);
+    assert.doesNotMatch(message, /Mission: mission-creator-1/);
+    assert.match(message, /failed at validation failed/);
+    assert.match(message, /workspace prepared/);
+    assert.match(message, /checks: failed \(1 passed, 1 failed, 1 skipped\)/);
+    assert.match(message, /1 manifest issue/);
+    assert.match(message, /blocker: One or more validation commands failed/);
+    assert.match(message, /2 artifact plans/);
+    assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 
   await test('creatorMissionValidate posts a creator validation request to Spawner', async () => {
@@ -481,14 +480,15 @@ async function run(): Promise<void> {
       'http://spawner.test/'
     );
 
-    assert.match(message, /Creator mission validation failed/);
-    assert.match(message, /Mission: mission-creator-1/);
-    assert.match(message, /Commands: 2/);
-    assert.match(message, /Passed: 1/);
-    assert.match(message, /Failed: 1/);
-    assert.match(message, /Needs attention:/);
-    assert.match(message, /startup-bench - python -m thestartupbench run-suite/);
-    assert.match(message, /Mission board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Creator validation failed/);
+    assert.doesNotMatch(message, /Mission: mission-creator-1/);
+    assert.match(message, /2 commands/);
+    assert.match(message, /1 passed/);
+    assert.match(message, /1 failed/);
+    assert.match(message, /Needs attention/);
+    assert.match(message, /failed: startup-bench \(Validation command exited non-zero\)/);
+    assert.doesNotMatch(message, /python -m thestartupbench/);
+    assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
   });
 
   await test('missionCommand formats provider status for Telegram', async () => {
