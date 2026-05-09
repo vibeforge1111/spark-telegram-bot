@@ -1120,7 +1120,6 @@ export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
     statusLines.length > 0 ? 'Status' : null,
     ...statusLines,
     '',
-    'Recent',
     ...(timeline.length > 0 ? timeline : ['- no timeline events']),
     '',
     'Workspace',
