@@ -624,6 +624,10 @@ test('extracts natural creator mission requests for QA Operator benchmark work',
   assert.match(intent?.brief || '', /Canonical target domain: spark-qa-operator/);
   assert.match(intent?.brief || '', /benchmark lanes and product QA surfaces under Spark QA Operator/);
   assert.match(intent?.brief || '', /domain-chip-spark-qa-operator/);
+  assert.equal(
+    parseNaturalCreatorMissionIntent('do not build yet, help me think through a domain chip for route confidence'),
+    null
+  );
 
   assert.equal(
     parseNaturalCreatorMissionIntent('show me the Spark QA Operator report'),
@@ -1097,6 +1101,7 @@ test('does not persist one-off or global doctrine requests as personal agent gui
 
   assert.equal(isGlobalAgentDoctrineRequest('Make all Spark agents use this style globally.'), true);
   assert.equal(isGlobalAgentDoctrineRequest('Make every agent reply with this tone.'), true);
+  assert.equal(isGlobalAgentDoctrineRequest('all Spark agents should ask clarifying questions before missions'), true);
   assert.equal(isGlobalAgentDoctrineRequest('build a global dashboard for agents'), false);
   assert.match(formatGlobalAgentDoctrineRequestReply(), /cannot change all Spark agents globally/);
 });

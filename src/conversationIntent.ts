@@ -500,6 +500,7 @@ function normalizeCreatorMissionBrief(text: string, contextText = ''): string {
 export function parseNaturalCreatorMissionIntent(text: string, context: NaturalCreatorMissionContext = {}): NaturalCreatorMissionIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
+  if (shouldPreferConversationalIdeation(normalized)) return null;
   const contextText = creatorContextText(context);
   const contextualMission = isContextualCreatorSystemMission(normalized, contextText);
   if (!isQaOperatorCreatorMission([normalized, contextText].filter(Boolean).join(' ')) && !isCreatorSystemMission(normalized) && !contextualMission) return null;
@@ -1646,7 +1647,7 @@ export function isGlobalAgentDoctrineRequest(text: string): boolean {
   return (
     /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b/.test(normalized) ||
     /\b(?:globally|system-wide|production doctrine|default doctrine)\b/.test(normalized)
-  ) && /\b(?:style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference)\b/.test(normalized);
+  ) && /\b(?:style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/.test(normalized);
 }
 
 export function formatGlobalAgentDoctrineRequestReply(): string {
