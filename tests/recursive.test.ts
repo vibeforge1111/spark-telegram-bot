@@ -79,13 +79,15 @@ test('renders compact recursive session and path lists', () => {
   assert.match(sessionList, /⚪ Startup YC Builder Chip Loop · Completed/);
   assert.doesNotMatch(sessionList, /🟡 1\./);
   assert.doesNotMatch(sessionList, /⚪ 2\./);
-  assert.match(sessionList, /Use \/recursive report 1 or \/recursive trace 1\./);
+  assert.match(sessionList, /Ask: show Startup YC report\./);
+  assert.doesNotMatch(sessionList, /Use \/recursive report 1/);
   assert.doesNotMatch(sessionList, /- \/recursive report 1/);
   const paths = renderRecursivePaths(sessions);
   assert.match(paths, /🟡 Startup YC/);
   assert.doesNotMatch(paths, /🟡 1\./);
   assert.match(paths, /2 loops · 1 loop need review/);
-  assert.match(paths, /Use \/recursive sessions to pick a loop\./);
+  assert.match(paths, /Pick a path by name\./);
+  assert.doesNotMatch(paths, /Use \/recursive sessions/);
   assert.doesNotMatch(paths, /May \d/);
 });
 
@@ -633,8 +635,7 @@ test('maps workspace-scoped Builder chip loops into Telegram recursive sessions'
   assert.equal(trace.timeline[0].kind, 'outcome');
   assert.equal(trace.timeline[0].status, 'improved');
   assert.equal(trace.timeline[0].summary, 'Final round improved. builder chip loop best metric 0.72');
-  assert.equal(trace.timeline[1].kind, 'artifact');
-  assert.equal(trace.timeline[1].status, 'run_trace');
+  assert.equal(trace.timeline.some((item) => item.kind === 'artifact'), false);
 
   const numericTrace = workspaceTraceView(snapshot, '1');
   assert.equal(numericTrace.session_id, 'path_builder_chip_startup_yc');
@@ -723,8 +724,8 @@ test('orders Workspace trace outcomes by newest run before rendering', () => {
   const reply = renderRecursiveTraceView(trace);
   assert.match(reply, /🟢 latest run improved - overall score 0\.8538/);
   assert.doesNotMatch(reply, /- 🟢 latest run improved/);
-  assert.match(reply, /candidate trace saved/);
-  assert.doesNotMatch(reply, /- candidate trace saved/);
+  assert.doesNotMatch(reply, /candidate trace saved/);
+  assert.doesNotMatch(reply, /candidate score saved/);
 });
 
 test('reports non-Builder Workspace loop artifacts without leaking unrelated refs', () => {
@@ -841,8 +842,7 @@ test('reports non-Builder Workspace loop artifacts without leaking unrelated ref
   assert.doesNotMatch(autoloopReport, /Prompt benchmark run JSON/);
 
   const labTrace = workspaceTraceView(snapshot, 'path_domain_chip_lab_workspace_smoke_loop');
-  assert.equal(labTrace.timeline.filter((item) => item.kind === 'artifact').length, 1);
-  assert.equal(labTrace.timeline.find((item) => item.kind === 'artifact')?.title, 'Domain chip lab telemetry');
+  assert.equal(labTrace.timeline.filter((item) => item.kind === 'artifact').length, 0);
 });
 
 test('reports Workspace best outcome id when snapshot omits outcome bodies', () => {

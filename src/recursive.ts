@@ -948,7 +948,9 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
     lines.push(`${icon} ${sessionDisplayTitle(session)}${status}`);
   }
   if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more hidden. Use /recursive paths for lanes.`);
-  lines.push('', 'Use /recursive report 1 or /recursive trace 1.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
+  const firstTitle = visible[0] ? sessionDisplayTitle(visible[0]) : null;
+  if (firstTitle) lines.push('', `Ask: show ${firstTitle} report.`);
+  lines.push('', 'Workspace', sparkWorkspaceRecursionsUrl());
   return lines.join('\n');
 }
 
@@ -972,7 +974,7 @@ export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): stri
     lines.push('', `${icon} ${labelFromKey(group.domain)}`, `${pluralize(group.count, 'loop')} · ${review}`);
   }
   if (groups.length > visible.length) lines.push('', `${groups.length - visible.length} more hidden.`);
-  lines.push('', 'Use /recursive sessions to pick a loop.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
+  lines.push('', 'Pick a path by name.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
   return lines.join('\n');
 }
 
@@ -1403,12 +1405,14 @@ export function workspaceTraceView(snapshot: SparkWorkspaceSnapshot, id: string)
     timeline: [
       ...outcomeTimeline,
       ...supportingTimeline,
-      ...artifacts.slice(-3).reverse().map((item) => ({
-        kind: 'artifact',
-        title: item.label || item.id,
-        status: item.kind,
-        summary: item.path || item.url || item.id
-      }))
+      ...(outcomeTimeline.length > 0
+        ? []
+        : artifacts.slice(-1).map((item) => ({
+          kind: 'artifact',
+          title: item.label || item.id,
+          status: item.kind,
+          summary: item.path || item.url || item.id
+        })))
     ]
   };
 }
