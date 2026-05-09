@@ -608,6 +608,40 @@ test('extracts natural creator mission requests for QA Operator benchmark work',
   );
 });
 
+test('uses recent working context for ambiguous creator-system follow-ups', () => {
+  const context = {
+    recentMessages: [
+      'We are building Spark QA Operator for Telegram and Workspace quality.',
+      'It should improve recursive reports, creator missions, auth pairing, Canvas, and Kanban checks.'
+    ]
+  };
+  const intent = parseNaturalCreatorMissionIntent(
+    'make this better with benchmarks, specialization path, and autoloops',
+    context
+  );
+  assert.equal(intent?.privacyMode, 'local_only');
+  assert.match(intent?.brief || '', /Improve Spark QA Operator/);
+  assert.match(intent?.brief || '', /Canonical target domain: spark-qa-operator/);
+  assert.match(intent?.brief || '', /Telegram natural-language QA flows/);
+
+  assert.equal(
+    parseNaturalCreatorMissionIntent('make this better with benchmarks and autoloops'),
+    null
+  );
+
+  const generic = parseNaturalCreatorMissionIntent(
+    'turn this into a benchmark pack and autoloop policy',
+    {
+      recentMessages: [
+        'We are discussing a personal AI security questionnaire operator.',
+        'The operator should answer vendor security forms with evidence and review gates.'
+      ]
+    }
+  );
+  assert.match(generic?.brief || '', /Recent working context: We are discussing a personal AI security questionnaire operator/);
+  assert.match(generic?.reason || '', /artifact manifests/);
+});
+
 test('extracts natural recursive commands for QA Operator loops', () => {
   assert.deepEqual(
     parseNaturalRecursiveCommandIntent('show me the QA tester report'),

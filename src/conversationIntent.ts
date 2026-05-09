@@ -367,6 +367,10 @@ export interface NaturalCreatorMissionIntent {
   reason: string;
 }
 
+export interface NaturalCreatorMissionContext {
+  recentMessages?: string[];
+}
+
 export interface NaturalRecursiveCommandIntent {
   rawCommand: string;
   reason: string;
@@ -418,6 +422,27 @@ function isCreatorSystemMission(text: string): boolean {
   );
 }
 
+function isAmbiguousCreatorFollowup(text: string): boolean {
+  return /\b(?:it|this|that|these|those|current|same|what\s+we(?:'re| are)?\s+(?:working\s+on|discussing|building)|what\s+we\s+talked\s+about)\b/i.test(text);
+}
+
+function creatorContextText(context: NaturalCreatorMissionContext = {}): string {
+  return (context.recentMessages || [])
+    .filter(Boolean)
+    .slice(-15)
+    .join('\n')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isContextualCreatorSystemMission(text: string, contextText: string): boolean {
+  if (!contextText || !isAmbiguousCreatorFollowup(text)) return false;
+  return (
+    /\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand|turn)\b/i.test(text) &&
+    /\b(?:creator\s+mission|creator\s+system|domain[-\s]*chip|benchmark\s+pack|benchmarks?|evals?|specialization\s+path|autoloop(?:\s+policy)?|swarm\s+review\s+packet)\b/i.test(text)
+  );
+}
+
 function qaOperatorCreatorBrief(text: string): string {
   const focusParts = [];
   if (/\btelegram\b/i.test(text)) focusParts.push('Telegram natural-language QA flows');
@@ -443,31 +468,38 @@ function qaOperatorCreatorBrief(text: string): string {
   ].join(' ');
 }
 
-function normalizeCreatorMissionBrief(text: string): string {
+function normalizeCreatorMissionBrief(text: string, contextText = ''): string {
   const normalized = text.replace(/\s+/g, ' ').trim().replace(/[.!?]+$/g, '');
-  if (isQaOperatorCreatorMission(normalized)) {
-    return qaOperatorCreatorBrief(normalized);
+  const combined = [normalized, contextText].filter(Boolean).join(' ');
+  if (isQaOperatorCreatorMission(combined)) {
+    return qaOperatorCreatorBrief(combined);
   }
-  return [
+  const briefParts = [
     normalized,
+    contextText ? `Recent working context: ${contextText}` : '',
     'Use Spark creator-system standards: creator intent packet, artifact manifests, benchmark gates, evidence ladder, local/private boundary, rollback note, and review packet only when gates allow it.'
-  ].join(' ');
+  ];
+  return briefParts.filter(Boolean).join(' ');
 }
 
-export function parseNaturalCreatorMissionIntent(text: string): NaturalCreatorMissionIntent | null {
+export function parseNaturalCreatorMissionIntent(text: string, context: NaturalCreatorMissionContext = {}): NaturalCreatorMissionIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
-  if (!isQaOperatorCreatorMission(normalized) && !isCreatorSystemMission(normalized)) return null;
+  const contextText = creatorContextText(context);
+  const contextualMission = isContextualCreatorSystemMission(normalized, contextText);
+  if (!isQaOperatorCreatorMission([normalized, contextText].filter(Boolean).join(' ')) && !isCreatorSystemMission(normalized) && !contextualMission) return null;
+  if (isAmbiguousCreatorFollowup(normalized) && !contextText) return null;
   if (/\b(?:show|list|status|report|trace|review)\b/i.test(normalized) && !/\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|improve|upgrade|expand)\b/i.test(normalized)) {
     return null;
   }
 
   const privacyMode = normalizeCreatorMissionPrivacy(normalized);
+  const qaOperator = isQaOperatorCreatorMission([normalized, contextText].filter(Boolean).join(' '));
   return {
-    brief: normalizeCreatorMissionBrief(normalized),
+    brief: normalizeCreatorMissionBrief(normalized, contextualMission ? contextText : ''),
     privacyMode,
     riskLevel: privacyMode === 'swarm_shared' ? 'high' : normalizeCreatorMissionRisk(normalized),
-    reason: isQaOperatorCreatorMission(normalized)
+    reason: qaOperator
       ? 'Spark QA Operator creator work needs benchmark packs, held-out checks, autoloop policy, and private Workspace evidence before any network sharing.'
       : 'Creator-system work needs artifact manifests, benchmark gates, rollback notes, and review boundaries.'
   };

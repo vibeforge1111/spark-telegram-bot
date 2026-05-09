@@ -3088,7 +3088,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const creatorMissionIntent = parseNaturalCreatorMissionIntent(text);
+    const creatorMissionIntent = parseNaturalCreatorMissionIntent(text, {
+      recentMessages: contextualTurns.filter(Boolean).slice(-15)
+    });
     if (creatorMissionIntent) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply('Planning creator mission...');

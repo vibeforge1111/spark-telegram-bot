@@ -94,6 +94,14 @@ Dynamic Workspace names should work too. When `/recursive sessions` has shown a 
 
 Spark should resolve that against the recent Workspace session list. It should only use this contextual routing when the last 10-15 messages are actually about recursive loops, reports, traces, review decisions, scores, or Workspace recursions.
 
+Creator setup can use the same recent context. After discussing QA Operator or another capability, users can say:
+
+`make this better with benchmarks and autoloops`
+
+`turn this into a benchmark pack and specialization path`
+
+Spark should plan the creator mission from the recent working context. Without a clear recent subject, it should not create a vague mission from `this` or `it`.
+
 ## Expected Artifact Map
 
 - Domain chip: `domain-chip-spark-qa-operator`
