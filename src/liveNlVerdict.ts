@@ -125,7 +125,7 @@ export function formatLiveNlVerdictReport(
     suiteLine,
     `Cases: ${cases.length} (${riskCounts(cases)})`,
     '',
-    'Use this report after sending prompt cards with `ops/liveNlCommandSuite.ts`.',
+    'Use this report after copy-pasting plain prompts from `ops/liveNlCommandSuite.ts --copy-paste`.',
     'Do not paste secrets, full raw logs, or private user text into verdict notes.',
     '',
     'Verdict values: pass, fail, blocked, needs-retest, untested.',
