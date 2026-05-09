@@ -688,6 +688,34 @@ test('extracts contextual recursive commands from conversational follow-ups', ()
       reason: 'Natural-language request to start a recursive loop for Spark QA Operator.'
     }
   );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('where did we land?', qaContext),
+    {
+      rawCommand: 'report path:spark-qa-operator',
+      reason: 'Natural-language request for Spark QA Operator recursive report.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show me proof', qaContext),
+    {
+      rawCommand: 'trace path:spark-qa-operator',
+      reason: 'Natural-language request to trace Spark QA Operator.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('do I need to approve anything?', qaContext),
+    {
+      rawCommand: 'review path:spark-qa-operator',
+      reason: 'Natural-language request to review Spark QA Operator decisions.'
+    }
+  );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('give it another pass', qaContext),
+    {
+      rawCommand: 'start spark-qa-operator rounds 1',
+      reason: 'Natural-language request to start a recursive loop for Spark QA Operator.'
+    }
+  );
   assert.deepEqual(parseNaturalRecursiveCommandIntent('give me the readout'), null);
 });
 

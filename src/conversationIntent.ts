@@ -506,7 +506,7 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
   if (direct) return direct;
 
   const normalized = text.replace(/\s+/g, ' ').trim();
-  const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|report|readout|summary|status|trace|timeline|evidence|receipts|review|decisions?|blockers?|weakest|weak\s+spot|how'?s|how\s+is|where\s+are\s+we|keep\s+going|continue|my\s+call|needs\s+me)\b/i.test(normalized);
+  const canUseContext = /\b(?:it|this|that|same|again|another|more|current|latest|loop|round|pass|iteration|report|readout|summary|status|trace|timeline|evidence|proof|trail|receipts|review|approve|approval|decisions?|blockers?|weakest|weak\s+spot|signal|changed|land|short\s+version|vibe|how'?s|how\s+is|where\s+are\s+we|where\s+did\s+we\s+land|keep\s+going|continue|keep\s+pushing|push\s+it|my\s+call|calls?\s+for\s+me|needs\s+me)\b/i.test(normalized);
   if (!canUseContext) return null;
 
   const recent = (context.recentMessages || [])
@@ -542,28 +542,28 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
       /\b(?:start|run|kick\s+off|launch|do)\b.*\b(?:qa\s+tester|qa\s+operator|startup[-\s]+yc|domain[-\s]+chip[-\s]+creator)\b/i.test(normalized) ||
       /\b(?:improve|make\s+better)\b.*\b(?:qa\s+tester|qa\s+operator)\b.*\b(?:round|loop|iteration)\b/i.test(normalized) ||
       /\b(?:run|start|do|try)\s+(?:another|one\s+more|a|one|same)\s+(?:round|pass|iteration|loop)\b/i.test(normalized) ||
-      /\b(?:keep\s+going|continue|iterate\s+again|let\s+it\s+cook)\b/i.test(normalized)) {
+      /\b(?:keep\s+going|continue|iterate\s+again|let\s+it\s+cook|keep\s+pushing|push\s+it\s+further|send\s+it\s+again|give\s+it\s+another\s+pass|one\s+more\s+pass)\b/i.test(normalized)) {
     return {
       rawCommand: `start ${target.chipKey} rounds ${naturalRoundCount(normalized)}`,
       reason: `Natural-language request to start a recursive loop for ${target.label}.`
     };
   }
 
-  if (/\b(?:trace|timeline|recent\s+movement|what\s+happened|show\s+the\s+evidence|show\s+evidence|show\s+the\s+receipts|receipts|audit\s+trail|what\s+went\s+on|what\s+did\s+it\s+do)\b/i.test(normalized)) {
+  if (/\b(?:trace|timeline|recent\s+movement|what\s+happened|show\s+the\s+evidence|show\s+evidence|show\s+the\s+receipts|receipts|audit\s+trail|proof|show\s+me\s+proof|show\s+the\s+trail|behind\s+the\s+scenes|what\s+went\s+on|what\s+did\s+it\s+do)\b/i.test(normalized)) {
     return {
       rawCommand: `trace ${target.pathId}`,
       reason: `Natural-language request to trace ${target.label}.`
     };
   }
 
-  if (/\b(?:review|decisions?|blockers?|blocked|needs\s+review|waiting\s+for\s+review|needs\s+my\s+call|need\s+my\s+call|what\s+needs\s+me|anything\s+stuck|what\s+is\s+stuck)\b/i.test(normalized)) {
+  if (/\b(?:review|decisions?|blockers?|blocked|needs\s+review|waiting\s+for\s+review|approve|approval|do\s+i\s+need\s+to\s+approve|what\s+do\s+you\s+need\s+from\s+me|calls?\s+for\s+me|needs\s+my\s+call|need\s+my\s+call|what\s+needs\s+me|anything\s+stuck|what\s+is\s+stuck)\b/i.test(normalized)) {
     return {
       rawCommand: `review ${target.pathId}`,
       reason: `Natural-language request to review ${target.label} decisions.`
     };
   }
 
-  if (/\b(?:report|status|score|scores|result|results|doing|health|how'?s|how\s+is|readout|summary|where\s+are\s+we|what\s+should\s+.*improve\s+next|weakest|weak\s+spot|what\s+is\s+next|what'?s\s+next)\b/i.test(normalized)) {
+  if (/\b(?:report|status|score|scores|result|results|doing|health|how'?s|how\s+is|how\s+did\s+(?:that|it)\s+go|readout|summary|short\s+version|where\s+are\s+we|where\s+did\s+we\s+land|what\s+changed|what'?s\s+the\s+signal|what'?s\s+the\s+vibe|state\s+of\s+it|what\s+should\s+.*improve\s+next|weakest|weak\s+spot|what\s+is\s+next|what'?s\s+next)\b/i.test(normalized)) {
     return {
       rawCommand: `report ${target.pathId}`,
       reason: `Natural-language request for ${target.label} recursive report.`

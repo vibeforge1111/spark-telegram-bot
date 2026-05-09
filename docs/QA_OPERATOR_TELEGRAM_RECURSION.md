@@ -68,11 +68,19 @@ Contextual follow-ups after the chat is already about Spark QA Operator:
 
 `give me the readout`
 
+`where did we land?`
+
 `show the receipts`
+
+`show me proof`
 
 `what needs my call?`
 
+`do I need to approve anything?`
+
 `run another round`
+
+`give it another pass`
 
 `keep going`
 
