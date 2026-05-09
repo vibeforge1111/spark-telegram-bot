@@ -5,6 +5,12 @@ import {
   type NaturalRouteDecisionContext,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
+import {
+  createNaturalRouteExecutionRecord,
+  summarizeNaturalRouteExecutionRecords,
+  type NaturalRouteExecutionRecord,
+  type NaturalRouteLedgerSummary
+} from './naturalRouteLedger';
 
 export interface NaturalRouteReplayCase {
   id: string;
@@ -30,6 +36,15 @@ export interface NaturalRouteReplaySummary {
   passed: number;
   failed: number;
   results: NaturalRouteReplayResult[];
+}
+
+export interface NaturalRouteReplayLedgerOptions {
+  profile?: string;
+  userId?: string | number;
+  chatId?: string | number;
+  chatType?: string;
+  admin?: boolean;
+  now?: Date;
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -129,4 +144,30 @@ export function formatNaturalRouteReplaySummary(summary: NaturalRouteReplaySumma
     }
   }
   return lines.join('\n');
+}
+
+export function createNaturalRouteReplayLedgerRecords(
+  summary: NaturalRouteReplaySummary,
+  options: NaturalRouteReplayLedgerOptions = {}
+): NaturalRouteExecutionRecord[] {
+  return summary.results.map((result) => createNaturalRouteExecutionRecord({
+    decision: result.decision,
+    profile: options.profile || 'local_replay_dry_run',
+    userId: options.userId || 'local_smoke',
+    chatId: options.chatId || 'local_smoke',
+    chatType: options.chatType || 'local',
+    admin: options.admin ?? true,
+    executedRoute: result.decision.route,
+    executedOwner: result.decision.owner_system,
+    executedAction: result.decision.action,
+    delivery: result.passed ? 'selected' : 'failed',
+    now: options.now
+  }));
+}
+
+export function summarizeNaturalRouteReplayLedger(
+  summary: NaturalRouteReplaySummary,
+  options: NaturalRouteReplayLedgerOptions = {}
+): NaturalRouteLedgerSummary {
+  return summarizeNaturalRouteExecutionRecords(createNaturalRouteReplayLedgerRecords(summary, options));
 }
