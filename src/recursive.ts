@@ -240,7 +240,7 @@ export interface RecursiveWorkspaceSyncResult {
 }
 
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
-const DEFAULT_SWARM_WEB_URL = 'http://localhost:5173';
+const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:4178';
 const execFileAsync = promisify(execFile);
 
 const SWARM_API_ENV_NAMES = [

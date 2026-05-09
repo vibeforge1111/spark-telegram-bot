@@ -123,8 +123,8 @@ test('renders review queue and audit-only decision records', () => {
 
   assert.match(decision, /🟢 Recursive review approved locally\./);
   assert.match(decision, /Telegram recorded the decision route\./);
-  assert.match(decision, /http:\/\/localhost:5173\/runs\?tab=decisions/);
-  assert.equal(sparkWorkspaceDecisionsUrl(), 'http://localhost:5173/runs?tab=decisions');
+  assert.match(decision, /http:\/\/127.0.0.1:4178\/runs\?tab=decisions/);
+  assert.equal(sparkWorkspaceDecisionsUrl(), 'http://127.0.0.1:4178/runs?tab=decisions');
 });
 
 test('parses and renders local promotion packets', () => {
@@ -242,7 +242,7 @@ test('parses and renders stitched recursive trace views', () => {
   assert.doesNotMatch(reply, /tracked items in Workspace/);
   assert.match(reply, /canvas pending/);
   assert.match(reply, /- round: round-003 \(kept\)/);
-  assert.match(reply, /Workspace\nhttp:\/\/localhost:5173\/runs\?tab=recursions/);
+  assert.match(reply, /Workspace\nhttp:\/\/127.0.0.1:4178\/runs\?tab=recursions/);
 });
 
 test('builds a Workspace collective payload for Builder chip loops', () => {
@@ -545,7 +545,7 @@ test('renders Builder chip loop completion with Workspace sync details', () => {
       pathId: 'path_builder_chip_startup_yc',
       outcomeId: 'outcome_builder_chip_startup_yc_20260507T100000000',
       detail: 'Builder chip loop synced through Spark Swarm bridge.',
-      workspaceUrl: 'http://127.0.0.1:5173/runs?tab=recursions'
+      workspaceUrl: 'http://127.0.0.1:4178/runs?tab=recursions'
     }
   );
 
