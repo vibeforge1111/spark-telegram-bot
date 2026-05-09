@@ -140,3 +140,29 @@ export function summarizeNaturalRouteExecutionRecords(records: NaturalRouteExecu
 
   return summary;
 }
+
+export function formatNaturalRouteLedgerSummary(summary: NaturalRouteLedgerSummary): string {
+  const lines = [
+    `Natural route ledger: ${summary.total} records, ${summary.matched} matched, ${summary.mismatch} mismatched.`
+  ];
+
+  const executedRoutes = Object.entries(summary.byExecutedRoute)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (executedRoutes.length > 0) {
+    lines.push('', 'Executed routes:');
+    for (const [route, count] of executedRoutes) {
+      lines.push(`- ${route}: ${count}`);
+    }
+  }
+
+  const mismatches = Object.entries(summary.mismatchesByPair)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (mismatches.length > 0) {
+    lines.push('', 'Mismatches:');
+    for (const [pair, count] of mismatches) {
+      lines.push(`- ${pair}: ${count}`);
+    }
+  }
+
+  return lines.join('\n');
+}

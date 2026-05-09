@@ -6,6 +6,7 @@ import { decideNaturalRoute } from '../src/naturalRouteDecision';
 import {
   appendNaturalRouteExecutionRecord,
   createNaturalRouteExecutionRecord,
+  formatNaturalRouteLedgerSummary,
   naturalRouteLedgerPath,
   parseNaturalRouteExecutionLedger,
   shouldWriteNaturalRouteLedger,
@@ -71,6 +72,7 @@ async function run(): Promise<void> {
     assert.equal(summary.mismatch, 1);
     assert.equal(summary.byExecutedRoute['spawner.build'], 1);
     assert.equal(summary.mismatchesByPair['memory.write->spawner.build'], 1);
+    assert.match(formatNaturalRouteLedgerSummary(summary), /memory\.write->spawner\.build: 1/);
   });
 
   await test('writes and parses JSONL only when explicitly configured', async () => {
