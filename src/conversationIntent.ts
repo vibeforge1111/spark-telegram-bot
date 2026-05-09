@@ -375,6 +375,36 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   return brief.length >= 3 ? brief : null;
 }
 
+export function isMemoryDoctorRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
+
+  if (/\bmemory\s+doctor\b/.test(normalized)) {
+    return true;
+  }
+
+  if (
+    /^(?:please\s+)?(?:run|start|use|invoke|call|ask|open)\s+(?:the\s+)?(?:memory\s+)?(?:doctor|audit|diagnostic)\b/.test(normalized) &&
+    /\b(?:memory|context|recall|turn|reply|answer|request|message|trace|previous|last|recent|current)\b/.test(normalized)
+  ) {
+    return true;
+  }
+
+  if (
+    /^(?:please\s+)?(?:audit|diagnose|diagnostic|debug|trace|inspect|explain)\s+(?:the\s+)?(?:previous|last|recent|current)\s+(?:turn|reply|answer|response|request|message)\b/.test(normalized)
+  ) {
+    return true;
+  }
+
+  const namesMemoryFailure =
+    /\b(?:went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about|what\s+did\s+i\s+just\s+tell\s+you)\b/.test(normalized);
+  const asksForDiagnosis =
+    /\b(?:memory|context|recall|trace|audit|diagnos|doctor|why|what\s+happened|previous|last|turn|reply|answer)\b/.test(normalized);
+  return namesMemoryFailure && asksForDiagnosis;
+}
+
 export interface NaturalCreatorMissionIntent {
   brief: string;
   privacyMode: 'local_only' | 'github_pr' | 'swarm_shared';
@@ -424,6 +454,18 @@ function isQaOperatorCreatorMission(text: string): boolean {
     /\b(?:spark\s+qa\s+operator|qa\s+operator|qa\s+tester|quality\s+tester|tester\s+for\s+spark|spark\s+tester)\b/i.test(text) &&
     /\b(?:benchmark|benchmarks|eval|evals|test\s+suite|qa|recursive|recursion|autoloop|specialization|path|creator|improve|better|standard|standardize|create|build|make|prepare|wire|connect)\b/i.test(text)
   );
+}
+
+function isContextualQaOperatorCreatorMission(text: string, contextText: string): boolean {
+  if (!contextText || !isAmbiguousCreatorFollowup(text)) return false;
+  const contextNamesQaOperator =
+    /\b(?:spark\s+qa\s+operator|qa\s+operator|qa\s+tester|quality\s+tester|tester\s+for\s+spark|spark\s+tester)\b/i.test(contextText);
+  if (!contextNamesQaOperator) return false;
+  const currentAsksForCreatorWork =
+    /\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand|turn)\b/i.test(text);
+  const currentNamesQaWork =
+    /\b(?:benchmark|benchmarks|eval|evals|test\s+suite|qa|recursive|recursion|autoloop|specialization|path|creator|review|telegram|workspace|spawner|canvas|kanban)\b/i.test(text);
+  return currentAsksForCreatorWork && currentNamesQaWork;
 }
 
 function isCreatorSystemMission(text: string): boolean {
@@ -500,19 +542,22 @@ function normalizeCreatorMissionBrief(text: string, contextText = ''): string {
 export function parseNaturalCreatorMissionIntent(text: string, context: NaturalCreatorMissionContext = {}): NaturalCreatorMissionIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
+  if (isMemoryDoctorRequest(normalized)) return null;
   if (shouldPreferConversationalIdeation(normalized)) return null;
   const contextText = creatorContextText(context);
+  const explicitQaOperatorMission = isQaOperatorCreatorMission(normalized);
+  const contextualQaOperatorMission = isContextualQaOperatorCreatorMission(normalized, contextText);
   const contextualMission = isContextualCreatorSystemMission(normalized, contextText);
-  if (!isQaOperatorCreatorMission([normalized, contextText].filter(Boolean).join(' ')) && !isCreatorSystemMission(normalized) && !contextualMission) return null;
+  if (!explicitQaOperatorMission && !contextualQaOperatorMission && !isCreatorSystemMission(normalized) && !contextualMission) return null;
   if (isAmbiguousCreatorFollowup(normalized) && !contextText) return null;
   if (/\b(?:show|list|status|report|trace|review)\b/i.test(normalized) && !/\b(?:create|build|make|prepare|plan|scaffold|generate|wire|connect|improve|upgrade|expand)\b/i.test(normalized)) {
     return null;
   }
 
   const privacyMode = normalizeCreatorMissionPrivacy(normalized);
-  const qaOperator = isQaOperatorCreatorMission([normalized, contextText].filter(Boolean).join(' '));
+  const qaOperator = explicitQaOperatorMission || contextualQaOperatorMission;
   return {
-    brief: normalizeCreatorMissionBrief(normalized, contextualMission ? contextText : ''),
+    brief: normalizeCreatorMissionBrief(normalized, contextualMission || contextualQaOperatorMission ? contextText : ''),
     privacyMode,
     riskLevel: privacyMode === 'swarm_shared' ? 'high' : normalizeCreatorMissionRisk(normalized),
     reason: qaOperator

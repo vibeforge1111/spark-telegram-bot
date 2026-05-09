@@ -3615,7 +3615,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   // Show typing indicator
-  recordNaturalRouteExecution(ctx, naturalRouteShadow, 'plain_chat', 'spark-intelligence-builder', 'plain_chat');
+  const builderExecutedRoute = naturalRouteShadow?.route === 'memory.doctor' ? 'memory.doctor' : 'plain_chat';
+  recordNaturalRouteExecution(ctx, naturalRouteShadow, builderExecutedRoute, 'spark-intelligence-builder', builderExecutedRoute);
   await safeSendChatAction(ctx, 'typing');
 
   try {

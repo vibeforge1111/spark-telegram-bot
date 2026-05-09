@@ -42,6 +42,7 @@ import {
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
+  isMemoryDoctorRequest,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
@@ -637,6 +638,25 @@ test('extracts natural creator mission requests for QA Operator benchmark work',
     parseNaturalCreatorMissionIntent('create a private benchmarked specialization path with an autoloop for AI security questionnaires')?.privacyMode,
     'local_only'
   );
+});
+
+test('keeps Memory Doctor and answer-audit requests out of stale creator context', () => {
+  const context = {
+    recentMessages: [
+      'Planning Spark QA Operator benchmark path creator mission...',
+      'Creator plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
+    ]
+  };
+
+  for (const prompt of [
+    'run memory doctor for last request',
+    'audit previous turn',
+    'diagnose last answer',
+    'you went blank and lost context, what happened?'
+  ]) {
+    assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
+    assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
+  }
 });
 
 test('uses recent working context for ambiguous creator-system follow-ups', () => {

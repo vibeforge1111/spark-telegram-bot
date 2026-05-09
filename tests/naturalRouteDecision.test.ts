@@ -123,6 +123,22 @@ test('routes contextual creator-system follow-ups to Spawner creator missions', 
   assert.match(String(route.payload.brief), /Improve Spark QA Operator/);
 });
 
+test('routes Memory Doctor and answer-audit wording to Builder despite stale creator context', () => {
+  const context = {
+    recentMessages: [
+      'Planning Spark QA Operator benchmark path creator mission...',
+      'Creator plan ready. Build Spark QA Operator with a domain chip, benchmark pack, specialization path, and autoloop policy.'
+    ]
+  };
+
+  for (const prompt of ['run memory doctor for last request', 'audit previous turn', 'diagnose last answer']) {
+    const route = decideNaturalRoute(prompt, context);
+    assert.equal(route.route, 'memory.doctor', prompt);
+    assert.equal(route.owner_system, 'spark-intelligence-builder', prompt);
+    assert.equal(route.requires_confirmation, false, prompt);
+  }
+});
+
 test('routes explicit domain-chip creation before creator or build routes', () => {
   const route = decideNaturalRoute('build a domain-chip for Telegram memory routing');
 

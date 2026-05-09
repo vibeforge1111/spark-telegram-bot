@@ -23,6 +23,7 @@ import {
   isExternalResearchRequest,
   isGlobalAgentDoctrineRequest,
   isLocalSparkServiceRequest,
+  isMemoryDoctorRequest,
   isProjectImprovementRequest,
   isSparkChipStatusOverclaimQuestion,
   isSparkSelfMemoryDiagnosticQuestion,
@@ -388,6 +389,21 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'cold_memory',
       matched_signals: ['user_memory_recall_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isMemoryDoctorRequest(normalized)) {
+    const contextual = /\b(?:previous|last|recent|current|turn|reply|answer|response|request|message|what\s+happened)\b/i.test(normalized);
+    return decision({
+      route: 'memory.doctor',
+      owner_system: 'spark-intelligence-builder',
+      confidence: 'explicit',
+      action: 'memory.doctor',
+      payload: {},
+      context_source: contextual && hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
+      matched_signals: ['memory_doctor_request'],
       blocked_by: [],
       requires_confirmation: false
     });
