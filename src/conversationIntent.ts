@@ -1697,8 +1697,8 @@ export function isGlobalAgentDoctrineRequest(text: string): boolean {
 
 export function formatGlobalAgentDoctrineRequestReply(): string {
   return [
-    'I cannot change all Spark agents or systems globally from this chat.',
-    'I can keep a preference for this agent with you, though. Say something like: "when you talk to me, use short paragraphs with blank lines."'
+    'That is a global Spark behavior change, so I should not silently apply it from one chat.',
+    'The right move is an explicit doctrine proposal with scope, affected agents, tests, and rollback. For this conversation, I can still follow the principle: I will ask before launching missions when the target or route is ambiguous.'
   ].join('\n\n');
 }
 
