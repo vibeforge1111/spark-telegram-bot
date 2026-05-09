@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Telegraf } from 'telegraf';
 import {
+  formatLiveNlCopyPastePrompts,
   parseLiveNlCommandCases,
   selectLiveNlCommandCases,
   type LiveNlCommandCase
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npm run nl:live -- --list',
+      '  npm run nl:live -- --copy-paste --cases guard-006,guard-007,build-004,domain-chip-003',
       '  npm run nl:live -- --case mission-001',
       '  npm run nl:live -- --cases guard-006,domain-chip-003',
       '  npm run nl:live -- --suite smoke',
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
       '',
       'Notes:',
       '  --send only sends prompt cards. It does not start polling or read updates.',
+      '  --copy-paste prints natural user messages only, plus reply-capture blocks for Codex.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
       '  Suite alias: memory_architecture expands to memory, self_awareness, wiki, and anti_drift.',
       '  Risky suites are excluded from broad selection unless --include-risky is set.'
@@ -109,6 +112,11 @@ async function main(): Promise<void> {
     for (const entry of selected) {
       console.log(`${entry.id}\t${entry.suite}\t${entry.risk}\t${entry.expectedRoute}`);
     }
+    return;
+  }
+
+  if (hasFlag('copy-paste')) {
+    console.log(formatLiveNlCopyPastePrompts(selected));
     return;
   }
 

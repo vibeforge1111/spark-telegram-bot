@@ -22,6 +22,10 @@ export interface LiveNlVerdictReportOptions {
   suite?: string | null;
 }
 
+export interface LiveNlCopyPasteOptions {
+  title?: string;
+}
+
 export const LIVE_NL_SUITE_ALIASES: Record<string, string[]> = {
   memory_architecture: ['memory', 'self_awareness', 'wiki', 'anti_drift']
 };
@@ -75,12 +79,16 @@ export function selectLiveNlCommandCases(
 ): LiveNlCommandCase[] {
   const caseId = selection.caseId?.trim();
   const caseIds = (selection.caseIds || []).map((id) => id.trim()).filter(Boolean);
-  const selectedCaseIds = new Set([...(caseId ? [caseId] : []), ...caseIds]);
+  const orderedCaseIds = [...(caseId ? [caseId] : []), ...caseIds];
+  const selectedCaseIds = new Set(orderedCaseIds);
   const suite = selection.suite?.trim();
   const suiteNames = suite ? new Set(LIVE_NL_SUITE_ALIASES[suite] ?? [suite]) : null;
 
   let selected = cases;
-  if (selectedCaseIds.size > 0) selected = selected.filter((entry) => selectedCaseIds.has(entry.id));
+  if (selectedCaseIds.size > 0) {
+    const byId = new Map(cases.map((entry) => [entry.id, entry]));
+    selected = orderedCaseIds.map((id) => byId.get(id)).filter((entry): entry is LiveNlCommandCase => Boolean(entry));
+  }
   if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
   if (!selection.includeRisky && selectedCaseIds.size === 0) selected = selected.filter((entry) => entry.risk === 'safe');
   return selected;
@@ -154,6 +162,44 @@ export function formatLiveNlVerdictReport(
       ''
     );
   }
+
+  return lines.join('\n').trimEnd() + '\n';
+}
+
+export function formatLiveNlCopyPastePrompts(
+  cases: LiveNlCommandCase[],
+  options: LiveNlCopyPasteOptions = {}
+): string {
+  const title = options.title || 'Natural Language Copy/Paste Prompts';
+  const lines = [
+    `# ${title}`,
+    '',
+    'Copy only each Telegram message into Telegram, one at a time.',
+    'Do not paste case ids, expected routes, or expected outcomes into Telegram.',
+    'After Spark replies, paste the matching reply-capture block back into Codex.',
+    ''
+  ];
+
+  cases.forEach((entry, index) => {
+    lines.push(
+      `## ${index + 1}. ${entry.id}`,
+      '',
+      'Telegram message:',
+      '',
+      '```text',
+      entry.prompt,
+      '```',
+      '',
+      'Reply capture:',
+      '',
+      '```text',
+      `CASE ${entry.id}`,
+      'REPLY:',
+      '<paste Spark reply here>',
+      '```',
+      ''
+    );
+  });
 
   return lines.join('\n').trimEnd() + '\n';
 }

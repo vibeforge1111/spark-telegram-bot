@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  formatLiveNlCopyPastePrompts,
   formatLiveNlVerdictReport,
   parseLiveNlCommandCases,
   selectLiveNlCommandCases
@@ -62,6 +63,12 @@ test('keeps explicit multi-case selection available', () => {
   assert.deepEqual(selected.map((entry) => entry.id), ['mission-001', 'wiki-001']);
 });
 
+test('keeps explicit multi-case selection in requested order', () => {
+  const selected = selectLiveNlCommandCases(cases, { caseIds: ['wiki-001', 'safe-001'] });
+
+  assert.deepEqual(selected.map((entry) => entry.id), ['wiki-001', 'safe-001']);
+});
+
 test('expands suite aliases for verdict reports', () => {
   const selected = selectLiveNlCommandCases(cases, { suite: 'memory_architecture' });
 
@@ -80,6 +87,31 @@ test('formats a human-scored verdict worksheet', () => {
   assert.match(report, /- Actual route:/);
   assert.match(report, /remember this: concise replies/);
   assert.doesNotMatch(report, /BOT_TOKEN|TELEGRAM_BOT_TOKEN/i);
+});
+
+test('formats copy-paste prompts without leaking route expectations into Telegram text', () => {
+  const promptSheet = formatLiveNlCopyPastePrompts([cases[0]], { title: 'Manual Smoke' });
+
+  assert.match(promptSheet, /# Manual Smoke/);
+  assert.match(promptSheet, /Copy only each Telegram message into Telegram/);
+  assert.match(promptSheet, /```text\nremember this: concise replies\n```/);
+  assert.match(promptSheet, /CASE safe-001/);
+  assert.match(promptSheet, /<paste Spark reply here>/);
+  assert.doesNotMatch(promptSheet, /Expected route|Expected outcome|memory_directive|Saves the preference/);
+});
+
+test('live command copy-paste output keeps metadata out of Telegram blocks', () => {
+  const actualCases = parseLiveNlCommandCases(JSON.parse(readFileSync(resolve(__dirname, '../ops/natural-language-live-commands.json'), 'utf8')));
+  const selected = selectLiveNlCommandCases(actualCases, { caseIds: ['guard-006', 'guard-007', 'build-004', 'domain-chip-003'] });
+  const promptSheet = formatLiveNlCopyPastePrompts(selected);
+
+  assert.equal(selected.length, 4);
+  assert.deepEqual(selected.map((entry) => entry.id), ['guard-006', 'guard-007', 'build-004', 'domain-chip-003']);
+  assert.match(promptSheet, /1\. guard-006[\s\S]+all Spark agents should ask clarifying questions before missions/);
+  assert.match(promptSheet, /2\. guard-007[\s\S]+make all Spark systems understand workflow context more conversationally/);
+  assert.match(promptSheet, /3\. build-004[\s\S]+please help me design a project called Relay Workshop/);
+  assert.match(promptSheet, /4\. domain-chip-003[\s\S]+do not build yet, help me think through a domain chip/);
+  assert.doesNotMatch(promptSheet, /global_doctrine_blocked|conversation_ideation|Expected route|Expected outcome/);
 });
 
 test('rejects malformed command cases', () => {
