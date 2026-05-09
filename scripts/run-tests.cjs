@@ -14,6 +14,7 @@ const tests = [
   'tests/naturalRouteTelemetry.test.ts',
   'tests/naturalRouteLedger.test.ts',
   'tests/naturalRouteReplay.test.ts',
+  'tests/liveNlVerdict.test.ts',
   'tests/conversationMemory.test.ts',
   'tests/accessPolicy.test.ts',
   'tests/providerRouting.test.ts',
