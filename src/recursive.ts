@@ -1,11 +1,13 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { LoopResult } from './chipLoop';
+import type { PathLoopResult } from './pathLoop';
+import { redactText } from './redaction';
 
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
 
@@ -15,7 +17,12 @@ export interface RecursiveCommand {
   chipKey?: string;
   rounds?: number;
   rationale?: string;
+  syncKind?: RecursiveArtifactSyncKind;
+  syncArgs?: string[];
+  proposeArgs?: string[];
 }
+
+export type RecursiveArtifactSyncKind = 'prompt-benchmark' | 'domain-chip-lab' | 'domain-autoloop';
 
 export interface RecursiveSessionListItem {
   trace_id: string;
@@ -237,6 +244,56 @@ export interface RecursiveWorkspaceSyncResult {
   outcomeId: string | null;
   detail: string;
   workspaceUrl: string;
+}
+
+export interface RecursiveArtifactSyncInput {
+  kind: RecursiveArtifactSyncKind;
+  args: string[];
+}
+
+export interface RecursiveNetworkProposalResult {
+  title?: string | null;
+  proposalPath: string | null;
+  currentTier: string | null;
+  proposedTier: string | null;
+  readyForPr: boolean | null;
+  missingGates: string[];
+  submitted: boolean;
+  submitState: string | null;
+  submitError: string | null;
+}
+
+interface RecursiveProposalOptions {
+  submit: boolean;
+  title?: string;
+  riskNotes?: string;
+  replayCommand?: string;
+}
+
+interface RecursiveProposalDefaults {
+  payloadPath: string;
+  title?: string;
+  riskNotes?: string;
+  replayCommand?: string;
+}
+
+interface LocalRecursiveLoopStatus {
+  session_id: string;
+  trace_id: string;
+  chip_key: string;
+  title: string;
+  status: string;
+  domain: string;
+  updated_at: string | null;
+  status_path: string;
+  rounds_completed: number | null;
+  total_rounds: number | null;
+  history: Array<{
+    round_index?: number | null;
+    suggestions_count?: number | null;
+    best_verdict?: string | null;
+    best_metric?: number | null;
+  }>;
 }
 
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
@@ -501,6 +558,11 @@ export function sparkWorkspaceBridgeHints(): { apiUrl?: string; workspaceId?: st
   };
 }
 
+export function sparkWorkspaceConfigured(): boolean {
+  const config = sparkWorkspaceBridgeHints();
+  return Boolean(config.workspaceId && config.accessToken);
+}
+
 async function loadSparkWorkspaceSnapshot(): Promise<SparkWorkspaceSnapshot> {
   const { apiUrl, workspaceId, accessToken } = sparkWorkspaceConfig();
   const res = await axios.get(`${apiUrl}/api/workspaces/${encodeURIComponent(workspaceId)}/collective-snapshot`, {
@@ -527,12 +589,19 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
   const action = (parts.shift() || 'help').toLowerCase();
 
   if (action === 'sessions' || action === 'paths' || action === 'help') return { action };
+  if (action === 'sync') {
+    const syncKind = normalizeRecursiveArtifactSyncKind(parts[0]);
+    if (syncKind) return { action, syncKind, syncArgs: parts.slice(1) };
+    return { action, id: parts[0] };
+  }
+  if (action === 'propose') {
+    return { action, id: parts[0], proposeArgs: parts.slice(1) };
+  }
   if (
     action === 'session' ||
     action === 'report' ||
     action === 'review' ||
     action === 'promote' ||
-    action === 'sync' ||
     action === 'canvas' ||
     action === 'trace'
   ) {
@@ -551,7 +620,192 @@ export function parseRecursiveCommand(raw: string): RecursiveCommand | null {
   return null;
 }
 
+function recursiveLocalStatusRoots(): string[] {
+  const explicit = (process.env.SPARK_RECURSIVE_LOCAL_STATUS_ROOTS || '').trim();
+  const roots = explicit
+    ? explicit.split(path.delimiter).map((entry) => entry.trim()).filter(Boolean)
+    : [];
+  const home = builderHome();
+  return uniquePaths([
+    ...roots,
+    home ? path.join(home, 'loops') : null,
+    path.join(homedir(), '.spark', 'state', 'spark-intelligence', 'loops'),
+    path.join(homedir(), '.spark-intelligence', 'loops')
+  ]);
+}
+
+async function localRecursiveStatusFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const root of recursiveLocalStatusRoots()) {
+    try {
+      if (!existsSync(root)) continue;
+      const entries = await readdir(root, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        if (!/\.status\.json$/i.test(entry.name)) continue;
+        files.push(path.join(root, entry.name));
+      }
+    } catch {
+      continue;
+    }
+  }
+  return files;
+}
+
+function numberOrNull(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function localStatusId(chipKey: string): string {
+  return `path_builder_chip_${normalizeWorkspaceIdPart(chipKey)}`;
+}
+
+async function readLocalRecursiveStatus(filePath: string): Promise<LocalRecursiveLoopStatus | null> {
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const fallbackKey = path.basename(filePath).replace(/\.status\.json$/i, '');
+    const chipKey = String(parsed.chip_key || parsed.chipKey || parsed.chip || parsed.key || fallbackKey).trim();
+    if (!chipKey) return null;
+    const fileStat = await stat(filePath);
+    const history = Array.isArray(parsed.history) ? parsed.history : [];
+    const updatedAt = typeof parsed.updated_at === 'string'
+      ? parsed.updated_at
+      : typeof parsed.updatedAt === 'string'
+        ? parsed.updatedAt
+        : fileStat.mtime.toISOString();
+    const title = `${labelFromKey(chipKey)} local Builder loop`;
+    return {
+      session_id: localStatusId(chipKey),
+      trace_id: localStatusId(chipKey),
+      chip_key: chipKey,
+      title,
+      status: String(parsed.status || 'open'),
+      domain: 'spark-intelligence-builder',
+      updated_at: updatedAt,
+      status_path: filePath,
+      rounds_completed: numberOrNull(parsed.rounds_completed ?? parsed.roundsCompleted),
+      total_rounds: numberOrNull(parsed.total_rounds ?? parsed.totalRounds),
+      history: history.map((round: any) => ({
+        round_index: numberOrNull(round?.round_index ?? round?.roundIndex),
+        suggestions_count: numberOrNull(round?.suggestions_count ?? round?.suggestionsCount),
+        best_verdict: typeof round?.best_verdict === 'string' ? round.best_verdict : typeof round?.bestVerdict === 'string' ? round.bestVerdict : null,
+        best_metric: numberOrNull(round?.best_metric ?? round?.bestMetric)
+      }))
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function localRecursiveStatuses(): Promise<LocalRecursiveLoopStatus[]> {
+  const statuses = await Promise.all((await localRecursiveStatusFiles()).map(readLocalRecursiveStatus));
+  return statuses
+    .filter((status): status is LocalRecursiveLoopStatus => Boolean(status))
+    .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+}
+
+async function localRecursiveSessionItems(): Promise<RecursiveSessionListItem[]> {
+  return (await localRecursiveStatuses()).map((status) => ({
+    trace_id: status.trace_id,
+    session_id: status.session_id,
+    source_kind: 'local_builder_chip_loop',
+    title: status.title,
+    status: status.status,
+    domain: status.domain,
+    updated_at: status.updated_at,
+    kanban_bucket: 'local',
+    review_required: false
+  }));
+}
+
+async function resolveLocalRecursiveStatus(id: string): Promise<LocalRecursiveLoopStatus | null> {
+  const statuses = await localRecursiveStatuses();
+  const trimmed = id.trim();
+  if (/^\d+$/.test(trimmed)) return statuses[Number.parseInt(trimmed, 10) - 1] ?? null;
+  const normalized = normalizeWorkspaceIdPart(trimmed.replace(/^path:/i, ''));
+  return statuses.find((status) => {
+    const candidates = [
+      status.session_id,
+      status.trace_id,
+      status.chip_key,
+      localStatusId(status.chip_key),
+      path.basename(status.status_path).replace(/\.status\.json$/i, '')
+    ];
+    return candidates.some((candidate) =>
+      candidate === trimmed ||
+      normalizeWorkspaceIdPart(candidate.replace(/^path:/i, '')) === normalized
+    );
+  }) ?? null;
+}
+
+function latestLocalRound(status: LocalRecursiveLoopStatus): LocalRecursiveLoopStatus['history'][number] | null {
+  return status.history.slice(-1)[0] ?? null;
+}
+
+function localLoopVerdict(status: LocalRecursiveLoopStatus): 'improved' | 'flat' | 'regressed' {
+  const round = latestLocalRound(status);
+  return inferOutcomeVerdict(round?.best_verdict, round?.best_metric);
+}
+
+function localRoundCount(status: LocalRecursiveLoopStatus): string {
+  const completed = status.rounds_completed ?? status.history.length;
+  const total = status.total_rounds ?? completed;
+  return `${completed}/${total}`;
+}
+
+function renderLocalRecursiveWorkspaceHint(): string {
+  return [
+    'Workspace',
+    '• local-only mode',
+    '• connect Spark Workspace later for reviews, decisions, and network sharing'
+  ].join('\n');
+}
+
+function renderLocalRecursiveReport(status: LocalRecursiveLoopStatus): string {
+  const label = labelFromKey(status.chip_key);
+  const verdict = localLoopVerdict(status);
+  const round = latestLocalRound(status);
+  const lines = [
+    `${outcomeStatusIcon(verdict)} Latest ${label} local run ${friendlyOutcomeVerb(verdict)}.`,
+    '',
+    'Score',
+    `• ${localRoundCount(status)} rounds`
+  ];
+  if (typeof round?.best_metric === 'number') lines.push(`• best score ${formatNumber(round.best_metric)}`);
+  if (typeof round?.suggestions_count === 'number') lines.push(`• ${pluralize(round.suggestions_count, 'suggestion')} reviewed`);
+  lines.push('', 'Local', '• status file saved', '', renderLocalRecursiveWorkspaceHint());
+  return lines.join('\n');
+}
+
+function renderLocalRecursiveTrace(status: LocalRecursiveLoopStatus): string {
+  const label = labelFromKey(status.chip_key);
+  const recent = status.history.slice(-5).map((round, index) => {
+    const verdict = inferOutcomeVerdict(round.best_verdict, round.best_metric);
+    const roundNumber = round.round_index ?? index + 1;
+    const score = typeof round.best_metric === 'number' ? `, best score ${formatNumber(round.best_metric)}` : '';
+    const suggestions = typeof round.suggestions_count === 'number' ? `, ${pluralize(round.suggestions_count, 'suggestion')}` : '';
+    return `• round ${roundNumber}: ${friendlyOutcomeVerb(verdict)}${score}${suggestions}`;
+  });
+  return [
+    `${label} local trace`,
+    '',
+    'Status',
+    `• ${status.status}`,
+    `• updated ${formatUpdatedAt(status.updated_at)}`,
+    `• ${localRoundCount(status)} rounds`,
+    '',
+    'Recent',
+    ...(recent.length > 0 ? recent : ['• no rounds recorded']),
+    '',
+    'Local',
+    `• ${status.status_path}`
+  ].join('\n');
+}
+
 export async function recursiveSessions(): Promise<RecursiveSessionListItem[]> {
+  if (!sparkWorkspaceConfigured()) return localRecursiveSessionItems();
   return workspaceSessions(await loadSparkWorkspaceSnapshot());
 }
 
@@ -564,21 +818,45 @@ function resolveRecursiveSessionId(snapshot: SparkWorkspaceSnapshot, id: string)
 }
 
 export async function recursiveSessionStatus(id: string): Promise<string> {
+  if (!sparkWorkspaceConfigured()) {
+    const local = await resolveLocalRecursiveStatus(id);
+    return local ? renderLocalRecursiveReport(local) : `Recursive loop not found locally: ${id}`;
+  }
   const snapshot = await loadSparkWorkspaceSnapshot();
   return renderRecursiveWorkspaceReport(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveSessionReview(id: string): Promise<string> {
+  if (!sparkWorkspaceConfigured()) {
+    const local = await resolveLocalRecursiveStatus(id);
+    const label = local ? labelFromKey(local.chip_key) : id;
+    return [
+      `${label} review`,
+      '',
+      'Status',
+      '• local-only mode',
+      '• no Workspace review queue is connected yet',
+      '',
+      'Next',
+      `• /recursive report ${id}`,
+      `• /recursive trace ${id}`
+    ].join('\n');
+  }
   const snapshot = await loadSparkWorkspaceSnapshot();
   return renderRecursiveWorkspaceReview(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveSessionReport(id: string): Promise<string> {
+  if (!sparkWorkspaceConfigured()) {
+    const local = await resolveLocalRecursiveStatus(id);
+    return local ? renderLocalRecursiveReport(local) : `Recursive loop not found locally: ${id}`;
+  }
   const snapshot = await loadSparkWorkspaceSnapshot();
   return renderRecursiveWorkspaceReport(snapshot, resolveRecursiveSessionId(snapshot, id));
 }
 
 export async function recursiveReviewCandidates(): Promise<RecursiveReviewCandidate[]> {
+  if (!sparkWorkspaceConfigured()) return [];
   return workspaceReviewCandidates(await loadSparkWorkspaceSnapshot());
 }
 
@@ -612,6 +890,245 @@ export async function stageRecursiveSwarmPacket(id: string): Promise<RecursiveSw
   throw new Error(`Standalone Swarm staging packets are retired. Sync recursive evidence through Spark Workspace collective sync: ${sparkWorkspaceRecursionsUrl()}`);
 }
 
+export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactSyncInput): Promise<RecursiveWorkspaceSyncResult> {
+  const config = sparkWorkspaceBridgeHints();
+  const tempDir = await mkdtemp(path.join(tmpdir(), `spark-recursive-${input.kind}-`));
+  const payloadPath = path.join(tempDir, 'collective-sync.json');
+  const python = (
+    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+    process.env.SPARK_BUILDER_PYTHON ||
+    process.env.PYTHON ||
+    'python'
+  ).trim();
+  const bridgeSrc = resolveSparkSwarmBridgeSrc();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
+  if (bridgeSrc) {
+    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
+  }
+
+  const bridgeArgs = buildRecursiveArtifactBridgeArgs(input, {
+    payloadPath,
+    apiUrl: config.apiUrl,
+    workspaceId: config.workspaceId,
+    accessToken: config.accessToken
+  });
+  const { stdout } = await execFileAsync(
+    python,
+    bridgeArgs,
+    {
+      env,
+      timeout: 30000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    }
+  );
+
+  return {
+    synced: true,
+    pathId: parseBridgeLine(stdout, 'Path') || 'unknown',
+    outcomeId: parseBridgeLine(stdout, 'Outcome'),
+    detail: `${input.kind} artifact synced through Spark Swarm bridge.`,
+    workspaceUrl: sparkWorkspaceRecursionsUrl()
+  };
+}
+
+function localProposalRoots(): string[] {
+  const explicit = (process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS || '').trim();
+  const roots = explicit
+    ? explicit.split(path.delimiter).map((entry) => entry.trim()).filter(Boolean)
+    : [];
+  roots.push(path.join(homedir(), 'Desktop'));
+  return [...new Set(roots)];
+}
+
+export function resolveRecursiveProposalPayloadPath(input: string): string {
+  const value = (input || '').trim();
+  if (!value) throw new Error('Usage: /recursive propose <path-or-key> [submit]');
+  if (existsSync(value)) return value;
+  const normalized = value.replace(/^path:/i, '').replace(/^domain-chip-/i, '');
+  const repoNames = [
+    value,
+    `domain-chip-${normalized}`,
+    `specialization-path-${normalized}`,
+    `benchmark-${normalized}`
+  ];
+  for (const root of localProposalRoots()) {
+    for (const repoName of repoNames) {
+      const candidate = path.join(root, repoName, '.spark-swarm', 'collective-sync.json');
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return value;
+}
+
+function proposalArtifactPath(payload: Record<string, any>, kind: string): string | null {
+  const refs = Array.isArray(payload.artifactRefs) ? payload.artifactRefs : [];
+  const ref = refs.find((item: any) => item && item.kind === kind && typeof item.path === 'string' && item.path.trim());
+  return ref?.path?.trim() || null;
+}
+
+function inferRecursiveProposalDefaults(input: string, payloadPath: string): RecursiveProposalDefaults {
+  const defaults: RecursiveProposalDefaults = { payloadPath };
+  try {
+    const payload = JSON.parse(readFileSync(payloadPath, 'utf-8'));
+    const runtimeSource = payload?.runtimeSource && typeof payload.runtimeSource === 'object' ? payload.runtimeSource : {};
+    const label = String(runtimeSource.chipLabel || runtimeSource.autoloopId || runtimeSource.chipKey || input || '').trim();
+    if (label) defaults.title = labelFromKey(label);
+    defaults.riskNotes = 'Private workspace evidence only; review benchmark evidence, privacy, and rollback before sharing.';
+
+    if (runtimeSource.sourceKind === 'domain_autoloop') {
+      const manifest = proposalArtifactPath(payload, 'manifest');
+      const state = proposalArtifactPath(payload, 'state');
+      const policy = proposalArtifactPath(payload, 'policy');
+      const journal = proposalArtifactPath(payload, 'journal');
+      const laneReport = proposalArtifactPath(payload, 'lane_report');
+      if (manifest && state) {
+        defaults.replayCommand = [
+          'spark-swarm domain-autoloop',
+          `--manifest ${manifest}`,
+          `--state ${state}`,
+          policy ? `--policy ${policy}` : '',
+          journal ? `--journal ${journal}` : '',
+          laneReport ? `--lane-report ${laneReport}` : '',
+          '--sync-collective'
+        ].filter(Boolean).join(' ');
+      }
+    }
+  } catch {
+    return defaults;
+  }
+  return defaults;
+}
+
+export function parseRecursiveProposalOptions(args: string[]): RecursiveProposalOptions {
+  const options: RecursiveProposalOptions = { submit: false };
+  const fieldFor = (value: string): keyof Omit<RecursiveProposalOptions, 'submit'> | null => {
+    const normalized = value.toLowerCase();
+    if (normalized === 'title' || normalized === '--title') return 'title';
+    if (normalized === 'risk' || normalized === 'risks' || normalized === 'risk-notes' || normalized === '--risk-notes') return 'riskNotes';
+    if (normalized === 'replay' || normalized === 'replay-command' || normalized === '--replay-command') return 'replayCommand';
+    return null;
+  };
+  const stopWords = new Set(['submit', '--submit', 'title', '--title', 'risk', 'risks', 'risk-notes', '--risk-notes', 'replay', 'replay-command', '--replay-command']);
+
+  for (let index = 0; index < args.length;) {
+    const token = args[index];
+    if (!token) {
+      index += 1;
+      continue;
+    }
+    const normalized = token.toLowerCase();
+    if (normalized === 'submit' || normalized === '--submit') {
+      options.submit = true;
+      index += 1;
+      continue;
+    }
+    const field = fieldFor(token);
+    if (!field) {
+      index += 1;
+      continue;
+    }
+    const values: string[] = [];
+    index += 1;
+    while (index < args.length && !stopWords.has(args[index].toLowerCase())) {
+      values.push(args[index]);
+      index += 1;
+    }
+    const value = values.join(' ').trim();
+    if (value) options[field] = value;
+  }
+
+  return options;
+}
+
+export async function proposeRecursiveWorkspaceEvidence(
+  payloadPathOrKey: string,
+  args: string[] = []
+): Promise<RecursiveNetworkProposalResult> {
+  if (!payloadPathOrKey?.trim()) throw new Error('Usage: /recursive propose <path-or-key> [submit]');
+  const payloadPath = resolveRecursiveProposalPayloadPath(payloadPathOrKey);
+  const options = parseRecursiveProposalOptions(args);
+  const defaults = inferRecursiveProposalDefaults(payloadPathOrKey, payloadPath);
+  const title = options.title || defaults.title;
+  const riskNotes = options.riskNotes || defaults.riskNotes;
+  const replayCommand = options.replayCommand || defaults.replayCommand;
+  const config = sparkWorkspaceBridgeHints();
+  const python = (
+    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+    process.env.SPARK_BUILDER_PYTHON ||
+    process.env.PYTHON ||
+    'python'
+  ).trim();
+  const bridgeSrc = resolveSparkSwarmBridgeSrc();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
+  if (bridgeSrc) {
+    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
+  }
+
+  const { stdout } = await execFileAsync(
+    python,
+    [
+      '-m',
+      'spark_swarm_bridge.cli',
+      'network',
+      'propose',
+      '--from-payload',
+      payloadPath,
+      ...(title ? ['--title', title] : []),
+      ...(riskNotes ? ['--risk-notes', riskNotes] : []),
+      ...(replayCommand ? ['--replay-command', replayCommand] : [])
+    ],
+    {
+      env,
+      timeout: 30000,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    }
+  );
+  const proposalPath = parseBridgeLine(stdout, 'Proposal');
+  const result: RecursiveNetworkProposalResult = {
+    title: title || null,
+    proposalPath,
+    currentTier: parseBridgeLine(stdout, 'Current tier'),
+    proposedTier: parseBridgeLine(stdout, 'Proposed tier'),
+    readyForPr: parseBridgeLine(stdout, 'Ready for PR') === 'yes',
+    missingGates: (parseBridgeLine(stdout, 'Missing gates') || '')
+      .split(',')
+      .map((gate) => gate.trim())
+      .filter(Boolean),
+    submitted: false,
+    submitState: null,
+    submitError: null
+  };
+
+  if (!options.submit || !proposalPath) return result;
+
+  try {
+    const submitResult = await execFileAsync(
+      python,
+      ['-m', 'spark_swarm_bridge.cli', 'network', 'submit', '--proposal', proposalPath],
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    );
+    result.submitted = parseBridgeLine(submitResult.stdout, 'Accepted') === 'yes';
+    result.submitState = parseBridgeLine(submitResult.stdout, 'State');
+  } catch (error: any) {
+    result.submitError = redactText(error?.stdout || error?.stderr || error?.message || String(error));
+  }
+
+  return result;
+}
+
 export async function queueRecursiveCanvas(id: string): Promise<RecursiveCanvasQueueResult> {
   throw new Error(`Standalone Canvas queueing is retired for ${id}. Use Spark Workspace recursions: ${sparkWorkspaceRecursionsUrl()}`);
 }
@@ -622,6 +1139,10 @@ export async function recursiveTraceView(id: string): Promise<RecursiveTraceView
 }
 
 export async function recursiveTraceReply(id: string): Promise<string> {
+  if (!sparkWorkspaceConfigured()) {
+    const local = await resolveLocalRecursiveStatus(id);
+    return local ? renderLocalRecursiveTrace(local) : `Recursive loop not found locally: ${id}`;
+  }
   return renderRecursiveTraceView(await recursiveTraceView(id));
 }
 
@@ -753,11 +1274,22 @@ export function buildBuilderChipLoopBridgeInput(result: LoopResult, emittedAt: s
   };
 }
 
-function resolveSparkSwarmBridgeSrc(): string | null {
+function looksLikeBridgeSrc(candidate: string): boolean {
+  return existsSync(path.join(candidate, 'spark_swarm_bridge', 'cli.py'));
+}
+
+export function resolveSparkSwarmBridgeSrc(): string | null {
   const explicit = (process.env.SPARK_SWARM_BRIDGE_SRC || '').trim();
   if (explicit) return explicit;
-  const sibling = path.resolve(process.cwd(), '..', 'spark-swarm', 'apps', 'bridge', 'src');
-  return existsSync(sibling) ? sibling : null;
+  const repoOverride = (process.env.SPARK_SWARM_REPO || '').trim();
+  const candidates = [
+    repoOverride ? path.join(repoOverride, 'apps', 'bridge', 'src') : '',
+    path.resolve(process.cwd(), '..', 'spark-swarm', 'apps', 'bridge', 'src'),
+    path.join(homedir(), 'Desktop', 'spark-swarm', 'apps', 'bridge', 'src'),
+    path.join(homedir(), '.spark', 'modules', 'spark-swarm', 'source', 'apps', 'bridge', 'src'),
+    path.join(homedir(), '.spark', 'modules', 'spark-swarm', 'apps', 'bridge', 'src')
+  ].filter(Boolean);
+  return candidates.find(looksLikeBridgeSrc) || null;
 }
 
 function parseBridgeLine(stdout: string, label: string): string | null {
@@ -878,65 +1410,168 @@ export function renderBuilderChipLoopCompletion(
   const chipKey = result.chipKey || 'unknown-chip';
   const pathId = sync?.pathId || `path_builder_chip_${normalizeWorkspaceIdPart(chipKey)}`;
   const finalRound = result.history?.slice(-1)[0] ?? null;
+  const rounds = `${result.roundsCompleted ?? result.history?.length ?? 0}/${result.totalRounds ?? result.roundsCompleted ?? result.history?.length ?? 0}`;
+  const verdict = finalRound
+    ? finalRound.best_verdict || inferOutcomeVerdict(finalRound.best_verdict, finalRound.best_metric)
+    : 'no rounds recorded';
   const lines = [
-    `Recursive loop complete: ${chipKey}`,
-    `Rounds: ${result.roundsCompleted ?? result.history?.length ?? 0}/${result.totalRounds ?? result.roundsCompleted ?? result.history?.length ?? 0}`
+    `${outcomeStatusIcon(verdict)} Latest ${labelFromKey(chipKey)} run ${friendlyOutcomeVerb(verdict)}.`,
+    '',
+    'Score',
+    `• ${rounds} rounds`
   ];
 
   if (finalRound) {
-    const verdict = finalRound.best_verdict || inferOutcomeVerdict(finalRound.best_verdict, finalRound.best_metric);
-    lines.push(`Final verdict: ${verdict}`);
     if (typeof finalRound.best_metric === 'number') {
-      lines.push(`Metric: builder chip loop best metric=${formatNumber(finalRound.best_metric)}`);
+      lines.push(`• best score ${formatNumber(finalRound.best_metric)}`);
     }
-    lines.push(`Final suggestions: ${finalRound.suggestions_count}`);
-  } else {
-    lines.push('Final verdict: no rounds recorded');
+    lines.push(`• ${pluralize(finalRound.suggestions_count, 'suggestion')} reviewed`);
   }
-
-  if (result.statusPath) lines.push(`Status file: ${result.statusPath}`);
 
   if (sync) {
     lines.push(
-      `Workspace sync: ${sync.synced ? 'ok' : 'skipped'}`,
-      `Workspace path: ${sync.pathId}`
+      '',
+      'Workspace',
+      sync.synced ? '• updated' : '• update skipped',
+      `• ${sync.workspaceUrl}`
     );
-    if (sync.outcomeId) lines.push(`Workspace outcome: ${sync.outcomeId}`);
-    if (sync.detail) lines.push(`Workspace detail: ${sync.detail}`);
-    lines.push(`Workspace: ${sync.workspaceUrl}`);
   } else if (syncError) {
-    lines.push(`Workspace sync skipped: ${syncError}`);
+    lines.push('', 'Workspace', `• update skipped: ${truncateAtWord(syncError, 120)}`);
+  } else {
+    lines.push('', 'Local', '• status file saved');
   }
 
-  lines.push(`Next: /recursive report ${pathId}`);
+  lines.push(
+    '',
+    'Report',
+    `• /recursive report ${pathId}`,
+    `• /recursive trace ${pathId}`
+  );
+  return lines.join('\n');
+}
+
+export function renderSpecializationPathLoopCompletion(result: PathLoopResult): string {
+  const pathKey = result.pathKey || 'unknown-path';
+  const pathId = result.pathId || `path_${normalizeWorkspaceIdPart(pathKey)}`;
+  const label = labelFromKey(pathKey);
+  const verdict = result.verdict || 'recorded';
+  const metricLine = result.metricName && typeof result.metricValue === 'number'
+    ? `${formatMetricLabel(result.metricName)} ${formatNumber(result.metricValue)}`
+    : null;
+  const lines = [
+    `${outcomeStatusIcon(verdict)} Latest ${label} run ${friendlyOutcomeVerb(verdict)}.`,
+    '',
+    'Score',
+    `• ${result.roundsCompleted ?? 0}/${result.totalRounds ?? result.roundsCompleted ?? 0} rounds`
+  ];
+
+  if (metricLine) lines.push(`• ${metricLine}`);
+
+  if (result.workspaceSynced) {
+    lines.push(
+      '',
+      'Workspace',
+      '• updated',
+      `• ${sparkWorkspaceRecursionsUrl()}`
+    );
+  } else {
+    lines.push('', 'Local', '• saved on this machine');
+  }
+
+  lines.push('', 'Report', `• /recursive report ${pathId}`, `• /recursive trace ${pathId}`);
+  return lines.join('\n');
+}
+
+export function renderRecursiveArtifactSyncCompletion(result: RecursiveWorkspaceSyncResult): string {
+  const lines = [
+    `${result.synced ? '🟢' : '🟡'} Recursive artifact sync finished.`,
+    '',
+    'Workspace',
+    result.synced ? '• updated' : '• update skipped'
+  ];
+  lines.push(
+    `• ${result.workspaceUrl}`,
+    '',
+    'Report',
+    `• /recursive report ${result.pathId}`,
+    `• /recursive trace ${result.pathId}`
+  );
+  return lines.join('\n');
+}
+
+function friendlyProposalGate(gate: string): string {
+  const normalized = gate.trim();
+  const labels: Record<string, string> = {
+    benchmarkEvidence: 'add benchmark proof',
+    replayCommand: 'replay step',
+    riskNotes: 'review note',
+    sourceProvenance: 'source proof',
+    schemaValidation: 'schema check'
+  };
+  return labels[normalized] || labelFromKey(normalized);
+}
+
+export function renderRecursiveNetworkProposal(result: RecursiveNetworkProposalResult): string {
+  const ready = result.readyForPr && result.missingGates.length === 0;
+  const title = result.title ? labelFromKey(result.title) : 'Review packet';
+  const isSent = result.submitted || Boolean(result.submitError);
+  const subject = result.title ? title : 'Review packet';
+  const lines = [
+    isSent
+      ? `${ready ? '🟢' : '🟡'} ${subject} sent for review.`
+      : `${ready ? '🟢' : '🟡'} ${subject} is ready for review.`,
+    '',
+    'Status',
+    ready ? '• ready for a human reviewer' : '• private for now'
+  ];
+  if (result.missingGates.length > 0) {
+    lines.push('', 'Before sharing', ...result.missingGates.map((gate) => `• ${friendlyProposalGate(gate)}`));
+  }
+  lines.push('', 'Workspace', result.proposalPath ? '• saved locally' : '• not saved');
+  if (isSent) {
+    if (result.submitted && result.submitState) lines.push(`• review state: ${labelFromKey(result.submitState)}`);
+    lines.push(result.submitError ? `• ${result.submitError}` : `• ${sparkWorkspaceDecisionsUrl()}`);
+  }
   return lines.join('\n');
 }
 
 export function renderRecursiveHelp(): string {
-  return [
-    'Spark Workspace Recursions',
+  const lines = [
+    'Spark Recursive Loops',
     '',
-    'Usage:',
-    '/recursive sessions',
-    '/recursive paths',
-    '/recursive session <id>',
-    '/recursive report <id>',
-    '/recursive trace <id>',
-    '/recursive review [id]',
+    'Start here:',
+    '/recursive sessions - recent loops and next action',
+    '/recursive report <id> - readable result summary',
+    '/recursive start <targetKey> rounds <n> - run a local Builder chip loop',
+    '',
+    'When something needs you:',
+    '/recursive review [id] - decisions waiting',
     '/recursive approve <id> [rationale]',
     '/recursive defer <id> <rationale>',
     '/recursive reject <id> <rationale>',
     '/recursive more-eval <id> <rationale>',
-    '/recursive start <chipKey> [rounds <n>]',
     '',
-    `Dashboard: ${sparkWorkspaceRecursionsUrl()}`
-  ].join('\n');
+    'Deep cuts:',
+    '/recursive paths - specialization lanes',
+    '/recursive trace <id> - detailed timeline',
+    '/recursive propose <chip-or-path-name> [submit]',
+    '/recursive sync prompt-benchmark <runJson> [report <reportPath>]',
+    '/recursive sync domain-chip-lab <telemetryJson> <chipKey> [chip-path <path>] [packet <path>]',
+    '/recursive sync domain-autoloop <manifestJson> <stateJson> [policy <path>] [journal <path>] [lane-report <path>]',
+  ];
+  if (sparkWorkspaceConfigured()) {
+    lines.push('', `Open: Recursions ${sparkWorkspaceRecursionsUrl()}`);
+  } else {
+    lines.push('', 'Local mode: reports come from status files on this machine. Workspace sync appears when connected.');
+  }
+  return lines.join('\n');
 }
 
 export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): string {
   if (sessions.length === 0) return 'No recursive sessions found.';
   const ordered = orderedRecursiveSessions(sessions);
   const visible = ordered.slice(0, 5);
+  const isLocalOnly = sessions.every((session) => session.source_kind === 'local_builder_chip_loop');
   const lines = ['Spark recursive loops'];
   let currentGroup: string | null = null;
   for (const session of visible) {
@@ -954,7 +1589,11 @@ export function renderRecursiveSessions(sessions: RecursiveSessionListItem[]): s
   if (sessions.length > visible.length) lines.push('', `${sessions.length - visible.length} more hidden. Use /recursive paths for lanes.`);
   const firstTitle = visible[0] ? sessionDisplayTitle(visible[0]) : null;
   if (firstTitle) lines.push('', `Ask: show ${firstTitle} report.`);
-  lines.push('', 'Workspace', sparkWorkspaceRecursionsUrl());
+  if (!isLocalOnly) {
+    lines.push('', 'Workspace', sparkWorkspaceRecursionsUrl());
+  } else {
+    lines.push('', 'Local', 'status files on this machine');
+  }
   return lines.join('\n');
 }
 
@@ -968,54 +1607,59 @@ export function orderedRecursiveSessions(sessions: RecursiveSessionListItem[]): 
 }
 
 export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): string {
-  const groups = recursivePathGroups(sessions);
-  if (groups.length === 0) return 'No recursive paths found yet.';
-  const visible = groups.slice(0, 12);
-  const lines = ['Spark recursive paths'];
-  for (const group of visible) {
-    const icon = group.reviewCount > 0 ? '🟡' : '⚪';
-    const review = group.reviewCount > 0 ? `${pluralize(group.reviewCount, 'loop')} need review` : 'clear';
-    lines.push('', `${icon} ${labelFromKey(group.domain)}`, `${pluralize(group.count, 'loop')} · ${review}`);
-  }
-  if (groups.length > visible.length) lines.push('', `${groups.length - visible.length} more hidden.`);
-  lines.push('', 'Pick a path by name.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
-  return lines.join('\n');
-}
-
-function recursivePathGroups(sessions: RecursiveSessionListItem[]): Array<{
-  domain: string;
-  count: number;
-  reviewCount: number;
-  latestAt: string;
-}> {
-  const groups = new Map<string, { domain: string; count: number; reviewCount: number; latestAt: string }>();
+  const isLocalOnly = sessions.length > 0 && sessions.every((session) => session.source_kind === 'local_builder_chip_loop');
+  const pathGroups = new Map<string, RecursiveSessionListItem[]>();
   for (const session of sessions) {
-    const domain = session.domain || session.source_kind;
-    if (!domain) continue;
-    const existing = groups.get(domain) || { domain, count: 0, reviewCount: 0, latestAt: '' };
-    existing.count += 1;
-    if (session.review_required) existing.reviewCount += 1;
-    if (String(session.updated_at || '').localeCompare(existing.latestAt) > 0) existing.latestAt = String(session.updated_at || '');
-    groups.set(domain, existing);
+    const domain = session.domain || labelFromKey(session.source_kind);
+    const group = pathGroups.get(domain) ?? [];
+    group.push(session);
+    pathGroups.set(domain, group);
   }
-  return Array.from(groups.values()).sort((a, b) =>
+  const summaries = [...pathGroups.entries()].map(([domain, group]) => {
+    const latest = group
+      .slice()
+      .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0];
+    return {
+      domain,
+      latest,
+      reviewCount: group.filter((session) => session.review_required).length
+    };
+  }).sort((a, b) =>
     b.reviewCount - a.reviewCount ||
-    String(b.latestAt || '').localeCompare(String(a.latestAt || '')) ||
+    String(b.latest?.updated_at || '').localeCompare(String(a.latest?.updated_at || '')) ||
     a.domain.localeCompare(b.domain)
   );
+  const domains = summaries.map((summary) => summary.domain);
+  if (domains.length === 0) return 'No recursive paths found yet.';
+  const lines = ['Spark recursive paths'];
+  for (const domain of domains.slice(0, 8)) {
+    const group = pathGroups.get(domain) ?? [];
+    const reviewCount = group.filter((session) => session.review_required).length;
+    const icon = reviewCount > 0 ? '🟡' : '⚪';
+    const review = reviewCount > 0 ? `${pluralize(reviewCount, 'loop')} need review` : 'clear';
+    lines.push('', `${icon} ${labelFromKey(domain)}`, `${pluralize(group.length, 'loop')} · ${review}`);
+  }
+  if (domains.length > 8) {
+    lines.push('', isLocalOnly
+      ? `${domains.length - 8} more paths hidden. Use /recursive sessions for the latest loops.`
+      : `${domains.length - 8} more paths hidden. Open Workspace for the full list.`);
+  }
+  lines.push('', 'Pick a path by name.');
+  if (!isLocalOnly) lines.push('', 'Workspace', sparkWorkspaceRecursionsUrl());
+  return lines.join('\n');
 }
 
 export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandidate[]): string {
   if (candidates.length === 0) return 'No recursive candidates need review.';
-  const visible = candidates.slice(0, 5);
   const lines = ['Spark decisions needing review'];
+  const visible = candidates.slice(0, 5);
   for (const candidate of visible) {
     lines.push(
       '',
       `🟡 ${reviewCandidateTitle(candidate)}`,
       `${plainLabel(candidate.risk)} risk`,
       ...(candidate.score_delta === null ? [] : [`score change ${formatDelta(candidate.score_delta)}`]),
-      ensureSentence(truncate(candidate.reason, 96)),
+      ensureSentence(truncateAtWord(candidate.reason, 96)),
       `review: /recursive review ${candidate.session_id}`
     );
   }
@@ -1042,26 +1686,19 @@ function decisionStatusIcon(decision: RecursiveDecision): string {
   return '⚪';
 }
 
-function decisionLabel(decision: RecursiveDecision): string {
-  if (decision === 'approve_local') return 'approved locally';
-  if (decision === 'request_more_eval') return 'sent for more evaluation';
-  if (decision === 'defer') return 'deferred';
-  if (decision === 'reject') return 'rejected';
-  return plainLabel(decision);
-}
-
 export function renderRecursiveDecision(record: RecursiveDecisionRecord): string {
-  const workspaceUpdated = record.effect === 'spark_workspace_review';
+  const applied = record.effect === 'spark_workspace_review';
+  const action = friendlyDecisionLabel(record.decision);
   const lines = [
-    `${decisionStatusIcon(record.decision)} Recursive review ${decisionLabel(record.decision)}.`,
+    `${decisionStatusIcon(record.decision)} Recursive review ${action}.`,
     '',
     'Result',
-    workspaceUpdated ? 'Workspace review updated.' : 'Telegram recorded the decision route.',
+    applied ? '• Workspace review updated.' : '• Telegram recorded the decision route.'
   ];
   if (record.workspace_detail) {
-    lines.push(ensureSentence(truncate(record.workspace_detail, 140)));
+    lines.push(`• ${ensureSentence(truncateAtWord(friendlyWorkspaceDecisionDetail(record.workspace_detail), 140))}`);
   }
-  lines.push('', 'Workspace', sparkWorkspaceDecisionsUrl());
+  lines.push('', 'Workspace', `• ${sparkWorkspaceDecisionsUrl()}`);
   return lines.join('\n');
 }
 
@@ -1070,11 +1707,11 @@ export function renderRecursivePromotionPacket(packet: RecursivePromotionPacket)
     '🟡 Local promotion packet staged.',
     '',
     'Status',
-    'private only',
-    'not shared with the network',
+    '• private only',
+    '• not shared with the network',
     '',
     'Safety',
-    'No memory, Swarm, Builder, or source artifacts were changed.'
+    '• No memory, Swarm, Builder, or source artifacts were changed.'
   ].join('\n');
 }
 
@@ -1083,14 +1720,14 @@ export function renderRecursiveSwarmPacket(packet: RecursiveSwarmPacket): string
     '🟡 Swarm review packet staged.',
     '',
     'Status',
-    'private until review passes',
-    'network sharing blocked',
+    '• private until review passes',
+    '• network sharing blocked',
     '',
     'Why',
-    ensureSentence(labelFromKey(packet.publication_gate.reason)),
+    `• ${ensureSentence(sentenceCaseFirst(labelFromKey(packet.publication_gate.reason).toLowerCase()))}`,
     '',
     'Safety',
-    'No network publication, memory mutation, Builder absorption, or source artifacts were changed.'
+    '• No network publication, memory mutation, Builder absorption, or source artifacts were changed.'
   ].join('\n');
 }
 
@@ -1099,22 +1736,21 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
     '🟡 Recursive Canvas is ready.',
     '',
     'Canvas',
-    result.canvasUrl,
+    `• ${result.canvasUrl}`,
     '',
     'Plan',
-    `${result.load.nodes.length} nodes`,
-    'inspect only'
+    `• ${pluralize(result.load.nodes.length, 'node')}`,
+    '• inspect only'
   ].join('\n');
 }
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
   const canvas = trace.spawner.canvas_queue;
-  const timeline = dedupeRenderedTraceLines(trace.timeline.slice(0, 6).map(formatTraceTimelineItem));
+  const timeline = dedupeRenderedTraceLines(trace.timeline.slice(-6).map(formatTraceTimelineItem));
   const statusLines = [
     shouldShowTraceStatus(trace.status) ? friendlyTraceStatus(trace.status) : null,
     canvas.pending ? 'canvas pending' : null
-  ].filter(isRenderableLine);
-
+  ].filter((line): line is string => Boolean(line));
   return [
     `${traceDisplayTitle(trace)} trace`,
     trace.review.required ? '' : null,
@@ -1129,19 +1765,7 @@ export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
     'Workspace',
     sparkWorkspaceRecursionsUrl(),
     trace.review.required ? sparkWorkspaceDecisionsUrl() : null
-  ].filter(isRenderableLine).join('\n');
-}
-
-function dedupeRenderedTraceLines(lines: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const line of lines) {
-    const key = line.replace(/\s+/g, ' ').trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    result.push(line);
-  }
-  return result;
+  ].filter((line): line is string => line !== null).join('\n');
 }
 
 function shouldShowTraceStatus(status: string): boolean {
@@ -1154,6 +1778,18 @@ function friendlyTraceStatus(status: string): string {
   if (normalized === 'failed') return 'failed';
   if (normalized === 'paused') return 'paused';
   return normalized.replace(/[_-]+/g, ' ') || status;
+}
+
+function dedupeRenderedTraceLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const line of lines) {
+    const key = line.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(line);
+  }
+  return result;
 }
 
 function decisionForAction(action: 'approve' | 'defer' | 'reject' | 'more-eval'): RecursiveDecision {
@@ -1174,15 +1810,165 @@ function parseRounds(parts: string[]): number {
   return Math.max(1, Math.min(10, Number.parseInt(raw || '3', 10) || 3));
 }
 
+function normalizeRecursiveArtifactSyncKind(value: string | undefined): RecursiveArtifactSyncKind | null {
+  const normalized = (value || '').toLowerCase().replace(/_/g, '-');
+  if (normalized === 'prompt-benchmark' || normalized === 'benchmark') return 'prompt-benchmark';
+  if (normalized === 'domain-chip-lab' || normalized === 'domain-chip-lab-loop' || normalized === 'chip-lab') return 'domain-chip-lab';
+  if (normalized === 'domain-autoloop' || normalized === 'autoloop') return 'domain-autoloop';
+  return null;
+}
+
+function optionValue(tokens: string[], names: string[]): string | null {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (normalizedNames.has(tokens[index].toLowerCase())) return tokens[index + 1];
+  }
+  return null;
+}
+
+function repeatedOptionValues(tokens: string[], names: string[]): string[] {
+  const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
+  const values: string[] = [];
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (normalizedNames.has(tokens[index].toLowerCase())) values.push(tokens[index + 1]);
+  }
+  return values;
+}
+
+function positionalTokens(tokens: string[]): string[] {
+  const optionNames = new Set([
+    'report',
+    'report-path',
+    '--report-path',
+    'chip-key',
+    '--chip-key',
+    'chip-path',
+    '--chip-path',
+    'packet',
+    '--packet',
+    'policy',
+    '--policy',
+    'journal',
+    '--journal',
+    'lane-report',
+    '--lane-report'
+  ]);
+  const values: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (optionNames.has(token.toLowerCase()) && index < tokens.length - 1) {
+      index += 1;
+      continue;
+    }
+    values.push(token);
+  }
+  return values;
+}
+
+export function buildRecursiveArtifactBridgeArgs(
+  input: RecursiveArtifactSyncInput,
+  options: {
+    payloadPath: string;
+    apiUrl?: string;
+    workspaceId?: string;
+    accessToken?: string;
+  }
+): string[] {
+  const positionals = positionalTokens(input.args);
+  const args = ['-m', 'spark_swarm_bridge.cli'];
+
+  if (input.kind === 'prompt-benchmark') {
+    const runJson = positionals[0];
+    if (!runJson) throw new Error('Usage: /recursive sync prompt-benchmark <runJson> [report <reportPath>]');
+    args.push('prompt-benchmark', '--input', runJson);
+    const reportPath = optionValue(input.args, ['report', 'report-path', '--report-path']);
+    if (reportPath) args.push('--report-path', reportPath);
+  } else if (input.kind === 'domain-chip-lab') {
+    const telemetryJson = positionals[0];
+    const chipKey = optionValue(input.args, ['chip-key', '--chip-key']) || positionals[1];
+    if (!telemetryJson || !chipKey) {
+      throw new Error('Usage: /recursive sync domain-chip-lab <telemetryJson> <chipKey> [chip-path <path>] [packet <path>]');
+    }
+    args.push('domain-chip-lab-loop', '--telemetry', telemetryJson, '--chip-key', chipKey);
+    const chipPath = optionValue(input.args, ['chip-path', '--chip-path']);
+    if (chipPath) args.push('--chip-path', chipPath);
+    for (const packet of repeatedOptionValues(input.args, ['packet', '--packet'])) args.push('--packet', packet);
+  } else {
+    const manifestJson = positionals[0];
+    const stateJson = positionals[1];
+    if (!manifestJson || !stateJson) {
+      throw new Error('Usage: /recursive sync domain-autoloop <manifestJson> <stateJson> [policy <path>] [journal <path>] [lane-report <path>]');
+    }
+    args.push('domain-autoloop', '--manifest', manifestJson, '--state', stateJson);
+    const policyPath = optionValue(input.args, ['policy', '--policy']);
+    const journalPath = optionValue(input.args, ['journal', '--journal']);
+    if (policyPath) args.push('--policy', policyPath);
+    if (journalPath) args.push('--journal', journalPath);
+    for (const laneReport of repeatedOptionValues(input.args, ['lane-report', '--lane-report'])) args.push('--lane-report', laneReport);
+  }
+
+  args.push('--payload', options.payloadPath, '--sync-collective');
+  if (options.workspaceId) args.push('--workspace-id', options.workspaceId);
+  if (options.apiUrl) args.push('--api-url', options.apiUrl);
+  if (options.accessToken) args.push('--access-token', options.accessToken);
+  return args;
+}
+
 function truncate(value: string, limit: number): string {
-  const clean = value.replace(/\s+/g, ' ').trim();
+  const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
   return clean.length <= limit ? clean : `${clean.slice(0, limit - 1).trim()}...`;
+}
+
+function formatBestSignal(value: string): string {
+  const clean = formatOutcomeSummary(value);
+  const firstSentence = /^(.+?[.!?])(?:\s|$)/.exec(clean)?.[1];
+  return truncateAtWord(firstSentence || clean, 180);
 }
 
 function hasSameDisplayedImprovement(value: string | null | undefined): boolean {
   if (!value) return false;
   const number = '-?\\d+(?:\\.\\d+)?';
   return new RegExp(`\\b(?:improved|improving)\\b[\\s\\S]*?\\bfrom\\s+(${number})\\s+to\\s+\\1\\b`, 'i').test(value);
+}
+
+function formatOutcomeSummary(value: string): string {
+  let clean = value.replace(/\s+/g, ' ').trim();
+  const number = '-?\\d+(?:\\.\\d+)?';
+  const direct = new RegExp(`^(.+?)\\s+improved\\s+from\\s+(${number})\\s+to\\s+\\2(.*)$`, 'i');
+  clean = clean.replace(direct, (_match, prefix: string, score: string, suffix: string) => (
+    `${prefix} registered a tiny improvement${suffix} (score still rounds to ${score}).`
+  ));
+  const inline = new RegExp(`,?\\s+improving\\s+[A-Za-z0-9_:/ -]+\\s+from\\s+(${number})\\s+to\\s+\\1\\.?`, 'i');
+  clean = clean.replace(inline, (_match, score: string) => `; score still rounds to ${score}.`);
+  return clean;
+}
+
+function formatMasteryLine(mastery: SparkWorkspaceMastery): string {
+  const summary = sentenceCaseFirst(formatBestSignal(mastery.summary).replace(/\bmastery candidate\b/i, 'candidate'));
+  const evidence = formatMasteryEvidence(mastery);
+  return `Mastery: ${ensureSentence(summary)}${evidence ? ` ${evidence}` : ''}`;
+}
+
+function formatUpdatedAt(value: string | null | undefined): string {
+  if (!value) return 'unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getUTCMonth()];
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()}, ${hour}:${minute} UTC`;
+}
+
+function formatMasteryEvidence(mastery: SparkWorkspaceMastery): string | null {
+  const parts = [
+    typeof mastery.benchmarkStrength === 'number' ? `benchmark ${formatNumber(mastery.benchmarkStrength)}` : null,
+    typeof mastery.liveStrength === 'number' ? `live ${formatNumber(mastery.liveStrength)}` : null,
+    typeof mastery.supportCount === 'number' ? pluralize(mastery.supportCount, 'support') : null,
+    typeof mastery.contradictionCount === 'number' && mastery.contradictionCount > 0
+      ? pluralize(mastery.contradictionCount, 'contradiction')
+      : null
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? `Evidence: ${parts.join(', ')}.` : null;
 }
 
 function ensureSentence(value: string): string {
@@ -1193,6 +1979,29 @@ function ensureSentence(value: string): string {
 function sentenceCaseFirst(value: string): string {
   const clean = value.trim();
   return clean ? `${clean.charAt(0).toUpperCase()}${clean.slice(1)}` : clean;
+}
+
+function truncateAtWord(value: string, limit: number): string {
+  const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
+  if (clean.length <= limit) return clean;
+  const clipped = clean.slice(0, limit - 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  const prefix = lastSpace > Math.floor(limit * 0.6) ? clipped.slice(0, lastSpace) : clipped;
+  return `${prefix.trim()}...`;
+}
+
+function normalizeKnownAcronyms(value: string): string {
+  return value
+    .replace(/\bAgi\b/g, 'AGI')
+    .replace(/\bApi\b/g, 'API')
+    .replace(/\bCli\b/g, 'CLI')
+    .replace(/\bDb\b/g, 'DB')
+    .replace(/\bGpt\b/g, 'GPT')
+    .replace(/\bGtm\b/g, 'GTM')
+    .replace(/\bLlm\b/g, 'LLM')
+    .replace(/\bUi\b/g, 'UI')
+    .replace(/\bUx\b/g, 'UX')
+    .replace(/\bYc\b/g, 'YC');
 }
 
 function formatDelta(value: number): string {
@@ -1240,7 +2049,7 @@ function sessionTitleLabel(title: string): string {
     .replace(/\bstatus=.*$/i, '')
     .replace(/[.]+$/, '')
     .trim();
-  return truncate(labelFromKey(cleaned || title), 64);
+  return truncateAtWord(labelFromKey(cleaned || title), 64);
 }
 
 function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: number | null | undefined): 'improved' | 'flat' | 'regressed' {
@@ -1455,6 +2264,7 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const path = findPath(snapshot, id);
   if (!path) return `Recursive loop not found in Spark Workspace: ${id}\n${sparkWorkspaceRecursionsUrl()}`;
   const spec = specializationForPath(snapshot, path);
+  const insights = spec ? snapshot.insights.filter((item) => item.specializationId === spec.id) : [];
   const pathOutcomes = outcomesForPath(snapshot, path);
   const latestOutcome = pathOutcomes.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
   const decisions = inboxForPath(snapshot, path);
@@ -1465,8 +2275,8 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
   const verdict = latestOutcome?.verdict || (path.bestOutcomeId ? 'recorded' : path.status);
   const sameDisplayedImprovement = latestOutcome ? hasSameDisplayedImprovement(latestOutcome.summary) : false;
   const scoreLines = [
-    metricLine ? `- ${metricLine}` : null,
-    comparisonLine ? `- ${formatCompareFragment(comparisonLine)}` : null
+    metricLine ? `• ${metricLine}` : null,
+    comparisonLine ? `• ${formatCompareFragment(comparisonLine)}` : null
   ].filter(isRenderableLine);
 
   return [
@@ -1476,12 +2286,12 @@ export function renderRecursiveWorkspaceReport(snapshot: SparkWorkspaceSnapshot,
     ...scoreLines,
     decisions.length > 0 ? '' : null,
     decisions.length > 0 ? 'Review' : null,
-    decisions.length > 0 ? `- ${pluralize(decisions.length, 'decision')} waiting` : null,
-    decisions.length > 0 ? `- ${sparkWorkspaceDecisionsUrl()}` : null,
+    decisions.length > 0 ? `• ${pluralize(decisions.length, 'decision')} waiting` : null,
+    decisions.length > 0 ? `• ${sparkWorkspaceDecisionsUrl()}` : null,
     '',
     'Workspace',
-    artifacts.length > 0 ? `- ${pluralize(artifacts.length, 'saved item')}` : null,
-    `- ${sparkWorkspaceRecursionsUrl()}`
+    artifacts.length > 0 ? `• ${pluralize(artifacts.length, 'saved item')}` : null,
+    `• ${sparkWorkspaceRecursionsUrl()}`,
   ].filter(isRenderableLine).join('\n');
 }
 
@@ -1494,34 +2304,39 @@ export function renderRecursiveWorkspaceReview(snapshot: SparkWorkspaceSnapshot,
   if (items.length === 0) return `No Spark Workspace decisions found for ${id}.`;
   const groups = groupReviewItems(items);
   const targetLabel = path ? pathDisplayLabel(path, spec) : labelFromKey(id);
+  const scopeLine = path ? `Scope: ${friendlyReviewScope(path.scope)}` : null;
+  const networkLine = path ? `Network: ${friendlyReviewNetwork(path.scope)}` : null;
   const topGroup = groups[0];
-  const reasonLines = topGroup ? reviewReasonLines(topGroup) : [];
   const topActions = topGroup ? reviewTelegramActions(topGroup.item) : [];
+  const reasonLines = topGroup ? reviewReasonLines(topGroup) : [];
 
   return [
     `${targetLabel} review`,
     '',
     'Review',
-    `- ${pluralize(items.length, 'decision')} waiting`,
-    topGroup ? `- blocker: ${topGroup.item.title}${topGroup.count > 1 ? ` (${pluralize(topGroup.count, 'item')})` : ''}` : null,
+    `• ${pluralize(items.length, 'decision')} waiting`,
+    topGroup ? `• blocker: ${topGroup.item.title}${topGroup.count > 1 ? ` (${pluralize(topGroup.count, 'item')})` : ''}` : null,
+    scopeLine || networkLine ? '' : null,
+    scopeLine || networkLine ? 'Sharing' : null,
+    scopeLine ? `• ${scopeLine.replace(/^Scope:\s*/, '')}` : null,
+    networkLine ? `• ${networkLine.replace(/^Network:\s*/, '')}` : null,
     reasonLines.length > 0 ? '' : null,
     reasonLines.length > 0 ? 'Why' : null,
-    ...reasonLines.map((reason) => `- ${reason}`),
+    ...reasonLines.map((reason) => `• ${reason}`),
     topGroup?.item.recommendedAction ? '' : null,
     topGroup?.item.recommendedAction ? 'Move' : null,
-    topGroup?.item.recommendedAction ? `- ${ensureSentence(truncate(topGroup.item.recommendedAction, 130))}` : null,
+    topGroup?.item.recommendedAction ? `• ${ensureSentence(truncate(topGroup.item.recommendedAction, 130))}` : null,
     topActions.length > 0 ? '' : null,
     topActions.length > 0 ? 'Actions' : null,
     ...topActions.map((action, index) => `${index + 1}. ${action}`),
     '',
     'Workspace',
-    `- ${sparkWorkspaceDecisionsUrl()}`
+    `• ${sparkWorkspaceDecisionsUrl()}`
   ].filter(isRenderableLine).join('\n');
 }
 
 function findPath(snapshot: SparkWorkspaceSnapshot, id: string): SparkWorkspaceEvolutionPath | null {
-  const resolvedId = resolveRecursiveSessionId(snapshot, id);
-  return snapshot.evolutionPaths.find((path) => path.id === resolvedId || path.specializationId === resolvedId) ?? null;
+  return snapshot.evolutionPaths.find((path) => path.id === id || path.specializationId === id) ?? null;
 }
 
 function specializationForPath(snapshot: SparkWorkspaceSnapshot, path: SparkWorkspaceEvolutionPath): SparkWorkspaceSpecialization | null {
@@ -1572,7 +2387,12 @@ function uniqueArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): SparkWorksp
   const seen = new Set<string>();
   const unique: SparkWorkspaceArtifactRef[] = [];
   for (const artifact of artifacts) {
-    const key = [artifact.kind, artifact.label, artifact.path || '', artifact.url || ''].join('\n');
+    const key = [
+      artifact.kind,
+      artifact.label,
+      artifact.path || '',
+      artifact.url || ''
+    ].join('\n');
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(artifact);
@@ -1585,15 +2405,21 @@ function isRenderableLine(line: string | null): line is string {
 }
 
 function pathDisplayLabel(path: SparkWorkspaceEvolutionPath, spec: SparkWorkspaceSpecialization | null): string {
-  if (spec?.label) return spec.label;
-  if (path.id.startsWith('path:')) return labelFromKey(path.id.slice('path:'.length));
+  return spec?.label || labelFromKey(path.repoLabel || path.scope || path.id);
+}
+
+function recursiveStartTargetForPath(path: SparkWorkspaceEvolutionPath, spec: SparkWorkspaceSpecialization | null): string | null {
+  if (spec?.key) return spec.key;
+  if (path.id.startsWith('path:')) return path.id.slice('path:'.length);
   const builderChipMatch = /^path_builder_chip_(.+)$/.exec(path.id);
-  if (builderChipMatch) return labelFromKey(builderChipMatch[1]);
-  const namedPathMatch = /^path_(?:domain_autoloop|domain_chip_lab)_(.+)$/.exec(path.id);
-  if (namedPathMatch) return labelFromKey(namedPathMatch[1]);
-  const summaryLabel = sessionTitleLabel(path.summary || '');
-  if (summaryLabel) return summaryLabel;
-  return labelFromKey(path.repoLabel || path.scope || path.id);
+  if (builderChipMatch) return builderChipMatch[1].replace(/_/g, '-');
+  const simplePathMatch = /^path_(.+)$/.exec(path.id);
+  if (simplePathMatch) return simplePathMatch[1].replace(/_/g, '-');
+  return null;
+}
+
+function outcomeHeadline(label: string, verdict: string | null | undefined): string {
+  return `${label} ${friendlyOutcomeVerb(verdict)}.`;
 }
 
 function workspaceReportHeadline(
@@ -1602,18 +2428,18 @@ function workspaceReportHeadline(
   hasOutcome: boolean,
   sameDisplayedImprovement = false
 ): string {
-  if (!hasOutcome) return `${label} ${friendlyOutcomeVerb(verdict)}.`;
+  if (!hasOutcome) return outcomeHeadline(label, verdict);
   if (sameDisplayedImprovement) return `Latest ${label} run improved slightly.`;
   return `Latest ${label} run ${friendlyOutcomeVerb(verdict)}.`;
 }
 
 function outcomeStatusIcon(verdict: string | null | undefined): string {
   const normalized = (verdict || '').toLowerCase();
-  if (normalized.includes('regress')) return '\u{1F534}';
-  if (normalized.includes('improv')) return '\u{1F7E2}';
-  if (normalized.includes('flat')) return '\u{26AA}';
-  if (normalized.includes('unknown') || normalized.includes('no rounds')) return '\u{1F7E1}';
-  return '\u{26AA}';
+  if (normalized.includes('regress')) return '🔴';
+  if (normalized.includes('improv')) return '🟢';
+  if (normalized.includes('flat')) return '⚪';
+  if (normalized.includes('unknown') || normalized.includes('no rounds')) return '🟡';
+  return '⚪';
 }
 
 function friendlyOutcomeVerb(verdict: string | null | undefined): string {
@@ -1630,66 +2456,36 @@ function friendlyOutcomeVerb(verdict: string | null | undefined): string {
   return normalized || 'is recorded';
 }
 
-function formatOutcomeComparison(
-  latestOutcome: SparkWorkspaceOutcome,
-  outcomes: SparkWorkspaceOutcome[],
-  bestOutcomeId: string | null | undefined
-): string | null {
-  const bestOutcome = bestComparableOutcome(latestOutcome, outcomes, bestOutcomeId);
-  if (!bestOutcome || typeof latestOutcome.metricValue !== 'number' || typeof bestOutcome.metricValue !== 'number') return null;
-
-  const delta = latestOutcome.metricValue - bestOutcome.metricValue;
-  if (Math.abs(delta) < 0.000001) return 'Compare: current best for this path.';
-
-  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
-  const latestIsBetter = lowerIsBetter ? delta < 0 : delta > 0;
-  const direction = latestIsBetter
-    ? 'beats current best by'
-    : lowerIsBetter
-      ? 'above current best by'
-      : 'below current best by';
-  return `Compare: ${direction} ${formatNumber(Math.abs(delta))} (best ${formatNumber(bestOutcome.metricValue)}).`;
+function friendlyDecisionLabel(decision: RecursiveDecision): string {
+  if (decision === 'approve_local') return 'approved';
+  if (decision === 'request_more_eval') return 'more eval requested';
+  if (decision === 'defer') return 'deferred';
+  if (decision === 'reject') return 'rejected';
+  return decision;
 }
 
-function formatCompareFragment(line: string): string {
-  return line.replace(/^Compare:\s*/i, '').replace(/[.]+$/, '');
+function friendlyWorkspaceDecisionDetail(detail: string): string {
+  if (/No matching Workspace inbox item/i.test(detail)) {
+    return 'No matching decision was found. Open Decisions and refresh the queue.';
+  }
+  if (/only support approve\/absorb/i.test(detail)) {
+    return 'This item only supports approve from Telegram.';
+  }
+  if (/Workspace insight absorb request submitted/i.test(detail)) {
+    return 'Insight absorb request submitted.';
+  }
+  const masteryMatch = /Workspace mastery review submitted as ([^.]+)\./i.exec(detail);
+  if (masteryMatch) return `Mastery review submitted as ${masteryMatch[1]}.`;
+  if (/needs Workspace Decisions|Telegram did not mutate it/i.test(detail)) {
+    return 'This item has to be handled in Workspace Decisions.';
+  }
+  return detail;
 }
 
-function bestComparableOutcome(
-  latestOutcome: SparkWorkspaceOutcome,
-  outcomes: SparkWorkspaceOutcome[],
-  bestOutcomeId: string | null | undefined
-): SparkWorkspaceOutcome | null {
-  if (typeof latestOutcome.metricValue !== 'number') return null;
-  const comparable = outcomes.filter((outcome) =>
-    outcome.metricName === latestOutcome.metricName &&
-    typeof outcome.metricValue === 'number'
-  );
-  if (comparable.length === 0) return null;
-
-  const selectedBest = bestOutcomeId
-    ? comparable.find((outcome) => outcome.id === bestOutcomeId)
-    : null;
-  if (selectedBest) return selectedBest;
-
-  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
-  return comparable.slice().sort((a, b) =>
-    lowerIsBetter
-      ? (a.metricValue as number) - (b.metricValue as number)
-      : (b.metricValue as number) - (a.metricValue as number)
-  )[0] ?? null;
-}
-
-function metricGoalPrefersLower(outcome: SparkWorkspaceOutcome): boolean {
-  const scorecardGoal = outcome.context?.scorecard?.headlineGoal || '';
-  if (/\b(lower|minimi[sz]e|smaller|less)\b/i.test(scorecardGoal)) return true;
-  const componentGoals = outcome.context?.scorecard?.components?.map((component) => component.goal).join(' ') || '';
-  return /\b(lower|minimi[sz]e|smaller|less)\b/i.test(componentGoals);
-}
-
-function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
-  if (typeof outcome.metricValue !== 'number') return null;
-  return `${formatMetricLabel(outcome.metricName)} ${formatNumber(outcome.metricValue)}`;
+function decisionReportTarget(record: RecursiveDecisionRecord): string | null {
+  if (record.target_type === 'evolution_path' && record.target_id) return record.target_id;
+  if (/^path[:_]/.test(record.session_id)) return record.session_id;
+  return null;
 }
 
 interface ReviewItemGroup {
@@ -1719,11 +2515,52 @@ function groupReviewItems(items: SparkWorkspaceInboxItem[]): ReviewItemGroup[] {
   return [...groups.values()];
 }
 
+function renderReviewGroup(group: ReviewItemGroup, index: number): string[] {
+  const item = group.item;
+  const suffix = group.count > 1 ? ` (${pluralize(group.count, 'item')})` : '';
+  const lines = [
+    `${index}. ${item.title}${suffix}`,
+    `Type: ${reviewKindLabel(item.kind)}, priority ${item.priority}.`,
+    `Why: ${ensureSentence(reviewGroupSummary(group))}`
+  ];
+  if (item.recommendedAction) {
+    lines.push(`Suggested: ${ensureSentence(truncate(item.recommendedAction, 140))}`);
+  }
+
+  const actions = reviewTelegramActions(item);
+  if (actions.length > 0) {
+    lines.push('Telegram actions:', ...actions.map((action) => `- ${action}`));
+  } else {
+    lines.push(
+      'Workspace',
+      `- ${sparkWorkspaceDecisionsUrl()}`
+    );
+  }
+  return ['', ...lines];
+}
+
+function reviewGroupSummary(group: ReviewItemGroup): string {
+  if (group.count === 1) return truncate(group.summaries[0], 160);
+  const reasons = uniqueReviewReasons(group.summaries);
+  if (reasons.length > 0) {
+    return `${pluralize(group.count, 'related decision')} need the same move. Reasons: ${truncate(reasons.join('; '), 150)}`;
+  }
+  return `${pluralize(group.count, 'related decision')} need the same move.`;
+}
+
 function reviewReasonLines(group: ReviewItemGroup): string[] {
   if (group.count === 1) return [ensureSentence(truncate(group.summaries[0], 120))];
   const reasons = uniqueReviewReasons(group.summaries).map(friendlyReviewReason);
   if (reasons.length > 0) return reasons.map(ensureSentence);
   return [`${pluralize(group.count, 'related decision')} need the same move.`];
+}
+
+function friendlyReviewReason(reason: string): string {
+  const cleaned = reason.replace(/[.]+$/, '').trim();
+  if (/primary message exceeds the network readability limit/i.test(cleaned)) return 'Message is too long for network sharing';
+  if (/contains a suspicious long opaque token/i.test(cleaned)) return 'Suspicious long opaque token';
+  if (/contains inline code fencing/i.test(cleaned)) return 'Inline code fencing';
+  return sentenceCaseFirst(cleaned.replace(/^contains\s+/i, ''));
 }
 
 function uniqueReviewReasons(summaries: string[]): string[] {
@@ -1735,17 +2572,11 @@ function uniqueReviewReasons(summaries: string[]): string[] {
   return [...reasons].filter(Boolean).slice(0, 4);
 }
 
-function friendlyReviewReason(reason: string): string {
-  const cleaned = reason.replace(/[.]+$/, '').trim();
-  if (/primary message exceeds the network readability limit/i.test(cleaned)) return 'Message is too long for network sharing';
-  if (/contains a suspicious long opaque token/i.test(cleaned)) return 'Suspicious long opaque token';
-  if (/contains inline code fencing/i.test(cleaned)) return 'Inline code fencing';
-  return sentenceCaseFirst(cleaned.replace(/^contains\s+/i, ''));
-}
-
 function reviewTelegramActions(item: SparkWorkspaceInboxItem): string[] {
   if (item.kind === 'absorb' && item.targetType === 'insight') {
-    return [`Approve: /recursive approve ${item.id} absorb this insight`];
+    return [
+      `Approve: /recursive approve ${item.id} absorb this insight`
+    ];
   }
   if (item.kind === 'review_mastery' && item.targetType === 'mastery') {
     return [
@@ -1758,12 +2589,35 @@ function reviewTelegramActions(item: SparkWorkspaceInboxItem): string[] {
   return [];
 }
 
+function reviewKindLabel(kind: string): string {
+  const normalized = kind.toLowerCase();
+  if (normalized === 'review_mastery') return 'Review mastery';
+  if (normalized === 'review_outcome') return 'Review outcome';
+  if (normalized === 'absorb') return 'Absorb insight';
+  return labelFromKey(kind);
+}
+
 function reviewPriorityRank(priority: string | null | undefined): number {
   const normalized = (priority || '').toLowerCase();
   if (normalized === 'high') return 3;
   if (normalized === 'medium') return 2;
   if (normalized === 'low') return 1;
   return 0;
+}
+
+function friendlyReviewScope(scope: string | null | undefined): string {
+  const normalized = (scope || '').toLowerCase();
+  if (normalized.includes('public') || normalized.includes('network')) return 'public network';
+  if (normalized.includes('specialization')) return 'specialization path';
+  if (normalized.includes('workspace') || normalized.includes('private') || normalized.includes('local')) return 'private workspace';
+  return scope || 'workspace';
+}
+
+function friendlyReviewNetwork(scope: string | null | undefined): string {
+  const normalized = (scope || '').toLowerCase();
+  if (normalized.includes('public') || normalized.includes('network')) return 'official path';
+  if (normalized.includes('specialization')) return 'review required';
+  return 'not submitted';
 }
 
 function traceDisplayTitle(trace: RecursiveTraceView): string {
@@ -1857,6 +2711,110 @@ function cleanTraceTimelineTitle(title: string): string {
     .trim();
   if (/^round\s+\d{8}T\d+/i.test(cleaned)) return 'previous round';
   return cleaned || title;
+}
+
+function formatOutcomeMetric(outcome: SparkWorkspaceOutcome): string | null {
+  if (typeof outcome.metricValue !== 'number') return null;
+  return `${formatMetricLabel(outcome.metricName)} ${formatNumber(outcome.metricValue)}`;
+}
+
+function formatOutcomeComparison(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): string | null {
+  const bestOutcome = bestComparableOutcome(latestOutcome, outcomes, bestOutcomeId);
+  if (!bestOutcome || typeof latestOutcome.metricValue !== 'number' || typeof bestOutcome.metricValue !== 'number') return null;
+
+  const delta = latestOutcome.metricValue - bestOutcome.metricValue;
+  if (Math.abs(delta) < 0.000001) return 'Compare: current best for this path.';
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  const latestIsBetter = lowerIsBetter ? delta < 0 : delta > 0;
+  const direction = latestIsBetter
+    ? 'beats current best by'
+    : lowerIsBetter
+      ? 'above current best by'
+      : 'below current best by';
+  return `Compare: ${direction} ${formatNumber(Math.abs(delta))} (best ${formatNumber(bestOutcome.metricValue)}).`;
+}
+
+function formatCompareFragment(line: string): string {
+  return line.replace(/^Compare:\s*/i, '').replace(/[.]+$/, '');
+}
+
+function bestComparableOutcome(
+  latestOutcome: SparkWorkspaceOutcome,
+  outcomes: SparkWorkspaceOutcome[],
+  bestOutcomeId: string | null | undefined
+): SparkWorkspaceOutcome | null {
+  if (typeof latestOutcome.metricValue !== 'number') return null;
+  const comparable = outcomes.filter((outcome) =>
+    outcome.metricName === latestOutcome.metricName &&
+    typeof outcome.metricValue === 'number'
+  );
+  if (comparable.length === 0) return null;
+
+  const selectedBest = bestOutcomeId
+    ? comparable.find((outcome) => outcome.id === bestOutcomeId)
+    : null;
+  if (selectedBest) return selectedBest;
+
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  return comparable.slice().sort((a, b) =>
+    lowerIsBetter
+      ? (a.metricValue as number) - (b.metricValue as number)
+      : (b.metricValue as number) - (a.metricValue as number)
+  )[0] ?? null;
+}
+
+function metricGoalPrefersLower(outcome: SparkWorkspaceOutcome): boolean {
+  const scorecardGoal = outcome.context?.scorecard?.headlineGoal || '';
+  if (/\b(lower|minimi[sz]e|smaller|less)\b/i.test(scorecardGoal)) return true;
+  const componentGoals = outcome.context?.scorecard?.components?.map((component) => component.goal).join(' ') || '';
+  return /\b(lower|minimi[sz]e|smaller|less)\b/i.test(componentGoals);
+}
+
+function formatOutcomeScorecard(outcome: SparkWorkspaceOutcome): string | null {
+  const scorecard = outcome.context?.scorecard;
+  if (!scorecard) return null;
+  const headline = typeof scorecard.headlineValue === 'number'
+    ? `${scorecard.headlineLabel || formatMetricLabel(outcome.metricName)} ${formatNumber(scorecard.headlineValue)}`
+    : null;
+  const goal = scorecard.headlineGoal ? `goal=${scorecard.headlineGoal}` : null;
+  const model = scorecard.modelLabel ? `model=${normalizeKnownAcronyms(scorecard.modelLabel)}` : null;
+  const details = (scorecard.details || [])
+    .slice(0, 2)
+    .map((detail) => normalizeKnownAcronyms(`${detail.label}: ${detail.value}`));
+  return [headline, goal, model, ...details].filter(Boolean).join('; ') || null;
+}
+
+function formatArtifactRefs(artifacts: SparkWorkspaceArtifactRef[]): string {
+  if (artifacts.length === 0) return 'Evidence: none saved yet.';
+  const highlights = uniqueArtifactLabels(artifacts).slice(0, 3);
+  if (artifacts.length === 1) {
+    const label = highlights[0];
+    return `Evidence: saved ${friendlyArtifactKind(artifacts[0].kind)}${label ? ` - ${label}` : ''}.`;
+  }
+  const highlightLine = highlights.length > 0 ? ` Highlights: ${highlights.join('; ')}.` : '';
+  return `Evidence: ${pluralize(artifacts.length, 'saved item')}.${highlightLine}`;
+}
+
+function uniqueArtifactLabels(artifacts: SparkWorkspaceArtifactRef[]): string[] {
+  const labels: string[] = [];
+  for (const artifact of artifacts) {
+    const label = truncate((artifact.label || artifact.id || '').replace(/[_:]+/g, ' ').trim(), 60);
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return labels;
+}
+
+function friendlyArtifactKind(kind: string | null | undefined): string {
+  const normalized = (kind || '').toLowerCase();
+  if (normalized === 'run_trace') return 'run trace';
+  if (normalized === 'benchmark_run') return 'benchmark run';
+  if (normalized === 'loop_telemetry') return 'loop telemetry';
+  return formatMetricLabel(normalized || 'artifact');
 }
 
 function formatMetricLabel(value: string | null | undefined): string {
