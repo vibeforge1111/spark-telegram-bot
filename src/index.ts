@@ -197,6 +197,7 @@ import {
 } from './telegramImageBridge';
 import {
   buildMemoryDoctorEvidencePrompt,
+  selectMemoryDoctorEvidenceTurns,
   shouldAttachMemoryDoctorEvidence
 } from './memoryDoctorBridge';
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
@@ -3648,7 +3649,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   try {
     const memoryDoctorEvidenceTurns = naturalRouteShadow?.route === 'memory.doctor' && shouldAttachMemoryDoctorEvidence(text)
-      ? await conversation.getRecentTurns(user, 8).catch(() => [])
+      ? selectMemoryDoctorEvidenceTurns(text, await conversation.getRecentTurns(user, 8).catch(() => []))
       : [];
     await conversation.remember(user, text).catch(() => {});
     let bridgeFailed = false;

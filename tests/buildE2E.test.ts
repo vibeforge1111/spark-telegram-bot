@@ -375,6 +375,55 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('memory doctor evidence includes user turns from final Builder replies', async () => {
+		restoreAxios();
+		const testUserId = 8319079564;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const capturedBridgeTexts: string[] = [];
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			const messagePayload = (updatePayload as any).message || {};
+			capturedBridgeTexts.push(String(messagePayload.text || ''));
+			return {
+				used: true,
+				responseText: 'Builder acknowledged the turn.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'plain_chat'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const firstReplies: string[] = [];
+			const firstCtx = makeFakeCtx(testUserId, testUserId, 5641, firstReplies);
+			firstCtx.message.text = 'what is route confidence in one sentence';
+			(firstCtx as any).update = { update_id: 5641, message: firstCtx.message };
+			await indexModule.handleTextMessage(firstCtx);
+
+			const doctorReplies: string[] = [];
+			const doctorCtx = makeFakeCtx(testUserId, testUserId, 5642, doctorReplies);
+			doctorCtx.message.text = 'run memory doctor for last request';
+			(doctorCtx as any).update = { update_id: 5642, message: doctorCtx.message };
+			await indexModule.handleTextMessage(doctorCtx);
+
+			const doctorPayload = capturedBridgeTexts[capturedBridgeTexts.length - 1] || '';
+			assert.match(doctorPayload, /Spark Telegram Memory Doctor evidence/);
+			assert.match(doctorPayload, /- user: what is route confidence in one sentence/);
+			assert.match(doctorPayload, /- assistant: Builder acknowledged the turn\./);
+			assert.doesNotMatch(doctorPayload, /all your chips work/i);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('chip status overclaim probe does not fall through to provider fallback', async () => {
 		restoreAxios();
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';

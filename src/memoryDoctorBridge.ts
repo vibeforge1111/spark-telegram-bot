@@ -22,6 +22,23 @@ export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
   return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
 }
 
+function sameNormalizedText(a: string, b: string): boolean {
+  return a.replace(/\s+/g, ' ').trim() === b.replace(/\s+/g, ' ').trim();
+}
+
+export function selectMemoryDoctorEvidenceTurns(
+  userRequest: string,
+  recentTurns: MemoryDoctorEvidenceTurn[],
+  maxTurns = 2
+): MemoryDoctorEvidenceTurn[] {
+  const turns = [...recentTurns];
+  const last = turns[turns.length - 1];
+  if (last && normalizeEvidenceRole(String(last.role || 'user')) === 'user' && sameNormalizedText(String(last.text || ''), userRequest)) {
+    turns.pop();
+  }
+  return turns.slice(-Math.max(1, maxTurns));
+}
+
 export function buildMemoryDoctorEvidencePrompt(
   userRequest: string,
   recentTurns: MemoryDoctorEvidenceTurn[],
