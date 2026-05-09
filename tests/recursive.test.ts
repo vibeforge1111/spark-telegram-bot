@@ -104,8 +104,9 @@ test('renders review queue and audit-only decision records', () => {
     }
   ]);
 
-  assert.match(queue, /creator-mission-001/);
-  assert.match(queue, /delta=\+0.14/);
+  assert.match(queue, /🟡 Startup YC/);
+  assert.match(queue, /score change \+0.14/);
+  assert.match(queue, /review: \/recursive review creator-mission-001/);
 
   const decision = renderRecursiveDecision({
     decision_id: 'review-1',
@@ -118,9 +119,10 @@ test('renders review queue and audit-only decision records', () => {
     effect: 'workspace_route_only'
   });
 
-  assert.match(decision, /workspace_route_only/);
-  assert.match(decision, /Workspace: http:\/\/127\.0\.0\.1:5173\/runs\?tab=decisions/);
-  assert.equal(sparkWorkspaceDecisionsUrl(), 'http://127.0.0.1:5173/runs?tab=decisions');
+  assert.match(decision, /🟢 Recursive review approved locally\./);
+  assert.match(decision, /Telegram recorded the decision route\./);
+  assert.match(decision, /http:\/\/localhost:5173\/runs\?tab=decisions/);
+  assert.equal(sparkWorkspaceDecisionsUrl(), 'http://localhost:5173/runs?tab=decisions');
 });
 
 test('parses and renders local promotion packets', () => {
@@ -144,8 +146,8 @@ test('parses and renders local promotion packets', () => {
     }
   });
 
-  assert.match(packet, /local promotion packet staged/);
-  assert.match(packet, /Network absorbable: false/);
+  assert.match(packet, /Local promotion packet staged/);
+  assert.match(packet, /private only/);
 });
 
 test('parses and renders gated Swarm review packets', () => {
@@ -169,7 +171,7 @@ test('parses and renders gated Swarm review packets', () => {
   });
 
   assert.match(reply, /Swarm review packet staged/);
-  assert.match(reply, /Publication allowed: false/);
+  assert.match(reply, /network sharing blocked/);
   assert.match(reply, /No network publication/);
 });
 
@@ -196,8 +198,8 @@ test('parses and renders recursive canvas queue results', () => {
     }
   });
 
-  assert.match(reply, /Recursive Canvas load queued/);
-  assert.match(reply, /Inspect-only: autoRun is false/);
+  assert.match(reply, /Recursive Canvas is ready/);
+  assert.match(reply, /inspect only/);
 });
 
 test('parses and renders stitched recursive trace views', () => {

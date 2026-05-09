@@ -240,7 +240,7 @@ export interface RecursiveWorkspaceSyncResult {
 }
 
 const DEFAULT_SWARM_API_URL = 'http://127.0.0.1:8787';
-const DEFAULT_SWARM_WEB_URL = 'http://127.0.0.1:5173';
+const DEFAULT_SWARM_WEB_URL = 'http://localhost:5173';
 const execFileAsync = promisify(execFile);
 
 const SWARM_API_ENV_NAMES = [
@@ -1001,70 +1001,103 @@ function recursivePathGroups(sessions: RecursiveSessionListItem[]): Array<{
 
 export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandidate[]): string {
   if (candidates.length === 0) return 'No recursive candidates need review.';
-  const lines = ['Spark Workspace Decisions'];
-  for (const candidate of candidates.slice(0, 10)) {
-    const delta = candidate.score_delta === null ? '' : ` delta=${formatDelta(candidate.score_delta)}`;
-    lines.push(`- ${candidate.session_id} risk=${candidate.risk}${delta} - ${truncate(candidate.reason, 96)}`);
+  const visible = candidates.slice(0, 5);
+  const lines = ['Spark decisions needing review'];
+  for (const candidate of visible) {
+    lines.push(
+      '',
+      `🟡 ${reviewCandidateTitle(candidate)}`,
+      `${plainLabel(candidate.risk)} risk`,
+      ...(candidate.score_delta === null ? [] : [`score change ${formatDelta(candidate.score_delta)}`]),
+      ensureSentence(truncate(candidate.reason, 96)),
+      `review: /recursive review ${candidate.session_id}`
+    );
   }
-  if (candidates.length > 10) lines.push(`...and ${candidates.length - 10} more.`);
+  if (candidates.length > visible.length) lines.push('', `${candidates.length - visible.length} more in Workspace.`);
+  lines.push('', 'Workspace', sparkWorkspaceDecisionsUrl());
   return lines.join('\n');
 }
 
+function reviewCandidateTitle(candidate: RecursiveReviewCandidate): string {
+  const title = sessionTitleLabel(candidate.title || '');
+  if (title && !/^creator mission$/i.test(title)) return title;
+  if (candidate.domain) return labelFromKey(candidate.domain);
+  return labelFromKey(candidate.session_id);
+}
+
+function plainLabel(value: string | null | undefined): string {
+  return (value || 'unknown').replace(/[_-]+/g, ' ').trim();
+}
+
+function decisionStatusIcon(decision: RecursiveDecision): string {
+  if (decision === 'approve_local') return '🟢';
+  if (decision === 'request_more_eval' || decision === 'defer') return '🟡';
+  if (decision === 'reject') return '🔴';
+  return '⚪';
+}
+
+function decisionLabel(decision: RecursiveDecision): string {
+  if (decision === 'approve_local') return 'approved locally';
+  if (decision === 'request_more_eval') return 'sent for more evaluation';
+  if (decision === 'defer') return 'deferred';
+  if (decision === 'reject') return 'rejected';
+  return plainLabel(decision);
+}
+
 export function renderRecursiveDecision(record: RecursiveDecisionRecord): string {
+  const workspaceUpdated = record.effect === 'spark_workspace_review';
   const lines = [
-    'Recursive review decision routed.',
-    `Session: ${record.session_id}`,
-    `Decision: ${record.decision}`,
-    `Scope: ${record.scope}`,
-    `Effect: ${record.effect}`,
+    `${decisionStatusIcon(record.decision)} Recursive review ${decisionLabel(record.decision)}.`,
+    '',
+    'Result',
+    workspaceUpdated ? 'Workspace review updated.' : 'Telegram recorded the decision route.',
   ];
-  if (record.target_type && record.target_id) {
-    lines.push(`Target: ${record.target_type} ${record.target_id}`);
-  }
   if (record.workspace_detail) {
-    lines.push(record.workspace_detail);
+    lines.push(ensureSentence(truncate(record.workspace_detail, 140)));
   }
-  lines.push(`Workspace: ${sparkWorkspaceDecisionsUrl()}`);
+  lines.push('', 'Workspace', sparkWorkspaceDecisionsUrl());
   return lines.join('\n');
 }
 
 export function renderRecursivePromotionPacket(packet: RecursivePromotionPacket): string {
   return [
-    'Recursive local promotion packet staged.',
-    `Session: ${packet.session_id}`,
-    `Packet: ${packet.packet_id}`,
-    `State: ${packet.publication_state}`,
-    `Effect: ${packet.effect}`,
-    `Network absorbable: ${packet.network_absorbable}`,
-    'No memory, Swarm, Builder, or source artifacts were mutated.'
+    '🟡 Local promotion packet staged.',
+    '',
+    'Status',
+    'private only',
+    'not shared with the network',
+    '',
+    'Safety',
+    'No memory, Swarm, Builder, or source artifacts were changed.'
   ].join('\n');
 }
 
 export function renderRecursiveSwarmPacket(packet: RecursiveSwarmPacket): string {
   return [
-    'Recursive Swarm review packet staged.',
-    `Session: ${packet.session_id}`,
-    `Packet: ${packet.swarm_packet_id}`,
-    `Stage: ${packet.stage}`,
-    `Effect: ${packet.effect}`,
-    `Publication allowed: ${packet.publication_allowed}`,
-    `Network absorbable: ${packet.network_absorbable}`,
-    `Publication gate: ${packet.publication_gate.status} (${packet.publication_gate.reason})`,
-    `Required next command: ${packet.publication_gate.required_next_command}`,
-    'No network publication, memory mutation, Builder absorption, or source artifacts were mutated.'
+    '🟡 Swarm review packet staged.',
+    '',
+    'Status',
+    'private until review passes',
+    'network sharing blocked',
+    '',
+    'Why',
+    ensureSentence(labelFromKey(packet.publication_gate.reason)),
+    '',
+    'Safety',
+    'No network publication, memory mutation, Builder absorption, or source artifacts were changed.'
   ].join('\n');
 }
 
 export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): string {
   return [
-    'Recursive Canvas load queued.',
-    `Pipeline: ${result.load.pipelineId}`,
-    `Mission: ${result.load.relay.missionId}`,
-    `Nodes: ${result.load.nodes.length}`,
-    `Connections: ${result.load.connections.length}`,
-    `Canvas: ${result.canvasUrl}`,
-    `Effect: ${result.effect}`,
-    'Inspect-only: autoRun is false.'
+    '🟡 Recursive Canvas is ready.',
+    '',
+    'Canvas',
+    result.canvasUrl,
+    '',
+    'Plan',
+    `${result.load.nodes.length} nodes`,
+    'inspect only'
   ].join('\n');
 }
 
