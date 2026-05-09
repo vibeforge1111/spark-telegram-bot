@@ -961,9 +961,41 @@ export function orderedRecursiveSessions(sessions: RecursiveSessionListItem[]): 
 }
 
 export function renderRecursivePaths(sessions: RecursiveSessionListItem[]): string {
-  const domains = [...new Set(sessions.map((session) => session.domain || session.source_kind).filter(Boolean))].sort();
-  if (domains.length === 0) return 'No recursive paths found yet.';
-  return ['Spark Workspace Recursive Paths', ...domains.map((domain) => `- ${domain}`)].join('\n');
+  const groups = recursivePathGroups(sessions);
+  if (groups.length === 0) return 'No recursive paths found yet.';
+  const visible = groups.slice(0, 12);
+  const lines = ['Spark recursive paths'];
+  for (const [index, group] of visible.entries()) {
+    const icon = group.reviewCount > 0 ? '🟡' : '⚪';
+    const review = group.reviewCount > 0 ? `${pluralize(group.reviewCount, 'loop')} need review` : 'clear';
+    lines.push('', `${icon} ${index + 1}. ${labelFromKey(group.domain)}`, `${pluralize(group.count, 'loop')} · ${review}`);
+  }
+  if (groups.length > visible.length) lines.push('', `${groups.length - visible.length} more hidden.`);
+  lines.push('', 'Use /recursive sessions to pick a loop.', '', 'Workspace', sparkWorkspaceRecursionsUrl());
+  return lines.join('\n');
+}
+
+function recursivePathGroups(sessions: RecursiveSessionListItem[]): Array<{
+  domain: string;
+  count: number;
+  reviewCount: number;
+  latestAt: string;
+}> {
+  const groups = new Map<string, { domain: string; count: number; reviewCount: number; latestAt: string }>();
+  for (const session of sessions) {
+    const domain = session.domain || session.source_kind;
+    if (!domain) continue;
+    const existing = groups.get(domain) || { domain, count: 0, reviewCount: 0, latestAt: '' };
+    existing.count += 1;
+    if (session.review_required) existing.reviewCount += 1;
+    if (String(session.updated_at || '').localeCompare(existing.latestAt) > 0) existing.latestAt = String(session.updated_at || '');
+    groups.set(domain, existing);
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    b.reviewCount - a.reviewCount ||
+    String(b.latestAt || '').localeCompare(String(a.latestAt || '')) ||
+    a.domain.localeCompare(b.domain)
+  );
 }
 
 export function renderRecursiveReviewCandidates(candidates: RecursiveReviewCandidate[]): string {

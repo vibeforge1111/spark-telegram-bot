@@ -60,12 +60,27 @@ test('renders compact recursive session and path lists', () => {
       updated_at: '2026-05-07T00:00:00Z',
       kanban_bucket: 'completed',
       review_required: false
+    },
+    {
+      trace_id: 't2',
+      session_id: 'path:startup-yc',
+      source_kind: 'spark_workspace_evolution_path',
+      title: 'Startup YC specialization path',
+      status: 'open',
+      domain: 'startup-yc',
+      updated_at: '2026-05-08T00:00:00Z',
+      kanban_bucket: 'active',
+      review_required: true
     }
   ];
 
-  assert.match(renderRecursiveSessions(sessions), /1\. Startup YC Builder Chip Loop \(completed\)/);
+  assert.match(renderRecursiveSessions(sessions), /1\. Startup YC/);
   assert.match(renderRecursiveSessions(sessions), /\/recursive report 1/);
-  assert.match(renderRecursivePaths(sessions), /startup-yc/);
+  const paths = renderRecursivePaths(sessions);
+  assert.match(paths, /🟡 1\. Startup YC/);
+  assert.match(paths, /2 loops · 1 loop need review/);
+  assert.match(paths, /Use \/recursive sessions to pick a loop\./);
+  assert.doesNotMatch(paths, /May \d/);
 });
 
 test('renders review queue and audit-only decision records', () => {
