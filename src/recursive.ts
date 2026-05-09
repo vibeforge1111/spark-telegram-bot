@@ -1104,21 +1104,23 @@ export function renderRecursiveCanvasQueue(result: RecursiveCanvasQueueResult): 
 }
 
 export function renderRecursiveTraceView(trace: RecursiveTraceView): string {
+  const canvas = trace.spawner.canvas_queue;
   const timeline = trace.timeline.slice(0, 6).map(formatTraceTimelineItem);
+  const reviewState = trace.review.required ? `${pluralize(trace.review.decisions.length, 'decision')} waiting` : 'review clear';
   return [
     `${traceDisplayTitle(trace)} trace`,
     '',
-    'State',
-    `- ${trace.status}`,
-    trace.review.required ? `- ${pluralize(trace.review.decisions.length, 'decision')} waiting` : '- review clear',
-    `- ${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')}`,
+    'Status',
+    `${trace.status} · ${reviewState}`,
+    `${pluralize(trace.spawner.board_entry.taskCount, 'tracked item')} in Workspace`,
+    canvas.pending ? 'canvas pending' : null,
     '',
     'Recent',
     ...(timeline.length > 0 ? timeline : ['- no timeline events']),
     '',
     'Workspace',
-    `- ${sparkWorkspaceRecursionsUrl()}`,
-    trace.review.required ? `- ${sparkWorkspaceDecisionsUrl()}` : null
+    sparkWorkspaceRecursionsUrl(),
+    trace.review.required ? sparkWorkspaceDecisionsUrl() : null
   ].filter(isRenderableLine).join('\n');
 }
 
