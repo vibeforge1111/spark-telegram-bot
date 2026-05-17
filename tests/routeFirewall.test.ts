@@ -127,6 +127,13 @@ test('uses the firewall as a broad route-arbitration smoke matrix', () => {
       reason: 'plain_chat_protected'
     },
     {
+      name: 'tokenomics allocation question is chat, not a fast build',
+      route: 'spawner.build',
+      prompt: 'we already have a big community airdrop that we promised so it needs to be around 20% imo. and team 10% makes sense wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.',
+      allow: false,
+      reason: 'plain_chat_protected'
+    },
+    {
       name: 'bug-hunt QA is chat, not pending domain chip execution',
       route: 'domain_chip.pending',
       prompt: 'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow',

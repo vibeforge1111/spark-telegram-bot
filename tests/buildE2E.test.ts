@@ -1532,6 +1532,20 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies.join('\n'), /Say "go" and I will start/i);
 		assert.doesNotMatch(replies.join('\n'), /Mission:/);
 
+		const allocationCtx = makeFakeCtx(8319079055, 8319079055, 599, replies);
+		allocationCtx.message.text = [
+			'we already have a big community airdrop that we promised so it needs to be around 20% imo.',
+			'and team 10% makes sense',
+			'wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.'
+		].join('\n\n');
+
+		await indexModule.handleTextMessage(allocationCtx);
+
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'tokenomics allocation question must not enter PRD bridge');
+		assert.doesNotMatch(replies.join('\n'), /Setting up Liquidity Dex 5% Would It Be/i);
+		assert.doesNotMatch(replies.join('\n'), /Canvas is ready for Liquidity Dex 5% Would It Be/i);
+		assert.doesNotMatch(replies.join('\n'), /Mission:/);
+
 		restoreAxios();
 		restoreEnv();
 	});

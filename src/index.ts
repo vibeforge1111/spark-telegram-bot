@@ -146,6 +146,7 @@ import {
   normalizeTelegramRelayVerbosity,
   approvePendingMissionLesson,
   getTelegramRelayIdentity,
+  markLatestMissionRelayCancelledForChat,
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
@@ -6042,10 +6043,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // Build intent gets first refusal inside the admin lane. Utility helpers can
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
-    if (isNoExecutionBoundary(text) && clearPendingExecutionState(pendingExecutionKey)) {
-      await conversation.remember(user, text).catch(() => {});
-      await ctx.reply('Got it, no build or mission started. We can keep talking here.');
-      return;
+    if (isNoExecutionBoundary(text)) {
+      const clearedPendingExecution = clearPendingExecutionState(pendingExecutionKey);
+      const suppressedLatestRelay = clearedPendingExecution
+        ? null
+        : await markLatestMissionRelayCancelledForChat(ctx.chat.id, ctx.from.id);
+      if (clearedPendingExecution || suppressedLatestRelay) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply(suppressedLatestRelay
+          ? 'Got it. I will keep that latest build handoff quiet, and we can stay in strategy mode here.'
+          : 'Got it, no build or mission started. We can keep talking here.');
+        return;
+      }
     }
 
     if (pendingClarification && isPendingClarificationFollowup(text)) {

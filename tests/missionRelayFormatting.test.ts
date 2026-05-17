@@ -13,12 +13,14 @@ import {
   formatMissionRelayStateMessageForTelegram,
   isCompletionDeliveryCachedForTests,
   isMissionRelayPaused,
+  markLatestMissionRelayCancelledForChat,
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   relayEventMatchesSubscription,
+  registerMissionRelay,
   resetMissionRelayDeliveryStateForTests,
   resolveReadyProjectOpenLinkForTests,
   sendFetchedCompletionSummaryForTests,
@@ -1305,6 +1307,37 @@ async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 void (async () => {
+  await asyncTest('plain no-build correction can suppress the latest relay handoff for the chat', async () => {
+    resetMissionRelayDeliveryStateForTests();
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    try {
+      process.env.TELEGRAM_RELAY_PORT = '8789';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      const missionId = `mission-no-build-correction-${Date.now()}`;
+      await registerMissionRelay({
+        missionId,
+        chatId: '8319079055',
+        userId: '8319079055',
+        requestId: 'tg-build-correction',
+        goal: 'Accidental fast build',
+        createdAt: new Date().toISOString(),
+        relayPort: 8789,
+        relayProfile: 'primary'
+      });
+
+      const suppressed = await markLatestMissionRelayCancelledForChat('8319079055', '8319079055');
+      assert.equal(suppressed?.missionId, missionId);
+      assert.equal(shouldSuppressMissionHandoff(missionId), true);
+    } finally {
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      resetMissionRelayDeliveryStateForTests();
+    }
+  });
+
   await asyncTest('rejects unreachable preview links before Telegram completion handoff', async () => {
     const originalFetch = globalThis.fetch;
     try {

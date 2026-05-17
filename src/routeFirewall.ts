@@ -203,10 +203,24 @@ function isMissionPreferenceLike(normalized: string): boolean {
   );
 }
 
+function isAllocationStrategyQuestion(normalized: string): boolean {
+  const allocationDomain =
+    /\b(?:tokenomics?|tokens?|airdrop|liquidity|dex|seedify|seedworld|vibecoder|lifetime\s+buyers?|team|ecosystem|rewards?|treasury|advisors?|partners?|community|allocation|allocations?)\b/.test(normalized);
+  const hasPercent = /\b\d+(?:\.\d+)?\s*%/.test(normalized);
+  const asksStrategy =
+    /\b(?:what\s+if|wondering|would\s+it\s+be|too\s+small|good\s+enough|how\s+would\s+you\s+organize|organize\s+the\s+rest|remaining|fixed|makes?\s+sense|should\s+we|could\s+we)\b/.test(normalized);
+  const concreteArtifact =
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|repo|repository)\b/.test(normalized);
+  const explicitArtifactBuild =
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock)\b/.test(normalized);
+  return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
+}
+
 function isProtectedPlainChat(normalized: string): boolean {
   if (!normalized) return false;
   if (isReadoutOrCriticRequest(normalized)) return true;
   if (isMetaDiscussion(normalized)) return true;
+  if (isAllocationStrategyQuestion(normalized)) return true;
   if (mentionsSparkSystem(normalized) && isQuestionLike(normalized)) return true;
   if (/\b(?:what|which|anything|something|else|other)\b.*\b(?:build|building|create|creating|make|making)\b.*\b(?:updates?|upgrades?|systems?|spark|capabilit(?:y|ies)|improvements?|missing)\b/.test(normalized)) {
     return true;
