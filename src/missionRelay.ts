@@ -2213,6 +2213,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 	const port = getRelayPort();
 
 	relayServer = createServer(async (req, res) => {
+  try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
       const payload = missionRelayHealthPayload();
       writeJson(res, payload.ok ? 200 : 503, payload);
@@ -2419,10 +2420,12 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         );
       }
       writeJson(res, 200, { ok: true, chunks: chunks.length });
-    } catch (error) {
-      console.error('[MissionRelay] Failed to deliver Telegram update:', error);
-      writeJson(res, 500, { ok: false, error: 'delivery_failed' });
+  } catch (error) {
+    console.error('[MissionRelay] Failed to handle relay request:', error);
+    if (!res.headersSent) {
+      writeJson(res, 500, { ok: false, error: 'internal_error' });
     }
+  }
   });
 
   await new Promise<void>((resolve, reject) => {
