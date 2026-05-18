@@ -2173,7 +2173,7 @@ export function relayEventMatchesSubscription(
 ): boolean {
   const identity = relayIdentityFromEvent(event);
   if (!identity.chatId && !identity.userId) {
-    return event.missionId === subscription.missionId;
+    return false;
   }
   return identity.chatId === subscription.chatId && identity.userId === subscription.userId;
 }
