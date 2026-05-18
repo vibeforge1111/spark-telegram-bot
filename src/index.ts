@@ -44,7 +44,7 @@ import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicroc
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
-import { readJsonFile } from './jsonState';
+import { readJsonFile, closeJsonState } from './jsonState';
 import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
@@ -1753,6 +1753,7 @@ const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 // Periodic cleanup of stale entries in all unbounded maps
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const mapCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of lastNoEditProbeMissions) {
@@ -1782,7 +1783,6 @@ const mapCleanupTimer = setInterval(() => {
   }
 }, MAP_CLEANUP_INTERVAL_MS);
 mapCleanupTimer.unref?.();
-
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
@@ -1829,6 +1829,31 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string): P
   await ctx.reply(result.message);
   return true;
 }
+
+// Periodic cleanup of stale rate-limit and pending-clarification entries to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, timestamp] of userLastAction.entries()) {
+    if (now - timestamp > RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+      userLastAction.delete(userId);
+    }
+  }
+  for (const [key, pending] of pendingClarifications.entries()) {
+    if (now - pending.timestamp > CLARIFICATION_TTL_MS) {
+      pendingClarifications.delete(key);
+    }
+  }
+  for (const [key, pending] of pendingDomainChipBuilds.entries()) {
+    if (now - pending.timestamp > CLARIFICATION_TTL_MS) {
+      pendingDomainChipBuilds.delete(key);
+    }
+  }
+  for (const [key, pending] of pendingCreatorMissions.entries()) {
+    if (now - pending.timestamp > CLARIFICATION_TTL_MS) {
+      pendingCreatorMissions.delete(key);
+    }
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 
 function extractCommandName(text: string | undefined): string | null {
   if (!text?.startsWith('/')) {
@@ -3940,8 +3965,8 @@ function isBareExecutionStart(text: string): boolean {
 
 export function shouldUsePendingClarificationForMessage(pending: { timestamp: number } | null | undefined, text: string): boolean {
   if (!pending) return false;
-  const expired = Date.now() - pending.timestamp > CLARIFICATION_TTL_MS;
-  return !expired && isPendingClarificationFollowup(text);
+  if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) return false;
+  return true;
 }
 
 function pendingClarificationForMessage(key: string, text: string): PendingClarification | null {
@@ -7019,6 +7044,7 @@ bot.on(message('audio'), handleVoiceMessage);
 process.once('SIGINT', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  closeJsonState();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
@@ -7026,6 +7052,7 @@ process.once('SIGINT', () => {
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  closeJsonState();
   if (pollingActive) {
     bot.stop('SIGTERM');
   }

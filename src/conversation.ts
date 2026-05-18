@@ -326,20 +326,25 @@ export class ConversationMemory {
   }
 
   private async persist(): Promise<void> {
-    const interruptedByUser: Record<string, PendingTaskRecovery> = {};
-    for (const [key, value] of this.interruptedByUser.entries()) {
-      interruptedByUser[String(key)] = value;
+    try {
+      const interruptedByUser: Record<string, PendingTaskRecovery> = {};
+      for (const [key, value] of this.interruptedByUser.entries()) {
+        interruptedByUser[String(key)] = value;
+      }
+      const frameStateByUser: Record<string, RollingConversationFrameState> = {};
+      for (const [key, value] of this.frameStateByUser.entries()) {
+        frameStateByUser[String(key)] = value;
+      }
+      await writeJsonAtomic(this.statePath, {
+        recentByUser: this.recordFromMap(this.recentByUser),
+        notesByUser: this.recordFromMap(this.notesByUser),
+        interruptedByUser,
+        frameStateByUser
+      });
+    } catch (error) {
+      console.error('[ConversationMemory] persist failed:', error);
+      throw error;
     }
-    const frameStateByUser: Record<string, RollingConversationFrameState> = {};
-    for (const [key, value] of this.frameStateByUser.entries()) {
-      frameStateByUser[String(key)] = value;
-    }
-    await writeJsonAtomic(this.statePath, {
-      recentByUser: this.recordFromMap(this.recentByUser),
-      notesByUser: this.recordFromMap(this.notesByUser),
-      interruptedByUser,
-      frameStateByUser
-    });
   }
 
   private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
