@@ -2230,12 +2230,14 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
 
 		const relaySecret = getRelaySecret();
-		if (relaySecret) {
-			const secretHeader = req.headers['x-spark-telegram-relay-secret'];
-			if (!relaySecretMatches(secretHeader, relaySecret)) {
-				writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
-				return;
-			}
+		if (!relaySecret) {
+			writeJson(res, 503, { ok: false, error: 'relay_secret_not_configured' });
+			return;
+		}
+		const secretHeader = req.headers['x-spark-telegram-relay-secret'];
+		if (!relaySecretMatches(secretHeader, relaySecret)) {
+			writeJson(res, 401, { ok: false, error: 'invalid_relay_secret' });
+			return;
 		}
 
 		const payload = await readJsonBody(req);
