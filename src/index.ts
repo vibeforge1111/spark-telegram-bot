@@ -6455,7 +6455,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           await ctx.reply(runtimeGate.message);
           return;
         }
-        await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
+        if (!conversation.isAdmin(ctx.from)) {
+          await ctx.reply('Access profile changes require admin privileges. Use /access to request a change.');
+        } else {
+          await setSparkAccessProfile(ctx.chat.id, normalizedAccessPreference);
+        }
       }
       const buildPreference = parseMissionUpdatePreferenceIntent(text, { allowExecutionLanguage: true });
       if (buildPreference?.verbosity) {

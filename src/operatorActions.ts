@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 
 export type SafeOperatorAction =
   | { kind: 'level5_smoke'; filePath: string }
@@ -19,6 +20,13 @@ function extractWindowsPath(text: string): string | null {
 function isExpectedLevel5SmokePath(filePath: string): boolean {
   const normalized = path.win32.normalize(filePath).toLowerCase();
   return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
+}
+
+function isPathWithinAllowedRoot(filePath: string): boolean {
+  const resolved = path.resolve(filePath).toLowerCase();
+  const homeDir = os.homedir().toLowerCase();
+  const tmpDir = os.tmpdir().toLowerCase();
+  return resolved.startsWith(homeDir) || resolved.startsWith(tmpDir);
 }
 
 export function parseSafeOperatorAction(text: string): SafeOperatorAction | null {
@@ -56,6 +64,9 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
 export async function runSafeOperatorAction(action: SafeOperatorAction): Promise<string> {
   if (action.kind === 'level5_smoke') {
+    if (!isPathWithinAllowedRoot(action.filePath)) {
+      return `Refused: path outside allowed roots (home or temp): ${action.filePath}`;
+    }
     await fs.writeFile(action.filePath, 'level5 ok', 'utf8');
     const contents = await fs.readFile(action.filePath, 'utf8');
     await fs.unlink(action.filePath);
@@ -74,6 +85,9 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
     ].join('\n');
   }
 
+  if (!isPathWithinAllowedRoot(action.folderPath)) {
+    return `Refused: path outside allowed roots (home or temp): ${action.folderPath}`;
+  }
   const entries = await fs.readdir(action.folderPath, { withFileTypes: true });
   const folderNames = entries
     .filter((entry) => entry.isDirectory())
