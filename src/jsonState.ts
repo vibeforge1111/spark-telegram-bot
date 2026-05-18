@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 
 let db: DatabaseSync | null = null;
+let dbInitPromise: Promise<DatabaseSync> | null = null;
 
 function dbPath(): string {
   return resolveStatePath('.spark-gateway-state.db');
@@ -13,19 +14,27 @@ async function ensureDb(): Promise<DatabaseSync> {
   if (db) {
     return db;
   }
+  if (dbInitPromise) {
+    return dbInitPromise;
+  }
 
-  await mkdir(path.dirname(dbPath()), { recursive: true });
-  db = new DatabaseSync(dbPath());
-  db.exec(`
-    PRAGMA busy_timeout = 5000;
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS gateway_state (
-      state_key TEXT PRIMARY KEY,
-      json_value TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  return db;
+  dbInitPromise = (async () => {
+    await mkdir(path.dirname(dbPath()), { recursive: true });
+    const instance = new DatabaseSync(dbPath());
+    instance.exec(`
+      PRAGMA busy_timeout = 5000;
+      PRAGMA journal_mode = WAL;
+      CREATE TABLE IF NOT EXISTS gateway_state (
+        state_key TEXT PRIMARY KEY,
+        json_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    db = instance;
+    return db;
+  })();
+
+  return dbInitPromise;
 }
 
 export async function readJsonFile<T>(filePath: string): Promise<T | null> {
@@ -76,5 +85,6 @@ export function resetJsonStateForTests(): void {
     db.close();
   } finally {
     db = null;
+    dbInitPromise = null;
   }
 }
