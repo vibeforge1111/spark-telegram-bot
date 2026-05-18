@@ -1591,6 +1591,11 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
   }
 
   const chunks = sanitizeAndSplitTelegramText(text);
+  if (chunks.length === 0) {
+    const delivery = await _origSendMessage(chatId, text, cleanExtra);
+    recordNodeOutboundDelivery(chatId, text, traceContext);
+    return delivery;
+  }
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
     lastDelivery = await _origSendMessage(chatId, chunk, cleanExtra);
@@ -1611,6 +1616,11 @@ bot.use(async (ctx, next) => {
     }
 
     const chunks = sanitizeAndSplitTelegramText(text);
+    if (chunks.length === 0) {
+      const reply = await originalReply(text, cleanExtra);
+      recordNodeOutboundDelivery(ctx.chat?.id, text, traceContext);
+      return reply;
+    }
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
       lastReply = await originalReply(chunk, cleanExtra);
