@@ -2106,13 +2106,20 @@ function pruneOldMissionLessonApprovals(pendingByUserId: Record<string, MissionL
 
 function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null> {
   return new Promise((resolve) => {
+    let resolved = false;
     const chunks: Buffer[] = [];
     let size = 0;
+
+    const safeResolve = (value: RelayWebhookPayload | null) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(value);
+    };
 
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > 64 * 1024) {
-        resolve(null);
+        safeResolve(null);
         req.destroy();
         return;
       }
@@ -2122,13 +2129,13 @@ function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null>
     req.on('end', () => {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as RelayWebhookPayload;
-        resolve(parsed);
+        safeResolve(parsed);
       } catch {
-        resolve(null);
+        safeResolve(null);
       }
     });
 
-    req.on('error', () => resolve(null));
+    req.on('error', () => safeResolve(null));
   });
 }
 
