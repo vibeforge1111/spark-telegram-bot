@@ -1,4 +1,4 @@
-export const DEFAULT_SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+export const DEFAULT_SPAWNER_UI_URL = 'http://localhost:3333';
 
 export function normalizeSpawnerUrlEnv(env: NodeJS.ProcessEnv = process.env): void {
   if (!env.SPAWNER_UI_URL && env.SPARK_SPAWNER_URL) {
