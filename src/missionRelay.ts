@@ -423,13 +423,29 @@ function shouldDeliverEvent(event: RelayWebhookPayload['event']): event is Deliv
 
 function stripThinkingAndMeta(text: string): string {
   let out = text;
-  out = out.replace(/<think[\s\S]*?<\/think>/gi, '');
+  out = out.replace(/<think[\s\S]*?(?:<\/think>|<\/thin>)/gi, '');
   out = out.replace(/<thinking[\s\S]*?<\/thinking>/gi, '');
+  out = stripDanglingThinkingBlocks(out);
   out = out.replace(/```(?:bash|shell|sh)?\s*curl\s+-X\s+POST[\s\S]*?(?:\/api\/events|\/spawner-events)[\s\S]*?```/gi, '');
   out = out.replace(/^\s*curl\s+-X\s+POST\b.*(?:\/api\/events|\/spawner-events).*(?:\r?\n)?/gim, '');
   out = out.replace(/^\s*\*?\*?Mission ID:?\*?\*?\s*\S+\s*\n+/gim, '');
   out = out.replace(/\n{3,}/g, '\n\n');
   return out.trim();
+}
+
+function stripDanglingThinkingBlocks(text: string): string {
+  return text.replace(/<(?:think|thinking)\b[^>]*>[\s\S]*$/gi, (match) => {
+    const finalAnswer = match.match(/\r?\n\s*\r?\n([\s\S]*)$/);
+    return finalAnswer ? finalAnswer[1] : '';
+  });
+}
+
+function exactOutputFromGoal(goal: string | undefined): string | null {
+  const text = (goal || '').trim();
+  if (!text) return null;
+  const match = text.match(/^(?:\/run\s+)?(?:say|reply|respond|return|output|print)\s+exactly\s+(.+)$/i);
+  if (!match) return null;
+  return match[1].trim().replace(/^["'`]+|["'`]+$/g, '').trim() || null;
 }
 
 const TELEGRAM_MESSAGE_LIMIT = 3800;
@@ -1327,6 +1343,14 @@ export function formatProviderCompletionForTelegram(input: {
   if (!parsed) {
     const clean = stripVisibleMissionReferences(stripMarkdownFileLinks(stripThinkingAndMeta(input.response)));
     const cleanWithoutProvider = clean.replace(/^(?:Z\.AI|ZAI|Claude|Codex|MiniMax|GLM)(?:\s+GLM)?\s*:\s*/i, '').trim();
+    const exactGoalOutput = exactOutputFromGoal(input.goal);
+    if ((!clean || !cleanWithoutProvider) && exactGoalOutput) {
+      return [
+        voiceLine('completed', `${input.missionId}:${provider}:exact-output`),
+        '',
+        exactGoalOutput
+      ].join('\n');
+    }
     if (!clean) {
       const openLink = input.openLink ? normalizePreviewLink(input.openLink, null) : null;
       if (openLink) {

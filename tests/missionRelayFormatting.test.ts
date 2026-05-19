@@ -284,6 +284,44 @@ test('strips hidden reasoning and relay plumbing from freeform provider results'
   assert.doesNotMatch(message, /curl -X POST/);
   assert.doesNotMatch(message, /Mission ID/);
 });
+
+test('strips truncated MiniMax thinking from exact-output mission results', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'minimax',
+    missionId: 'spark-minimax-exact-output',
+    verbosity: 'normal',
+    response: [
+      '<think>The user says: "say exactly OK" The user wrote:',
+      '[Skill tier: PRO - full Spark-skill catalog available for /api/h70-skills/<id> loading when Spark Pro proof present',
+      '** User wants "say exactly OK". There is no closing tag because the relay preview truncated this reasoning.',
+      '',
+      'OK'
+    ].join('\n')
+  });
+
+  assert.match(message, /OK/);
+  assert.doesNotMatch(message, /<think>/i);
+  assert.doesNotMatch(message, /Skill tier/i);
+  assert.doesNotMatch(message, /user says/i);
+});
+
+test('recovers exact-output goal when MiniMax only returns thinking text', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'minimax',
+    missionId: 'spark-minimax-empty-after-thinking',
+    verbosity: 'normal',
+    goal: 'say exactly OK',
+    response: [
+      'minimax: <think>The user says: "say exactly OK".',
+      'The user requests a direct response of OK.'
+    ].join('\n')
+  });
+
+  assert.match(message, /OK/);
+  assert.doesNotMatch(message, /minimax:\s*$/i);
+  assert.doesNotMatch(message, /<think>/i);
+  assert.doesNotMatch(message, /user says/i);
+});
 test('summarizes freeform Codex build output without dumping file links', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
