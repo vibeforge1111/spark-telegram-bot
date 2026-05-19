@@ -11,7 +11,7 @@ export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
     healthUrl.hash = '';
     return healthUrl.toString();
   }
-  return `http://127.0.0.1:${port}/health`;
+  return `http://localhost:${port}/health`;
 }
 
 export async function validateRelayRuntime(
