@@ -1549,6 +1549,41 @@ function recordFinalAnswerGateSuppression(input: FinalAnswerGateSuppressionInput
     });
 }
 
+type FinalAnswerGateDeliveryInput = {
+  chatId: unknown;
+  userId: unknown;
+  builderRoutingDecision: string;
+  builderBridgeMode: string;
+  replyLength: number;
+  requestId?: string;
+  traceRef?: string;
+};
+
+function recordFinalAnswerGateDelivery(input: FinalAnswerGateDeliveryInput): void {
+  const auditPath = finalAnswerGateAuditPath();
+  const requestId = String(input.requestId || '').trim();
+  const traceRef = String(input.traceRef || '').trim();
+  const record = {
+    ts: new Date().toISOString(),
+    event: 'final_answer_checked',
+    outcome: 'builder_reply_delivered',
+    chat_id_present: String(input.chatId ?? '').trim().length > 0,
+    user_id_present: String(input.userId ?? '').trim().length > 0,
+    chat_ref: chatRef(input.chatId),
+    user_ref: userRef(input.userId),
+    builder_routing_decision: input.builderRoutingDecision || '',
+    builder_bridge_mode: input.builderBridgeMode || '',
+    builder_reply_length: input.replyLength,
+    ...(requestId ? { request_id: requestId } : {}),
+    ...(traceRef ? { trace_ref: traceRef } : {}),
+  };
+  mkdir(path.dirname(auditPath), { recursive: true })
+    .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
+    .catch((error) => {
+      console.warn('[FinalAnswerGate] failed to write delivery audit:', error);
+    });
+}
+
 function recordCommandReplyDelivery(input: {
   command: string;
   replyKind: string;
@@ -6424,6 +6459,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (!suppressionReason && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
         const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
         await deliverBuilderReply(ctx, { ...builderReply, responseText });
+        recordFinalAnswerGateDelivery({
+          chatId: ctx.chat?.id,
+          userId: ctx.from?.id,
+          builderRoutingDecision: builderReply.routingDecision,
+          builderBridgeMode: builderReply.bridgeMode,
+          replyLength: responseText.length,
+          requestId: builderReply.requestId,
+          traceRef: builderReply.traceRef,
+        });
         if (responseText) {
           await conversation.rememberAssistantReply(user, responseText).catch(() => {});
         }
