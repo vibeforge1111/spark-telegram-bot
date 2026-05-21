@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './redaction-bootstrap';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
 import { appendFile, mkdir } from 'node:fs/promises';
@@ -281,8 +282,6 @@ import { extractStartSession, recordTelegramFirstMessage } from './onboardingBri
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
-
-installConsoleRedaction();
 
 // Validate environment
 if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
