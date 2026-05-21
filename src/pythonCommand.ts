@@ -55,5 +55,17 @@ export function resolvePythonCommand(rawValue?: string, envPath = process.env.PA
   if (rawValue) {
     throw new Error(`SPARK_BUILDER_PYTHON was not found on PATH: ${raw}`);
   }
+
+  // Fallback: try python3 before returning 'python' which will ENOENT.
+  if (raw === 'python') {
+    for (const candidate of pathCandidates('python3', envPath)) {
+      try {
+        return assertSafePythonExecutable(candidate);
+      } catch {
+        // Keep searching.
+      }
+    }
+  }
+
   return raw;
 }
