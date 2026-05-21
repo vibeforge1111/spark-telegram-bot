@@ -68,6 +68,24 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   const lower = detail.toLowerCase();
 
   if (
+    lower.includes('prompt tokens limit exceeded') ||
+    lower.includes('token limit exceeded') ||
+    lower.includes('context length') ||
+    lower.includes('context limit') ||
+    lower.includes('maximum context') ||
+    lower.includes('too many tokens') ||
+    lower.includes('402')
+  ) {
+    return {
+      category: 'provider_context_limit',
+      userLine: 'The selected model provider rejected this request because the prompt is too large for the current plan or model limit.',
+      detail,
+      check: 'Try a shorter message, reduce the conversation context, or ask the operator to check the provider plan limits.',
+      repair: 'Operator fix: switch to a model with a larger context window, reduce the prompt/context size, or increase provider credits/limits.'
+    };
+  }
+
+  if (
     lower.includes('unauthorized') ||
     lower.includes('forbidden') ||
     lower.includes('invalid api') ||
@@ -286,6 +304,12 @@ export function renderSparkErrorReply(
   isAdmin: boolean = false
 ): string {
   const explanation = explainSparkError(error, context);
+  if (context === 'chat' && explanation.category === 'provider_context_limit') {
+    return [
+      'The AI provider rejected this request because the message or conversation context is too large for the current model limit.',
+      'Try a shorter message, or ask the operator to switch to a larger-context model or increase provider limits.'
+    ].join('\n\n');
+  }
   if (context === 'chat' && explanation.category === 'builder_or_memory') {
     return [
       'Memory/Builder is degraded right now, so I should stay with the visible chat instead of switching into diagnostics.',
