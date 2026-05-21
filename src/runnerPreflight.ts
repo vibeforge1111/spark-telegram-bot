@@ -19,7 +19,7 @@ export async function probeTelegramRunnerWritability(): Promise<RunnerPreflight>
   try {
     await mkdir(path.dirname(marker), { recursive: true });
     await writeFile(marker, `spark runner preflight ${checkedAt}\n`, { encoding: 'utf-8', flag: 'wx' });
-    await unlink(marker).catch(() => {});
+    await unlink(marker);
     return {
       runnerWritable: 'yes',
       runnerLabel: 'telegram bot runner writable (preflight write/delete ok)',
