@@ -1999,7 +1999,7 @@ bot.use(async (ctx, next) => {
   await ctx.reply(`This Spark bot is private right now. ${setupHint}`);
 });
 
-// /start command
+// /start command — short welcome to avoid first-use message flood
 bot.start(async (ctx) => {
   const user = ctx.from;
   const name = user.first_name || user.username || 'friend';
@@ -2007,14 +2007,52 @@ bot.start(async (ctx) => {
   const onboardingSession = extractStartSession(startText);
 
   const builderBridge = await getBuilderBridgeStatus();
-
   const spawnerAvailable = await spawner.isAvailable();
 
   const lines = [
     `Hey ${name}! I'm Spark.`,
     '',
-    'I remember conversations through the Builder memory path.',
+    '/diagnose - check system health',
+    '/run - say exactly OK',
+    '/help - full command list',
     '',
+    'Or just chat!'
+  ];
+
+  if (!builderBridge.available) {
+    lines.push('', 'Builder memory bridge unavailable; local fallback may be used.');
+  }
+
+  await ctx.reply(lines.join('\n'));
+  if (onboardingSession) {
+    await recordTelegramFirstMessage({
+      event: 'telegram_first_message',
+      session: onboardingSession,
+      replied: true,
+      ts: new Date().toISOString(),
+      chat_id: chatRef(ctx.chat?.id),
+      user_id: userRef(user.id),
+      profile: process.env.SPARK_TELEGRAM_PROFILE || 'default'
+    }).catch((error) => {
+      console.warn('[Onboarding] failed to write first-message event:', error);
+    });
+  }
+  if (!spawnerAvailable && conversation.isAdmin(user)) {
+    await ctx.reply('Spawner orchestration is offline.');
+  }
+  if (conversation.isAdmin(user)) {
+    const configuredAccess = await getConfiguredSparkAccessProfile(ctx.chat.id);
+    if (!configuredAccess) {
+      const defaultAccess = await getSparkAccessProfile(ctx.chat.id);
+      await ctx.reply(renderSparkAccessOnboarding(defaultAccess));
+    }
+  }
+});
+
+// /help command — full command reference (previously inlined in /start)
+bot.command('help', async (ctx) => {
+  const user = ctx.from;
+  const lines = [
     'Memory Commands:',
     '/remember <text> - Save something important',
     '/recall <topic> - Ask what I remember about a topic',
@@ -2056,35 +2094,7 @@ bot.start(async (ctx) => {
     );
   }
 
-  lines.push('', 'Or just chat!');
-  if (!builderBridge.available) {
-    lines.push('', 'Builder memory bridge unavailable; local fallback may be used.');
-  }
-
   await ctx.reply(lines.join('\n'));
-  if (onboardingSession) {
-    await recordTelegramFirstMessage({
-      event: 'telegram_first_message',
-      session: onboardingSession,
-      replied: true,
-      ts: new Date().toISOString(),
-      chat_id: chatRef(ctx.chat?.id),
-      user_id: userRef(user.id),
-      profile: process.env.SPARK_TELEGRAM_PROFILE || 'default'
-    }).catch((error) => {
-      console.warn('[Onboarding] failed to write first-message event:', error);
-    });
-  }
-  if (!spawnerAvailable && conversation.isAdmin(user)) {
-    await ctx.reply('Spawner orchestration is offline.');
-  }
-  if (conversation.isAdmin(user)) {
-    const configuredAccess = await getConfiguredSparkAccessProfile(ctx.chat.id);
-    if (!configuredAccess) {
-      const defaultAccess = await getSparkAccessProfile(ctx.chat.id);
-      await ctx.reply(renderSparkAccessOnboarding(defaultAccess));
-    }
-  }
 });
 
 // /status command
