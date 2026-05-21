@@ -152,9 +152,10 @@ Users can ask what interaction preferences Spark is using for them. The gateway 
 
 This path deliberately does not write to `domain-chip-memory`, does not mutate global `spark-character`, and does not change human trait-memory overlays. Set `SPARK_AGENT_PERSONA_BUILDER_SYNC=0` to disable the Builder sync while leaving local hot preferences intact.
 
-Operator check:
+Operator check (run from `source/`):
 
 ```bash
+# Run from ~/.spark/modules/spark-telegram-bot/source/
 npm run health:polling
 ```
 
@@ -210,9 +211,10 @@ is the execution plane behind the gateway.
 npm run dev
 ```
 
-Then verify local launch config:
+Then verify local launch config (run from `source/`):
 
 ```bash
+# Run from ~/.spark/modules/spark-telegram-bot/source/
 npm run health:polling
 ```
 
