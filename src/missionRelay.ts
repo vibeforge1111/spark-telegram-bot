@@ -1111,14 +1111,41 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function urlOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function trustedPreviewProbeOrigins(): Set<string> {
+  return new Set(
+    [
+      resolveSpawnerUiUrl(),
+      resolveSpawnerPublicUrl(),
+      resolveProjectPreviewBaseUrl()
+    ]
+      .map((value) => urlOrigin(value))
+      .filter((value): value is string => Boolean(value))
+  );
+}
+
+function previewProbeHeaders(url: string): Record<string, string> | undefined {
+  const uiKey = process.env.SPARK_UI_API_KEY?.trim();
+  if (!uiKey) return undefined;
+  const origin = urlOrigin(url);
+  if (!origin || !trustedPreviewProbeOrigins().has(origin)) return undefined;
+  return { 'x-spawner-ui-key': uiKey };
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
-  const uiKey = process.env.SPARK_UI_API_KEY?.trim();
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: uiKey ? { 'x-spawner-ui-key': uiKey } : undefined,
+      headers: previewProbeHeaders(url),
       signal: controller.signal
     });
     return response.ok;
