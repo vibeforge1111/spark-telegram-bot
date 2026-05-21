@@ -123,7 +123,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     lane: 'Local/private terminal',
     starterTip: 'Use this if you want private local models and are comfortable installing models in a terminal.',
     authMode: 'local',
-    baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     requiredEnv: []
   }
 };
