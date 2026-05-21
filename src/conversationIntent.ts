@@ -930,6 +930,9 @@ export function isNoExecutionBoundary(text: string): boolean {
 
 function isLowSignalPlanningTurn(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  if (isAnalysisOnlyMissionRequest(normalized)) {
+    return false;
+  }
   return (
     normalized.length < 5 ||
     /^(?:yes|yeah|yep|yup|ok|okay|sure|sounds good|perfect|nice|cool|go|go ahead|build new|new)$/i.test(normalized)
@@ -1766,6 +1769,13 @@ function isMissionUpdatePreferenceCommand(normalized: string): boolean {
   return (
     /\bmission\s+updates?\b.*\b(?:verbose|detailed|minimal|quiet|normal|standard)\b/.test(normalized) ||
     /\b(?:verbose|detailed|minimal|quiet|normal|standard)\b.*\bmission\s+updates?\b/.test(normalized)
+  );
+}
+
+function isAnalysisOnlyMissionRequest(normalized: string): boolean {
+  return (
+    /\b(?:do not|don't)\s+(?:change|execute|edit|modify|update)\b/.test(normalized) ||
+    /\b(?:only\s+explain|investigate|analyze|analysis|identify|fix\s+plan|do not edit files yet)\b/.test(normalized)
   );
 }
 
