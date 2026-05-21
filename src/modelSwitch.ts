@@ -165,7 +165,8 @@ const PROVIDER_ALIASES: Record<string, ProviderId> = {
 };
 
 function moduleConfigDir(): string {
-  return process.env.SPARK_MODULE_CONFIG_DIR || path.join(os.homedir(), '.spark', 'config', 'modules');
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return process.env.SPARK_MODULE_CONFIG_DIR || path.join(sparkHome, 'config', 'modules');
 }
 
 function envFiles(): string[] {

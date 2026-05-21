@@ -23,9 +23,12 @@ export function loadEnvFileIntoProcess(file: string, env: NodeJS.ProcessEnv = pr
   }
 }
 
+export function resolveSparkHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+}
+
 export function sparkConfigModulesDir(env: NodeJS.ProcessEnv = process.env): string {
-  const sparkHome = env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
-  return path.join(sparkHome, 'config', 'modules');
+  return path.join(resolveSparkHome(env), 'config', 'modules');
 }
 
 export function readSparkSecret(secretId: string): string | null {
