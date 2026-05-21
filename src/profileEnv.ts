@@ -19,21 +19,33 @@ export function loadEnvFileIntoProcess(file: string, env: NodeJS.ProcessEnv = pr
   for (const line of fs.readFileSync(file, 'utf-8').split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
-    env[match[1]] = match[2];
+    let value = match[2];
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    env[match[1]] = value;
   }
 }
 
-export function sparkConfigModulesDir(env: NodeJS.ProcessEnv = process.env): string {
-  const sparkHome = env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
-  return path.join(sparkHome, 'config', 'modules');
+function resolveSparkHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
 }
 
-export function readSparkSecret(secretId: string): string | null {
-  const viaPython = readSparkSecretViaPythonBridge(secretId);
+export function sparkConfigModulesDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveSparkHome(env), 'config', 'modules');
+}
+
+function resolveSparkBinPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(resolveSparkHome(env), 'bin', 'spark');
+}
+
+export function readSparkSecret(secretId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const viaPython = readSparkSecretViaPythonBridge(secretId, env);
   if (viaPython) return viaPython;
 
+  const sparkBin = resolveSparkBinPath(env);
   try {
-    const output = execFileSync('spark', ['secrets', 'get', '--reveal', secretId], {
+    const output = execFileSync(sparkBin, ['secrets', 'get', '--reveal', secretId], {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim();
@@ -47,7 +59,8 @@ export function sparkSecretPythonBridgeCommand(
   secretId: string,
   env: NodeJS.ProcessEnv = process.env
 ): { python: string; args: string[] } {
-  const sparkCliSrc = env.SPARK_CLI_SRC || path.join(os.homedir(), 'Desktop', 'spark-cli', 'src');
+  const sparkHome = resolveSparkHome(env);
+  const sparkCliSrc = env.SPARK_CLI_SRC || path.join(sparkHome, 'tools', 'spark-cli', 'src');
   const python = env.SPARK_CLI_PYTHON || env.SPARK_BUILDER_PYTHON || env.PYTHON || 'python';
   const script = [
     'import sys',
@@ -59,8 +72,8 @@ export function sparkSecretPythonBridgeCommand(
   return { python, args: ['-c', script, secretId] };
 }
 
-function readSparkSecretViaPythonBridge(secretId: string): string | null {
-  const command = sparkSecretPythonBridgeCommand(secretId);
+function readSparkSecretViaPythonBridge(secretId: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const command = sparkSecretPythonBridgeCommand(secretId, env);
   try {
     const output = execFileSync(command.python, command.args, {
       encoding: 'utf-8',
@@ -82,7 +95,7 @@ export function loadSparkTelegramProfileEnv(args: string[], env: NodeJS.ProcessE
   loadEnvFileIntoProcess(path.join(configDir, `spark-telegram-bot.${profile}.env`), env);
 
   const profileSecretId = `telegram.profiles.${profile}.bot_token`;
-  const profileToken = readSparkSecret(profileSecretId) || (profile === 'default' ? readSparkSecret('telegram.bot_token') : null);
+  const profileToken = readSparkSecret(profileSecretId, env) || (profile === 'default' ? readSparkSecret('telegram.bot_token', env) : null);
   if (profileToken) {
     env.BOT_TOKEN = profileToken;
     delete env.SPARK_PROFILE_TOKEN_MISSING;
