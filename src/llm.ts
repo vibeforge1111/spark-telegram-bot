@@ -147,7 +147,11 @@ export function resolveChatProviderConfig(env: NodeJS.ProcessEnv = process.env):
     const openaiBase = firstEnv(env, 'SPARK_CHAT_LLM_BASE_URL', 'OPENAI_BASE_URL');
     const openaiUsesCustomBase = Boolean(openaiBase && openaiBase.replace(/\/+$/, '') !== OPENAI_DEFAULT_BASE_URL);
     provider = (env.OPENAI_API_KEY || openaiUsesCustomBase) ? 'openai' : (botProvider || 'openai');
-  } else if (!provider && env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER === '1') {
+  } else if (!provider) {
+    // Auto-detect provider from API keys — no SPARK_ALLOW_IMPLICIT_LLM_PROVIDER gate needed.
+    // The flag gate was removed because it created a confusing UX: users who set OPENROUTER_API_KEY
+    // (the documented setup) got "chat provider is not configured" until they discovered the hidden flag.
+    // Any API key in the environment is a deliberate choice — auto-detect is safe and expected.
     if (env.ZAI_API_KEY) provider = 'zai';
     else if (env.MINIMAX_API_KEY) provider = 'minimax';
     else if (env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY) provider = 'anthropic';

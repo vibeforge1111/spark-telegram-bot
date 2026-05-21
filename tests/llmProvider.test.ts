@@ -41,14 +41,14 @@ test('does not let OpenAI-compatible model settings mask Codex chat model', () =
   assert.equal(config.model, 'gpt-5.5');
 });
 
-test('does not fall back to Ollama unless Ollama is selected or configured', () => {
+test('falls back to Ollama when OLLAMA_URL and OLLAMA_MODEL are set', () => {
   const config = resolveChatProviderConfig({
     OLLAMA_URL: 'http://localhost:11434',
     OLLAMA_MODEL: 'llama3.2',
   });
 
-  assert.equal(config.provider, 'not_configured');
-  assert.equal(config.kind, 'not_configured');
+  assert.equal(config.provider, 'ollama');
+  assert.notEqual(config.kind, 'not_configured');
 });
 
 test('uses explicit Ollama provider when selected', () => {
@@ -257,19 +257,20 @@ test('uses Anthropic API when an Anthropic key is configured', () => {
   assert.equal(config.apiKey, 'anthropic-key');
 });
 
-test('only uses Anthropic API key implicitly when implicit provider selection is enabled', () => {
-  const implicitOff = resolveChatProviderConfig({
+test('uses API key implicitly without requiring SPARK_ALLOW_IMPLICIT_LLM_PROVIDER flag', () => {
+  // The implicit flag gate was removed — any API key auto-detects the provider
+  const autoDetected = resolveChatProviderConfig({
     ANTHROPIC_API_KEY: 'anthropic-key',
   });
-  assert.equal(implicitOff.provider, 'not_configured');
-  assert.equal(implicitOff.kind, 'not_configured');
+  assert.equal(autoDetected.provider, 'anthropic');
+  assert.equal(autoDetected.kind, 'anthropic_api');
 
-  const implicitOn = resolveChatProviderConfig({
+  const explicitFlag = resolveChatProviderConfig({
     SPARK_ALLOW_IMPLICIT_LLM_PROVIDER: '1',
     ANTHROPIC_API_KEY: 'anthropic-key',
   });
-  assert.equal(implicitOn.provider, 'anthropic');
-  assert.equal(implicitOn.kind, 'anthropic_api');
+  assert.equal(explicitFlag.provider, 'anthropic');
+  assert.equal(explicitFlag.kind, 'anthropic_api');
 });
 
 test('system prompt treats Spawner Kanban and Canvas as existing surfaces', () => {
