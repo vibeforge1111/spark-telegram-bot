@@ -1,3 +1,8 @@
+
+function isSelfCritiqueRequest(text: string): boolean {
+  return /critique your own response|critique your previous response|review your previous answer|review your answer|identify weaknesses|improve it|self[- ]?critique|rewrite it better|do not use memory tools/i.test(text);
+}
+
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
@@ -6374,12 +6379,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const memoryDoctorEvidenceTurns = shouldAttachMemoryDoctorEvidence(text)
+    const memoryDoctorEvidenceTurns = isSelfCritiqueRequest(text) ? false : shouldAttachMemoryDoctorEvidence(text)
       ? selectMemoryDoctorEvidenceTurns(text, await conversation.getRecentTurns(user, 8).catch(() => []))
       : [];
     await conversation.remember(user, text).catch(() => {});
     if (memoryDoctorEvidenceTurns.length > 0 && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
-      const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
+      const fallback = isSelfCritiqueRequest(text) ? null : renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
       await ctx.reply(fallback);
       await conversation.rememberAssistantReply(user, fallback).catch(() => {});
       return;
@@ -6411,7 +6416,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     console.log(`[Bridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       if (memoryDoctorEvidenceTurns.length > 0 && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
-        const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
+        const fallback = isSelfCritiqueRequest(text) ? null : renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
         await ctx.reply(fallback);
         await conversation.rememberAssistantReply(user, fallback).catch(() => {});
         return;
