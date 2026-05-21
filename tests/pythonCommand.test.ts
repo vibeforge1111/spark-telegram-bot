@@ -32,6 +32,16 @@ test('resolves SPARK_BUILDER_PYTHON to an absolute executable path', () => {
   });
 });
 
+test('falls back to python3 when only python3 is on PATH', () => {
+  withTempDir((dir) => {
+    const python3 = path.join(dir, process.platform === 'win32' ? 'python3.exe' : 'python3');
+    writeFileSync(python3, '');
+    // No unversioned `python` exists in dir, mirroring Debian/Ubuntu/slim images.
+
+    assert.equal(resolvePythonCommand(undefined, dir), python3);
+  });
+});
+
 test('rejects configured Python commands that are not on PATH', () => {
   assert.throws(
     () => resolvePythonCommand('python-does-not-exist-for-spark', ''),
