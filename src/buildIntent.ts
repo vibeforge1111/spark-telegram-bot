@@ -572,6 +572,8 @@ function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
+	/\b(?:do not|don't|dont|please don't|please dont)\s+(?:build|create|make)\s+(?:an?\s+)?(?:app|application|website|site|page|tool|canvas)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|open|use)\s+canvas\b/,  
   ].some((pattern) => pattern.test(normalized));
 }
 
@@ -750,13 +752,27 @@ function extractBuildDescription(text: string): string | null {
 
   return null;
 }
+function isInstallGuidanceRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
 
+  const asksForInstallHelp =
+    /\b(?:install|installation|setup|fresh install|fresh setup|install path|setup path)\b/.test(normalized) &&
+    /\b(?:guidance|instructions|commands?|dry-run|prerequisites?|powershell|bash|macos|linux|windows)\b/.test(normalized);
+
+  const qaInstallMission =
+    /\bmission\s+0?[12]\b/.test(normalized) &&
+    /\b(?:qa|spark compete)\b/.test(normalized) &&
+    /\b(?:install|setup|fresh install|fresh setup)\b/.test(normalized);
+
+  return asksForInstallHelp || qaInstallMission;
+}
 export function parseBuildIntent(text: string): BuildIntent | null {
-  const original = text.trim().replace(/[‘’]/g, "'");
+  const original = text.trim().replace(/[â€˜â€™]/g, "'");
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
+  if (isInstallGuidanceRequest(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
-  if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
