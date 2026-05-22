@@ -5457,6 +5457,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  const MAX_USER_INPUT_LENGTH = 4096;
+  if (text.length > MAX_USER_INPUT_LENGTH) {
+    await ctx.reply(`Message too long (${text.length} chars). Please keep messages under ${MAX_USER_INPUT_LENGTH} characters.`);
+    return;
+  }
+
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
