@@ -278,6 +278,19 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Build a skill that lets you browse my project files.'), null);
   assert.equal(parseBuildIntent('Reply exactly TESTER_REALPATH_OK and do not create files.'), null);
   assert.equal(parseBuildIntent('Reply exactly SPARK_AGI_REALPATH_OK and do not build anything.'), null);
+    assert.equal(
+    parseBuildIntent(
+      'Mission 01 QA test. Do not build an app or start Canvas. I only need written Windows install guidance. From a clean Windows PowerShell, give me the fresh Spark install path. Include prerequisites, dry-run command first, real install command second, and make every command copyable in PowerShell code blocks.'
+    ),
+    null
+  );
+
+  assert.equal(
+    parseBuildIntent(
+      'Mission 02 QA test. Do not inspect files. Do not search recursively. Do not build an app. Do not start Canvas. I only need written macOS/Linux install instructions for Spark. Use copyable bash code blocks.'
+    ),
+    null
+  );
   assert.equal(
     parseBuildIntent('Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.'),
     null
