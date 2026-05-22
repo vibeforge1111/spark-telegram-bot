@@ -50,9 +50,24 @@ function compactDetail(text: string): string {
     .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, '[REDACTED]')
     .trim();
   if (!oneLine) return 'Spark did not receive a detailed error from the failed component.';
-  if (
+ if (
     /spark_intelligence\.cli|spark-intelligence-builder|simulate-telegram-update|runpy\.run_module/i.test(oneLine)
   ) {
+    const lowerOne = oneLine.toLowerCase();
+    if (
+      lowerOne.includes('ping failed') ||
+      lowerOne.includes('provider ping') ||
+      lowerOne.includes('econnrefused') ||
+      lowerOne.includes('fetch failed') ||
+      lowerOne.includes('network error') ||
+      lowerOne.includes('timeout') ||
+      lowerOne.includes('unauthorized') ||
+      lowerOne.includes('api key') ||
+      lowerOne.includes('401') ||
+      lowerOne.includes('403')
+    ) {
+      return 'Builder bridge command did not finish cleanly: LLM provider is unreachable or unauthenticated. Run /diagnose for the current Builder and memory status.';
+    }
     return 'Builder bridge command did not finish cleanly. Run /diagnose for the current Builder and memory status.';
   }
   return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
