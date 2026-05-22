@@ -1675,6 +1675,10 @@ const MAP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const LAST_NO_EDIT_PROBE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const LATEST_CANVAS_PLAN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const DOMAIN_CHIP_BUILD_TTL_MS = 30 * 60 * 1000; // 30 minutes
+// Rate-limit notice tracking: notify a user at most once per cooldown when their
+// message is dropped (the sliding-window limiter above makes the drop decision).
+const userLastRateNotice = new Map<number, number>();
+const RATE_LIMIT_NOTICE_COOLDOWN_MS = 30_000; // match Builder's rate_limit_notice_cooldown_seconds=30
 
 const lastNoEditProbeMissions = new Map<string, NoEditProbeMission>();
 
@@ -2119,11 +2123,23 @@ bot.catch((err, ctx) => {
   ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
 });
 
-// Rate limit middleware
+// Rate limit middleware. The sliding-window limiter drops messages over
+// RATE_LIMIT_MAX_REQUESTS per RATE_LIMIT_WINDOW_MS, but tells the user once per
+// RATE_LIMIT_NOTICE_COOLDOWN_MS window so they don't think the bot is broken.
+// Matches Builder's gateway rate-limit notice convention.
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
+    const now = Date.now();
+    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, now)) {
+      // Notify the user at most once per cooldown that their message was dropped,
+      // so a burst doesn't look like the bot is broken. Sliding-window limiter
+      // (main) still does the actual rate decision and request tracking.
+      const lastNotice = userLastRateNotice.get(userId) ?? 0;
+      if (now - lastNotice >= RATE_LIMIT_NOTICE_COOLDOWN_MS) {
+        userLastRateNotice.set(userId, now);
+        ctx.reply('Slow down — one message per second. Your message was dropped; resend if it still matters.').catch(() => {});
+      }
       return; // Rate limited
     }
   }
