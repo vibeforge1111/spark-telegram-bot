@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
+import { sanitizeLlmOutput } from './outputSanitization';
 import { chatCommandTimeoutMs } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
@@ -786,10 +787,10 @@ export const llm = {
     try {
       const config = resolveChatProviderConfig();
       if (config.kind === 'codex') {
-        return await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`);
+        return sanitizeLlmOutput(await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`)).text;
       }
       if (config.kind === 'claude') {
-        return await claudeChat(`${systemPrompt}\n\nUser message:\n${userMessage}`, config.model);
+        return sanitizeLlmOutput(await claudeChat(`${systemPrompt}\n\nUser message:\n${userMessage}`, config.model)).text;
       }
       if (config.kind === 'anthropic_api') {
         const content = await anthropicMessage(config, {
@@ -799,7 +800,7 @@ export const llm = {
           maxTokens: 384,
           timeoutMs: 60000
         });
-        return content || "I'm here, but I couldn't generate a response right now.";
+        return sanitizeLlmOutput(content || "I'm here, but I couldn't generate a response right now.").text;
       }
 
       if (config.kind === 'openai_compat') {
@@ -826,7 +827,7 @@ export const llm = {
 
         const content = stripReasoningPreamble(res.data.choices?.[0]?.message?.content || '');
         const reasoningContent = stripReasoningPreamble(res.data.choices?.[0]?.message?.reasoning_content || '');
-        return content || reasoningContent || "I'm here, but I couldn't generate a response right now.";
+        return sanitizeLlmOutput(content || reasoningContent || "I'm here, but I couldn't generate a response right now.").text;
       }
 
       if (config.kind === 'not_configured') {
@@ -851,7 +852,7 @@ export const llm = {
         { timeout: 30000 }
       );
 
-      return res.data.response.trim();
+      return sanitizeLlmOutput(res.data.response.trim()).text;
     } catch (err: any) {
       console.error('LLM error:', {
         provider: resolveChatProviderConfig().provider,
@@ -902,7 +903,7 @@ export const llm = {
         );
 
         const content = await readOpenAiCompatChatStream(res.data, onProgress);
-        return content || "I'm here, but I couldn't generate a response right now.";
+        return sanitizeLlmOutput(content || "I'm here, but I couldn't generate a response right now.").text;
       }
 
       if (config.kind === 'ollama') {
@@ -925,7 +926,7 @@ export const llm = {
         );
 
         const content = await readOllamaChatStream(res.data, onProgress);
-        return content || "I'm here, but I couldn't generate a response right now.";
+        return sanitizeLlmOutput(content || reasoningContent || "I'm here, but I couldn't generate a response right now.").text;
       }
 
       const content = await llm.chat(userMessage, conversationHistory, memories);
