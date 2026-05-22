@@ -1251,6 +1251,15 @@ export const spawner = {
     }
   },
 
+  async latestMissionId(): Promise<string | null> {
+    try {
+      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      return latest?.missionId || null;
+    } catch {
+      return null;
+    }
+  },
+
   async latestKanbanSummary(): Promise<{ success: boolean; message: string }> {
     try {
       const latest = latestBoardEntry(await fetchBoardSnapshot());
