@@ -1903,7 +1903,8 @@ export function isLowInformationLlmReply(reply: string): boolean {
         normalized.includes('source: project event ledger rollup')
       ) &&
       normalized.includes('raw_turn:')
-    )
+    ) ||
+    normalized.includes('produced an empty reply')
   );
 }
 
