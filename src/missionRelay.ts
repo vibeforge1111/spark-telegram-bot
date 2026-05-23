@@ -2056,7 +2056,7 @@ function formatMissionLessonApprovalPrompt(approval: MissionLessonApproval): str
   );
 }
 
-export async function approvePendingMissionLesson(userId: string | number, rememberText: string): Promise<string | null> {
+export async function approvePendingMissionLesson(userId: string | number, rememberText: string, chatId: number = 0): Promise<string | null> {
   const normalizedUserId = String(userId || '').trim();
   if (!normalizedUserId) return null;
   const state = await readMissionLessonApprovalState();
@@ -2082,7 +2082,7 @@ export async function approvePendingMissionLesson(userId: string | number, remem
     `Source refs: ${approval.sourceRefs.join(', ')}.`,
     `Goal: ${clipText(approval.goal, 220)}`
   ].join(' ');
-  await conversation.learnAboutUser({ id: numericUserId }, note);
+  await conversation.learnAboutUser(chatId, { id: numericUserId }, note);
 
   delete pendingByUserId[normalizedUserId];
   await writeMissionLessonApprovalState({ pendingByUserId });
