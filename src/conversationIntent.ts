@@ -1219,7 +1219,8 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   if (
     /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b/.test(normalized) ||
     /\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b.*\b(?:which|what)\s+(?:llm|model|provider|agent)\b/.test(normalized) ||
-    /\b(?:who|what)\s+(?:took|handled|ran|accepted)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run)\b/.test(normalized)
+    /\b(?:who|what)\s+(?:took|handled|ran|accepted)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
+    /\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b.*\b(?:broken|failed|failing|busted)\s+(?:one|job|run|mission|build)\b/.test(normalized)
   ) {
     return 'latest_failed_provider';
   }
