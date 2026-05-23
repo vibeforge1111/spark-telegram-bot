@@ -2787,6 +2787,85 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('ambiguous pronoun cancel follow-up does not arm a later confirmation', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-cancel-ambiguity-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { ok: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [
+						{
+							missionId: 'mission-command-running-probe',
+							missionName: null,
+							taskName: null,
+							status: 'running',
+							lastEventType: 'mission_started',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Running probe mission.'
+						}
+					],
+					paused: [
+						{
+							missionId: 'mission-command-paused-probe',
+							missionName: null,
+							taskName: null,
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date(now - 1000).toISOString(),
+							lastSummary: 'Paused probe mission.'
+						}
+					],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 634, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 635, replies);
+		followupCtx.message.text = 'can you cancel that one?';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /I see two active missions/);
+		assert.match(reply, /\/mission kill <missionId>/);
+		assert.doesNotMatch(reply, /I can cancel|Reply `yes, cancel it`|Mission stop was sent|Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'ambiguous pronoun cancel follow-up must not POST a mission command');
+
+		const confirmCtx = makeFakeCtx(8319079055, 8319079055, 636, replies);
+		confirmCtx.message.text = 'yes, cancel it';
+		await indexModule.handleTextMessage(confirmCtx);
+
+		const confirmationReply = replies.at(-1) || '';
+		assert.doesNotMatch(confirmationReply, /Mission stop was sent|Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'ambiguous pronoun cancel follow-up must not arm a later confirmation');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('pronoun pause follow-up pauses the unambiguous running mission from context', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
