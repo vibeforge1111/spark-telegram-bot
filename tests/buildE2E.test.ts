@@ -2398,6 +2398,83 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('pronoun active-status follow-up stays on Mission Control truth', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-active-status-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [],
+					paused: [
+						{
+							missionId: 'mission-command-orphan-pause',
+							missionName: null,
+							taskName: null,
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Paused and ready to resume.'
+						}
+					],
+					completed: [
+						{
+							missionId: 'mission-completed-newer',
+							missionName: 'Newer Completed Site',
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(now + 1_000).toISOString()
+						}
+					],
+					failed: [
+						{
+							missionId: 'mission-failed-older',
+							missionName: 'Older Failed Mission',
+							status: 'failed',
+							lastEventType: 'mission_failed',
+							lastUpdated: new Date(now - 60_000).toISOString()
+						}
+					],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 620, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 621, replies);
+		followupCtx.message.text = 'is that one paused or still running? Do not start anything.';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.equal(reply, 'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause.');
+		assert.doesNotMatch(reply, /mission-command-orphan-pause|Newer Completed Site|Older Failed Mission/);
+		assert.doesNotMatch(reply, /Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'pronoun active-status follow-up must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('natural access status uses authoritative CLI state instead of generic help', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));
