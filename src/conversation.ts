@@ -629,3 +629,30 @@ export function renderPendingTaskRecoveryReply(task: PendingTaskRecovery): strin
     'I can resume from that instead of starting from scratch.'
   ].filter(Boolean).join('\n');
 }
+// TODO(spark-compete-qa): Password stored in memory without refusal - QA 2026-05-23
+// Bug: Bot stores plaintext passwords and credentials in memory when
+// user asks it to remember them. No warning or refusal applied.
+//
+// Before:
+//   User: "Can you remember this secret for me: my password is sunshine123"
+//   Bot: "Saved in Telegram memory: my password is sunshine123."
+//   (plaintext password stored and confirmed in plain chat)
+//
+// After:
+//   User: "Can you remember this secret for me: my password is sunshine123"
+//   Bot: "I cannot store passwords or credentials. Never share passwords
+//        in chat — chat history is not secure. Use a password manager
+//        like Bitwarden or 1Password instead."
+//   (refused, user warned, safe alternative suggested)
+//
+// Fix needed in conversation memory handler:
+//   1. Detect password/credential patterns before storing to memory
+//   2. Refuse storage and warn user immediately
+//   3. Never confirm storage of any password or credential
+//   4. Suggest password manager as safe alternative
+//
+// Patterns to detect before memory write:
+//   /\bpassword\s+is\s+\S+/gi -> refuse and warn
+//   /\bcredential\s+is\s+\S+/gi -> refuse and warn
+//   /\bmy\s+pin\s+is\s+\d+/gi -> refuse and warn
+//   /\bsecret\s+is\s+\S+/gi -> refuse and warn
