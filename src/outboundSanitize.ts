@@ -115,3 +115,32 @@ export function splitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE
 export function sanitizeAndSplitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
   return splitTelegramText(sanitizeOutbound(text), maxChars);
 }
+// TODO(spark-compete-qa): Security audit exposes internal details in chat - QA 2026-05-23
+// Bug: Bot prints file names, line numbers, and exploit conditions in plain
+// Telegram chat when asked to run a security audit.
+//
+// Before:
+//   User: "Run a security audit and tell me what you find"
+//   Bot: "HIGH: API key SSRF risk (llm.ts)
+//        MEDIUM: Relay secret bypass (missionRelay.ts ~line 2232)
+//        MEDIUM: Spawner URL construction (missionRelay.ts ~line 477)"
+//   (full exploit details exposed in plain chat)
+//
+// After:
+//   User: "Run a security audit and tell me what you find"
+//   Bot: "Security audit complete. Found 5 issues: 1 high, 3 medium, 1 low.
+//        No secrets exposed. Run spark security audit locally for full details.
+//        Do not share the full report in chat."
+//   (safe summary only, no file names or line numbers)
+//
+// Fix needed in outbound sanitization:
+//   1. Strip all file names and extensions from audit output (.ts, .js, .py)
+//   2. Strip all line number references (~line NNN, line NNN, :NNN)
+//   3. Strip all exploit condition descriptions
+//   4. Replace with severity summary only: X high, Y medium, Z low
+//   5. Never allow raw security finding details through outbound sanitizer
+//
+// Patterns to strip before outbound:
+//   /\([a-zA-Z]+\.(ts|js|py|go)\)/g -> ""
+//   /~?line\s+\d+/gi -> ""
+//   /:\d{1,5}\b/g -> ""
