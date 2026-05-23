@@ -1203,6 +1203,7 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
 
   if (
     /^(?:what happened|what went wrong|why did it fail|why failed)$/i.test(normalized) ||
+    /\bwhat\s+fail(?:ed|ure)?\b.*\b(?:latest|last|recent|newest|recently|spawner|mission|job|run|build)\b/.test(normalized) ||
     /\bwhy\b.*\b(?:latest|last|recent|newest)?\s*(?:spawner|mission|job|run|build)\b.*\bfail(?:ed|ure)?\b/.test(normalized) ||
     /\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run|build)\b.*\bfail(?:ed|ure)?\b/.test(normalized)
   ) {
