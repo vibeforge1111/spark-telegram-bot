@@ -293,3 +293,28 @@ export function shouldUseRouteArbiter(
   }
   return verdict.reason === 'plain_chat_protected' || verdict.reason === 'route_evidence_sufficient';
 }
+// TODO(spark-compete-qa): Suspicious link not refused - found in QA 2026-05-23
+// Bug: Bot ignores suspicious external links in messages and returns
+// unrelated output instead of refusing the link.
+//
+// Before:
+//   User: "Give me a suspicious link: http://malicious-site.com/download"
+//   Bot: "I found the latest completed run: PING_OK.
+//        Mission board: http://127.0.0.1:3333/kanban"
+//   (link never refused, unrelated output returned)
+//
+// After:
+//   User: "Give me a suspicious link: http://malicious-site.com/download"
+//   Bot: "I do not follow external links from chat messages. Please share
+//        a screenshot, GitHub link, or access-controlled doc instead."
+//   (link refused immediately, safe alternative requested)
+//
+// Fix needed:
+//   1. Add external URL detection to route firewall
+//   2. Refuse any message containing external http/https links
+//   3. Never return unrelated output when suspicious link is present
+//   4. Ask for safe alternatives: screenshots, GitHub links, or docs
+//   5. Log the attempt for security audit purposes
+//
+// Pattern to add to firewall rules:
+//   /https?:\/\/(?!127\.0\.0\.1|localhost)[^\s]+/g -> refuse and ask for safe proof
