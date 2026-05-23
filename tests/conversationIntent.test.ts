@@ -314,6 +314,19 @@ test('routes natural Spawner board questions to board reads', () => {
     ]),
     'latest_provider'
   );
+  assert.equal(parseSpawnerBoardNaturalIntent('what blocked that one? Do not start anything.'), null);
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('what blocked that one? Do not start anything.', [
+      'which model handled the latest failed Spawner job? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('what blocked that one? Do not start anything.', [
+      'which LLM took the latest Spawner job?'
+    ]),
+    null
+  );
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('which mission was that?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('what happened'), 'latest_failure');

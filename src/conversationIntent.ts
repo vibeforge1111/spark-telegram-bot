@@ -1277,17 +1277,26 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
 
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  const hasRecentFailureContext = recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure');
+
+  const blockerPronounFollowup =
+    /\b(?:what|which)\b.*\b(?:blocked|blocker|stopped|broke|failed|went\s+wrong)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:blocked|stopped|broke|failed|went\s+wrong)\b/.test(normalized) ||
+    /\b(?:why|how)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:fail|failed|break|broke|blocked|stop|stopped)\b/.test(normalized);
+  if (blockerPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
   const providerPronounFollowup =
     /\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
     /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b/.test(normalized);
   if (!providerPronounFollowup) return null;
 
-  const recentIntents = recentMessages
-    .slice(-6)
-    .map((message) => parseSpawnerBoardNaturalIntent(message))
-    .filter(Boolean);
-
-  if (recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure')) {
+  if (hasRecentFailureContext) {
     return 'latest_failed_provider';
   }
   if (recentIntents.includes('latest_provider')) {
