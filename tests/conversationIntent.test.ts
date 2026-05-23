@@ -56,6 +56,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
   isUserMemoryRecallQuestion,
+  isProtectedMissionResumePronounIntent,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -65,6 +66,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderProtectedMissionResumePronounReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -379,6 +381,24 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_on_kanban'
   );
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
+});
+
+test('gates protected mission resume pronouns after active status context', () => {
+  assert.equal(isProtectedMissionResumePronounIntent('can you resume that one?', []), false);
+  assert.equal(
+    isProtectedMissionResumePronounIntent('can you resume that one?', [
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    true
+  );
+  assert.equal(
+    isProtectedMissionResumePronounIntent('can you resume that one?', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    false
+  );
+  assert.match(renderProtectedMissionResumePronounReply(), /I did not resume it\./);
+  assert.match(renderProtectedMissionResumePronounReply(), /\/mission resume <missionId>/);
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {

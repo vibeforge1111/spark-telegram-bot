@@ -202,6 +202,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkWorkflowBugHuntRequest,
@@ -218,6 +219,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderProtectedMissionResumePronounReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -6235,6 +6237,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     const localServiceContext = contextualTurns.join('\n');
+
+    if (isProtectedMissionResumePronounIntent(text, contextualTurns)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(renderProtectedMissionResumePronounReply());
+      return;
+    }
 
     const naturalChipBrief = parseNaturalChipCreateIntent(text);
     if (naturalChipBrief && deterministicRouteAllowed('domain_chip.create', text)) {
