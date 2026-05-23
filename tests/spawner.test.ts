@@ -669,16 +669,25 @@ async function run(): Promise<void> {
     const result = await spawner.board();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /Spawner board/);
-    assert.match(result.message, /• running: 1/);
-    assert.match(result.message, /• Build canvas sync/);
+    assert.match(result.message, /^Right now$/m);
+    assert.match(result.message, /• running: 1 - Build canvas sync/);
+    assert.match(result.message, /• paused: 0/);
+    assert.match(result.message, /• queued: 0/);
+    assert.match(result.message, /^History$/m);
+    assert.match(result.message, /• total: 2/);
+    assert.match(result.message, /• complete: 1/);
+    assert.match(result.message, /• failed: 0/);
+    assert.match(result.message, /• cancelled: 1/);
+    assert.doesNotMatch(result.message, /Mission Control has 1 running and 0 paused\./);
+    assert.doesNotMatch(result.message, /History has 2 entries \(1 complete, 0 failed, 1 cancelled\)/);
     assert.doesNotMatch(result.message, /spark-stale/);
-    assert.match(result.message, /• history: 2 \(1 complete, 0 failed, 1 cancelled\)/);
-    assert.doesNotMatch(result.message, /• completed: 1/);
-    assert.doesNotMatch(result.message, /• failed: 0/);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-fresh/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-fresh/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-fresh/);
+    assert.doesNotMatch(result.message, /^Spawner board$/m);
+    assert.doesNotMatch(result.message, /^Counts$/m);
+    assert.doesNotMatch(result.message, /^Active$/m);
+    assert.doesNotMatch(result.message, /^Latest$/m);
+    assert.doesNotMatch(result.message, /^Inspect$/m);
+    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-fresh/);
     assert.doesNotMatch(result.message, /^-\s+/m);
   });
 
@@ -702,7 +711,11 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /• running: 0/);
     assert.match(result.message, /• paused: 0/);
-    assert.match(result.message, /• history: 0 \(0 complete, 0 failed, 0 cancelled\)/);
+    assert.match(result.message, /• queued: 0/);
+    assert.match(result.message, /• total: 0/);
+    assert.match(result.message, /• complete: 0/);
+    assert.match(result.message, /• failed: 0/);
+    assert.match(result.message, /• cancelled: 0/);
   });
 
   await test('board renders readable active mission titles instead of raw ids', async () => {
@@ -731,9 +744,11 @@ async function run(): Promise<void> {
     const result = await spawner.board();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /• Mission Command Orphan Pause/);
+    assert.match(result.message, /• paused: 1 - Mission Command Orphan Pause/);
     assert.doesNotMatch(result.message, /• mission-command-orphan-pause/);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-command-orphan-pause/);
+    assert.doesNotMatch(result.message, /^Inspect$/m);
+    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-command-orphan-pause/);
   });
 
   await test('activeMissionSummary answers running and paused questions without terminal-count drift or raw ids', async () => {
