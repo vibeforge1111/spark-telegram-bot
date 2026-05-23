@@ -57,6 +57,7 @@ import {
   isStandaloneAgentDoctrinePreference,
   isUserMemoryRecallQuestion,
   isProtectedMissionCancelPronounIntent,
+  isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -401,6 +402,28 @@ test('gates protected mission resume pronouns after active status context', () =
   );
   assert.match(renderProtectedMissionResumePronounReply(), /I did not resume it\./);
   assert.match(renderProtectedMissionResumePronounReply(), /\/mission resume <missionId>/);
+});
+
+test('gates protected mission pause pronouns after active status context', () => {
+  assert.equal(isProtectedMissionPausePronounIntent('can you pause that one?', []), false);
+  assert.equal(
+    isProtectedMissionPausePronounIntent('can you pause that one?', [
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    true
+  );
+  assert.equal(
+    isProtectedMissionPausePronounIntent('hold that one', [
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    true
+  );
+  assert.equal(
+    isProtectedMissionPausePronounIntent('can you pause that one?', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    false
+  );
 });
 
 test('gates protected mission cancel pronouns after active status context', () => {

@@ -2597,6 +2597,72 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('pronoun pause follow-up pauses the unambiguous running mission from context', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-pause-gate-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { ok: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [
+						{
+							missionId: 'mission-command-running-probe',
+							missionName: null,
+							taskName: null,
+							status: 'running',
+							lastEventType: 'mission_started',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Running probe mission.'
+						}
+					],
+					paused: [],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 626, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 627, replies);
+		followupCtx.message.text = 'can you pause that one?';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /I paused Mission Command Running Probe\./);
+		assert.match(reply, /\/kanban\?mission=mission-command-running-probe/);
+		assert.doesNotMatch(reply, /Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 1, 'pronoun pause follow-up should POST exactly one contextual pause command');
+		assert.deepEqual(captured[0].body, {
+			action: 'pause',
+			missionId: 'mission-command-running-probe',
+			source: 'telegram'
+		});
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('natural access status uses authoritative CLI state instead of generic help', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));

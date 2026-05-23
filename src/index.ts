@@ -203,6 +203,7 @@ import {
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isProtectedMissionCancelPronounIntent,
+  isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
@@ -6243,6 +6244,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isProtectedMissionResumePronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(renderProtectedMissionResumePronounReply());
+      return;
+    }
+
+    if (isProtectedMissionPausePronounIntent(text, contextualTurns)) {
+      await conversation.remember(user, text).catch(() => {});
+      const result = await spawner.pauseContextualActiveMission();
+      if (result.commandSent && result.missionId) {
+        markMissionRelayPaused(result.missionId);
+      }
+      await ctx.reply(result.message);
       return;
     }
 
