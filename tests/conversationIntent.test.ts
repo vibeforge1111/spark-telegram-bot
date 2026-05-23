@@ -353,6 +353,20 @@ test('routes natural Spawner board questions to board reads', () => {
     ]),
     null
   );
+  assert.equal(parseSpawnerBoardNaturalIntent('is that one paused or still running? Do not start anything.'), null);
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('is that one paused or still running? Do not start anything.', [
+      'what failed most recently in Spawner? Do not start anything.',
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    'active_missions'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('is that one paused or still running? Do not start anything.', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('which mission was that?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('what happened'), 'latest_failure');

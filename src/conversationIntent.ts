@@ -1282,6 +1282,9 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
     .map((message) => parseSpawnerBoardNaturalIntent(message))
     .filter(Boolean);
   const hasRecentFailureContext = recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure');
+  const latestStatusContext = [...recentIntents]
+    .reverse()
+    .find((intent) => intent === 'active_missions' || intent === 'latest_failed_provider' || intent === 'latest_failure');
 
   const openPronounFollowup =
     /\b(?:can|could|would|where|how|open|link|url|inspect|show|pull\s+up)\b.*\b(?:open|link|url|inspect|show|pull\s+up|see)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
@@ -1291,9 +1294,10 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
   }
 
   const statusPronounFollowup =
-    /\b(?:is|was|were|does|did|has|have|can)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized) ||
-    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized);
+    /\b(?:is|was|were|does|did|has|have|can)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|paused|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|paused|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized);
   if (statusPronounFollowup) {
+    if (latestStatusContext === 'active_missions') return 'active_missions';
     return hasRecentFailureContext ? 'latest_failure' : null;
   }
 
