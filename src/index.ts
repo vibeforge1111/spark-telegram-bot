@@ -1620,6 +1620,51 @@ bot.use(async (ctx, next) => {
   }) as typeof ctx.reply;
   await next();
 });
+function isTelegramGroupChat(ctx: any): boolean {
+  return ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+}
+
+function telegramMessageTextOrCaption(ctx: any): string {
+  const message = ctx.message || {};
+  if (typeof message.text === 'string') return message.text;
+  if (typeof message.caption === 'string') return message.caption;
+  return '';
+}
+
+function mentionsThisBot(ctx: any): boolean {
+  const username = ctx.botInfo?.username;
+  if (!username) return false;
+
+  const text = telegramMessageTextOrCaption(ctx).toLowerCase();
+  return text.includes(`@${String(username).toLowerCase()}`);
+}
+
+function commandTargetsThisBot(ctx: any): boolean {
+  const username = ctx.botInfo?.username;
+  if (!username) return false;
+
+  const text = telegramMessageTextOrCaption(ctx).trim();
+  const match = text.match(/^\/[a-zA-Z0-9_]+@([A-Za-z0-9_]+)(?:\s|$)/);
+  return Boolean(match && match[1].toLowerCase() === String(username).toLowerCase());
+}
+
+function isReplyToThisBot(ctx: any): boolean {
+  return ctx.message?.reply_to_message?.from?.id === ctx.botInfo?.id;
+}
+
+function shouldHandleGroupMessage(ctx: any): boolean {
+  if (!isTelegramGroupChat(ctx)) return true;
+
+  return mentionsThisBot(ctx) || commandTargetsThisBot(ctx) || isReplyToThisBot(ctx);
+}
+
+bot.use(async (ctx, next) => {
+  if (!shouldHandleGroupMessage(ctx)) {
+    return;
+  }
+
+  return next();
+});
 
 // Rate limiting (simple in-memory)
 const userLastAction = new Map<number, number>();
@@ -5449,7 +5494,12 @@ bot.command('mission', async (ctx) => {
 });
 
 // Handle regular text messages
+// Handle regular text messages
 export async function handleTextMessage(ctx: any): Promise<void> {
+  if (!shouldHandleGroupMessage(ctx)) {
+    return;
+  }
+
   const user = ctx.from;
   const text = ctx.message.text;
 
