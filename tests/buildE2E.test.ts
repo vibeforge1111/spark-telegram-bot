@@ -2602,7 +2602,11 @@ async function run(): Promise<void> {
 
 		const reply = replies.at(-1) || '';
 		assert.match(reply, /I see two paused missions/);
-		assert.match(reply, /\/mission resume <missionId>/);
+		assert.match(reply, /Mission Command Paused Alpha/);
+		assert.match(reply, /Mission Command Paused Beta/);
+		assert.match(reply, /\/mission resume mission-command-paused-alpha/);
+		assert.match(reply, /\/mission resume mission-command-paused-beta/);
+		assert.doesNotMatch(reply, /\/mission resume <missionId>/);
 		assert.doesNotMatch(reply, /I resumed|Spark chat provider is not configured|internal error/i);
 		assert.equal(captured.length, 0, 'ambiguous pronoun resume follow-up must not POST a mission command');
 
@@ -2998,7 +3002,11 @@ async function run(): Promise<void> {
 
 		const reply = replies.at(-1) || '';
 		assert.match(reply, /I see two active missions/);
-		assert.match(reply, /\/mission kill <missionId>/);
+		assert.match(reply, /Mission Command Running Probe/);
+		assert.match(reply, /Mission Command Paused Probe/);
+		assert.match(reply, /\/mission kill mission-command-running-probe/);
+		assert.match(reply, /\/mission kill mission-command-paused-probe/);
+		assert.doesNotMatch(reply, /\/mission kill <missionId>/);
 		assert.doesNotMatch(reply, /I can cancel|Reply `yes, cancel it`|Mission stop was sent|Spark chat provider is not configured|internal error/i);
 		assert.equal(captured.length, 0, 'ambiguous pronoun cancel follow-up must not POST a mission command');
 
@@ -3291,7 +3299,11 @@ async function run(): Promise<void> {
 
 		const reply = replies.at(-1) || '';
 		assert.match(reply, /I see two running missions/);
-		assert.match(reply, /\/mission pause <missionId>/);
+		assert.match(reply, /Mission Command Running Alpha/);
+		assert.match(reply, /Mission Command Running Beta/);
+		assert.match(reply, /\/mission pause mission-command-running-alpha/);
+		assert.match(reply, /\/mission pause mission-command-running-beta/);
+		assert.doesNotMatch(reply, /\/mission pause <missionId>/);
 		assert.doesNotMatch(reply, /I paused|Spark chat provider is not configured|internal error/i);
 		assert.equal(captured.length, 0, 'ambiguous pronoun pause follow-up must not POST a mission command');
 
