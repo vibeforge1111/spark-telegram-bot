@@ -1129,12 +1129,14 @@ async function run(): Promise<void> {
     const result = await spawner.latestFailureSummary();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /That run did not make it through\. It was Recursive Sage Maze Game\./);
+    assert.match(result.message, /That run did not make it through: Recursive Sage Maze Game\./);
     assert.match(result.message, /Skill API was unreachable from the spawned Codex lane/);
     assert.match(result.message, /spawned workspace was read-only/);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-game/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-game/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-game/);
+    assert.doesNotMatch(result.message, /local service connection failed/i);
+    assert.match(result.message, /^What blocked it$/m);
+    assert.doesNotMatch(result.message, /^Inspect$/m);
+    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-game/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Move$/m);
     assert.doesNotMatch(result.message, /\b(?:mandatory|required)\s+H70/i);
@@ -1173,10 +1175,11 @@ async function run(): Promise<void> {
     const result = await spawner.latestFailureSummary();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /That run did not make it through\. It was Axiom Garden\./);
-    assert.match(result.message, /The blocker I can prove:\n• Spawner recorded a provider failure\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-generic-failure/);
-    assert.equal((result.message.match(/Inspect/g) || []).length, 1);
+    assert.match(result.message, /That run did not make it through: Axiom Garden\./);
+    assert.match(result.message, /What blocked it\n• Spawner recorded a provider failure\./);
+    assert.doesNotMatch(result.message, /^Inspect$/m);
+    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.equal((result.message.match(/^Board:/gm) || []).length, 1);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Move$/m);
   });

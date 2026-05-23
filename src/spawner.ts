@@ -601,14 +601,15 @@ function formatLatestProviderTelegramSummary(entry: BoardEntry): string {
 function failureCauseLines(entry: BoardEntry): string[] {
   const text = providerResultText(entry).toLowerCase();
   const causes: string[] = [];
+  const hasSkillApiFailure = /\bh70\b|\bskill api\b|\bapi\/h70-skills\b/.test(text);
 
-  if (/\bh70\b|\bskill api\b|\bapi\/h70-skills\b/.test(text)) {
+  if (hasSkillApiFailure) {
     causes.push('Skill API was unreachable from the spawned Codex lane.');
   }
   if (/\bread[-\s]*only\b|\boperation not permitted\b|\bpatch was rejected\b|\bwrite probe\b|\bwrite(?:able|ability)?\b.*\bfailed\b/.test(text)) {
     causes.push('The spawned workspace was read-only.');
   }
-  if (/\bconnection refused\b|\beconnrefused\b|\bfailed to connect\b/.test(text)) {
+  if (!hasSkillApiFailure && /\bconnection refused\b|\beconnrefused\b|\bfailed to connect\b/.test(text)) {
     causes.push('A local service connection failed inside the spawned lane.');
   }
   if (/\bauth\b|\boauth\b|\bunauthorized\b|\bforbidden\b|\b401\b|\b403\b/.test(text)) {
@@ -622,12 +623,12 @@ function formatLatestFailureTelegramSummary(entry: BoardEntry): string {
   const title = missionTitle(entry);
   const causes = failureCauseLines(entry);
   return [
-    `That run did not make it through. It was ${title}.`,
+    `That run did not make it through: ${title}.`,
     '',
-    causes.length === 1 ? 'The blocker I can prove:' : 'The blockers I can prove:',
+    'What blocked it',
     ...causes.map((line) => `• ${line}`),
     '',
-    ...missionInspectionLines(entry.missionId)
+    `Board: ${missionScopedBoardUrl(entry.missionId)}`
   ].join('\n');
 }
 

@@ -1905,6 +1905,135 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('latest failed Spawner question routes to board summary without starting work', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-latest-failed-spawner-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [],
+					paused: [],
+					completed: [],
+					failed: [
+						{
+							missionId: 'mission-failed-route',
+							missionName: 'Spark Bug Recognition Domain Chip',
+							status: 'failed',
+							lastEventType: 'mission_failed',
+							lastUpdated: new Date().toISOString(),
+							taskName: 'Inspect route',
+							providerResults: [{ providerId: 'codex', status: 'failed' }],
+							providerSummary: 'Codex: failed because the spawned workspace was read-only.'
+						}
+					],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+		ctx.message.text = 'what failed most recently in Spawner? Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /That run did not make it through: Spark Bug Recognition Domain Chip\./);
+		assert.match(reply, /What blocked it/);
+		assert.match(reply, /spawned workspace was read-only/i);
+		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-failed-route/);
+		assert.doesNotMatch(reply, /^Inspect$/m);
+		assert.doesNotMatch(reply, /Detail:|Trace:/);
+		assert.equal(captured.length, 0, 'latest failed Spawner question must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('casual what happened follow-up routes to latest failure without starting work', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-what-happened-no-start-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [],
+					paused: [
+						{
+							missionId: 'mission-paused-newer',
+							missionName: 'Paused Newer Mission',
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date(Date.now() + 60_000).toISOString()
+						}
+					],
+					completed: [],
+					failed: [
+						{
+							missionId: 'mission-failed-happened',
+							missionName: 'Spark Bug Recognition Domain Chip',
+							status: 'failed',
+							lastEventType: 'mission_failed',
+							lastUpdated: new Date().toISOString(),
+							taskName: 'Inspect route',
+							providerResults: [{ providerId: 'codex', status: 'failed' }],
+							providerSummary: 'Codex: failed because the spawned workspace was read-only.'
+						}
+					],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 610, replies);
+		ctx.message.text = 'What happened? Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /That run did not make it through: Spark Bug Recognition Domain Chip\./);
+		assert.match(reply, /What blocked it/);
+		assert.match(reply, /spawned workspace was read-only/i);
+		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-failed-happened/);
+		assert.doesNotMatch(reply, /Paused Newer Mission/);
+		assert.doesNotMatch(reply, /^Inspect$/m);
+		assert.doesNotMatch(reply, /Detail:|Trace:/);
+		assert.equal(captured.length, 0, 'casual what-happened follow-up must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('natural access status uses authoritative CLI state instead of generic help', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));
