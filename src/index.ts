@@ -4297,15 +4297,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
 
 export function isRouteConfidenceGateUnsupportedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    /\broute-confidence-gate\b/i.test(message) &&
+  const isGateCommandError = /\broute-confidence-gate\b/i.test(message) &&
     (
       /\binvalid choice\b/i.test(message) ||
       /\bunrecognized arguments?\b/i.test(message) ||
       /\bNo such command\b/i.test(message) ||
       /\bunknown command\b/i.test(message)
-    )
-  );
+    );
+  const isLLMTimeout = /\btimeout\b/i.test(message) && /\bECONNABORTED\b|\bms exceeded\b/i.test(message);
+  return isGateCommandError || isLLMTimeout;
 }
 
 export function routeConfidenceGateCompatibilityAllows(input: {
