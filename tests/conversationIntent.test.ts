@@ -68,7 +68,6 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
-  renderProtectedMissionCancelPronounReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -423,7 +422,7 @@ test('gates protected mission pause pronouns after active status context', () =>
   );
 });
 
-test('gates protected mission cancel pronouns after active status context', () => {
+test('detects protected mission cancel pronouns after active status context', () => {
   assert.equal(isProtectedMissionCancelPronounIntent('can you cancel that one?', []), false);
   assert.equal(
     isProtectedMissionCancelPronounIntent('can you cancel that one?', [
@@ -443,8 +442,6 @@ test('gates protected mission cancel pronouns after active status context', () =
     ]),
     false
   );
-  assert.match(renderProtectedMissionCancelPronounReply(), /I did not cancel it\./);
-  assert.match(renderProtectedMissionCancelPronounReply(), /\/mission kill <missionId>/);
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {

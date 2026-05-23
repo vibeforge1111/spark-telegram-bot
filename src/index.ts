@@ -221,7 +221,6 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
-  renderProtectedMissionCancelPronounReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -1684,7 +1683,14 @@ interface PendingDomainChipBuild {
   timestamp: number;
 }
 const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
+interface PendingMissionCancelConfirmation {
+  missionId: string;
+  title: string;
+  timestamp: number;
+}
+const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
@@ -1693,7 +1699,43 @@ function clearPendingExecutionState(key: string): boolean {
   const hadClarification = pendingClarifications.delete(key);
   const hadDomainChip = pendingDomainChipBuilds.delete(key);
   const hadCreatorMission = pendingCreatorMissions.delete(key);
-  return hadClarification || hadDomainChip || hadCreatorMission;
+  const hadMissionCancel = pendingMissionCancelConfirmations.delete(key);
+  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel;
+}
+
+function missionCancelConfirmationKey(ctx: any): string {
+  return `${ctx.chat?.id ?? 'unknown'}-${ctx.from?.id ?? 'unknown'}`;
+}
+
+function isMissionCancelConfirmationText(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  return (
+    /^(?:yes[,\s]+)?(?:cancel|kill|stop)\s+(?:it|that|that\s+mission|this\s+mission|the\s+mission)$/.test(normalized) ||
+    /^confirm\s+(?:cancel|kill|stop)(?:\s+(?:it|that|that\s+mission|this\s+mission|the\s+mission))?$/.test(normalized)
+  );
+}
+
+async function handlePendingMissionCancelConfirmation(ctx: any, text: string): Promise<boolean> {
+  if (!isMissionCancelConfirmationText(text)) return false;
+
+  const key = missionCancelConfirmationKey(ctx);
+  const pending = pendingMissionCancelConfirmations.get(key);
+  if (!pending) return false;
+
+  pendingMissionCancelConfirmations.delete(key);
+  await conversation.remember(ctx.from, text).catch(() => {});
+
+  if (Date.now() - pending.timestamp > MISSION_CANCEL_CONFIRMATION_TTL_MS) {
+    await ctx.reply('That cancel confirmation expired. Ask me to cancel it again if you still want to stop it.');
+    return true;
+  }
+
+  const result = await spawner.missionCommand('kill', pending.missionId);
+  if (result.success) {
+    markMissionRelayCancelled(pending.missionId);
+  }
+  await ctx.reply(result.success ? result.message : `Mission command failed: ${result.message}`);
+  return true;
 }
 
 function extractCommandName(text: string | undefined): string | null {
@@ -6080,6 +6122,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const pendingExecutionKey = `${ctx.chat.id}-${ctx.from.id}`;
     const pendingClarification = pendingClarificationForMessage(pendingExecutionKey, text);
 
+    if (await handlePendingMissionCancelConfirmation(ctx, text)) {
+      return;
+    }
+
     // Build intent gets first refusal inside the admin lane. Utility helpers can
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
@@ -6262,7 +6308,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isProtectedMissionCancelPronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
-      await ctx.reply(renderProtectedMissionCancelPronounReply());
+      const result = await spawner.prepareContextualMissionCancel();
+      if (result.needsConfirmation && result.missionId && result.title) {
+        pendingMissionCancelConfirmations.set(missionCancelConfirmationKey(ctx), {
+          missionId: result.missionId,
+          title: result.title,
+          timestamp: Date.now()
+        });
+      }
+      await ctx.reply(result.message);
       return;
     }
 
