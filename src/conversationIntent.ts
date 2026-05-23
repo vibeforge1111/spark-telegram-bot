@@ -1336,14 +1336,6 @@ export function isProtectedMissionResumePronounIntent(text: string, recentMessag
   return recentIntents.includes('active_missions');
 }
 
-export function renderProtectedMissionResumePronounReply(): string {
-  return [
-    'I did not resume it.',
-    '',
-    'Mission resume needs the exact mission id so I do not mutate the wrong run. Open the board and use `/mission resume <missionId>` when you want that paused mission resumed.'
-  ].join('\n');
-}
-
 export function isProtectedMissionPausePronounIntent(text: string, recentMessages: string[] = []): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized || normalized.startsWith('/')) return false;
