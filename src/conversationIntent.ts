@@ -1185,6 +1185,49 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
+export function isSparkCliInstallCheckRequest(text: string, context: string = ''): boolean {
+  if (parseBuildIntent(text)) {
+    return false;
+  }
+
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+
+  const combined = `${text} ${context}`.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (
+    /\bspark\s*--version\b/.test(normalized) ||
+    /\bspawn spark enoent\b/.test(normalized) ||
+    /\bspark:\s*error:\s*the following arguments are required:\s*command\b/.test(combined) ||
+    /\busage:\s*spark\s+\[-h\]\b/.test(combined)
+  ) {
+    return true;
+  }
+
+  const sparkCliScoped =
+    /\bspark\s+cli\b/.test(normalized) ||
+    /\bspark\b.*\b(?:cli|command|terminal|powershell|install|installed|installation|setup|path|working|ready)\b/.test(normalized) ||
+    /\b(?:cli|command|terminal|powershell|install|installed|installation|setup|path|working|ready)\b.*\bspark\b/.test(normalized);
+  if (!sparkCliScoped) {
+    return false;
+  }
+
+  return /\b(?:check|test|verify|confirm|see|know|working|ready|installed|installation|setup|path|windows|powershell|version)\b/.test(normalized);
+}
+
+export function renderSparkCliInstallCheckReply(): string {
+  return [
+    'Run these in PowerShell:',
+    '',
+    '`spark status`',
+    '`spark doctor`',
+    '`spark verify --onboarding`',
+    '',
+    'If `spark status` or `spark doctor` prints Spark output, Windows found the CLI. That is better proof than `spark --version`, because this CLI may not support a top-level version flag.',
+    '',
+    'If Telegram reports `spawn spark ENOENT`, treat that as this Telegram runtime failing to launch its own local `spark` process. It does not prove your Windows PATH is broken. Paste the PowerShell output here and I will diagnose from that local evidence.'
+  ].join('\n');
+}
+
 export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
