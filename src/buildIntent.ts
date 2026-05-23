@@ -693,6 +693,21 @@ function isAllocationStrategyQuestion(text: string): boolean {
   return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
 }
 
+function isRecursiveInsightPacketRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const packetArtifact =
+    /\b(?:shareable\s+|local\s+|private\s+|review\s+|contribution\s+)?(?:insight|proof|review|contribution)\s+packet\b/.test(normalized);
+  const recursiveDomain =
+    /\b(?:startup[-\s]+yc|recursive|autoloop|auto\s+loop|benchmark|benchmarks?|speciali[sz]ation\s+path|domain[-\s]*chip|builder\s+chip|loop\s+evidence)\b/.test(normalized);
+  const nonPublishBoundary =
+    /\b(?:do\s+not|don't|dont|without|no)\s+(?:publish|share|run|start|launch|post|broadcast)\b/.test(normalized) ||
+    /\blocal(?:ly)?\b|\bprivate(?:ly)?\b/.test(normalized);
+  const concreteBuildSurface =
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalized);
+  return packetArtifact && recursiveDomain && nonPublishBoundary && !concreteBuildSurface;
+}
+
 function isAgentChosenGameBrief(text: string, prd: string): boolean {
 	const combined = `${text}\n${prd}`.toLowerCase().replace(/\s+/g, ' ').trim();
 	if (/\bcalled\s+[a-z0-9][a-z0-9 :.'&-]{2,80}/i.test(combined)) return false;
@@ -800,6 +815,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isPreBuildShapingRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
   if (isAllocationStrategyQuestion(trimmed)) return null;
+  if (isRecursiveInsightPacketRequest(trimmed)) return null;
 
   const stripped = extractBuildDescription(trimmed);
 
@@ -814,6 +830,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
+  if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
   const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
   const buildMode = inferBuildMode(original, prd, projectPath);
