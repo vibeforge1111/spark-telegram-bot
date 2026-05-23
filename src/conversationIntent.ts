@@ -1344,6 +1344,27 @@ export function renderProtectedMissionResumePronounReply(): string {
   ].join('\n');
 }
 
+export function isProtectedMissionCancelPronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:cancel|kill|stop|terminate|abort|shut\s+down)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
+}
+
+export function renderProtectedMissionCancelPronounReply(): string {
+  return [
+    'I did not cancel it.',
+    '',
+    'Cancelling needs the exact mission id so I do not stop the wrong run. Use `/mission kill <missionId>` only when you want that mission cancelled.'
+  ].join('\n');
+}
+
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (isExplicitMemoryWriteLikeRequest(normalized)) {

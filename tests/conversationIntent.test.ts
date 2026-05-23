@@ -56,6 +56,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
   isUserMemoryRecallQuestion,
+  isProtectedMissionCancelPronounIntent,
   isProtectedMissionResumePronounIntent,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
@@ -66,6 +67,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderProtectedMissionCancelPronounReply,
   renderProtectedMissionResumePronounReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
@@ -399,6 +401,30 @@ test('gates protected mission resume pronouns after active status context', () =
   );
   assert.match(renderProtectedMissionResumePronounReply(), /I did not resume it\./);
   assert.match(renderProtectedMissionResumePronounReply(), /\/mission resume <missionId>/);
+});
+
+test('gates protected mission cancel pronouns after active status context', () => {
+  assert.equal(isProtectedMissionCancelPronounIntent('can you cancel that one?', []), false);
+  assert.equal(
+    isProtectedMissionCancelPronounIntent('can you cancel that one?', [
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    true
+  );
+  assert.equal(
+    isProtectedMissionCancelPronounIntent('stop that one', [
+      'what is currently running or paused in Mission Control? keep it short and do not start anything.'
+    ]),
+    true
+  );
+  assert.equal(
+    isProtectedMissionCancelPronounIntent('can you cancel that one?', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    false
+  );
+  assert.match(renderProtectedMissionCancelPronounReply(), /I did not cancel it\./);
+  assert.match(renderProtectedMissionCancelPronounReply(), /\/mission kill <missionId>/);
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {

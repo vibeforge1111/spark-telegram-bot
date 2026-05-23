@@ -202,6 +202,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  isProtectedMissionCancelPronounIntent,
   isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
@@ -219,6 +220,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderProtectedMissionCancelPronounReply,
   renderProtectedMissionResumePronounReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
@@ -6241,6 +6243,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isProtectedMissionResumePronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(renderProtectedMissionResumePronounReply());
+      return;
+    }
+
+    if (isProtectedMissionCancelPronounIntent(text, contextualTurns)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(renderProtectedMissionCancelPronounReply());
       return;
     }
 
