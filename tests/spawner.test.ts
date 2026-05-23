@@ -1022,6 +1022,53 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /Result:/);
   });
 
+  await test('latestFailedProviderSummary respects failed qualifier when latest job is cancelled', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [],
+          failed: [
+            {
+              missionId: 'mission-failed-provider',
+              missionName: 'Spark Bug Recognition Domain Chip',
+              status: 'failed',
+              lastEventType: 'mission_failed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              taskName: 'Inspect route',
+              providerResults: [{ providerId: 'codex', status: 'failed' }],
+              providerSummary: 'Codex: failed after provider handoff.'
+            }
+          ],
+          cancelled: [
+            {
+              missionId: 'mission-cancelled-newer',
+              missionName: 'Cancel Me',
+              status: 'cancelled',
+              lastEventType: 'mission_cancelled',
+              lastUpdated: new Date(now).toISOString(),
+              taskName: null,
+              providerResults: []
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await (spawner as any).latestFailedProviderSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /The latest failed Spawner job reached Codex, then failed\./);
+    assert.doesNotMatch(result.message, /cancelled before any LLM provider/);
+    assert.doesNotMatch(result.message, /^Inspect$/m);
+    assert.doesNotMatch(result.message, /Detail:|Trace:/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-failed-provider/);
+  });
+
   await test('latestKanbanSummary uses polished Telegram composition instead of raw mission rows', async () => {
     restoreAxios();
     const now = Date.now();

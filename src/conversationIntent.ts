@@ -1188,7 +1188,7 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
-export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
+export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_failed_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
@@ -1214,6 +1214,14 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
     /\bwhat\s+happened\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner\s+)?(?:mission|job|run|build)\b/.test(normalized)
   ) {
     return 'latest_mission';
+  }
+
+  if (
+    /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b/.test(normalized) ||
+    /\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b.*\b(?:which|what)\s+(?:llm|model|provider|agent)\b/.test(normalized) ||
+    /\b(?:who|what)\s+(?:took|handled|ran|accepted)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run)\b/.test(normalized)
+  ) {
+    return 'latest_failed_provider';
   }
 
   if (

@@ -540,51 +540,52 @@ function statusWord(status: string): string {
   return 'queued';
 }
 
-function providerSummarySentence(provider: string | null, status: string): string {
+function providerSummarySentence(provider: string | null, status: string, subject = 'latest Spawner job'): string {
   if (!provider) {
-    if (status === 'queued') return 'No LLM has picked up the latest Spawner job yet.';
-    if (status === 'failed') return 'The latest Spawner job failed before it reported an LLM provider.';
-    if (status === 'paused') return 'The latest Spawner job is paused before any LLM provider was reported.';
-    if (status === 'cancelled') return 'The latest Spawner job was cancelled before any LLM provider was reported.';
-    return 'The latest Spawner job has not reported an LLM provider yet.';
+    if (status === 'queued') return `No LLM has picked up the ${subject} yet.`;
+    if (status === 'failed') return `The ${subject} failed before it reported an LLM provider.`;
+    if (status === 'paused') return `The ${subject} is paused before any LLM provider was reported.`;
+    if (status === 'cancelled') return `The ${subject} was cancelled before any LLM provider was reported.`;
+    return `The ${subject} has not reported an LLM provider yet.`;
   }
   if (status === 'completed') {
-    return `${provider} took the latest Spawner job, and it finished.`;
+    return `${provider} took the ${subject}, and it finished.`;
   }
   if (status === 'running') {
-    return `${provider} is on the latest Spawner job right now.`;
+    return `${provider} is on the ${subject} right now.`;
   }
   if (status === 'failed') {
-    return `The latest Spawner job reached ${provider}, then failed.`;
+    return `The ${subject} reached ${provider}, then failed.`;
   }
   if (status === 'cancelled') {
-    return `The latest Spawner job was cancelled after ${provider} was attached.`;
+    return `The ${subject} was cancelled after ${provider} was attached.`;
   }
   if (status === 'paused') {
-    return `The latest Spawner job is paused with ${provider} attached.`;
+    return `The ${subject} is paused with ${provider} attached.`;
   }
-  return `${provider} is attached to the latest Spawner job.`;
+  return `${provider} is attached to the ${subject}.`;
 }
 
-function formatLatestProviderTelegramSummary(entry: BoardEntry): string {
+function formatLatestProviderTelegramSummary(entry: BoardEntry, opts: { subject?: string; boardOnly?: boolean } = {}): string {
   const provider = providerNames(entry);
   const status = statusWord(entry.status);
   const needsInspectionLink = entry.status === 'failed' || entry.status === 'paused';
+  const subject = opts.subject || 'latest Spawner job';
 
   if (!provider) {
     const lines = [
-      providerSummarySentence(null, status)
+      providerSummarySentence(null, status, subject)
     ];
 
     if (needsInspectionLink) {
-      lines.push('', ...missionInspectionLines(entry.missionId));
+      lines.push('', opts.boardOnly ? `Board: ${missionScopedBoardUrl(entry.missionId)}` : missionInspectionLines(entry.missionId).join('\n'));
     }
 
     return lines.join('\n');
   }
 
   const lines = [
-    providerSummarySentence(provider, status)
+    providerSummarySentence(provider, status, subject)
   ];
 
   if (entry.status === 'failed') {
@@ -594,7 +595,7 @@ function formatLatestProviderTelegramSummary(entry: BoardEntry): string {
     );
   }
 
-  lines.push('', ...missionInspectionLines(entry.missionId));
+  lines.push('', opts.boardOnly ? `Board: ${missionScopedBoardUrl(entry.missionId)}` : missionInspectionLines(entry.missionId).join('\n'));
   return lines.join('\n');
 }
 
@@ -1381,6 +1382,31 @@ export const spawner = {
       return {
         success: true,
         message: formatLatestProviderTelegramSummary(latest)
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async latestFailedProviderSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      const latest = latestFailureEntry(await fetchBoardSnapshot());
+      if (!latest) {
+        return {
+          success: true,
+          message: 'I do not see a failed Spawner mission in the current board.'
+        };
+      }
+
+      return {
+        success: true,
+        message: formatLatestProviderTelegramSummary(latest, {
+          subject: 'latest failed Spawner job',
+          boardOnly: true
+        })
       };
     } catch (err: any) {
       return {
