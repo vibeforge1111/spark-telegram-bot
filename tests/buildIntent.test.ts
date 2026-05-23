@@ -310,6 +310,16 @@ test('does not turn exploratory conversation into an accidental build', () => {
     ),
     null
   );
+  assert.equal(
+    parseBuildIntent(
+      [
+        'we already have a big community airdrop that we promised so it needs to be around 20% imo.',
+        'and team 10% makes sense',
+        'wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.'
+      ].join('\n\n')
+    ),
+    null
+  );
   assert.equal(parseBuildIntent('create a clean structure for the launch hype'), null);
   assert.equal(parseBuildIntent('make a better framework for the NFT sale conversation'), null);
   assert.ok(parseBuildIntent('make a daily report dashboard for investors'));

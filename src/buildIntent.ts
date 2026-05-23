@@ -678,6 +678,21 @@ function isConversationalStrategyStructureRequest(text: string, prd: string): bo
   return strategyDomain && speculative && abstractStructure && !concreteArtifact;
 }
 
+function isAllocationStrategyQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const allocationDomain =
+    /\b(?:tokenomics?|tokens?|airdrop|liquidity|dex|seedify|seedworld|vibecoder|lifetime\s+buyers?|team|ecosystem|rewards?|treasury|advisors?|partners?|community|allocation|allocations?)\b/.test(normalized);
+  const hasPercent = /\b\d+(?:\.\d+)?\s*%/.test(normalized);
+  const asksStrategy =
+    /\b(?:what\s+if|wondering|would\s+it\s+be|too\s+small|good\s+enough|how\s+would\s+you\s+organize|organize\s+the\s+rest|remaining|fixed|makes?\s+sense|should\s+we|could\s+we)\b/.test(normalized);
+  const concreteArtifact =
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|repo|repository)\b/.test(normalized);
+  const explicitArtifactBuild =
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock)\b/.test(normalized);
+  return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
+}
+
 function isAgentChosenGameBrief(text: string, prd: string): boolean {
 	const combined = `${text}\n${prd}`.toLowerCase().replace(/\s+/g, ' ').trim();
 	if (/\bcalled\s+[a-z0-9][a-z0-9 :.'&-]{2,80}/i.test(combined)) return false;
@@ -784,6 +799,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
+  if (isAllocationStrategyQuestion(trimmed)) return null;
 
   const stripped = extractBuildDescription(trimmed);
 
@@ -797,6 +813,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
+  if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
   const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
   const buildMode = inferBuildMode(original, prd, projectPath);

@@ -59,6 +59,7 @@ test('bug hunt: strategy, QA, and route-meta conversations do not hijack into bu
     'look into the whole Spark systems and repos so we really find all the messages that can be improved',
     'can you give more examples and intelligence on this route confidence system',
     'were h70 skills mandatory here, and can we make sure normal prompts still operate?',
+    'we already have a big community airdrop that we promised so it needs to be around 20% imo. and team 10% makes sense wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.',
     'what else should Mission Control and Spawner workflow improve before we ship?',
     'right this has been actually really good, so should we send those PRs or what edge cases should we test next?',
     'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow',
