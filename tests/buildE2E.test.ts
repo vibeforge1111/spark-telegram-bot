@@ -2611,6 +2611,95 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('pronoun resume follow-up rechecks Mission Control before sending a stale command', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-resume-freshness-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		let followupPhase = false;
+		let followupBoardReads = 0;
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { ok: true } };
+		};
+		(axios as any).get = async () => {
+			const pausedBoard = {
+				board: {
+					running: [],
+					paused: [
+						{
+							missionId: 'mission-command-orphan-pause',
+							missionName: null,
+							taskName: null,
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Paused and ready to resume.'
+						}
+					],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			const completedBoard = {
+				board: {
+					running: [],
+					paused: [],
+					completed: [
+						{
+							missionId: 'mission-command-orphan-pause',
+							missionName: null,
+							taskName: null,
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(now + 1000).toISOString(),
+							lastSummary: 'Finished before the resume follow-up.'
+						}
+					],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			if (followupPhase) {
+				followupBoardReads += 1;
+				return { data: completedBoard };
+			}
+			return { data: pausedBoard };
+		};
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 637, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		followupPhase = true;
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 638, replies);
+		followupCtx.message.text = 'can you resume that one?';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /I do not see a paused mission to resume right now\./);
+		assert.doesNotMatch(reply, /I resumed|Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'stale pronoun resume follow-up must not POST a mission command');
+		assert.equal(followupBoardReads, 1, 'resume follow-up should recheck Mission Control before posting');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('pronoun cancel follow-up asks for confirmation before cancelling the unambiguous active mission', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
@@ -2860,6 +2949,95 @@ async function run(): Promise<void> {
 		const confirmationReply = replies.at(-1) || '';
 		assert.doesNotMatch(confirmationReply, /Mission stop was sent|Spark chat provider is not configured|internal error/i);
 		assert.equal(captured.length, 0, 'ambiguous pronoun cancel follow-up must not arm a later confirmation');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('pronoun pause follow-up rechecks Mission Control before sending a stale command', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-pause-freshness-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		let followupPhase = false;
+		let followupBoardReads = 0;
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { ok: true } };
+		};
+		(axios as any).get = async () => {
+			const runningBoard = {
+				board: {
+					running: [
+						{
+							missionId: 'mission-command-running-probe',
+							missionName: null,
+							taskName: null,
+							status: 'running',
+							lastEventType: 'mission_started',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Running probe mission.'
+						}
+					],
+					paused: [],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			const completedBoard = {
+				board: {
+					running: [],
+					paused: [],
+					completed: [
+						{
+							missionId: 'mission-command-running-probe',
+							missionName: null,
+							taskName: null,
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(now + 1000).toISOString(),
+							lastSummary: 'Finished before the pause follow-up.'
+						}
+					],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			if (followupPhase) {
+				followupBoardReads += 1;
+				return { data: completedBoard };
+			}
+			return { data: runningBoard };
+		};
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 639, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		followupPhase = true;
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 640, replies);
+		followupCtx.message.text = 'can you pause that one?';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /I do not see a running mission to pause right now\./);
+		assert.doesNotMatch(reply, /I paused|Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'stale pronoun pause follow-up must not POST a mission command');
+		assert.equal(followupBoardReads, 1, 'pause follow-up should recheck Mission Control before posting');
 
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();
