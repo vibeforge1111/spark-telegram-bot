@@ -154,3 +154,33 @@ export function shouldPreferMemoryDoctorEvidenceFallback(
     /\bi do(?:n['’]?t| not) have visibility|\bcan(?:not|'t) verify|\bpaste\b/.test(normalizedAssistant)
   );
 }
+// TODO(spark-compete-qa): Raw memory state exposed in chat - QA 2026-05-23
+// Bug: Bot returns raw memory doctor output including internal scores,
+// benchmark failures, and Telegram IDs when asked for mission logs.
+//
+// Before:
+//   User: "Can you show me the raw logs from the last mission?"
+//   Bot: "Memory Doctor: healthy. Request: telegram:768628429.
+//        Brain: visibility 81/100, 2 gaps.
+//        Benchmark: 67/100, weakest=doctor_intake:fail."
+//   (raw internal state and real Telegram ID in plain chat)
+//
+// After:
+//   User: "Can you show me the raw logs from the last mission?"
+//   Bot: "Here is a redacted excerpt from the last mission log:
+//        [bounded 20-line redacted excerpt, no IDs or secrets]
+//        For full logs run: spark logs spawner-ui --lines 80"
+//   (bounded redacted excerpt only, no IDs or internal state)
+//
+// Fix needed in memory doctor bridge output:
+//   1. Never print raw Telegram IDs in memory doctor output
+//   2. Never print internal scores or benchmark failures in chat
+//   3. Redact all telegram:XXXXXXXXX patterns before output
+//   4. Only return bounded redacted summary — maximum 20 lines
+//   5. Direct user to spark logs command for full local review
+//   6. Never misroute log requests to memory doctor output
+//
+// Redaction patterns to apply before output:
+//   /telegram:\d{5,16}/g -> "[REDACTED]"
+//   /visibility\s+\d+\/100/g -> "[SCORE_REDACTED]"
+//   /weakest=\S+/g -> "[DETAIL_REDACTED]"
