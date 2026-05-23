@@ -69,7 +69,6 @@ import {
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
   renderProtectedMissionCancelPronounReply,
-  renderProtectedMissionResumePronounReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -386,7 +385,7 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
 });
 
-test('gates protected mission resume pronouns after active status context', () => {
+test('detects protected mission resume pronouns after active status context', () => {
   assert.equal(isProtectedMissionResumePronounIntent('can you resume that one?', []), false);
   assert.equal(
     isProtectedMissionResumePronounIntent('can you resume that one?', [
@@ -400,8 +399,6 @@ test('gates protected mission resume pronouns after active status context', () =
     ]),
     false
   );
-  assert.match(renderProtectedMissionResumePronounReply(), /I did not resume it\./);
-  assert.match(renderProtectedMissionResumePronounReply(), /\/mission resume <missionId>/);
 });
 
 test('gates protected mission pause pronouns after active status context', () => {

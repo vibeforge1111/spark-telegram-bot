@@ -1378,6 +1378,66 @@ export const spawner = {
     }
   },
 
+  async resumeContextualPausedMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const paused = board.paused;
+
+      if (paused.length === 1) {
+        const mission = paused[0];
+        const title = missionTitle(mission);
+        const result = await spawner.missionCommand('resume', mission.missionId);
+        if (!result.success) {
+          return {
+            success: false,
+            message: `I could not resume ${title}: ${result.message}`
+          };
+        }
+        return {
+          success: true,
+          missionId: mission.missionId,
+          commandSent: true,
+          message: [
+            `I resumed ${title}.`,
+            '',
+            `Board: ${missionScopedBoardUrl(mission.missionId)}`
+          ].join('\n')
+        };
+      }
+
+      if (paused.length > 1) {
+        return {
+          success: false,
+          message: `I see ${countWord(paused.length)} paused missions, so I need the exact one. Use \`/mission resume <missionId>\` for the run you want resumed.`
+        };
+      }
+
+      if (board.running.length === 1) {
+        return {
+          success: true,
+          message: `That mission is already running: ${missionTitle(board.running[0])}.`
+        };
+      }
+
+      if (board.running.length > 1) {
+        return {
+          success: true,
+          message: 'I do not see a paused mission to resume. The active items I can see are already running, so I did not send a command.'
+        };
+      }
+
+      return {
+        success: false,
+        message: 'I do not see a paused mission to resume right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before resuming: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async board(): Promise<{ success: boolean; message: string }> {
     try {
       const board = await fetchBoardSnapshot();
