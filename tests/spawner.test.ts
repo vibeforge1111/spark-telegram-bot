@@ -791,9 +791,47 @@ async function run(): Promise<void> {
     const result = await spawner.activeMissionSummary();
 
     assert.equal(result.success, true);
-    assert.equal(result.message, 'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause.');
+    assert.equal(
+      result.message,
+      'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause. You can say `resume that one` if you want it moving again.'
+    );
     assert.doesNotMatch(result.message, /Spawner board|Counts|Latest|Inspect/);
     assert.doesNotMatch(result.message, /completed:|failed:|mission-command-orphan-pause|trace\?|\/missions\//i);
+  });
+
+  await test('activeMissionSummary gives a natural next action for one running mission', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'mission-command-running-probe',
+              missionName: null,
+              taskName: null,
+              status: 'running',
+              lastEventType: 'mission_started',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Running probe mission.'
+            }
+          ],
+          paused: [],
+          completed: [],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.activeMissionSummary();
+
+    assert.equal(result.success, true);
+    assert.equal(
+      result.message,
+      'Mission Control has one running mission: Mission Command Running Probe. Nothing paused. You can say `pause that one` if you want it held.'
+    );
+    assert.doesNotMatch(result.message, /Mission\n|Status\n|Move\n|mission-command-running-probe|trace\?|\/missions\//i);
   });
 
   await test('latestKanbanSummary reports the newest board-visible mission', async () => {
