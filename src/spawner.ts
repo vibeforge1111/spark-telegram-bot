@@ -428,6 +428,21 @@ function activeMissionClause(entries: BoardEntry[], status: 'running' | 'paused'
   return `${countWord(entries.length)} ${status} mission${entries.length === 1 ? '' : 's'}`;
 }
 
+function contextualMissionCommandPicker(entries: BoardEntry[], statusLabel: string, action: MissionAction, verb: string): string {
+  const shown = entries.slice(0, 5);
+  const noun = statusLabel === 'active' ? 'active missions' : `${statusLabel} missions`;
+  const lines = [
+    `I see ${countWord(entries.length)} ${noun}. Which one should I ${verb}?`,
+    '',
+    ...shown.map((entry) => `- ${missionTitle(entry)}: \`/mission ${action} ${entry.missionId}\``)
+  ];
+  const remaining = entries.length - shown.length;
+  if (remaining > 0) {
+    lines.push('', `There ${remaining === 1 ? 'is' : 'are'} ${remaining} more on the board.`);
+  }
+  return lines.join('\n');
+}
+
 function formatActiveMissionsTelegramSummary(board: BoardSnapshot): string {
   if (board.running.length === 0 && board.paused.length === 0) {
     return 'Mission Control has nothing running or paused right now.';
@@ -1348,7 +1363,7 @@ export const spawner = {
       if (running.length > 1) {
         return {
           success: false,
-          message: `I see ${countWord(running.length)} running missions, so I need the exact one. Use \`/mission pause <missionId>\` for the run you want paused.`
+          message: contextualMissionCommandPicker(running, 'running', 'pause', 'pause')
         };
       }
 
@@ -1408,7 +1423,7 @@ export const spawner = {
       if (paused.length > 1) {
         return {
           success: false,
-          message: `I see ${countWord(paused.length)} paused missions, so I need the exact one. Use \`/mission resume <missionId>\` for the run you want resumed.`
+          message: contextualMissionCommandPicker(paused, 'paused', 'resume', 'resume')
         };
       }
 
@@ -1464,7 +1479,7 @@ export const spawner = {
       if (active.length > 1) {
         return {
           success: false,
-          message: `I see ${countWord(active.length)} active missions, so I need the exact one. Use \`/mission kill <missionId>\` for the run you want cancelled.`
+          message: contextualMissionCommandPicker(active, 'active', 'kill', 'cancel')
         };
       }
 
