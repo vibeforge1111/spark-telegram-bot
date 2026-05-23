@@ -6264,6 +6264,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await safeSendChatAction(ctx, 'typing');
       const result = spawnerBoardIntent === 'latest_provider'
         ? await spawner.latestProviderSummary()
+        : spawnerBoardIntent === 'latest_failed_provider'
+          ? await spawner.latestFailedProviderSummary()
         : spawnerBoardIntent === 'latest_mission'
           ? await spawner.latestMissionSummary()
         : spawnerBoardIntent === 'active_missions'
