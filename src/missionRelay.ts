@@ -363,6 +363,28 @@ export function markMissionRelayCancelled(missionId: string): void {
   clearHeartbeatForMission(normalized);
 }
 
+export async function markLatestMissionRelayCancelledForChat(chatId: string | number, userId?: string | number): Promise<string | null> {
+  await loadRegistry();
+  const now = Date.now();
+  const chatKey = String(chatId);
+  const userKey = userId === undefined || userId === null ? null : String(userId);
+  const candidates = Array.from(registry.values())
+    .filter((entry) => entry.chatId === chatKey)
+    .filter((entry) => !userKey || entry.userId === userKey)
+    .filter((entry) => subscriptionBelongsToThisRelay(entry))
+    .map((entry) => {
+      const createdMs = Date.parse(entry.createdAt || '');
+      return { entry, createdMs: Number.isFinite(createdMs) ? createdMs : 0 };
+    })
+    .filter(({ createdMs }) => !createdMs || now - createdMs <= MISSION_STATE_CACHE_TTL_MS)
+    .sort((a, b) => b.createdMs - a.createdMs);
+
+  const latest = candidates[0]?.entry;
+  if (!latest?.missionId) return null;
+  markMissionRelayCancelled(latest.missionId);
+  return latest.missionId;
+}
+
 export function markMissionRelayPaused(missionId: string): void {
   const normalized = missionId.trim();
   if (!normalized) return;

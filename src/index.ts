@@ -146,6 +146,7 @@ import {
   normalizeTelegramRelayVerbosity,
   approvePendingMissionLesson,
   getTelegramRelayIdentity,
+  markLatestMissionRelayCancelledForChat,
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
@@ -4077,6 +4078,15 @@ function buildNoStartMissionTitleReply(text: string): string | null {
   return null;
 }
 
+function isNaturalMissionRelayCancellation(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!isNoExecutionBoundary(normalized)) return false;
+  const cancellationWord = /\b(?:cancel|stop|hold\s+off|pause|never\s+mind|nevermind|no\s+need)\b/.test(normalized);
+  const targetsMission = /\b(?:that|this|the|latest|last|current|active)?\s*(?:build|mission|run|work)\b/.test(normalized);
+  const talkHere = /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/.test(normalized);
+  return cancellationWord && (targetsMission || talkHere);
+}
+
 async function recordBuilderAocPreflightForRun(input: {
   ctx: any;
   requestId: string;
@@ -6068,10 +6078,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // Build intent gets first refusal inside the admin lane. Utility helpers can
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
-    if (isNoExecutionBoundary(text) && clearPendingExecutionState(pendingExecutionKey)) {
-      await conversation.remember(user, text).catch(() => {});
-      await ctx.reply('Got it, no build or mission started. We can keep talking here.');
-      return;
+    if (isNoExecutionBoundary(text)) {
+      const clearedPendingExecution = clearPendingExecutionState(pendingExecutionKey);
+      const suppressedMissionId = !clearedPendingExecution && isNaturalMissionRelayCancellation(text)
+        ? await markLatestMissionRelayCancelledForChat(ctx.chat.id, ctx.from.id)
+        : null;
+      if (clearedPendingExecution || suppressedMissionId) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply(suppressedMissionId
+          ? 'Got it. I will keep late handoff messages quiet for that build, and we can just talk here.'
+          : 'Got it, no build or mission started. We can keep talking here.');
+        return;
+      }
     }
 
     if (pendingClarification && isPendingClarificationFollowup(text)) {

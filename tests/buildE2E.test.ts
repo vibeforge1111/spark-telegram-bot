@@ -1626,6 +1626,80 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('natural cancellation suppresses late handoffs for the latest registered mission', async () => {
+		restoreAxios();
+		const {
+			registerMissionRelay,
+			resetMissionRelayDeliveryStateForTests,
+			resetMissionRelayRegistryForTests,
+			sendFetchedCompletionSummaryForTests,
+			shouldSuppressMissionHandoff
+		} = await import('../src/missionRelay');
+		resetMissionRelayDeliveryStateForTests();
+		resetMissionRelayRegistryForTests();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-cancel-relay-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const subscription = {
+			missionId: 'mission-natural-cancel',
+			chatId: '8319079055',
+			userId: '8319079055',
+			requestId: 'req-natural-cancel',
+			goal: 'Build a cancellation follow-up tester.',
+			createdAt: new Date().toISOString()
+		};
+		await registerMissionRelay(subscription);
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true, requestId: body?.requestId } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		ctx.message.text = 'Actually no need, cancel that build. We can just talk here.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		assert.equal(shouldSuppressMissionHandoff(subscription.missionId), true, 'natural cancellation should mark the latest mission quiet');
+		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'natural cancellation must not start a new PRD build');
+		assert.doesNotMatch(replies.join('\n'), /Canvas is ready|Mission board|Setting up/i);
+
+		const sent: string[] = [];
+		const chunks = await sendFetchedCompletionSummaryForTests(
+			{
+				telegram: {
+					sendMessage: async (_chatId: number, message: string) => {
+						sent.push(message);
+					}
+				}
+			} as any,
+			8319079055,
+			subscription,
+			{ type: 'mission_completed' as const, missionId: subscription.missionId },
+			'normal',
+			{
+				providerLabel: 'codex',
+				response: JSON.stringify({ summary: 'This late completion should stay quiet.', status: 'completed' })
+			}
+		);
+		assert.equal(chunks, 0);
+		assert.equal(sent.length, 0);
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		resetMissionRelayDeliveryStateForTests();
+		resetMissionRelayRegistryForTests();
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('specific QA mission provenance question answers in chat without spawning', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
