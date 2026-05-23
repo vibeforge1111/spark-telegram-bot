@@ -631,6 +631,22 @@ function formatLatestFailureTelegramSummary(entry: BoardEntry): string {
   ].join('\n');
 }
 
+function boardEntrySentence(entry: BoardEntry, label: 'Active' | 'Latest'): string {
+  const title = missionTitle(entry);
+  const status = statusWord(entry.status);
+  if (status === 'running') return `${label}: ${title} is running.`;
+  if (status === 'paused') return `${label}: ${title} is paused.`;
+  if (status === 'completed') return `${label}: ${title} finished.`;
+  if (status === 'failed') return `${label}: ${title} failed.`;
+  if (status === 'cancelled') return `${label}: ${title} was cancelled.`;
+  return `${label}: ${title} is queued.`;
+}
+
+function boardCountLine(label: 'running' | 'paused' | 'queued', count: number, entry?: BoardEntry): string {
+  const title = entry ? missionTitle(entry) : '';
+  return `• ${label}: ${count}${title ? ` - ${title}` : ''}`;
+}
+
 function formatBoardTelegramSummary(board: BoardSnapshot): string {
   const counts = {
     running: board.running.length,
@@ -643,51 +659,39 @@ function formatBoardTelegramSummary(board: BoardSnapshot): string {
   const history = counts.completed + counts.failed + counts.cancelled;
   const latest = latestBoardEntry(board);
   const lines = [
-    'Spawner board',
+    'Right now',
+    boardCountLine('running', counts.running, board.running[0]),
+    boardCountLine('paused', counts.paused, board.paused[0]),
+    boardCountLine('queued', counts.queued, board.created[0]),
     '',
-    'Counts',
-    `• running: ${counts.running}`,
-    `• paused: ${counts.paused}`,
-    `• history: ${history} (${counts.completed} complete, ${counts.failed} failed, ${counts.cancelled} cancelled)`,
-    `• queued: ${counts.queued}`
+    'History',
+    `• total: ${history}`,
+    `• complete: ${counts.completed}`,
+    `• failed: ${counts.failed}`,
+    `• cancelled: ${counts.cancelled}`
   ];
 
   const active = board.running[0] || board.paused[0] || board.created[0] || null;
   if (active) {
-    lines.push(
-      '',
-      'Active',
-      `• ${missionTitle(active)}`,
-      `• ${statusWord(active.status)}`
-    );
     const activeProvider = providerNames(active);
     if (activeProvider) {
-      lines.push(`• provider: ${activeProvider}`);
+      lines.push('', `${activeProvider} is attached.`);
     }
   }
 
   if (latest && latest !== active) {
-    lines.push(
-      '',
-      'Latest',
-      `• ${missionTitle(latest)}`,
-      `• ${statusWord(latest.status)}`
-    );
+    lines.push('', boardEntrySentence(latest, 'Latest'));
     const provider = providerNames(latest);
     if (provider) {
-      lines.push(`• provider: ${provider}`);
+      lines.push(`${provider} is attached to the latest item.`);
     }
   }
 
   const inspectTarget = active || latest;
   if (inspectTarget) {
-    lines.push('', ...missionInspectionLines(inspectTarget.missionId));
+    lines.push('', `Board: ${missionScopedBoardUrl(inspectTarget.missionId)}`);
   } else {
-    lines.push(
-      '',
-      'Mission board',
-      `• ${missionBoardUrl()}`
-    );
+    lines.push('', boardInspectLine());
   }
 
   return lines.join('\n');
