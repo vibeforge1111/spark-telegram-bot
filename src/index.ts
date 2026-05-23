@@ -213,6 +213,7 @@ import {
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
+  parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -6252,7 +6253,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const spawnerBoardIntent = parseSpawnerBoardNaturalIntent(text);
+    const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent(text, contextualTurns);
     if (spawnerBoardIntent && deterministicRouteAllowed('spawner.board', text)) {
       const accessProfile = await getSparkAccessProfile(ctx.chat.id);
       if (!sparkAccessAllows(accessProfile, 'spawner_build')) {

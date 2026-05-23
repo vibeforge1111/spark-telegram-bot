@@ -62,6 +62,7 @@ import {
   parseNaturalCreatorMissionIntent,
   parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
+  parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
@@ -300,6 +301,19 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('which LLM took the latest Spawner job?'), 'latest_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('which model handled the latest failed Spawner job? Do not start anything.'), 'latest_failed_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('who handled the broken one? Do not start anything.'), 'latest_failed_provider');
+  assert.equal(parseSpawnerBoardNaturalIntent('who took that one? Do not start anything.'), null);
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('who took that one? Do not start anything.', [
+      'which model handled the latest failed Spawner job? Do not start anything.'
+    ]),
+    'latest_failed_provider'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('who took that one? Do not start anything.', [
+      'which LLM took the latest Spawner job?'
+    ]),
+    'latest_provider'
+  );
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('which mission was that?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('what happened'), 'latest_failure');

@@ -1270,6 +1270,32 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   return null;
 }
 
+export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMessages: string[] = []): SpawnerBoardNaturalIntent | null {
+  const directIntent = parseSpawnerBoardNaturalIntent(text);
+  if (directIntent) return directIntent;
+
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const providerPronounFollowup =
+    /\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b/.test(normalized);
+  if (!providerPronounFollowup) return null;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+
+  if (recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure')) {
+    return 'latest_failed_provider';
+  }
+  if (recentIntents.includes('latest_provider')) {
+    return 'latest_provider';
+  }
+  return null;
+}
+
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
