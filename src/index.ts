@@ -1730,11 +1730,11 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string): P
     return true;
   }
 
-  const result = await spawner.missionCommand('kill', pending.missionId);
-  if (result.success) {
+  const result = await spawner.confirmContextualMissionCancel(pending.missionId, pending.title);
+  if (result.commandSent && result.missionId) {
     markMissionRelayCancelled(pending.missionId);
   }
-  await ctx.reply(result.success ? result.message : `Mission command failed: ${result.message}`);
+  await ctx.reply(result.message);
   return true;
 }
 

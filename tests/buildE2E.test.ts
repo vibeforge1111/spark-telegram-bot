@@ -2688,6 +2688,105 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('cancel confirmation rechecks Mission Control before sending a stale command', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-pronoun-cancel-freshness-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		let confirmationPhase = false;
+		let confirmationBoardReads = 0;
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { ok: true } };
+		};
+		(axios as any).get = async () => {
+			const activeBoard = {
+				board: {
+					running: [],
+					paused: [
+						{
+							missionId: 'mission-command-orphan-pause',
+							missionName: null,
+							taskName: null,
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date(now).toISOString(),
+							lastSummary: 'Paused and ready to resume.'
+						}
+					],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			const completedBoard = {
+				board: {
+					running: [],
+					paused: [],
+					completed: [
+						{
+							missionId: 'mission-command-orphan-pause',
+							missionName: null,
+							taskName: null,
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(now + 1000).toISOString(),
+							lastSummary: 'Finished before the confirmation arrived.'
+						}
+					],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			};
+			if (confirmationPhase) {
+				confirmationBoardReads += 1;
+				return { data: completedBoard };
+			}
+			return { data: activeBoard };
+		};
+
+		const replies: string[] = [];
+		const firstCtx = makeFakeCtx(8319079055, 8319079055, 627, replies);
+		firstCtx.message.text = 'what is currently running or paused in Mission Control? keep it short and do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(firstCtx);
+
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 628, replies);
+		followupCtx.message.text = 'can you cancel that one?';
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /I can cancel Mission Command Orphan Pause\./);
+		assert.equal(captured.length, 0, 'cancel prompt should not post before confirmation');
+
+		confirmationPhase = true;
+		const confirmCtx = makeFakeCtx(8319079055, 8319079055, 629, replies);
+		confirmCtx.message.text = 'yes, cancel it';
+		await indexModule.handleTextMessage(confirmCtx);
+
+		const confirmationReply = replies.at(-1) || '';
+		assert.match(confirmationReply, /no longer running or paused/i);
+		assert.match(confirmationReply, /I did not cancel it/i);
+		assert.match(confirmationReply, /\/kanban\?mission=mission-command-orphan-pause/);
+		assert.doesNotMatch(confirmationReply, /Mission stop was sent|Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 0, 'stale cancel confirmation must not POST a mission command');
+		assert.equal(confirmationBoardReads, 1, 'confirmation should recheck Mission Control before posting');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('pronoun pause follow-up pauses the unambiguous running mission from context', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

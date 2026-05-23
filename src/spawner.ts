@@ -1480,6 +1480,46 @@ export const spawner = {
     }
   },
 
+  async confirmContextualMissionCancel(missionId: string, title: string): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const active = [...board.running, ...board.paused];
+      const mission = active.find((entry) => entry.missionId === missionId);
+
+      if (!mission) {
+        return {
+          success: false,
+          message: [
+            'That mission is no longer running or paused, so I did not cancel it.',
+            '',
+            `Board: ${missionScopedBoardUrl(missionId)}`
+          ].join('\n')
+        };
+      }
+
+      const currentTitle = missionTitle(mission) || title;
+      const result = await spawner.missionCommand('kill', missionId);
+      if (!result.success) {
+        return {
+          success: false,
+          message: `I could not cancel ${currentTitle}: ${result.message}`
+        };
+      }
+
+      return {
+        success: true,
+        missionId,
+        commandSent: true,
+        message: result.message
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before confirming cancellation: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async board(): Promise<{ success: boolean; message: string }> {
     try {
       const board = await fetchBoardSnapshot();
