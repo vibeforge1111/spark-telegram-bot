@@ -1290,6 +1290,13 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
     return hasRecentFailureContext ? 'latest_failure' : null;
   }
 
+  const statusPronounFollowup =
+    /\b(?:is|was|were|does|did|has|have|can)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized);
+  if (statusPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
   const blockerPronounFollowup =
     /\b(?:what|which)\b.*\b(?:blocked|blocker|stopped|broke|failed|went\s+wrong)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
     /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:blocked|stopped|broke|failed|went\s+wrong)\b/.test(normalized) ||
