@@ -1931,6 +1931,12 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   if (/^memory(?:_|$)/i.test(routingDecision.trim())) {
     return null;
   }
+
+  // Never suppress replies to user-initiated commands
+  if (/^(?:runtime_command|researcher_advisory|access_change|disambiguation)/i.test(routingDecision.trim())) {
+    return null;
+  }
+
   const normalized = reply.trim().toLowerCase();
   if (
     normalized.includes('spark could not reach the builder memory path right now') ||

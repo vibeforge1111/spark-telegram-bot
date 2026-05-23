@@ -2087,6 +2087,57 @@ bot.start(async (ctx) => {
   }
 });
 
+// /new command — start a fresh conversation
+bot.command('new', async (ctx) => {
+  await ctx.reply('✨ Fresh conversation started. Previous context cleared. What would you like to work on?');
+});
+
+// /reset command — reset current conversation context
+bot.command('reset', async (ctx) => {
+  await ctx.reply('🔄 Conversation context reset. I still remember long-term details. Ready when you are.');
+});
+
+// /help command
+bot.command('help', async (ctx) => {
+  const lines = [
+    '**Available commands:**',
+    '',
+    '**🛠 Agent**',
+    '/status — System status',
+    '/diagnose — Run diagnostics',
+    '/model — Show or change model',
+    '/models — List available models',
+    '/run <prompt> — Execute a task',
+    '/echo <text> — Echo text back',
+    '',
+    '**🧠 Session**',
+    '/new — Reset conversation',
+    '/reset — Reset conversation',
+    '/context — Agent operating context',
+    '/clarify — Request clarification',
+    '',
+    '**💾 Memory**',
+    '/remember <text> — Save a memory',
+    '/recall <topic> — Recall memories',
+    '/forget <text> — Forget a detail',
+    '/about — What I know about you',
+    '',
+    '**ℹ️ Info**',
+    '/myid — Show your Telegram ID',
+    '/self — Agent identity',
+    '/capabilities — Capability overview',
+    '/workspaces — Workspace inventory',
+    '/wiki — Search the Spark wiki',
+    '',
+    '**🔧 Advanced**',
+    '/spark — System overview',
+    '/access — Access level controls',
+    '/mission <goal> — Start a mission',
+    '/schedule — View schedules'
+  ];
+  await ctx.reply(lines.join('\n'));
+});
+
 // /status command
 bot.command('status', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
@@ -5453,9 +5504,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const text = ctx.message.text;
 
-  if (text.startsWith('/')) {
-    return;
-  }
+  // Let unhandled slash commands flow through to the Builder bridge
+  // instead of being silently dropped. Commands with dedicated bot.command()
+  // handlers are processed before handleTextMessage runs.
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
