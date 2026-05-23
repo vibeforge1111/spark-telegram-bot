@@ -1340,12 +1340,14 @@ async function run(): Promise<void> {
 		});
 
 			assert.match(reply, /Canvas is ready for domain-chip-posters/);
-			assert.match(reply, /I queued 2 build steps\. Spark is moving into the build now\./);
+			assert.match(reply, /Spark queued 2 build steps and is moving now\./);
 			assert.doesNotMatch(reply, /Spawned tasks/);
-			assert.match(reply, /Plan/);
-			assert.match(reply, /Chip manifest/);
+			assert.doesNotMatch(reply, /Plan/);
+			assert.doesNotMatch(reply, /Chip manifest/);
 			assert.doesNotMatch(reply, /Chip manifest · runtime sync/);
-			assert.match(reply, /Router behavior/);
+			assert.doesNotMatch(reply, /Router behavior/);
+			assert.doesNotMatch(reply, /Skills invoked/);
+			assert.doesNotMatch(reply, /Skill tier/);
 			assert.doesNotMatch(reply, /195s/);
 			assert.doesNotMatch(reply, /Architecture:/);
 			assert.doesNotMatch(reply, /Tests\/checks/);
@@ -1970,7 +1972,7 @@ async function run(): Promise<void> {
 			),
 			false
 		);
-		assert.equal(indexModule.shouldUsePendingClarificationForMessage(expiredPending, 'go'), true);
+		assert.equal(indexModule.shouldUsePendingClarificationForMessage(expiredPending, 'go'), false);
 	});
 
 	await test('pending clarification keeps project title for pronoun-heavy build followup', async () => {

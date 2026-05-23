@@ -3613,16 +3613,45 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string): Promi
   return true;
 }
 
-function isPendingClarificationFollowup(text: string): boolean {
+export function isPendingClarificationAlternativeRequest(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return false;
+  return [
+    /\bwhat\s+else\s+(?:would\s+you\s+)?(?:recommend|suggest|try|build|make|create)\b/,
+    /\b(?:something|anything)\s+(?:different|else)\b.*\b(?:recommend|suggest|try|build|make|create)\b/,
+    /\b(?:try|do|explore)\s+something\s+different\b/,
+    /\b(?:other|different)\s+(?:ideas?|directions?|options?|recommendations?|suggestions?)\b/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function isPendingClarificationSteeringAnswer(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || normalized.length > 180) return false;
+  if (/[?]/.test(normalized)) return false;
+  if (isNoExecutionBoundary(normalized) || isPendingClarificationAlternativeRequest(normalized)) return false;
+  if (/^(?:but|and|also|because|why|what|where|when|who|how|should|could|would)\b/.test(normalized)) return false;
+  const hasSteeringLanguage = /\b(?:feel|tone|style|vibe|direction|make it|closer to|more|less|playful|weird|practical|premium|chill|atmospheric|fast|score|score-chasing|strange|surreal|useful|simple|polished|dark|bright|fun|serious|cozy|sharp|experimental|arcade|puzzle|narrative)\b/.test(normalized);
+  const looksLikePreferenceList =
+    /\b(?:and|but|with|without|somewhat|kind of|kinda|closer to)\b/.test(normalized) &&
+    !/\b(?:build|create|make|run|start|launch|ship|mission|canvas|kanban)\b/.test(normalized);
+  return hasSteeringLanguage || looksLikePreferenceList;
+}
+
+export function isPendingClarificationFollowup(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  if (isNoExecutionBoundary(normalized) || isPendingClarificationAlternativeRequest(normalized)) return false;
   if (/^(?:go|run|start|ship|yes|yep|yeah|ok|okay|sure|perfect|do it|let'?s go|default|defaults|skip)$/i.test(normalized)) {
     return true;
   }
   const startsWithConfirmation = /^(?:yes|yeah|yep|ok|okay|sure|perfect|sounds good|great|cool)\b/.test(normalized);
   const contextualObject = /\b(?:it|this|that|the project|the dashboard|the app|the build)\b/.test(normalized);
   const action = /\b(?:build|create|make|ship|start|run|do|use|analyz|analyse)\b/.test(normalized);
-  return contextualObject && action && (startsWithConfirmation || /\b(?:create|build|make|ship|start|run|do)\s+(?:it|this|that)\b/.test(normalized));
+  return (
+    contextualObject &&
+    action &&
+    (startsWithConfirmation || /\b(?:create|build|make|ship|start|run|do)\s+(?:it|this|that)\b/.test(normalized))
+  ) || isPendingClarificationSteeringAnswer(normalized);
 }
 
 function isBareExecutionStart(text: string): boolean {
@@ -3633,8 +3662,7 @@ function isBareExecutionStart(text: string): boolean {
 export function shouldUsePendingClarificationForMessage(pending: { timestamp: number } | null | undefined, text: string): boolean {
   if (!pending) return false;
   const expired = Date.now() - pending.timestamp > CLARIFICATION_TTL_MS;
-  if (!expired) return true;
-  return isPendingClarificationFollowup(text);
+  return !expired && isPendingClarificationFollowup(text);
 }
 
 function pendingClarificationForMessage(key: string, text: string): PendingClarification | null {
@@ -3714,19 +3742,14 @@ export function formatCanvasReadySummary(args: {
   kanbanUrl: string;
 }): string {
   const tasks = Array.isArray(args.analysis?.tasks) ? args.analysis.tasks : [];
-  const tier = args.tier || 'base';
   const rawTaskCount = typeof args.taskCount === 'number' ? args.taskCount : tasks.length;
   const taskCount = Number.isFinite(rawTaskCount) ? rawTaskCount : 0;
   const buildStepLine = taskCount > 0
-    ? `I queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'}. Spark is moving into the build now.`
+    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} and is moving now.`
     : 'Spark is moving into the build now.';
-  const taskPreview = formatCanvasTaskPreview(tasks, tier);
-  const skillSummary = formatCanvasSkillSummary(tasks, tier);
   return telegramBlocks(
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
-    taskPreview,
-    skillSummary,
     ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
   );
 }
@@ -5836,6 +5859,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   if (!earlyBuildIntent && shouldPreferConversationalIdeation(text)) {
     console.log(`[ConversationIntent] early ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
+    if (isPendingClarificationAlternativeRequest(text)) {
+      pendingClarifications.delete(`${ctx.chat.id}-${ctx.from.id}`);
+    }
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
     await safeSendChatAction(ctx, 'typing');
@@ -6337,6 +6363,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (shouldPreferConversationalIdeation(text)) {
       console.log(`[ConversationIntent] ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
+      if (isPendingClarificationAlternativeRequest(text)) {
+        pendingClarifications.delete(`${ctx.chat.id}-${ctx.from.id}`);
+      }
       await safeSendChatAction(ctx, 'typing');
       if (isShortResolvedListPick(text, conversationFrame)) {
         const fastReply = buildSelectedListFastReply(conversationFrame);

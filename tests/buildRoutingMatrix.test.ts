@@ -106,6 +106,8 @@ Send the Mission board first and the canvas when planning is ready.`;
 
 test('mission titles stay readable for simple game and path-derived builds', () => {
   assert.equal(parseBuildIntent("let's build a maze game")?.projectName, 'Maze Game');
+  assert.equal(parseBuildIntent("let's build a game now for now Spark")?.projectName, 'Spark Game');
+  assert.equal(parseBuildIntent('lets build something Spark')?.projectName, 'Spark App');
   assert.equal(
     parseBuildIntent(
       'Create a tiny maze game plan and build only a minimal playable prototype. Use a short PRD if needed, keep it fast, and show Mission Control links as it moves through planning, build, and completion.'

@@ -117,7 +117,28 @@ function polishInferredProjectName(value: string): string {
 }
 
 export function polishBuildProjectName(value: string): string {
-  return polishInferredProjectName(value);
+  let clean = value
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/, '')
+    .replace(/\bfor\s+now\b/gi, ' ')
+    .replace(/\b(?:right\s+)?now\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system)\s+(?:for\s+)?spark$/i);
+  if (genericSparkMatch) {
+    const noun = genericSparkMatch[1].toLowerCase() === 'something' || genericSparkMatch[1].toLowerCase() === 'anything'
+      ? 'App'
+      : titleCaseProjectName(genericSparkMatch[1]);
+    clean = `Spark ${noun}`;
+  }
+
+  if (/^(?:something|anything)$/i.test(clean)) {
+    clean = 'Spark App';
+  }
+
+  return polishInferredProjectName(clean);
 }
 
 function inferProductPhraseProjectName(prd: string): string | null {
@@ -777,7 +798,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
-  const projectName = inferProjectName(prd, projectPath);
+  const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
   const buildMode = inferBuildMode(original, prd, projectPath);
   const buildLane = inferBuildLane(original, prd, projectPath, buildMode.mode);
 

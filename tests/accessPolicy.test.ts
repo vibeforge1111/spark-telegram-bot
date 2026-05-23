@@ -376,7 +376,7 @@ async function main(): Promise<void> {
   await test('gates Spawner command side doors by access level', async () => {
     const indexSource = await readFile(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
 
-    const pendingCreatorControl = indexSource.match(/async function handlePendingCreatorMissionControl[\s\S]*?\nfunction isPendingClarificationFollowup/);
+    const pendingCreatorControl = indexSource.match(/async function handlePendingCreatorMissionControl[\s\S]*?\n(?:export\s+)?function isPendingClarificationFollowup/);
     assert.ok(pendingCreatorControl, 'expected pending creator mission control handler to exist');
     assert.match(pendingCreatorControl[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(pendingCreatorControl[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);

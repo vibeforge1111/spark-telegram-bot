@@ -8,6 +8,7 @@ import {
   isSparkWorkflowBugHuntRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  shouldPreferConversationalIdeation,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderMissionRoutingFailureClassReply,
@@ -21,9 +22,12 @@ import {
   formatLatestCanvasPlanReply,
   isLatestCanvasPlanQuestion,
   isDomainChipPendingDirection,
+  isPendingClarificationAlternativeRequest,
+  isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows
+  routeConfidenceGateCompatibilityAllows,
+  shouldUsePendingClarificationForMessage
 } from '../src/index';
 
 function test(name: string, fn: () => void): void {
@@ -101,6 +105,23 @@ test('bug hunt: clarification microcopy preserves reasoning-game intent', () => 
   assert.match(reply, /I can turn this into Recursive Sage Reasoning Game\./);
   assert.match(reply, /trust\/verify\/quarantine choices/);
   assert.doesNotMatch(reply, /\bmaze\b/i);
+});
+
+test('bug hunt: pending build clarification does not hijack alternative requests', () => {
+  const pending = { timestamp: Date.now() };
+  const alternative = "let's try something different what else you'd recommend?";
+  const steering = 'playful and weird, and somewhat practical';
+  const explicitSteering = "sure let's do it, playful and weird, and somewhat practical";
+
+  assert.equal(isPendingClarificationAlternativeRequest(alternative), true);
+  assert.equal(shouldPreferConversationalIdeation(alternative), true);
+  assert.equal(isPendingClarificationFollowup(alternative), false);
+  assert.equal(shouldUsePendingClarificationForMessage(pending, alternative), false);
+  assertNoBuild(alternative);
+
+  assert.equal(isPendingClarificationFollowup(steering), true);
+  assert.equal(shouldUsePendingClarificationForMessage(pending, steering), true);
+  assert.equal(isPendingClarificationFollowup(explicitSteering), true);
 });
 
 test('bug hunt: no-execution boundaries outrank build and mission words', () => {
@@ -196,12 +217,13 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
   assert.match(canvasReady, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
   assert.doesNotMatch(canvasReady, /Mission board/);
-  assert.match(canvasReady, /I queued 4 build steps\. Spark is moving into the build now\./);
-  assert.match(canvasReady, /Plan\n• App shell · frontend/);
-  assert.match(canvasReady, /• Smoke notes/);
+  assert.match(canvasReady, /Spark queued 4 build steps and is moving now\./);
+  assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
+  assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
   assert.doesNotMatch(canvasReady, /• \+1 more/);
-  assert.match(canvasReady, /Skills invoked\n• Active: 3 skills: frontend, UI design, accessibility\n• Skill tier: base tier \(30-skill starter loadout\)\n• Pro can add 1 skill: docs/);
+  assert.doesNotMatch(canvasReady, /Skills invoked/);
+  assert.doesNotMatch(canvasReady, /Skill tier/);
   assert.doesNotMatch(canvasReady, /Ask for tasks or skills if you want the full plan\./);
   assert.doesNotMatch(canvasReady, /^Mission:\s*mission-123/im);
   assert.doesNotMatch(canvasReady, /elapsed|trace|request/i);
@@ -218,8 +240,8 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(oneStepFastLane, /I queued 1 build step/);
-  assert.match(oneStepFastLane, /• Build \+ check static page · frontend/);
+  assert.match(oneStepFastLane, /Spark queued 1 build step and is moving now/);
+  assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
   const heartbeat = formatCanvasShapingHeartbeatSummary({ projectName: 'Proof Orchard', elapsedSeconds: 120 });
@@ -246,7 +268,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.doesNotMatch(stillRunning, /^Mission:\s*mission-123/im);
 });
 
-test('bug hunt: canvas previews show every build step up to ten and collapse only long plans', () => {
+test('bug hunt: automatic canvas-ready summary keeps build details behind explicit follow-up', () => {
   const tenStepReply = formatCanvasReadySummary({
     projectName: 'Ten Step App',
     taskCount: 10,
@@ -260,8 +282,9 @@ test('bug hunt: canvas previews show every build step up to ten and collapse onl
       }))
     }
   });
-  assert.match(tenStepReply, /• Step 1 · frontend/);
-  assert.match(tenStepReply, /• Step 10 · frontend/);
+  assert.match(tenStepReply, /Spark queued 10 build steps and is moving now\./);
+  assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
+  assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
 
   const twelveStepReply = formatCanvasReadySummary({
@@ -277,12 +300,13 @@ test('bug hunt: canvas previews show every build step up to ten and collapse onl
       }))
     }
   });
-  assert.match(twelveStepReply, /• Step 10 · frontend/);
+  assert.match(twelveStepReply, /Spark queued 12 build steps and is moving now\./);
+  assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
-  assert.match(twelveStepReply, /• \+2 more/);
+  assert.doesNotMatch(twelveStepReply, /• \+2 more/);
 });
 
-test('bug hunt: pro canvas previews can show pro skills without hiding base skills', () => {
+test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () => {
   const reply = formatCanvasReadySummary({
     projectName: 'Pro Game',
     taskCount: 2,
@@ -297,13 +321,14 @@ test('bug hunt: pro canvas previews can show pro skills without hiding base skil
       ]
     }
   });
-  assert.match(reply, /• Playable shell · frontend/);
-  assert.match(reply, /• Core reasoning loop · game design/);
-  assert.match(reply, /Skills invoked\n• Active: 4 skills: frontend, game dev, game design, puzzle design\n• Skill tier: pro tier \(full spark-skill-graphs catalog\)/);
+  assert.doesNotMatch(reply, /• Playable shell · frontend/);
+  assert.doesNotMatch(reply, /• Core reasoning loop · game design/);
+  assert.doesNotMatch(reply, /Skills invoked/);
+  assert.doesNotMatch(reply, /Skill tier/);
   assert.doesNotMatch(reply, /Pro can add/);
 });
 
-test('bug hunt: pro canvas skill summaries show the full skill stack', () => {
+test('bug hunt: automatic pro canvas ready summary hides the full skill stack', () => {
   const reply = formatCanvasReadySummary({
     projectName: 'H70 Orbit Proof',
     taskCount: 4,
@@ -333,10 +358,8 @@ test('bug hunt: pro canvas skill summaries show the full skill stack', () => {
     }
   });
 
-  assert.match(
-    reply,
-    /Skills invoked\n• Active: 15 skills: frontend, Three\.js, game dev, game UI, mobile, game design, game loop, puzzle, procedural, levels, state, onboarding, accessibility, QA, testing\n• Skill tier: pro tier \(full spark-skill-graphs catalog\)/
-  );
+  assert.doesNotMatch(reply, /Skills invoked/);
+  assert.doesNotMatch(reply, /Skill tier/);
   assert.doesNotMatch(reply, /\+\d+ more/);
   assert.doesNotMatch(reply, /\+11 more/);
   assert.doesNotMatch(reply, /frontend, accessibility, testing, game dev, \+8 more/);
