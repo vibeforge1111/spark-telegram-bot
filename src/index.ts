@@ -1946,7 +1946,11 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(ctx.from, localRecall).catch(() => {});
       return;
     }
-    if (await replyViaBuilder(ctx, `What do you remember about ${query}?`)) {
+    const IDENTITY_PATTERNS = /^(who am i|what am i|who are you talking to|my name|my identity|about me)\??$/i;
+    const builderQuery = IDENTITY_PATTERNS.test(query.trim())
+      ? 'What do you remember about this user, including their name, identity, and background?'
+      : `What do you remember about ${query}?`;
+    if (await replyViaBuilder(ctx, builderQuery)) {
       return;
     }
     await ctx.reply(buildMemoryBridgeUnavailableReply('recall'));
