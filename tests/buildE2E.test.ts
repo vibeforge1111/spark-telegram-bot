@@ -2465,8 +2465,12 @@ async function run(): Promise<void> {
 		await indexModule.handleTextMessage(followupCtx);
 
 		const reply = replies.at(-1) || '';
-		assert.equal(reply, 'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause.');
+		assert.equal(
+			reply,
+			'Mission Control has nothing running. One paused mission: Mission Command Orphan Pause. You can say `resume that one` if you want it moving again.'
+		);
 		assert.doesNotMatch(reply, /mission-command-orphan-pause|Newer Completed Site|Older Failed Mission/);
+		assert.doesNotMatch(reply, /^Mission$|^Status$|^Move$/m);
 		assert.doesNotMatch(reply, /Spark chat provider is not configured|internal error/i);
 		assert.equal(captured.length, 0, 'pronoun active-status follow-up must not start a mission or build');
 

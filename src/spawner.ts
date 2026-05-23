@@ -450,11 +450,13 @@ function formatActiveMissionsTelegramSummary(board: BoardSnapshot): string {
 
   if (board.running.length === 0) {
     const paused = activeMissionClause(board.paused, 'paused');
-    return `Mission Control has nothing running. ${paused[0]?.toUpperCase()}${paused.slice(1)}.`;
+    const nextAction = board.paused.length === 1 ? ' You can say `resume that one` if you want it moving again.' : '';
+    return `Mission Control has nothing running. ${paused[0]?.toUpperCase()}${paused.slice(1)}.${nextAction}`;
   }
 
   if (board.paused.length === 0) {
-    return `Mission Control has ${activeMissionClause(board.running, 'running')}. Nothing paused.`;
+    const nextAction = board.running.length === 1 ? ' You can say `pause that one` if you want it held.' : '';
+    return `Mission Control has ${activeMissionClause(board.running, 'running')}. Nothing paused.${nextAction}`;
   }
 
   const running = activeMissionClause(board.running, 'running');
