@@ -1283,6 +1283,13 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
     .filter(Boolean);
   const hasRecentFailureContext = recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure');
 
+  const openPronounFollowup =
+    /\b(?:can|could|would|where|how|open|link|url|inspect|show|pull\s+up)\b.*\b(?:open|link|url|inspect|show|pull\s+up|see)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:open|link|url|inspect|show|pull\s+up|see)\b/.test(normalized);
+  if (openPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
   const blockerPronounFollowup =
     /\b(?:what|which)\b.*\b(?:blocked|blocker|stopped|broke|failed|went\s+wrong)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
     /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:blocked|stopped|broke|failed|went\s+wrong)\b/.test(normalized) ||

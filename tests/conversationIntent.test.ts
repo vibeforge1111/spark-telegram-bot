@@ -327,6 +327,19 @@ test('routes natural Spawner board questions to board reads', () => {
     ]),
     null
   );
+  assert.equal(parseSpawnerBoardNaturalIntent('can I open that one? Do not start anything.'), null);
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('can I open that one? Do not start anything.', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('can I open that one? Do not start anything.', [
+      'which LLM took the latest Spawner job?'
+    ]),
+    null
+  );
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('which mission was that?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('what happened'), 'latest_failure');
