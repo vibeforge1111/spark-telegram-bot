@@ -651,6 +651,16 @@ async function run(): Promise<void> {
             }
           ],
           failed: [],
+          cancelled: [
+            {
+              missionId: 'spark-cancelled',
+              status: 'cancelled',
+              lastEventType: 'mission_cancelled',
+              lastUpdated: new Date(now - 30_000).toISOString(),
+              lastSummary: 'Cancelled',
+              taskName: 'Cancelled task'
+            }
+          ],
           created: []
         }
       }
@@ -663,7 +673,9 @@ async function run(): Promise<void> {
     assert.match(result.message, /• running: 1/);
     assert.match(result.message, /• Build canvas sync/);
     assert.doesNotMatch(result.message, /spark-stale/);
-    assert.match(result.message, /• completed: 1/);
+    assert.match(result.message, /• history: 2 \(1 complete, 0 failed, 1 cancelled\)/);
+    assert.doesNotMatch(result.message, /• completed: 1/);
+    assert.doesNotMatch(result.message, /• failed: 0/);
     assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-fresh/);
     assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-fresh/);
     assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-fresh/);
@@ -679,6 +691,7 @@ async function run(): Promise<void> {
           paused: null,
           completed: 'bad',
           failed: undefined,
+          cancelled: 'also bad',
           created: []
         }
       }
@@ -689,7 +702,38 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /• running: 0/);
     assert.match(result.message, /• paused: 0/);
-    assert.match(result.message, /• completed: 0/);
+    assert.match(result.message, /• history: 0 \(0 complete, 0 failed, 0 cancelled\)/);
+  });
+
+  await test('board renders readable active mission titles instead of raw ids', async () => {
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [
+            {
+              missionId: 'mission-command-orphan-pause',
+              status: 'paused',
+              lastEventType: 'mission_paused',
+              lastUpdated: new Date().toISOString(),
+              lastSummary: 'Paused by operator',
+              taskName: null
+            }
+          ],
+          completed: [],
+          failed: [],
+          cancelled: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.board();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /• Mission Command Orphan Pause/);
+    assert.doesNotMatch(result.message, /• mission-command-orphan-pause/);
+    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-command-orphan-pause/);
   });
 
   await test('activeMissionSummary answers running and paused questions without terminal-count drift or raw ids', async () => {
