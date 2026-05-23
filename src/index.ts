@@ -2802,7 +2802,8 @@ bot.command('recall', handleRecallCommand);
 // /about command - what do I know about you
 bot.command('about', async (ctx) => {
   try {
-    if (await replyViaBuilder(ctx, 'What do you know about me?')) {
+    const userId = ctx.from?.username || ctx.from?.first_name || 'this user';
+    if (await replyViaBuilder(ctx, `What do you know about ${userId}, including their name, identity, background, and anything they have asked you to remember?`)) {
       return;
     }
     await ctx.reply(buildMemoryBridgeUnavailableReply('about'));
