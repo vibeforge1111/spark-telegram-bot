@@ -1323,6 +1323,27 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
   return null;
 }
 
+export function isProtectedMissionResumePronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:resume|unpause|continue)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
+}
+
+export function renderProtectedMissionResumePronounReply(): string {
+  return [
+    'I did not resume it.',
+    '',
+    'Mission resume needs the exact mission id so I do not mutate the wrong run. Open the board and use `/mission resume <missionId>` when you want that paused mission resumed.'
+  ].join('\n');
+}
+
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
