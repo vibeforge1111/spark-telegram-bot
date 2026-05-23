@@ -299,6 +299,7 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('did the latest canvas run show up on kanban?'), 'latest_on_kanban');
   assert.equal(parseSpawnerBoardNaturalIntent('which LLM took the latest Spawner job?'), 'latest_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('which model handled the latest failed Spawner job? Do not start anything.'), 'latest_failed_provider');
+  assert.equal(parseSpawnerBoardNaturalIntent('who handled the broken one? Do not start anything.'), 'latest_failed_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('which mission was that?'), 'latest_mission');
   assert.equal(parseSpawnerBoardNaturalIntent('what happened'), 'latest_failure');
