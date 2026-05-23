@@ -2611,7 +2611,7 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
-	await test('pronoun cancel follow-up stays gated instead of cancelling mission', async () => {
+	await test('pronoun cancel follow-up asks for confirmation before cancelling the unambiguous active mission', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
@@ -2662,10 +2662,26 @@ async function run(): Promise<void> {
 		await indexModule.handleTextMessage(followupCtx);
 
 		const reply = replies.at(-1) || '';
-		assert.match(reply, /I did not cancel it\./);
-		assert.match(reply, /\/mission kill <missionId>/);
+		assert.match(reply, /I can cancel Mission Command Orphan Pause\./);
+		assert.match(reply, /Reply `yes, cancel it` to confirm\./);
+		assert.match(reply, /\/kanban\?mission=mission-command-orphan-pause/);
 		assert.doesNotMatch(reply, /Mission kill was sent|Spark chat provider is not configured|internal error/i);
-		assert.equal(captured.length, 0, 'pronoun cancel follow-up must not POST a mission command');
+		assert.equal(captured.length, 0, 'pronoun cancel follow-up must ask for confirmation before posting a mission command');
+
+		const confirmCtx = makeFakeCtx(8319079055, 8319079055, 626, replies);
+		confirmCtx.message.text = 'yes, cancel it';
+		await indexModule.handleTextMessage(confirmCtx);
+
+		const confirmationReply = replies.at(-1) || '';
+		assert.match(confirmationReply, /Mission stop was sent\./);
+		assert.match(confirmationReply, /\/kanban\?mission=mission-command-orphan-pause/);
+		assert.doesNotMatch(confirmationReply, /Spark chat provider is not configured|internal error/i);
+		assert.equal(captured.length, 1, 'explicit cancel confirmation should POST exactly one mission command');
+		assert.deepEqual(captured[0].body, {
+			action: 'kill',
+			missionId: 'mission-command-orphan-pause',
+			source: 'telegram'
+		});
 
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();

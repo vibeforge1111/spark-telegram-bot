@@ -1362,14 +1362,6 @@ export function isProtectedMissionCancelPronounIntent(text: string, recentMessag
   return recentIntents.includes('active_missions');
 }
 
-export function renderProtectedMissionCancelPronounReply(): string {
-  return [
-    'I did not cancel it.',
-    '',
-    'Cancelling needs the exact mission id so I do not stop the wrong run. Use `/mission kill <missionId>` only when you want that mission cancelled.'
-  ].join('\n');
-}
-
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
