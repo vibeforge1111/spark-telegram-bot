@@ -8,6 +8,7 @@ import {
   accessActionNeedsSparkRestart,
   formatSparkAccessAutomaticRestartNotice,
   formatSparkAccessActionConfirmationPrompt,
+  formatSparkAccessActionFailureReply,
   formatSparkAccessActionReply,
   runSparkAccessAction,
   runSparkAccessActionDetailed,
@@ -100,6 +101,26 @@ void (async () => {
     assert.match(reply, /Docker sandbox smoke passed/);
     assert.match(reply, /without Spark secrets/);
     assert.match(reply, /Docker socket/);
+  });
+
+  await test('formats workspace setup failures with safe recovery guidance', () => {
+    const reply = formatSparkAccessActionFailureReply(
+      'workspace_setup',
+      new Error([
+        'Command failed: spark access setup --json',
+        'Spark blocked a sensitive action because this shell is non-interactive.',
+        'Class: identity_access_mutation',
+        'Risk: high',
+      ].join('\n'))
+    );
+
+    assert.match(reply, /Safe workspace setup could not complete/);
+    assert.match(reply, /running bot process cannot find the Spark CLI/);
+    assert.match(reply, /Send \/diagnose in Telegram/);
+    assert.match(reply, /device holder to run `spark access setup --json` locally/);
+    assert.match(reply, /Do not paste tokens, \.env files, private keys, full logs, or secrets/);
+    assert.match(reply, /Technical detail, redacted: Command failed: spark access setup --json/);
+    assert.doesNotMatch(reply, /Spark access action failed:/);
   });
 
   await test('renders access action buttons without noisy Level 5 internals', () => {

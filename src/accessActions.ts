@@ -266,6 +266,33 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
   return ok ? 'Spark access action finished.' : 'Spark access action failed.';
 }
 
+export function formatSparkAccessActionFailureReply(actionId: SparkAccessActionId, error: unknown): string {
+  const detail = compactAccessActionFailureDetail(error);
+  if (actionId === 'workspace_setup') {
+    return [
+      'Safe workspace setup could not complete.',
+      'Likely causes:',
+      '- The running bot process cannot find the Spark CLI.',
+      '- The Spark workspace folder is not writable.',
+      '- Local Spark setup is incomplete or partly configured.',
+      'Next:',
+      '- Send /diagnose in Telegram.',
+      '- Ask the device holder to run `spark access setup --json` locally.',
+      'Do not paste tokens, .env files, private keys, full logs, or secrets into chat or PR proof.',
+      detail ? `Technical detail, redacted: ${detail}` : '',
+    ].filter(Boolean).join('\n');
+  }
+
+  return [
+    `${sparkAccessActionLabel(actionId)} could not complete.`,
+    'Next:',
+    '- Send /diagnose in Telegram.',
+    `- Ask the device holder to run \`spark ${SPARK_ACCESS_ACTIONS[actionId].command.join(' ')}\` locally.`,
+    'Do not paste tokens, .env files, private keys, full logs, or secrets into chat or PR proof.',
+    detail ? `Technical detail, redacted: ${detail}` : '',
+  ].filter(Boolean).join('\n');
+}
+
 export function accessActionNeedsSparkRestart(actionId: SparkAccessActionId, payload: Record<string, unknown>): boolean {
   if (actionId !== 'level5_enable' && actionId !== 'level5_disable') return false;
   const level5 = objectValue(payload.level5);
@@ -316,6 +343,22 @@ function accessSummary(payload: Record<string, unknown>): string {
 function nextLine(payload: Record<string, unknown>): string {
   const next = String(payload.next || '').trim();
   return next ? `Next: ${next}` : '';
+}
+
+function compactAccessActionFailureDetail(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'unknown error');
+  const redacted = redactText(raw)
+    .replace(/\r\n/g, '\n')
+    .replace(/\/Users\/[^/\s]+/g, '/Users/[user]')
+    .replace(/\/home\/[^/\s]+/g, '/home/[user]')
+    .replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, 'C:\\Users\\[user]');
+  const detail = redacted
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^\s*at\s+/.test(line))
+    .slice(0, 6)
+    .join('\n');
+  return detail.length > 700 ? `${detail.slice(0, 697)}...` : detail;
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
