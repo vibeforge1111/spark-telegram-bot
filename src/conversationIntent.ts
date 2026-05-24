@@ -1281,7 +1281,14 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
     .slice(-6)
     .map((message) => parseSpawnerBoardNaturalIntent(message))
     .filter(Boolean);
-  const hasRecentFailureContext = recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure');
+  const recentSurface = recentMessages.slice(-6).join('\n').toLowerCase();
+  const hasRecentFailedAnswerContext =
+    /\b(?:that run did not make it through|latest failed spawner job|failed spawner job|the broken one (?:is|was) not still working|it failed)\b/.test(recentSurface) &&
+    /\b(?:board:|kanban\?mission=|spawner recorded|provider failure|read-only runner|read-only workspace)\b/.test(recentSurface);
+  const hasRecentFailureContext =
+    recentIntents.includes('latest_failed_provider') ||
+    recentIntents.includes('latest_failure') ||
+    hasRecentFailedAnswerContext;
 
   const failedItemReference = '(?:that|it|this|that\\s+one|this\\s+one|the\\s+one|the\\s+broken\\s+one|the\\s+failed\\s+one|broken\\s+one|failed\\s+one)';
   const hasExplicitFailedItemReference = /\b(?:the\s+)?(?:broken|failed)\s+one\b/.test(normalized);
@@ -1290,6 +1297,13 @@ export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMes
     new RegExp(`\\b${failedItemReference}\\b.*\\b(?:open|link|url|inspect|show|pull\\s+up|see)\\b`).test(normalized);
   if (openPronounFollowup) {
     return hasRecentFailureContext || hasExplicitFailedItemReference ? 'latest_failure' : null;
+  }
+
+  const statusPronounFollowup =
+    /\b(?:is|was|were|does|did|has|have|can)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized);
+  if (statusPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
   }
 
   const blockerPronounFollowup =
