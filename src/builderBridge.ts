@@ -16,6 +16,7 @@ import {
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
+const CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200;
 
 export { resolveBuilderRepoPath };
 
@@ -1991,7 +1992,7 @@ export async function readLatestCapabilityProbeReceipt(
     '--home',
     config.builderHome,
     '--limit',
-    '40',
+    String(CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT),
     '--json',
   ];
   const { stdout } = await execFileAsync(
@@ -2005,6 +2006,18 @@ export async function readLatestCapabilityProbeReceipt(
     })
   );
   const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
+  return extractLatestCapabilityProbeReceiptFromBlackBoxPayload(payload, routeKey);
+}
+
+export function extractLatestCapabilityProbeReceiptFromBlackBoxPayload(
+  payload: Record<string, unknown>,
+  capabilityKey: string
+): BuilderCapabilityProbeReceipt | null {
+  const routeKey = String(capabilityKey || '').trim();
+  if (!routeKey) {
+    return null;
+  }
+
   const entries = Array.isArray(payload.entries) ? payload.entries : [];
   for (const item of entries) {
     if (!item || typeof item !== 'object') continue;

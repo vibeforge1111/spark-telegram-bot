@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   buildBuilderAocPreflightCommands,
   compactColdMemoryQuery,
+  extractLatestCapabilityProbeReceiptFromBlackBoxPayload,
   formatAgentBlackBoxReply,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
@@ -641,12 +642,48 @@ test('browser proof guard reads latest capability probe receipts from Builder bl
   const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
   const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
 
+  assert.match(bridgeSource, /CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200/);
   assert.match(bridgeSource, /readLatestCapabilityProbeReceipt/);
   assert.match(bridgeSource, /String\(entry\.event_type \|\| ''\) !== 'capability_probed'/);
   assert.match(bridgeSource, /String\(entry\.route_chosen \|\| ''\) !== routeKey/);
   assert.match(indexSource, /readLatestCapabilityProbeReceipt\('spark_browser'\)/);
   assert.match(indexSource, /Latest `\/probe browser`: failure/);
   assert.match(indexSource, /browser automation is unavailable right now/);
+});
+
+test('extracts browser probe receipt beyond noisy black-box head entries', () => {
+  const entries: Record<string, unknown>[] = Array.from({ length: 41 }, (_, index) => ({
+    event_id: `evt-noise-${index}`,
+    event_type: 'route_selected',
+    route_chosen: 'spark_memory',
+    blockers: [],
+    changed: ['spark_memory:last_probe=success'],
+  }));
+  entries.push({
+    event_id: 'evt-browser-fail',
+    event_type: 'capability_probed',
+    route_chosen: 'spark_browser',
+    blockers: ['browser-use adapter status source is not ready.'],
+    changed: ['spark_browser:last_probe=failure'],
+    sources_used: [
+      {
+        summary: 'browser-use adapter status=missing_status package_available=False cli_available=False',
+      },
+    ],
+    created_at: '2026-05-24T15:30:00Z',
+  });
+
+  const receipt = extractLatestCapabilityProbeReceiptFromBlackBoxPayload({ entries }, 'spark_browser');
+
+  assert.deepEqual(receipt, {
+    capabilityKey: 'spark_browser',
+    status: 'failure',
+    failureReason: 'browser-use adapter status source is not ready.',
+    probeSummary: 'browser-use adapter status=missing_status package_available=False cli_available=False',
+    routeLatencyMs: null,
+    eventId: 'evt-browser-fail',
+    createdAt: '2026-05-24T15:30:00Z',
+  });
 });
 
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
