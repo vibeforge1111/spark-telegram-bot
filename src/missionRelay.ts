@@ -1111,7 +1111,32 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function isSafePreviewUrl(urlStr: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return false;
+  if (hostname === '[::1]' || hostname.startsWith('fc') || hostname.startsWith('fd') || hostname.startsWith('fe80')) return false;
+  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 0) return false;
+    if (a === 10) return false;
+    if (a === 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+  }
+  return true;
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
+  if (!isSafePreviewUrl(url)) return false;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
