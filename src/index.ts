@@ -28,6 +28,7 @@ import {
   runBuilderDiagnosticsScan,
   runBuilderRouteConfidenceGate,
   runBuilderRouteProbe,
+  readLatestCapabilityProbeReceipt,
   runBuilderSourceUsed,
   runBuilderSelfImprovementPlan,
   runBuilderSelfAwarenessStatus,
@@ -2345,6 +2346,42 @@ export function formatBrowserProofQuestionAnswer(query: string): string {
     '',
     'Run `/probe browser` to turn browser availability into fresh last-success or last-failure evidence.'
   ].join('\n');
+}
+
+async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
+  const fallback = formatBrowserProofQuestionAnswer(query);
+  if (!fallback) return '';
+
+  try {
+    const receipt = await readLatestCapabilityProbeReceipt('spark_browser');
+    if (!receipt) return fallback;
+
+    const status = receipt.status.toLowerCase();
+    if (status === 'success') {
+      return [
+        'Not definitely for full browser automation, but a fresh browser route receipt exists.',
+        '',
+        'Latest `/probe browser`: success.',
+        receipt.probeSummary ? `Evidence: ${receipt.probeSummary}` : '',
+        '',
+        'That proves the browser route probe worked recently. It still does not prove logged-in pages, cookies, or arbitrary click/screenshot workflows unless those are covered by the probe.'
+      ].filter(Boolean).join('\n');
+    }
+
+    return [
+      'No. The latest browser route receipt freshly failed.',
+      '',
+      'Latest `/probe browser`: failure.',
+      receipt.failureReason ? `Reason: ${receipt.failureReason}` : '',
+      receipt.probeSummary ? `Evidence: ${receipt.probeSummary}` : '',
+      receipt.eventId ? `Event: ${receipt.eventId}` : '',
+      '',
+      'So browser capability is registered, but browser automation is unavailable right now until the browser-use adapter is installed/configured and a new probe succeeds.'
+    ].filter(Boolean).join('\n');
+  } catch (error) {
+    console.warn('[BrowserProof] latest probe receipt read failed:', redactText(error instanceof Error ? error.message : String(error)));
+    return fallback;
+  }
 }
 
 async function handleAgentBlackBoxCommand(ctx: any): Promise<void> {
@@ -5660,7 +5697,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const browserProofAnswer = !earlyBuildIntent ? formatBrowserProofQuestionAnswer(text) : '';
+  const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_proof_boundary', 'spark-telegram-bot', 'answer');

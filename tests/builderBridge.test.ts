@@ -637,6 +637,18 @@ test('black-box bridge invokes Builder self black-box json route', () => {
   assert.match(source, /'--json'/);
 });
 
+test('browser proof guard reads latest capability probe receipts from Builder black box', () => {
+  const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+  const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+
+  assert.match(bridgeSource, /readLatestCapabilityProbeReceipt/);
+  assert.match(bridgeSource, /String\(entry\.event_type \|\| ''\) !== 'capability_probed'/);
+  assert.match(bridgeSource, /String\(entry\.route_chosen \|\| ''\) !== routeKey/);
+  assert.match(indexSource, /readLatestCapabilityProbeReceipt\('spark_browser'\)/);
+  assert.match(indexSource, /Latest `\/probe browser`: failure/);
+  assert.match(indexSource, /browser automation is unavailable right now/);
+});
+
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
   const commands = buildBuilderAocPreflightCommands(
     {

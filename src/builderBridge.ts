@@ -175,6 +175,16 @@ export interface BuilderRouteProbeResult {
   payload: Record<string, unknown>;
 }
 
+export interface BuilderCapabilityProbeReceipt {
+  capabilityKey: string;
+  status: string;
+  failureReason: string;
+  probeSummary: string;
+  routeLatencyMs: number | null;
+  eventId: string;
+  createdAt: string;
+}
+
 export interface BuilderRouteConfidenceGateInput {
   intent?: string;
   candidateRoute?: string;
@@ -1959,6 +1969,68 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
     payload,
     replyText: formatRouteProbeReply(payload),
   };
+}
+
+export async function readLatestCapabilityProbeReceipt(
+  capabilityKey: string
+): Promise<BuilderCapabilityProbeReceipt | null> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    return null;
+  }
+
+  const routeKey = String(capabilityKey || '').trim();
+  if (!routeKey) {
+    return null;
+  }
+
+  const args = [
+    'self',
+    'black-box',
+    '--home',
+    config.builderHome,
+    '--limit',
+    '40',
+    '--json',
+  ];
+  const { stdout } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  for (const item of entries) {
+    if (!item || typeof item !== 'object') continue;
+    const entry = item as Record<string, unknown>;
+    if (String(entry.event_type || '') !== 'capability_probed') continue;
+    if (String(entry.route_chosen || '') !== routeKey) continue;
+    const blockers = Array.isArray(entry.blockers) ? entry.blockers.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const sources = Array.isArray(entry.sources_used) ? entry.sources_used : [];
+    const sourceSummary = sources
+      .map((source) => source && typeof source === 'object' ? String((source as Record<string, unknown>).summary || '').trim() : '')
+      .find(Boolean) || '';
+    const changed = Array.isArray(entry.changed) ? entry.changed.map((value) => String(value || '')) : [];
+    const changedStatus = changed
+      .map((value) => value.match(/last_probe=([a-z_]+)/i)?.[1] || '')
+      .find(Boolean) || '';
+    return {
+      capabilityKey: routeKey,
+      status: blockers.length ? 'failure' : changedStatus || 'unknown',
+      failureReason: blockers[0] || '',
+      probeSummary: sourceSummary,
+      routeLatencyMs: null,
+      eventId: String(entry.event_id || '').trim(),
+      createdAt: String(entry.created_at || '').trim(),
+    };
+  }
+  return null;
 }
 
 function sanitizedPreflightLabel(value: unknown, fallback: string): string {
