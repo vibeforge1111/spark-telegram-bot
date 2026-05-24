@@ -2290,11 +2290,42 @@ async function handleAgentOperatingContextCommand(ctx: any): Promise<void> {
       }),
       memoryInPlayPromise,
     ]);
+    const questionAnswer = memoryQuery ? formatAocQuestionAnswer(memoryQuery) : '';
     const memorySummary = memoryQuery ? formatMemoryInPlaySummary(memoryInPlay) : '';
-    await ctx.reply([result.replyText, memorySummary].filter(Boolean).join('\n\n'));
+    await ctx.reply([questionAnswer, result.replyText, memorySummary].filter(Boolean).join('\n\n'));
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
+}
+
+export function formatAocQuestionAnswer(query: string): string {
+  const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+
+  if (
+    /\baccess\s+level\s*5\b|\blevel\s*5\b|\bl5\b/.test(normalized) &&
+    /\bprove|proof|mean|authorize|permission|runner|edit|write|files?\b/.test(normalized)
+  ) {
+    return [
+      'Question answer',
+      '',
+      'No. Access Level 5 describes what Spark is allowed to attempt. It does not prove this runner can edit files.',
+      'File editing is proven only by a fresh runner preflight or a completed write/delete probe. If AOC says the Telegram runner is writable, that preflight is the proof, not Level 5 by itself.',
+    ].join('\n');
+  }
+
+  if (
+    /\b(browser|browse|browsing|web pages?|pages?)\b/.test(normalized) &&
+    /\bdefinitely|prove|proof|right now|can you\b/.test(normalized)
+  ) {
+    return [
+      'Question answer',
+      '',
+      'Not definitely for full browser automation. A fresh route receipt can prove public fetch/search, but clicks, screenshots, cookies, logged-in pages, and Spawner browser routes stay unproven until their own browser probe succeeds.',
+    ].join('\n');
+  }
+
+  return '';
 }
 
 async function handleAgentBlackBoxCommand(ctx: any): Promise<void> {

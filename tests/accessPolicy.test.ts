@@ -427,8 +427,15 @@ async function main(): Promise<void> {
     assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
     assert.match(indexSource, /const memoryQuery = text\.replace\(\/\^\\\/\(\?:context\|operating_context\|agent_context\|aoc\)/);
     assert.match(indexSource, /const memoryInPlayPromise = memoryQuery/);
+    assert.match(indexSource, /const questionAnswer = memoryQuery \? formatAocQuestionAnswer\(memoryQuery\) : ''/);
+    assert.match(indexSource, /Access Level 5 describes what Spark is allowed to attempt/);
+    assert.match(indexSource, /does not prove this runner can edit files/);
+    assert.match(indexSource, /Not definitely for full browser automation/);
     assert.match(indexSource, /runBuilderConversationColdContext\(\{[\s\S]*?\}\)\.catch\(\(error\)/);
     assert.match(indexSource, /runBuilderAgentOperatingContext\(\{[\s\S]*?currentMessage: text,[\s\S]*?liveState,/);
+    const llmSource = await readFile(path.join(__dirname, '..', 'src', 'llm.ts'), 'utf8');
+    assert.match(llmSource, /Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result/);
+    assert.match(llmSource, /Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn/);
     const sparkSource = await readFile(path.join(__dirname, '..', 'src', 'spark.ts'), 'utf8');
     const distSparkSource = await readFile(path.join(__dirname, '..', 'dist', 'spark.js'), 'utf8');
     assert.doesNotMatch(sparkSource, /getVoice/);
