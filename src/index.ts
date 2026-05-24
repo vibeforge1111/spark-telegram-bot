@@ -6288,7 +6288,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isProtectedMissionResumePronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
-      const result = await spawner.resumeContextualPausedMission();
+      const result = isNoExecutionBoundary(text)
+        ? await spawner.describeContextualPausedMissionResumeBoundary()
+        : await spawner.resumeContextualPausedMission();
       if (result.commandSent && result.missionId) {
         markMissionRelayResumed(result.missionId);
       }

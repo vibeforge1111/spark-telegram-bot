@@ -1395,6 +1395,45 @@ export const spawner = {
     }
   },
 
+  async describeContextualPausedMissionResumeBoundary(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const paused = board.paused;
+
+      if (paused.length === 1) {
+        const title = missionTitle(paused[0]);
+        return {
+          success: true,
+          message: `I did not resume it. ${title} is still paused. If you want it moving again, say \`resume that one\`.`
+        };
+      }
+
+      if (paused.length > 1) {
+        return {
+          success: true,
+          message: `I did not resume anything. I see ${countWord(paused.length)} paused missions, so I need you to choose one before I move anything.`
+        };
+      }
+
+      if (board.running.length > 0) {
+        return {
+          success: true,
+          message: 'I did not resume anything. I do not see a paused mission right now.'
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not resume anything. Mission Control has nothing paused right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async resumeContextualPausedMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
