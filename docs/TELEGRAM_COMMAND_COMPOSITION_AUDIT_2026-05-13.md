@@ -75,8 +75,8 @@ Side-effect posture:
 `/ledger` | Builder Diagnostics | 5 (excellent) | `blocked` | Capability ledger review is unavailable right now. Run /diagnose to check the Builder bridge. | Readable and compact in the safe harness. | Keep the current shape; only minor polish needed.
 `/capabilities` | Builder Diagnostics | 5 (excellent) | `read_only` | Capability garden needs review.<br><br>State<br>• 7 cards<br>• Status: local-artifacts=2, schema-shaped=3, seen=2<br>• Surfaces: creator-system=1, specialization-path=6<br><br>Review<br>• Cards are evidence, not trust.<br>• Gate ver [truncated] | Readable and compact in the safe harness. | Keep the current shape; only minor polish needed.
 `/authority` | Builder Diagnostics | 4 (good) | `read_only` | Authority view has gated actions.<br><br>State<br>- Access L4; lane spark_workspace<br>- 5 Telegram access profiles; 5 Spawner lanes<br>- 5 browser approvals from 20 hooks<br>- 5 toxic capability pairs; 3 publication checks [truncated] | Uses CLI-style hyphen bullets where Telegram cards would scan better. | Keep the current shape; only minor polish needed.
-`/trace` | Builder Diagnostics | 4 (good) | `read_only` | Trace repair needs attention.<br><br>State<br>• 38898 Builder events; 2378 trace groups<br>• 32808 missing trace refs; 3241 open high-severity events<br>• 0 orphan parent links<br><br>Recent<br>• 1h: 0/0 missing (0%)<br>• 24h: 0/3 m [truncated] | Long for Telegram; should probably deep-link to Workspace or docs. | Keep the current shape; only minor polish needed.
-`/trace_repair` | Builder Diagnostics | 4 (good) | `read_only` | ↪️ /trace_repair maps to /trace.<br><br>Trace repair needs attention.<br><br>State<br>• 38898 Builder events; 2378 trace groups<br>• 32808 missing trace refs; 3241 open high-severity events<br>• 0 orphan parent links<br><br>Recent<br>• [truncated] | Long for Telegram; should probably deep-link to Workspace or docs.; Compatibility alias clearly points to the canonical command. | Keep as compatibility with the canonical-command banner; do not advertise it as a primary command.
+`/trace` | Builder Diagnostics | 4 (good) | `read_only` | Trace repair needs attention.<br><br>State<br>• 39300 Builder events; 2403 trace groups<br>• 32924 missing trace refs; 3242 open high-severity events<br>• 0 orphan parent links<br><br>Recent<br>• 1h: 0/0 missing (0%)<br>• 24h: 116/4 [truncated] | Long for Telegram; should probably deep-link to Workspace or docs. | Keep the current shape; only minor polish needed.
+`/trace_repair` | Builder Diagnostics | 4 (good) | `read_only` | ↪️ /trace_repair maps to /trace.<br><br>Trace repair needs attention.<br><br>State<br>• 39300 Builder events; 2403 trace groups<br>• 32924 missing trace refs; 3242 open high-severity events<br>• 0 orphan parent links<br><br>Recent<br>• [truncated] | Long for Telegram; should probably deep-link to Workspace or docs.; Compatibility alias clearly points to the canonical command. | Keep as compatibility with the canonical-command banner; do not advertise it as a primary command.
 `/memory_movement` | Builder Diagnostics | 5 (excellent) | `read_only` | Memory movement is visible.<br><br>State<br>• supported; 5654 movement rows<br>• Movement: captured=81, saved=81, promoted=381, retrieved=2613, summarized=48<br>• Authority: authoritative_current=1970, authoritative_hist [truncated] | Readable and compact in the safe harness. | Keep the current shape; only minor polish needed.
 `/memory_flow` | Builder Diagnostics | 4 (good) | `read_only` | ↪️ /memory_flow maps to /memory_movement.<br><br>Memory movement is visible.<br><br>State<br>• supported; 5654 movement rows<br>• Movement: captured=81, saved=81, promoted=381, retrieved=2613, summarized=48<br>• Authority: aut [truncated] | Compatibility alias clearly points to the canonical command. | Keep as compatibility with the canonical-command banner; do not advertise it as a primary command.
 `/probe` | Route Diagnostics | 5 (excellent) | `usage_only` | 🧪 Route probe<br><br>Use<br>• /probe <route><br>• /probe core<br>• /probe all<br><br>Routes<br>• builder<br>• spawner<br>• memory<br>• researcher<br>• swarm<br>• browser<br>• local_work | Readable and compact in the safe harness. | Keep the current shape; only minor polish needed.
@@ -765,7 +765,7 @@ State
 - 5 Telegram access profiles; 5 Spawner lanes
 - 5 browser approvals from 20 hooks
 - 5 toxic capability pairs; 3 publication checks tracked
-- Trace verdicts: 26; verdicts allowed, blocked; actions mission_execution
+- Trace verdicts: 29; verdicts allowed, blocked; actions mission_execution
 
 Review
 - This is evidence, not permission.
@@ -785,23 +785,23 @@ Reply 1:
 Trace repair needs attention.
 
 State
-• 38898 Builder events; 2378 trace groups
-• 32808 missing trace refs; 3241 open high-severity events
+• 39300 Builder events; 2403 trace groups
+• 32924 missing trace refs; 3242 open high-severity events
 • 0 orphan parent links
 
 Recent
 • 1h: 0/0 missing (0%)
-• 24h: 0/3 missing (0%)
-• 7d: 10317/12726 missing (81.1%)
+• 24h: 116/405 missing (28.6%)
+• 7d: 10433/13128 missing (79.5%)
 
 Top gaps
 • memory_orchestrator/memory_read_requested: 8612 recorded/medium
 • memory_orchestrator/memory_read_succeeded: 4307 recorded/medium
-• attachment_snapshot/plugin_or_chip_influence_recorded: 2326 recorded/medium
+• attachment_snapshot/plugin_or_chip_influence_recorded: 2361 recorded/medium
 
 Joins
-• Spawner derived refs 119; Builder request overlaps 23/192
-• Builder trace overlaps 23; Telegram final-answer join join_key_present
+• Spawner derived refs 122; Builder request overlaps 26/197
+• Builder trace overlaps 26; Telegram final-answer join join_key_present
 
 Review
 • Trace health is observability evidence, not task success or memory truth.
@@ -822,23 +822,23 @@ Reply 1:
 Trace repair needs attention.
 
 State
-• 38898 Builder events; 2378 trace groups
-• 32808 missing trace refs; 3241 open high-severity events
+• 39300 Builder events; 2403 trace groups
+• 32924 missing trace refs; 3242 open high-severity events
 • 0 orphan parent links
 
 Recent
 • 1h: 0/0 missing (0%)
-• 24h: 0/3 missing (0%)
-• 7d: 10317/12726 missing (81.1%)
+• 24h: 116/405 missing (28.6%)
+• 7d: 10433/13128 missing (79.5%)
 
 Top gaps
 • memory_orchestrator/memory_read_requested: 8612 recorded/medium
 • memory_orchestrator/memory_read_succeeded: 4307 recorded/medium
-• attachment_snapshot/plugin_or_chip_influence_recorded: 2326 recorded/medium
+• attachment_snapshot/plugin_or_chip_influence_recorded: 2361 recorded/medium
 
 Joins
-• Spawner derived refs 119; Builder request overlaps 23/192
-• Builder trace overlaps 23; Telegram final-answer join join_key_present
+• Spawner derived refs 122; Builder request overlaps 26/197
+• Builder trace overlaps 26; Telegram final-answer join join_key_present
 
 Review
 • Trace health is observability evidence, not task success or memory truth.
@@ -861,7 +861,7 @@ State
 • Movement: captured=81, saved=81, promoted=381, retrieved=2613, summarized=48
 • Authority: authoritative_current=1970, authoritative_historical=1344, supporting_not_authoritative=2338, structured_support=2
 • Records: current_state=327, events=503, observations=821
-• KB files 362; current-state files 23
+• KB files 368; current-state files 23
 
 Review
 • Movement rows are evidence, not instructions.
@@ -891,7 +891,7 @@ State
 • Movement: captured=81, saved=81, promoted=381, retrieved=2613, summarized=48
 • Authority: authoritative_current=1970, authoritative_historical=1344, supporting_not_authoritative=2338, structured_support=2
 • Records: current_state=327, events=503, observations=821
-• KB files 362; current-state files 23
+• KB files 368; current-state files 23
 
 Review
 • Movement rows are evidence, not instructions.
