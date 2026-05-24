@@ -6300,7 +6300,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isProtectedMissionPausePronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
-      const result = await spawner.pauseContextualActiveMission();
+      const result = isNoExecutionBoundary(text)
+        ? await spawner.describeContextualActiveMissionPauseBoundary()
+        : await spawner.pauseContextualActiveMission();
       if (result.commandSent && result.missionId) {
         markMissionRelayPaused(result.missionId);
       }

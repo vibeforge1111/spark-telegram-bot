@@ -1395,6 +1395,52 @@ export const spawner = {
     }
   },
 
+  async describeContextualActiveMissionPauseBoundary(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const running = board.running;
+
+      if (running.length === 1) {
+        const title = missionTitle(running[0]);
+        return {
+          success: true,
+          message: `I did not pause it. ${title} is still running.`
+        };
+      }
+
+      if (running.length > 1) {
+        return {
+          success: true,
+          message: `I did not pause anything. I see ${countWord(running.length)} running missions, so I need you to choose one before I pause anything.`
+        };
+      }
+
+      if (board.paused.length === 1) {
+        return {
+          success: true,
+          message: `I did not pause anything. ${missionTitle(board.paused[0])} is already paused.`
+        };
+      }
+
+      if (board.paused.length > 1) {
+        return {
+          success: true,
+          message: 'I did not pause anything. The active items I can see are already paused.'
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not pause anything. Mission Control has nothing running right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async describeContextualPausedMissionResumeBoundary(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
