@@ -1536,6 +1536,40 @@ export const spawner = {
     }
   },
 
+  async describeContextualMissionCancelBoundary(): Promise<{ success: boolean; message: string; missionId?: string; title?: string; needsConfirmation?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const active = [...board.running, ...board.paused];
+
+      if (active.length === 1) {
+        const mission = active[0];
+        const title = missionTitle(mission);
+        const status = mission.status === 'paused' || mission.lastEventType === 'mission_paused' ? 'paused' : 'active';
+        return {
+          success: true,
+          message: `I did not cancel it. ${title} is still ${status}.`
+        };
+      }
+
+      if (active.length > 1) {
+        return {
+          success: true,
+          message: `I did not cancel anything. I see ${countWord(active.length)} active missions, so I need you to choose one before I stop anything.`
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not cancel anything. Mission Control has nothing running or paused right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async confirmContextualMissionCancel(missionId: string, title: string): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
     try {
       const board = await fetchBoardSnapshot();
