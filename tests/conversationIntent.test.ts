@@ -322,6 +322,12 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_failure'
   );
   assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('what blocked the broken one? Do not start anything.', [
+      'which model handled the latest failed Spawner job? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
     parseContextualSpawnerBoardNaturalIntent('what blocked that one? Do not start anything.', [
       'which LLM took the latest Spawner job?'
     ]),
