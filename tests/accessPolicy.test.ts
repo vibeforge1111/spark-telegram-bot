@@ -431,6 +431,10 @@ async function main(): Promise<void> {
     assert.match(indexSource, /Access Level 5 describes what Spark is allowed to attempt/);
     assert.match(indexSource, /does not prove this runner can edit files/);
     assert.match(indexSource, /Not definitely for full browser automation/);
+    assert.match(indexSource, /formatBrowserProofQuestionAnswer\(text\)/);
+    assert.match(indexSource, /conversation\.browser_proof_boundary/);
+    assert.match(indexSource, /I do not have a fresh browser probe receipt attached to this turn/);
+    assert.match(indexSource, /Run `\/probe browser` to turn browser availability into fresh last-success or last-failure evidence/);
     assert.match(indexSource, /runBuilderConversationColdContext\(\{[\s\S]*?\}\)\.catch\(\(error\)/);
     assert.match(indexSource, /runBuilderAgentOperatingContext\(\{[\s\S]*?currentMessage: text,[\s\S]*?liveState,/);
     const llmSource = await readFile(path.join(__dirname, '..', 'src', 'llm.ts'), 'utf8');

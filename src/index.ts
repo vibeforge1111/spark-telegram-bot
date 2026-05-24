@@ -2328,6 +2328,25 @@ export function formatAocQuestionAnswer(query: string): string {
   return '';
 }
 
+export function formatBrowserProofQuestionAnswer(query: string): string {
+  const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?|pages?)\b/.test(normalized);
+  const asksForProof = /\b(capabilit(?:y|ies)|available|definitely|prove|proof|proven|right now|can you)\b/.test(normalized);
+  if (!asksAboutBrowser || !asksForProof) return '';
+
+  return [
+    'Not definitely. I do not have a fresh browser probe receipt attached to this turn.',
+    '',
+    'What I can say:',
+    '• Registered or possible: public web fetch and browser routes may exist.',
+    '• Proven now: nothing from this message alone.',
+    '• Still unproven until probed: clicks, screenshots, cookies, logged-in pages, and Spawner browser automation.',
+    '',
+    'Run `/probe browser` to turn browser availability into fresh last-success or last-failure evidence.'
+  ].join('\n');
+}
+
 async function handleAgentBlackBoxCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
@@ -5638,6 +5657,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const browserProofAnswer = !earlyBuildIntent ? formatBrowserProofQuestionAnswer(text) : '';
+  if (browserProofAnswer) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_proof_boundary', 'spark-telegram-bot', 'answer');
+    await ctx.reply(browserProofAnswer);
+    await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
     return;
   }
 
