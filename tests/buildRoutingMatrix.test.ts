@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseBuildIntent } from '../src/buildIntent';
+import { evaluateDeterministicRoute } from '../src/routeFirewall';
 import {
   isLocalSparkServiceRequest,
   parseMissionUpdatePreferenceIntent,
@@ -47,7 +48,7 @@ Send concise Telegram updates only when planning is ready, a meaningful step sta
 
 It needs a service menu, durations, staff availability, booking flow, manager dashboard, confirmation state, and local persistence.
 
-Include the Mission board and canvas links when they are useful.`, 'beauty booking room');
+Include the Mission board and canvas links when they are useful.`, 'Beauty Booking Room');
 
   assertRoutesToBuild(`I want to build a private Three.js tool called Magical Object Forge.
 
@@ -73,6 +74,12 @@ It should have timers, prep stages, localStorage, reset flow, responsive design,
 });
 
 test('mixed preference and access wording still reaches the builder', () => {
+  const mazePrototypePrompt = 'Create a tiny maze game plan and build only a minimal playable prototype. Use a short PRD if needed, keep it fast, and show me the Mission Control links as it moves through planning, build, and completion.';
+  const mazePrototypeIntent = parseBuildIntent(mazePrototypePrompt);
+  assert.ok(mazePrototypeIntent);
+  assert.equal(mazePrototypeIntent.projectName, 'Tiny Maze Game');
+  assert.equal(evaluateDeterministicRoute('spawner.build', mazePrototypePrompt).allow, true);
+
   const updatePrompt = `Use verbose updates and build a Three.js world tree called Spark World Tree.
 
 Build it at C:\\Users\\USER\\Desktop\\spark-world-tree.
@@ -97,6 +104,22 @@ Send the Mission board first and the canvas when planning is ready.`;
   assert.equal(parseNaturalAccessChangeIntent(accessPrompt), '4');
 });
 
+test('mission titles stay readable for simple game and path-derived builds', () => {
+  assert.equal(parseBuildIntent("let's build a maze game")?.projectName, 'Maze Game');
+  assert.equal(parseBuildIntent("let's build a game now for now Spark")?.projectName, 'Spark Game');
+  assert.equal(parseBuildIntent('lets build something Spark')?.projectName, 'Spark App');
+  assert.equal(
+    parseBuildIntent(
+      'Create a tiny maze game plan and build only a minimal playable prototype. Use a short PRD if needed, keep it fast, and show Mission Control links as it moves through planning, build, and completion.'
+    )?.projectName,
+    'Tiny Maze Game'
+  );
+  assert.equal(
+    parseBuildIntent('Save mission updates as verbose and build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a clock for terminal devs who cook.')?.projectName,
+    'Terminal Chef Clock'
+  );
+});
+
 test('non-build utility requests still route away from builder', () => {
   assert.equal(parseBuildIntent('include board and canvas links for missions'), null);
   assert.deepEqual(parseMissionUpdatePreferenceIntent('include board and canvas links for missions'), { links: 'both' });
@@ -106,12 +129,16 @@ test('non-build utility requests still route away from builder', () => {
 
   assert.equal(parseBuildIntent('show me the current Spawner/Kanban board'), null);
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
+  assert.equal(parseBuildIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), 'active_missions');
 
   assert.equal(parseBuildIntent('scan my desktop projects'), null);
   assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);
 
   assert.equal(parseBuildIntent('can you help me think through whether we should build a mission control dashboard before we touch the canvas?'), null);
   assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
+  assert.equal(parseBuildIntent('Hey Spark, give me the top 10 ideas about how to build startups in a better way'), null);
+  assert.equal(parseBuildIntent('How to build startups in a better way?'), null);
   assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
   assert.equal(
     parseBuildIntent(

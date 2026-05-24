@@ -62,6 +62,25 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('recalls a freshly saved Telegram note by topic words', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.learnAboutUser(user, 'User asked Spark to remember: audit marker: Spark E2E fresh-state phase on 2026-05-17');
+    await memory.remember(user, 'remember this: audit marker: Spark E2E fresh-state phase on 2026-05-17');
+    await memory.rememberAssistantReply(user, 'Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17"');
+    await memory.rememberAssistantReply(user, 'I remember this: Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17".');
+
+    const recalled = await memory.recall(user, 'Spark E2E fresh-state phase', 1);
+
+    assert.equal(recalled.length, 1);
+    assert.match(recalled[0].content, /audit marker: Spark E2E fresh-state phase on 2026-05-17/);
+    assert.doesNotMatch(recalled[0].content, /User asked Spark to remember/i);
+    assert.doesNotMatch(recalled[0].content, /^Noted/i);
+    assert.deepEqual(await memory.recall(user, 'me', 1), []);
+  });
+  });
+
   await test('does not leak one user session context to another user', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();

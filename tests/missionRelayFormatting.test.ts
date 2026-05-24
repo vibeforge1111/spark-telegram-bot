@@ -165,6 +165,23 @@ test('completion summaries hide raw Spawner mission ids from no-edit smoke hando
   assert.doesNotMatch(structured, /spark-1778835482267/);
 });
 
+test('no-edit probe completions include requested Mission Control inspect links', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'spark-1778935217687',
+    verbosity: 'normal',
+    goal: 'Run a tiny no-edit Mission Control diagnostic through Spawner. It should only prove routing/status and reply with SPARK_E2E_NO_EDIT_OK_2. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.',
+    response: 'Codex: SPARK_E2E_NO_EDIT_OK_2'
+  });
+
+  assert.match(message, /SPARK_E2E_NO_EDIT_OK_2/);
+  assert.match(message, /Mission Control/);
+  assert.match(message, /Canvas: http:\/\/127\.0\.0\.1:3333\/canvas\?mission=spark-1778935217687/);
+  assert.match(message, /Kanban: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-1778935217687/);
+  assert.match(message, /View execution: http:\/\/127\.0\.0\.1:3333\/canvas\?mission=spark-1778935217687/);
+  assert.doesNotMatch(message, /^Mission: spark-1778935217687$/m);
+});
+
 test('formats structured provider failures without raw JSON noise', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',

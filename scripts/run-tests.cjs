@@ -41,6 +41,7 @@ const tests = [
   'tests/llmStreaming.test.ts',
   'tests/telegramDraft.test.ts',
   'tests/telegramVoiceBridge.test.ts',
+  'tests/telegramSurface.test.ts',
   'tests/llmProviderSmoke.test.ts',
   'tests/profileEnv.test.ts',
   'tests/healthPolling.test.ts',

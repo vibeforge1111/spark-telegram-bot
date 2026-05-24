@@ -6,9 +6,12 @@ import {
 } from '../src/missionRelay';
 import {
   isSparkWorkflowBugHuntRequest,
+  isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  shouldPreferConversationalIdeation,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
+  renderMissionRoutingFailureClassReply,
   renderSparkWorkflowBugHuntReply
 } from '../src/conversationIntent';
 import {
@@ -17,10 +20,14 @@ import {
   formatCanvasShapingHeartbeatSummary,
   formatCanvasStillRunningSummary,
   formatLatestCanvasPlanReply,
+  isLatestCanvasPlanQuestion,
   isDomainChipPendingDirection,
+  isPendingClarificationAlternativeRequest,
+  isPendingClarificationFollowup,
   isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows
+  routeConfidenceGateCompatibilityAllows,
+  shouldUsePendingClarificationForMessage
 } from '../src/index';
 
 function test(name: string, fn: () => void): void {
@@ -52,6 +59,7 @@ test('bug hunt: strategy, QA, and route-meta conversations do not hijack into bu
     'look into the whole Spark systems and repos so we really find all the messages that can be improved',
     'can you give more examples and intelligence on this route confidence system',
     'were h70 skills mandatory here, and can we make sure normal prompts still operate?',
+    'we already have a big community airdrop that we promised so it needs to be around 20% imo. and team 10% makes sense wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.',
     'what else should Mission Control and Spawner workflow improve before we ship?',
     'right this has been actually really good, so should we send those PRs or what edge cases should we test next?',
     'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow',
@@ -100,6 +108,23 @@ test('bug hunt: clarification microcopy preserves reasoning-game intent', () => 
   assert.doesNotMatch(reply, /\bmaze\b/i);
 });
 
+test('bug hunt: pending build clarification does not hijack alternative requests', () => {
+  const pending = { timestamp: Date.now() };
+  const alternative = "let's try something different what else you'd recommend?";
+  const steering = 'playful and weird, and somewhat practical';
+  const explicitSteering = "sure let's do it, playful and weird, and somewhat practical";
+
+  assert.equal(isPendingClarificationAlternativeRequest(alternative), true);
+  assert.equal(shouldPreferConversationalIdeation(alternative), true);
+  assert.equal(isPendingClarificationFollowup(alternative), false);
+  assert.equal(shouldUsePendingClarificationForMessage(pending, alternative), false);
+  assertNoBuild(alternative);
+
+  assert.equal(isPendingClarificationFollowup(steering), true);
+  assert.equal(shouldUsePendingClarificationForMessage(pending, steering), true);
+  assert.equal(isPendingClarificationFollowup(explicitSteering), true);
+});
+
 test('bug hunt: no-execution boundaries outrank build and mission words', () => {
   const prompts = [
     'I am mentioning build and mission, but do not start anything. What is the current Spark risk profile?',
@@ -144,6 +169,18 @@ test('bug hunt: Spark workflow QA prompts get a local plan, not invented executi
   assert.doesNotMatch(reply, /tests\/missionControlSpawnerWorkflow/i);
 });
 
+test('bug hunt: mission routing failure-class prompts stay short and non-executing', () => {
+  const prompt = 'I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class in one or two natural sentences.';
+  assert.equal(isMissionRoutingFailureClassQuestion(prompt), true);
+  assertNoBuild(prompt);
+
+  const reply = renderMissionRoutingFailureClassReply(prompt);
+  assert.match(reply, /route hijack/i);
+  assert.match(reply, /asked to explain only/i);
+  assert.doesNotMatch(reply, /Canvas|Kanban|Mission board|latest canvas|H70 Orbit Proof/i);
+  assert.ok(reply.split(/\n/).filter((line) => line.trim()).length <= 2, `expected compact reply, got: ${reply}`);
+});
+
 test('bug hunt: mission utility requests do not become project builds', () => {
   assert.equal(parseMissionUpdatePreferenceIntent('include board and canvas links for missions')?.links, 'both');
   assert.equal(parseMissionUpdatePreferenceIntent('for missions only send start and end updates')?.verbosity, 'minimal');
@@ -181,12 +218,13 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
   assert.match(canvasReady, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
   assert.doesNotMatch(canvasReady, /Mission board/);
-  assert.match(canvasReady, /I queued 4 build steps\. Spark is moving into the build now\./);
-  assert.match(canvasReady, /Plan\n• App shell · frontend/);
-  assert.match(canvasReady, /• Smoke notes/);
+  assert.match(canvasReady, /Spark queued 4 build steps and is moving now\./);
+  assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
+  assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
   assert.doesNotMatch(canvasReady, /• \+1 more/);
-  assert.match(canvasReady, /Skills invoked\n• Active: 3 skills: frontend, UI design, accessibility\n• Skill tier: base tier \(30-skill starter loadout\)\n• Pro can add 1 skill: docs/);
+  assert.doesNotMatch(canvasReady, /Skills invoked/);
+  assert.doesNotMatch(canvasReady, /Skill tier/);
   assert.doesNotMatch(canvasReady, /Ask for tasks or skills if you want the full plan\./);
   assert.doesNotMatch(canvasReady, /^Mission:\s*mission-123/im);
   assert.doesNotMatch(canvasReady, /elapsed|trace|request/i);
@@ -203,8 +241,8 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(oneStepFastLane, /I queued 1 build step/);
-  assert.match(oneStepFastLane, /• Build \+ check static page · frontend/);
+  assert.match(oneStepFastLane, /Spark queued 1 build step and is moving now/);
+  assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
   const heartbeat = formatCanvasShapingHeartbeatSummary({ projectName: 'Proof Orchard', elapsedSeconds: 120 });
@@ -231,7 +269,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.doesNotMatch(stillRunning, /^Mission:\s*mission-123/im);
 });
 
-test('bug hunt: canvas previews show every build step up to ten and collapse only long plans', () => {
+test('bug hunt: automatic canvas-ready summary keeps build details behind explicit follow-up', () => {
   const tenStepReply = formatCanvasReadySummary({
     projectName: 'Ten Step App',
     taskCount: 10,
@@ -245,8 +283,9 @@ test('bug hunt: canvas previews show every build step up to ten and collapse onl
       }))
     }
   });
-  assert.match(tenStepReply, /• Step 1 · frontend/);
-  assert.match(tenStepReply, /• Step 10 · frontend/);
+  assert.match(tenStepReply, /Spark queued 10 build steps and is moving now\./);
+  assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
+  assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
 
   const twelveStepReply = formatCanvasReadySummary({
@@ -262,12 +301,13 @@ test('bug hunt: canvas previews show every build step up to ten and collapse onl
       }))
     }
   });
-  assert.match(twelveStepReply, /• Step 10 · frontend/);
+  assert.match(twelveStepReply, /Spark queued 12 build steps and is moving now\./);
+  assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
-  assert.match(twelveStepReply, /• \+2 more/);
+  assert.doesNotMatch(twelveStepReply, /• \+2 more/);
 });
 
-test('bug hunt: pro canvas previews can show pro skills without hiding base skills', () => {
+test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () => {
   const reply = formatCanvasReadySummary({
     projectName: 'Pro Game',
     taskCount: 2,
@@ -282,13 +322,14 @@ test('bug hunt: pro canvas previews can show pro skills without hiding base skil
       ]
     }
   });
-  assert.match(reply, /• Playable shell · frontend/);
-  assert.match(reply, /• Core reasoning loop · game design/);
-  assert.match(reply, /Skills invoked\n• Active: 4 skills: frontend, game dev, game design, puzzle design\n• Skill tier: pro tier \(full spark-skill-graphs catalog\)/);
+  assert.doesNotMatch(reply, /• Playable shell · frontend/);
+  assert.doesNotMatch(reply, /• Core reasoning loop · game design/);
+  assert.doesNotMatch(reply, /Skills invoked/);
+  assert.doesNotMatch(reply, /Skill tier/);
   assert.doesNotMatch(reply, /Pro can add/);
 });
 
-test('bug hunt: pro canvas skill summaries show the full skill stack', () => {
+test('bug hunt: automatic pro canvas ready summary hides the full skill stack', () => {
   const reply = formatCanvasReadySummary({
     projectName: 'H70 Orbit Proof',
     taskCount: 4,
@@ -318,10 +359,8 @@ test('bug hunt: pro canvas skill summaries show the full skill stack', () => {
     }
   });
 
-  assert.match(
-    reply,
-    /Skills invoked\n• Active: 15 skills: frontend, Three\.js, game dev, game UI, mobile, game design, game loop, puzzle, procedural, levels, state, onboarding, accessibility, QA, testing\n• Skill tier: pro tier \(full spark-skill-graphs catalog\)/
-  );
+  assert.doesNotMatch(reply, /Skills invoked/);
+  assert.doesNotMatch(reply, /Skill tier/);
   assert.doesNotMatch(reply, /\+\d+ more/);
   assert.doesNotMatch(reply, /\+11 more/);
   assert.doesNotMatch(reply, /frontend, accessibility, testing, game dev, \+8 more/);
@@ -352,6 +391,21 @@ test('bug hunt: canvas task details stay available as an explicit follow-up', ()
   assert.match(reply, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
   assert.doesNotMatch(reply, /^Mission:/im);
   assert.doesNotMatch(reply, /Mission board/);
+});
+
+test('bug hunt: casual next-step questions do not recall stale canvas plans', () => {
+  assert.equal(
+    isLatestCanvasPlanQuestion('What’s the smallest useful next step here? Keep it natural, short paragraphs, and use bullets only if they help.'),
+    false
+  );
+  assert.equal(
+    isLatestCanvasPlanQuestion('For QA, show the latest canvas plan and skills for the Startup Benchmark Progress Dashboard build. Do not start anything new.'),
+    true
+  );
+  assert.equal(
+    isLatestCanvasPlanQuestion('Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.'),
+    false
+  );
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {

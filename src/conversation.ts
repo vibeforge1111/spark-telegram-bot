@@ -99,6 +99,71 @@ function compactLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+const MEMORY_SEARCH_STOPWORDS = new Set([
+  'a',
+  'about',
+  'an',
+  'and',
+  'are',
+  'as',
+  'at',
+  'do',
+  'for',
+  'i',
+  'is',
+  'it',
+  'me',
+  'my',
+  'of',
+  'on',
+  'or',
+  'please',
+  'recall',
+  'remember',
+  'that',
+  'the',
+  'this',
+  'to',
+  'what',
+  'you'
+]);
+
+function normalizeMemorySearchText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function memorySearchTokens(text: string): string[] {
+  return Array.from(new Set(
+    normalizeMemorySearchText(text)
+      .split(' ')
+      .map((token) => token.trim())
+      .filter((token) => token.length > 1 && !MEMORY_SEARCH_STOPWORDS.has(token))
+  ));
+}
+
+function userFacingMemoryContent(text: string): string {
+  let cleaned = compactLine(text)
+    .replace(/^User asked Spark to remember:\s*/i, '')
+    .replace(/^User:\s*(?:please\s+)?(?:remember|save|store)\s+(?:this|that)?\s*[:,-]?\s*/i, '')
+    .replace(/^User:\s*/i, '')
+    .replace(/^Spark:\s*/i, '')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+  for (let index = 0; index < 3; index += 1) {
+    const next = cleaned
+      .replace(/^(?:I remember this:|Noted:)\s*/i, '')
+      .replace(/^["“]+|["”]+$/g, '')
+      .trim();
+    if (next === cleaned) break;
+    cleaned = next;
+  }
+  return cleaned;
+}
+
 export function optionOrdinalFromText(text: string): number | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const numeric = normalized.match(/(?:\b(?:no\.?|number|option)\s*|#\s*)([1-9]\d*)\b/);
@@ -370,8 +435,51 @@ export class ConversationMemory {
     return null;
   }
 
-  async recall(_user: TelegramUser, _query: string, _limit: number = 5): Promise<Memory[]> {
-    return [];
+  async recall(user: TelegramUser, query: string, limit: number = 5): Promise<Memory[]> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    const queryText = normalizeMemorySearchText(query);
+    const queryTokens = memorySearchTokens(query);
+    if (!queryText && queryTokens.length === 0) return [];
+
+    const recallNoise = (text: string): boolean => {
+      const lower = text.toLowerCase();
+      return (
+        /^user:\s*\/recall\b/.test(lower) ||
+        /^user:\s*what do you remember about\b/.test(lower) ||
+        /^spark:\s*i remember this:/.test(lower) ||
+        /^user:\s*please remember this:/.test(lower) ||
+        lower.includes("don't currently have saved entity state") ||
+        lower.includes('do not currently have saved entity state')
+      );
+    };
+
+    const candidates = [
+      ...(this.notesByUser.get(key) || []).map((content, index) => ({ content, source: 'note', index })),
+      ...(this.recentByUser.get(key) || []).filter((content) => !recallNoise(content)).map((content, index) => ({ content, source: 'recent', index }))
+    ];
+    const minTokenMatches = queryTokens.length <= 2 ? queryTokens.length : Math.max(2, Math.ceil(queryTokens.length * 0.5));
+
+    return candidates
+      .map((candidate) => {
+        const normalized = normalizeMemorySearchText(candidate.content);
+        const tokenMatches = queryTokens.filter((token) => normalized.includes(token)).length;
+        const exactMatch = Boolean(queryTokens.length > 0 && queryText && normalized.includes(queryText));
+        const score = (exactMatch ? queryTokens.length + 3 : 0) + tokenMatches + (candidate.source === 'note' ? 1 : 0);
+        return { ...candidate, tokenMatches, exactMatch, score };
+      })
+      .filter((candidate) => candidate.exactMatch || (queryTokens.length > 0 && candidate.tokenMatches >= minTokenMatches))
+      .sort((a, b) => b.score - a.score || b.index - a.index)
+      .slice(0, Math.max(1, limit))
+      .map((candidate, index) => ({
+        memory_id: `telegram-${candidate.source}-${candidate.index}`,
+        content: userFacingMemoryContent(candidate.content),
+        temporal_level: 0,
+        salience: Math.max(1, candidate.score - index),
+        content_type: candidate.source,
+        created_at: undefined
+      }))
+      .filter((memory) => memory.content.length > 0);
   }
 
   async recallRecent(_user: TelegramUser, _limit: number = 5): Promise<Memory[]> {

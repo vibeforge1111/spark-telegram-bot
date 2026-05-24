@@ -19,7 +19,7 @@ test('parses a compact direct build request', () => {
   assert.ok(intent);
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\spark-direct-probe');
   assert.equal(intent.buildMode, 'direct');
-  assert.equal(intent.projectName, 'spark direct probe');
+  assert.equal(intent.projectName, 'Spark Direct Probe');
   assert.match(intent.prd, /Files: index\.html, app\.js\./);
   assert.doesNotMatch(intent.prd, /C:\\Users\\USER\\Desktop/);
 });
@@ -60,6 +60,12 @@ test('names agent-chosen game prompts from the actual game intent', () => {
   assert.notEqual(intent.projectName, 'Here As A Game');
   assert.match(intent.prd, /browser-playable game chosen for Recursive Sage/i);
   assert.match(intent.prd, /shifting maze game/i);
+
+  const shortIntent = parseBuildIntent('sounds good, so what would you wanna build as a game right now');
+  assert.ok(shortIntent);
+  assert.equal(shortIntent.projectName, 'Recursive Sage Maze Game');
+  assert.notEqual(shortIntent.projectName, 'As A Game Right Now');
+  assert.match(shortIntent.prd, /browser-playable game chosen for Recursive Sage/i);
 });
 
 test('preserves colon subtitles in explicit project names', () => {
@@ -88,6 +94,16 @@ test('routes tiny one-screen smoke pages through the fast direct lane', () => {
   assert.equal(intent.buildMode, 'direct');
   assert.equal(intent.buildLane, 'fast_direct');
   assert.match(intent.buildLaneReason, /lightweight planning/i);
+});
+
+test('polishes inferred mission titles without workflow wording', () => {
+  const intent = parseBuildIntent(
+    'Create a tiny maze game plan and build only a minimal playable prototype. Use a short PRD if needed, keep it fast, and show me the Mission Control links as it moves through planning, build, and completion.'
+  );
+
+  assert.ok(intent);
+  assert.equal(intent.projectName, 'Tiny Maze Game');
+  assert.doesNotMatch(intent.projectName, /plan and build/i);
 });
 
 test('extracts clean names from Telegram direct-build game prompts', () => {
@@ -246,6 +262,8 @@ test('does not turn exploratory conversation into an accidental build', () => {
 
   assert.equal(intent, null);
   assert.equal(parseBuildIntent('Give me three build ideas for a memory dashboard'), null);
+  assert.equal(parseBuildIntent('Hey Spark, give me the top 10 ideas about how to build startups in a better way'), null);
+  assert.equal(parseBuildIntent('How to build startups in a better way?'), null);
   assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
   assert.equal(
     parseBuildIntent(
@@ -287,6 +305,7 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('what else would be healthy to build for updates/upgrades besides the ledger'), null);
   assert.equal(parseBuildIntent("what would you wanna be building now that's missing"), null);
   assert.equal(parseBuildIntent('besides these anything else before we start building these'), null);
+  assert.equal(parseBuildIntent('create a shareable insight packet for Startup YC. Do not publish it.'), null);
   assert.equal(parseBuildIntent('No build or mission for now, just help me think through the QA plan.'), null);
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
@@ -297,6 +316,16 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(
     parseBuildIntent(
       'yeah buybacks not for now actually, maybe later, i think we can earn it back from NFTs, if we do sell the NFTs via token, and create a nice structure for it to get hype right after the launch.'
+    ),
+    null
+  );
+  assert.equal(
+    parseBuildIntent(
+      [
+        'we already have a big community airdrop that we promised so it needs to be around 20% imo.',
+        'and team 10% makes sense',
+        'wondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.'
+      ].join('\n\n')
     ),
     null
   );
