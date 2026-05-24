@@ -2398,6 +2398,88 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('broken-job inspect follow-up uses failed board link instead of shipped preview', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-broken-inspect-pronoun-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const now = Date.now();
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [],
+					paused: [],
+					completed: [
+						{
+							missionId: 'mission-completed-newer',
+							missionName: 'Beauty Centre Booking Website',
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(now).toISOString(),
+							taskName: 'Ship booking page',
+							providerResults: [],
+							providerSummary: 'Codex: Replaced the root screen with a booking-first premium service menu in src/routes/+page.svelte.'
+						}
+					],
+					failed: [
+						{
+							missionId: 'mission-failed-inspect-pronoun',
+							missionName: 'Spark Bug Recognition Domain Chip',
+							status: 'failed',
+							lastEventType: 'mission_failed',
+							lastUpdated: new Date(now - 60_000).toISOString(),
+							taskName: 'Inspect route',
+							providerResults: [{ providerId: 'codex', status: 'failed' }],
+							providerSummary: 'Codex: failed because the spawned workspace was read-only.'
+						}
+					],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const followupCtx = makeFakeCtx(8319079055, 8319079055, 620, replies);
+		followupCtx.message.text = 'can I inspect the broken one? Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(followupCtx);
+
+		const reply = replies.at(-1) || '';
+		assert.match(reply, /That run did not make it through: Spark Bug Recognition Domain Chip\./);
+		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-failed-inspect-pronoun/);
+		assert.doesNotMatch(reply, /latest shipped app/i);
+		assert.doesNotMatch(reply, /Beauty Centre Booking Website/);
+		assert.doesNotMatch(reply, /\/preview\//);
+		assert.equal(captured.length, 0, 'broken-job inspect follow-up must not start a mission or build');
+
+		const statusCtx = makeFakeCtx(8319079055, 8319079055, 621, replies);
+		statusCtx.message.text = 'is that one still working? Do not start anything.';
+		await indexModule.handleTextMessage(statusCtx);
+
+		const statusReply = replies.at(-1) || '';
+		assert.match(statusReply, /That run did not make it through: Spark Bug Recognition Domain Chip\./);
+		assert.match(statusReply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-failed-inspect-pronoun/);
+		assert.doesNotMatch(statusReply, /Beauty Centre Booking Website/);
+		assert.doesNotMatch(statusReply, /running right now/i);
+		assert.equal(captured.length, 0, 'broken-job status follow-up must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('natural access status uses authoritative CLI state instead of generic help', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));

@@ -335,6 +335,22 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_failure'
   );
   assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('can I inspect the broken one? Do not start anything.', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('can I inspect the failed one? Do not start anything.', [
+      'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('can I inspect the broken one? Do not start anything.', []),
+    'latest_failure'
+  );
+  assert.equal(
     parseContextualSpawnerBoardNaturalIntent('can I open that one? Do not start anything.', [
       'which LLM took the latest Spawner job?'
     ]),
@@ -344,6 +360,12 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(
     parseContextualSpawnerBoardNaturalIntent('is that one still working? Do not start anything.', [
       'what failed most recently in Spawner? Do not start anything.'
+    ]),
+    'latest_failure'
+  );
+  assert.equal(
+    parseContextualSpawnerBoardNaturalIntent('is that one still working? Do not start anything.', [
+      'That run did not make it through: Spark Bug Recognition Domain Chip.\n\nWhat blocked it\n• Spawner recorded a provider failure.\n\nBoard: http://stub-spawner.test/kanban?mission=mission-failed-working-pronoun'
     ]),
     'latest_failure'
   );
