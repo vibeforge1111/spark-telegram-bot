@@ -127,9 +127,11 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('do not start a mission; just explain the failure class'), true);
   assert.equal(isNoExecutionBoundary('Can you resume that one? Do not resume it.'), true);
   assert.equal(isNoExecutionBoundary('Can you pause that one? Do not pause it.'), true);
+  assert.equal(isNoExecutionBoundary('Can you cancel that one? Do not cancel it.'), true);
   assert.equal(isNoExecutionBoundary('not now, maybe later'), true);
   assert.equal(isNoExecutionBoundary('we can discuss here for now'), true);
   assert.equal(isNoExecutionBoundary('can you resume that one?'), false);
+  assert.equal(isNoExecutionBoundary('can you cancel that one?'), false);
   assert.equal(isNoExecutionBoundary('go ahead and build it'), false);
 });
 

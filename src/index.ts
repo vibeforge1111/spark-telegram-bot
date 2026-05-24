@@ -6310,7 +6310,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     if (isProtectedMissionCancelPronounIntent(text, contextualTurns)) {
       await conversation.remember(user, text).catch(() => {});
-      const result = await spawner.prepareContextualMissionCancel();
+      const result = isNoExecutionBoundary(text)
+        ? await spawner.describeContextualMissionCancelBoundary()
+        : await spawner.prepareContextualMissionCancel();
       if (result.needsConfirmation && result.missionId && result.title) {
         pendingMissionCancelConfirmations.set(missionCancelConfirmationKey(ctx), {
           missionId: result.missionId,
