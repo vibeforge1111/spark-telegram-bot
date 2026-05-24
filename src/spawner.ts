@@ -245,11 +245,12 @@ function isFreshRunningEntry(entry: BoardEntry): boolean {
   return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
 }
 
-async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
+async function fetchBoardSnapshot(options: { includeStaleRunning?: boolean } = {}): Promise<BoardSnapshot> {
   const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, spawnerAxiosOptions(10000));
   const board = res.data?.board || {};
+  const running = normalizeBucket(board.running);
   return {
-    running: normalizeBucket(board.running).filter(isFreshRunningEntry),
+    running: options.includeStaleRunning ? running : running.filter(isFreshRunningEntry),
     paused: normalizeBucket(board.paused),
     completed: normalizeBucket(board.completed),
     failed: normalizeBucket(board.failed),
@@ -1341,7 +1342,7 @@ export const spawner = {
     try {
       return {
         success: true,
-        message: formatActiveMissionsTelegramSummary(await fetchBoardSnapshot())
+        message: formatActiveMissionsTelegramSummary(await fetchBoardSnapshot({ includeStaleRunning: true }))
       };
     } catch (err: any) {
       return {

@@ -131,6 +131,12 @@ test('non-build utility requests still route away from builder', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
   assert.equal(parseBuildIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), null);
   assert.equal(parseSpawnerBoardNaturalIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), 'active_missions');
+  assert.equal(parseBuildIntent('Is anything still running? Do not start anything.'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('Is anything still running? Do not start anything.'), 'active_missions');
+  assert.equal(parseBuildIntent('Is anything active right now? Do not start anything.'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('Is anything active right now? Do not start anything.'), 'active_missions');
+  assert.equal(parseBuildIntent('Anything paused? Do not start anything.'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('Anything paused? Do not start anything.'), 'active_missions');
 
   assert.equal(parseBuildIntent('scan my desktop projects'), null);
   assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);

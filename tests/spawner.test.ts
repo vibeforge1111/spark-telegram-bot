@@ -737,6 +737,55 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /completed:|failed:|mission-command-orphan-pause|trace\?|\/missions\//i);
   });
 
+  await test('activeMissionSummary agrees with Kanban active rows even when running rows are old', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [
+            {
+              missionId: 'spark-visible-old-running',
+              missionName: 'Old Visible Run',
+              status: 'running',
+              lastEventType: 'task_progress',
+              lastUpdated: new Date(now - 60 * 60_000).toISOString(),
+              lastSummary: 'Still shown in Kanban active'
+            },
+            {
+              missionId: 'spark-visible-old-running-two',
+              missionName: 'Another Visible Run',
+              status: 'running',
+              lastEventType: 'task_progress',
+              lastUpdated: new Date(now - 45 * 60_000).toISOString(),
+              lastSummary: 'Still shown in Kanban active'
+            }
+          ],
+          paused: [
+            {
+              missionId: 'mission-command-orphan-pause',
+              missionName: 'Mission Command Orphan Pause',
+              status: 'paused',
+              lastEventType: 'mission_paused',
+              lastUpdated: new Date(now).toISOString()
+            }
+          ],
+          completed: [],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.activeMissionSummary();
+
+    assert.equal(result.success, true);
+    assert.equal(
+      result.message,
+      'Mission Control has two running missions: Old Visible Run, Another Visible Run. One paused mission: Mission Command Orphan Pause.'
+    );
+  });
+
   await test('latestKanbanSummary reports the newest board-visible mission', async () => {
     restoreAxios();
     const now = Date.now();

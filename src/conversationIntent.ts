@@ -1243,7 +1243,8 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
     /\b(?:running|paused|active|in\s+progress)\b/.test(normalized) &&
     (
       /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b/.test(normalized) ||
-      /\bwhat'?s\s+(?:currently\s+)?(?:running|paused)\b/.test(normalized)
+      /\b(?:what'?s|what\s+is)\s+(?:currently\s+)?(?:running|paused)\b/.test(normalized) ||
+      /\b(?:(?:is\s+)?anything|what'?s|what\s+is)\s+(?:still\s+|currently\s+|right\s+now\s+)?(?:running|paused|active|in\s+progress)\b/.test(normalized)
     )
   ) {
     return 'active_missions';
