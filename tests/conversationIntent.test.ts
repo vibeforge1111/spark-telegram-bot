@@ -39,6 +39,7 @@ import {
   isAmbiguousLocalSparkServiceRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
+  isSparkCliInstallCheckRequest,
   isSparkChipStatusOverclaimQuestion,
   isSparkWorkflowBugHuntRequest,
   isSparkThreadQaGoldenCaseRequest,
@@ -64,6 +65,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderSparkCliInstallCheckReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -291,6 +293,35 @@ test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);
   assert.match(buildLocalSparkServiceClarificationReply(), /Which local Spark surface/);
+});
+
+test('answers Spark CLI install checks with supported Windows commands', () => {
+  assert.equal(
+    isSparkCliInstallCheckRequest('Help me check whether my Spark CLI install is working on Windows.'),
+    true
+  );
+  assert.equal(
+    isSparkCliInstallCheckRequest(
+      'It said spawn spark ENOENT',
+      'User: Help me check whether my Spark CLI install is working on Windows.'
+    ),
+    true
+  );
+  assert.equal(
+    isSparkCliInstallCheckRequest(
+      'turn this proven loop into a reusable template. Do not run or publish it.',
+      'User: We are working on Spark QA Operator and path:spark-qa-operator.'
+    ),
+    false
+  );
+  assert.equal(isSparkCliInstallCheckRequest('build a tiny installer dashboard for my app'), false);
+
+  const reply = renderSparkCliInstallCheckReply();
+  assert.match(reply, /`spark status`/);
+  assert.match(reply, /`spark doctor`/);
+  assert.match(reply, /`spark verify --onboarding`/);
+  assert.match(reply, /better proof than `spark --version`/);
+  assert.match(reply, /does not prove your Windows PATH is broken/);
 });
 
 test('routes natural Spawner board questions to board reads', () => {

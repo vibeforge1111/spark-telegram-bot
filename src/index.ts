@@ -199,6 +199,7 @@ import {
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
+  isSparkCliInstallCheckRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isSparkChipStatusOverclaimQuestion,
@@ -216,6 +217,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderSparkCliInstallCheckReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -5559,6 +5561,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (contextualAccessChange && deterministicRouteAllowed('access.change', text)) {
     await conversation.remember(user, text).catch(() => {});
     await handleAccessChangeRequest(ctx, contextualAccessChange);
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkCliInstallCheckRequest(text, recentAccessMessages.join('\n'))) {
+    const reply = renderSparkCliInstallCheckReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_cli.install_check', 'spark-telegram-bot', 'plain_chat.install_guidance');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 

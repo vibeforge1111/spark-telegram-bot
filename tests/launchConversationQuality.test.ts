@@ -9,7 +9,8 @@ import {
 } from '../src/builderBridge';
 import {
   buildMemoryBridgeUnavailableReply,
-  renderChatRuntimeFailureReply
+  renderChatRuntimeFailureReply,
+  renderSparkCliInstallCheckReply
 } from '../src/conversationIntent';
 import { renderSparkErrorReply } from '../src/errorExplain';
 import { buildSparkChatSystemPrompt } from '../src/llm';
@@ -322,6 +323,7 @@ test('launch non-Builder template replies pass safety lint', () => {
     const replies = [
       renderChatRuntimeFailureReply(true, true),
       renderChatRuntimeFailureReply(false, false),
+      renderSparkCliInstallCheckReply(),
       buildMemoryBridgeUnavailableReply('remember'),
       buildMemoryBridgeUnavailableReply('recall'),
       buildMemoryBridgeUnavailableReply('about'),
