@@ -295,6 +295,10 @@ test('asks for clarification on cold localhost requests', () => {
 
 test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
+  assert.equal(parseSpawnerBoardNaturalIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), 'active_missions');
+  assert.equal(parseSpawnerBoardNaturalIntent('Is anything still running? Do not start anything.'), 'active_missions');
+  assert.equal(parseSpawnerBoardNaturalIntent('Is anything active right now? Do not start anything.'), 'active_missions');
+  assert.equal(parseSpawnerBoardNaturalIntent('Anything paused? Do not start anything.'), 'active_missions');
   assert.equal(parseSpawnerBoardNaturalIntent('did the latest canvas run show up on kanban?'), 'latest_on_kanban');
   assert.equal(parseSpawnerBoardNaturalIntent('which LLM took the latest Spawner job?'), 'latest_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('what was the mission?'), 'latest_mission');

@@ -245,11 +245,12 @@ function isFreshRunningEntry(entry: BoardEntry): boolean {
   return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
 }
 
-async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
+async function fetchBoardSnapshot(options: { includeStaleRunning?: boolean } = {}): Promise<BoardSnapshot> {
   const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/board`, spawnerAxiosOptions(10000));
   const board = res.data?.board || {};
+  const running = normalizeBucket(board.running);
   return {
-    running: normalizeBucket(board.running).filter(isFreshRunningEntry),
+    running: options.includeStaleRunning ? running : running.filter(isFreshRunningEntry),
     paused: normalizeBucket(board.paused),
     completed: normalizeBucket(board.completed),
     failed: normalizeBucket(board.failed),
@@ -379,6 +380,70 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
 
 function missionTitle(entry: BoardEntry): string {
   return entry.missionName || entry.taskName || entry.missionId || 'latest mission';
+}
+
+function missionTitleForActiveSummary(entry: BoardEntry): string | null {
+  const title = entry.missionName || entry.taskName || '';
+  return title.trim() || readableMissionTitleFromId(entry.missionId);
+}
+
+function readableMissionTitleFromId(missionId: string | undefined): string | null {
+  const slug = (missionId || '')
+    .trim()
+    .replace(/^spark-/i, '')
+    .replace(/^mission-\d{6,}-?/i, '')
+    .replace(/-\d{6,}.*$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!slug || !/[a-z]/i.test(slug)) return null;
+  return slug
+    .split(' ')
+    .map((word) => word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word)
+    .join(' ');
+}
+
+function countWord(count: number): string {
+  if (count === 0) return 'no';
+  if (count === 1) return 'one';
+  if (count === 2) return 'two';
+  if (count === 3) return 'three';
+  return String(count);
+}
+
+function activeMissionClause(entries: BoardEntry[], status: 'running' | 'paused'): string {
+  if (entries.length === 0) return `no ${status} missions`;
+  const visibleTitles = entries
+    .map(missionTitleForActiveSummary)
+    .filter((title): title is string => Boolean(title));
+  if (entries.length === 1 && visibleTitles[0]) {
+    return `one ${status} mission: ${visibleTitles[0]}`;
+  }
+  if (visibleTitles.length > 0) {
+    const shown = visibleTitles.slice(0, 3).join(', ');
+    const remaining = entries.length - visibleTitles.slice(0, 3).length;
+    return `${countWord(entries.length)} ${status} missions: ${shown}${remaining > 0 ? `, plus ${remaining} more` : ''}`;
+  }
+  return `${countWord(entries.length)} ${status} mission${entries.length === 1 ? '' : 's'}`;
+}
+
+function formatActiveMissionsTelegramSummary(board: BoardSnapshot): string {
+  if (board.running.length === 0 && board.paused.length === 0) {
+    return 'Mission Control has nothing running or paused right now.';
+  }
+
+  if (board.running.length === 0) {
+    const paused = activeMissionClause(board.paused, 'paused');
+    return `Mission Control has nothing running. ${paused[0]?.toUpperCase()}${paused.slice(1)}.`;
+  }
+
+  if (board.paused.length === 0) {
+    return `Mission Control has ${activeMissionClause(board.running, 'running')}. Nothing paused.`;
+  }
+
+  const running = activeMissionClause(board.running, 'running');
+  const paused = activeMissionClause(board.paused, 'paused');
+  return `Mission Control has ${running}. ${paused[0]?.toUpperCase()}${paused.slice(1)}.`;
 }
 
 function statusPhrase(status: string): string {
@@ -1264,6 +1329,20 @@ export const spawner = {
       return {
         success: true,
         message: formatLatestKanbanTelegramSummary(latest)
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async activeMissionSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      return {
+        success: true,
+        message: formatActiveMissionsTelegramSummary(await fetchBoardSnapshot({ includeStaleRunning: true }))
       };
     } catch (err: any) {
       return {

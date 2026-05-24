@@ -1905,6 +1905,141 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('is anything still running stays on the active board summary path', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-anything-still-running-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [
+						{
+							missionId: 'spark-live',
+							missionName: 'Live smoke',
+							status: 'running',
+							lastEventType: 'task_started',
+							lastUpdated: new Date().toISOString(),
+							providerResults: [{ providerId: 'codex', status: 'running' }]
+						}
+					],
+					paused: [],
+					completed: [
+						{
+							missionId: 'spark-done',
+							missionName: 'Finished already',
+							status: 'completed',
+							lastEventType: 'mission_completed',
+							lastUpdated: new Date(Date.now() - 60_000).toISOString()
+						}
+					],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		ctx.message.text = 'Is anything still running? Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.equal(reply, 'Mission Control has one running mission: Live smoke. Nothing paused.');
+		assert.equal(captured.length, 0, 'still-running question must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('active and paused phrasing variants stay on the active board summary path', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-active-paused-phrasing-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({
+			data: {
+				board: {
+					running: [
+						{
+							missionId: 'spark-live',
+							missionName: 'Live smoke',
+							status: 'running',
+							lastEventType: 'task_started',
+							lastUpdated: new Date().toISOString(),
+							providerResults: [{ providerId: 'codex', status: 'running' }]
+						}
+					],
+					paused: [
+						{
+							missionId: 'spark-paused',
+							missionName: 'Waiting for approval',
+							status: 'paused',
+							lastEventType: 'mission_paused',
+							lastUpdated: new Date().toISOString(),
+							providerResults: [{ providerId: 'codex', status: 'paused' }]
+						}
+					],
+					completed: [],
+					failed: [],
+					cancelled: [],
+					created: []
+				}
+			}
+		});
+
+		const indexModule: any = await import('../src/index');
+
+		const activeReplies: string[] = [];
+		const activeCtx = makeFakeCtx(8319079055, 8319079055, 607, activeReplies);
+		activeCtx.message.text = 'Is anything active right now? Do not start anything.';
+		await indexModule.handleTextMessage(activeCtx);
+		assert.equal(
+			activeReplies[0] || '',
+			'Mission Control has one running mission: Live smoke. One paused mission: Waiting for approval.'
+		);
+
+		const pausedReplies: string[] = [];
+		const pausedCtx = makeFakeCtx(8319079055, 8319079055, 608, pausedReplies);
+		pausedCtx.message.text = 'Anything paused? Do not start anything.';
+		await indexModule.handleTextMessage(pausedCtx);
+		assert.equal(
+			pausedReplies[0] || '',
+			'Mission Control has one running mission: Live smoke. One paused mission: Waiting for approval.'
+		);
+
+		assert.equal(captured.length, 0, 'active/paused wording variants must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('natural access status uses authoritative CLI state instead of generic help', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));

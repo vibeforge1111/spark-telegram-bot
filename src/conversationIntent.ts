@@ -1188,7 +1188,7 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
-export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
+export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
@@ -1237,6 +1237,17 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
     /\bcanvas\s+event\s+stream\b.*\b(?:kanban|board|mission\s+board)\b/.test(normalized)
   ) {
     return 'latest_on_kanban';
+  }
+
+  if (
+    /\b(?:running|paused|active|in\s+progress)\b/.test(normalized) &&
+    (
+      /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b/.test(normalized) ||
+      /\b(?:what'?s|what\s+is)\s+(?:currently\s+)?(?:running|paused)\b/.test(normalized) ||
+      /\b(?:(?:is\s+)?anything|what'?s|what\s+is)\s+(?:still\s+|currently\s+|right\s+now\s+)?(?:running|paused|active|in\s+progress)\b/.test(normalized)
+    )
+  ) {
+    return 'active_missions';
   }
 
   if (

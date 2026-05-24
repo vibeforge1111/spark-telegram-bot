@@ -6266,6 +6266,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         ? await spawner.latestProviderSummary()
         : spawnerBoardIntent === 'latest_mission'
           ? await spawner.latestMissionSummary()
+        : spawnerBoardIntent === 'active_missions'
+          ? await spawner.activeMissionSummary()
         : spawnerBoardIntent === 'latest_on_kanban'
           ? await spawner.latestKanbanSummary()
           : spawnerBoardIntent === 'latest_project_preview'
