@@ -482,6 +482,11 @@ function compactBrowserTaskBullet(value: string): string {
   const limit = 170;
   if (cleaned.length <= limit) return cleaned;
 
+  const issueBreak = cleaned.indexOf(' - ');
+  if (issueBreak >= 55) {
+    return cleaned.slice(0, issueBreak).trim();
+  }
+
   const sentenceBoundary = cleaned.slice(0, limit + 1).search(/[.!?](?=\s|$)(?!.*[.!?](?=\s|$))/);
   if (sentenceBoundary >= 80) {
     return cleaned.slice(0, sentenceBoundary + 1).trim();
@@ -497,7 +502,11 @@ function compactBrowserTaskBullet(value: string): string {
   }
 
   const wordBreak = cleaned.lastIndexOf(' ', limit);
-  return cleaned.slice(0, wordBreak >= 80 ? wordBreak : limit).trim();
+  return cleaned
+    .slice(0, wordBreak >= 80 ? wordBreak : limit)
+    .replace(/\s+(?:it|the|a|an|and|but|with|yet|this|that)$/i, '')
+    .replace(/["'([{,:;/-]\s*$/, '')
+    .trim();
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {

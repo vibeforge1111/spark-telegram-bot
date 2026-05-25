@@ -218,6 +218,25 @@ async function main(): Promise<void> {
     assert.ok(reply.split('\n').every((line) => line.length < 190));
   });
 
+  await test('keeps clipped browser task bullets as complete thoughts', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban' },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. "Orphan Pause Mission" is stuck in ACTIVE but its status is PAUSED - It sits in the Active swimlane yet is flagged as Paused and says "Paused and ready to resume." It needs a clear operator action.',
+          '2. Three completed missions still show "Needs completion proof" - "Reply with Exactly: PING_OK", "Spark Mission Surface Smoke", and "Telegram Canvas Build" all need cleanup.',
+        ].join('\n'),
+      }
+    );
+
+    assert.match(reply, /• "Orphan Pause Mission" is stuck in ACTIVE but its status is PAUSED/);
+    assert.match(reply, /• Three completed missions still show "Needs completion proof"/);
+    assert.doesNotMatch(reply, /\bIt\s*$/m);
+    assert.doesNotMatch(reply, /Smoke"\s*$/m);
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },
