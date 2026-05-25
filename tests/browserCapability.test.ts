@@ -413,6 +413,32 @@ async function main(): Promise<void> {
     assert.match(reply, /Live browser run with Canvas and reference pages with screenshot evidence/);
   });
 
+  await test('normalizes clipped inspired-by browser research concepts', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. Inspired by: LangGraphs stateful checkpointers - Spawners canvas could persist state at each skill node, enabling mid-pipeline rollback and recovery so a failed node.',
+        '2. Inspired by: CrewAIs role-based orchestration - Spawners flat skill tags could evolve into explicit agent roles/goals per node, turning sequential pipelines into.',
+        "3. Inspired by: Langfuse's tracing & observability - Spawner could surface per-node latency, token cost, and trace trees directly on the canvas, making skill-chain.",
+        '4. Inspired by: multi-agent-orchestrations routing patterns - Spawners linear 4-node pipeline could support conditional branching and dynamic router nodes that select the.',
+        '5. Inspired by: human-in-the-loop-review confidence gating - Spawner could insert review gates between pipeline stages that pause execution for human approval when a no.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas'],
+      number_of_steps: 18,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /LangGraph: add per-node checkpoints for rollback and resume\./);
+    assert.match(reply, /CrewAI: make every node show agent role, goal, and handoff\./);
+    assert.match(reply, /Langfuse: surface latency, token cost, and trace trees on each node\./);
+    assert.match(reply, /Multi-agent routing: add conditional branches and router nodes\./);
+    assert.match(reply, /Review gates: pause risky stages for operator approval\./);
+    assert.doesNotMatch(reply, /Inspired by:/);
+    assert.doesNotMatch(reply, /\b(?:into|the|a no)\.?$/m);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),

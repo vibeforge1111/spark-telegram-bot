@@ -755,10 +755,14 @@ function referenceResearchActionLines(lines: string[]): string[] {
 function referenceResearchActionLine(value: string): string {
   const cleaned = cleanBrowserText(value).trim();
   if (!cleaned) return '';
+  const concept = referenceResearchConceptAction(cleaned);
+  if (concept) return concept;
 
   const inspired = cleaned.match(/^Inspired by:?\s+(.+)$/i);
   if (inspired) {
     const idea = inspired[1].trim();
+    const inspiredConcept = referenceResearchConceptAction(idea);
+    if (inspiredConcept) return inspiredConcept;
     if (referenceResearchLineIsClipped(idea) || /\b(?:spawner already|0 MCPs?|656 skills?)\b/i.test(idea)) {
       return '';
     }
@@ -788,6 +792,28 @@ function referenceResearchActionLine(value: string): string {
   }
   if (/github/i.test(name) && /\b(?:issues?|pull requests?|prs?|commits?|deploys?|timeline)\b/i.test(details)) {
     return 'GitHub Issues: keep proofs close to every mission state change.';
+  }
+  return '';
+}
+
+function referenceResearchConceptAction(value: string): string {
+  const normalized = cleanBrowserText(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (/\blanggraphs?\b.*\b(?:stateful\s+)?checkpointers?\b/.test(normalized)) {
+    return 'LangGraph: add per-node checkpoints for rollback and resume.';
+  }
+  if (/\bcrewais?\b.*\brole[-\s]?based\s+orchestration\b/.test(normalized)) {
+    return 'CrewAI: make every node show agent role, goal, and handoff.';
+  }
+  if (/\blangfuse\b.*\b(?:tracing|observability)\b/.test(normalized)) {
+    return 'Langfuse: surface latency, token cost, and trace trees on each node.';
+  }
+  if (/\bmulti[-\s]?agent[-\s]?orchestrations?\b.*\brouting patterns?\b/.test(normalized)
+    || /\brouting patterns?\b.*\bconditional branching\b/.test(normalized)) {
+    return 'Multi-agent routing: add conditional branches and router nodes.';
+  }
+  if (/\bhuman[-\s]?in[-\s]?the[-\s]?loop[-\s]?review\b.*\bconfidence gating\b/.test(normalized)
+    || /\breview gates?\b.*\bhuman approval\b/.test(normalized)) {
+    return 'Review gates: pause risky stages for operator approval.';
   }
   return '';
 }
@@ -1092,6 +1118,10 @@ function actionizeBrowserTaskBullet(value: string): string {
 
   if (/^[^:]{2,60}:\s+be inspired by\b/i.test(value)) {
     return polishLabeledBrowserTaskBullet(value);
+  }
+
+  if (/^(?:LangGraph|CrewAI|Langfuse|Multi-agent routing|Review gates|n8n|Linear|Jira|GitHub Issues):\s+/i.test(value)) {
+    return /[.!?]$/.test(value) ? value : `${value}.`;
   }
 
   return polishBrowserTaskBullet(value);
