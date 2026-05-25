@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   classifyBrowserCapabilityQuestion,
-  renderBrowserCapabilityAnswer
+  renderBrowserCapabilityAnswer,
+  renderBrowserUseActionAnswer
 } from '../src/browserCapability';
 
 async function test(name: string, fn: () => void | Promise<void>): Promise<void> {
@@ -63,25 +64,39 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /status_path=/);
   });
 
-  await test('renders specific URL open answers as not fully wired yet', () => {
+  await test('renders specific URL open action receipts with page text', () => {
     const intent = classifyBrowserCapabilityQuestion('Can you open https://example.com with browser-use and tell me what you see? Use only fresh browser evidence.');
     assert.ok(intent);
-    const reply = renderBrowserCapabilityAnswer(intent, successPayload);
+    const reply = renderBrowserUseActionAnswer(intent, {
+      ok: true,
+      action: 'open',
+      url: 'https://example.com',
+      final_url: 'https://example.com/',
+      title: 'Example Domain',
+      text_excerpt: 'Example Domain\nThis domain is for use in documentation examples.',
+    });
 
-    assert.match(reply, /Not fully yet/);
+    assert.match(reply, /Browser-use opened the page/);
+    assert.match(reply, /Example Domain/);
     assert.match(reply, /https:\/\/example\.com/);
-    assert.match(reply, /does not yet return page contents/);
     assert.doesNotMatch(reply, /Route probe/);
   });
 
-  await test('renders screenshot answers as probe-proven but command-missing', () => {
+  await test('renders screenshot action receipts as captured', () => {
     const intent = classifyBrowserCapabilityQuestion('Can you capture a screenshot of https://example.com from Telegram right now?');
     assert.ok(intent);
-    const reply = renderBrowserCapabilityAnswer(intent, successPayload);
+    const reply = renderBrowserUseActionAnswer(intent, {
+      ok: true,
+      action: 'screenshot',
+      url: 'https://example.com',
+      final_url: 'https://example.com/',
+      title: 'Example Domain',
+      text_excerpt: 'Example Domain',
+      screenshot_path: 'C:/spark/browser.png',
+    });
 
-    assert.match(reply, /Screenshot capture is proven/);
-    assert.match(reply, /does not yet expose a general screenshot command/);
-    assert.match(reply, /\/browser screenshot <url>/);
+    assert.match(reply, /captured a screenshot/);
+    assert.match(reply, /captured from the live browser-use session/);
   });
 }
 

@@ -112,6 +112,44 @@ export function renderBrowserCapabilityAnswer(
   ].join('\n');
 }
 
+export function renderBrowserUseActionAnswer(
+  intent: BrowserCapabilityIntent,
+  payload: Record<string, unknown>
+): string {
+  const action = String(payload.action || intent.kind.replace('specific_', '') || 'open').trim();
+  const ok = payload.ok === true || String(payload.status || '') === 'ready';
+  const url = String(payload.final_url || payload.url || intent.url || '').trim();
+  const title = String(payload.title || '').trim();
+  const text = boundedTelegramText(String(payload.text_excerpt || '').trim(), 700);
+  const failure = String(payload.last_failure_reason || '').trim();
+  const bullet = '\u2022';
+
+  if (!ok) {
+    return [
+      `Browser-use ${action} did not complete.`,
+      '',
+      'Why',
+      `${bullet} ${failure || 'No passing browser-use receipt was returned.'}`
+    ].join('\n');
+  }
+
+  const lines = [
+    action === 'screenshot' ? 'Browser-use opened the page and captured a screenshot.' : 'Browser-use opened the page.',
+    '',
+    'Page',
+  ];
+  if (title) lines.push(`${bullet} ${title}`);
+  if (url) lines.push(`${bullet} ${url}`);
+  if (text) {
+    lines.push('', 'Visible text', text);
+  }
+  if (action === 'screenshot') {
+    lines.push('', 'Screenshot', `${bullet} captured from the live browser-use session`);
+  }
+  lines.push('', 'Boundary', `${bullet} public URL evidence only; cookies and logged-in sessions are still separate`);
+  return lines.join('\n');
+}
+
 function browserProofLabels(summary: string): string[] {
   const match = summary.match(/(?:^|\s)proofs=([a-z0-9_,.-]+)/i);
   if (!match) return [];
@@ -134,4 +172,10 @@ function extractFirstUrl(text: string): string | undefined {
 
 function browserIntent(kind: BrowserCapabilityIntentKind, url?: string): BrowserCapabilityIntent {
   return url ? { kind, url } : { kind };
+}
+
+function boundedTelegramText(value: string, limit: number): string {
+  const compact = value.replace(/\n{3,}/g, '\n\n').trim();
+  if (compact.length <= limit) return compact;
+  return `${compact.slice(0, Math.max(0, limit - 14)).trimEnd()}\n[truncated]`;
 }

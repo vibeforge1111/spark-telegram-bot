@@ -23,7 +23,9 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   classifyBrowserCapabilityQuestion,
-  renderBrowserCapabilityAnswer
+  renderBrowserCapabilityAnswer,
+  renderBrowserUseActionAnswer,
+  type BrowserCapabilityIntent
 } from './browserCapability';
 import {
   getBuilderBridgeStatus,
@@ -319,6 +321,26 @@ function sparkCliFailureReason(error: unknown): string {
     return 'This Telegram runtime cannot execute the local Spark CLI.';
   }
   return 'The local Spark CLI probe failed before returning usable health data.';
+}
+
+async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  if (!intent.url) {
+    return {
+      ok: false,
+      status: 'blocked',
+      action: intent.kind === 'specific_screenshot' ? 'screenshot' : 'open',
+      last_failure_reason: 'Send a public URL with the browser request.',
+    };
+  }
+  const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
+  const raw = await runSparkCli(['browser-use', command, intent.url, '--json'], 120_000);
+  const parsed = JSON.parse(raw) as unknown;
+  return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+    ok: false,
+    status: 'failed',
+    action: command,
+    last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
+  };
 }
 
 type TelegramSourceUsedEvidence = {
@@ -2072,6 +2094,53 @@ async function handleAgentRouteProbeCommand(ctx: any): Promise<void> {
   }
 }
 
+function renderBrowserUseHelp(): string {
+  return [
+    'Browser-use',
+    '',
+    'Use',
+    '• /browser open <public-url>',
+    '• /browser screenshot <public-url>',
+    '',
+    'This first lane is public URL evidence only. Cookies, logged-in pages, localhost, and private network URLs stay gated.'
+  ].join('\n');
+}
+
+async function handleBrowserUseCommand(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  await safeSendChatAction(ctx, 'typing');
+  try {
+    const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+    const raw = text.replace(/^\/browser(?:@\w+)?\s*/i, '').trim();
+    if (!raw || /^(?:help|usage)$/i.test(raw)) {
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
+      return;
+    }
+    const [first = '', ...rest] = raw.split(/\s+/);
+    const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : '';
+    if (!action) {
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
+      return;
+    }
+    const url = rest.join(' ').trim();
+    const intent: BrowserCapabilityIntent = {
+      kind: action === 'screenshot' ? 'specific_screenshot' : 'specific_open',
+      ...(url ? { url } : {}),
+    };
+    const payload = await runBrowserUseAction(intent);
+    const reply = renderBrowserUseActionAnswer(intent, payload);
+    await ctx.reply(withCanonicalAliasNotice(ctx, reply));
+    if (action === 'screenshot' && payload.ok === true) {
+      const screenshotPath = String(payload.screenshot_path || '').trim();
+      if (screenshotPath) {
+        await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
+      }
+    }
+  } catch (error) {
+    await ctx.reply(withCanonicalAliasNotice(ctx, renderTelegramError('Browser-use failed', error)));
+  }
+}
+
 async function handleNaturalRouteProbeCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
@@ -2166,6 +2235,7 @@ async function handleMemoryMovementCommand(ctx: any): Promise<void> {
 
 bot.command('probe', handleAgentRouteProbeCommand);
 bot.command('route_probe', handleAgentRouteProbeCommand);
+bot.command('browser', handleBrowserUseCommand);
 bot.command('nl_route', handleNaturalRouteProbeCommand);
 bot.command('natural_route', handleNaturalRouteProbeCommand);
 bot.command('ledger', handleCapabilityLedgerReviewCommand);
@@ -4779,9 +4849,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (browserCapabilityIntent) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
-    const result = await runBuilderRouteProbe('spark_browser');
-    const reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+    let reply = '';
+    let actionPayload: Record<string, unknown> | null = null;
+    if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
+      actionPayload = await runBrowserUseAction(browserCapabilityIntent);
+      reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
+    } else {
+      const result = await runBuilderRouteProbe('spark_browser');
+      reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+    }
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
+    if (browserCapabilityIntent.kind === 'specific_screenshot' && actionPayload?.ok === true) {
+      const screenshotPath = String(actionPayload.screenshot_path || '').trim();
+      if (screenshotPath) {
+        await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
+      }
+    }
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_capability_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
