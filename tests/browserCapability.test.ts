@@ -104,6 +104,10 @@ async function main(): Promise<void> {
       shouldRunFullBrowserUseTask('http://127.0.0.1:3333/trace open trace and explain the failure'),
       true
     );
+    assert.equal(
+      shouldRunFullBrowserUseTask("Check this product's UI and let me know the fixes http://127.0.0.1:3333/kanban"),
+      true
+    );
   });
 
   await test('selects the latest full-task screenshot with start-page fallback', () => {
@@ -622,9 +626,9 @@ async function main(): Promise<void> {
       screenshot_path: 'C:/spark/shot.png',
     });
 
-    assert.match(reply, /Browser-use reviewed the live page/);
+    assert.match(reply, /Fast browser read/);
     assert.match(reply, /landing\/demo page/);
-    assert.match(reply, /What I would improve/);
+    assert.match(reply, /Fix next/);
     assert.match(reply, /actual Canvas or Kanban workspace/);
     assert.match(reply, /screenshot capture/);
     assert.doesNotMatch(reply, /task loop/);
@@ -689,9 +693,9 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /1\. Add compact proof badges/);
-    assert.match(reply, /2\. Keep node details/);
-    assert.match(reply, /3\. Make blocked or removed nodes/);
+    assert.match(reply, /• Add compact proof badges/);
+    assert.match(reply, /• Keep node details/);
+    assert.match(reply, /• Make blocked or removed nodes/);
     assert.match(reply, /attached browser/);
     assert.doesNotMatch(reply, /Profile/);
     assert.doesNotMatch(reply, /running browser via CDP requested/);

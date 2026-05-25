@@ -130,6 +130,8 @@ export function shouldRunFullBrowserUseTask(goal: string): boolean {
   if (!normalized) return false;
   return /\b(?:click|press|select|type|fill|submit|scroll|navigate|interact|walk through|step through|log in|login|sign in)\b/.test(normalized)
     || /\bopen (?:details|trace|canvas|kanban|settings|skills|panel|inspector)\b/.test(normalized)
+    || /\b(?:ui|ux|product|app|site|page|screen|interface)\b.*\b(?:fixes?|feedback|improve|review|check|audit)\b/.test(normalized)
+    || /\b(?:fixes?|feedback|improve|review|check|audit)\b.*\b(?:ui|ux|product|app|site|page|screen|interface)\b/.test(normalized)
     || /\b(?:like|as) an operator\b/.test(normalized);
 }
 
@@ -367,7 +369,7 @@ export function renderBrowserUseReviewAnswer(
   const pageRead = browserReviewPageRead(evidence, url);
   const improvements = browserReviewImprovements(evidence, url);
   const lines = [
-    'Browser-use reviewed the live page.',
+    'Fast browser read.',
     '',
     'Page',
   ];
@@ -378,8 +380,8 @@ export function renderBrowserUseReviewAnswer(
   }
   lines.push(
     '',
-    'What I would improve',
-    ...improvements.map((item, index) => `${index + 1}. ${item}`),
+    'Fix next',
+    ...improvements.map((item) => `${bullet} ${compactBrowserTaskBullet(item)}`),
     '',
     'Evidence',
     `${bullet} screenshot capture`,
