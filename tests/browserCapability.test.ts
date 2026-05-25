@@ -171,6 +171,59 @@ async function main(): Promise<void> {
     assert.match(reply, /Default requested/);
   });
 
+  await test('renders full task markdown as compact Telegram bullets', () => {
+    const intent = {
+      ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),
+      profile: { cdpUrl: 'http://127.0.0.1:9222' },
+    };
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '## Kanban board inspection - 5 issues to fix:',
+        '1. "Orphan Pause Mission" stuck in ACTIVE as PAUSED - resume, reassign, or cancel it.',
+        '2. "Publishing Machine Maze Game" marked NEEDS REVIEW after failure - review the failure trace.',
+        '3. "Cancel Me" is CANCELLED but still shows "Needs completion proof" - clear the contradictory tag.',
+        '4. Completed missions still say "Needs completion proof" - supply proofs or remove the tags.',
+        '5. Zero missions running out of 20 total - add a board-level next action.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/kanban'],
+      number_of_steps: 2,
+      screenshot_paths: ['C:/spark/shot.png', 'C:/spark/shot2.png'],
+      profile_requested: true,
+      cdp_url: 'http://127.0.0.1:9222',
+    });
+
+    assert.match(reply, /Result\n• "Orphan Pause Mission" stuck/);
+    assert.match(reply, /• "Cancel Me" is CANCELLED/);
+    assert.doesNotMatch(reply, /##/);
+    assert.doesNotMatch(reply, /\[truncated\]/);
+    assert.match(reply, /running browser via CDP requested/);
+  });
+
+  await test('renders issue section instead of observed nodes for full task markdown', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '## Canvas Workflow Inspection Summary',
+          '### Nodes Observed',
+          '1. Create the playable game file',
+          '2. Design the core play and reasoning loop',
+          '### Issues to Fix',
+          '1. Inverted ordering - design should precede implementation.',
+          '2. Generic ports hide what data moves between nodes.',
+        ].join('\n'),
+      }
+    );
+
+    assert.match(reply, /• Inverted ordering/);
+    assert.match(reply, /• Generic ports/);
+    assert.doesNotMatch(reply, /Create the playable game file/);
+  });
+
   await test('renders fast browser reviews from screenshot and state evidence', () => {
     const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
     const reply = renderBrowserUseReviewAnswer(intent, {

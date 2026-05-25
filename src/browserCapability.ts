@@ -241,7 +241,7 @@ export function renderBrowserUseTaskAnswer(
 ): string {
   const ok = payload.ok === true || String(payload.status || '') === 'ready';
   const failure = String(payload.last_failure_reason || '').trim();
-  const finalResult = boundedTelegramText(cleanBrowserText(String(payload.final_result || '').trim()), 900);
+  const finalResult = cleanBrowserText(String(payload.final_result || '').trim());
   const urls = arrayOfStrings(payload.urls).slice(0, 4);
   const steps = Number(payload.number_of_steps || 0);
   const screenshots = arrayOfStrings(payload.screenshot_paths);
@@ -264,7 +264,7 @@ export function renderBrowserUseTaskAnswer(
     'Browser-use finished the browser run.',
     '',
     'Result',
-    finalResult ? `${bullet} ${finalResult}` : `${bullet} Completed without a text result.`,
+    ...browserTaskResultLines(finalResult, bullet),
   ];
   if (steps > 0) {
     lines.push('', 'Run', `${bullet} ${steps} browser step${steps === 1 ? '' : 's'}`);
@@ -443,6 +443,38 @@ function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
+}
+
+function browserTaskResultLines(value: string, bullet: string): string[] {
+  const cleaned = cleanBrowserTaskMarkdown(value);
+  if (!cleaned) return [`${bullet} Completed without a text result.`];
+
+  const lines = cleaned
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const fixHeadingIndex = lines.findIndex((line) => /\b(?:issues?\s+to\s+fix|fixes?|recommendations?|improvements?|what\s+to\s+fix)\b/i.test(line));
+  const candidates = fixHeadingIndex >= 0 ? lines.slice(fixHeadingIndex + 1) : lines;
+  const listItems = candidates
+    .filter((line) => /^(?:\d+[.)]|[-*•])\s+/.test(line))
+    .map((line) => line.replace(/^(?:\d+[.)]|[-*•])\s+/, '').trim())
+    .filter((line) => line && !/^(?:nodes?\s+observed|workflow\s+overview|issues?\s+to\s+fix)$/i.test(line));
+
+  const selected = listItems.length > 0
+    ? listItems
+    : candidates.filter((line) => !/^(?:result|summary|overview)$/i.test(line));
+  return selected
+    .slice(0, 5)
+    .map((line) => `${bullet} ${boundedTelegramText(line.replace(/\s+/g, ' '), 220)}`);
+}
+
+function cleanBrowserTaskMarkdown(value: string): string {
+  return value
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\r/g, '')
+    .trim();
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {
