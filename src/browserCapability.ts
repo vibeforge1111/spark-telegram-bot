@@ -806,6 +806,33 @@ function actionizeBrowserTaskBullet(value: string): string {
     return 'Turn needs completion proof into a clear action.';
   }
 
+  if (/\bhistory list\b.*\b(?:mixed|inside|into)\b.*\bboard view\b/i.test(value)
+    || /\bboard view\b.*\bhistory list\b/i.test(value)
+    || /\bhistory\b.*\b(?:long scrolling|19 completed|completed\/cancelled)\b/i.test(value)) {
+    return 'Separate History from the active board view.';
+  }
+
+  if (/\bnew (?:mission )?button\b.*\b(?:filters?|tabs?)\b/i.test(value)
+    || /\bfilters?\b.*\bnew (?:mission )?button\b/i.test(value)) {
+    return 'Move New mission away from the filter tabs.';
+  }
+
+  if (/\bfilters?\b.*\b(?:dont|don't|do not)\s+map\b.*\bcolumns?\b/i.test(value)
+    || /\bcolumns?\b.*\b(?:dont|don't|do not)\s+map\b.*\bfilters?\b/i.test(value)) {
+    return 'Align filters with board columns or separate them visually.';
+  }
+
+  if (/\binconsistent\b.*\baction links?\b.*\bmission cards?\b/i.test(value)
+    || /\bmission cards?\b.*\binconsistent\b.*\baction links?\b/i.test(value)
+    || /\bsome history entries show\b.*\b(?:canvas|trace|failure)\b/i.test(value)) {
+    return 'Standardize mission-card actions across statuses.';
+  }
+
+  if (/\bfooter navigation\b.*\bduplicates?\b.*\bheader\b/i.test(value)
+    || /\bnavigation links\b.*\btop\b.*\bbottom\b/i.test(value)) {
+    return 'Remove duplicate footer navigation from the workspace view.';
+  }
+
   return polishBrowserTaskBullet(value);
 }
 
@@ -817,9 +844,15 @@ function normalizeBrowserTaskTarget(value: string): string {
 }
 
 function polishBrowserTaskBullet(value: string): string {
-  const cleaned = value.trim();
+  const cleaned = value
+    .replace(/\[\d+\]/g, '')
+    .replace(/\bdont\b/gi, "don't")
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!cleaned) return cleaned;
-  const capitalized = cleaned[0].toUpperCase() + cleaned.slice(1);
+  const issueBreak = cleaned.indexOf(': ');
+  const compact = issueBreak >= 10 ? cleaned.slice(0, issueBreak).trim() : cleaned;
+  const capitalized = compact[0].toUpperCase() + compact.slice(1);
   return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 

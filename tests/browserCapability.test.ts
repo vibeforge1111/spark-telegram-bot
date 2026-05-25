@@ -592,6 +592,34 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Title tooltip inconsistency/);
   });
 
+  await test('polishes detailed Kanban browser findings from full loop output', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban' },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. History list mixed into Board view: The Kanban board view below the columns shows a long scrolling HISTORY list of 19 completed/cancelled missions.',
+          '2. New button placement among filters: The New mission button ([17]) sits alongside filter tabs (All, Needs review, Paused, Complete), which is confusing.',
+          "3. Filter tabs dont map to board columns: Filters (All, Needs review, Paused, Complete, New) dont correspond to the visible board columns (To Do, Active).",
+          '4. Inconsistent action links per mission card: Some history entries show Canvas + Open canvas + Trace + Failure links (e.g., Publishing Machine Maze Game).',
+          '5. Footer navigation duplicates header: Navigation links (Canvas, Kanban, Skills, GitHub) appear both at the top ([6]-[10]) and botto.',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        screenshot_paths: ['C:/spark/shot.png'],
+      }
+    );
+
+    assert.match(reply, /Separate History from the active board view\./);
+    assert.match(reply, /Move New mission away from the filter tabs\./);
+    assert.match(reply, /Align filters with board columns or separate them visually\./);
+    assert.match(reply, /Standardize mission-card actions across statuses\./);
+    assert.match(reply, /Remove duplicate footer navigation from the workspace view\./);
+    assert.doesNotMatch(reply, /\[\d+\]/);
+    assert.doesNotMatch(reply, /botto/);
+    assert.doesNotMatch(reply, /Publishing Machine Maze Game/);
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },
