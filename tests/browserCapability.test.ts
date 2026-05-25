@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   classifyBrowserCapabilityQuestion,
+  browserUseTaskScreenshotPath,
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
@@ -94,6 +95,24 @@ async function main(): Promise<void> {
       shouldRunFullBrowserUseTask('http://127.0.0.1:3333/trace open trace and explain the failure'),
       true
     );
+  });
+
+  await test('selects the latest full-task screenshot with start-page fallback', () => {
+    assert.equal(
+      browserUseTaskScreenshotPath({
+        screenshot_paths: ['C:/spark/step-1.png', 'C:/spark/step-3.png'],
+        start_page: { screenshot_path: 'C:/spark/start.png' },
+      }),
+      'C:/spark/step-3.png'
+    );
+    assert.equal(
+      browserUseTaskScreenshotPath({
+        screenshot_paths: [],
+        start_page: { screenshot_path: 'C:/spark/start.png' },
+      }),
+      'C:/spark/start.png'
+    );
+    assert.equal(browserUseTaskScreenshotPath({}), '');
   });
 
   await test('renders capability answers without generic route-probe cards', () => {

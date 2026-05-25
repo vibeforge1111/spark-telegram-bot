@@ -129,6 +129,17 @@ export function shouldRunFullBrowserUseTask(goal: string): boolean {
     || /\b(?:like|as) an operator\b/.test(normalized);
 }
 
+export function browserUseTaskScreenshotPath(payload: Record<string, unknown>): string {
+  const screenshots = arrayOfStrings(payload.screenshot_paths);
+  const latest = [...screenshots].reverse().find(Boolean);
+  if (latest) return latest;
+  const startPage = payload.start_page;
+  if (startPage && typeof startPage === 'object') {
+    return String((startPage as Record<string, unknown>).screenshot_path || '').trim();
+  }
+  return '';
+}
+
 export function browserUseProfileLabel(profile: BrowserUseProfileOptions | undefined): string {
   if (!profile) return '';
   return profile.profile || profile.profileDirectory || (profile.userDataDir ? 'custom user data dir' : '') || (profile.storageState ? 'storage state' : '') || (profile.cdpUrl ? 'running browser via CDP' : '');

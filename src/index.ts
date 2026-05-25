@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
@@ -23,6 +24,7 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   classifyBrowserCapabilityQuestion,
+  browserUseTaskScreenshotPath,
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
@@ -450,6 +452,15 @@ async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Rec
     url: intent.url,
     goal: intent.goal,
     profile: intent.profile,
+  });
+}
+
+async function replyWithBrowserUseTaskScreenshot(ctx: any, payload: Record<string, unknown>): Promise<void> {
+  if (payload.ok !== true) return;
+  const screenshotPath = browserUseTaskScreenshotPath(payload);
+  if (!screenshotPath || !existsSync(screenshotPath)) return;
+  await ctx.replyWithPhoto({ source: screenshotPath }).catch(async () => {
+    await ctx.reply('Screenshot was saved locally, but Telegram could not upload it.').catch(() => {});
   });
 }
 
@@ -2441,6 +2452,7 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       ].join('\n')));
       const payload = await runBrowserUseTask(intent);
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
+      await replyWithBrowserUseTaskScreenshot(ctx, payload);
       return;
     }
     const url = rest.join(' ').trim();
@@ -5179,8 +5191,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     let reply = '';
     let actionPayload: Record<string, unknown> | null = null;
     if (browserCapabilityIntent.kind === 'task') {
-      actionPayload = await runBrowserUseReview(browserCapabilityIntent);
-      reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+      if (shouldRunFullBrowserUseTask(browserCapabilityIntent.goal || text)) {
+        await ctx.reply(withCanonicalAliasNotice(ctx, [
+          'Browser-use full task started.',
+          '',
+          'I captured the request and will send the result here when the browser agent loop finishes.'
+        ].join('\n')));
+        actionPayload = await runBrowserUseTask(browserCapabilityIntent);
+        reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+      } else {
+        actionPayload = await runBrowserUseReview(browserCapabilityIntent);
+        reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+      }
     } else if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
       actionPayload = await runBrowserUseAction(browserCapabilityIntent);
       reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
@@ -5190,7 +5212,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
     if ((browserCapabilityIntent.kind === 'specific_screenshot' || browserCapabilityIntent.kind === 'task') && actionPayload?.ok === true) {
-      const screenshotPath = String(actionPayload.screenshot_path || '').trim();
+      const screenshotPath = browserCapabilityIntent.kind === 'task'
+        ? browserUseTaskScreenshotPath(actionPayload)
+        : String(actionPayload.screenshot_path || '').trim();
       if (screenshotPath) {
         await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
       }
