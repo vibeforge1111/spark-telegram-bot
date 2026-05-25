@@ -933,6 +933,44 @@ export function isNoExecutionBoundary(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+export function isSparkCommandNotFoundHelpRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const mentionsSparkCommand =
+    /\bspark\s+(?:status|guide|setup|live|verify|doctor|--version)\b/.test(normalized) ||
+    /\b(?:`?spark`?|spark\.cmd)\b/.test(normalized);
+  const commandNotFound =
+    /\bcommand\s+not\s+found\b/.test(normalized) ||
+    /\bnot\s+recognized\s+as\s+(?:an\s+)?internal\s+or\s+external\s+command\b/.test(normalized) ||
+    /\bspark\s+(?:is\s+)?not\s+found\b/.test(normalized) ||
+    /\bnot\s+on\s+path\b/.test(normalized);
+  const installSupport =
+    /\b(?:install|installed|installer|path|terminal|powershell|wsl|shell|reinstall|fresh\s+terminal)\b/.test(normalized);
+  return mentionsSparkCommand && commandNotFound && installSupport;
+}
+
+export function renderSparkCommandNotFoundHelpReply(): string {
+  return [
+    'Try the smallest safe fix first: open a brand-new terminal, then run `spark status` again.',
+    '',
+    'Use the same environment where you installed Spark:',
+    '- Windows installer: PowerShell or Windows Terminal.',
+    '- WSL install: the WSL terminal for that distro.',
+    '',
+    'If Windows still says `spark` is not recognized, try the direct wrapper:',
+    '```powershell',
+    'C:\\Users\\<you>\\.spark\\bin\\spark.cmd status',
+    '```',
+    '',
+    'If that works, Spark is installed and only PATH needs attention. Add or confirm this folder on PATH, then open a fresh terminal:',
+    '```text',
+    'C:\\Users\\<you>\\.spark\\bin',
+    '```',
+    '',
+    'Only consider reinstalling after the fresh-terminal, correct-shell, direct-wrapper, and PATH checks fail.'
+  ].join('\n');
+}
+
 function isLowSignalPlanningTurn(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return (

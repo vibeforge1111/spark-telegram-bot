@@ -1860,6 +1860,38 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('spark command-not-found QA stays in install support instead of Mission board', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-command-not-found-help-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+		ctx.message.text = "Reproduce a spark command not found moment. Do not start a mission or build anything. Just answer in chat.\n\nI installed Spark, but when I open my terminal and type spark status, I get spark: command not found or 'spark' is not recognized as an internal or external command.\n\nWhat is the smallest safe fix I should try first before reinstalling?";
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /brand-new terminal/i);
+		assert.match(reply, /spark\.cmd status/);
+		assert.match(reply, /Only consider reinstalling after/i);
+		assert.doesNotMatch(reply, /latest app-like completed run|Mission board|Canvas|Kanban/i);
+		assert.equal(captured.length, 0, 'install support prompt must not call Spawner or PRD bridge');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
