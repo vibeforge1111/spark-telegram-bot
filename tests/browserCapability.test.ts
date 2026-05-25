@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {
   classifyBrowserCapabilityQuestion,
   renderBrowserCapabilityAnswer,
-  renderBrowserUseActionAnswer
+  renderBrowserUseActionAnswer,
+  renderBrowserUseTaskAnswer
 } from '../src/browserCapability';
 
 async function test(name: string, fn: () => void | Promise<void>): Promise<void> {
@@ -52,6 +53,14 @@ async function main(): Promise<void> {
     );
   });
 
+  await test('classifies real browser-use task requests', () => {
+    const text = 'Use browser-use to review http://127.0.0.1:3333 and gather feedback.';
+    assert.deepEqual(
+      classifyBrowserCapabilityQuestion(text),
+      { kind: 'task', url: 'http://127.0.0.1:3333', goal: text }
+    );
+  });
+
   await test('renders capability answers without generic route-probe cards', () => {
     const intent = classifyBrowserCapabilityQuestion('You list browser capability, so can you definitely browse pages right now?');
     assert.ok(intent);
@@ -97,6 +106,24 @@ async function main(): Promise<void> {
 
     assert.match(reply, /captured a screenshot/);
     assert.match(reply, /captured from the live browser-use session/);
+  });
+
+  await test('renders task receipts as a browser loop result', () => {
+    const intent = classifyBrowserCapabilityQuestion('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
+    assert.ok(intent);
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: 'The main workflow is clear, but the empty state needs a stronger next action.',
+      urls: ['http://127.0.0.1:3333/'],
+      number_of_steps: 4,
+      screenshot_paths: ['C:/spark/shot.png'],
+    });
+
+    assert.match(reply, /Browser-use ran the task loop/);
+    assert.match(reply, /empty state needs/);
+    assert.match(reply, /4 browser steps/);
+    assert.match(reply, /screenshot artifact/);
   });
 }
 

@@ -1,8 +1,9 @@
-export type BrowserCapabilityIntentKind = 'capability' | 'specific_open' | 'specific_screenshot' | 'logged_in';
+export type BrowserCapabilityIntentKind = 'capability' | 'specific_open' | 'specific_screenshot' | 'task' | 'logged_in';
 
 export type BrowserCapabilityIntent = {
   kind: BrowserCapabilityIntentKind;
   url?: string;
+  goal?: string;
 };
 
 export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabilityIntent | null {
@@ -15,6 +16,13 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
     && /\b(?:can|could|open|browse|access|visit|use)\b/.test(normalized);
   if (loggedIn) {
     return browserIntent('logged_in', url);
+  }
+
+  const taskRequest = Boolean(url)
+    && /\b(?:browser-use|browser\s+use|browser|browse)\b/.test(normalized)
+    && /\b(?:review|qa|test|check|audit|evaluate|compare|gather feedback|walk through|improve)\b/.test(normalized);
+  if (taskRequest) {
+    return browserIntent('task', url, text.trim());
   }
 
   const screenshot = /\b(?:screenshot|screen shot|capture)\b/.test(normalized)
@@ -150,6 +158,47 @@ export function renderBrowserUseActionAnswer(
   return lines.join('\n');
 }
 
+export function renderBrowserUseTaskAnswer(
+  intent: BrowserCapabilityIntent,
+  payload: Record<string, unknown>
+): string {
+  const ok = payload.ok === true || String(payload.status || '') === 'ready';
+  const failure = String(payload.last_failure_reason || '').trim();
+  const finalResult = boundedTelegramText(String(payload.final_result || '').trim(), 900);
+  const urls = arrayOfStrings(payload.urls).slice(0, 4);
+  const steps = Number(payload.number_of_steps || 0);
+  const screenshots = arrayOfStrings(payload.screenshot_paths);
+  const bullet = '\u2022';
+
+  if (!ok) {
+    return [
+      'Browser-use task did not complete.',
+      '',
+      'Why',
+      `${bullet} ${failure || 'No passing browser-use task receipt was returned.'}`
+    ].join('\n');
+  }
+
+  const lines = [
+    'Browser-use ran the task loop.',
+    '',
+    'Result',
+    finalResult ? `${bullet} ${finalResult}` : `${bullet} Completed without a text result.`,
+  ];
+  if (steps > 0) {
+    lines.push('', 'Run', `${bullet} ${steps} browser step${steps === 1 ? '' : 's'}`);
+  }
+  if (urls.length > 0) {
+    lines.push('', 'Visited', ...urls.map((url) => `${bullet} ${url}`));
+  } else if (intent.url) {
+    lines.push('', 'Visited', `${bullet} ${intent.url}`);
+  }
+  if (screenshots.length > 0) {
+    lines.push('', 'Evidence', `${bullet} ${screenshots.length} screenshot artifact${screenshots.length === 1 ? '' : 's'} saved`);
+  }
+  return lines.join('\n');
+}
+
 function browserProofLabels(summary: string): string[] {
   const match = summary.match(/(?:^|\s)proofs=([a-z0-9_,.-]+)/i);
   if (!match) return [];
@@ -170,12 +219,22 @@ function extractFirstUrl(text: string): string | undefined {
   return match?.[0]?.replace(/[.,;!?]+$/, '');
 }
 
-function browserIntent(kind: BrowserCapabilityIntentKind, url?: string): BrowserCapabilityIntent {
-  return url ? { kind, url } : { kind };
+function browserIntent(kind: BrowserCapabilityIntentKind, url?: string, goal?: string): BrowserCapabilityIntent {
+  return {
+    kind,
+    ...(url ? { url } : {}),
+    ...(goal ? { goal } : {}),
+  };
 }
 
 function boundedTelegramText(value: string, limit: number): string {
   const compact = value.replace(/\n{3,}/g, '\n\n').trim();
   if (compact.length <= limit) return compact;
   return `${compact.slice(0, Math.max(0, limit - 14)).trimEnd()}\n[truncated]`;
+}
+
+function arrayOfStrings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
 }

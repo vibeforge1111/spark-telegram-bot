@@ -25,6 +25,7 @@ import {
   classifyBrowserCapabilityQuestion,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUseTaskAnswer,
   type BrowserCapabilityIntent
 } from './browserCapability';
 import {
@@ -340,6 +341,31 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
     status: 'failed',
     action: command,
     last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
+  };
+}
+
+async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  const goal = String(intent.goal || '').trim() || (intent.url ? `Inspect ${intent.url} and summarize what matters.` : '');
+  if (!goal) {
+    return {
+      ok: false,
+      status: 'blocked',
+      action: 'task',
+      last_failure_reason: 'Send a browser-use task goal.',
+    };
+  }
+  const args = ['browser-use', 'task', '--max-steps', '25', '--json'];
+  if (intent.url) {
+    args.push('--url', intent.url);
+  }
+  args.push(goal);
+  const raw = await runSparkCli(args, 360_000);
+  const parsed = JSON.parse(raw) as unknown;
+  return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+    ok: false,
+    status: 'failed',
+    action: 'task',
+    last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
   };
 }
 
@@ -2099,10 +2125,11 @@ function renderBrowserUseHelp(): string {
     'Browser-use',
     '',
     'Use',
-    '• /browser open <public-url>',
-    '• /browser screenshot <public-url>',
+    '• /browser open <url>',
+    '• /browser screenshot <url>',
+    '• /browser task [url] <goal>',
     '',
-    'This first lane is public URL evidence only. Cookies, logged-in pages, localhost, and private network URLs stay gated.'
+    'Use task for real browser work: review, test, gather feedback, and summarize what the browser agent found.'
   ].join('\n');
 }
 
@@ -2117,9 +2144,25 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       return;
     }
     const [first = '', ...rest] = raw.split(/\s+/);
-    const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : '';
+    const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : first.toLowerCase() === 'task' ? 'task' : '';
     if (!action) {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
+      return;
+    }
+    if (action === 'task') {
+      const taskText = rest.join(' ').trim();
+      const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
+      const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
+      const goal = url && taskText.startsWith(url)
+        ? taskText.slice(url.length).trim() || `Inspect ${url} and summarize what matters.`
+        : taskText;
+      const intent: BrowserCapabilityIntent = {
+        kind: 'task',
+        ...(url ? { url } : {}),
+        goal,
+      };
+      const payload = await runBrowserUseTask(intent);
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
       return;
     }
     const url = rest.join(' ').trim();
@@ -4851,7 +4894,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await safeSendChatAction(ctx, 'typing');
     let reply = '';
     let actionPayload: Record<string, unknown> | null = null;
-    if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
+    if (browserCapabilityIntent.kind === 'task') {
+      actionPayload = await runBrowserUseTask(browserCapabilityIntent);
+      reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+    } else if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
       actionPayload = await runBrowserUseAction(browserCapabilityIntent);
       reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
     } else {
