@@ -21,4 +21,4 @@ and confirm it understood the instructions.
 Bot replied with exact copy of input message.
 
 ## After fix
-Bot should reply: "Got it — compete context loaded. Ready to hunt bugs."
+Bot should reply: "Got it, compete context loaded. Ready to hunt bugs."
