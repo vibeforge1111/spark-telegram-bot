@@ -4,6 +4,19 @@ export type BrowserCapabilityIntent = {
   kind: BrowserCapabilityIntentKind;
   url?: string;
   goal?: string;
+  profile?: BrowserUseProfileOptions;
+};
+
+export type BrowserUseProfileOptions = {
+  profile?: string;
+  userDataDir?: string;
+  profileDirectory?: string;
+  storageState?: string;
+};
+
+export type BrowserUseCommandParseResult = {
+  args: string[];
+  profile: BrowserUseProfileOptions;
 };
 
 export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabilityIntent | null {
@@ -48,6 +61,60 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
 
 export function shouldAnswerBrowserCapabilityQuestion(text: string): boolean {
   return classifyBrowserCapabilityQuestion(text) !== null;
+}
+
+export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParseResult {
+  const tokens = splitBrowserUseCommandText(text);
+  const args: string[] = [];
+  const profile: BrowserUseProfileOptions = {};
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index] || '';
+    const next = tokens[index + 1] || '';
+    const readValue = (inline: string): string => {
+      if (inline) return inline;
+      index += 1;
+      return next;
+    };
+    if (token === '--profile') {
+      profile.profile = readValue('');
+      continue;
+    }
+    if (token.startsWith('--profile=')) {
+      profile.profile = readValue(token.slice('--profile='.length));
+      continue;
+    }
+    if (token === '--user-data-dir') {
+      profile.userDataDir = readValue('');
+      continue;
+    }
+    if (token.startsWith('--user-data-dir=')) {
+      profile.userDataDir = readValue(token.slice('--user-data-dir='.length));
+      continue;
+    }
+    if (token === '--profile-directory') {
+      profile.profileDirectory = readValue('');
+      continue;
+    }
+    if (token.startsWith('--profile-directory=')) {
+      profile.profileDirectory = readValue(token.slice('--profile-directory='.length));
+      continue;
+    }
+    if (token === '--storage-state') {
+      profile.storageState = readValue('');
+      continue;
+    }
+    if (token.startsWith('--storage-state=')) {
+      profile.storageState = readValue(token.slice('--storage-state='.length));
+      continue;
+    }
+    args.push(token);
+  }
+  return { args, profile: compactBrowserUseProfile(profile) };
+}
+
+export function browserUseProfileLabel(profile: BrowserUseProfileOptions | undefined): string {
+  if (!profile) return '';
+  return profile.profile || profile.profileDirectory || (profile.userDataDir ? 'custom user data dir' : '') || (profile.storageState ? 'storage state' : '');
 }
 
 export function renderBrowserCapabilityAnswer(
@@ -127,6 +194,7 @@ export function renderBrowserUseActionAnswer(
   const title = cleanBrowserText(String(payload.title || '').trim());
   const text = boundedTelegramText(cleanBrowserText(String(payload.text_excerpt || '').trim()), 700);
   const failure = String(payload.last_failure_reason || '').trim();
+  const profileLabel = browserUsePayloadProfileLabel(payload, intent.profile);
   const bullet = '\u2022';
 
   if (!ok) {
@@ -151,6 +219,9 @@ export function renderBrowserUseActionAnswer(
   if (action === 'screenshot') {
     lines.push('', 'Screenshot', `${bullet} captured from the live browser-use session`);
   }
+  if (profileLabel) {
+    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  }
   lines.push('', 'Boundary', `${bullet} public URL evidence only; cookies and logged-in sessions are still separate`);
   return lines.join('\n');
 }
@@ -165,6 +236,7 @@ export function renderBrowserUseTaskAnswer(
   const urls = arrayOfStrings(payload.urls).slice(0, 4);
   const steps = Number(payload.number_of_steps || 0);
   const screenshots = arrayOfStrings(payload.screenshot_paths);
+  const profileLabel = browserUsePayloadProfileLabel(payload, intent.profile);
   const bullet = '\u2022';
 
   if (!ok) {
@@ -196,6 +268,9 @@ export function renderBrowserUseTaskAnswer(
   if (screenshots.length > 0) {
     lines.push('', 'Evidence', `${bullet} ${screenshots.length} screenshot artifact${screenshots.length === 1 ? '' : 's'} saved`);
   }
+  if (profileLabel) {
+    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  }
   return lines.join('\n');
 }
 
@@ -209,6 +284,7 @@ export function renderBrowserUseReviewAnswer(
   const title = cleanBrowserText(String(payload.title || '').trim());
   const text = cleanBrowserText(String(payload.text_excerpt || '').trim());
   const state = cleanBrowserText(String(payload.state_excerpt || '').trim());
+  const profileLabel = browserUsePayloadProfileLabel(payload, intent.profile);
   const bullet = '\u2022';
 
   if (!ok) {
@@ -242,6 +318,9 @@ export function renderBrowserUseReviewAnswer(
     `${bullet} screenshot capture`,
     `${bullet} visible text and page state from this run`
   );
+  if (profileLabel) {
+    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  }
   return lines.join('\n');
 }
 
@@ -271,6 +350,34 @@ function browserIntent(kind: BrowserCapabilityIntentKind, url?: string, goal?: s
     ...(url ? { url } : {}),
     ...(goal ? { goal } : {}),
   };
+}
+
+function splitBrowserUseCommandText(text: string): string[] {
+  const tokens: string[] = [];
+  const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    tokens.push(match[1] ?? match[2] ?? match[3] ?? '');
+  }
+  return tokens.filter((token) => token.length > 0);
+}
+
+function compactBrowserUseProfile(profile: BrowserUseProfileOptions): BrowserUseProfileOptions {
+  return Object.fromEntries(
+    Object.entries(profile).filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+  ) as BrowserUseProfileOptions;
+}
+
+function browserUsePayloadProfileLabel(
+  payload: Record<string, unknown>,
+  fallback: BrowserUseProfileOptions | undefined
+): string {
+  const payloadProfile = String(payload.profile || '').trim();
+  const payloadProfileDirectory = String(payload.profile_directory || '').trim();
+  if (payload.profile_requested === true && (payloadProfile || payloadProfileDirectory)) {
+    return payloadProfile || payloadProfileDirectory;
+  }
+  return browserUseProfileLabel(fallback);
 }
 
 function boundedTelegramText(value: string, limit: number): string {

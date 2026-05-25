@@ -23,11 +23,13 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   classifyBrowserCapabilityQuestion,
+  parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
   renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
-  type BrowserCapabilityIntent
+  type BrowserCapabilityIntent,
+  type BrowserUseProfileOptions
 } from './browserCapability';
 import {
   getBuilderBridgeStatus,
@@ -366,9 +368,17 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
       last_failure_reason: 'Send a public URL with the browser request.',
     };
   }
+  if (browserUseProfileRequiresFullTask(intent.profile)) {
+    return {
+      ok: false,
+      status: 'blocked',
+      action: intent.kind === 'specific_screenshot' ? 'screenshot' : 'open',
+      last_failure_reason: 'Use /browser task full with --user-data-dir, --profile-directory, or --storage-state. Fast open/screenshot supports --profile only.',
+    };
+  }
   const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
   try {
-    const raw = await runSparkCliReceipt(['browser-use', command, intent.url, '--json'], 120_000);
+    const raw = await runSparkCliReceipt(['browser-use', command, intent.url, ...browserUseProfileCliArgs(intent.profile, 'action'), '--json'], 120_000);
     const parsed = parseSparkCliJsonObject(raw);
     return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
       ok: false,
@@ -401,6 +411,7 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
   if (intent.url) {
     args.push('--url', intent.url);
   }
+  args.push(...browserUseProfileCliArgs(intent.profile, 'task'));
   args.push(goal);
   try {
     const raw = await runSparkCliReceipt(args, 360_000);
@@ -437,7 +448,24 @@ async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Rec
     kind: 'specific_screenshot',
     url: intent.url,
     goal: intent.goal,
+    profile: intent.profile,
   });
+}
+
+function browserUseProfileCliArgs(profile: BrowserUseProfileOptions | undefined, scope: 'action' | 'task'): string[] {
+  if (!profile) return [];
+  const args: string[] = [];
+  if (profile.profile) args.push('--profile', profile.profile);
+  if (scope === 'task') {
+    if (profile.userDataDir) args.push('--user-data-dir', profile.userDataDir);
+    if (profile.profileDirectory) args.push('--profile-directory', profile.profileDirectory);
+    if (profile.storageState) args.push('--storage-state', profile.storageState);
+  }
+  return args;
+}
+
+function browserUseProfileRequiresFullTask(profile: BrowserUseProfileOptions | undefined): boolean {
+  return Boolean(profile?.userDataDir || profile?.profileDirectory || profile?.storageState);
 }
 
 function parseSparkCliJsonObject(raw: string): unknown {
@@ -2354,10 +2382,10 @@ function renderBrowserUseHelp(): string {
     'Browser-use',
     '',
     'Use',
-    '• /browser open <url>',
-    '• /browser screenshot <url>',
-    '• /browser task [url] <goal>',
-    '• /browser task full [url] <goal>',
+    '\u2022 /browser open [--profile <name>] <url>',
+    '\u2022 /browser screenshot [--profile <name>] <url>',
+    '\u2022 /browser task [--profile <name>] [url] <goal>',
+    '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [url] <goal>',
     '',
     'Task is fast by default: it reviews fresh screenshot/state evidence. Use full for the multi-step browser agent loop.'
   ].join('\n');
@@ -2373,7 +2401,8 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
       return;
     }
-    const [first = '', ...rest] = raw.split(/\s+/);
+    const parsed = parseBrowserUseCommandArgs(raw);
+    const [first = '', ...rest] = parsed.args;
     const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : first.toLowerCase() === 'task' ? 'task' : '';
     if (!action) {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
@@ -2391,6 +2420,7 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         kind: 'task',
         ...(url ? { url } : {}),
         goal,
+        profile: parsed.profile,
       };
       if (!fullTask) {
         const payload = await runBrowserUseReview(intent);
@@ -2414,6 +2444,7 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
     const intent: BrowserCapabilityIntent = {
       kind: action === 'screenshot' ? 'specific_screenshot' : 'specific_open',
       ...(url ? { url } : {}),
+      profile: parsed.profile,
     };
     const payload = await runBrowserUseAction(intent);
     const reply = renderBrowserUseActionAnswer(intent, payload);

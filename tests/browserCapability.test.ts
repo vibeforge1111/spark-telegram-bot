@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   classifyBrowserCapabilityQuestion,
+  parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
   renderBrowserUseReviewAnswer,
@@ -68,6 +69,16 @@ async function main(): Promise<void> {
     );
   });
 
+  await test('parses browser-use profile flags from Telegram commands', () => {
+    const parsed = parseBrowserUseCommandArgs('task full --profile Default --user-data-dir "C:/Users/USER/AppData/Chrome/User Data" http://127.0.0.1:3333 review the dashboard');
+
+    assert.deepEqual(parsed.args, ['task', 'full', 'http://127.0.0.1:3333', 'review', 'the', 'dashboard']);
+    assert.deepEqual(parsed.profile, {
+      profile: 'Default',
+      userDataDir: 'C:/Users/USER/AppData/Chrome/User Data',
+    });
+  });
+
   await test('renders capability answers without generic route-probe cards', () => {
     const intent = requireIntent('You list browser capability, so can you definitely browse pages right now?');
     const reply = renderBrowserCapabilityAnswer(intent, successPayload);
@@ -113,7 +124,10 @@ async function main(): Promise<void> {
   });
 
   await test('renders task receipts as a browser loop result', () => {
-    const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
+    const intent = {
+      ...requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.'),
+      profile: { profile: 'Default' },
+    };
     const reply = renderBrowserUseTaskAnswer(intent, {
       ok: true,
       action: 'task',
@@ -121,12 +135,16 @@ async function main(): Promise<void> {
       urls: ['http://127.0.0.1:3333/'],
       number_of_steps: 4,
       screenshot_paths: ['C:/spark/shot.png'],
+      profile_requested: true,
+      profile: 'Default',
     });
 
     assert.match(reply, /Browser-use finished the browser run/);
     assert.match(reply, /empty state needs/);
     assert.match(reply, /4 browser steps/);
     assert.match(reply, /screenshot artifact/);
+    assert.match(reply, /Profile/);
+    assert.match(reply, /Default requested/);
   });
 
   await test('renders fast browser reviews from screenshot and state evidence', () => {
