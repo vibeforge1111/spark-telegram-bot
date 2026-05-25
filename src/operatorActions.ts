@@ -48,7 +48,7 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
     )
   ) {
     const limitMatch = normalized.match(/\bfirst\s+(\d+)\s+top[-\s]+level/);
-    return { kind: 'folder_list', folderPath: windowsPath, limit: Math.min(Number(limitMatch?.[1] || 5), 10) };
+    return { kind: 'folder_list', folderPath: windowsPath, limit: Math.min(Number.parseInt(limitMatch?.[1] || '5', 10) || 5, 10) };
   }
 
   return null;
