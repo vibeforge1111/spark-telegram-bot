@@ -166,7 +166,7 @@ interface CreatorMissionValidationResult {
 interface BoardEntry {
   missionId: string;
   missionName?: string | null;
-  status: 'created' | 'running' | 'paused' | 'completed' | 'failed';
+  status: 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
   lastEventType: string;
   lastUpdated: string;
   lastSummary: string;
@@ -194,7 +194,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   zai: 'Z.AI'
 };
 
-type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
+type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'created';
 type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
 
 export function localServiceTimeoutMs(envKey: string, fallbackMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS): number {
@@ -254,6 +254,7 @@ async function fetchBoardSnapshot(options: { includeStaleRunning?: boolean } = {
     paused: normalizeBucket(board.paused),
     completed: normalizeBucket(board.completed),
     failed: normalizeBucket(board.failed),
+    cancelled: normalizeBucket(board.cancelled),
     created: normalizeBucket(board.created)
   };
 }
@@ -264,6 +265,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.paused,
     ...board.completed,
     ...board.failed,
+    ...board.cancelled,
     ...board.created
   ];
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
@@ -379,7 +381,7 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
 }
 
 function missionTitle(entry: BoardEntry): string {
-  return entry.missionName || entry.taskName || entry.missionId || 'latest mission';
+  return entry.missionName || entry.taskName || readableMissionTitleFromId(entry.missionId) || entry.missionId || 'latest mission';
 }
 
 function missionTitleForActiveSummary(entry: BoardEntry): string | null {
@@ -451,6 +453,7 @@ function statusPhrase(status: string): string {
   if (status === 'failed') return 'failed';
   if (status === 'running') return 'is still running';
   if (status === 'paused') return 'is paused';
+  if (status === 'cancelled') return 'was cancelled';
   return 'is waiting to start';
 }
 
@@ -516,6 +519,9 @@ function formatLatestMissionTelegramSummary(entry: BoardEntry): string {
       ? `${title} did not make it through. ${provider} was attached.`
       : `${title} did not make it through before a provider was reported.`;
   }
+  if (status === 'cancelled') {
+    return `${title} was cancelled.`;
+  }
   if (status === 'paused') {
     return provider
       ? `${title} is paused. ${provider} is attached.`
@@ -531,6 +537,7 @@ function statusWord(status: string): string {
   if (status === 'failed') return 'failed';
   if (status === 'running') return 'running';
   if (status === 'paused') return 'paused';
+  if (status === 'cancelled') return 'cancelled';
   return 'queued';
 }
 
@@ -539,6 +546,7 @@ function providerSummarySentence(provider: string | null, status: string): strin
     if (status === 'queued') return 'No LLM has picked up the latest Spawner job yet.';
     if (status === 'failed') return 'The latest Spawner job failed before it reported an LLM provider.';
     if (status === 'paused') return 'The latest Spawner job is paused before any LLM provider was reported.';
+    if (status === 'cancelled') return 'The latest Spawner job was cancelled before any LLM provider was reported.';
     return 'The latest Spawner job has not reported an LLM provider yet.';
   }
   if (status === 'completed') {
@@ -549,6 +557,9 @@ function providerSummarySentence(provider: string | null, status: string): strin
   }
   if (status === 'failed') {
     return `The latest Spawner job reached ${provider}, then failed.`;
+  }
+  if (status === 'cancelled') {
+    return `The latest Spawner job was cancelled after ${provider} was attached.`;
   }
   if (status === 'paused') {
     return `The latest Spawner job is paused with ${provider} attached.`;
@@ -627,8 +638,10 @@ function formatBoardTelegramSummary(board: BoardSnapshot): string {
     paused: board.paused.length,
     completed: board.completed.length,
     failed: board.failed.length,
+    cancelled: board.cancelled.length,
     queued: board.created.length
   };
+  const history = counts.completed + counts.failed + counts.cancelled;
   const latest = latestBoardEntry(board);
   const lines = [
     'Spawner board',
@@ -636,8 +649,7 @@ function formatBoardTelegramSummary(board: BoardSnapshot): string {
     'Counts',
     `• running: ${counts.running}`,
     `• paused: ${counts.paused}`,
-    `• completed: ${counts.completed}`,
-    `• failed: ${counts.failed}`,
+    `• history: ${history} (${counts.completed} complete, ${counts.failed} failed, ${counts.cancelled} cancelled)`,
     `• queued: ${counts.queued}`
   ];
 
