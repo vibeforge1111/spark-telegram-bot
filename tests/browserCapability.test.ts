@@ -124,6 +124,29 @@ async function main(): Promise<void> {
     assert.match(reply, /captured from the live browser-use session/);
   });
 
+  await test('renders cdp action receipts with attached-browser boundary', () => {
+    const reply = renderBrowserUseActionAnswer(
+      {
+        kind: 'specific_open',
+        url: 'http://127.0.0.1:3333/canvas',
+        profile: { cdpUrl: 'http://127.0.0.1:9222' },
+      },
+      {
+        ok: true,
+        action: 'open',
+        final_url: 'http://127.0.0.1:3333/canvas',
+        title: 'Spawner',
+        text_excerpt: 'Canvas workspace',
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /running browser via CDP requested/);
+    assert.match(reply, /attached browser evidence/);
+    assert.doesNotMatch(reply, /public URL evidence only/);
+  });
+
   await test('renders task receipts as a browser loop result', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.'),
@@ -205,6 +228,33 @@ async function main(): Promise<void> {
     assert.match(reply, /execution panel over the node graph/);
     assert.match(reply, /right-side inspector/);
     assert.match(reply, /failure banner/);
+    assert.match(reply, /proof badges/);
+  });
+
+  await test('renders three canvas improvements from minimal cdp evidence', () => {
+    const reply = renderBrowserUseReviewAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/canvas',
+        goal: 'review Canvas',
+        profile: { cdpUrl: 'http://127.0.0.1:9222' },
+      },
+      {
+        ok: true,
+        action: 'screenshot',
+        final_url: 'http://127.0.0.1:3333/canvas',
+        title: 'Spawner - Visual Orchestration for AI Skill Chains',
+        text_excerpt: 'SKILLS 656 total 4 in pipeline Create the playable game file Verify the playable loop',
+        state_excerpt: 'viewport: 1252x1278 Canvas node graph',
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /1\. Add compact proof badges/);
+    assert.match(reply, /2\. Keep node details/);
+    assert.match(reply, /3\. Make blocked or removed nodes/);
+    assert.match(reply, /running browser via CDP requested/);
   });
 
   await test('renders kanban-specific browser reviews', () => {

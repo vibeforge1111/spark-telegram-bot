@@ -231,7 +231,7 @@ export function renderBrowserUseActionAnswer(
   if (profileLabel) {
     lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
   }
-  lines.push('', 'Boundary', `${bullet} public URL evidence only; cookies and logged-in sessions are still separate`);
+  lines.push('', 'Boundary', `${bullet} ${browserEvidenceBoundary(url, profileLabel)}`);
   return lines.join('\n');
 }
 
@@ -462,7 +462,9 @@ function browserReviewImprovements(evidence: string, url = ''): string[] {
       improvements.push('Put the recovery controls directly in the failure banner: rerun failed step, open logs, inspect trace, and copy the error.');
     }
     improvements.push('Add compact proof badges to each node and edge: latest status, last event, and the artifact or trace that proves what happened.');
-    return improvements.slice(0, 3);
+    improvements.push('Keep node details and next actions available without losing canvas context, especially when the operator selects a node.');
+    improvements.push('Make blocked or removed nodes explain why they are blocked, who owns the next move, and where to inspect the evidence.');
+    return firstThreeUnique(improvements);
   }
 
   if (workspace === 'kanban') {
@@ -473,7 +475,9 @@ function browserReviewImprovements(evidence: string, url = ''): string[] {
       improvements.push('Make the paused or failed mission card actionable in place with resume, diagnose, rerun, and open-canvas controls.');
     }
     improvements.push('Give History stronger scan controls: filter by failed/paused/completed, sort by recency, and keep the latest failure reason visible on each card.');
-    return improvements.slice(0, 3);
+    improvements.push('Keep each mission card tied to its latest proof, artifact, or trace so operators can verify status without opening a separate view.');
+    improvements.push('Add a compact board-level next action for the paused or most recent mission.');
+    return firstThreeUnique(improvements);
   }
 
   if (/\b(?:failed|error|paused|empty|0 missions?|no tasks?)\b/.test(normalized)) {
@@ -502,7 +506,25 @@ function browserReviewImprovements(evidence: string, url = ''): string[] {
 
   improvements.push('Reduce repeated decorative copy on operational screens and spend that space on live evidence, recent events, and the next useful command.');
 
-  return [...new Set(improvements)].slice(0, 3);
+  return firstThreeUnique(improvements);
+}
+
+function firstThreeUnique(items: string[]): string[] {
+  return [...new Set(items)].slice(0, 3);
+}
+
+function browserEvidenceBoundary(url: string, profileLabel: string): string {
+  if (profileLabel === 'running browser via CDP') {
+    return 'attached browser evidence; login state depends on that browser session';
+  }
+  if (isLocalBrowserUrl(url)) {
+    return 'local URL evidence only; cookies and logged-in sessions are separate';
+  }
+  return 'public URL evidence only; cookies and logged-in sessions are separate';
+}
+
+function isLocalBrowserUrl(url: string): boolean {
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?#]|$)/i.test(url);
 }
 
 function browserReviewPageRead(evidence: string, url = ''): string {
