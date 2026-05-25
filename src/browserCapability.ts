@@ -199,6 +199,47 @@ export function renderBrowserUseTaskAnswer(
   return lines.join('\n');
 }
 
+export function renderBrowserUseReviewAnswer(
+  intent: BrowserCapabilityIntent,
+  payload: Record<string, unknown>
+): string {
+  const ok = payload.ok === true || String(payload.status || '') === 'ready';
+  const failure = String(payload.last_failure_reason || '').trim();
+  const url = String(payload.final_url || payload.url || intent.url || '').trim();
+  const title = String(payload.title || '').trim();
+  const text = String(payload.text_excerpt || '').trim();
+  const state = String(payload.state_excerpt || '').trim();
+  const bullet = '\u2022';
+
+  if (!ok) {
+    return [
+      'Browser-use could not review the page.',
+      '',
+      'Why',
+      `${bullet} ${failure || 'No passing browser-use receipt was returned.'}`
+    ].join('\n');
+  }
+
+  const improvements = browserReviewImprovements(`${title}\n${text}\n${state}`);
+  const lines = [
+    'Browser-use reviewed the live page from fresh screenshot/state evidence.',
+    '',
+    'Page',
+  ];
+  if (title) lines.push(`${bullet} ${title}`);
+  if (url) lines.push(`${bullet} ${url}`);
+  lines.push(
+    '',
+    '3 UX improvements',
+    ...improvements.map((item, index) => `${index + 1}. ${item}`),
+    '',
+    'Evidence used',
+    `${bullet} screenshot capture`,
+    `${bullet} visible text and page state from this run`
+  );
+  return lines.join('\n');
+}
+
 function browserProofLabels(summary: string): string[] {
   const match = summary.match(/(?:^|\s)proofs=([a-z0-9_,.-]+)/i);
   if (!match) return [];
@@ -237,4 +278,29 @@ function arrayOfStrings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map((item) => String(item || '').trim()).filter(Boolean)
     : [];
+}
+
+function browserReviewImprovements(evidence: string): string[] {
+  const normalized = evidence.toLowerCase();
+  const improvements: string[] = [];
+
+  if (/\b(?:failed|error|paused|empty|0 missions?|no tasks?)\b/.test(normalized)) {
+    improvements.push('Put the recovery action beside the failed, paused, or empty state so the operator can resume or inspect the issue without hunting.');
+  }
+
+  if (/\b(?:running|queued|progress|elapsed|done|mission)\b/.test(normalized)) {
+    improvements.push('Make the current mission status and next action the strongest first-screen signal, with progress, owner, and expected next step grouped together.');
+  }
+
+  if (/\b(?:canvas|kanban|trace|skills|settings)\b/.test(normalized)) {
+    improvements.push('Show the active workspace view clearly in the top navigation and keep the same mission context when switching Canvas, Kanban, Trace, and Settings.');
+  }
+
+  if (/\b(?:skill|pipeline|node|task)\b/.test(normalized)) {
+    improvements.push('Give each task or node a compact proof line: latest status, last update time, and the artifact or trace link that explains it.');
+  }
+
+  improvements.push('Reduce repeated decorative copy on operational screens and spend that space on live evidence, recent events, and the next useful command.');
+
+  return [...new Set(improvements)].slice(0, 3);
 }

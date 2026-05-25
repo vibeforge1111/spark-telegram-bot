@@ -3,6 +3,7 @@ import {
   classifyBrowserCapabilityQuestion,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer
 } from '../src/browserCapability';
 
@@ -124,6 +125,27 @@ async function main(): Promise<void> {
     assert.match(reply, /empty state needs/);
     assert.match(reply, /4 browser steps/);
     assert.match(reply, /screenshot artifact/);
+  });
+
+  await test('renders fast browser reviews from screenshot and state evidence', () => {
+    const intent = classifyBrowserCapabilityQuestion('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
+    assert.ok(intent);
+    const reply = renderBrowserUseReviewAnswer(intent, {
+      ok: true,
+      action: 'screenshot',
+      url: 'http://127.0.0.1:3333',
+      final_url: 'http://127.0.0.1:3333/',
+      title: 'Spawner - Visual Orchestration for AI Skill Chains',
+      text_excerpt: 'Canvas Kanban Trace Skills Settings LIVE MISSION running 1/5 done',
+      state_excerpt: 'clickable Canvas Kanban Trace Skills Settings',
+      screenshot_path: 'C:/spark/shot.png',
+    });
+
+    assert.match(reply, /Browser-use reviewed the live page/);
+    assert.match(reply, /3 UX improvements/);
+    assert.match(reply, /current mission status/);
+    assert.match(reply, /screenshot capture/);
+    assert.doesNotMatch(reply, /task loop/);
   });
 }
 

@@ -25,6 +25,7 @@ import {
   classifyBrowserCapabilityQuestion,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
   type BrowserCapabilityIntent
 } from './browserCapability';
@@ -402,6 +403,22 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
   };
   console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
   return payload;
+}
+
+async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  if (!intent.url) {
+    return {
+      ok: false,
+      status: 'blocked',
+      action: 'review',
+      last_failure_reason: 'Send a URL with the browser review request.',
+    };
+  }
+  return runBrowserUseAction({
+    kind: 'specific_screenshot',
+    url: intent.url,
+    goal: intent.goal,
+  });
 }
 
 function parseSparkCliJsonObject(raw: string): unknown {
@@ -2301,8 +2318,9 @@ function renderBrowserUseHelp(): string {
     '• /browser open <url>',
     '• /browser screenshot <url>',
     '• /browser task [url] <goal>',
+    '• /browser task full [url] <goal>',
     '',
-    'Use task for real browser work: review, test, gather feedback, and summarize what the browser agent found.'
+    'Task is fast by default: it reviews fresh screenshot/state evidence. Use full for the multi-step browser agent loop.'
   ].join('\n');
 }
 
@@ -2323,7 +2341,8 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       return;
     }
     if (action === 'task') {
-      const taskText = rest.join(' ').trim();
+      const fullTask = /^(?:full|agent|loop)$/i.test(rest[0] || '');
+      const taskText = (fullTask ? rest.slice(1) : rest).join(' ').trim();
       const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
       const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
       const goal = url && taskText.startsWith(url)
@@ -2334,10 +2353,19 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         ...(url ? { url } : {}),
         goal,
       };
+      if (!fullTask) {
+        const payload = await runBrowserUseReview(intent);
+        await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseReviewAnswer(intent, payload)));
+        const screenshotPath = String(payload.screenshot_path || '').trim();
+        if (payload.ok === true && screenshotPath) {
+          await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
+        }
+        return;
+      }
       await ctx.reply(withCanonicalAliasNotice(ctx, [
-        'Browser-use task started.',
+        'Browser-use full task started.',
         '',
-        'I captured the request and will send the result here when the browser run finishes.'
+        'I captured the request and will send the result here when the browser agent loop finishes.'
       ].join('\n')));
       const payload = await runBrowserUseTask(intent);
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
@@ -5073,13 +5101,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     let reply = '';
     let actionPayload: Record<string, unknown> | null = null;
     if (browserCapabilityIntent.kind === 'task') {
-      await ctx.reply(withCanonicalAliasNotice(ctx, [
-        'Browser-use task started.',
-        '',
-        'I captured the request and will send the result here when the browser run finishes.'
-      ].join('\n')));
-      actionPayload = await runBrowserUseTask(browserCapabilityIntent);
-      reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+      actionPayload = await runBrowserUseReview(browserCapabilityIntent);
+      reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
     } else if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
       actionPayload = await runBrowserUseAction(browserCapabilityIntent);
       reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
@@ -5088,7 +5111,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
     }
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
-    if (browserCapabilityIntent.kind === 'specific_screenshot' && actionPayload?.ok === true) {
+    if ((browserCapabilityIntent.kind === 'specific_screenshot' || browserCapabilityIntent.kind === 'task') && actionPayload?.ok === true) {
       const screenshotPath = String(actionPayload.screenshot_path || '').trim();
       if (screenshotPath) {
         await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
