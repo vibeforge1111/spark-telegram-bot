@@ -564,7 +564,13 @@ function actionizeBrowserTaskBullet(value: string): string {
   let match = value.match(/^(.+?)\s+is\s+stuck\s+paused\b/i);
   if (match) return `Resume or cancel ${match[1].trim()}.`;
 
+  match = value.match(/^clear completion proof from mission\s+(.+?)\.?$/i);
+  if (match) return `Clear completion proof from ${normalizeBrowserTaskTarget(match[1])}.`;
+
   match = value.match(/^(.+?)\s+says\s+mission failed\s+yet\s+shows\b/i);
+  if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
+
+  match = value.match(/^(.+?):\s+failed\s+but\s+shows\b/i);
   if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
 
   match = value.match(/^(.+?)\s+is\s+cancelled\s+but\s+still\s+says\s+needs completion proof\b/i);
@@ -578,13 +584,14 @@ function actionizeBrowserTaskBullet(value: string): string {
 
   match = value.match(/^(?:cancelled\s+)?(.+?)(?:\s+mission)?\s+(?:is\s+cancelled\s+but\s+still\s+shows\s+needs completion proof|still\s+demands\s+(?:needs\s+)?completion proof)/i);
   if (match) {
-    const target = match[1].trim();
+    const target = normalizeBrowserTaskTarget(match[1]);
     return /^mission$/i.test(target)
       ? 'Clear completion proof from cancelled missions.'
       : `Clear completion proof from ${target}.`;
   }
 
   if (/\bcompleted missions\b.*\bneed(?:s)? completion proof\b/i.test(value)
+    || /\bcompleted missions\b.*\bmissing completion proofs?\b/i.test(value)
     || /\bcompleted missions\b.*\bstill show\b.*\bneeds completion proof\b/i.test(value)
     || /\bcomplete(?:d)? missions\b.*\bflagged\b.*\b(?:needs completion proof|proof)\b/i.test(value)
     || /\bmultiple completed missions\b.*\bflagged\b.*\bproof\b/i.test(value)) {
@@ -592,12 +599,20 @@ function actionizeBrowserTaskBullet(value: string): string {
   }
 
   if (/\bzero running missions\b/i.test(value)
+    || /\bzero missions running\b/i.test(value)
     || /\b0 running\b.*\bempty to do\b/i.test(value)
     || /\bto do column\b.*\bempty\b/i.test(value)) {
     return 'Queue or start the next mission.';
   }
 
   return value;
+}
+
+function normalizeBrowserTaskTarget(value: string): string {
+  return value
+    .trim()
+    .replace(/^mission\s+(.+)$/i, '$1')
+    .trim();
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {
