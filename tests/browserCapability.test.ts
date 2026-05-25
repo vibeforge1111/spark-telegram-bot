@@ -352,6 +352,29 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /board is idle/);
   });
 
+  await test('normalizes review-status Kanban variants from full browser output', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban', profile: { cdpUrl: 'http://127.0.0.1:9222' } },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          "1. Cancel Me is Cancelled but still requests completion proof - A cancelled mission shouldn't require a completion proof",
+          '2. Publishing Machine Maze Game shows Needs Review but has Mission failed - All 4/4 build tasks are 100% yet the mission failed and sits in Needs Review',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        screenshot_paths: ['C:/spark/shot.png'],
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /Clear completion proof from Cancel Me\./);
+    assert.match(reply, /Resolve Publishing Machine Maze Game; failure and progress disagree\./);
+    assert.doesNotMatch(reply, /shouldn't require/);
+    assert.doesNotMatch(reply, /All 4\/4 build tasks/);
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },

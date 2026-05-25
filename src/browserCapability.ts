@@ -573,7 +573,13 @@ function actionizeBrowserTaskBullet(value: string): string {
   match = value.match(/^(.+?):\s+failed\s+but\s+shows\b/i);
   if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
 
+  match = value.match(/^(.+?)\s+shows\s+needs review\s+but\s+has\s+mission failed\b/i);
+  if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
+
   match = value.match(/^(.+?)\s+is\s+cancelled\s+but\s+still\s+says\s+needs completion proof\b/i);
+  if (match) return `Clear completion proof from ${match[1].trim()}.`;
+
+  match = value.match(/^(.+?)\s+is\s+cancelled\s+but\s+still\s+requests\s+completion proof\b/i);
   if (match) return `Clear completion proof from ${match[1].trim()}.`;
 
   match = value.match(/^(.+?)\s+(?:is\s+)?(?:stuck|stranded)\s+in\s+active(?:\s+as\s+paused|.*\bpaused\b)?/i);
