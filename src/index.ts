@@ -22,6 +22,10 @@ import {
 } from './conversation';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
+  classifyBrowserCapabilityQuestion,
+  renderBrowserCapabilityAnswer
+} from './browserCapability';
+import {
   getBuilderBridgeStatus,
   runBuilderAocPreflight,
   formatMemoryInPlaySummary,
@@ -733,15 +737,6 @@ function shouldAnswerAuthoritativeAccessCapability(text: string): boolean {
     /\boutside[-\s]*workspace\s+(?:edits?|writes?|access)\b/.test(normalized) ||
     /\beffective\s+access\s+level\b/.test(normalized) && /\b(?:writable|edit|write|runner|current|right\s+now)\b/.test(normalized)
   );
-}
-
-function shouldAnswerBrowserCapabilityQuestion(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return false;
-  const asksNow = /\b(?:can|could|are|is|do|does)\b/.test(normalized) || /\bright\s+now\b|\bcurrently\b|\bdefinitely\b/.test(normalized);
-  const browserWords = /\b(?:browse|browser|browser-use|browser\s+use|web\s+page|webpages?|open\s+pages?|screenshots?)\b/.test(normalized);
-  const capabilityWords = /\b(?:can|able|capability|available|working|ready|proven|definitely)\b/.test(normalized);
-  return asksNow && browserWords && capabilityWords;
 }
 
 function shouldAnswerSparkRiskProfile(text: string): boolean {
@@ -4780,13 +4775,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAnswerBrowserCapabilityQuestion(text)) {
+  const browserCapabilityIntent = !earlyBuildIntent ? classifyBrowserCapabilityQuestion(text) : null;
+  if (browserCapabilityIntent) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
     const result = await runBuilderRouteProbe('spark_browser');
-    await ctx.reply(withCanonicalAliasNotice(ctx, result.replyText));
+    const reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+    await ctx.reply(withCanonicalAliasNotice(ctx, reply));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_capability_answer', runtimeTruthSourceEvidence(text));
-    await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 
