@@ -17,6 +17,12 @@ async function test(name: string, fn: () => void | Promise<void>): Promise<void>
   }
 }
 
+function requireIntent(text: string) {
+  const intent = classifyBrowserCapabilityQuestion(text);
+  assert.ok(intent);
+  return intent;
+}
+
 const successPayload = {
   capability_key: 'spark_browser',
   status: 'success',
@@ -63,11 +69,10 @@ async function main(): Promise<void> {
   });
 
   await test('renders capability answers without generic route-probe cards', () => {
-    const intent = classifyBrowserCapabilityQuestion('You list browser capability, so can you definitely browse pages right now?');
-    assert.ok(intent);
+    const intent = requireIntent('You list browser capability, so can you definitely browse pages right now?');
     const reply = renderBrowserCapabilityAnswer(intent, successPayload);
 
-    assert.match(reply, /Yes, for the small browser checks covered by the fresh probe/);
+    assert.match(reply, /Yes, for the browser actions Spark just proved/);
     assert.match(reply, /public page open/);
     assert.match(reply, /Still unproven/);
     assert.doesNotMatch(reply, /Route probe/);
@@ -75,8 +80,7 @@ async function main(): Promise<void> {
   });
 
   await test('renders specific URL open action receipts with page text', () => {
-    const intent = classifyBrowserCapabilityQuestion('Can you open https://example.com with browser-use and tell me what you see? Use only fresh browser evidence.');
-    assert.ok(intent);
+    const intent = requireIntent('Can you open https://example.com with browser-use and tell me what you see? Use only fresh browser evidence.');
     const reply = renderBrowserUseActionAnswer(intent, {
       ok: true,
       action: 'open',
@@ -93,8 +97,7 @@ async function main(): Promise<void> {
   });
 
   await test('renders screenshot action receipts as captured', () => {
-    const intent = classifyBrowserCapabilityQuestion('Can you capture a screenshot of https://example.com from Telegram right now?');
-    assert.ok(intent);
+    const intent = requireIntent('Can you capture a screenshot of https://example.com from Telegram right now?');
     const reply = renderBrowserUseActionAnswer(intent, {
       ok: true,
       action: 'screenshot',
@@ -110,8 +113,7 @@ async function main(): Promise<void> {
   });
 
   await test('renders task receipts as a browser loop result', () => {
-    const intent = classifyBrowserCapabilityQuestion('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
-    assert.ok(intent);
+    const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
     const reply = renderBrowserUseTaskAnswer(intent, {
       ok: true,
       action: 'task',
@@ -121,15 +123,14 @@ async function main(): Promise<void> {
       screenshot_paths: ['C:/spark/shot.png'],
     });
 
-    assert.match(reply, /Browser-use ran the task loop/);
+    assert.match(reply, /Browser-use finished the browser run/);
     assert.match(reply, /empty state needs/);
     assert.match(reply, /4 browser steps/);
     assert.match(reply, /screenshot artifact/);
   });
 
   await test('renders fast browser reviews from screenshot and state evidence', () => {
-    const intent = classifyBrowserCapabilityQuestion('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
-    assert.ok(intent);
+    const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
     const reply = renderBrowserUseReviewAnswer(intent, {
       ok: true,
       action: 'screenshot',
@@ -143,10 +144,25 @@ async function main(): Promise<void> {
 
     assert.match(reply, /Browser-use reviewed the live page/);
     assert.match(reply, /landing\/demo page/);
-    assert.match(reply, /3 UX improvements/);
+    assert.match(reply, /What I would improve/);
     assert.match(reply, /actual Canvas or Kanban workspace/);
     assert.match(reply, /screenshot capture/);
     assert.doesNotMatch(reply, /task loop/);
+  });
+
+  await test('humanizes noisy browser-use task failures', () => {
+    const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'Command failed: spark browser-use task --json\nINFO [Agent] Step 2\nValidationError: Invalid model output format json_invalid',
+    });
+
+    assert.match(reply, /Browser-use could not finish that run/);
+    assert.match(reply, /invalid action format/);
+    assert.match(reply, /fast path/);
+    assert.doesNotMatch(reply, /Command failed/);
+    assert.doesNotMatch(reply, /INFO \[Agent\]/);
   });
 
   await test('renders canvas-specific browser reviews', () => {

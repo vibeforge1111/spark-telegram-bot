@@ -58,15 +58,14 @@ export function renderBrowserCapabilityAnswer(
   const summary = String(payload.probe_summary || '').trim();
   const failure = String(payload.failure_reason || '').trim();
   const proofs = browserProofLabels(summary);
-  const proofText = proofs.length ? proofs.join(', ') : 'the browser route probe';
   const bullet = '\u2022';
 
   if (status !== 'success') {
     return [
-      'Browser-use is not proven from this runner right now.',
+      'Browser-use is not ready in this runner right now.',
       '',
       'Why',
-      `${bullet} ${failure || 'The latest browser route probe did not produce a passing receipt.'}`,
+      `${bullet} ${humanBrowserFailure(failure || 'The latest browser check did not pass.')}`,
       '',
       'Run /probe browser when you want a fresh receipt.'
     ].join('\n');
@@ -74,43 +73,41 @@ export function renderBrowserCapabilityAnswer(
 
   if (intent.kind === 'logged_in') {
     return [
-      'No. Logged-in browser use with cookies is still unproven right now.',
+      'No, not yet. The fresh browser check does not prove cookie-backed or logged-in browsing.',
       '',
-      'Fresh proof only covers',
+      'Proven now',
       ...proofs.map((proof) => `${bullet} ${proof}`),
       '',
       'Needed next',
-      `${bullet} a cookie-backed browser-use probe before claiming logged-in dashboard access`
+      `${bullet} run a browser profile or cookie-backed check before claiming dashboard access`
     ].join('\n');
   }
 
   if (intent.kind === 'specific_screenshot') {
     return [
-      'Screenshot capture is proven for the browser-use smoke probe, but Telegram does not yet expose a general screenshot command for arbitrary URLs.',
+      'Screenshot capture is proven for the browser-use smoke check, but this answer did not capture that URL.',
       '',
       'Fresh proof',
       ...proofs.map((proof) => `${bullet} ${proof}`),
       '',
-      'Needed next',
-      `${bullet} add /browser screenshot <url> so Spark can return a URL-specific screenshot receipt`
+      `Use /browser screenshot <url> for URL-specific evidence.`
     ].join('\n');
   }
 
   if (intent.kind === 'specific_open') {
     const target = intent.url ? ` ${intent.url}` : ' that URL';
     return [
-      `Not fully yet. A fresh browser-use probe proves public page open/state/screenshot works, but Telegram does not yet return page contents for${target}.`,
+      `Not from this answer alone. The browser route is proven, but Spark still needs to open${target} before saying what is on it.`,
       '',
       'Fresh proof',
-      `${bullet} ${proofText}`,
+      ...proofs.map((proof) => `${bullet} ${proof}`),
       '',
-      'Honest boundary',
-      `${bullet} I can prove the browser-use path is ready; I should not claim what that specific page says until a URL-specific open/read route exists.`
+      `Use /browser open <url> for a URL-specific read.`
     ].join('\n');
   }
 
   return [
-    'Yes, for the small browser checks covered by the fresh probe. Not for full browser automation.',
+    'Yes, for the browser actions Spark just proved. Not for full browser automation.',
     '',
     'Proven',
     ...proofs.map((proof) => `${bullet} ${proof}`),
@@ -134,10 +131,10 @@ export function renderBrowserUseActionAnswer(
 
   if (!ok) {
     return [
-      `Browser-use ${action} did not complete.`,
+      `Browser-use could not ${action === 'screenshot' ? 'capture that page' : 'open that page'}.`,
       '',
       'Why',
-      `${bullet} ${failure || 'No passing browser-use receipt was returned.'}`
+      `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`
     ].join('\n');
   }
 
@@ -172,15 +169,18 @@ export function renderBrowserUseTaskAnswer(
 
   if (!ok) {
     return [
-      'Browser-use task did not complete.',
+      'Browser-use could not finish that run.',
       '',
       'Why',
-      `${bullet} ${failure || 'No passing browser-use task receipt was returned.'}`
+      `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`,
+      '',
+      'Move',
+      `${bullet} Try the fast path first: /browser task <url> <focused goal>`
     ].join('\n');
   }
 
   const lines = [
-    'Browser-use ran the task loop.',
+    'Browser-use finished the browser run.',
     '',
     'Result',
     finalResult ? `${bullet} ${finalResult}` : `${bullet} Completed without a text result.`,
@@ -213,10 +213,10 @@ export function renderBrowserUseReviewAnswer(
 
   if (!ok) {
     return [
-      'Browser-use could not review the page.',
+      'Browser-use could not review that page.',
       '',
       'Why',
-      `${bullet} ${failure || 'No passing browser-use receipt was returned.'}`
+      `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`
     ].join('\n');
   }
 
@@ -235,10 +235,10 @@ export function renderBrowserUseReviewAnswer(
   }
   lines.push(
     '',
-    '3 UX improvements',
+    'What I would improve',
     ...improvements.map((item, index) => `${index + 1}. ${item}`),
     '',
-    'Evidence used',
+    'Evidence',
     `${bullet} screenshot capture`,
     `${bullet} visible text and page state from this run`
   );
@@ -290,6 +290,33 @@ function cleanBrowserText(value: string): string {
     .replace(/âœ…/g, '✅')
     .replace(/Â/g, '')
     .trim();
+}
+
+function humanBrowserFailure(value: string): string {
+  const cleaned = cleanBrowserText(value)
+    .replace(/\s+/g, ' ')
+    .trim();
+  const normalized = cleaned.toLowerCase();
+  if (!cleaned) return 'Browser-use did not return a usable result.';
+  if (/invalid model output|validation error|json_invalid|agentoutput|pydantic/.test(normalized)) {
+    return 'The full browser agent returned an invalid action format. The fast screenshot/state review path should still work.';
+  }
+  if (/timed out|timeout/.test(normalized)) {
+    return 'The browser run took too long for Telegram. Use a smaller goal, or run the full task when you can wait.';
+  }
+  if (/spawn einval/.test(normalized)) {
+    return 'Telegram could not start the local browser-use command on this machine.';
+  }
+  if (/invalid choice.*browser-use|browser-use.*invalid choice/.test(normalized)) {
+    return 'This Telegram runtime is using a Spark CLI that does not expose browser-use yet.';
+  }
+  if (/browser-use adapter status source is not ready|missing_status|package_available=false|cli_available=false/.test(normalized)) {
+    return 'The browser-use adapter is not installed or ready in this runner.';
+  }
+  if (/command failed:|usage: spark|traceback|info \[agent\]|litellm|browser use telemetry/.test(normalized)) {
+    return 'Browser-use failed before returning a clean result. Check the local browser-use logs for the raw command output.';
+  }
+  return cleaned;
 }
 
 function arrayOfStrings(value: unknown): string[] {

@@ -2425,7 +2425,12 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       }
     }
   } catch (error) {
-    await ctx.reply(withCanonicalAliasNotice(ctx, renderTelegramError('Browser-use failed', error)));
+    await ctx.reply(withCanonicalAliasNotice(ctx, [
+      'Browser-use could not start that request.',
+      '',
+      'Why',
+      `\u2022 ${browserUseFailureReason(error)}`
+    ].join('\n')));
   }
 }
 
