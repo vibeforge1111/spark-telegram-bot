@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   });
 
   await test('classifies internet reference research as browser tasks', () => {
-    const text = 'Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what to copy or adapt.';
+    const text = 'Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what we should be inspired by.';
     const intent = classifyBrowserCapabilityQuestion(text);
     assert.deepEqual(intent, { kind: 'task', url: 'http://127.0.0.1:3333/canvas', goal: text });
     assert.equal(browserTaskNeedsReferenceResearch(intent!), true);
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
       true
     );
     assert.equal(
-      shouldRunFullBrowserUseTask('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what to copy or adapt.'),
+      shouldRunFullBrowserUseTask('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what we should be inspired by.'),
       true
     );
   });
@@ -724,7 +724,7 @@ async function main(): Promise<void> {
   });
 
   await test('does not pretend failed reference research was a fast page review', () => {
-    const intent = requireIntent('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what to copy or adapt.');
+    const intent = requireIntent('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what we should be inspired by.');
     const reply = renderBrowserUseTaskAnswer(intent, {
       ok: false,
       action: 'task',
@@ -732,7 +732,7 @@ async function main(): Promise<void> {
     });
 
     assert.match(reply, /could not finish the reference research/);
-    assert.match(reply, /Retry with fewer references/);
+    assert.match(reply, /use for inspiration/);
     assert.doesNotMatch(reply, /fast path/);
     assert.doesNotMatch(reply, /Fast browser read/);
   });

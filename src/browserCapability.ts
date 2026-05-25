@@ -82,7 +82,7 @@ function asksForProductUiWork(normalized: string): boolean {
 function asksForReferenceResearch(normalized: string): boolean {
   return /\b(?:research|find|look up)\b.*\b(?:references?|examples?|competitors?|inspiration|internet|web)\b/.test(normalized)
     || /\b(?:compare|benchmark)\b.*\b(?:references?|examples?|competitors?|internet|web)\b/.test(normalized)
-    || /\b(?:copy|adapt|learn from)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
+    || /\b(?:inspire|adapt|learn from|copy)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
 }
 
 export function browserTaskNeedsReferenceResearch(intent: BrowserCapabilityIntent): boolean {
@@ -344,7 +344,7 @@ export function renderBrowserUseTaskAnswer(
         `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`,
         '',
         'Move',
-        `${bullet} Retry with fewer references or name the products to compare.`
+        `${bullet} Retry with fewer references or name the products to use for inspiration.`
       ].join('\n');
     }
     return [
