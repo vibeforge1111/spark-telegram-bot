@@ -95,12 +95,22 @@ export function browserUseTaskGoalForIntent(intent: BrowserCapabilityIntent): st
   if (!baseGoal || !browserTaskNeedsReferenceResearch({ ...intent, goal: baseGoal })) {
     return baseGoal;
   }
+  const urls = extractUrls(baseGoal);
+  const targetUrl = intent.url || urls[0] || '';
+  const referenceUrls = urls.filter((url) => !sameUrl(url, targetUrl));
+  const visitPlan = [
+    targetUrl ? `- Target page: ${targetUrl}` : '',
+    ...referenceUrls.map((url, index) => `- Reference ${index + 1}: ${url}`),
+  ].filter(Boolean);
 
   return [
     baseGoal,
     '',
+    ...(visitPlan.length ? ['Required browser itinerary:', ...visitPlan, ''] : []),
     'Reference research rules:',
+    '- Open/read the target page, then open/read every reference URL listed above before answering.',
     '- Inspect the live target product page and at least two reference product pages before answering.',
+    '- Do not stop after the target page. If fewer than two reference pages were observed, report incomplete reference evidence.',
     '- Use direct reference URLs from the prompt when provided; if references are named without URLs, navigate to their official product pages when possible.',
     '- Do not answer with only the target product traits. If reference pages could not be observed, say the reference research was incomplete.',
     '- Return only inspiration for the target product: reference product, inspired pattern, and why it matters.'
@@ -390,14 +400,15 @@ export function renderBrowserUseTaskAnswer(
 
   const referenceResearch = browserTaskNeedsReferenceResearch(intent);
   if (referenceResearch && browserReferenceResearchMissingExternalEvidence(intent, finalResult, urls)) {
+    const requestedRefs = referenceUrlsFromIntent(intent);
     return [
       'Browser-use did not complete the reference research.',
       '',
       'Why',
-      `${bullet} It only returned Spawner page observations, not evidence from the reference products.`,
+      `${bullet} ${requestedRefs.length ? 'It did not visit the direct reference URLs from the prompt.' : 'It only returned Spawner page observations, not evidence from the reference products.'}`,
       '',
       'Move',
-      `${bullet} Retry with direct reference URLs, or ask for one product at a time.`
+      `${bullet} ${requestedRefs.length ? 'Retry with one reference URL at a time, or run the direct product URLs as separate browser tasks.' : 'Retry with direct reference URLs, or ask for one product at a time.'}`
     ].join('\n');
   }
   const lines = [
@@ -539,8 +550,29 @@ function browserProofLabels(summary: string): string[] {
 }
 
 function extractFirstUrl(text: string): string | undefined {
-  const match = text.match(/https?:\/\/[^\s)>\]]+/i);
-  return match?.[0]?.replace(/[.,;!?]+$/, '');
+  return extractUrls(text)[0];
+}
+
+function extractUrls(text: string): string[] {
+  return uniqueStrings(Array.from(text.matchAll(/https?:\/\/[^\s)>\]]+/gi))
+    .map((match) => (match[0] || '').replace(/[.,;!?]+$/, ''))
+    .filter(Boolean));
+}
+
+function referenceUrlsFromIntent(intent: BrowserCapabilityIntent): string[] {
+  const targetUrl = intent.url || '';
+  return extractUrls(String(intent.goal || '')).filter((url) => !sameUrl(url, targetUrl));
+}
+
+function sameUrl(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    return a.href.replace(/\/$/, '') === b.href.replace(/\/$/, '');
+  } catch {
+    return left.replace(/\/$/, '') === right.replace(/\/$/, '');
+  }
 }
 
 function browserIntent(kind: BrowserCapabilityIntentKind, url?: string, goal?: string): BrowserCapabilityIntent {

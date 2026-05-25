@@ -332,13 +332,20 @@ async function main(): Promise<void> {
   await test('adds reference research guardrails to full browser task goals', () => {
     const intent = requireIntent([
       'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
-      'Compare http://127.0.0.1:3333/canvas with Linear, Jira, and GitHub Issues.',
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app, https://www.atlassian.com/software/jira/features, and https://github.com/features/issues.',
       'Give 5 short Inspired by bullets.'
     ].join(' '));
 
     const goal = browserUseTaskGoalForIntent(intent);
 
+    assert.match(goal, /Required browser itinerary:/);
+    assert.match(goal, /Target page: http:\/\/127\.0\.0\.1:3333\/canvas/);
+    assert.match(goal, /Reference 1: https:\/\/linear\.app/);
+    assert.match(goal, /Reference 2: https:\/\/www\.atlassian\.com\/software\/jira\/features/);
+    assert.match(goal, /Reference 3: https:\/\/github\.com\/features\/issues/);
     assert.match(goal, /Reference research rules:/);
+    assert.match(goal, /open\/read every reference URL listed above before answering/i);
+    assert.match(goal, /Do not stop after the target page/);
     assert.match(goal, /Inspect the live target product page and at least two reference product pages/);
     assert.match(goal, /If reference pages could not be observed, say the reference research was incomplete/);
   });
@@ -908,6 +915,29 @@ async function main(): Promise<void> {
     assert.match(reply, /use for inspiration/);
     assert.doesNotMatch(reply, /fast path/);
     assert.doesNotMatch(reply, /Fast browser read/);
+  });
+
+  await test('explains missing direct reference URL visits', () => {
+    const intent = requireIntent([
+      'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app and https://github.com/features/issues.',
+      'Give 5 short Inspired by bullets.'
+    ].join(' '));
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        'Tagline: Visual Orchestration for AI Skill Chains.',
+        'Scale: 656 total skills, 4 in pipeline.',
+        'Visual DAG editor using SVG-based nodes.'
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas'],
+      number_of_steps: 4,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /did not visit the direct reference URLs from the prompt/);
+    assert.match(reply, /one reference URL at a time/);
   });
 
   await test('reports blocked reference research from browser evidence', () => {

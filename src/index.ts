@@ -282,7 +282,7 @@ const BROWSER_USE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE
   : 8;
 const BROWSER_USE_REFERENCE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10) > 0
   ? Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10)
-  : Math.max(BROWSER_USE_TASK_MAX_STEPS, 18);
+  : Math.max(BROWSER_USE_TASK_MAX_STEPS, 28);
 
 installConsoleRedaction();
 
