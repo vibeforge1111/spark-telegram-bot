@@ -82,7 +82,8 @@ function asksForProductUiWork(normalized: string): boolean {
 function asksForReferenceResearch(normalized: string): boolean {
   return /\b(?:research|find|look up)\b.*\b(?:references?|examples?|competitors?|inspiration|internet|web)\b/.test(normalized)
     || /\b(?:compare|benchmark)\b.*\b(?:references?|examples?|competitors?|internet|web)\b/.test(normalized)
-    || /\b(?:inspire|adapt|learn from|copy)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
+    || /\bcompare\b.*https?:\/\/.*\binspired by\b/.test(normalized)
+    || /\b(?:inspire|inspired by|adapt|learn from|copy)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
 }
 
 export function browserTaskNeedsReferenceResearch(intent: BrowserCapabilityIntent): boolean {
@@ -370,11 +371,12 @@ export function renderBrowserUseTaskAnswer(
     ].join('\n');
   }
 
+  const referenceResearch = browserTaskNeedsReferenceResearch(intent);
   const lines = [
     'Browser-use finished.',
     '',
-    'Fix next',
-    ...browserTaskResultLines(finalResult, bullet, intent.url || ''),
+    referenceResearch ? 'Inspired by' : 'Fix next',
+    ...browserTaskResultLines(finalResult, bullet, intent.url || '', referenceResearch),
   ];
   const evidence = browserTaskEvidenceLine({
     steps,
@@ -639,7 +641,7 @@ function titleCase(value: string): string {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function browserTaskResultLines(value: string, bullet: string, contextUrl = ''): string[] {
+function browserTaskResultLines(value: string, bullet: string, contextUrl = '', referenceResearch = false): string[] {
   const cleaned = cleanBrowserTaskMarkdown(value);
   if (!cleaned) return [`${bullet} Completed without a text result.`];
 
@@ -659,7 +661,7 @@ function browserTaskResultLines(value: string, bullet: string, contextUrl = ''):
     : candidates.filter((line) => browserTaskUsefulLine(line) && !/^(?:result|summary|overview)$/i.test(line));
   const useful = expandReferenceResearchFindings(selected)
     .slice(0, 5)
-    .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line))}`);
+    .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line), referenceResearch)}`);
   if (useful.length > 0) return useful;
   return browserTaskFallbackFixes(contextUrl, bullet);
 }
@@ -794,7 +796,7 @@ function compactBrowserTaskBullet(value: string): string {
     .trim();
 }
 
-function humanizeBrowserTaskBullet(value: string): string {
+function humanizeBrowserTaskBullet(value: string, referenceResearch = false): string {
   const cleaned = value
     .replace(/"([^"]{1,90})"/g, '$1')
     .replace(/'([^']{1,90})'/g, '$1')
@@ -807,7 +809,18 @@ function humanizeBrowserTaskBullet(value: string): string {
     .replace(/\bNEEDS REVIEW\b/g, 'needs review')
     .replace(/\bNeeds completion proof\b/g, 'needs completion proof')
     .trim();
-  return actionizeBrowserTaskBullet(cleaned);
+  return actionizeBrowserTaskBullet(referenceResearch ? humanizeReferenceResearchLanguage(cleaned) : cleaned);
+}
+
+function humanizeReferenceResearchLanguage(value: string): string {
+  return value
+    .replace(/\bdo not copy\b/gi, 'avoid copying')
+    .replace(/\bdon't copy\b/gi, 'avoid copying')
+    .replace(/\bcopy the\b/gi, 'be inspired by the')
+    .replace(/\bcopy their\b/gi, 'be inspired by their')
+    .replace(/\bcopy its\b/gi, 'be inspired by its')
+    .replace(/\bcopy ([a-z])/gi, 'be inspired by $1')
+    .trim();
 }
 
 function actionizeBrowserTaskBullet(value: string): string {
@@ -927,6 +940,10 @@ function actionizeBrowserTaskBullet(value: string): string {
   }
 
   if (/^(?:research read|inspired by):/i.test(value)) {
+    return polishLabeledBrowserTaskBullet(value);
+  }
+
+  if (/^[^:]{2,60}:\s+be inspired by\b/i.test(value)) {
     return polishLabeledBrowserTaskBullet(value);
   }
 

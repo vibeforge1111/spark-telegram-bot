@@ -285,6 +285,36 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Copy\/adapt/);
   });
 
+  await test('does not render copy language in reference research results', () => {
+    const intent = requireIntent('Compare http://127.0.0.1:3333/canvas with https://linear.app, https://www.atlassian.com/software/jira/features, and https://github.com/features/issues. Tell me what Spawner should be inspired by.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        'Spawner should copy the control model, not the surface furniture.',
+        '1. Linear: copy the always-alive work inspector',
+        'Linear keeps issue state, activity, labels, priority, cycle, project, and agent work in one focused context.',
+        'Source: https://linear.app',
+        '2. Jira: copy the multi-view source of truth',
+        'Jira has boards, lists, timelines, calendars, goals, dependencies, and automations over the same work.',
+        'Source: https://www.atlassian.com/software/jira/features',
+        '3. GitHub Issues: copy proof-native timelines',
+        'GitHub keeps planning close to issues, PRs, commits, deploys, custom fields, and project views.',
+        'Source: https://github.com/features/issues',
+      ].join('\n'),
+      urls: ['https://linear.app', 'https://www.atlassian.com/software/jira/features', 'https://github.com/features/issues'],
+      number_of_steps: 8,
+      screenshot_paths: ['C:/spark/linear.png'],
+    });
+
+    assert.match(reply, /Inspired by/);
+    assert.match(reply, /Linear: be inspired by the always-alive work inspector/);
+    assert.match(reply, /Jira: be inspired by the multi-view source of truth/);
+    assert.match(reply, /GitHub Issues: be inspired by proof-native timelines/);
+    assert.doesNotMatch(reply, /\bcopy\b/i);
+    assert.doesNotMatch(reply, /Fix next/);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),
