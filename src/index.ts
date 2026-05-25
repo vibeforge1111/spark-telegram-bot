@@ -36,6 +36,7 @@ import {
   type BrowserCapabilityIntent,
   type BrowserUseProfileOptions
 } from './browserCapability';
+import { shouldSendBrowserTaskStartNotice } from './browserTaskProgress';
 import {
   getBuilderBridgeStatus,
   runBuilderAocPreflight,
@@ -2221,6 +2222,13 @@ function withCanonicalAliasNotice(ctx: any, replyText: string): string {
   return [`↪️ /${alias} maps to /${canonical}.`, '', replyText].join('\n');
 }
 
+async function replyWithBrowserTaskStartNotice(ctx: any, replyText: string): Promise<void> {
+  if (!(await shouldSendBrowserTaskStartNotice(ctx))) {
+    return;
+  }
+  await ctx.reply(withCanonicalAliasNotice(ctx, replyText));
+}
+
 async function handleAgentOperatingContextCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
@@ -2518,11 +2526,11 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         goal: browserUseQaGoal(scenario),
         profile: parsed.profile,
       };
-      await ctx.reply(withCanonicalAliasNotice(ctx, [
+      await replyWithBrowserTaskStartNotice(ctx, [
         'Browser-use QA started.',
         '',
         'I will send the result here when the browser run finishes.'
-      ].join('\n')));
+      ].join('\n'));
       const payload = await runBrowserUseTask(intent);
       if (shouldFallbackToBrowserUseReview(payload, intent)) {
         const reviewPayload = await runBrowserUseReview(intent);
@@ -2560,11 +2568,11 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         }
         return;
       }
-      await ctx.reply(withCanonicalAliasNotice(ctx, [
+      await replyWithBrowserTaskStartNotice(ctx, [
         'Browser-use full task started.',
         '',
         'I captured the request and will send the result here when the browser agent loop finishes.'
-      ].join('\n')));
+      ].join('\n'));
       const payload = await runBrowserUseTask(intent);
       if (shouldFallbackToBrowserUseReview(payload, intent)) {
         const reviewPayload = await runBrowserUseReview(intent);
@@ -5316,11 +5324,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     let actionPayload: Record<string, unknown> | null = null;
     if (browserCapabilityIntent.kind === 'task') {
       if (shouldRunFullBrowserUseTask(browserCapabilityIntent.goal || text)) {
-        await ctx.reply(withCanonicalAliasNotice(ctx, [
+        await replyWithBrowserTaskStartNotice(ctx, [
           'Browser-use full task started.',
           '',
           'I captured the request and will send the result here when the browser agent loop finishes.'
-        ].join('\n')));
+        ].join('\n'));
         actionPayload = await runBrowserUseTask(browserCapabilityIntent);
         if (shouldFallbackToBrowserUseReview(actionPayload, browserCapabilityIntent)) {
           const reviewPayload = await runBrowserUseReview(browserCapabilityIntent);
