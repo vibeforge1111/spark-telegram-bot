@@ -121,6 +121,14 @@ export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParse
   return { args, profile: compactBrowserUseProfile(profile) };
 }
 
+export function shouldRunFullBrowserUseTask(goal: string): boolean {
+  const normalized = goal.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return /\b(?:click|press|select|type|fill|submit|scroll|navigate|interact|walk through|step through|log in|login|sign in)\b/.test(normalized)
+    || /\bopen (?:details|trace|canvas|kanban|settings|skills|panel|inspector)\b/.test(normalized)
+    || /\b(?:like|as) an operator\b/.test(normalized);
+}
+
 export function browserUseProfileLabel(profile: BrowserUseProfileOptions | undefined): string {
   if (!profile) return '';
   return profile.profile || profile.profileDirectory || (profile.userDataDir ? 'custom user data dir' : '') || (profile.storageState ? 'storage state' : '') || (profile.cdpUrl ? 'running browser via CDP' : '');

@@ -28,6 +28,7 @@ import {
   renderBrowserUseActionAnswer,
   renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
+  shouldRunFullBrowserUseTask,
   type BrowserCapabilityIntent,
   type BrowserUseProfileOptions
 } from './browserCapability';
@@ -2388,7 +2389,7 @@ function renderBrowserUseHelp(): string {
     '\u2022 /browser task [--profile <name>] [url] <goal>',
     '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [--cdp-url <url>] [url] <goal>',
     '',
-    'Task is fast by default: it reviews fresh screenshot/state evidence. Use full for the multi-step browser agent loop.'
+    'Task is fast for passive reviews. Interactive goals such as click, fill, scroll, open trace, or operator walkthrough use the full browser agent loop.'
   ].join('\n');
 }
 
@@ -2410,8 +2411,9 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       return;
     }
     if (action === 'task') {
-      const fullTask = /^(?:full|agent|loop)$/i.test(rest[0] || '');
-      const taskText = (fullTask ? rest.slice(1) : rest).join(' ').trim();
+      const explicitFullTask = /^(?:full|agent|loop)$/i.test(rest[0] || '');
+      const taskText = (explicitFullTask ? rest.slice(1) : rest).join(' ').trim();
+      const fullTask = explicitFullTask || shouldRunFullBrowserUseTask(taskText);
       const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
       const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
       const goal = url && taskText.startsWith(url)

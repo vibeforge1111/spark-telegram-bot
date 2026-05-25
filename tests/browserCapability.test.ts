@@ -5,7 +5,8 @@ import {
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
   renderBrowserUseReviewAnswer,
-  renderBrowserUseTaskAnswer
+  renderBrowserUseTaskAnswer,
+  shouldRunFullBrowserUseTask
 } from '../src/browserCapability';
 
 async function test(name: string, fn: () => void | Promise<void>): Promise<void> {
@@ -78,6 +79,21 @@ async function main(): Promise<void> {
       userDataDir: 'C:/Users/USER/AppData/Chrome/User Data',
       cdpUrl: 'http://127.0.0.1:9222',
     });
+  });
+
+  await test('promotes interactive browser task goals to the full agent loop', () => {
+    assert.equal(
+      shouldRunFullBrowserUseTask('http://127.0.0.1:3333/canvas inspect the Canvas workspace like an operator: click Inspect if needed'),
+      true
+    );
+    assert.equal(
+      shouldRunFullBrowserUseTask('http://127.0.0.1:3333/kanban review the visible board and give 3 improvements'),
+      false
+    );
+    assert.equal(
+      shouldRunFullBrowserUseTask('http://127.0.0.1:3333/trace open trace and explain the failure'),
+      true
+    );
   });
 
   await test('renders capability answers without generic route-probe cards', () => {
