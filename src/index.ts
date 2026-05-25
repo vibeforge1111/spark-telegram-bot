@@ -367,14 +367,23 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
     };
   }
   const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
-  const raw = await runSparkCliReceipt(['browser-use', command, intent.url, '--json'], 120_000);
-  const parsed = parseSparkCliJsonObject(raw);
-  return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
-    ok: false,
-    status: 'failed',
-    action: command,
-    last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
-  };
+  try {
+    const raw = await runSparkCliReceipt(['browser-use', command, intent.url, '--json'], 120_000);
+    const parsed = parseSparkCliJsonObject(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+      ok: false,
+      status: 'failed',
+      action: command,
+      last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 'failed',
+      action: command,
+      last_failure_reason: browserUseFailureReason(error),
+    };
+  }
 }
 
 async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
@@ -393,16 +402,26 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
     args.push('--url', intent.url);
   }
   args.push(goal);
-  const raw = await runSparkCliReceipt(args, 360_000);
-  const parsed = parseSparkCliJsonObject(raw);
-  const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
-    ok: false,
-    status: 'failed',
-    action: 'task',
-    last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
-  };
-  console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
-  return payload;
+  try {
+    const raw = await runSparkCliReceipt(args, 360_000);
+    const parsed = parseSparkCliJsonObject(raw);
+    const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+      ok: false,
+      status: 'failed',
+      action: 'task',
+      last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
+    };
+    console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
+    return payload;
+  } catch (error) {
+    console.log('[BrowserUse] task done ok=false status=failed');
+    return {
+      ok: false,
+      status: 'failed',
+      action: 'task',
+      last_failure_reason: browserUseFailureReason(error),
+    };
+  }
 }
 
 async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
@@ -457,6 +476,26 @@ function parseSparkCliJsonObject(raw: string): unknown {
     }
     throw new Error('Spark CLI browser-use JSON receipt was incomplete.');
   }
+}
+
+function browserUseFailureReason(error: unknown): string {
+  const detail = redactText(error instanceof Error ? error.message : String(error || 'unknown error'))
+    .replace(/\s+/g, ' ')
+    .trim();
+  const normalized = detail.toLowerCase();
+  if (/timed out|timeout/.test(normalized)) {
+    return 'Browser-use did not finish before Telegram timed out. Use /browser task for the fast screenshot/state review, or /browser task full only for longer agent loops.';
+  }
+  if (/invalid model output|validation error|json_invalid|agentoutput|pydantic/.test(normalized)) {
+    return 'The full browser-use agent model returned an invalid action format. The fast /browser task path still works from fresh screenshot/state evidence.';
+  }
+  if (/spawn einval/.test(normalized)) {
+    return 'The Telegram runtime could not start the browser-use command on this machine.';
+  }
+  if (/invalid choice.*browser-use|browser-use.*invalid choice/.test(normalized)) {
+    return 'This Telegram runtime is using a Spark CLI that does not expose browser-use yet.';
+  }
+  return 'Browser-use failed before returning a valid receipt.';
 }
 
 type TelegramSourceUsedEvidence = {
