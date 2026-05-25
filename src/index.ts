@@ -265,6 +265,8 @@ import { extractStartSession, recordTelegramFirstMessage } from './onboardingBri
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
+const SPARK_CLI_COMMAND = process.env.SPARK_CLI_COMMAND
+  || (process.platform === 'win32' ? path.join(os.homedir(), '.spark', 'bin', 'spark.cmd') : 'spark');
 
 installConsoleRedaction();
 
@@ -297,7 +299,7 @@ function renderTelegramError(prefix: string, error: unknown): string {
 
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
   const { stdout, stderr } = await execFileAsync(
-    'spark',
+    SPARK_CLI_COMMAND,
     args,
     withHiddenWindows({
       timeout: timeoutMs,
