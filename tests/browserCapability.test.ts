@@ -136,14 +136,15 @@ async function main(): Promise<void> {
       url: 'http://127.0.0.1:3333',
       final_url: 'http://127.0.0.1:3333/',
       title: 'Spawner - Visual Orchestration for AI Skill Chains',
-      text_excerpt: 'Canvas Kanban Trace Skills Settings LIVE MISSION running 1/5 done',
+      text_excerpt: 'Canvas Kanban Trace Skills Settings LIVE MISSION running 1/5 done Pick how you want to work Open canvas Open kanban',
       state_excerpt: 'clickable Canvas Kanban Trace Skills Settings',
       screenshot_path: 'C:/spark/shot.png',
     });
 
     assert.match(reply, /Browser-use reviewed the live page/);
+    assert.match(reply, /landing\/demo page/);
     assert.match(reply, /3 UX improvements/);
-    assert.match(reply, /current mission status/);
+    assert.match(reply, /actual Canvas or Kanban workspace/);
     assert.match(reply, /screenshot capture/);
     assert.doesNotMatch(reply, /task loop/);
   });

@@ -220,14 +220,19 @@ export function renderBrowserUseReviewAnswer(
     ].join('\n');
   }
 
-  const improvements = browserReviewImprovements(`${title}\n${text}\n${state}`);
+  const evidence = `${title}\n${text}\n${state}`;
+  const pageRead = browserReviewPageRead(evidence);
+  const improvements = browserReviewImprovements(evidence);
   const lines = [
-    'Browser-use reviewed the live page from fresh screenshot/state evidence.',
+    'Browser-use reviewed the live page.',
     '',
     'Page',
   ];
   if (title) lines.push(`${bullet} ${title}`);
   if (url) lines.push(`${bullet} ${url}`);
+  if (pageRead) {
+    lines.push('', 'Read', `${bullet} ${pageRead}`);
+  }
   lines.push(
     '',
     '3 UX improvements',
@@ -283,13 +288,23 @@ function arrayOfStrings(value: unknown): string[] {
 function browserReviewImprovements(evidence: string): string[] {
   const normalized = evidence.toLowerCase();
   const improvements: string[] = [];
+  const wideViewport = browserReviewViewportWidth(normalized) >= 2400;
+  const landingPage = /\b(?:watch your agent actually ship|pick how you want to work|open canvas|open kanban|see it work)\b/.test(normalized);
 
   if (/\b(?:failed|error|paused|empty|0 missions?|no tasks?)\b/.test(normalized)) {
     improvements.push('Put the recovery action beside the failed, paused, or empty state so the operator can resume or inspect the issue without hunting.');
   }
 
+  if (landingPage) {
+    improvements.push('Route Mission Control reviews to the actual Canvas or Kanban workspace. This root page reads like a demo/landing screen, so it can blur product inspection with marketing content.');
+  }
+
+  if (wideViewport) {
+    improvements.push('Use the wide desktop space for operational context. The core mission content should gain a right-side evidence, trace, or next-action rail instead of sitting alone in the center.');
+  }
+
   if (/\b(?:running|queued|progress|elapsed|done|mission)\b/.test(normalized)) {
-    improvements.push('Make the current mission status and next action the strongest first-screen signal, with progress, owner, and expected next step grouped together.');
+    improvements.push('Put the next action inside the running task row: owner, latest event, expected finish, and an artifact or trace link.');
   }
 
   if (/\b(?:canvas|kanban|trace|skills|settings)\b/.test(normalized)) {
@@ -303,4 +318,25 @@ function browserReviewImprovements(evidence: string): string[] {
   improvements.push('Reduce repeated decorative copy on operational screens and spend that space on live evidence, recent events, and the next useful command.');
 
   return [...new Set(improvements)].slice(0, 3);
+}
+
+function browserReviewPageRead(evidence: string): string {
+  const normalized = evidence.toLowerCase();
+  const landingPage = /\b(?:watch your agent actually ship|pick how you want to work|open canvas|open kanban|see it work)\b/.test(normalized);
+  const width = browserReviewViewportWidth(normalized);
+  if (landingPage && width >= 2400) {
+    return 'This appears to be the Spawner landing/demo page on a very wide desktop viewport, not the actual Canvas or Kanban workspace.';
+  }
+  if (landingPage) {
+    return 'This appears to be the Spawner landing/demo page, not the actual Canvas or Kanban workspace.';
+  }
+  if (width >= 2400) {
+    return 'This is a very wide desktop viewport, so unused horizontal space matters for the review.';
+  }
+  return '';
+}
+
+function browserReviewViewportWidth(evidence: string): number {
+  const match = evidence.match(/viewport:\s*(\d+)x\d+/i);
+  return match ? Number.parseInt(match[1] || '0', 10) : 0;
 }
