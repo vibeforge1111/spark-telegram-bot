@@ -12,6 +12,7 @@ export type BrowserUseProfileOptions = {
   userDataDir?: string;
   profileDirectory?: string;
   storageState?: string;
+  cdpUrl?: string;
 };
 
 export type BrowserUseCommandParseResult = {
@@ -107,6 +108,14 @@ export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParse
       profile.storageState = readValue(token.slice('--storage-state='.length));
       continue;
     }
+    if (token === '--cdp-url') {
+      profile.cdpUrl = readValue('');
+      continue;
+    }
+    if (token.startsWith('--cdp-url=')) {
+      profile.cdpUrl = readValue(token.slice('--cdp-url='.length));
+      continue;
+    }
     args.push(token);
   }
   return { args, profile: compactBrowserUseProfile(profile) };
@@ -114,7 +123,7 @@ export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParse
 
 export function browserUseProfileLabel(profile: BrowserUseProfileOptions | undefined): string {
   if (!profile) return '';
-  return profile.profile || profile.profileDirectory || (profile.userDataDir ? 'custom user data dir' : '') || (profile.storageState ? 'storage state' : '');
+  return profile.profile || profile.profileDirectory || (profile.userDataDir ? 'custom user data dir' : '') || (profile.storageState ? 'storage state' : '') || (profile.cdpUrl ? 'running browser via CDP' : '');
 }
 
 export function renderBrowserCapabilityAnswer(
@@ -374,8 +383,12 @@ function browserUsePayloadProfileLabel(
 ): string {
   const payloadProfile = String(payload.profile || '').trim();
   const payloadProfileDirectory = String(payload.profile_directory || '').trim();
+  const payloadCdpUrl = String(payload.cdp_url || '').trim();
   if (payload.profile_requested === true && (payloadProfile || payloadProfileDirectory)) {
     return payloadProfile || payloadProfileDirectory;
+  }
+  if (payload.profile_requested === true && payloadCdpUrl) {
+    return 'running browser via CDP';
   }
   return browserUseProfileLabel(fallback);
 }

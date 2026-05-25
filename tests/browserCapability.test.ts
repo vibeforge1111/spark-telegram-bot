@@ -70,12 +70,13 @@ async function main(): Promise<void> {
   });
 
   await test('parses browser-use profile flags from Telegram commands', () => {
-    const parsed = parseBrowserUseCommandArgs('task full --profile Default --user-data-dir "C:/Users/USER/AppData/Chrome/User Data" http://127.0.0.1:3333 review the dashboard');
+    const parsed = parseBrowserUseCommandArgs('task full --profile Default --user-data-dir "C:/Users/USER/AppData/Chrome/User Data" --cdp-url http://127.0.0.1:9222 http://127.0.0.1:3333 review the dashboard');
 
     assert.deepEqual(parsed.args, ['task', 'full', 'http://127.0.0.1:3333', 'review', 'the', 'dashboard']);
     assert.deepEqual(parsed.profile, {
       profile: 'Default',
       userDataDir: 'C:/Users/USER/AppData/Chrome/User Data',
+      cdpUrl: 'http://127.0.0.1:9222',
     });
   });
 

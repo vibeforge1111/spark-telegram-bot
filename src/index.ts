@@ -456,6 +456,7 @@ function browserUseProfileCliArgs(profile: BrowserUseProfileOptions | undefined,
   if (!profile) return [];
   const args: string[] = [];
   if (profile.profile) args.push('--profile', profile.profile);
+  if (profile.cdpUrl) args.push('--cdp-url', profile.cdpUrl);
   if (scope === 'task') {
     if (profile.userDataDir) args.push('--user-data-dir', profile.userDataDir);
     if (profile.profileDirectory) args.push('--profile-directory', profile.profileDirectory);
@@ -2385,7 +2386,7 @@ function renderBrowserUseHelp(): string {
     '\u2022 /browser open [--profile <name>] <url>',
     '\u2022 /browser screenshot [--profile <name>] <url>',
     '\u2022 /browser task [--profile <name>] [url] <goal>',
-    '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [url] <goal>',
+    '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [--cdp-url <url>] [url] <goal>',
     '',
     'Task is fast by default: it reviews fresh screenshot/state evidence. Use full for the multi-step browser agent loop.'
   ].join('\n');
