@@ -337,6 +337,18 @@ export function renderBrowserUseTaskAnswer(
 
   if (!ok) {
     if (browserTaskNeedsReferenceResearch(intent)) {
+      const blockedReason = browserReferenceResearchBlockedReason(finalResult, failure);
+      if (blockedReason) {
+        return [
+          'Browser-use reached the product page, but reference research was blocked.',
+          '',
+          'Why',
+          `${bullet} ${blockedReason}`,
+          '',
+          'Move',
+          `${bullet} Retry with direct product URLs to use for inspiration.`
+        ].join('\n');
+      }
       return [
         'Browser-use could not finish the reference research.',
         '',
@@ -374,6 +386,27 @@ export function renderBrowserUseTaskAnswer(
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
   return lines.join('\n');
+}
+
+function browserReferenceResearchBlockedReason(finalResult: string, failure: string): string {
+  const combined = cleanBrowserText(`${finalResult}\n${failure}`)
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!combined) return '';
+  const normalized = combined.toLowerCase();
+
+  if (/\b(?:captcha|recaptcha|bot[-\s]*verification|bot challenge|human challenge|verify you are human|not a robot)\b/.test(normalized)) {
+    if (/\bgoogle\b/.test(normalized) && /\bduckduckgo\b/.test(normalized)) {
+      return 'Google and DuckDuckGo asked for human verification, so the browser could not complete live web research.';
+    }
+    return 'The search page asked for human verification, so the browser could not complete live web research.';
+  }
+
+  if (/\b(?:search engines?|internet research|competitive research|reference research)\b.*\b(?:blocked|unable|could not)\b/.test(normalized)) {
+    return 'The browser could observe the product page, but the external research step was blocked.';
+  }
+
+  return '';
 }
 
 export function renderBrowserUseReviewAnswer(

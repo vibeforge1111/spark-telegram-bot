@@ -756,6 +756,26 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Fast browser read/);
   });
 
+  await test('reports blocked reference research from browser evidence', () => {
+    const intent = requireIntent('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what we should be inspired by.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'Invalid model output format. Please follow the correct schema.',
+      final_result: [
+        '## Internet Research Status: BLOCKED',
+        'I attempted to research 3 mission-control products using both Google Search and DuckDuckGo, but both search engines presented CAPTCHA/bot-verification challenges.',
+        'Please provide specific product URLs or retry in an environment where search is accessible.',
+      ].join('\n'),
+    });
+
+    assert.match(reply, /reference research was blocked/);
+    assert.match(reply, /Google and DuckDuckGo asked for human verification/);
+    assert.match(reply, /direct product URLs/);
+    assert.doesNotMatch(reply, /invalid action format/i);
+    assert.doesNotMatch(reply, /schema/i);
+  });
+
   await test('renders canvas-specific browser reviews', () => {
     const reply = renderBrowserUseReviewAnswer(
       {
