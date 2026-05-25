@@ -5,6 +5,7 @@ import {
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUsePrimitiveAnswer,
   renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
   shouldRunFullBrowserUseTask
@@ -182,6 +183,33 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Profile/);
     assert.doesNotMatch(reply, /running browser via CDP requested/);
     assert.doesNotMatch(reply, /public URL evidence only/);
+  });
+
+  await test('renders direct primitive browser receipts compactly', () => {
+    const reply = renderBrowserUsePrimitiveAnswer('click', {
+      ok: true,
+      action: 'click',
+      title: 'Kanban · spawner',
+      final_url: 'http://127.0.0.1:3333/kanban',
+      state_excerpt: 'MISSION BOARD\n20 missions · 0 running · 1 paused',
+    });
+
+    assert.match(reply, /Browser-use clicked\./);
+    assert.match(reply, /Kanban · spawner/);
+    assert.match(reply, /20 missions/);
+    assert.doesNotMatch(reply, /receipt_path/);
+  });
+
+  await test('renders direct primitive failures as a short why', () => {
+    const reply = renderBrowserUsePrimitiveAnswer('input', {
+      ok: false,
+      status: 'failed',
+      last_failure_reason: 'Command failed: browser-use input 3',
+    });
+
+    assert.match(reply, /Browser-use could not fill that field\./);
+    assert.match(reply, /Why/);
+    assert.doesNotMatch(reply, /Command failed:/);
   });
 
   await test('renders task receipts as a browser loop result', () => {

@@ -28,6 +28,7 @@ import {
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUsePrimitiveAnswer,
   renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
   shouldRunFullBrowserUseTask,
@@ -399,6 +400,41 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
   }
 }
 
+async function runBrowserUsePrimitive(
+  action: string,
+  primitiveArgs: string[],
+  profile: BrowserUseProfileOptions | undefined
+): Promise<Record<string, unknown>> {
+  if (browserUseProfileRequiresFullTask(profile)) {
+    return {
+      ok: false,
+      status: 'blocked',
+      action,
+      last_failure_reason: 'Direct browser actions support --profile and --cdp-url. Use /browser task full for custom user-data-dir, profile-directory, or storage-state.',
+    };
+  }
+  try {
+    const raw = await runSparkCliReceipt(
+      ['browser-use', action, ...browserUseProfileCliArgs(profile, 'action'), '--json', ...primitiveArgs],
+      120_000
+    );
+    const parsed = parseSparkCliJsonObject(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+      ok: false,
+      status: 'failed',
+      action,
+      last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 'failed',
+      action,
+      last_failure_reason: browserUseFailureReason(error),
+    };
+  }
+}
+
 async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
   const goal = String(intent.goal || '').trim() || (intent.url ? `Inspect ${intent.url} and summarize what matters.` : '');
   if (!goal) {
@@ -453,6 +489,17 @@ async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Rec
     goal: intent.goal,
     profile: intent.profile,
   });
+}
+
+function browserUseQaGoal(input: string): string {
+  const scenario = input.trim() || 'QA the primary visible workflow.';
+  return [
+    'QA this page like an operator using live browser evidence only.',
+    'Try the visible primary flow when it is safe.',
+    'Return exactly five short bullets under Fix next.',
+    'Each bullet should name the problem and the next useful fix.',
+    `Scenario: ${scenario}`,
+  ].join('\n');
 }
 
 async function replyWithBrowserUseTaskScreenshot(ctx: any, payload: Record<string, unknown>): Promise<void> {
@@ -2397,10 +2444,17 @@ function renderBrowserUseHelp(): string {
     'Use',
     '\u2022 /browser open [--profile <name>] <url>',
     '\u2022 /browser screenshot [--profile <name>] <url>',
+    '\u2022 /browser state',
+    '\u2022 /browser click <index>',
+    '\u2022 /browser type <text>',
+    '\u2022 /browser input <index> <text>',
+    '\u2022 /browser scroll [up|down] [--amount <px>]',
+    '\u2022 /browser back',
     '\u2022 /browser task [--profile <name>] [url] <goal>',
+    '\u2022 /browser qa [--cdp-url <url>] <url> <scenario>',
     '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [--cdp-url <url>] [url] <goal>',
     '',
-    'Task is fast for passive reviews. Interactive goals such as click, fill, scroll, open trace, or operator walkthrough use the full browser agent loop.'
+    'Use direct actions for hands-on browsing. Use task or qa when Spark should operate the page for you.'
   ].join('\n');
 }
 
@@ -2416,9 +2470,49 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
     }
     const parsed = parseBrowserUseCommandArgs(raw);
     const [first = '', ...rest] = parsed.args;
-    const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : first.toLowerCase() === 'task' ? 'task' : '';
+    const primitiveActions = new Set(['state', 'click', 'type', 'input', 'scroll', 'back', 'eval', 'close']);
+    const firstAction = first.toLowerCase();
+    const action = firstAction === 'screenshot'
+      ? 'screenshot'
+      : firstAction === 'open'
+        ? 'open'
+        : firstAction === 'task'
+          ? 'task'
+          : firstAction === 'qa'
+            ? 'qa'
+            : primitiveActions.has(firstAction)
+              ? firstAction
+              : '';
     if (!action) {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
+      return;
+    }
+    if (primitiveActions.has(action)) {
+      const payload = await runBrowserUsePrimitive(action, rest, parsed.profile);
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUsePrimitiveAnswer(action, payload, parsed.profile)));
+      return;
+    }
+    if (action === 'qa') {
+      const taskText = rest.join(' ').trim();
+      const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
+      const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
+      const scenario = url && taskText.startsWith(url)
+        ? taskText.slice(url.length).trim()
+        : taskText.replace(url, '').trim();
+      const intent: BrowserCapabilityIntent = {
+        kind: 'task',
+        ...(url ? { url } : {}),
+        goal: browserUseQaGoal(scenario),
+        profile: parsed.profile,
+      };
+      await ctx.reply(withCanonicalAliasNotice(ctx, [
+        'Browser-use QA started.',
+        '',
+        'I will send the result here when the browser run finishes.'
+      ].join('\n')));
+      const payload = await runBrowserUseTask(intent);
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
+      await replyWithBrowserUseTaskScreenshot(ctx, payload);
       return;
     }
     if (action === 'task') {

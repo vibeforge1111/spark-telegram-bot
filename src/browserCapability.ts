@@ -254,6 +254,46 @@ export function renderBrowserUseActionAnswer(
   return lines.join('\n');
 }
 
+export function renderBrowserUsePrimitiveAnswer(
+  action: string,
+  payload: Record<string, unknown>,
+  profile?: BrowserUseProfileOptions
+): string {
+  const verb = cleanBrowserText(String(action || payload.action || 'action').trim().toLowerCase());
+  const ok = payload.ok === true || String(payload.status || '') === 'ready';
+  const failure = String(payload.last_failure_reason || '').trim();
+  const url = cleanBrowserText(String(payload.final_url || '').trim());
+  const title = cleanBrowserText(String(payload.title || '').trim());
+  const state = boundedTelegramText(cleanBrowserText(String(payload.state_excerpt || payload.command_stdout || '').trim()), 900);
+  const profileLabel = browserUsePayloadProfileLabel(payload, profile);
+  const bullet = '\u2022';
+
+  if (!ok) {
+    return [
+      `Browser-use could not ${browserPrimitiveVerb(verb)}.`,
+      '',
+      'Why',
+      `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`
+    ].join('\n');
+  }
+
+  const lines = [
+    `Browser-use ${browserPrimitivePastTense(verb)}.`,
+  ];
+  if (title || url) {
+    lines.push('', 'Page');
+    if (title) lines.push(`${bullet} ${title}`);
+    if (url) lines.push(`${bullet} ${url}`);
+  }
+  if (state && verb !== 'close') {
+    lines.push('', 'State', state);
+  }
+  if (profileLabel === 'running browser via CDP') {
+    lines.push('', 'Profile', `${bullet} attached browser`);
+  }
+  return lines.join('\n');
+}
+
 export function renderBrowserUseTaskAnswer(
   intent: BrowserCapabilityIntent,
   payload: Record<string, unknown>
@@ -373,6 +413,34 @@ function browserIntent(kind: BrowserCapabilityIntentKind, url?: string, goal?: s
     ...(url ? { url } : {}),
     ...(goal ? { goal } : {}),
   };
+}
+
+function browserPrimitiveVerb(action: string): string {
+  const labels: Record<string, string> = {
+    state: 'read browser state',
+    click: 'click that target',
+    type: 'type that text',
+    input: 'fill that field',
+    scroll: 'scroll the page',
+    back: 'go back',
+    eval: 'run that page script',
+    close: 'close the browser session',
+  };
+  return labels[action] || 'run that browser action';
+}
+
+function browserPrimitivePastTense(action: string): string {
+  const labels: Record<string, string> = {
+    state: 'read the current state',
+    click: 'clicked',
+    type: 'typed',
+    input: 'filled the field',
+    scroll: 'scrolled',
+    back: 'went back',
+    eval: 'ran page JavaScript',
+    close: 'closed the session',
+  };
+  return labels[action] || 'ran the action';
 }
 
 function splitBrowserUseCommandText(text: string): string[] {
