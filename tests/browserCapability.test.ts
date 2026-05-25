@@ -463,6 +463,39 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /\b(?:into|the|a no)\.?$/m);
   });
 
+  await test('repairs clipped reference research parentheticals', () => {
+    const intent = requireIntent([
+      'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app, https://www.atlassian.com/software/jira/features, and https://github.com/features/issues.',
+      'Give 5 short Inspired by bullets.'
+    ].join(' '));
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. AI-Powered Skill Triage & Auto-Assignment - Inspired by Linears triage intelligence and Jiras AI-assisted assignment.',
+        '2. Multi-View Mission Dashboard (Board / Table / Timeline) - Inspired by GitHub Issues switchable table/board/roadmap views and Jiras board-list-timeline-calendar options.',
+        "3. Sub-Node Progress Tracking with Nested Skill Chains - Inspired by GitHub's sub-issues with progress indicators.",
+        '4. Keyboard-Driven Command Palette for Canvas Operations - Inspired by Linears speed-focused design and GitHubs full keyboard-shortcut coverage.',
+        "5. Mission Health Insights with Burn-Up & Bottleneck Detection - Inspired by GitHub's project insights (burn-up charts.",
+      ].join('\n'),
+      urls: [
+        'http://127.0.0.1:3333/canvas',
+        'https://linear.app/',
+        'https://www.atlassian.com/software/jira/features',
+        'https://github.com/features/issues',
+      ],
+      number_of_steps: 6,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /GitHub project insights and burn-up charts\./);
+    assert.doesNotMatch(reply, /project insights \(burn-up charts\./);
+    assert.doesNotMatch(reply, /Linears/);
+    assert.doesNotMatch(reply, /Jiras/);
+    assert.doesNotMatch(reply, /GitHubs/);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),

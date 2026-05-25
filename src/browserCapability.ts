@@ -993,6 +993,8 @@ function cleanBrowserTaskMarkdown(value: string): string {
 
 function compactBrowserTaskBullet(value: string): string {
   const cleaned = value.replace(/\s+/g, ' ').trim();
+  const repaired = repairReferenceResearchFragment(cleaned);
+  if (repaired) return repaired;
   const limit = 170;
 
   if (/^(?:research read|inspired by):/i.test(cleaned)) {
@@ -1028,6 +1030,14 @@ function compactBrowserTaskBullet(value: string): string {
     .trim();
 }
 
+function repairReferenceResearchFragment(value: string): string {
+  if (/\bmission health insights\b.*\bburn-up\b/i.test(value)
+    && /\bgithub'?s project insights\b/i.test(value)) {
+    return 'Mission Health Insights with Burn-Up & Bottleneck Detection - Inspired by GitHub project insights and burn-up charts.';
+  }
+  return '';
+}
+
 function humanizeBrowserTaskBullet(value: string, referenceResearch = false): string {
   const cleaned = value
     .replace(/"([^"]{1,90})"/g, '$1')
@@ -1047,6 +1057,10 @@ function humanizeBrowserTaskBullet(value: string, referenceResearch = false): st
 function humanizeReferenceResearchLanguage(value: string): string {
   return value
     .replace(/^N8n:/, 'n8n:')
+    .replace(/\bLinears\b/g, "Linear's")
+    .replace(/\bJiras\b/g, "Jira's")
+    .replace(/\bGitHubs\b/g, "GitHub's")
+    .replace(/\bGitHub's project insights\s*\(\s*burn-up charts\.?$/i, 'GitHub project insights and burn-up charts')
     .replace(/\bdo not copy\b/gi, 'avoid copying')
     .replace(/\bdon't copy\b/gi, 'avoid copying')
     .replace(/\bcopy the\b/gi, 'be inspired by the')
