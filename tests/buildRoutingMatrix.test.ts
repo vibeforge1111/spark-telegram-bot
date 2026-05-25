@@ -183,3 +183,19 @@ test('text handler checks latest-project iteration before generic build intent',
   assert.ok(projectIterationIndex > 0, 'expected latest-project iteration guard in text handler');
   assert.ok(genericBuildIndex > projectIterationIndex, 'latest-project iteration must beat broad parseBuildIntent matches');
 });
+
+test('browser research intent beats early build intent in text handler', () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  const browserIntentIndex = indexSource.indexOf('const earlyBrowserCapabilityIntent =');
+  const buildIntentIndex = indexSource.indexOf('const parsedEarlyBuildIntent =');
+  const browserRouteIndex = indexSource.indexOf('const browserCapabilityIntent = !earlyBuildIntent ? earlyBrowserCapabilityIntent : null;');
+
+  assert.ok(browserIntentIndex > 0, 'expected early browser intent guard in text handler');
+  assert.ok(buildIntentIndex > browserIntentIndex, 'browser intent must be parsed before early build intent');
+  assert.ok(browserRouteIndex > buildIntentIndex, 'browser route must reuse the early browser intent');
+  assert.match(
+    indexSource.slice(buildIntentIndex, buildIntentIndex + 220),
+    /&& !earlyBrowserCapabilityIntent/,
+    'early build intent must not hijack browser-use research prompts'
+  );
+});

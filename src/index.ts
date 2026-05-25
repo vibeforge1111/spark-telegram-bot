@@ -5186,7 +5186,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
-  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
+  const earlyBrowserCapabilityIntent = !globalAgentDoctrineRequest ? classifyBrowserCapabilityQuestion(text) : null;
+  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest && !earlyBrowserCapabilityIntent ? parseBuildIntent(text) : null;
   const earlyBuildIntent = parsedEarlyBuildIntent && deterministicRouteAllowed('spawner.build', text)
     ? parsedEarlyBuildIntent
     : null;
@@ -5307,7 +5308,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const browserCapabilityIntent = !earlyBuildIntent ? classifyBrowserCapabilityQuestion(text) : null;
+  const browserCapabilityIntent = !earlyBuildIntent ? earlyBrowserCapabilityIntent : null;
   if (browserCapabilityIntent) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');

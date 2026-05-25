@@ -88,6 +88,19 @@ async function main(): Promise<void> {
     assert.equal(browserTaskNeedsReferenceResearch(intent!), true);
   });
 
+  await test('classifies deep product operator browser research before build wording', () => {
+    const text = [
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app, https://www.atlassian.com/software/jira/features, and https://github.com/features/issues.',
+      'Act like a product operator improving Spawner Mission Control.',
+      'Use browser-use to inspect the live Spawner canvas and the reference products.',
+      'Tell me what Spawner already does better, what Spawner should be inspired by, the next 5 UI/product fixes we should build, and which fix should be first.'
+    ].join(' ');
+    const intent = classifyBrowserCapabilityQuestion(text);
+    assert.deepEqual(intent, { kind: 'task', url: 'http://127.0.0.1:3333/canvas', goal: text });
+    assert.equal(browserTaskNeedsReferenceResearch(intent!), true);
+    assert.equal(shouldRunFullBrowserUseTask(intent!.goal || ''), true);
+  });
+
   await test('does not force generic web wording into browser tasks', () => {
     assert.equal(
       classifyBrowserCapabilityQuestion('This web page is probably fine http://127.0.0.1:3333/canvas'),
