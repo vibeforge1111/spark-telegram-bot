@@ -18,6 +18,14 @@ import { withHiddenWindows } from './hiddenProcess';
 const execFileAsync = promisify(execFile);
 const CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200;
 
+function assertTelegramIntegerId(value: string | number, label: string): string {
+  const normalized = String(value).trim();
+  if (!/^-?\d{1,20}$/.test(normalized)) {
+    throw new Error(`${label} must be a numeric Telegram identifier, got: ${JSON.stringify(normalized)}`);
+  }
+  return normalized;
+}
+
 export { resolveBuilderRepoPath };
 
 function processOutputText(value: unknown): string {
@@ -1481,9 +1489,9 @@ export async function runBuilderSelfAwarenessStatus(
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${assertTelegramIntegerId(input.userId, 'userId')}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}:${assertTelegramIntegerId(input.userId, 'userId')}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -1537,9 +1545,9 @@ export async function runBuilderSelfImprovementPlan(
       '--home',
       config.builderHome,
       '--human-id',
-      `human:telegram:${String(input.userId).trim()}`,
+      `human:telegram:${assertTelegramIntegerId(input.userId, 'userId')}`,
       '--session-id',
-      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+      `session:telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}:${assertTelegramIntegerId(input.userId, 'userId')}`,
       '--channel-kind',
       'telegram',
       '--user-message',
@@ -1580,9 +1588,9 @@ export async function runBuilderAgentOperatingContext(
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${assertTelegramIntegerId(input.userId, 'userId')}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}:${assertTelegramIntegerId(input.userId, 'userId')}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -2332,10 +2340,10 @@ export async function runBuilderWikiAnswer(
     '--json',
   ];
   if (input.userId !== undefined && input.userId !== null) {
-    args.push('--human-id', `human:telegram:${String(input.userId).trim()}`);
+    args.push('--human-id', `human:telegram:${assertTelegramIntegerId(input.userId, 'userId')}`);
   }
   if (input.chatId !== undefined && input.chatId !== null && input.userId !== undefined && input.userId !== null) {
-    args.push('--session-id', `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`);
+    args.push('--session-id', `session:telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}:${assertTelegramIntegerId(input.userId, 'userId')}`);
   }
   if (input.chatId !== undefined || input.userId !== undefined) {
     args.push('--channel-kind', 'telegram');
@@ -2498,7 +2506,7 @@ export async function runBuilderConversationColdContext(
         '--query',
         currentMessage,
         '--subject',
-        `human:telegram:${String(input.userId).trim()}`,
+        `human:telegram:${assertTelegramIntegerId(input.userId, 'userId')}`,
         '--limit',
         '6',
         '--no-record-activity',
