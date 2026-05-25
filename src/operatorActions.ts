@@ -89,3 +89,33 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
       : 'No top-level folders found.'
   ].join('\n');
 }
+// TODO(spark-compete-qa): spark os compile question misrouted to Spawner URL - QA 2026-05-24
+// Bug: Bot returned Spawner UI URL and local path instead of explaining
+// what spark os compile does and what views it produces.
+//
+// Before:
+//   User: "What is spark os compile and what does it show me?"
+//   Bot: "Spawner UI / Mission Control is running here: http://127.0.0.1:3333
+//        The diagnostic notes are written under ~/.spark/diagnostics"
+//   (complete misroute — never explained spark os compile)
+//   (also exposed local path ~/.spark/diagnostics without redaction)
+//
+// After:
+//   User: "What is spark os compile and what does it show me?"
+//   Bot: "spark os compile --json reads your local Spark installation
+//        and produces 6 redacted views saved to ~/.spark/state/system-map:
+//        1. Capability view — what Spark can do across installed modules
+//        2. Authority view — access levels, sandbox lanes, guarded actions
+//        3. Trace view — trace health, missing refs, open high-severity events
+//        4. Memory view — memory movement counts and authority buckets
+//        5. Repo-board view — module registry state and release readiness
+//        6. Gaps view — missing evidence, blocked capability promotions
+//        Run it with: spark os compile --json
+//        It is read-only and never publishes private repo maps."
+//
+// Fix needed in operatorActions.ts:
+//   1. Detect spark os compile questions and route to correct explanation
+//   2. Never route os compile questions to Spawner UI or local paths
+//   3. Explain all 6 views: capability, authority, trace, memory, repo-board, gaps
+//   4. Redact local paths — use <spark-home> instead of ~/.spark/diagnostics
+//   5. Confirm command is read-only and never publishes private maps
