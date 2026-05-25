@@ -1481,13 +1481,13 @@ export async function runBuilderSelfAwarenessStatus(
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${String(input.userId).trim().replace(/[^\d-]/g, '')}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${String(input.chatId).trim().replace(/[^\d-]/g, '')}:${String(input.userId).trim().replace(/[^\d-]/g, '')}`,
     '--channel-kind',
     'telegram',
     '--user-message',
-    input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+    (input.currentMessage || 'Show Spark self-awareness status and improvement options.').slice(0, 4000).replace(/\0/g, ''),
   ];
   if (input.refreshWiki !== false) {
     args.push('--refresh-wiki');
