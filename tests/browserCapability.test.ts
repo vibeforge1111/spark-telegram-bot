@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   browserTaskNeedsReferenceResearch,
+  browserUseTaskGoalForIntent,
   classifyBrowserCapabilityQuestion,
   browserUseTaskScreenshotPath,
   parseBrowserUseCommandArgs,
@@ -326,6 +327,43 @@ async function main(): Promise<void> {
     assert.match(reply, /GitHub Issues: be inspired by proof-native timelines/);
     assert.doesNotMatch(reply, /\bcopy\b/i);
     assert.doesNotMatch(reply, /Fix next/);
+  });
+
+  await test('adds reference research guardrails to full browser task goals', () => {
+    const intent = requireIntent([
+      'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
+      'Compare http://127.0.0.1:3333/canvas with Linear, Jira, and GitHub Issues.',
+      'Give 5 short Inspired by bullets.'
+    ].join(' '));
+
+    const goal = browserUseTaskGoalForIntent(intent);
+
+    assert.match(goal, /Reference research rules:/);
+    assert.match(goal, /Inspect the live target product page and at least two reference product pages/);
+    assert.match(goal, /If reference pages could not be observed, say the reference research was incomplete/);
+  });
+
+  await test('rejects Spawner-only observations as incomplete reference research', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control. Compare http://127.0.0.1:3333/canvas with Linear, Jira, and GitHub Issues.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        'Tagline: Visual Orchestration for AI Skill Chains.',
+        'Scale: 656 total skills, 4 in pipeline, spanning 40+ categories.',
+        'Visual DAG editor using SVG-based nodes connected by input/output connectors.',
+        'Each node represents a task stage with an assigned skill set.',
+        'Nodes are tagged with specialized skills.'
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas'],
+      number_of_steps: 4,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /did not complete the reference research/);
+    assert.match(reply, /only returned Spawner page observations/);
+    assert.doesNotMatch(reply, /Inspired by/);
+    assert.doesNotMatch(reply, /Tagline: Visual Orchestration/);
   });
 
   await test('renders full task markdown as compact Telegram bullets', () => {

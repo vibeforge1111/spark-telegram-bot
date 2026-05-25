@@ -90,6 +90,23 @@ export function browserTaskNeedsReferenceResearch(intent: BrowserCapabilityInten
   return asksForReferenceResearch(String(intent.goal || '').toLowerCase().replace(/\s+/g, ' ').trim());
 }
 
+export function browserUseTaskGoalForIntent(intent: BrowserCapabilityIntent): string {
+  const baseGoal = String(intent.goal || '').trim() || (intent.url ? `Inspect ${intent.url} and summarize what matters.` : '');
+  if (!baseGoal || !browserTaskNeedsReferenceResearch({ ...intent, goal: baseGoal })) {
+    return baseGoal;
+  }
+
+  return [
+    baseGoal,
+    '',
+    'Reference research rules:',
+    '- Inspect the live target product page and at least two reference product pages before answering.',
+    '- Use direct reference URLs from the prompt when provided; if references are named without URLs, navigate to their official product pages when possible.',
+    '- Do not answer with only the target product traits. If reference pages could not be observed, say the reference research was incomplete.',
+    '- Return only inspiration for the target product: reference product, inspired pattern, and why it matters.'
+  ].join('\n');
+}
+
 export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParseResult {
   const tokens = splitBrowserUseCommandText(text);
   const args: string[] = [];
@@ -372,6 +389,17 @@ export function renderBrowserUseTaskAnswer(
   }
 
   const referenceResearch = browserTaskNeedsReferenceResearch(intent);
+  if (referenceResearch && browserReferenceResearchMissingExternalEvidence(intent, finalResult, urls)) {
+    return [
+      'Browser-use did not complete the reference research.',
+      '',
+      'Why',
+      `${bullet} It only returned Spawner page observations, not evidence from the reference products.`,
+      '',
+      'Move',
+      `${bullet} Retry with direct reference URLs, or ask for one product at a time.`
+    ].join('\n');
+  }
   const lines = [
     'Browser-use finished.',
     '',
@@ -388,6 +416,37 @@ export function renderBrowserUseTaskAnswer(
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
   return lines.join('\n');
+}
+
+function browserReferenceResearchMissingExternalEvidence(
+  intent: BrowserCapabilityIntent,
+  finalResult: string,
+  urls: string[]
+): boolean {
+  const externalUrls = urls.filter((url) => !isSameLocalBrowserTarget(url, intent.url || ''));
+  if (externalUrls.length > 0) {
+    return false;
+  }
+
+  const cleaned = cleanBrowserText(finalResult).toLowerCase();
+  if (/\b(?:source|reference|linear|jira|atlassian|github|issues|projects|asana|trello|clickup|notion)\b/.test(cleaned)) {
+    return false;
+  }
+
+  return /\b(?:spawner|visual orchestration|skill chains?|skills?|pipeline|dag|nodes?|connectors?)\b/.test(cleaned);
+}
+
+function isSameLocalBrowserTarget(url: string, targetUrl: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const target = targetUrl ? new URL(targetUrl) : null;
+    if (/^(?:127\.0\.0\.1|localhost)$/i.test(parsed.hostname)) {
+      return true;
+    }
+    return Boolean(target && parsed.hostname === target.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function browserReferenceResearchBlockedReason(finalResult: string, failure: string): string {

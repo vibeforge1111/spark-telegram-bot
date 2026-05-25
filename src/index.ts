@@ -25,6 +25,7 @@ import { renderChoiceContextAcknowledgement, renderConversationFrameContext, typ
 import {
   classifyBrowserCapabilityQuestion,
   browserTaskNeedsReferenceResearch,
+  browserUseTaskGoalForIntent,
   browserUseTaskScreenshotPath,
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
@@ -438,7 +439,7 @@ async function runBrowserUsePrimitive(
 }
 
 async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
-  const goal = String(intent.goal || '').trim() || (intent.url ? `Inspect ${intent.url} and summarize what matters.` : '');
+  const goal = browserUseTaskGoalForIntent(intent);
   if (!goal) {
     return {
       ok: false,
