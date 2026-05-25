@@ -363,6 +363,34 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Top nav links present/);
   });
 
+  await test('filters QA existence checks without checkmarks', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/kanban',
+        goal: 'QA this page like a useful operator.',
+      },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          'Title: Kanban · spawner - correct.',
+          'Pipeline selector shows Untitled Pipeline.',
+          'Search input with placeholder Search… present.',
+          'New mission button present.',
+          'Board/Scheduled toggle present.',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        number_of_steps: 2,
+        screenshot_paths: ['C:/spark/shot.png'],
+      }
+    );
+
+    assert.match(reply, /Inspect the paused active mission/);
+    assert.doesNotMatch(reply, /New mission button present/);
+    assert.doesNotMatch(reply, /Board\/Scheduled toggle present/);
+  });
+
   await test('normalizes clipped Kanban variants from browser-use output', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/kanban', profile: { cdpUrl: 'http://127.0.0.1:9222' } },

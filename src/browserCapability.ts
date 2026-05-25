@@ -604,6 +604,14 @@ function browserTaskUsefulLine(value: string): boolean {
   if (/\b(?:loads correctly|links present|footer present|shows untitled pipeline|file import capability|title:\s*kanban|present with copyright)\b/i.test(cleaned)) {
     return false;
   }
+  if (/^title:\s+.+?\s+-\s+correct\.?$/i.test(cleaned)) return false;
+  if (/\b(?:button|input|toggle|selector|nav links?|footer|placeholder)\b.*\b(?:present|correct)\.?$/i.test(cleaned)) {
+    return false;
+  }
+  if (/\b(?:pipeline selector|search input|new mission button|board\/scheduled toggle)\b/i.test(cleaned)
+    && /\b(?:present|shows|correct)\b/i.test(cleaned)) {
+    return false;
+  }
   return true;
 }
 
