@@ -388,6 +388,31 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /656 skills/);
   });
 
+  await test('turns reference product inventory into actionable inspiration', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. CrewAI (crewai.com) - Visual editor + AI copilot for agent crew building, workflow tracing, agent training, task guardrails, RBAC, serverless container deployment.',
+        '2. N8n (n8n.io) - Visual AI workflow automation canvas, 500+ integrations, multi-agent setups, RAG, MCP protocol support, human-in-the-loop approval nodes.',
+        '3. LangGraph (langchain-ai.github.io/langgraph) - Low-level orchestration framework & runtime for long-running stateful agents.',
+        '4. Inspired by CrewAIs AI Copilot + Visual Editor - Spawners canvas could add an inline AI copilot that auto-suggests skill-chain compositions and wires nodes based on.',
+        "5. Inspired by n8n's 500+ Integrations & MCP Support - Spawner already lists MCPs (0 MCPs visible) and 656 skills.",
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas'],
+      number_of_steps: 18,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /CrewAI: add an inline copilot that suggests skill-chain compositions\./);
+    assert.match(reply, /n8n: make MCP and integration nodes first-class workflow blocks\./i);
+    assert.match(reply, /LangGraph: add durable state and resume points for long-running agent missions\./);
+    assert.doesNotMatch(reply, /Visual editor \+ AI copilot/);
+    assert.doesNotMatch(reply, /based on/);
+    assert.match(reply, /Live browser run with Canvas and reference pages with screenshot evidence/);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),

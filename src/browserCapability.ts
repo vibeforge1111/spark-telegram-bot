@@ -411,6 +411,8 @@ export function renderBrowserUseTaskAnswer(
     screenshots: screenshots.length,
     urls: urls.length ? urls : intent.url ? [intent.url] : [],
     profileLabel,
+    referenceResearch,
+    finalResult,
   });
   if (evidence) {
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
@@ -670,6 +672,8 @@ function browserTaskEvidenceLine(input: {
   screenshots: number;
   urls: string[];
   profileLabel: string;
+  referenceResearch?: boolean;
+  finalResult?: string;
 }): string {
   const sessionLabel = input.profileLabel === 'running browser via CDP'
     ? 'attached-browser run'
@@ -677,6 +681,9 @@ function browserTaskEvidenceLine(input: {
       ? `${input.profileLabel} browser run`
       : 'browser run';
   let line = `Live ${sessionLabel}`;
+  if (input.referenceResearch && browserReferenceResearchHasReferenceSignal(input.finalResult || '', input.urls)) {
+    line += ' with Canvas and reference pages';
+  } else
   if (input.urls.length > 0) {
     line += ` on ${browserTaskUrlLabel(input.urls[0] || '')}`;
   }
@@ -684,6 +691,12 @@ function browserTaskEvidenceLine(input: {
     line += ' with screenshot evidence';
   }
   return line;
+}
+
+function browserReferenceResearchHasReferenceSignal(finalResult: string, urls: string[]): boolean {
+  return urls.some((url) => !isSameLocalBrowserTarget(url, ''))
+    || /\b(?:crewai|crew ai|n8n|langgraph|linear|jira|atlassian|github|github issues|github projects|asana|trello|clickup|notion)\b/i.test(finalResult)
+    || /https?:\/\/(?!127\.0\.0\.1|localhost)[^\s)>\]]+/i.test(finalResult);
 }
 
 function browserTaskUrlLabel(url: string): string {
@@ -719,11 +732,84 @@ function browserTaskResultLines(value: string, bullet: string, contextUrl = '', 
   const selected = listItems.length > 0
     ? listItems
     : candidates.filter((line) => browserTaskUsefulLine(line) && !/^(?:result|summary|overview)$/i.test(line));
-  const useful = expandReferenceResearchFindings(selected)
+  const expanded = expandReferenceResearchFindings(selected);
+  const prepared = referenceResearch ? referenceResearchActionLines(expanded) : expanded;
+  const useful = prepared
     .slice(0, 5)
     .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line), referenceResearch)}`);
   if (useful.length > 0) return useful;
   return browserTaskFallbackFixes(contextUrl, bullet);
+}
+
+function referenceResearchActionLines(lines: string[]): string[] {
+  const actions = lines
+    .map(referenceResearchActionLine)
+    .filter((line) => line && !referenceResearchLineIsClipped(line));
+  const usableOriginals = lines
+    .filter((line) => actions.length === 0 || /^Research read:/i.test(line))
+    .filter((line) => !referenceResearchLooksLikeInventory(line))
+    .filter((line) => !referenceResearchLineIsClipped(line));
+  return uniqueStrings([...actions, ...usableOriginals]);
+}
+
+function referenceResearchActionLine(value: string): string {
+  const cleaned = cleanBrowserText(value).trim();
+  if (!cleaned) return '';
+
+  const inspired = cleaned.match(/^Inspired by:?\s+(.+)$/i);
+  if (inspired) {
+    const idea = inspired[1].trim();
+    if (referenceResearchLineIsClipped(idea) || /\b(?:spawner already|0 MCPs?|656 skills?)\b/i.test(idea)) {
+      return '';
+    }
+    const mapped = referenceResearchActionLine(idea);
+    return mapped || `Inspired by: ${idea}`;
+  }
+
+  const product = cleaned.match(/^([A-Za-z][A-Za-z0-9 .-]{1,40})\s*(?:\([^)]*\))?\s+-\s+(.+)$/);
+  if (!product) return '';
+
+  const name = normalizeReferenceProductName(product[1]);
+  const details = product[2].toLowerCase();
+  if (/crewai|crew ai/i.test(name) && /\b(?:copilot|visual editor|crew building)\b/i.test(details)) {
+    return 'CrewAI: add an inline copilot that suggests skill-chain compositions.';
+  }
+  if (/^n8n$/i.test(name) && /\b(?:integrations?|mcp|workflow automation|approval)\b/i.test(details)) {
+    return 'n8n: make MCP and integration nodes first-class workflow blocks.';
+  }
+  if (/langgraph/i.test(name) && /\b(?:long-running|stateful|runtime|orchestration)\b/i.test(details)) {
+    return 'LangGraph: add durable state and resume points for long-running agent missions.';
+  }
+  if (/linear/i.test(name) && /\b(?:context|filtered|views?|inspector|project)\b/i.test(details)) {
+    return 'Linear: keep selected work in an always-alive mission inspector.';
+  }
+  if (/jira|atlassian/i.test(name) && /\b(?:views?|boards?|timeline|calendar|automation)\b/i.test(details)) {
+    return 'Jira: make Canvas, Board, and History feel like one mission object.';
+  }
+  if (/github/i.test(name) && /\b(?:issues?|pull requests?|prs?|commits?|deploys?|timeline)\b/i.test(details)) {
+    return 'GitHub Issues: keep proofs close to every mission state change.';
+  }
+  return '';
+}
+
+function normalizeReferenceProductName(value: string): string {
+  return value
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^N8n$/i, 'n8n')
+    .replace(/^CrewAI$/i, 'CrewAI');
+}
+
+function referenceResearchLooksLikeInventory(value: string): boolean {
+  const cleaned = cleanBrowserText(value).trim();
+  return /^[A-Za-z][A-Za-z0-9 .-]{1,40}\s*(?:\([^)]*\))?\s+-\s+/i.test(cleaned)
+    && !/\b(?:spawner\s+(?:should|could|can)|add|make|keep|turn|use|surface|bring|connect|show|give)\b/i.test(cleaned);
+}
+
+function referenceResearchLineIsClipped(value: string): boolean {
+  const cleaned = cleanBrowserText(value).replace(/\s+/g, ' ').trim();
+  return /\b(?:based on|because|with|for|to|and|or)\.?$/i.test(cleaned);
 }
 
 function expandReferenceResearchFindings(lines: string[]): string[] {
@@ -874,6 +960,7 @@ function humanizeBrowserTaskBullet(value: string, referenceResearch = false): st
 
 function humanizeReferenceResearchLanguage(value: string): string {
   return value
+    .replace(/^N8n:/, 'n8n:')
     .replace(/\bdo not copy\b/gi, 'avoid copying')
     .replace(/\bdon't copy\b/gi, 'avoid copying')
     .replace(/\bcopy the\b/gi, 'be inspired by the')
