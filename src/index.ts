@@ -735,6 +735,15 @@ function shouldAnswerAuthoritativeAccessCapability(text: string): boolean {
   );
 }
 
+function shouldAnswerBrowserCapabilityQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const asksNow = /\b(?:can|could|are|is|do|does)\b/.test(normalized) || /\bright\s+now\b|\bcurrently\b|\bdefinitely\b/.test(normalized);
+  const browserWords = /\b(?:browse|browser|browser-use|browser\s+use|web\s+page|webpages?|open\s+pages?|screenshots?)\b/.test(normalized);
+  const capabilityWords = /\b(?:can|able|capability|available|working|ready|proven|definitely)\b/.test(normalized);
+  return asksNow && browserWords && capabilityWords;
+}
+
 function shouldAnswerSparkRiskProfile(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return /\bspark\b/.test(normalized) && /\brisk\s+profile\b/.test(normalized);
@@ -1988,9 +1997,30 @@ function aocProbeSummaryLine(routeKey: string, payload: Record<string, unknown>)
   const status = String(payload.status || 'unknown').trim() || 'unknown';
   const latency = typeof payload.route_latency_ms === 'number' ? `, ${payload.route_latency_ms}ms` : '';
   const failure = String(payload.failure_reason || '').trim();
-  const summary = String(payload.probe_summary || failure || '').trim();
+  const summary = humanizeAocProbeSummary(routeKey, String(payload.probe_summary || failure || '').trim());
   const evidence = summary ? ` - ${summary.slice(0, 110)}` : '';
   return `• ${label}: ${status}${latency}${evidence}`;
+}
+
+function humanizeAocProbeSummary(routeKey: string, summary: string): string {
+  if (routeKey !== 'spark_browser') {
+    return summary;
+  }
+  const match = summary.match(/(?:^|\s)proofs=([a-z0-9_,.-]+)/i);
+  if (!match) {
+    return summary;
+  }
+  const labels: Record<string, string> = {
+    doctor: 'doctor',
+    public_page_open: 'public page',
+    screenshot_capture: 'screenshot',
+    state_read: 'state',
+  };
+  const proofs = match[1]
+    .split(',')
+    .map((item) => labels[item.trim()] || '')
+    .filter(Boolean);
+  return proofs.length ? `proved ${proofs.join(', ')}` : summary;
 }
 
 function aocProbeFailureSummary(error: unknown): string {
@@ -4747,6 +4777,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await ctx.reply(reply);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_access_capability_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && shouldAnswerBrowserCapabilityQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const result = await runBuilderRouteProbe('spark_browser');
+    await ctx.reply(withCanonicalAliasNotice(ctx, result.replyText));
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_capability_answer', runtimeTruthSourceEvidence(text));
+    await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     return;
   }
 

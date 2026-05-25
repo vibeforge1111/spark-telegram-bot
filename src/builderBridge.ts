@@ -1715,6 +1715,16 @@ export function formatRouteProbeReply(payload: Record<string, unknown>): string 
   const latency = typeof payload.route_latency_ms === 'number' ? payload.route_latency_ms : null;
   const failure = String(payload.failure_reason || '').trim();
   const summary = String(payload.probe_summary || '').trim();
+  if (route === 'spark_browser') {
+    return formatBrowserRouteProbeReply({
+      status,
+      eventId,
+      eventType,
+      latency,
+      failure,
+      summary,
+    });
+  }
   const lines = [
     'Route probe',
     `- Route: ${route}`,
@@ -1734,6 +1744,64 @@ export function formatRouteProbeReply(payload: Record<string, unknown>): string 
   }
   lines.push('', 'Run /aoc to see how this changed Agent Operating Context.');
   return lines.join('\n');
+}
+
+function formatBrowserRouteProbeReply(input: {
+  status: string;
+  eventId: string;
+  eventType: string;
+  latency: number | null;
+  failure: string;
+  summary: string;
+}): string {
+  const proofs = browserProofLabels(input.summary);
+  const lines = [
+    input.status === 'success'
+      ? 'Browser-use is ready for the checked browser actions.'
+      : 'Browser-use is not proven from this runner right now.',
+    '',
+    'Scope',
+  ];
+  if (proofs.length) {
+    lines.push(`- Proven: ${proofs.join(', ')}`);
+  } else if (input.status === 'success') {
+    lines.push('- Proven: browser route probe succeeded');
+  } else {
+    lines.push('- Proven: no passing browser-use receipt');
+  }
+  lines.push('- Not proven: logged-in pages, cookies/profile reuse, arbitrary sites, or sensitive click workflows');
+  if (input.failure) {
+    lines.push('', 'Why', `- ${input.failure}`);
+  }
+  const receipt: string[] = [];
+  if (input.latency !== null) {
+    receipt.push(`${input.latency}ms`);
+  }
+  if (input.eventId) {
+    receipt.push(`${input.eventId}${input.eventType ? ` (${input.eventType.replace(/_/g, ' ')})` : ''}`);
+  }
+  if (receipt.length) {
+    lines.push('', 'Receipt', `- ${receipt.join(' | ')}`);
+  }
+  lines.push('', 'Run /aoc to see how this changed Agent Operating Context.');
+  return lines.join('\n');
+}
+
+function browserProofLabels(summary: string): string[] {
+  const match = summary.match(/(?:^|\s)proofs=([a-z0-9_,.-]+)/i);
+  if (!match) {
+    return [];
+  }
+  const labels: Record<string, string> = {
+    doctor: 'doctor check',
+    public_page_open: 'public page open',
+    screenshot_capture: 'screenshot capture',
+    state_read: 'page state read',
+  };
+  return match[1]
+    .split(',')
+    .map((item) => labels[item.trim()] || '')
+    .filter(Boolean);
 }
 
 export function formatRouteConfidenceGateReply(payload: unknown): string {

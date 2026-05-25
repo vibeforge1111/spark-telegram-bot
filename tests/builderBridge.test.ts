@@ -96,6 +96,24 @@ test('formats route probe replies with evidence boundary', () => {
   assert.match(reply, /Run \/aoc/);
 });
 
+test('formats browser route probe replies as human proof-bound scope', () => {
+  const reply = formatRouteProbeReply({
+    event_id: 'evt-browser',
+    capability_key: 'spark_browser',
+    status: 'success',
+    event_type: 'tool_result_received',
+    route_latency_ms: 8553,
+    probe_summary: 'browser-use adapter status=ready package_available=True cli_available=True proofs=doctor,public_page_open,screenshot_capture,state_read',
+  });
+
+  assert.match(reply, /Browser-use is ready for the checked browser actions\./);
+  assert.match(reply, /Proven: doctor check, public page open, screenshot capture, page state read/);
+  assert.match(reply, /Not proven: logged-in pages, cookies\/profile reuse, arbitrary sites, or sensitive click workflows/);
+  assert.match(reply, /Receipt/);
+  assert.doesNotMatch(reply, /proofs=/);
+  assert.doesNotMatch(reply, /status_path=/);
+});
+
 test('formats route confidence gate live provider evidence without raw refs', () => {
   const reply = formatRouteConfidenceGateReply({
     schema_version: 'spark.route_confidence_gate.v1',
