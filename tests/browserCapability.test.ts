@@ -266,6 +266,25 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Visited/);
   });
 
+  await test('frames reference research results as inspiration', () => {
+    const intent = requireIntent('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what we should be inspired by.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: 'Codex: Research read: Linear is strong at saved filtered views and right-side context. GitHub Projects is strong at table, board, roadmap, custom fields, and insights charts. Copy/adapt 3 things: 1. Saved filtered views for common operator states. 2. Right-side context panel for selected work. 3. Insights charts for mission health.',
+      urls: ['https://linear.app', 'https://github.com/features/issues'],
+      number_of_steps: 8,
+      screenshot_paths: ['C:/spark/linear.png'],
+    });
+
+    assert.match(reply, /Research read: Linear is strong/);
+    assert.match(reply, /Inspired by: Saved filtered views/);
+    assert.match(reply, /Inspired by: Right-side context panel/);
+    assert.match(reply, /Inspired by: Insights charts/);
+    assert.doesNotMatch(reply, /Codex:/);
+    assert.doesNotMatch(reply, /Copy\/adapt/);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),

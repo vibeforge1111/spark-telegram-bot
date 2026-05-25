@@ -624,11 +624,33 @@ function browserTaskResultLines(value: string, bullet: string, contextUrl = ''):
   const selected = listItems.length > 0
     ? listItems
     : candidates.filter((line) => browserTaskUsefulLine(line) && !/^(?:result|summary|overview)$/i.test(line));
-  const useful = selected
+  const useful = expandReferenceResearchFindings(selected)
     .slice(0, 5)
     .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line))}`);
   if (useful.length > 0) return useful;
   return browserTaskFallbackFixes(contextUrl, bullet);
+}
+
+function expandReferenceResearchFindings(lines: string[]): string[] {
+  return lines.flatMap((line) => {
+    const normalized = cleanBrowserText(line).replace(/^codex:\s*/i, '').trim();
+    if (!/\bcopy\/adapt\b/i.test(normalized)) return [line];
+
+    const before = normalized.slice(0, normalized.search(/\bcopy\/adapt\b/i)).trim();
+    const after = normalized
+      .replace(/^.*?\bcopy\/adapt\s+\d*\s*things?:?\s*/i, '')
+      .trim();
+    const pieces = after
+      ? after.split(/\s+(?=\d+[.)]\s+)/).map((piece) => piece.replace(/^\d+[.)]\s*/, '').trim()).filter(Boolean)
+      : [];
+    const researchRead = before
+      .replace(/^research read:?\s*/i, '')
+      .trim();
+    return [
+      ...(researchRead ? [`Research read: ${researchRead}`] : []),
+      ...pieces.map((piece) => `Inspired by: ${piece}`),
+    ];
+  });
 }
 
 function browserTaskUsefulLine(value: string): boolean {
@@ -706,6 +728,10 @@ function compactBrowserTaskBullet(value: string): string {
   const cleaned = value.replace(/\s+/g, ' ').trim();
   const limit = 170;
 
+  if (/^(?:research read|inspired by):/i.test(cleaned)) {
+    return cleaned.length <= limit ? cleaned : cleaned.slice(0, limit).replace(/\s+\S*$/, '').trim();
+  }
+
   const issueBreak = cleaned.indexOf(' - ');
   if (issueBreak >= 24) {
     return cleaned.slice(0, issueBreak).trim();
@@ -739,6 +765,7 @@ function humanizeBrowserTaskBullet(value: string): string {
   const cleaned = value
     .replace(/"([^"]{1,90})"/g, '$1')
     .replace(/'([^']{1,90})'/g, '$1')
+    .replace(/\bCopy\/adapt\b/gi, 'Inspired by')
     .replace(/\bReply with Exactly:\s*PING_OK\b/gi, 'ping smoke test')
     .replace(/\bACTIVE\b/g, 'active')
     .replace(/\bPAUSED\b/g, 'paused')
@@ -866,6 +893,10 @@ function actionizeBrowserTaskBullet(value: string): string {
     return 'Remove duplicate footer navigation from the workspace view.';
   }
 
+  if (/^(?:research read|inspired by):/i.test(value)) {
+    return polishLabeledBrowserTaskBullet(value);
+  }
+
   return polishBrowserTaskBullet(value);
 }
 
@@ -887,6 +918,15 @@ function polishBrowserTaskBullet(value: string): string {
   const compact = issueBreak >= 10 ? cleaned.slice(0, issueBreak).trim() : cleaned;
   const capitalized = compact[0].toUpperCase() + compact.slice(1);
   return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
+
+function polishLabeledBrowserTaskBullet(value: string): string {
+  const cleaned = value
+    .replace(/\[\d+\]/g, '')
+    .replace(/\bdont\b/gi, "don't")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {
