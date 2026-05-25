@@ -194,8 +194,9 @@ async function main(): Promise<void> {
     });
 
     assert.match(reply, /Fix next/);
-    assert.match(reply, /Orphan Pause Mission stuck in active as paused/);
-    assert.match(reply, /Cancel Me is cancelled/);
+    assert.match(reply, /Resume or cancel Orphan Pause Mission\./);
+    assert.match(reply, /Resolve Publishing Machine Maze Game; failure and progress disagree\./);
+    assert.match(reply, /Clear completion proof from Cancel Me\./);
     assert.doesNotMatch(reply, /##/);
     assert.doesNotMatch(reply, /\[truncated\]/);
     assert.match(reply, /Live attached-browser run on Kanban with screenshot evidence/);
@@ -215,7 +216,7 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /Two complete missions still flagged needs completion proof/);
+    assert.match(reply, /Clear completion-proof flags from completed missions\./);
     assert.doesNotMatch(reply, /\[truncated\]/);
     assert.ok(reply.split('\n').every((line) => line.length < 190));
   });
@@ -233,10 +234,39 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /Orphan Pause Mission is stuck in active but its status is paused/);
-    assert.match(reply, /Three completed missions still show needs completion proof/);
+    assert.match(reply, /Resume or cancel Orphan Pause Mission\./);
+    assert.match(reply, /Clear completion-proof flags from completed missions\./);
     assert.doesNotMatch(reply, /\bIt\s*$/m);
     assert.doesNotMatch(reply, /Smoke"\s*$/m);
+  });
+
+  await test('turns Kanban full-task findings into punchy operator actions', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban', profile: { cdpUrl: 'http://127.0.0.1:9222' } },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. Orphan Pause Mission is stranded in ACTIVE - It sits in the Active column but is in Paused state with no clear owner or next step; resume or cancel it.',
+          '2. Publishing Machine Maze Game has contradictory status - Marked Needs review and says Mission failed yet all 4/4 build tasks show 100% complete',
+          '3. Three completed missions still need completion proof - Reply with Exactly: PING_OK, Spark Mission Surface Smoke',
+          '4. Cancelled Cancel Me mission still demands completion proof - A user-cancelled mission should not require proof; clear the flag or finalize its closure.',
+          '5. Zero running missions and an empty TO DO column - With 0 running and nothing queued, the board has no forward momentum',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        screenshot_paths: ['C:/spark/shot.png'],
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /Resume or cancel Orphan Pause Mission\./);
+    assert.match(reply, /Resolve Publishing Machine Maze Game; failure and progress disagree\./);
+    assert.match(reply, /Clear completion-proof flags from completed missions\./);
+    assert.match(reply, /Clear completion proof from Cancel Me\./);
+    assert.match(reply, /Queue or start the next mission\./);
+    assert.doesNotMatch(reply, /It sits in the Active column/);
+    assert.doesNotMatch(reply, /Spark Mission Surface Smoke/);
   });
 
   await test('renders issue section instead of observed nodes for full task markdown', () => {

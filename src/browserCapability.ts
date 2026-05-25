@@ -515,12 +515,13 @@ function cleanBrowserTaskMarkdown(value: string): string {
 function compactBrowserTaskBullet(value: string): string {
   const cleaned = value.replace(/\s+/g, ' ').trim();
   const limit = 170;
-  if (cleaned.length <= limit) return cleaned;
 
   const issueBreak = cleaned.indexOf(' - ');
-  if (issueBreak >= 55) {
+  if (issueBreak >= 24) {
     return cleaned.slice(0, issueBreak).trim();
   }
+
+  if (cleaned.length <= limit) return cleaned;
 
   const sentenceBoundary = cleaned.slice(0, limit + 1).search(/[.!?](?=\s|$)(?!.*[.!?](?=\s|$))/);
   if (sentenceBoundary >= 80) {
@@ -545,7 +546,7 @@ function compactBrowserTaskBullet(value: string): string {
 }
 
 function humanizeBrowserTaskBullet(value: string): string {
-  return value
+  const cleaned = value
     .replace(/"([^"]{1,90})"/g, '$1')
     .replace(/\bReply with Exactly:\s*PING_OK\b/gi, 'ping smoke test')
     .replace(/\bACTIVE\b/g, 'active')
@@ -555,6 +556,30 @@ function humanizeBrowserTaskBullet(value: string): string {
     .replace(/\bNEEDS REVIEW\b/g, 'needs review')
     .replace(/\bNeeds completion proof\b/g, 'needs completion proof')
     .trim();
+  return actionizeBrowserTaskBullet(cleaned);
+}
+
+function actionizeBrowserTaskBullet(value: string): string {
+  let match = value.match(/^(.+?)\s+(?:is\s+)?(?:stuck|stranded)\s+in\s+active(?:\s+as\s+paused|.*\bpaused\b)?/i);
+  if (match) return `Resume or cancel ${match[1].trim()}.`;
+
+  match = value.match(/^(.+?)\s+(?:has contradictory status|marked needs review after failure|is marked needs review.*failed)/i);
+  if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
+
+  match = value.match(/^(?:cancelled\s+)?(.+?)(?:\s+mission)?\s+(?:is\s+cancelled\s+but\s+still\s+shows\s+needs completion proof|still\s+demands\s+(?:needs\s+)?completion proof)/i);
+  if (match) return `Clear completion proof from ${match[1].trim()}.`;
+
+  if (/\bcompleted missions\b.*\bneed(?:s)? completion proof\b/i.test(value)
+    || /\bcompleted missions\b.*\bstill show\b.*\bneeds completion proof\b/i.test(value)
+    || /\bcomplete missions\b.*\bflagged\b.*\bneeds completion proof\b/i.test(value)) {
+    return 'Clear completion-proof flags from completed missions.';
+  }
+
+  if (/\bzero running missions\b/i.test(value) || /\b0 running\b.*\bempty to do\b/i.test(value)) {
+    return 'Queue or start the next mission.';
+  }
+
+  return value;
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {
