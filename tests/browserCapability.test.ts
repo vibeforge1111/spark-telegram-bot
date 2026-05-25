@@ -148,6 +148,52 @@ async function main(): Promise<void> {
     assert.match(reply, /screenshot capture/);
     assert.doesNotMatch(reply, /task loop/);
   });
+
+  await test('renders canvas-specific browser reviews', () => {
+    const reply = renderBrowserUseReviewAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/canvas',
+        goal: 'review Canvas',
+      },
+      {
+        ok: true,
+        action: 'screenshot',
+        final_url: 'http://127.0.0.1:3333/canvas',
+        title: 'Spawner - Visual Orchestration for AI Skill Chains',
+        text_excerpt: 'Publishing Machine Maze Game WORKFLOW FAILED Claude exited with code 1 Canvas',
+        state_excerpt: 'viewport: 3834x2160 node graph execution pane failed mission',
+      }
+    );
+
+    assert.match(reply, /Canvas workspace/);
+    assert.match(reply, /execution panel over the node graph/);
+    assert.match(reply, /right-side inspector/);
+    assert.match(reply, /failure banner/);
+  });
+
+  await test('renders kanban-specific browser reviews', () => {
+    const reply = renderBrowserUseReviewAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/kanban',
+        goal: 'review Kanban',
+      },
+      {
+        ok: true,
+        action: 'screenshot',
+        final_url: 'http://127.0.0.1:3333/kanban',
+        title: 'Kanban · spawner',
+        text_excerpt: '20 missions 0 running 1 paused To Do Active History Orphan Pause Mission paused Publishing Machine Maze Game needs attention',
+        state_excerpt: 'viewport: 3834x2160 kanban columns cards',
+      }
+    );
+
+    assert.match(reply, /Kanban workspace: 20 missions, 0 running, 1 paused/);
+    assert.match(reply, /board use more of the desktop width/);
+    assert.match(reply, /paused or failed mission card/);
+    assert.match(reply, /History stronger scan controls/);
+  });
 }
 
 main().catch((error) => {

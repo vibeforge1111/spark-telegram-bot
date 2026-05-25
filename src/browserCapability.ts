@@ -221,8 +221,8 @@ export function renderBrowserUseReviewAnswer(
   }
 
   const evidence = `${title}\n${text}\n${state}`;
-  const pageRead = browserReviewPageRead(evidence);
-  const improvements = browserReviewImprovements(evidence);
+  const pageRead = browserReviewPageRead(evidence, url);
+  const improvements = browserReviewImprovements(evidence, url);
   const lines = [
     'Browser-use reviewed the live page.',
     '',
@@ -285,11 +285,36 @@ function arrayOfStrings(value: unknown): string[] {
     : [];
 }
 
-function browserReviewImprovements(evidence: string): string[] {
+function browserReviewImprovements(evidence: string, url = ''): string[] {
   const normalized = evidence.toLowerCase();
+  const workspace = browserReviewWorkspace(normalized, url);
   const improvements: string[] = [];
   const wideViewport = browserReviewViewportWidth(normalized) >= 2400;
   const landingPage = /\b(?:watch your agent actually ship|pick how you want to work|open canvas|open kanban|see it work)\b/.test(normalized);
+  const failed = /\b(?:failed|error|needs attention|mission failed|workflow failed)\b/.test(normalized);
+  const paused = /\bpaused\b/.test(normalized);
+
+  if (workspace === 'canvas') {
+    if (wideViewport) {
+      improvements.push('Dock the execution panel as a right-side inspector instead of letting it cover the node graph; the wide canvas has enough room for both.');
+    }
+    if (failed) {
+      improvements.push('Put the recovery controls directly in the failure banner: rerun failed step, open logs, inspect trace, and copy the error.');
+    }
+    improvements.push('Add compact proof badges to each node and edge: latest status, last event, and the artifact or trace that proves what happened.');
+    return improvements.slice(0, 3);
+  }
+
+  if (workspace === 'kanban') {
+    if (wideViewport) {
+      improvements.push('Let the board use more of the desktop width or add a mission detail rail; the columns are squeezed into the center while the sides are empty.');
+    }
+    if (paused || failed) {
+      improvements.push('Make the paused or failed mission card actionable in place with resume, diagnose, rerun, and open-canvas controls.');
+    }
+    improvements.push('Give History stronger scan controls: filter by failed/paused/completed, sort by recency, and keep the latest failure reason visible on each card.');
+    return improvements.slice(0, 3);
+  }
 
   if (/\b(?:failed|error|paused|empty|0 missions?|no tasks?)\b/.test(normalized)) {
     improvements.push('Put the recovery action beside the failed, paused, or empty state so the operator can resume or inspect the issue without hunting.');
@@ -320,10 +345,28 @@ function browserReviewImprovements(evidence: string): string[] {
   return [...new Set(improvements)].slice(0, 3);
 }
 
-function browserReviewPageRead(evidence: string): string {
+function browserReviewPageRead(evidence: string, url = ''): string {
   const normalized = evidence.toLowerCase();
+  const workspace = browserReviewWorkspace(normalized, url);
   const landingPage = /\b(?:watch your agent actually ship|pick how you want to work|open canvas|open kanban|see it work)\b/.test(normalized);
   const width = browserReviewViewportWidth(normalized);
+  const missionCounts = normalized.match(/(\d+)\s+missions?\D+(\d+)\s+running\D+(\d+)\s+paused/);
+  if (workspace === 'canvas') {
+    if (/\b(?:failed|workflow failed|mission failed|needs attention)\b/.test(normalized)) {
+      return 'This is the Canvas workspace with a failed execution panel over the node graph.';
+    }
+    return width >= 2400
+      ? 'This is the Canvas workspace on a very wide viewport, with the graph and inspector competing for attention.'
+      : 'This is the Canvas workspace, so graph layout, node status, and execution details matter most.';
+  }
+  if (workspace === 'kanban') {
+    if (missionCounts) {
+      return `This is the Kanban workspace: ${missionCounts[1]} missions, ${missionCounts[2]} running, ${missionCounts[3]} paused.`;
+    }
+    return width >= 2400
+      ? 'This is the Kanban workspace on a very wide viewport, but the board is still visually narrow.'
+      : 'This is the Kanban workspace, so status scanning and card actions matter most.';
+  }
   if (landingPage && width >= 2400) {
     return 'This appears to be the Spawner landing/demo page on a very wide desktop viewport, not the actual Canvas or Kanban workspace.';
   }
@@ -339,4 +382,21 @@ function browserReviewPageRead(evidence: string): string {
 function browserReviewViewportWidth(evidence: string): number {
   const match = evidence.match(/viewport:\s*(\d+)x\d+/i);
   return match ? Number.parseInt(match[1] || '0', 10) : 0;
+}
+
+function browserReviewWorkspace(evidence: string, url = ''): 'canvas' | 'kanban' | 'root' | 'unknown' {
+  const lowerUrl = url.toLowerCase();
+  if (/^https?:\/\/[^/]+\/?(?:[?#].*)?$/.test(lowerUrl)) {
+    return 'root';
+  }
+  if (/\/canvas(?:[/?#]|$)/.test(lowerUrl) || /\b(?:execution pane|node graph|workflow failed|pipeline canvas)\b/.test(evidence)) {
+    return 'canvas';
+  }
+  if (/\/kanban(?:[/?#]|$)/.test(lowerUrl) || /\b(?:to do|active|history|20 missions|kanban workspace)\b/.test(evidence)) {
+    return 'kanban';
+  }
+  if (/\/$/.test(lowerUrl) || /\b(?:watch your agent actually ship|pick how you want to work)\b/.test(evidence)) {
+    return 'root';
+  }
+  return 'unknown';
 }
