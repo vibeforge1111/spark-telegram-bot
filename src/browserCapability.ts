@@ -85,6 +85,10 @@ function asksForReferenceResearch(normalized: string): boolean {
     || /\b(?:copy|adapt|learn from)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
 }
 
+export function browserTaskNeedsReferenceResearch(intent: BrowserCapabilityIntent): boolean {
+  return asksForReferenceResearch(String(intent.goal || '').toLowerCase().replace(/\s+/g, ' ').trim());
+}
+
 export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParseResult {
   const tokens = splitBrowserUseCommandText(text);
   const args: string[] = [];
@@ -332,6 +336,17 @@ export function renderBrowserUseTaskAnswer(
   const bullet = '\u2022';
 
   if (!ok) {
+    if (browserTaskNeedsReferenceResearch(intent)) {
+      return [
+        'Browser-use could not finish the reference research.',
+        '',
+        'Why',
+        `${bullet} ${humanBrowserFailure(failure || 'No passing browser-use result came back.')}`,
+        '',
+        'Move',
+        `${bullet} Retry with fewer references or name the products to compare.`
+      ].join('\n');
+    }
     return [
       'Browser-use could not finish that run.',
       '',

@@ -24,6 +24,7 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   classifyBrowserCapabilityQuestion,
+  browserTaskNeedsReferenceResearch,
   browserUseTaskScreenshotPath,
   parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
@@ -518,6 +519,7 @@ function browserUseReceiptScreenshotPath(payload: Record<string, unknown>): stri
 
 function shouldFallbackToBrowserUseReview(payload: Record<string, unknown>, intent: BrowserCapabilityIntent): boolean {
   if (payload.ok === true || !intent.url) return false;
+  if (browserTaskNeedsReferenceResearch(intent)) return false;
   const reason = String(payload.last_failure_reason || '').toLowerCase();
   return /invalid action format|invalid model output|json_invalid|agentoutput|pydantic|timed out|timeout|fast \/browser task path/.test(reason);
 }
