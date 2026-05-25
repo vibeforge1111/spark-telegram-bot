@@ -21,6 +21,15 @@ function isExpectedLevel5SmokePath(filePath: string): boolean {
   return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
 }
 
+function isCurrentUserDesktop(folderPath: string): boolean {
+  const normalized = path.win32.normalize(folderPath).toLowerCase();
+  const userProfile = process.env.USERPROFILE?.toLowerCase();
+  if (!userProfile) return false;
+  
+  const expectedDesktop = path.win32.join(userProfile, 'desktop').toLowerCase();
+  return normalized === expectedDesktop;
+}
+
 export function parseSafeOperatorAction(text: string): SafeOperatorAction | null {
   const normalized = normalizeMessage(text);
   const windowsPath = extractWindowsPath(text);
@@ -38,7 +47,7 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
   if (
     windowsPath &&
-    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' &&
+    isCurrentUserDesktop(windowsPath) &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
