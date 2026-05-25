@@ -72,6 +72,14 @@ async function main(): Promise<void> {
     );
   });
 
+  await test('classifies natural product UI fix requests as browser tasks', () => {
+    const text = "Check this product's UI and let me know the fixes http://127.0.0.1:3333/kanban";
+    assert.deepEqual(
+      classifyBrowserCapabilityQuestion(text),
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban', goal: text }
+    );
+  });
+
   await test('parses browser-use profile flags from Telegram commands', () => {
     const parsed = parseBrowserUseCommandArgs('task full --profile Default --user-data-dir "C:/Users/USER/AppData/Chrome/User Data" --cdp-url http://127.0.0.1:9222 http://127.0.0.1:3333 review the dashboard');
 
@@ -418,6 +426,35 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /3 columns/);
     assert.doesNotMatch(reply, /Header stats/);
     assert.doesNotMatch(reply, /New mission button/);
+  });
+
+  await test('filters bulleted QA board inventory summaries', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/kanban',
+        goal: 'QA this page like a useful operator.',
+      },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '• Title: Kanban · spawner - correct.',
+          '• Sidebar navigation present: Canvas, Kanban, Trace, Skills, Settings, GitHub - all linked.',
+          '• Summary header: 20 missions · 0 running · 1 paused on initial load.',
+          '• Untitled Pipeline button in header; file upload input present inside shadow DOM.',
+          '• Needs review filter: TO DO=0, active=0, HISTORY shows 5 entries (latest 4 visible).',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        number_of_steps: 2,
+        screenshot_paths: ['C:/spark/shot.png'],
+      }
+    );
+
+    assert.match(reply, /Inspect the paused active mission/);
+    assert.doesNotMatch(reply, /Title: Kanban/);
+    assert.doesNotMatch(reply, /Sidebar navigation/);
+    assert.doesNotMatch(reply, /Summary header/);
   });
 
   await test('normalizes clipped Kanban variants from browser-use output', () => {

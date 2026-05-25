@@ -33,8 +33,11 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
   }
 
   const taskRequest = Boolean(url)
-    && /\b(?:browser-use|browser\s+use|browser|browse)\b/.test(normalized)
-    && /\b(?:review|qa|test|check|audit|evaluate|compare|gather feedback|walk through|improve)\b/.test(normalized);
+    && (
+      /\b(?:browser-use|browser\s+use|browser|browse)\b/.test(normalized)
+      || /\b(?:ui|ux|product|page|site|app|screen|interface)\b/.test(normalized)
+    )
+    && /\b(?:review|qa|test|check|audit|evaluate|compare|gather feedback|walk through|improve|fixes?|feedback)\b/.test(normalized);
   if (taskRequest) {
     return browserIntent('task', url, text.trim());
   }
@@ -46,7 +49,8 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
   }
 
   const specificOpen = Boolean(url)
-    && /\b(?:open|visit|browse|inspect|read|look at|tell me what you see|see)\b/.test(normalized);
+    && /\b(?:open|visit|browse|inspect|read|look at|tell me what you see|see)\b/.test(normalized)
+    && !/\b(?:ui|ux|product|page|site|app|screen|interface)\b.*\b(?:fixes?|feedback|improve|review|check|audit)\b/.test(normalized);
   if (specificOpen) {
     return browserIntent('specific_open', url);
   }
@@ -578,8 +582,8 @@ function browserTaskResultLines(value: string, bullet: string, contextUrl = ''):
   const fixHeadingIndex = lines.findIndex((line) => /\b(?:issues?\s+to\s+fix|fixes?|recommendations?|improvements?|what\s+to\s+fix)\b/i.test(line));
   const candidates = fixHeadingIndex >= 0 ? lines.slice(fixHeadingIndex + 1) : lines;
   const listItems = candidates
-    .filter((line) => /^(?:\d+[.)]|[-*â€¢])\s+/.test(line))
-    .map((line) => line.replace(/^(?:\d+[.)]|[-*â€¢])\s+/, '').trim())
+    .filter((line) => /^(?:\d+[.)]|[-*\u2022â€¢])\s+/.test(line))
+    .map((line) => stripBrowserTaskListMarker(line))
     .filter((line) => browserTaskUsefulLine(line));
 
   const selected = listItems.length > 0
@@ -593,7 +597,7 @@ function browserTaskResultLines(value: string, bullet: string, contextUrl = ''):
 }
 
 function browserTaskUsefulLine(value: string): boolean {
-  const cleaned = cleanBrowserText(value)
+  const cleaned = stripBrowserTaskListMarker(value)
     .replace(/^[✅✓✔]\s*/, '')
     .trim();
   if (!cleaned) return false;
@@ -617,15 +621,21 @@ function browserTaskUsefulLine(value: string): boolean {
     && /\b(?:present|shows|correct)\b/i.test(cleaned)) {
     return false;
   }
-  if (/^(?:3 columns?|header stats?|filters?|search|actions?):\s+/i.test(cleaned)) {
+  if (/^(?:3 columns?|header stats?|summary header|filters?|search|actions?|sidebar navigation|untitled pipeline|needs review filter):\s+/i.test(cleaned)) {
     return false;
   }
-  if (/\b(?:columns?|header stats?|filters?|search|actions?)\b/i.test(cleaned)
+  if (/\b(?:columns?|header stats?|summary header|filters?|search|actions?|sidebar navigation|untitled pipeline|needs review filter|file upload input)\b/i.test(cleaned)
     && /\b(?:present|shown|tested|active|button|toggle|placeholder|\d+\s+missions?|\d+\s+running|\d+\s+paused)\b/i.test(cleaned)
     && !/\b(?:fix|clear|resolve|resume|cancel|rerun|review|inspect|blocked|failed|stale|contradict|missing|wrong|confusing)\b/i.test(cleaned)) {
     return false;
   }
   return true;
+}
+
+function stripBrowserTaskListMarker(value: string): string {
+  return cleanBrowserText(value)
+    .replace(/^(?:\d+[.)]|[-*\u2022â€¢])\s+/, '')
+    .trim();
 }
 
 function browserTaskFallbackFixes(contextUrl: string, bullet: string): string[] {
