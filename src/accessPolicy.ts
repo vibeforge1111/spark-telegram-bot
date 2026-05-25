@@ -513,3 +513,32 @@ export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile =
     'Change it anytime with `/access 1` through `/access 5`.'
   ].join('\n');
 }
+// TODO(spark-compete-qa): Level 5 access listed with no safety warning - QA 2026-05-24
+// Bug: Bot lists /access 5 (whole-computer operator mode) as casually as
+// /access 1 (chat only) with no warning, no read-only check offer, and
+// no explicit approval requirement.
+//
+// Before:
+//   User: "Can you explain what access level 5 means and when I should use it?"
+//   Bot: "5 - Whole-computer operator mode
+//        Change it with /access 1 through /access 5."
+//   (no warning, no read-only check, no approval requirement)
+//
+// After:
+//   User: "Can you explain what access level 5 means and when I should use it?"
+//   Bot: "Level 5 is whole-computer operator mode. This gives Spark access
+//        to your entire machine, not just the Spark workspace.
+//        WARNING: Only use Level 5 when you explicitly need whole-computer
+//        access. Most tasks work fine at Level 4.
+//        Before enabling Level 5:
+//        1. Run spark access guide --level 5 to see what changes
+//        2. Run spark access setup --level 5 --enable-high-agency to enable
+//        3. To disable: spark access disable-level5 then restart Spark
+//        Start with a read-only check: spark access status --level 5"
+//
+// Fix needed in accessPolicy.ts:
+//   1. Add explicit WARNING label when Level 5 is mentioned
+//   2. Offer read-only check first: spark access status --level 5
+//   3. Require explicit approval command before enabling
+//   4. Show rollback path: spark access disable-level5
+//   5. Never list /access 5 without safety context
