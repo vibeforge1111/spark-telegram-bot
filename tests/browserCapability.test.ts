@@ -142,8 +142,10 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /running browser via CDP requested/);
+    assert.match(reply, /attached browser/);
     assert.match(reply, /attached browser evidence/);
+    assert.doesNotMatch(reply, /Profile/);
+    assert.doesNotMatch(reply, /running browser via CDP requested/);
     assert.doesNotMatch(reply, /public URL evidence only/);
   });
 
@@ -295,6 +297,32 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /With 20 total missions/);
   });
 
+  await test('normalizes quoted Kanban findings from full browser output', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban', profile: { cdpUrl: 'http://127.0.0.1:9222' } },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          "1. 'Orphan Pause Mission' is stuck paused with nothing running. Board shows 0 running missions.",
+          "2. 'Publishing Machine Maze Game' says 'Mission failed' yet shows 4/4 tasks at 100% and sits in 'Needs Review'.",
+          "3. 'Cancel Me' is cancelled but still says 'needs completion proof'. A user-cancelled mission shouldn't require completion proof",
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        screenshot_paths: ['C:/spark/shot.png'],
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /Resume or cancel Orphan Pause Mission\./);
+    assert.match(reply, /Resolve Publishing Machine Maze Game; failure and progress disagree\./);
+    assert.match(reply, /Clear completion proof from Cancel Me\./);
+    assert.doesNotMatch(reply, /Board shows 0 running/);
+    assert.doesNotMatch(reply, /A user-cancelled mission/);
+    assert.doesNotMatch(reply, /'/);
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },
@@ -401,7 +429,9 @@ async function main(): Promise<void> {
     assert.match(reply, /1\. Add compact proof badges/);
     assert.match(reply, /2\. Keep node details/);
     assert.match(reply, /3\. Make blocked or removed nodes/);
-    assert.match(reply, /running browser via CDP requested/);
+    assert.match(reply, /attached browser/);
+    assert.doesNotMatch(reply, /Profile/);
+    assert.doesNotMatch(reply, /running browser via CDP requested/);
   });
 
   await test('renders kanban-specific browser reviews', () => {

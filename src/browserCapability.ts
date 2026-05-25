@@ -228,8 +228,8 @@ export function renderBrowserUseActionAnswer(
   if (action === 'screenshot') {
     lines.push('', 'Screenshot', `${bullet} captured from the live browser-use session`);
   }
-  if (profileLabel) {
-    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  if (profileLabel === 'running browser via CDP') {
+    lines.push(`${bullet} attached browser`);
   }
   lines.push('', 'Boundary', `${bullet} ${browserEvidenceBoundary(url, profileLabel)}`);
   return lines.join('\n');
@@ -322,8 +322,8 @@ export function renderBrowserUseReviewAnswer(
     `${bullet} screenshot capture`,
     `${bullet} visible text and page state from this run`
   );
-  if (profileLabel) {
-    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  if (profileLabel === 'running browser via CDP') {
+    lines.push(`${bullet} attached browser`);
   }
   return lines.join('\n');
 }
@@ -548,6 +548,7 @@ function compactBrowserTaskBullet(value: string): string {
 function humanizeBrowserTaskBullet(value: string): string {
   const cleaned = value
     .replace(/"([^"]{1,90})"/g, '$1')
+    .replace(/'([^']{1,90})'/g, '$1')
     .replace(/\bReply with Exactly:\s*PING_OK\b/gi, 'ping smoke test')
     .replace(/\bACTIVE\b/g, 'active')
     .replace(/\bPAUSED\b/g, 'paused')
@@ -560,7 +561,16 @@ function humanizeBrowserTaskBullet(value: string): string {
 }
 
 function actionizeBrowserTaskBullet(value: string): string {
-  let match = value.match(/^(.+?)\s+(?:is\s+)?(?:stuck|stranded)\s+in\s+active(?:\s+as\s+paused|.*\bpaused\b)?/i);
+  let match = value.match(/^(.+?)\s+is\s+stuck\s+paused\b/i);
+  if (match) return `Resume or cancel ${match[1].trim()}.`;
+
+  match = value.match(/^(.+?)\s+says\s+mission failed\s+yet\s+shows\b/i);
+  if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
+
+  match = value.match(/^(.+?)\s+is\s+cancelled\s+but\s+still\s+says\s+needs completion proof\b/i);
+  if (match) return `Clear completion proof from ${match[1].trim()}.`;
+
+  match = value.match(/^(.+?)\s+(?:is\s+)?(?:stuck|stranded)\s+in\s+active(?:\s+as\s+paused|.*\bpaused\b)?/i);
   if (match) return `Resume or cancel ${match[1].trim()}.`;
 
   match = value.match(/^(.+?)\s+(?:has contradictory status|marked needs review after failure|is marked needs review.*failed)/i);
