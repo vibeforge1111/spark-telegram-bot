@@ -201,6 +201,23 @@ async function main(): Promise<void> {
     assert.match(reply, /running browser via CDP requested/);
   });
 
+  await test('clips long full task bullets without truncation markers', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban' },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. Two COMPLETE missions still flagged "Needs completion proof" - Both "Reply with Exactly: PING_OK" and "Spark Mission Surface Smoke" are marked Complete yet still request completion proof, indicating a cleanup issue that should be resolved before operators trust the board.',
+        ].join('\n'),
+      }
+    );
+
+    assert.match(reply, /Two COMPLETE missions still flagged/);
+    assert.doesNotMatch(reply, /\[truncated\]/);
+    assert.ok(reply.split('\n').every((line) => line.length < 190));
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },

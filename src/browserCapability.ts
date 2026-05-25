@@ -465,7 +465,7 @@ function browserTaskResultLines(value: string, bullet: string): string[] {
     : candidates.filter((line) => !/^(?:result|summary|overview)$/i.test(line));
   return selected
     .slice(0, 5)
-    .map((line) => `${bullet} ${boundedTelegramText(line.replace(/\s+/g, ' '), 220)}`);
+    .map((line) => `${bullet} ${compactBrowserTaskBullet(line)}`);
 }
 
 function cleanBrowserTaskMarkdown(value: string): string {
@@ -475,6 +475,29 @@ function cleanBrowserTaskMarkdown(value: string): string {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\r/g, '')
     .trim();
+}
+
+function compactBrowserTaskBullet(value: string): string {
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  const limit = 170;
+  if (cleaned.length <= limit) return cleaned;
+
+  const sentenceBoundary = cleaned.slice(0, limit + 1).search(/[.!?](?=\s|$)(?!.*[.!?](?=\s|$))/);
+  if (sentenceBoundary >= 80) {
+    return cleaned.slice(0, sentenceBoundary + 1).trim();
+  }
+
+  const preferredBreak = Math.max(
+    cleaned.lastIndexOf(' - ', limit),
+    cleaned.lastIndexOf('; ', limit),
+    cleaned.lastIndexOf(', ', limit)
+  );
+  if (preferredBreak >= 80) {
+    return cleaned.slice(0, preferredBreak).trim();
+  }
+
+  const wordBreak = cleaned.lastIndexOf(' ', limit);
+  return cleaned.slice(0, wordBreak >= 80 ? wordBreak : limit).trim();
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {
