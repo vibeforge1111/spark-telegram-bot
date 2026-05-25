@@ -126,9 +126,9 @@ export function renderBrowserUseActionAnswer(
 ): string {
   const action = String(payload.action || intent.kind.replace('specific_', '') || 'open').trim();
   const ok = payload.ok === true || String(payload.status || '') === 'ready';
-  const url = String(payload.final_url || payload.url || intent.url || '').trim();
-  const title = String(payload.title || '').trim();
-  const text = boundedTelegramText(String(payload.text_excerpt || '').trim(), 700);
+  const url = cleanBrowserText(String(payload.final_url || payload.url || intent.url || '').trim());
+  const title = cleanBrowserText(String(payload.title || '').trim());
+  const text = boundedTelegramText(cleanBrowserText(String(payload.text_excerpt || '').trim()), 700);
   const failure = String(payload.last_failure_reason || '').trim();
   const bullet = '\u2022';
 
@@ -164,7 +164,7 @@ export function renderBrowserUseTaskAnswer(
 ): string {
   const ok = payload.ok === true || String(payload.status || '') === 'ready';
   const failure = String(payload.last_failure_reason || '').trim();
-  const finalResult = boundedTelegramText(String(payload.final_result || '').trim(), 900);
+  const finalResult = boundedTelegramText(cleanBrowserText(String(payload.final_result || '').trim()), 900);
   const urls = arrayOfStrings(payload.urls).slice(0, 4);
   const steps = Number(payload.number_of_steps || 0);
   const screenshots = arrayOfStrings(payload.screenshot_paths);
@@ -205,10 +205,10 @@ export function renderBrowserUseReviewAnswer(
 ): string {
   const ok = payload.ok === true || String(payload.status || '') === 'ready';
   const failure = String(payload.last_failure_reason || '').trim();
-  const url = String(payload.final_url || payload.url || intent.url || '').trim();
-  const title = String(payload.title || '').trim();
-  const text = String(payload.text_excerpt || '').trim();
-  const state = String(payload.state_excerpt || '').trim();
+  const url = cleanBrowserText(String(payload.final_url || payload.url || intent.url || '').trim());
+  const title = cleanBrowserText(String(payload.title || '').trim());
+  const text = cleanBrowserText(String(payload.text_excerpt || '').trim());
+  const state = cleanBrowserText(String(payload.state_excerpt || '').trim());
   const bullet = '\u2022';
 
   if (!ok) {
@@ -277,6 +277,19 @@ function boundedTelegramText(value: string, limit: number): string {
   const compact = value.replace(/\n{3,}/g, '\n\n').trim();
   if (compact.length <= limit) return compact;
   return `${compact.slice(0, Math.max(0, limit - 14)).trimEnd()}\n[truncated]`;
+}
+
+function cleanBrowserText(value: string): string {
+  return value
+    .replace(/\u00c2([\u00a0-\u00bf])/g, '$1')
+    .replace(/â€”/g, '-')
+    .replace(/â€“/g, '-')
+    .replace(/â†“/g, '↓')
+    .replace(/â†’/g, '→')
+    .replace(/âœ“/g, '✓')
+    .replace(/âœ…/g, '✅')
+    .replace(/Â/g, '')
+    .trim();
 }
 
 function arrayOfStrings(value: unknown): string[] {

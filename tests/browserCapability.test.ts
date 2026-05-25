@@ -194,6 +194,27 @@ async function main(): Promise<void> {
     assert.match(reply, /paused or failed mission card/);
     assert.match(reply, /History stronger scan controls/);
   });
+
+  await test('cleans browser mojibake before rendering Telegram text', () => {
+    const reply = renderBrowserUseReviewAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/kanban',
+        goal: 'review Kanban',
+      },
+      {
+        ok: true,
+        action: 'screenshot',
+        final_url: 'http://127.0.0.1:3333/kanban',
+        title: 'Kanban Â· spawner',
+        text_excerpt: '20 missions Â· 0 running Â· 1 paused',
+        state_excerpt: 'viewport: 3834x2160 kanban workspace',
+      }
+    );
+
+    assert.match(reply, /Kanban · spawner/);
+    assert.doesNotMatch(reply, /Â/);
+  });
 }
 
 main().catch((error) => {
