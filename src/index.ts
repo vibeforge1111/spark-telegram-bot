@@ -298,15 +298,26 @@ function renderTelegramError(prefix: string, error: unknown): string {
 }
 
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
+  const invocation = sparkCliInvocation(args);
   const { stdout, stderr } = await execFileAsync(
-    SPARK_CLI_COMMAND,
-    args,
+    invocation.command,
+    invocation.args,
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
     })
   );
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));
+}
+
+function sparkCliInvocation(args: string[]): { command: string; args: string[] } {
+  if (process.platform === 'win32' && /\.cmd$/i.test(SPARK_CLI_COMMAND)) {
+    return {
+      command: process.env.ComSpec || 'cmd.exe',
+      args: ['/d', '/s', '/c', SPARK_CLI_COMMAND, ...args],
+    };
+  }
+  return { command: SPARK_CLI_COMMAND, args };
 }
 
 function sparkCliFailureReason(error: unknown): string {
