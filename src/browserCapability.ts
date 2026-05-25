@@ -605,11 +605,24 @@ function browserTaskUsefulLine(value: string): boolean {
     return false;
   }
   if (/^title:\s+.+?\s+-\s+correct\.?$/i.test(cleaned)) return false;
+  if (/\b(?:zero|0|no)\s+missions?\s+running\b/i.test(cleaned)
+    || /\bzero\s+running\s+missions?\b/i.test(cleaned)
+    || /\bto do column\b.*\bempty\b/i.test(cleaned)) {
+    return true;
+  }
   if (/\b(?:button|input|toggle|selector|nav links?|footer|placeholder)\b.*\b(?:present|correct)\.?$/i.test(cleaned)) {
     return false;
   }
   if (/\b(?:pipeline selector|search input|new mission button|board\/scheduled toggle)\b/i.test(cleaned)
     && /\b(?:present|shows|correct)\b/i.test(cleaned)) {
+    return false;
+  }
+  if (/^(?:3 columns?|header stats?|filters?|search|actions?):\s+/i.test(cleaned)) {
+    return false;
+  }
+  if (/\b(?:columns?|header stats?|filters?|search|actions?)\b/i.test(cleaned)
+    && /\b(?:present|shown|tested|active|button|toggle|placeholder|\d+\s+missions?|\d+\s+running|\d+\s+paused)\b/i.test(cleaned)
+    && !/\b(?:fix|clear|resolve|resume|cancel|rerun|review|inspect|blocked|failed|stale|contradict|missing|wrong|confusing)\b/i.test(cleaned)) {
     return false;
   }
   return true;

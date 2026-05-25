@@ -391,6 +391,35 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Board\/Scheduled toggle present/);
   });
 
+  await test('filters QA board inventory summaries', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      {
+        kind: 'task',
+        url: 'http://127.0.0.1:3333/kanban',
+        goal: 'QA this page like a useful operator.',
+      },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '3 columns: TO DO (0 missions), active (1 mission), HISTORY (19 missions, 6 shown)',
+          'Header stats: 20 missions · 0 running · 1 paused',
+          'Filters: All (active), Needs review, Paused, Complete - all present but only All tested',
+          'Search: Present with placeholder Search…',
+          'Actions: New mission button, Show all history button',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        number_of_steps: 2,
+        screenshot_paths: ['C:/spark/shot.png'],
+      }
+    );
+
+    assert.match(reply, /Inspect the paused active mission/);
+    assert.doesNotMatch(reply, /3 columns/);
+    assert.doesNotMatch(reply, /Header stats/);
+    assert.doesNotMatch(reply, /New mission button/);
+  });
+
   await test('normalizes clipped Kanban variants from browser-use output', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/kanban', profile: { cdpUrl: 'http://127.0.0.1:9222' } },
