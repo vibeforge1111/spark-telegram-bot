@@ -102,6 +102,22 @@ export function browserUseTaskGoalForIntent(intent: BrowserCapabilityIntent): st
     targetUrl ? `- Target page: ${targetUrl}` : '',
     ...referenceUrls.map((url, index) => `- Reference ${index + 1}: ${url}`),
   ].filter(Boolean);
+  if (referenceUrls.length > 0) {
+    const bulletCount = referenceResearchBulletCount(baseGoal);
+    return [
+      'Reference inspiration task.',
+      '',
+      'Required browser itinerary:',
+      ...visitPlan,
+      '',
+      'Do this:',
+      '- Visit/read the target page.',
+      '- Visit/read every reference URL listed above.',
+      '- Do not finish until at least two reference URLs were observed, or say exactly which reference URLs were blocked.',
+      `- Return ${bulletCount ? `${bulletCount} ` : ''}short Inspired by bullets for Spawner Mission Control.`,
+      '- Make each bullet a practical product/UI idea, not a product inventory.',
+    ].join('\n');
+  }
 
   return [
     baseGoal,
@@ -115,6 +131,18 @@ export function browserUseTaskGoalForIntent(intent: BrowserCapabilityIntent): st
     '- Do not answer with only the target product traits. If reference pages could not be observed, say the reference research was incomplete.',
     '- Return only inspiration for the target product: reference product, inspired pattern, and why it matters.'
   ].join('\n');
+}
+
+export function browserUseCliTaskGoalForIntent(intent: BrowserCapabilityIntent): string {
+  return browserUseTaskGoalForIntent(intent)
+    .replace(/\s*[\r\n]+\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function referenceResearchBulletCount(value: string): string {
+  const match = value.match(/\b(\d{1,2})\s+(?:short\s+)?(?:inspired by\s+)?bullets?\b/i);
+  return match?.[1] || '';
 }
 
 export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParseResult {
