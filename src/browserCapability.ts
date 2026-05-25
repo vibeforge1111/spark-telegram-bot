@@ -782,7 +782,31 @@ function actionizeBrowserTaskBullet(value: string): string {
     return 'Queue or start the next mission.';
   }
 
-  return value;
+  if (/\bempty\s+to do\b.*\b(?:wastes?|unused|space|horizontal)\b/i.test(value)
+    || /\bto do\b.*\bempty\b.*\b(?:wastes?|unused|space|horizontal)\b/i.test(value)) {
+    return 'Use the empty TO DO space for next actions or board guidance.';
+  }
+
+  if (/\binconsistent\b.*\baction links?\b.*\bhistory cards?\b/i.test(value)
+    || /\bhistory cards?\b.*\binconsistent\b.*\baction links?\b/i.test(value)) {
+    return 'Make history-card actions consistent across statuses.';
+  }
+
+  if (/\bduplicate\b.*\bcanvas links?\b/i.test(value)
+    || /\bsimilar\b.*\bcanvas links?\b/i.test(value)) {
+    return 'Merge duplicate Canvas links on mission cards.';
+  }
+
+  if (/\btitle tooltip inconsistency\b/i.test(value)
+    || /\btooltip\b.*\bcanvas\b.*\b(?:inconsistency|mismatch)\b/i.test(value)) {
+    return 'Fix the Canvas tooltip/title mismatch.';
+  }
+
+  if (/\bneeds completion proof\b.*\b(?:passive|no action|unclear)\b/i.test(value)) {
+    return 'Turn needs completion proof into a clear action.';
+  }
+
+  return polishBrowserTaskBullet(value);
 }
 
 function normalizeBrowserTaskTarget(value: string): string {
@@ -790,6 +814,13 @@ function normalizeBrowserTaskTarget(value: string): string {
     .trim()
     .replace(/^mission\s+(.+)$/i, '$1')
     .trim();
+}
+
+function polishBrowserTaskBullet(value: string): string {
+  const cleaned = value.trim();
+  if (!cleaned) return cleaned;
+  const capitalized = cleaned[0].toUpperCase() + cleaned.slice(1);
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
 function browserReviewImprovements(evidence: string, url = ''): string[] {

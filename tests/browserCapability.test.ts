@@ -565,6 +565,33 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /All 4\/4 build tasks/);
   });
 
+  await test('polishes natural UI findings from full browser output', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/kanban' },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. Empty TO DO column wastes horizontal space',
+          '2. Inconsistent action links on history cards',
+          '3. Duplicate/similar Canvas links on same card',
+          '4. Title tooltip inconsistency - in Canvas vs on the Canvas',
+          '5. needs completion proof label is passive with no action',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/kanban'],
+        screenshot_paths: ['C:/spark/shot.png'],
+      }
+    );
+
+    assert.match(reply, /Use the empty TO DO space for next actions or board guidance\./);
+    assert.match(reply, /Make history-card actions consistent across statuses\./);
+    assert.match(reply, /Merge duplicate Canvas links on mission cards\./);
+    assert.match(reply, /Fix the Canvas tooltip\/title mismatch\./);
+    assert.match(reply, /Turn needs completion proof into a clear action\./);
+    assert.doesNotMatch(reply, /wastes horizontal space/);
+    assert.doesNotMatch(reply, /Title tooltip inconsistency/);
+  });
+
   await test('renders issue section instead of observed nodes for full task markdown', () => {
     const reply = renderBrowserUseTaskAnswer(
       { kind: 'task', url: 'http://127.0.0.1:3333/canvas' },
