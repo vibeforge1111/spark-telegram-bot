@@ -335,7 +335,7 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
   }
   const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
   const raw = await runSparkCli(['browser-use', command, intent.url, '--json'], 120_000);
-  const parsed = JSON.parse(raw) as unknown;
+  const parsed = parseSparkCliJsonObject(raw);
   return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
     ok: false,
     status: 'failed',
@@ -360,13 +360,51 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
   }
   args.push(goal);
   const raw = await runSparkCli(args, 360_000);
-  const parsed = JSON.parse(raw) as unknown;
+  const parsed = parseSparkCliJsonObject(raw);
   return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
     ok: false,
     status: 'failed',
     action: 'task',
     last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
   };
+}
+
+function parseSparkCliJsonObject(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const marker = raw.indexOf('"backend_kind"');
+    if (marker < 0) throw new Error('Spark CLI output did not contain a browser-use JSON receipt.');
+    const start = raw.lastIndexOf('{', marker);
+    if (start < 0) throw new Error('Spark CLI output did not contain a browser-use JSON object.');
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < raw.length; index += 1) {
+      const char = raw[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === '\\') {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+      } else if (char === '{') {
+        depth += 1;
+      } else if (char === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          return JSON.parse(raw.slice(start, index + 1));
+        }
+      }
+    }
+    throw new Error('Spark CLI browser-use JSON receipt was incomplete.');
+  }
 }
 
 type TelegramSourceUsedEvidence = {
