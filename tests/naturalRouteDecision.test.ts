@@ -364,6 +364,14 @@ test('keeps route/access/sandbox design talk out of Spark self-improvement actio
   }
 });
 
+test('keeps beginner Spark role explanations out of recursive path routing', () => {
+  const route = decideNaturalRoute("I'm confused about which AI is doing what. Explain Spark, Codex, the Telegram bot, Spawner, and Mission Control in simple terms. Do not expose secrets, private paths, tokens, raw logs, or private memory.");
+
+  assert.notEqual(route.route, 'recursive.paths');
+  assert.notEqual(route.action, 'recursive.command');
+  assert.equal(route.route, 'plain_chat');
+});
+
 test('does not force unrelated personal chat into a Spark system', () => {
   const route = decideNaturalRoute("what's a nice lunch idea?");
 

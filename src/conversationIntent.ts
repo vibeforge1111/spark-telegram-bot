@@ -819,7 +819,11 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
     };
   }
 
-  if (/\b(?:show|list|what|which|get|give\s+me)\b.*\b(?:recursive\s+)?(?:paths?|lanes?)\b/i.test(normalized)) {
+  const asksForRecursivePaths =
+    /\b(?:show|list|get|give\s+me)\b.{0,60}\b(?:recursive|speciali[sz]ation)\s+(?:paths?|lanes?)\b/i.test(normalized) ||
+    /\b(?:what|which)\s+(?:recursive|speciali[sz]ation)\s+(?:paths?|lanes?)\b/i.test(normalized) ||
+    /\b(?:what|which)\s+(?:paths?|lanes?)\s+(?:are|do)\s+(?:open|running|available|we\s+have)\b/i.test(normalized);
+  if (asksForRecursivePaths) {
     return {
       rawCommand: 'paths',
       reason: 'Natural-language request to list recursive paths.'
