@@ -494,10 +494,11 @@ async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Rec
 function browserUseQaGoal(input: string): string {
   const scenario = input.trim() || 'QA the primary visible workflow.';
   return [
-    'QA this page like an operator using live browser evidence only.',
-    'Try the visible primary flow when it is safe.',
+    'QA this page like a useful operator using live browser evidence only.',
+    'Look for broken, confusing, blocked, contradictory, or high-friction moments.',
+    'Do not report passes, present checkmarks, or validate labels unless there are no issues.',
     'Return exactly five short bullets under Fix next.',
-    'Each bullet should name the problem and the next useful fix.',
+    'Each bullet must be a concrete next fix, not a status observation.',
     `Scenario: ${scenario}`,
   ].join('\n');
 }
