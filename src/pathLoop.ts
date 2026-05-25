@@ -236,6 +236,8 @@ export function resolveLocalSpecializationPathTarget(targetKey: string): Recursi
 
   const candidates = [
     process.env[specializationRepoEnvVar(normalizedTarget)],
+    normalizedTarget === 'spark-qa-operator' ? process.env.SPARK_QA_OPERATOR_REPO : undefined,
+    path.resolve(process.cwd(), '..', `specialization-path-${normalizedTarget}`),
     path.join(os.homedir(), 'Desktop', `specialization-path-${normalizedTarget}`),
   ].filter((candidate): candidate is string => Boolean(candidate));
 

@@ -58,6 +58,16 @@ import { createChipFromPrompt } from './chipCreate';
 import { runChipLoop } from './chipLoop';
 import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, readSpecializationPathLoopStatus, resolveRecursiveStartTarget, runSpecializationPathAutoloop } from './pathLoop';
 import {
+  isSparkQaOperatorKey,
+  parseSparkQaCommand,
+  readLatestSparkQaAutoloopRound,
+  renderSparkQaAutoloopRound,
+  renderSparkQaBenchmarkCreator,
+  renderSparkQaHelp,
+  runSparkQaAutoloopRound,
+  runSparkQaBenchmarkCreator
+} from './sparkQaOperator';
+import {
   parseRecursiveCommand,
   proposeRecursiveWorkspaceEvidence,
   queueRecursiveCanvas,
@@ -5140,6 +5150,36 @@ bot.command('loop', async (ctx) => {
   })();
 });
 
+export async function handleSparkQaCommand(ctx: any, rawOverride?: string): Promise<unknown> {
+  if (!requireAdmin(ctx)) return;
+
+  const raw = rawOverride ?? ctx.message.text.replace('/sparkqa', '').trim();
+  const parsed = parseSparkQaCommand(raw);
+  if (!parsed || parsed.action === 'help') return ctx.reply(renderSparkQaHelp());
+
+  await safeSendChatAction(ctx, 'typing');
+  if (parsed.action === 'status') {
+    return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound()));
+  }
+
+  if (parsed.action === 'run') {
+    await ctx.reply('Starting the Spark QA benchmark/autoloop proof now. I will only report a score if the dossier clears it.');
+    return ctx.reply(renderSparkQaAutoloopRound(await runSparkQaAutoloopRound()));
+  }
+
+  if (parsed.action === 'benchmark') {
+    return ctx.reply(renderSparkQaBenchmarkCreator(await runSparkQaBenchmarkCreator({
+      specializationPath: parsed.specializationPath || 'Spark QA Operator',
+      level: parsed.level || 10,
+      prompt: parsed.prompt,
+    })));
+  }
+
+  return ctx.reply(renderSparkQaHelp());
+}
+
+bot.command('sparkqa', async (ctx) => handleSparkQaCommand(ctx));
+
 export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
@@ -5175,6 +5215,9 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       if (target.kind !== 'path') {
         return ctx.reply(`${parsed.id} does not look like an attached specialization path yet. Use /recursive paths to pick a loop.`);
       }
+      if (isSparkQaOperatorKey(target.key)) {
+        return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
+      }
       return ctx.reply(renderSpecializationLoopStatus(await readSpecializationPathLoopStatus(target)));
     }
 
@@ -5184,6 +5227,9 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       const target = await resolveRecursiveStartTarget(parsed.id);
       if (target.kind !== 'path') {
         return ctx.reply(`${parsed.id} does not look like an attached specialization path yet. Use /recursive paths to pick a loop.`);
+      }
+      if (isSparkQaOperatorKey(target.key)) {
+        return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
       }
       const status = await readSpecializationPathLoopStatus(target);
       return ctx.reply(parsed.action === 'compare'
@@ -5206,6 +5252,9 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       await safeSendChatAction(ctx, 'typing');
       const target = await resolveRecursiveStartTarget(parsed.id);
       if (target.kind === 'path') {
+        if (isSparkQaOperatorKey(target.key)) {
+          return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
+        }
         return ctx.reply(renderSpecializationLoopInsights(await readSpecializationPathLoopInsights(target)));
       }
       return ctx.reply(await recursiveSessionReport(parsed.id));
@@ -5285,6 +5334,12 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       void (async () => {
         try {
           if (startTarget.kind === 'path') {
+            if (isSparkQaOperatorKey(startTarget.key)) {
+              await ctx.telegram.sendMessage(chatId, renderSparkQaAutoloopRound(await runSparkQaAutoloopRound({
+                repoRoot: startTarget.repoRoot,
+              })));
+              return;
+            }
             const result = await runSpecializationPathAutoloop(startTarget, rounds, sparkWorkspaceBridgeHints());
             if (!result.ok) {
               await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive path loop failed', result.error));
