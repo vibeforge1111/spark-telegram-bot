@@ -34,10 +34,10 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
 
   const taskRequest = Boolean(url)
     && (
-      /\b(?:browser-use|browser\s+use|browser|browse)\b/.test(normalized)
-      || /\b(?:ui|ux|product|page|site|app|screen|interface)\b/.test(normalized)
-    )
-    && /\b(?:review|qa|test|check|audit|evaluate|compare|gather feedback|walk through|improve|fixes?|feedback)\b/.test(normalized);
+      asksForBrowserWork(normalized)
+      || asksForProductUiWork(normalized)
+      || asksForReferenceResearch(normalized)
+    );
   if (taskRequest) {
     return browserIntent('task', url, text.trim());
   }
@@ -66,6 +66,23 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
 
 export function shouldAnswerBrowserCapabilityQuestion(text: string): boolean {
   return classifyBrowserCapabilityQuestion(text) !== null;
+}
+
+function asksForBrowserWork(normalized: string): boolean {
+  return /\b(?:browser-use|browser\s+use|browser|browse)\b/.test(normalized)
+    && /\b(?:review|qa|test|check|audit|evaluate|compare|gather feedback|walk through|improve|fixes?|feedback)\b/.test(normalized);
+}
+
+function asksForProductUiWork(normalized: string): boolean {
+  const productSurface = /\b(?:ui|ux|product|page|site|app|screen|interface)\b/;
+  const improvementAsk = /\b(?:review|qa|test|check|audit|evaluate|gather feedback|improve|fixes?|feedback)\b/;
+  return productSurface.test(normalized) && improvementAsk.test(normalized);
+}
+
+function asksForReferenceResearch(normalized: string): boolean {
+  return /\b(?:research|find|look up)\b.*\b(?:references?|examples?|competitors?|inspiration|internet|web)\b/.test(normalized)
+    || /\b(?:compare|benchmark)\b.*\b(?:references?|examples?|competitors?|internet|web)\b/.test(normalized)
+    || /\b(?:copy|adapt|learn from)\b.*\b(?:references?|examples?|competitors?|products?|sites?)\b/.test(normalized);
 }
 
 export function parseBrowserUseCommandArgs(text: string): BrowserUseCommandParseResult {
@@ -132,6 +149,7 @@ export function shouldRunFullBrowserUseTask(goal: string): boolean {
     || /\bopen (?:details|trace|canvas|kanban|settings|skills|panel|inspector)\b/.test(normalized)
     || /\b(?:ui|ux|product|app|site|page|screen|interface)\b.*\b(?:fixes?|feedback|improve|review|check|audit)\b/.test(normalized)
     || /\b(?:fixes?|feedback|improve|review|check|audit)\b.*\b(?:ui|ux|product|app|site|page|screen|interface)\b/.test(normalized)
+    || asksForReferenceResearch(normalized)
     || /\b(?:like|as) an operator\b/.test(normalized);
 }
 

@@ -80,6 +80,21 @@ async function main(): Promise<void> {
     );
   });
 
+  await test('classifies internet reference research as browser tasks', () => {
+    const text = 'Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what to copy or adapt.';
+    assert.deepEqual(
+      classifyBrowserCapabilityQuestion(text),
+      { kind: 'task', url: 'http://127.0.0.1:3333/canvas', goal: text }
+    );
+  });
+
+  await test('does not force generic web wording into browser tasks', () => {
+    assert.equal(
+      classifyBrowserCapabilityQuestion('This web page is probably fine http://127.0.0.1:3333/canvas'),
+      null
+    );
+  });
+
   await test('parses browser-use profile flags from Telegram commands', () => {
     const parsed = parseBrowserUseCommandArgs('task full --profile Default --user-data-dir "C:/Users/USER/AppData/Chrome/User Data" --cdp-url http://127.0.0.1:9222 http://127.0.0.1:3333 review the dashboard');
 
@@ -106,6 +121,10 @@ async function main(): Promise<void> {
     );
     assert.equal(
       shouldRunFullBrowserUseTask("Check this product's UI and let me know the fixes http://127.0.0.1:3333/kanban"),
+      true
+    );
+    assert.equal(
+      shouldRunFullBrowserUseTask('Research 3 strong mission-control products on the internet, compare them to http://127.0.0.1:3333/canvas, and tell me what to copy or adapt.'),
       true
     );
   });
