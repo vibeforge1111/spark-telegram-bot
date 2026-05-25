@@ -303,7 +303,13 @@ export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env
     const filePath = path.join(root, name);
     const content = readFileSync(filePath, 'utf-8').trim();
     if (!content) continue;
-    chunks.push(`### ${name}\n${content}`);
+    const sanitized = content
+      .split('\n')
+      .filter((line) => !/^\s*(ignore|forget|disregard|override|bypass|you are now|act as|system:|<system>)/i.test(line))
+      .join('\n')
+      .trim();
+    if (!sanitized) continue;
+    chunks.push(`### ${name}\n${sanitized}`);
   }
   const joined = chunks.join('\n\n').slice(0, MAX_AGENT_KNOWLEDGE_CHARS).trim();
   return joined;
