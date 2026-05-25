@@ -567,15 +567,23 @@ function actionizeBrowserTaskBullet(value: string): string {
   if (match) return `Resolve ${match[1].trim()}; failure and progress disagree.`;
 
   match = value.match(/^(?:cancelled\s+)?(.+?)(?:\s+mission)?\s+(?:is\s+cancelled\s+but\s+still\s+shows\s+needs completion proof|still\s+demands\s+(?:needs\s+)?completion proof)/i);
-  if (match) return `Clear completion proof from ${match[1].trim()}.`;
+  if (match) {
+    const target = match[1].trim();
+    return /^mission$/i.test(target)
+      ? 'Clear completion proof from cancelled missions.'
+      : `Clear completion proof from ${target}.`;
+  }
 
   if (/\bcompleted missions\b.*\bneed(?:s)? completion proof\b/i.test(value)
     || /\bcompleted missions\b.*\bstill show\b.*\bneeds completion proof\b/i.test(value)
-    || /\bcomplete missions\b.*\bflagged\b.*\bneeds completion proof\b/i.test(value)) {
+    || /\bcomplete(?:d)? missions\b.*\bflagged\b.*\b(?:needs completion proof|proof)\b/i.test(value)
+    || /\bmultiple completed missions\b.*\bflagged\b.*\bproof\b/i.test(value)) {
     return 'Clear completion-proof flags from completed missions.';
   }
 
-  if (/\bzero running missions\b/i.test(value) || /\b0 running\b.*\bempty to do\b/i.test(value)) {
+  if (/\bzero running missions\b/i.test(value)
+    || /\b0 running\b.*\bempty to do\b/i.test(value)
+    || /\bto do column\b.*\bempty\b/i.test(value)) {
     return 'Queue or start the next mission.';
   }
 
