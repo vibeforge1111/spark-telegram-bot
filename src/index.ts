@@ -1108,6 +1108,106 @@ function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   );
 }
 
+function shouldAnswerAuthoritativeProviderStatus(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!runtimeTruthSignals(text).providers) return false;
+  return (
+    /\b(?:provider|providers|routing|model|models|llm|codex|reasoning|service\s+tier|high\s+fast)\b/.test(normalized) &&
+    /\b(?:are|is|am|what|which|show|check|tell|using|running|configured|current|right\s+now)\b/.test(normalized)
+  );
+}
+
+type ProviderRoleStatus = {
+  role: string;
+  provider: string;
+  model: string;
+  auth: string;
+  serviceTier?: string;
+  reasoning?: string;
+  ok: boolean;
+};
+
+function parseProviderStatusOutput(output: string): ProviderRoleStatus[] {
+  const rows: ProviderRoleStatus[] = [];
+  const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^\[(OK|WARN|FAIL|ERROR)\]\s+(\w+)\s+provider=([^\s]+)\s+model=([^\s]+)\s+auth=([^\s]+)/i);
+    if (!match) continue;
+    const clientLine = lines[index + 1] || '';
+    const clientMatch = clientLine.match(/service_tier=([^\s]+)\s+reasoning=([^\s]+)/i);
+    rows.push({
+      role: match[2].toLowerCase(),
+      provider: match[3],
+      model: match[4],
+      auth: match[5],
+      serviceTier: clientMatch?.[1],
+      reasoning: clientMatch?.[2],
+      ok: match[1].toUpperCase() === 'OK'
+    });
+  }
+  return rows;
+}
+
+function renderProviderRoutingAnswer(output: string): string {
+  const rows = parseProviderStatusOutput(output);
+  if (!rows.length) {
+    return [
+      '🟡 I could not read provider routing cleanly.',
+      '',
+      'Try',
+      '• /model',
+      '• /diagnose'
+    ].join('\n');
+  }
+
+  const allOk = rows.every((row) => row.ok);
+  const allCodex = rows.every((row) => row.provider.toLowerCase() === 'codex');
+  const codexRows = rows.filter((row) => row.provider.toLowerCase() === 'codex');
+  const tier = codexRows.find((row) => row.serviceTier)?.serviceTier;
+  const reasoning = codexRows.find((row) => row.reasoning)?.reasoning;
+  const headline = allOk && allCodex && tier === 'fast' && reasoning === 'high'
+    ? '🟢 Yes - this bot is on Codex high fast.'
+    : allOk
+      ? '🟢 Provider routing is healthy.'
+      : '🟡 Provider routing needs attention.';
+
+  const roleLabels: Record<string, string> = {
+    chat: 'chat',
+    builder: 'builder',
+    memory: 'memory',
+    mission: 'mission'
+  };
+
+  return [
+    headline,
+    '',
+    'Roles',
+    ...rows.map((row) => `• ${roleLabels[row.role] || row.role}: ${row.provider} ${row.model}`),
+    '',
+    'Codex',
+    `• reasoning ${reasoning || 'unknown'}`,
+    `• tier ${tier || 'unknown'}`
+  ].join('\n');
+}
+
+async function renderAuthoritativeProviderRoutingAnswer(): Promise<string> {
+  try {
+    const output = await runSparkCli(['providers', 'status'], 45_000);
+    return renderProviderRoutingAnswer(output);
+  } catch (error) {
+    const detail = redactText(error instanceof Error ? error.message : String(error));
+    return [
+      '🟡 I could not verify provider routing right now.',
+      '',
+      'Reason',
+      `• ${detail}`,
+      '',
+      'Try',
+      '• /diagnose'
+    ].join('\n');
+  }
+}
+
 function compactRuntimeOutput(output: string, maxLines = 18): string {
   return output
     .split(/\r?\n/)
@@ -5016,6 +5116,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = await renderAuthoritativeSparkLiveStateAnswer();
     await ctx.reply(reply);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && shouldAnswerAuthoritativeProviderStatus(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = await renderAuthoritativeProviderRoutingAnswer();
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_provider_routing_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
