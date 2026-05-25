@@ -313,6 +313,22 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));
 }
 
+async function runSparkCliReceipt(args: string[], timeoutMs = 30_000): Promise<string> {
+  try {
+    return await runSparkCli(args, timeoutMs);
+  } catch (error) {
+    const err = error as Error & { stdout?: unknown; stderr?: unknown };
+    const combined = redactText([err.stdout, err.stderr]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join('\n'));
+    if (combined.includes('"backend_kind"')) {
+      return combined;
+    }
+    throw error;
+  }
+}
+
 function sparkCliInvocation(args: string[]): { command: string; args: string[] } {
   if (process.platform === 'win32' && /\.cmd$/i.test(SPARK_CLI_COMMAND)) {
     return {
@@ -350,7 +366,7 @@ async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Rec
     };
   }
   const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
-  const raw = await runSparkCli(['browser-use', command, intent.url, '--json'], 120_000);
+  const raw = await runSparkCliReceipt(['browser-use', command, intent.url, '--json'], 120_000);
   const parsed = parseSparkCliJsonObject(raw);
   return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
     ok: false,
@@ -376,7 +392,7 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
     args.push('--url', intent.url);
   }
   args.push(goal);
-  const raw = await runSparkCli(args, 360_000);
+  const raw = await runSparkCliReceipt(args, 360_000);
   const parsed = parseSparkCliJsonObject(raw);
   const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
     ok: false,
