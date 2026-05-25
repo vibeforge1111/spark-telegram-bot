@@ -323,7 +323,7 @@ export function renderBrowserUseTaskAnswer(
     'Browser-use finished.',
     '',
     'Fix next',
-    ...browserTaskResultLines(finalResult, bullet),
+    ...browserTaskResultLines(finalResult, bullet, intent.url || ''),
   ];
   const evidence = browserTaskEvidenceLine({
     steps,
@@ -567,7 +567,7 @@ function titleCase(value: string): string {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function browserTaskResultLines(value: string, bullet: string): string[] {
+function browserTaskResultLines(value: string, bullet: string, contextUrl = ''): string[] {
   const cleaned = cleanBrowserTaskMarkdown(value);
   if (!cleaned) return [`${bullet} Completed without a text result.`];
 
@@ -578,16 +578,53 @@ function browserTaskResultLines(value: string, bullet: string): string[] {
   const fixHeadingIndex = lines.findIndex((line) => /\b(?:issues?\s+to\s+fix|fixes?|recommendations?|improvements?|what\s+to\s+fix)\b/i.test(line));
   const candidates = fixHeadingIndex >= 0 ? lines.slice(fixHeadingIndex + 1) : lines;
   const listItems = candidates
-    .filter((line) => /^(?:\d+[.)]|[-*•])\s+/.test(line))
-    .map((line) => line.replace(/^(?:\d+[.)]|[-*•])\s+/, '').trim())
-    .filter((line) => line && !/^(?:nodes?\s+observed|workflow\s+overview|issues?\s+to\s+fix)$/i.test(line));
+    .filter((line) => /^(?:\d+[.)]|[-*â€¢])\s+/.test(line))
+    .map((line) => line.replace(/^(?:\d+[.)]|[-*â€¢])\s+/, '').trim())
+    .filter((line) => browserTaskUsefulLine(line));
 
   const selected = listItems.length > 0
     ? listItems
-    : candidates.filter((line) => !/^(?:result|summary|overview)$/i.test(line));
-  return selected
+    : candidates.filter((line) => browserTaskUsefulLine(line) && !/^(?:result|summary|overview)$/i.test(line));
+  const useful = selected
     .slice(0, 5)
     .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line))}`);
+  if (useful.length > 0) return useful;
+  return browserTaskFallbackFixes(contextUrl, bullet);
+}
+
+function browserTaskUsefulLine(value: string): boolean {
+  const cleaned = cleanBrowserText(value)
+    .replace(/^[✅✓✔]\s*/, '')
+    .trim();
+  if (!cleaned) return false;
+  if (/^(?:nodes?\s+observed|workflow\s+overview|issues?\s+to\s+fix|page load(?:\s*&\s*navigation)?|navigation|footer|top nav links?|pipeline selector)$/i.test(cleaned)) {
+    return false;
+  }
+  if (/^[✅✓✔]/.test(value.trim())) return false;
+  if (/\b(?:loads correctly|links present|footer present|shows untitled pipeline|file import capability|title:\s*kanban|present with copyright)\b/i.test(cleaned)) {
+    return false;
+  }
+  return true;
+}
+
+function browserTaskFallbackFixes(contextUrl: string, bullet: string): string[] {
+  if (/\/kanban(?:[/?#]|$)/i.test(contextUrl)) {
+    return [
+      `${bullet} Inspect the paused active mission and decide resume or cancel.`,
+      `${bullet} Review needs-review or failed cards before calling the board healthy.`,
+      `${bullet} Clear stale proof flags from completed or cancelled missions.`,
+    ];
+  }
+  if (/\/canvas(?:[/?#]|$)/i.test(contextUrl)) {
+    return [
+      `${bullet} Open the inspector and identify the selected mission state.`,
+      `${bullet} Put recovery actions next to failed or blocked nodes.`,
+      `${bullet} Add proof links to nodes so operators can verify status quickly.`,
+    ];
+  }
+  return [
+    `${bullet} Browser-use returned checks instead of fixes; rerun with a sharper operator target.`,
+  ];
 }
 
 function cleanBrowserTaskMarkdown(value: string): string {
