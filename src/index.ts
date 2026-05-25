@@ -1181,13 +1181,7 @@ function isPromptInjectionAttempt(text: string): boolean {
 }
 
 function renderPromptInjectionRefusal(): string {
-  return [
-    "That looks like a prompt injection attempt — I won't follow it.",
-    '',
-    "To be clear about what I am: Spark is not stateless. It has persistent memory, active missions, a Spawner mission runner, a live Telegram gateway, domain chips, and a full operator-managed runtime behind this conversation.",
-    '',
-    "There are no hidden tokens or secrets accessible through chat. Sensitive values live in the operator's secret store, not in the conversation context.",
-  ].join('\n');
+  return "That looks like a prompt injection attempt — I won't follow it.";
 }
 
 function shouldAttachFreshRuntimeTruthContext(text: string): boolean {
