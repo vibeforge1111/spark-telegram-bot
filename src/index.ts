@@ -267,6 +267,9 @@ const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
 const SPARK_CLI_COMMAND = process.env.SPARK_CLI_COMMAND
   || (process.platform === 'win32' ? path.join(os.homedir(), '.spark', 'bin', 'spark.cmd') : 'spark');
+const BROWSER_USE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10) > 0
+  ? Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10)
+  : 8;
 
 installConsoleRedaction();
 
@@ -304,7 +307,7 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
     invocation.args,
     withHiddenWindows({
       timeout: timeoutMs,
-      maxBuffer: 1024 * 1024,
+      maxBuffer: 8 * 1024 * 1024,
     })
   );
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));
@@ -367,19 +370,22 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
       last_failure_reason: 'Send a browser-use task goal.',
     };
   }
-  const args = ['browser-use', 'task', '--max-steps', '25', '--json'];
+  console.log(`[BrowserUse] task start url=${intent.url || ''} goalLen=${goal.length} maxSteps=${BROWSER_USE_TASK_MAX_STEPS}`);
+  const args = ['browser-use', 'task', '--max-steps', String(BROWSER_USE_TASK_MAX_STEPS), '--json'];
   if (intent.url) {
     args.push('--url', intent.url);
   }
   args.push(goal);
   const raw = await runSparkCli(args, 360_000);
   const parsed = parseSparkCliJsonObject(raw);
-  return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+  const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
     ok: false,
     status: 'failed',
     action: 'task',
     last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
   };
+  console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
+  return payload;
 }
 
 function parseSparkCliJsonObject(raw: string): unknown {
@@ -2312,6 +2318,11 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         ...(url ? { url } : {}),
         goal,
       };
+      await ctx.reply(withCanonicalAliasNotice(ctx, [
+        'Browser-use task started.',
+        '',
+        'I captured the request and will send the result here when the browser run finishes.'
+      ].join('\n')));
       const payload = await runBrowserUseTask(intent);
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
       return;
@@ -5046,6 +5057,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     let reply = '';
     let actionPayload: Record<string, unknown> | null = null;
     if (browserCapabilityIntent.kind === 'task') {
+      await ctx.reply(withCanonicalAliasNotice(ctx, [
+        'Browser-use task started.',
+        '',
+        'I captured the request and will send the result here when the browser run finishes.'
+      ].join('\n')));
       actionPayload = await runBrowserUseTask(browserCapabilityIntent);
       reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
     } else if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
