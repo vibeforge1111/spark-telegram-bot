@@ -414,6 +414,31 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Create the playable game file/);
   });
 
+  await test('normalizes canvas failure recovery findings into complete actions', () => {
+    const reply = renderBrowserUseTaskAnswer(
+      { kind: 'task', url: 'http://127.0.0.1:3333/canvas', profile: { cdpUrl: 'http://127.0.0.1:9222' } },
+      {
+        ok: true,
+        action: 'task',
+        final_result: [
+          '1. Rerun only the failed tasks - The Rerun failed button is available in the panel.',
+          '2. Open the trace and inspect detailed logs - The generic Exited with code 1 error is opaque.',
+          '3. Reduce the task-pack size on the first node - The first node (Create the playable game file) bundles 4 skills (frontend-engineer, game-development, responsive-mobile-first, game-ui-design).',
+        ].join('\n'),
+        urls: ['http://127.0.0.1:3333/canvas'],
+        screenshot_paths: ['C:/spark/shot.png'],
+        profile_requested: true,
+        cdp_url: 'http://127.0.0.1:9222',
+      }
+    );
+
+    assert.match(reply, /Rerun only the failed tasks\./);
+    assert.match(reply, /Open the trace and inspect the detailed logs\./);
+    assert.match(reply, /Reduce the first node task pack before rerun\./);
+    assert.doesNotMatch(reply, /frontend-engineer/);
+    assert.doesNotMatch(reply, /\($/m);
+  });
+
   await test('renders fast browser reviews from screenshot and state evidence', () => {
     const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
     const reply = renderBrowserUseReviewAnswer(intent, {

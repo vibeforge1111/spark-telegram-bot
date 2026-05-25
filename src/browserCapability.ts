@@ -569,6 +569,20 @@ function humanizeBrowserTaskBullet(value: string): string {
 }
 
 function actionizeBrowserTaskBullet(value: string): string {
+  if (/\b(?:reduce|split|shrink)\b.*\btask[-\s]?pack\b/i.test(value)
+    || /\btask[-\s]?pack size\b/i.test(value)
+    || /\breduce\b.*\bskills?\s+per\s+node\b/i.test(value)) {
+    return 'Reduce the first node task pack before rerun.';
+  }
+
+  if (/\brerun\b.*\bfailed tasks?\b/i.test(value)) {
+    return 'Rerun only the failed tasks.';
+  }
+
+  if (/\bopen\b.*\btrace\b.*\b(?:logs?|inspect|detailed)\b/i.test(value)) {
+    return 'Open the trace and inspect the detailed logs.';
+  }
+
   let match = value.match(/^(.+?)\s+is\s+stuck\s+paused\b/i);
   if (match) return `Resume or cancel ${match[1].trim()}.`;
 
