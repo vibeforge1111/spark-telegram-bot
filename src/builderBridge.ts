@@ -1755,33 +1755,34 @@ function formatBrowserRouteProbeReply(input: {
   summary: string;
 }): string {
   const proofs = browserProofLabels(input.summary);
+  const bullet = '\u2022';
   const lines = [
     input.status === 'success'
       ? 'Browser-use is ready for the checked browser actions.'
       : 'Browser-use is not proven from this runner right now.',
     '',
-    'Scope',
+    'Proven',
   ];
   if (proofs.length) {
-    lines.push(`- Proven: ${proofs.join(', ')}`);
+    lines.push(...proofs.map((proof) => `${bullet} ${proof}`));
   } else if (input.status === 'success') {
-    lines.push('- Proven: browser route probe succeeded');
+    lines.push(`${bullet} browser route probe succeeded`);
   } else {
-    lines.push('- Proven: no passing browser-use receipt');
+    lines.push(`${bullet} no passing browser-use receipt`);
   }
-  lines.push('- Not proven: logged-in pages, cookies/profile reuse, arbitrary sites, or sensitive click workflows');
+  lines.push(
+    '',
+    'Still unproven',
+    `${bullet} logged-in pages, cookies/profile reuse, arbitrary sites, sensitive click workflows, and Spawner browser automation`
+  );
   if (input.failure) {
-    lines.push('', 'Why', `- ${input.failure}`);
+    lines.push('', 'Why', `${bullet} ${input.failure}`);
   }
-  const receipt: string[] = [];
+  const receipt = input.status === 'success' ? 'Probe succeeded' : 'Probe failed';
   if (input.latency !== null) {
-    receipt.push(`${input.latency}ms`);
-  }
-  if (input.eventId) {
-    receipt.push(`${input.eventId}${input.eventType ? ` (${input.eventType.replace(/_/g, ' ')})` : ''}`);
-  }
-  if (receipt.length) {
-    lines.push('', 'Receipt', `- ${receipt.join(' | ')}`);
+    lines.push('', 'Receipt', `${bullet} ${receipt} in ${input.latency}ms. Raw event details are available through /aoc.`);
+  } else {
+    lines.push('', 'Receipt', `${bullet} ${receipt}. Raw event details are available through /aoc.`);
   }
   lines.push('', 'Run /aoc to see how this changed Agent Operating Context.');
   return lines.join('\n');

@@ -107,11 +107,17 @@ test('formats browser route probe replies as human proof-bound scope', () => {
   });
 
   assert.match(reply, /Browser-use is ready for the checked browser actions\./);
-  assert.match(reply, /Proven: doctor check, public page open, screenshot capture, page state read/);
-  assert.match(reply, /Not proven: logged-in pages, cookies\/profile reuse, arbitrary sites, or sensitive click workflows/);
+  assert.match(reply, /Proven/);
+  assert.match(reply, /doctor check/);
+  assert.match(reply, /public page open/);
+  assert.match(reply, /screenshot capture/);
+  assert.match(reply, /page state read/);
+  assert.match(reply, /Still unproven/);
+  assert.match(reply, /logged-in pages, cookies\/profile reuse, arbitrary sites, sensitive click workflows, and Spawner browser automation/);
   assert.match(reply, /Receipt/);
   assert.doesNotMatch(reply, /proofs=/);
   assert.doesNotMatch(reply, /status_path=/);
+  assert.doesNotMatch(reply, /evt-browser/);
 });
 
 test('formats route confidence gate live provider evidence without raw refs', () => {
