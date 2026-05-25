@@ -18,7 +18,7 @@ function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
   if (process.platform === 'win32') {
     const home = process.env.USERPROFILE || 'C:\\Users\\USER';
-    return `${home.replace(/[\\/]$/, '')}\\Desktop`;
+    return `${home.replace(/[\\/]$/, '')}`;
   }
   const home = process.env.HOME || '/root';
   return home.replace(/[\\/]$/, '');
