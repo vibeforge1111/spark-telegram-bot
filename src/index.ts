@@ -1754,8 +1754,19 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
     return;
   }
-  if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+  let responseText = builderReply.responseText;
+  if (responseText) {
+    // Guard: when the generic-observation LLM reinterprets a neutral
+    // "name:" as "your name is" but the message wasn't a profile fact,
+    // replace with a neutral acknowledgment.
+    if (
+      builderReply.bridgeMode === 'memory_generic_observation' &&
+      /your name is/i.test(responseText) &&
+      builderReply.routingDecision !== 'memory_profile_fact_observation'
+    ) {
+      responseText = 'Noted.';
+    }
+    await replyWithSanitizedTelegramText(ctx, responseText);
   }
 }
 
@@ -1852,8 +1863,19 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
       builderReply.bridgeMode !== 'bridge_error' &&
       shouldUseBuilderReplyForMemoryDirective(builderReply.responseText, builderReply.routingDecision)
     ) {
-      await ctx.reply(builderReply.responseText);
-      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      let responseText = builderReply.responseText;
+      // Guard: the generic-observation LLM reinterprets neutral
+      // "name: X" as "your name is X". If the message wasn't
+      // routed as a profile fact, replace with a neutral ack.
+      if (
+        builderReply.bridgeMode === 'memory_generic_observation' &&
+        /your name is/i.test(responseText) &&
+        builderReply.routingDecision !== 'memory_profile_fact_observation'
+      ) {
+        responseText = 'Noted.';
+      }
+      await ctx.reply(responseText);
+      await conversation.rememberAssistantReply(user, responseText).catch(() => {});
       return;
     }
   } catch (error) {
@@ -1861,7 +1883,7 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
   }
 
   const reply = localSaved
-    ? formatLocalMemoryDirectiveAcknowledgement(directive)
+    ? '📝 Noted.'
     : buildMemoryBridgeUnavailableReply('remember');
   await ctx.reply(reply);
   await conversation.rememberAssistantReply(user, reply).catch(() => {});
@@ -2087,13 +2109,23 @@ bot.start(async (ctx) => {
   }
 });
 
-// /new command — start a fresh conversation
+// /new command — start a fresh conversation (full reset: clears all context + notes + Builder memory)
 bot.command('new', async (ctx) => {
-  await ctx.reply('✨ Fresh conversation started. Previous context cleared. What would you like to work on?');
+  await conversation.resetUser(ctx.from, false);
+  // Tell Builder to forget profile facts. Use runBuilderTelegramBridge directly
+  // so the Builder's acknowledgments are NOT echoed to the user.
+  // Combine all forgets into one message to avoid multiple Builder round-trips.
+  const forgetUpdate = buildUpdateWithText(
+    ctx.update as Record<string, unknown>,
+    'forget all profile facts about me including my name, preferences, and saved details.'
+  );
+  await runBuilderTelegramBridge(forgetUpdate).catch(() => {});
+  await ctx.reply('✨ Fresh conversation started. All context and notes cleared. What would you like to work on?');
 });
 
-// /reset command — reset current conversation context
+// /reset command — reset current conversation context (light reset: keeps long-term notes)
 bot.command('reset', async (ctx) => {
+  await conversation.resetUser(ctx.from, true);
   await ctx.reply('🔄 Conversation context reset. I still remember long-term details. Ready when you are.');
 });
 

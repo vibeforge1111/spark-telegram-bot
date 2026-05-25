@@ -1933,8 +1933,11 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
     return null;
   }
 
-  // Never suppress replies to user-initiated commands
-  if (/^(?:runtime_command|researcher_advisory|access_change|disambiguation)/i.test(routingDecision.trim())) {
+  // Never suppress replies to user-initiated slash commands.
+  // Slash commands use bot.command() handlers which call ctx.reply() directly
+  // — they never reach this function. The carve-out here is for the edge case
+  // where a command's replyViaBuilder() response gets evaluated.
+  if (/^runtime_command/i.test(routingDecision.trim())) {
     return null;
   }
 
