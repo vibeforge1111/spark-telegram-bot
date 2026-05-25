@@ -505,11 +505,21 @@ function browserUseQaGoal(input: string): string {
 
 async function replyWithBrowserUseTaskScreenshot(ctx: any, payload: Record<string, unknown>): Promise<void> {
   if (payload.ok !== true) return;
-  const screenshotPath = browserUseTaskScreenshotPath(payload);
+  const screenshotPath = browserUseReceiptScreenshotPath(payload);
   if (!screenshotPath || !existsSync(screenshotPath)) return;
   await ctx.replyWithPhoto({ source: screenshotPath }).catch(async () => {
     await ctx.reply('Screenshot was saved locally, but Telegram could not upload it.').catch(() => {});
   });
+}
+
+function browserUseReceiptScreenshotPath(payload: Record<string, unknown>): string {
+  return browserUseTaskScreenshotPath(payload) || String(payload.screenshot_path || '').trim();
+}
+
+function shouldFallbackToBrowserUseReview(payload: Record<string, unknown>, intent: BrowserCapabilityIntent): boolean {
+  if (payload.ok === true || !intent.url) return false;
+  const reason = String(payload.last_failure_reason || '').toLowerCase();
+  return /invalid action format|invalid model output|json_invalid|agentoutput|pydantic|timed out|timeout|fast \/browser task path/.test(reason);
 }
 
 function browserUseProfileCliArgs(profile: BrowserUseProfileOptions | undefined, scope: 'action' | 'task'): string[] {
@@ -2512,6 +2522,14 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         'I will send the result here when the browser run finishes.'
       ].join('\n')));
       const payload = await runBrowserUseTask(intent);
+      if (shouldFallbackToBrowserUseReview(payload, intent)) {
+        const reviewPayload = await runBrowserUseReview(intent);
+        if (reviewPayload.ok === true) {
+          await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseReviewAnswer(intent, reviewPayload)));
+          await replyWithBrowserUseTaskScreenshot(ctx, reviewPayload);
+          return;
+        }
+      }
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
       await replyWithBrowserUseTaskScreenshot(ctx, payload);
       return;
@@ -2546,6 +2564,14 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         'I captured the request and will send the result here when the browser agent loop finishes.'
       ].join('\n')));
       const payload = await runBrowserUseTask(intent);
+      if (shouldFallbackToBrowserUseReview(payload, intent)) {
+        const reviewPayload = await runBrowserUseReview(intent);
+        if (reviewPayload.ok === true) {
+          await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseReviewAnswer(intent, reviewPayload)));
+          await replyWithBrowserUseTaskScreenshot(ctx, reviewPayload);
+          return;
+        }
+      }
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
       await replyWithBrowserUseTaskScreenshot(ctx, payload);
       return;
@@ -5293,7 +5319,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           'I captured the request and will send the result here when the browser agent loop finishes.'
         ].join('\n')));
         actionPayload = await runBrowserUseTask(browserCapabilityIntent);
-        reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+        if (shouldFallbackToBrowserUseReview(actionPayload, browserCapabilityIntent)) {
+          const reviewPayload = await runBrowserUseReview(browserCapabilityIntent);
+          if (reviewPayload.ok === true) {
+            actionPayload = reviewPayload;
+            reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+          } else {
+            reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+          }
+        } else {
+          reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+        }
       } else {
         actionPayload = await runBrowserUseReview(browserCapabilityIntent);
         reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
@@ -5308,7 +5344,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
     if ((browserCapabilityIntent.kind === 'specific_screenshot' || browserCapabilityIntent.kind === 'task') && actionPayload?.ok === true) {
       const screenshotPath = browserCapabilityIntent.kind === 'task'
-        ? browserUseTaskScreenshotPath(actionPayload)
+        ? browserUseReceiptScreenshotPath(actionPayload)
         : String(actionPayload.screenshot_path || '').trim();
       if (screenshotPath) {
         await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
