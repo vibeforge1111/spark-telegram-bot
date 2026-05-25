@@ -242,7 +242,7 @@ export function renderBrowserUseTaskAnswer(
   const ok = payload.ok === true || String(payload.status || '') === 'ready';
   const failure = String(payload.last_failure_reason || '').trim();
   const finalResult = cleanBrowserText(String(payload.final_result || '').trim());
-  const urls = arrayOfStrings(payload.urls).slice(0, 4);
+  const urls = uniqueStrings(arrayOfStrings(payload.urls));
   const steps = Number(payload.number_of_steps || 0);
   const screenshots = arrayOfStrings(payload.screenshot_paths);
   const profileLabel = browserUsePayloadProfileLabel(payload, intent.profile);
@@ -261,24 +261,19 @@ export function renderBrowserUseTaskAnswer(
   }
 
   const lines = [
-    'Browser-use finished the browser run.',
+    'Browser-use finished.',
     '',
-    'Result',
+    'Fix next',
     ...browserTaskResultLines(finalResult, bullet),
   ];
-  if (steps > 0) {
-    lines.push('', 'Run', `${bullet} ${steps} browser step${steps === 1 ? '' : 's'}`);
-  }
-  if (urls.length > 0) {
-    lines.push('', 'Visited', ...urls.map((url) => `${bullet} ${url}`));
-  } else if (intent.url) {
-    lines.push('', 'Visited', `${bullet} ${intent.url}`);
-  }
-  if (screenshots.length > 0) {
-    lines.push('', 'Evidence', `${bullet} ${screenshots.length} screenshot artifact${screenshots.length === 1 ? '' : 's'} saved`);
-  }
-  if (profileLabel) {
-    lines.push('', 'Profile', `${bullet} ${profileLabel} requested`);
+  const evidence = browserTaskEvidenceLine({
+    steps,
+    screenshots: screenshots.length,
+    urls: urls.length ? urls : intent.url ? [intent.url] : [],
+    profileLabel,
+  });
+  if (evidence) {
+    lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
   return lines.join('\n');
 }
@@ -445,6 +440,46 @@ function arrayOfStrings(value: unknown): string[] {
     : [];
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)].filter(Boolean);
+}
+
+function browserTaskEvidenceLine(input: {
+  steps: number;
+  screenshots: number;
+  urls: string[];
+  profileLabel: string;
+}): string {
+  const sessionLabel = input.profileLabel === 'running browser via CDP'
+    ? 'attached-browser run'
+    : input.profileLabel
+      ? `${input.profileLabel} browser run`
+      : 'browser run';
+  let line = `Live ${sessionLabel}`;
+  if (input.urls.length > 0) {
+    line += ` on ${browserTaskUrlLabel(input.urls[0] || '')}`;
+  }
+  if (input.screenshots > 0) {
+    line += ' with screenshot evidence';
+  }
+  return line;
+}
+
+function browserTaskUrlLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const last = parsed.pathname.split('/').filter(Boolean).pop();
+    if (last) return titleCase(last.replace(/[-_]+/g, ' '));
+    return parsed.hostname;
+  } catch {
+    return url;
+  }
+}
+
+function titleCase(value: string): string {
+  return value.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function browserTaskResultLines(value: string, bullet: string): string[] {
   const cleaned = cleanBrowserTaskMarkdown(value);
   if (!cleaned) return [`${bullet} Completed without a text result.`];
@@ -465,7 +500,7 @@ function browserTaskResultLines(value: string, bullet: string): string[] {
     : candidates.filter((line) => !/^(?:result|summary|overview)$/i.test(line));
   return selected
     .slice(0, 5)
-    .map((line) => `${bullet} ${compactBrowserTaskBullet(line)}`);
+    .map((line) => `${bullet} ${humanizeBrowserTaskBullet(compactBrowserTaskBullet(line))}`);
 }
 
 function cleanBrowserTaskMarkdown(value: string): string {
@@ -506,6 +541,19 @@ function compactBrowserTaskBullet(value: string): string {
     .slice(0, wordBreak >= 80 ? wordBreak : limit)
     .replace(/\s+(?:it|the|a|an|and|but|with|yet|this|that)$/i, '')
     .replace(/["'([{,:;/-]\s*$/, '')
+    .trim();
+}
+
+function humanizeBrowserTaskBullet(value: string): string {
+  return value
+    .replace(/"([^"]{1,90})"/g, '$1')
+    .replace(/\bReply with Exactly:\s*PING_OK\b/gi, 'ping smoke test')
+    .replace(/\bACTIVE\b/g, 'active')
+    .replace(/\bPAUSED\b/g, 'paused')
+    .replace(/\bCANCELLED\b/g, 'cancelled')
+    .replace(/\bCOMPLETE\b/g, 'complete')
+    .replace(/\bNEEDS REVIEW\b/g, 'needs review')
+    .replace(/\bNeeds completion proof\b/g, 'needs completion proof')
     .trim();
 }
 

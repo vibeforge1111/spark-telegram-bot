@@ -163,12 +163,11 @@ async function main(): Promise<void> {
       profile: 'Default',
     });
 
-    assert.match(reply, /Browser-use finished the browser run/);
+    assert.match(reply, /Browser-use finished\./);
+    assert.match(reply, /Fix next/);
     assert.match(reply, /empty state needs/);
-    assert.match(reply, /4 browser steps/);
-    assert.match(reply, /screenshot artifact/);
-    assert.match(reply, /Profile/);
-    assert.match(reply, /Default requested/);
+    assert.match(reply, /Live Default browser run on 127\.0\.0\.1 with screenshot evidence/);
+    assert.doesNotMatch(reply, /Visited/);
   });
 
   await test('renders full task markdown as compact Telegram bullets', () => {
@@ -194,11 +193,14 @@ async function main(): Promise<void> {
       cdp_url: 'http://127.0.0.1:9222',
     });
 
-    assert.match(reply, /Result\n• "Orphan Pause Mission" stuck/);
-    assert.match(reply, /• "Cancel Me" is CANCELLED/);
+    assert.match(reply, /Fix next/);
+    assert.match(reply, /Orphan Pause Mission stuck in active as paused/);
+    assert.match(reply, /Cancel Me is cancelled/);
     assert.doesNotMatch(reply, /##/);
     assert.doesNotMatch(reply, /\[truncated\]/);
-    assert.match(reply, /running browser via CDP requested/);
+    assert.match(reply, /Live attached-browser run on Kanban with screenshot evidence/);
+    assert.doesNotMatch(reply, /Profile/);
+    assert.doesNotMatch(reply, /Visited/);
   });
 
   await test('clips long full task bullets without truncation markers', () => {
@@ -213,7 +215,7 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /Two COMPLETE missions still flagged/);
+    assert.match(reply, /Two complete missions still flagged needs completion proof/);
     assert.doesNotMatch(reply, /\[truncated\]/);
     assert.ok(reply.split('\n').every((line) => line.length < 190));
   });
@@ -231,8 +233,8 @@ async function main(): Promise<void> {
       }
     );
 
-    assert.match(reply, /• "Orphan Pause Mission" is stuck in ACTIVE but its status is PAUSED/);
-    assert.match(reply, /• Three completed missions still show "Needs completion proof"/);
+    assert.match(reply, /Orphan Pause Mission is stuck in active but its status is paused/);
+    assert.match(reply, /Three completed missions still show needs completion proof/);
     assert.doesNotMatch(reply, /\bIt\s*$/m);
     assert.doesNotMatch(reply, /Smoke"\s*$/m);
   });
