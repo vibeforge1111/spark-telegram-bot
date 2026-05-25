@@ -429,7 +429,8 @@ function browserReferenceResearchMissingExternalEvidence(
   }
 
   const cleaned = cleanBrowserText(finalResult).toLowerCase();
-  if (/\b(?:source|reference|linear|jira|atlassian|github|issues|projects|asana|trello|clickup|notion)\b/.test(cleaned)) {
+  if (/\b(?:linear|jira|atlassian|github|github issues|github projects|asana|trello|clickup|notion)\b/.test(cleaned)
+    || /https?:\/\/(?!127\.0\.0\.1|localhost)[^\s)>\]]+/i.test(finalResult)) {
     return false;
   }
 

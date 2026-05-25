@@ -280,6 +280,9 @@ const SPARK_CLI_COMMAND = process.env.SPARK_CLI_COMMAND
 const BROWSER_USE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10) > 0
   ? Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10)
   : 8;
+const BROWSER_USE_REFERENCE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10) > 0
+  ? Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10)
+  : Math.max(BROWSER_USE_TASK_MAX_STEPS, 18);
 
 installConsoleRedaction();
 
@@ -448,8 +451,11 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
       last_failure_reason: 'Send a browser-use task goal.',
     };
   }
-  console.log(`[BrowserUse] task start url=${intent.url || ''} goalLen=${goal.length} maxSteps=${BROWSER_USE_TASK_MAX_STEPS}`);
-  const args = ['browser-use', 'task', '--max-steps', String(BROWSER_USE_TASK_MAX_STEPS), '--json'];
+  const maxSteps = browserTaskNeedsReferenceResearch(intent)
+    ? BROWSER_USE_REFERENCE_TASK_MAX_STEPS
+    : BROWSER_USE_TASK_MAX_STEPS;
+  console.log(`[BrowserUse] task start url=${intent.url || ''} goalLen=${goal.length} maxSteps=${maxSteps}`);
+  const args = ['browser-use', 'task', '--max-steps', String(maxSteps), '--json'];
   if (intent.url) {
     args.push('--url', intent.url);
   }

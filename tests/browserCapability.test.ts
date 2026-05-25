@@ -366,6 +366,28 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Tagline: Visual Orchestration/);
   });
 
+  await test('does not accept vague source words as reference evidence', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control. Compare http://127.0.0.1:3333/canvas with Linear, Jira, and GitHub Issues.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        'Spawner is a Visual Orchestration for AI Skill Chains platform.',
+        'It has a skills library of 656 skills across 44 categories (Source.',
+        'Skills are tiered.',
+        'The platform features a canvas-based workflow editor with nodes representing skill chains.',
+        'Canvas - Visual workflow editor for building AI skill chains.'
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas'],
+      number_of_steps: 4,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /did not complete the reference research/);
+    assert.doesNotMatch(reply, /Inspired by/);
+    assert.doesNotMatch(reply, /656 skills/);
+  });
+
   await test('renders full task markdown as compact Telegram bullets', () => {
     const intent = {
       ...requireIntent('Use browser-use to review http://127.0.0.1:3333/kanban and gather feedback.'),
