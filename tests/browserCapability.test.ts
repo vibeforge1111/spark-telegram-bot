@@ -541,6 +541,57 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /a control\./);
   });
 
+  await test('actionizes clipped reference research from live product inspiration runs', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets. If search is blocked, say what blocked it and ask for direct URLs.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        "1. Inspired by: LangSmith's observability layer -> Spawner could add per-node evaluation dashboards (pass/fail/latency) so mission controllers see which skill node caused a.",
+        '2. CrewAI: add an inline copilot that suggests skill-chain compositions.',
+        '3. Inspired by: AutoGen Studios no-code prototyping -> Spawners 4-node pipeline preview could offer a one-click dry run sandbox (as AutoGen does) before committing to a.',
+        "4. CrewAI: enforce per-node guardrails, retries, timeouts, tool permissions, and team access.",
+        '5. Inspired by: AutoGen Cores event-driven architecture -> Spawners linear build/prep/elapsed summary could evolve into an event-stream timeline (per-node emitted events).',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://smith.langchain.com', 'https://microsoft.github.io/autogen', 'https://crewai.com'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /^Browser-use finished\./);
+    assert.match(reply, /LangSmith: add per-node evaluation dashboards/);
+    assert.match(reply, /AutoGen: add a one-click dry-run sandbox/);
+    assert.match(reply, /AutoGen: show an event-stream timeline/);
+    assert.doesNotMatch(reply, /caused a\./);
+    assert.doesNotMatch(reply, /committing to a\./);
+    assert.doesNotMatch(reply, /Inspired by:/);
+  });
+
+  await test('actionizes short incomplete Linear and GitHub reference bullets', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control. Compare http://127.0.0.1:3333/canvas with https://linear.app and https://github.com/features/issues. Give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        "1. Inbox & AI-Triage Queue (inspired by Linear's inbox + triage intelligence) - A unified inbox where failed, stalled.",
+        "2. Execution Cycles for Pipeline Skills (inspired by Linear's cycles) - Time-boxed execution windows that group the in pipeline skills into shippable batches.",
+        "3. Sub-Node Breakdown with Nested Progress (inspired by GitHub's sub-issues with progress indicators) - Allow any canvas node (e.g.",
+        '4. Switchable Views.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://linear.app', 'https://github.com/features/issues'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /finished, but the research answer was incomplete/);
+    assert.match(reply, /Linear: add an inbox for stalled, failed, and review-ready missions\./);
+    assert.match(reply, /Linear: group skill execution into time-boxed mission cycles\./);
+    assert.match(reply, /GitHub Issues: add nested progress under each canvas node\./);
+    assert.match(reply, /GitHub Issues: make Canvas, Board, Table, and Timeline switchable views/);
+    assert.doesNotMatch(reply, /failed, stalled\./);
+    assert.doesNotMatch(reply, /e\.g\./);
+  });
+
   await test('marks successful reference research incomplete when it returns fewer bullets than requested', () => {
     const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
     const reply = renderBrowserUseTaskAnswer(intent, {

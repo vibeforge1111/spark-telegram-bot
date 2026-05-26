@@ -1093,6 +1093,36 @@ function referenceResearchConceptAction(value: string): string {
   if (/\bgithub(?: issues)?\b.*\bproof[-\s]?native timelines?\b/.test(normalized)) {
     return 'GitHub Issues: be inspired by proof-native timelines.';
   }
+  if (/\blangsmith\b.*\b(?:observability|evaluation dashboards?|pass\/fail|latency)\b/.test(normalized)) {
+    return 'LangSmith: add per-node evaluation dashboards for pass/fail, latency, and failure source.';
+  }
+  if (/\blinear\b.*\b(?:inbox|triage intelligence|ai[-\s]?triage)\b/.test(normalized)) {
+    return 'Linear: add an inbox for stalled, failed, and review-ready missions.';
+  }
+  if (/\blinear\b.*\bcycles?\b/.test(normalized)) {
+    return 'Linear: group skill execution into time-boxed mission cycles.';
+  }
+  if (/\bgithub\b.*\b(?:sub[-\s]?issues?|nested progress|sub[-\s]?node)\b/.test(normalized)) {
+    return 'GitHub Issues: add nested progress under each canvas node.';
+  }
+  if (/\b(?:multi[-\s]?view mission dashboard|switchable views?|switchable table|board\/roadmap|table\/board\/roadmap)\b/.test(normalized)) {
+    return 'GitHub Issues: make Canvas, Board, Table, and Timeline switchable views of the same mission.';
+  }
+  if (/\b(?:ai[-\s]?powered skill triage|auto[-\s]?assignment|triage intelligence)\b/.test(normalized)) {
+    return 'Linear and Jira: add AI skill triage and auto-assignment.';
+  }
+  if (/\bkeyboard[-\s]?driven command palette\b/.test(normalized)) {
+    return 'Linear and GitHub: add a keyboard-first command palette for canvas operations.';
+  }
+  if (/\b(?:mission health insights|burn[-\s]?up|bottleneck detection|project insights)\b/.test(normalized)) {
+    return 'GitHub Issues: add mission health with GitHub project insights and burn-up charts.';
+  }
+  if (/\bautogen\b.*\b(?:no[-\s]?code prototyping|dry run sandbox|one-click dry run)\b/.test(normalized)) {
+    return 'AutoGen: add a one-click dry-run sandbox before committing a pipeline.';
+  }
+  if (/\bautogen\b.*\b(?:event[-\s]?driven architecture|event[-\s]?stream|emitted events?)\b/.test(normalized)) {
+    return 'AutoGen: show an event-stream timeline for per-node emitted events.';
+  }
   if (/\blanggraphs?\b.*\b(?:stateful\s+)?checkpointers?\b/.test(normalized)) {
     return 'LangGraph: add per-node checkpoints for rollback and resume.';
   }
@@ -1136,7 +1166,7 @@ function referenceResearchLooksLikeInventory(value: string): boolean {
 
 function referenceResearchLineIsClipped(value: string): boolean {
   const cleaned = cleanBrowserText(value).replace(/\s+/g, ' ').trim();
-  return /\b(?:based on|because|with|for|to|and|or)\.?$/i.test(cleaned);
+  return /\b(?:based on|because|with|for|to|and|or|caused a|committing to a|failed,\s*stalled|e\.g)\.?$/i.test(cleaned);
 }
 
 function expandReferenceResearchFindings(lines: string[]): string[] {
@@ -1435,7 +1465,7 @@ function actionizeBrowserTaskBullet(value: string): string {
     return polishLabeledBrowserTaskBullet(value);
   }
 
-  if (/^(?:LangGraph|CrewAI|Langfuse|Multi-agent routing|Review gates|n8n|Linear|Jira|GitHub Issues):\s+/i.test(value)) {
+  if (/^(?:LangGraph|CrewAI|Langfuse|Multi-agent routing|Review gates|n8n|Linear|Jira|GitHub Issues|Linear and Jira|Linear and GitHub):\s+/i.test(value)) {
     return /[.!?]$/.test(value) ? value : `${value}.`;
   }
 
