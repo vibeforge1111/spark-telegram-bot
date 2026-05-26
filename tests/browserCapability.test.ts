@@ -44,6 +44,14 @@ async function main(): Promise<void> {
       classifyBrowserCapabilityQuestion('You list browser capability, so can you definitely browse pages right now?'),
       { kind: 'capability' }
     );
+    assert.deepEqual(
+      classifyBrowserCapabilityQuestion('What browser evidence do you have from the latest run?'),
+      { kind: 'capability' }
+    );
+    assert.deepEqual(
+      classifyBrowserCapabilityQuestion('Show me the browser proof from the last run.'),
+      { kind: 'capability' }
+    );
   });
 
   await test('classifies URL open requests separately from generic capability', () => {

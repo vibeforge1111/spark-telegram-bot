@@ -57,7 +57,8 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
 
   const browserWords = /\b(?:browse|browser|browser-use|browser\s+use|web\s+page|webpages?|open\s+pages?|screenshots?)\b/.test(normalized);
   const capabilityWords = /\b(?:can|able|capability|available|working|ready|proven|definitely)\b/.test(normalized);
-  if (asksNow && browserWords && capabilityWords) {
+  const evidenceWords = /\b(?:evidence|proof|receipt|receipts|latest\s+run|last\s+run|latest\s+browser\s+run|what\s+.*(?:saw|see|observed|proved))\b/.test(normalized);
+  if ((asksNow && browserWords && capabilityWords) || (browserWords && evidenceWords)) {
     return { kind: 'capability' };
   }
 
