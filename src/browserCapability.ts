@@ -539,7 +539,9 @@ function requestedInspiredByCount(intent: BrowserCapabilityIntent): number {
 
 function browserTaskLineHasDanglingFragment(value: string): boolean {
   const cleaned = cleanBrowserText(value).replace(/\s+/g, ' ').trim();
-  return /\b(?:guarantees|supports|tracks|shows|offers|provides|uses|includes|enables|helps|lets|allows)\s+(?:long-running|every|all|the|a|an|to|for|with)?\.?$/i.test(cleaned);
+  return /\b(?:guarantees|supports|tracks|shows|offers|provides|uses|includes|enables|helps|lets|allows|mirrors|echoes|parallel(?:s)?|traces)\s+(?:long-running|stateful|every|all|the|a|an|to|for|with)?\.?$/i.test(cleaned)
+    || /\b(?:why|why it|because|this matters|which means)\.?$/i.test(cleaned)
+    || /(?:→|->).*?\b(?:why|why it|stateful|parallel(?:s)?|long-running)\.?$/i.test(cleaned);
 }
 
 function browserPartialTaskAnswer(

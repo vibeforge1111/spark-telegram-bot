@@ -493,6 +493,30 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /LangGraph guarantees long-running/);
   });
 
+  await test('marks arrow-style reference bullets incomplete when their explanations are dangling', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        "1. Inspired by: CrewAIs centralized management & monitoring → Spawners pipeline panel mirrors CrewAI's workflow tracing dashboard. Why it.",
+        "2. Inspired by: LangGraph Studios graph-based orchestration with durable execution → Spawners node canvas with Input/Output ports per node echoes LangGraph's stateful.",
+        '3. Inspired by: CrewAIs role-based skill tagging → Spawners skill tags parallel.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://crewai.com', 'https://langchain-ai.github.io/langgraph'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /finished, but the research answer was incomplete/);
+    assert.match(reply, /Missing/);
+    assert.match(reply, /clipped|only 0 complete inspired-by bullets came back/);
+    assert.doesNotMatch(reply, /^Browser-use finished\./m);
+    assert.doesNotMatch(reply, /Why it\./);
+    assert.doesNotMatch(reply, /stateful\./);
+    assert.doesNotMatch(reply, /parallel\./);
+  });
+
   await test('allows successful reference research with three complete bullets', () => {
     const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
     const reply = renderBrowserUseTaskAnswer(intent, {
