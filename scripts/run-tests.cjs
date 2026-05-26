@@ -50,7 +50,8 @@ const tests = [
   'tests/launchConversationQuality.test.ts',
   'tests/builderBridge.test.ts',
   'tests/pythonCommand.test.ts',
-  'tests/hiddenProcess.test.ts'
+  'tests/hiddenProcess.test.ts',
+  'tests/browserCapability.test.ts'
 ];
 
 const requireRealToken = process.argv.includes('--require-real-token');

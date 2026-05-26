@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
@@ -23,12 +24,25 @@ import {
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   classifyBrowserCapabilityQuestion,
+  browserTaskNeedsReferenceResearch,
+  browserUseCliTaskGoalForIntent,
+  browserUseTaskScreenshotPath,
+  parseBrowserUseCommandArgs,
   renderBrowserCapabilityAnswer,
   renderBrowserUseActionAnswer,
+  renderBrowserUsePrimitiveAnswer,
   renderBrowserUseReviewAnswer,
   renderBrowserUseTaskAnswer,
-  type BrowserCapabilityIntent
+  shouldRunFullBrowserUseTask,
+  type BrowserCapabilityIntent,
+  type BrowserUseProfileOptions
 } from './browserCapability';
+import { shouldSendBrowserTaskStartNotice } from './browserTaskProgress';
+import {
+  browserProofReceiptToRoutePayload,
+  readLatestBrowserProofReceipt,
+  recordBrowserProofReceipt
+} from './browserProofLedger';
 import {
   getBuilderBridgeStatus,
   runBuilderAocPreflight,
@@ -271,6 +285,9 @@ const SPARK_CLI_COMMAND = process.env.SPARK_CLI_COMMAND
 const BROWSER_USE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10) > 0
   ? Number.parseInt(process.env.SPARK_BROWSER_USE_TASK_MAX_STEPS || '', 10)
   : 8;
+const BROWSER_USE_REFERENCE_TASK_MAX_STEPS = Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10) > 0
+  ? Number.parseInt(process.env.SPARK_BROWSER_USE_REFERENCE_TASK_MAX_STEPS || '', 10)
+  : Math.max(BROWSER_USE_TASK_MAX_STEPS, 12);
 
 installConsoleRedaction();
 
@@ -358,49 +375,115 @@ function sparkCliFailureReason(error: unknown): string {
 }
 
 async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
+  const startedAt = Date.now();
   if (!intent.url) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
-      action: intent.kind === 'specific_screenshot' ? 'screenshot' : 'open',
+      action: command,
       last_failure_reason: 'Send a public URL with the browser request.',
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
-  const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
+  if (browserUseProfileRequiresFullTask(intent.profile)) {
+    const payload = {
+      ok: false,
+      status: 'blocked',
+      action: command,
+      last_failure_reason: 'Use /browser task full with --user-data-dir, --profile-directory, or --storage-state. Fast open/screenshot supports --profile only.',
+    };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
+  }
   try {
-    const raw = await runSparkCliReceipt(['browser-use', command, intent.url, '--json'], 120_000);
+    const raw = await runSparkCliReceipt(['browser-use', command, intent.url, ...browserUseProfileCliArgs(intent.profile, 'action'), '--json'], 120_000);
     const parsed = parseSparkCliJsonObject(raw);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+    const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
       ok: false,
       status: 'failed',
       action: command,
       last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   } catch (error) {
-    return {
+    const payload = {
       ok: false,
       status: 'failed',
       action: command,
       last_failure_reason: browserUseFailureReason(error),
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
+  }
+}
+
+async function runBrowserUsePrimitive(
+  action: string,
+  primitiveArgs: string[],
+  profile: BrowserUseProfileOptions | undefined
+): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
+  if (browserUseProfileRequiresFullTask(profile)) {
+    const payload = {
+      ok: false,
+      status: 'blocked',
+      action,
+      last_failure_reason: 'Direct browser actions support --profile and --cdp-url. Use /browser task full for custom user-data-dir, profile-directory, or storage-state.',
+    };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
+  }
+  try {
+    const raw = await runSparkCliReceipt(
+      ['browser-use', action, ...browserUseProfileCliArgs(profile, 'action'), '--json', ...primitiveArgs],
+      120_000
+    );
+    const parsed = parseSparkCliJsonObject(raw);
+    const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+      ok: false,
+      status: 'failed',
+      action,
+      last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
+    };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
+  } catch (error) {
+    const payload = {
+      ok: false,
+      status: 'failed',
+      action,
+      last_failure_reason: browserUseFailureReason(error),
+    };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
 }
 
 async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
-  const goal = String(intent.goal || '').trim() || (intent.url ? `Inspect ${intent.url} and summarize what matters.` : '');
+  const startedAt = Date.now();
+  const goal = browserUseCliTaskGoalForIntent(intent);
   if (!goal) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
       action: 'task',
       last_failure_reason: 'Send a browser-use task goal.',
     };
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
-  console.log(`[BrowserUse] task start url=${intent.url || ''} goalLen=${goal.length} maxSteps=${BROWSER_USE_TASK_MAX_STEPS}`);
-  const args = ['browser-use', 'task', '--max-steps', String(BROWSER_USE_TASK_MAX_STEPS), '--json'];
+  const maxSteps = browserTaskNeedsReferenceResearch(intent)
+    ? BROWSER_USE_REFERENCE_TASK_MAX_STEPS
+    : BROWSER_USE_TASK_MAX_STEPS;
+  console.log(`[BrowserUse] task start url=${intent.url || ''} goalLen=${goal.length} maxSteps=${maxSteps}`);
+  const args = ['browser-use', 'task', '--max-steps', String(maxSteps), '--json'];
   if (intent.url) {
     args.push('--url', intent.url);
   }
+  args.push(...browserUseProfileCliArgs(intent.profile, 'task'));
   args.push(goal);
   try {
     const raw = await runSparkCliReceipt(args, 360_000);
@@ -412,15 +495,18 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
       last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
     };
     console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
     return payload;
   } catch (error) {
     console.log('[BrowserUse] task done ok=false status=failed');
-    return {
+    const payload = {
       ok: false,
       status: 'failed',
       action: 'task',
       last_failure_reason: browserUseFailureReason(error),
     };
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
 }
 
@@ -437,7 +523,57 @@ async function runBrowserUseReview(intent: BrowserCapabilityIntent): Promise<Rec
     kind: 'specific_screenshot',
     url: intent.url,
     goal: intent.goal,
+    profile: intent.profile,
   });
+}
+
+function browserUseQaGoal(input: string): string {
+  const scenario = input.trim() || 'QA the primary visible workflow.';
+  return [
+    'QA this page like a useful operator using live browser evidence only.',
+    'Look for broken, confusing, blocked, contradictory, or high-friction moments.',
+    'Do not report passes, present checkmarks, or validate labels unless there are no issues.',
+    'Return exactly five short bullets under Fix next.',
+    'Each bullet must be a concrete next fix, not a status observation.',
+    `Scenario: ${scenario}`,
+  ].join('\n');
+}
+
+async function replyWithBrowserUseTaskScreenshot(ctx: any, payload: Record<string, unknown>): Promise<void> {
+  if (payload.ok !== true) return;
+  const screenshotPath = browserUseReceiptScreenshotPath(payload);
+  if (!screenshotPath || !existsSync(screenshotPath)) return;
+  await ctx.replyWithPhoto({ source: screenshotPath }).catch(async () => {
+    await ctx.reply('Screenshot was saved locally, but Telegram could not upload it.').catch(() => {});
+  });
+}
+
+function browserUseReceiptScreenshotPath(payload: Record<string, unknown>): string {
+  return browserUseTaskScreenshotPath(payload) || String(payload.screenshot_path || '').trim();
+}
+
+function shouldFallbackToBrowserUseReview(payload: Record<string, unknown>, intent: BrowserCapabilityIntent): boolean {
+  if (payload.ok === true || !intent.url) return false;
+  if (browserTaskNeedsReferenceResearch(intent)) return false;
+  const reason = String(payload.last_failure_reason || '').toLowerCase();
+  return /invalid action format|invalid model output|json_invalid|agentoutput|pydantic|timed out|timeout|fast \/browser task path/.test(reason);
+}
+
+function browserUseProfileCliArgs(profile: BrowserUseProfileOptions | undefined, scope: 'action' | 'task'): string[] {
+  if (!profile) return [];
+  const args: string[] = [];
+  if (profile.profile) args.push('--profile', profile.profile);
+  if (profile.cdpUrl) args.push('--cdp-url', profile.cdpUrl);
+  if (scope === 'task') {
+    if (profile.userDataDir) args.push('--user-data-dir', profile.userDataDir);
+    if (profile.profileDirectory) args.push('--profile-directory', profile.profileDirectory);
+    if (profile.storageState) args.push('--storage-state', profile.storageState);
+  }
+  return args;
+}
+
+function browserUseProfileRequiresFullTask(profile: BrowserUseProfileOptions | undefined): boolean {
+  return Boolean(profile?.userDataDir || profile?.profileDirectory || profile?.storageState);
 }
 
 function parseSparkCliJsonObject(raw: string): unknown {
@@ -2120,6 +2256,13 @@ function withCanonicalAliasNotice(ctx: any, replyText: string): string {
   return [`↪️ /${alias} maps to /${canonical}.`, '', replyText].join('\n');
 }
 
+async function replyWithBrowserTaskStartNotice(ctx: any, replyText: string): Promise<void> {
+  if (!(await shouldSendBrowserTaskStartNotice(ctx))) {
+    return;
+  }
+  await ctx.reply(withCanonicalAliasNotice(ctx, replyText));
+}
+
 async function handleAgentOperatingContextCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
@@ -2354,12 +2497,19 @@ function renderBrowserUseHelp(): string {
     'Browser-use',
     '',
     'Use',
-    '• /browser open <url>',
-    '• /browser screenshot <url>',
-    '• /browser task [url] <goal>',
-    '• /browser task full [url] <goal>',
+    '\u2022 /browser open [--profile <name>] <url>',
+    '\u2022 /browser screenshot [--profile <name>] <url>',
+    '\u2022 /browser state',
+    '\u2022 /browser click <index>',
+    '\u2022 /browser type <text>',
+    '\u2022 /browser input <index> <text>',
+    '\u2022 /browser scroll [up|down] [--amount <px>]',
+    '\u2022 /browser back',
+    '\u2022 /browser task [--profile <name>] [url] <goal>',
+    '\u2022 /browser qa [--cdp-url <url>] <url> <scenario>',
+    '\u2022 /browser task full [--profile <name>] [--user-data-dir <path>] [--cdp-url <url>] [url] <goal>',
     '',
-    'Task is fast by default: it reviews fresh screenshot/state evidence. Use full for the multi-step browser agent loop.'
+    'Use direct actions for hands-on browsing. Use task or qa when Spark should operate the page for you.'
   ].join('\n');
 }
 
@@ -2373,15 +2523,65 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
       return;
     }
-    const [first = '', ...rest] = raw.split(/\s+/);
-    const action = first.toLowerCase() === 'screenshot' ? 'screenshot' : first.toLowerCase() === 'open' ? 'open' : first.toLowerCase() === 'task' ? 'task' : '';
+    const parsed = parseBrowserUseCommandArgs(raw);
+    const [first = '', ...rest] = parsed.args;
+    const primitiveActions = new Set(['state', 'click', 'type', 'input', 'scroll', 'back', 'eval', 'close']);
+    const firstAction = first.toLowerCase();
+    const action = firstAction === 'screenshot'
+      ? 'screenshot'
+      : firstAction === 'open'
+        ? 'open'
+        : firstAction === 'task'
+          ? 'task'
+          : firstAction === 'qa'
+            ? 'qa'
+            : primitiveActions.has(firstAction)
+              ? firstAction
+              : '';
     if (!action) {
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseHelp()));
       return;
     }
+    if (primitiveActions.has(action)) {
+      const payload = await runBrowserUsePrimitive(action, rest, parsed.profile);
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUsePrimitiveAnswer(action, payload, parsed.profile)));
+      return;
+    }
+    if (action === 'qa') {
+      const taskText = rest.join(' ').trim();
+      const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
+      const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
+      const scenario = url && taskText.startsWith(url)
+        ? taskText.slice(url.length).trim()
+        : taskText.replace(url, '').trim();
+      const intent: BrowserCapabilityIntent = {
+        kind: 'task',
+        ...(url ? { url } : {}),
+        goal: browserUseQaGoal(scenario),
+        profile: parsed.profile,
+      };
+      await replyWithBrowserTaskStartNotice(ctx, [
+        'Browser-use QA started.',
+        '',
+        'I will send the result here when the browser run finishes.'
+      ].join('\n'));
+      const payload = await runBrowserUseTask(intent);
+      if (shouldFallbackToBrowserUseReview(payload, intent)) {
+        const reviewPayload = await runBrowserUseReview(intent);
+        if (reviewPayload.ok === true) {
+          await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseReviewAnswer(intent, reviewPayload)));
+          await replyWithBrowserUseTaskScreenshot(ctx, reviewPayload);
+          return;
+        }
+      }
+      await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
+      await replyWithBrowserUseTaskScreenshot(ctx, payload);
+      return;
+    }
     if (action === 'task') {
-      const fullTask = /^(?:full|agent|loop)$/i.test(rest[0] || '');
-      const taskText = (fullTask ? rest.slice(1) : rest).join(' ').trim();
+      const explicitFullTask = /^(?:full|agent|loop)$/i.test(rest[0] || '');
+      const taskText = (explicitFullTask ? rest.slice(1) : rest).join(' ').trim();
+      const fullTask = explicitFullTask || shouldRunFullBrowserUseTask(taskText);
       const urlMatch = taskText.match(/https?:\/\/[^\s)>\]]+/i);
       const url = urlMatch?.[0]?.replace(/[.,;!?]+$/, '') || '';
       const goal = url && taskText.startsWith(url)
@@ -2391,6 +2591,7 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         kind: 'task',
         ...(url ? { url } : {}),
         goal,
+        profile: parsed.profile,
       };
       if (!fullTask) {
         const payload = await runBrowserUseReview(intent);
@@ -2401,19 +2602,29 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
         }
         return;
       }
-      await ctx.reply(withCanonicalAliasNotice(ctx, [
+      await replyWithBrowserTaskStartNotice(ctx, [
         'Browser-use full task started.',
         '',
         'I captured the request and will send the result here when the browser agent loop finishes.'
-      ].join('\n')));
+      ].join('\n'));
       const payload = await runBrowserUseTask(intent);
+      if (shouldFallbackToBrowserUseReview(payload, intent)) {
+        const reviewPayload = await runBrowserUseReview(intent);
+        if (reviewPayload.ok === true) {
+          await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseReviewAnswer(intent, reviewPayload)));
+          await replyWithBrowserUseTaskScreenshot(ctx, reviewPayload);
+          return;
+        }
+      }
       await ctx.reply(withCanonicalAliasNotice(ctx, renderBrowserUseTaskAnswer(intent, payload)));
+      await replyWithBrowserUseTaskScreenshot(ctx, payload);
       return;
     }
     const url = rest.join(' ').trim();
     const intent: BrowserCapabilityIntent = {
       kind: action === 'screenshot' ? 'specific_screenshot' : 'specific_open',
       ...(url ? { url } : {}),
+      profile: parsed.profile,
     };
     const payload = await runBrowserUseAction(intent);
     const reply = renderBrowserUseActionAnswer(intent, payload);
@@ -2425,7 +2636,12 @@ async function handleBrowserUseCommand(ctx: any): Promise<void> {
       }
     }
   } catch (error) {
-    await ctx.reply(withCanonicalAliasNotice(ctx, renderTelegramError('Browser-use failed', error)));
+    await ctx.reply(withCanonicalAliasNotice(ctx, [
+      'Browser-use could not start that request.',
+      '',
+      'Why',
+      `\u2022 ${browserUseFailureReason(error)}`
+    ].join('\n')));
   }
 }
 
@@ -5012,7 +5228,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
-  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
+  const earlyBrowserCapabilityIntent = !globalAgentDoctrineRequest ? classifyBrowserCapabilityQuestion(text) : null;
+  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest && !earlyBrowserCapabilityIntent ? parseBuildIntent(text) : null;
   const earlyBuildIntent = parsedEarlyBuildIntent && deterministicRouteAllowed('spawner.build', text)
     ? parsedEarlyBuildIntent
     : null;
@@ -5133,25 +5350,52 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const browserCapabilityIntent = !earlyBuildIntent ? classifyBrowserCapabilityQuestion(text) : null;
+  const browserCapabilityIntent = !earlyBuildIntent ? earlyBrowserCapabilityIntent : null;
   if (browserCapabilityIntent) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
     let reply = '';
     let actionPayload: Record<string, unknown> | null = null;
     if (browserCapabilityIntent.kind === 'task') {
-      actionPayload = await runBrowserUseReview(browserCapabilityIntent);
-      reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+      if (shouldRunFullBrowserUseTask(browserCapabilityIntent.goal || text)) {
+        await replyWithBrowserTaskStartNotice(ctx, [
+          'Browser-use full task started.',
+          '',
+          'I captured the request and will send the result here when the browser agent loop finishes.'
+        ].join('\n'));
+        actionPayload = await runBrowserUseTask(browserCapabilityIntent);
+        if (shouldFallbackToBrowserUseReview(actionPayload, browserCapabilityIntent)) {
+          const reviewPayload = await runBrowserUseReview(browserCapabilityIntent);
+          if (reviewPayload.ok === true) {
+            actionPayload = reviewPayload;
+            reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+          } else {
+            reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+          }
+        } else {
+          reply = renderBrowserUseTaskAnswer(browserCapabilityIntent, actionPayload);
+        }
+      } else {
+        actionPayload = await runBrowserUseReview(browserCapabilityIntent);
+        reply = renderBrowserUseReviewAnswer(browserCapabilityIntent, actionPayload);
+      }
     } else if (browserCapabilityIntent.kind === 'specific_open' || browserCapabilityIntent.kind === 'specific_screenshot') {
       actionPayload = await runBrowserUseAction(browserCapabilityIntent);
       reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
     } else {
-      const result = await runBuilderRouteProbe('spark_browser');
-      reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+      const latestBrowserProof = await readLatestBrowserProofReceipt().catch(() => null);
+      if (latestBrowserProof) {
+        reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, browserProofReceiptToRoutePayload(latestBrowserProof));
+      } else {
+        const result = await runBuilderRouteProbe('spark_browser');
+        reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+      }
     }
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
     if ((browserCapabilityIntent.kind === 'specific_screenshot' || browserCapabilityIntent.kind === 'task') && actionPayload?.ok === true) {
-      const screenshotPath = String(actionPayload.screenshot_path || '').trim();
+      const screenshotPath = browserCapabilityIntent.kind === 'task'
+        ? browserUseReceiptScreenshotPath(actionPayload)
+        : String(actionPayload.screenshot_path || '').trim();
       if (screenshotPath) {
         await ctx.replyWithPhoto({ source: screenshotPath }).catch(() => {});
       }

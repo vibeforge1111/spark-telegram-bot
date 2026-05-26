@@ -177,6 +177,7 @@ Current files:
 - `agent-knowledge/self-awareness.md`
 - `agent-knowledge/spark-doc-sources.md`
 - `agent-knowledge/spark-system.md`
+- `agent-knowledge/tool-routing.md`
 - `agent-knowledge/using-spark.md`
 - `agent-knowledge/voice-system.md`
 
