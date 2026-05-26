@@ -1643,6 +1643,14 @@ interface LatestCanvasPlan {
 
 const latestCanvasPlans = new Map<string, LatestCanvasPlan>();
 
+interface LastRunMission {
+  missionId: string;
+  goal: string;
+  providers: string[];
+  timestamp: number;
+}
+const lastRunMissions = new Map<string, LastRunMission>();
+
 function noEditProbeKey(ctx: any): string {
   return `${ctx.chat?.id ?? 'unknown'}-${ctx.from?.id ?? 'unknown'}`;
 }
@@ -4322,6 +4330,19 @@ interface RunCommandOptions {
   relayGoal?: string;
 }
 
+function isActiveTaskStatusQuery(text: string): boolean {
+  const n = text.trim().toLowerCase();
+  return (
+    /\b(?:status|progress|update|going|done|finish(?:ed)?|complet(?:ed)?)\b/.test(n) &&
+    /\b(?:my|the)\b.*\b(?:task|mission|run|job)\b/.test(n)
+  ) || /\bhow.?s\s+(?:it|my\s+(?:task|mission|run|job))\s+(?:going|doing|looking)\b/.test(n);
+}
+
+function isRetryRequest(text: string): boolean {
+  const n = text.trim().toLowerCase();
+  return /\b(?:retry|try\s+again|run\s+(?:it\s+)?again|re-?run\s+it|redo\s+it)\b/.test(n);
+}
+
 export async function handleRunCommand(
   ctx: any,
   goal: string,
@@ -4407,6 +4428,12 @@ export async function handleRunCommand(
     goal: options.relayGoal || goal,
     createdAt: new Date().toISOString(),
     updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+  });
+  lastRunMissions.set(`${ctx.chat.id}-${ctx.from.id}`, {
+    missionId: result.missionId,
+    goal: options.relayGoal || goal,
+    providers,
+    timestamp: Date.now()
   });
   return result.missionId;
 }
@@ -6231,6 +6258,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           : await spawner.board();
       await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
       return;
+    }
+
+    const sessionMissionKey = `${ctx.chat.id}-${ctx.from.id}`;
+    if (isActiveTaskStatusQuery(text)) {
+      const lastRun = lastRunMissions.get(sessionMissionKey);
+      if (lastRun) {
+        await ctx.reply(
+          `Your mission is running. Check its progress with:\n/mission status ${lastRun.missionId}\n\nGoal: "${lastRun.goal.slice(0, 120)}"`
+        );
+        return;
+      }
+    }
+
+    if (isRetryRequest(text)) {
+      const lastRun = lastRunMissions.get(sessionMissionKey);
+      if (lastRun) {
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply(`Retrying: "${lastRun.goal.slice(0, 120)}"`);
+        await handleRunCommand(ctx, lastRun.goal, lastRun.providers);
+        return;
+      }
     }
 
     if (isLocalSparkServiceRequest(text, localServiceContext) && deterministicRouteAllowed('spawner.local_service', text)) {
