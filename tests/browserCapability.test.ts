@@ -519,6 +519,28 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /parallel\./);
   });
 
+  await test('filters clipped bullets out of incomplete reference research found section', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets. If search is blocked, say what blocked it and ask for direct URLs.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. Inspired by: LangGraphs durable execution & human-in-the-loop breakpoints â†’ Spawners Inspect panel could add pause/resume on any skill node mid-execution. LangGraph.',
+        '2. Inspired by: AutoGen Studios Playground with live message streaming â†’ Spawners Inspect/execution-history could show real-time inter-node message flow and a control.',
+        "3. Inspired by: CrewAI's task guardrails & role-based access â†’ Spawner could enforce per-node constraints (max retries, timeout, allowed tools) and team-level permissions.",
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://langchain-ai.github.io/langgraph', 'https://microsoft.github.io/autogen', 'https://crewai.com'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /finished, but the research answer was incomplete/);
+    assert.match(reply, /CrewAI: enforce per-node guardrails/);
+    assert.match(reply, /2 inspired-by bullets were clipped/);
+    assert.doesNotMatch(reply, /LangGraph\./);
+    assert.doesNotMatch(reply, /a control\./);
+  });
+
   await test('marks successful reference research incomplete when it returns fewer bullets than requested', () => {
     const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
     const reply = renderBrowserUseTaskAnswer(intent, {

@@ -505,17 +505,20 @@ export function renderBrowserUseTaskAnswer(
 function browserReferenceResearchQualityIssue(intent: BrowserCapabilityIntent, resultLines: string[]): string {
   const requestedCount = requestedInspiredByCount(intent);
   const useful = resultLines.filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line));
-  const clipped = useful.some((line) => referenceResearchLineIsClipped(line) || browserTaskLineHasDanglingFragment(line));
-  if (clipped) return 'some inspired-by bullets were clipped';
-  if (requestedCount > 0 && useful.length < requestedCount) {
-    return `only ${useful.length} complete inspired-by bullet${useful.length === 1 ? '' : 's'} came back`;
+  const cleanUseful = useful.filter((line) => browserReferenceResultLineIsUsable(line));
+  const clippedCount = useful.length - cleanUseful.length;
+  if (clippedCount > 0) {
+    return `${clippedCount} inspired-by bullet${clippedCount === 1 ? ' was' : 's were'} clipped`;
+  }
+  if (requestedCount > 0 && cleanUseful.length < requestedCount) {
+    return `only ${cleanUseful.length} complete inspired-by bullet${cleanUseful.length === 1 ? '' : 's'} came back`;
   }
   return '';
 }
 
 function browserIncompleteReferenceResearchAnswer(resultLines: string[], reason: string, bullet: string, evidence = ''): string {
   const usable = resultLines
-    .filter((line) => !referenceResearchLineIsClipped(line) && !browserTaskLineHasDanglingFragment(line))
+    .filter((line) => browserReferenceResultLineIsUsable(line))
     .filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line))
     .slice(0, 5);
   const lines = [
@@ -543,9 +546,20 @@ function requestedInspiredByCount(intent: BrowserCapabilityIntent): number {
 
 function browserTaskLineHasDanglingFragment(value: string): boolean {
   const cleaned = cleanBrowserText(value).replace(/\s+/g, ' ').trim();
+  if (/(?:â†’|->).*?\b(?:a control|the control|langgraph|crewai|autogen|n8n)\.?$/i.test(cleaned)
+    || /\b(?:langgraph|crewai|autogen|n8n)\.?$/i.test(cleaned)) {
+    return true;
+  }
+  if (/\b(?:a control|the control)\.?$/i.test(cleaned)) {
+    return true;
+  }
   return /\b(?:guarantees|supports|tracks|shows|offers|provides|uses|includes|enables|helps|lets|allows|mirrors|echoes|parallel(?:s)?|traces)\s+(?:long-running|stateful|every|all|the|a|an|to|for|with)?\.?$/i.test(cleaned)
     || /\b(?:why|why it|because|this matters|which means)\.?$/i.test(cleaned)
     || /(?:→|->).*?\b(?:why|why it|stateful|parallel(?:s)?|long-running)\.?$/i.test(cleaned);
+}
+
+function browserReferenceResultLineIsUsable(value: string): boolean {
+  return !referenceResearchLineIsClipped(value) && !browserTaskLineHasDanglingFragment(value);
 }
 
 function browserPartialTaskAnswer(
@@ -1084,6 +1098,12 @@ function referenceResearchConceptAction(value: string): string {
   }
   if (/\bcrewais?\b.*\brole[-\s]?based\s+orchestration\b/.test(normalized)) {
     return 'CrewAI: make every node show agent role, goal, and handoff.';
+  }
+  if (/\bcrewai'?s?\b.*\b(?:copilot|visual editor|crew building)\b/.test(normalized)) {
+    return 'CrewAI: add an inline copilot that suggests skill-chain compositions.';
+  }
+  if (/\bcrewai'?s?\b.*\b(?:task guardrails?|role[-\s]?based access|allowed tools|max retries|timeouts?)\b/.test(normalized)) {
+    return 'CrewAI: enforce per-node guardrails, retries, timeouts, tool permissions, and team access.';
   }
   if (/\blangfuse\b.*\b(?:tracing|observability)\b/.test(normalized)) {
     return 'Langfuse: surface latency, token cost, and trace trees on each node.';
