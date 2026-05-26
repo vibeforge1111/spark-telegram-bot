@@ -1167,23 +1167,6 @@ function runtimeTruthSignals(text: string): RuntimeTruthSignals {
   return { access, live, providers, memory };
 }
 
-function isPromptInjectionAttempt(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return false;
-  return (
-    /\bignore\b.*\b(?:your\s+)?(?:rules?|instructions?|system\s+prompt|guidelines?|constraints?)\b/.test(normalized) ||
-    /\b(?:reveal|show|print|output|display|give\s+me|tell\s+me)\b.*\b(?:your\s+)?(?:token|secret|api\s+key|system\s+prompt|hidden|password|credentials?)\b/.test(normalized) ||
-    /\bforget\b.*\b(?:your\s+)?(?:rules?|instructions?|training|guidelines?)\b/.test(normalized) ||
-    /\bpretend\b.*\b(?:you\s+(?:have\s+no|are\s+(?:free|unrestricted|a\s+different)))\b/.test(normalized) ||
-    /\byou\s+are\s+now\b.*\b(?:dan|jailbreak|unrestricted|free\s+mode)\b/.test(normalized) ||
-    /\bact\s+as\s+(?:if\s+you\s+(?:have\s+no|are\s+(?:free|unrestricted))|a\s+(?:different|new)\s+(?:ai|model|assistant))\b/.test(normalized)
-  );
-}
-
-function renderPromptInjectionRefusal(): string {
-  return "That looks like a prompt injection attempt — I won't follow it.";
-}
-
 function shouldAttachFreshRuntimeTruthContext(text: string): boolean {
   const signals = runtimeTruthSignals(text);
   return signals.access || signals.live || signals.providers || signals.memory;
@@ -5584,14 +5567,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     (isAccessCapabilityMismatchQuestion(text) || isContextualAccessCapabilityMismatchQuestion(text, recentAccessMessages))
   ) {
     await attachFreshRuntimeTruthContext();
-  }
-
-  if (isPromptInjectionAttempt(text)) {
-    await conversation.remember(user, text).catch(() => {});
-    const reply = renderPromptInjectionRefusal();
-    await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
-    return;
   }
 
   if (!earlyBuildIntent && shouldAnswerRuntimeTruthPriority(text)) {
