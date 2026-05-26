@@ -511,6 +511,24 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
     return true;
   }
   if (
+    /\b(?:where|how)\s+(?:and\s+how\s+)?(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:make|made|apply|change|update|edit|adjust)\b/.test(normalized) &&
+    /\b(?:exact\s+changes?|changes?|route|decision|classification|correction|memory|state|logic)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:what|which)\s+(?:exact\s+)?changes\b/.test(normalized) &&
+    /\b(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:make|apply|change|update|edit|adjust)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:what|which)\s+(?:part|step|layer|file|rule|branch|route|path|code|state|memory|logic)\b/.test(normalized) &&
+    /\b(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:change|update|touch|use|hit|reach)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
     /^(?:what|which|how|why|is|are|do|does|can|could|should|would)\b/.test(normalized) &&
     /\b(?:test|tests|testing|edge\s+cases?|qa|bug(?:s)?|improve|improving|better)\b/.test(normalized) &&
     /\b(?:spawner|mission\s+control|mission\s+loop|route|workflow|telegram|relay)\b/.test(normalized)

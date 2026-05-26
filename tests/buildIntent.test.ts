@@ -180,6 +180,12 @@ test('ignores paths outside the configured workspace root', () => {
   assert.equal(intent.projectPath, null);
 });
 
+test('does not treat provenance questions about exact changes as build intent', () => {
+  const intent = parseBuildIntent('Where and how did you make these exact changes?');
+
+  assert.equal(intent, null);
+});
+
 test('parses Ubuntu target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
   process.env.SPARK_PROJECT_ROOT = '/root';
