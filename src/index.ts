@@ -5693,6 +5693,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const text = ctx.message.text;
 
   if (text.startsWith('/')) {
+    // Unknown slash command — Telegraf routes registered commands before this
+    // function runs, so reaching here means the command isn't recognised.
+    // Reply with a friendly hint instead of silently dropping, which makes
+    // first-time users (especially anyone reaching for the universal /help
+    // convention) think the bot is offline.
+    await ctx.reply(
+      "I don't recognise that command. Try /start to see what I can do."
+    ).catch(() => {});
     return;
   }
 
