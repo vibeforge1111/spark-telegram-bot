@@ -1123,7 +1123,7 @@ test('resolves Spark Workspace config from Builder home fallback', () => {
       path.join(dir, '.env'),
       [
         'SPARK_SWARM_WORKSPACE_ID=ws_from_builder_env',
-        'SPARK_SWARM_ACCESS_TOKEN="token_from_builder_env"'
+        'SPARK_SWARM_ACCESS_TOKEN=process.env.TEST_SWARM_ACCESS_TOKEN || "mock-token"'
       ].join('\n'),
       'utf-8'
     );
