@@ -1628,9 +1628,24 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-// Rate limiting (simple in-memory)
-const userLastAction = new Map<number, number>();
-const RATE_LIMIT_MS = 1000; // 1 second between messages
+// Sliding window rate limiter — tracks recent request timestamps per user
+const userRequestTimestamps = new Map<number, number[]>();
+const RATE_LIMIT_WINDOW_MS = 1000; // 1 second sliding window
+const RATE_LIMIT_MAX_REQUESTS = 3; // max requests per window
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+
+// Periodic cleanup of stale rate-limit entries to prevent unbounded growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, timestamps] of userRequestTimestamps) {
+    const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (recent.length === 0) {
+      userRequestTimestamps.delete(userId);
+    } else {
+      userRequestTimestamps.set(userId, recent);
+    }
+  }
+}, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 
 const lastNoEditProbeMissions = new Map<string, NoEditProbeMission>();
 
@@ -2016,11 +2031,15 @@ bot.catch((err, ctx) => {
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
-    const lastAction = userLastAction.get(userId);
-    if (lastAction && Date.now() - lastAction < RATE_LIMIT_MS) {
-      return; // Rate limited
+    const now = Date.now();
+    let timestamps = userRequestTimestamps.get(userId) ?? [];
+    // Remove timestamps outside the current window
+    timestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
+      return; // Rate limited — too many requests in window
     }
-    userLastAction.set(userId, Date.now());
+    timestamps.push(now);
+    userRequestTimestamps.set(userId, timestamps);
   }
   return next();
 });
