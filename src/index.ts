@@ -39,6 +39,11 @@ import {
 } from './browserCapability';
 import { shouldSendBrowserTaskStartNotice } from './browserTaskProgress';
 import {
+  browserProofReceiptToRoutePayload,
+  readLatestBrowserProofReceipt,
+  recordBrowserProofReceipt
+} from './browserProofLedger';
+import {
   getBuilderBridgeStatus,
   runBuilderAocPreflight,
   formatMemoryInPlaySummary,
@@ -370,39 +375,48 @@ function sparkCliFailureReason(error: unknown): string {
 }
 
 async function runBrowserUseAction(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
+  const startedAt = Date.now();
   if (!intent.url) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
-      action: intent.kind === 'specific_screenshot' ? 'screenshot' : 'open',
+      action: command,
       last_failure_reason: 'Send a public URL with the browser request.',
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
   if (browserUseProfileRequiresFullTask(intent.profile)) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
-      action: intent.kind === 'specific_screenshot' ? 'screenshot' : 'open',
+      action: command,
       last_failure_reason: 'Use /browser task full with --user-data-dir, --profile-directory, or --storage-state. Fast open/screenshot supports --profile only.',
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
-  const command = intent.kind === 'specific_screenshot' ? 'screenshot' : 'open';
   try {
     const raw = await runSparkCliReceipt(['browser-use', command, intent.url, ...browserUseProfileCliArgs(intent.profile, 'action'), '--json'], 120_000);
     const parsed = parseSparkCliJsonObject(raw);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+    const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
       ok: false,
       status: 'failed',
       action: command,
       last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   } catch (error) {
-    return {
+    const payload = {
       ok: false,
       status: 'failed',
       action: command,
       last_failure_reason: browserUseFailureReason(error),
     };
+    await recordBrowserProofReceipt({ action: command, intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
 }
 
@@ -411,13 +425,16 @@ async function runBrowserUsePrimitive(
   primitiveArgs: string[],
   profile: BrowserUseProfileOptions | undefined
 ): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
   if (browserUseProfileRequiresFullTask(profile)) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
       action,
       last_failure_reason: 'Direct browser actions support --profile and --cdp-url. Use /browser task full for custom user-data-dir, profile-directory, or storage-state.',
     };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
   try {
     const raw = await runSparkCliReceipt(
@@ -425,31 +442,38 @@ async function runBrowserUsePrimitive(
       120_000
     );
     const parsed = parseSparkCliJsonObject(raw);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
+    const payload = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {
       ok: false,
       status: 'failed',
       action,
       last_failure_reason: 'Spark browser-use returned an unreadable receipt.',
     };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   } catch (error) {
-    return {
+    const payload = {
       ok: false,
       status: 'failed',
       action,
       last_failure_reason: browserUseFailureReason(error),
     };
+    await recordBrowserProofReceipt({ action, profile, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
 }
 
 async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
   const goal = browserUseCliTaskGoalForIntent(intent);
   if (!goal) {
-    return {
+    const payload = {
       ok: false,
       status: 'blocked',
       action: 'task',
       last_failure_reason: 'Send a browser-use task goal.',
     };
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
   const maxSteps = browserTaskNeedsReferenceResearch(intent)
     ? BROWSER_USE_REFERENCE_TASK_MAX_STEPS
@@ -471,15 +495,18 @@ async function runBrowserUseTask(intent: BrowserCapabilityIntent): Promise<Recor
       last_failure_reason: 'Spark browser-use returned an unreadable task receipt.',
     };
     console.log(`[BrowserUse] task done ok=${payload.ok === true} status=${String(payload.status || '')}`);
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
     return payload;
   } catch (error) {
     console.log('[BrowserUse] task done ok=false status=failed');
-    return {
+    const payload = {
       ok: false,
       status: 'failed',
       action: 'task',
       last_failure_reason: browserUseFailureReason(error),
     };
+    await recordBrowserProofReceipt({ action: 'task', intent, payload, latencyMs: Date.now() - startedAt }).catch(() => {});
+    return payload;
   }
 }
 
@@ -5356,8 +5383,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       actionPayload = await runBrowserUseAction(browserCapabilityIntent);
       reply = renderBrowserUseActionAnswer(browserCapabilityIntent, actionPayload);
     } else {
-      const result = await runBuilderRouteProbe('spark_browser');
-      reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+      const latestBrowserProof = await readLatestBrowserProofReceipt().catch(() => null);
+      if (latestBrowserProof) {
+        reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, browserProofReceiptToRoutePayload(latestBrowserProof));
+      } else {
+        const result = await runBuilderRouteProbe('spark_browser');
+        reply = renderBrowserCapabilityAnswer(browserCapabilityIntent, result.payload);
+      }
     }
     await ctx.reply(withCanonicalAliasNotice(ctx, reply));
     if ((browserCapabilityIntent.kind === 'specific_screenshot' || browserCapabilityIntent.kind === 'task') && actionPayload?.ok === true) {
