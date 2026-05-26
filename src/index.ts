@@ -1909,7 +1909,7 @@ async function buildNaturalLocalMemoryRecallReply(user: any, text: string): Prom
 }
 
 export async function handleRememberCommand(ctx: any): Promise<void> {
-  const text = ctx.message.text.replace('/remember', '').trim();
+  const text = extractTelegramCommandArgs(ctx.message.text, 'remember');
 
   if (!text) {
     return ctx.reply('Usage: /remember <something to remember>');
@@ -1933,7 +1933,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
 }
 
 export async function handleRecallCommand(ctx: any): Promise<void> {
-  const query = ctx.message.text.replace('/recall', '').trim();
+  const query = extractTelegramCommandArgs(ctx.message.text, 'recall');
 
   if (!query) {
     return ctx.reply('Usage: /recall <topic to recall>');
@@ -2810,7 +2810,7 @@ bot.command('about', async (ctx) => {
 
 // /forget command - prefer Builder deletion flow
 bot.command('forget', async (ctx) => {
-  const target = ctx.message.text.replace('/forget', '').trim();
+  const target = extractTelegramCommandArgs(ctx.message.text, 'forget');
   if (target) {
     try {
       if (await replyViaBuilder(ctx, `Forget ${target}.`)) {
@@ -4628,7 +4628,7 @@ for (const variant of RUN_VARIANTS) {
 bot.command('model', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/model', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'model');
   if (!raw || raw.toLowerCase() === 'status') {
     await ctx.reply(renderModelStatus());
     return;
@@ -4658,7 +4658,7 @@ bot.command('model', async (ctx) => {
 bot.command('models', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/models', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'models');
   const provider = normalizeModelProvider(raw);
   await ctx.reply(renderModelRecommendations(provider));
 });
@@ -4680,7 +4680,7 @@ bot.command('board', async (ctx) => {
 bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/creator', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'creator');
   const control = parseCreatorMissionControlCommand(raw);
   const parsed = control ? null : parseCreatorPlanCommand(raw);
   if (!control && !parsed) {
@@ -4748,7 +4748,7 @@ bot.command('creator', async (ctx) => {
 bot.command('chip', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/chip', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'chip');
   const parts = raw.split(/\s+/);
   const action = parts.shift()?.toLowerCase() || '';
   const prompt = parts.join(' ').trim();
@@ -4782,7 +4782,7 @@ bot.command('chip', async (ctx) => {
 bot.command('loop', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/loop', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'loop');
   const parts = raw.split(/\s+/).filter(Boolean);
   const chipKey = parts[0];
   const rounds = Math.max(1, Math.min(10, Number.parseInt(parts[1] ?? '3', 10) || 3));
@@ -4831,7 +4831,7 @@ bot.command('loop', async (ctx) => {
 export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
-  const raw = rawOverride ?? ctx.message.text.replace('/recursive', '').trim();
+  const raw = rawOverride ?? extractTelegramCommandArgs(ctx.message.text, 'recursive');
   const parsed = parseRecursiveCommand(raw);
   if (!parsed) return ctx.reply(renderRecursiveHelp());
 
@@ -5028,7 +5028,7 @@ bot.command('recursive', async (ctx) => handleRecursiveCommand(ctx));
 bot.command('schedule', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/schedule', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'schedule');
   // Expect: "<cron>" mission <goal>   OR   "<cron>" loop <chipKey> [rounds]
   const quoteMatch = raw.match(/^"([^"]+)"\s+(.*)$/);
   if (!quoteMatch) {
@@ -5071,7 +5071,7 @@ bot.command('schedule', async (ctx) => {
 
 bot.command('schedules', async (ctx) => {
   if (!requireAdmin(ctx)) return;
-  const raw = ctx.message.text.replace('/schedules', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'schedules');
   const parts = raw.split(/\s+/).filter(Boolean);
   const sub = parts.shift()?.toLowerCase();
   if (sub === 'delete') {
@@ -5088,7 +5088,7 @@ bot.command('schedules', async (ctx) => {
 bot.command('updates', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/updates', '').trim();
+  const raw = extractTelegramCommandArgs(ctx.message.text, 'updates');
   if (!raw) {
     const current = await getTelegramRelayVerbosity(ctx.chat.id);
     const links = await getTelegramMissionLinkPreference(ctx.chat.id);
@@ -5164,7 +5164,7 @@ function accessLevelChangeConfirmed(raw: string): boolean {
   return /\bconfirm\b/i.test(raw);
 }
 
-function extractTelegramCommandArgs(text: string, command: string): string {
+export function extractTelegramCommandArgs(text: string, command: string): string {
   const escapedCommand = command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = text.match(new RegExp(`^\\s*/${escapedCommand}(?:@\\w+)?(?:\\s+([\\s\\S]*?))?\\s*$`, 'i'));
   if (match) {
@@ -5408,7 +5408,7 @@ function isShortResolvedListPick(text: string, frame: ConversationFrame): boolea
 bot.command('mission', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const args = ctx.message.text.replace('/mission', '').trim().split(/\s+/).filter(Boolean);
+  const args = extractTelegramCommandArgs(ctx.message.text, 'mission').split(/\s+/).filter(Boolean);
   if (args.length < 2) {
     return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
   }
