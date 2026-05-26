@@ -471,6 +471,50 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /\b(?:into|the|a no)\.?$/m);
   });
 
+  await test('marks successful reference research incomplete when bullets are clipped and too few', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. Inspired by: LangGraphs durable stateful execution - Spawners skill-chain pipeline should persist node-level state across sessions. LangGraph guarantees long-running.',
+        '2. Inspired by: CrewAIs workflow tracing - Spawners Inspect panel should offer per-node execution timelines with replay. CrewAI traces every crew interaction.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://langchain-ai.github.io/langgraph', 'https://crewai.com'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png', 'C:/spark/langgraph.png'],
+    });
+
+    assert.match(reply, /finished, but the research answer was incomplete/);
+    assert.match(reply, /Missing/);
+    assert.match(reply, /only 2 complete inspired-by bullets came back|clipped/);
+    assert.match(reply, /Retry with direct reference URLs/);
+    assert.doesNotMatch(reply, /^Browser-use finished\./m);
+    assert.doesNotMatch(reply, /LangGraph guarantees long-running/);
+  });
+
+  await test('allows successful reference research with three complete bullets', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. CrewAI - Visual editor + AI copilot for agent crew building, workflow tracing, and guardrails.',
+        '2. N8n - Visual AI workflow automation canvas, integrations, MCP support, and approval nodes.',
+        '3. LangGraph - Runtime for long-running stateful agents with durable execution.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://crewai.com', 'https://n8n.io', 'https://langchain-ai.github.io/langgraph'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /^Browser-use finished\./);
+    assert.match(reply, /CrewAI:/);
+    assert.match(reply, /n8n:/i);
+    assert.match(reply, /LangGraph:/);
+    assert.doesNotMatch(reply, /incomplete/);
+  });
+
   await test('repairs clipped reference research parentheticals', () => {
     const intent = requireIntent([
       'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',

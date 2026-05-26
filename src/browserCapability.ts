@@ -475,11 +475,18 @@ export function renderBrowserUseTaskAnswer(
       `${bullet} ${requestedRefs.length ? 'Retry with one reference URL at a time, or run the direct product URLs as separate browser tasks.' : 'Retry with direct reference URLs, or ask for one product at a time.'}`
     ].join('\n');
   }
+  const resultLines = browserTaskResultLines(finalResult, bullet, intent.url || '', referenceResearch);
+  if (referenceResearch) {
+    const incomplete = browserReferenceResearchQualityIssue(intent, resultLines);
+    if (incomplete) {
+      return browserIncompleteReferenceResearchAnswer(resultLines, incomplete, bullet);
+    }
+  }
   const lines = [
     'Browser-use finished.',
     '',
     referenceResearch ? 'Inspired by' : 'Fix next',
-    ...browserTaskResultLines(finalResult, bullet, intent.url || '', referenceResearch),
+    ...resultLines,
   ];
   const evidence = browserTaskEvidenceLine({
     steps,
@@ -493,6 +500,46 @@ export function renderBrowserUseTaskAnswer(
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
   return lines.join('\n');
+}
+
+function browserReferenceResearchQualityIssue(intent: BrowserCapabilityIntent, resultLines: string[]): string {
+  const requestedCount = requestedInspiredByCount(intent);
+  const useful = resultLines.filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line));
+  const clipped = useful.some((line) => referenceResearchLineIsClipped(line) || browserTaskLineHasDanglingFragment(line));
+  if (clipped) return 'some inspired-by bullets were clipped';
+  if (requestedCount >= 5 && useful.length < Math.min(3, requestedCount)) {
+    return `only ${useful.length} complete inspired-by bullet${useful.length === 1 ? '' : 's'} came back`;
+  }
+  return '';
+}
+
+function browserIncompleteReferenceResearchAnswer(resultLines: string[], reason: string, bullet: string): string {
+  const usable = resultLines
+    .filter((line) => !referenceResearchLineIsClipped(line) && !browserTaskLineHasDanglingFragment(line))
+    .filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line))
+    .slice(0, 3);
+  return [
+    'Browser-use finished, but the research answer was incomplete.',
+    '',
+    'Found',
+    ...(usable.length ? usable : [`${bullet} reference pages were visited, but no complete inspired-by bullets came back`]),
+    '',
+    'Missing',
+    `${bullet} ${reason}`,
+    '',
+    'Move',
+    `${bullet} Retry with direct reference URLs or one product at a time.`
+  ].join('\n');
+}
+
+function requestedInspiredByCount(intent: BrowserCapabilityIntent): number {
+  const match = String(intent.goal || '').match(/\b(?:give|return|send|list)\s+(\d{1,2})\s+(?:short\s+)?(?:inspired[-\s]?by|inspiration|bullets?)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function browserTaskLineHasDanglingFragment(value: string): boolean {
+  const cleaned = cleanBrowserText(value).replace(/\s+/g, ' ').trim();
+  return /\b(?:guarantees|supports|tracks|shows|offers|provides|uses|includes|enables|helps|lets|allows)\s+(?:long-running|every|all|the|a|an|to|for|with)?\.?$/i.test(cleaned);
 }
 
 function browserPartialTaskAnswer(
