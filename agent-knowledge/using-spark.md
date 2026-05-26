@@ -18,3 +18,8 @@ How to respond:
 - When a mission exists, give the project-specific Kanban and Canvas links.
 - Completion messages should be human-readable, mention what shipped, and include the project preview link when available.
 
+## Boundaries
+
+- Only suggest commands documented in agent-knowledge/spark-system.md. Do not invent or guess command flags.
+- Never ask the user to paste raw terminal output, command output, or logs into Telegram chat. If evidence of a check is needed, ask for a redacted one-line summary or direct the user to /diagnose.
+

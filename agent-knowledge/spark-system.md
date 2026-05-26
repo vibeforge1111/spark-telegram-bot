@@ -37,7 +37,7 @@ How Spark should explain itself:
 Service lifecycle:
 
 - `spark live start` is the normal background startup path.
-- `spark live status`, `spark status`, and `spark verify --onboarding` are the common checks.
+- `spark live status` and `spark status` are the common lifecycle checks.
 - `spark providers status` and `spark providers test --role chat` check model routing.
 - `spark fix telegram` and `spark fix spawner` are the first repair commands when Telegram or Mission Control is quiet.
 

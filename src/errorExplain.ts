@@ -176,7 +176,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
           userLine: 'Mission Control is not reachable right now.',
           detail,
           check: 'Most likely Spawner UI is not running on this computer. After starting it, retry your last command.',
-          repair: 'Start it: spark start spawner-ui. If it still fails, run /diagnose and then spark verify --onboarding.'
+          repair: 'Start it: spark start spawner-ui. If it still fails, run /diagnose.'
         };
       }
       if (lower.includes('econnaborted') || lower.includes('timeout') || lower.includes('etimedout')) {
@@ -185,7 +185,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
           userLine: 'Mission Control is running too slowly or is still waking up.',
           detail,
           check: 'Wait a few seconds and retry. If it repeats, run /diagnose to see whether Spawner or the mission relay is stuck.',
-          repair: 'Refresh it: spark restart spawner-ui. Then retry your command and run spark verify --onboarding if needed.'
+          repair: 'Refresh it: spark restart spawner-ui, then retry your command.'
         };
       }
       return {
@@ -193,7 +193,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
         userLine: 'Spark could not reach Mission Control.',
         detail,
         check: 'Run /diagnose if retrying does not work, so Spark can check Spawner and the mission relay.',
-        repair: 'Operator fix: spark start spawner-ui, then spark verify --onboarding.'
+        repair: 'Operator fix: spark start spawner-ui, then spark live status.'
       };
     }
     return {
@@ -221,7 +221,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       userLine: 'Spark could not reach the Builder memory path right now.',
       detail,
       check: 'Run /diagnose so Spark can check Builder, memory, and the selected memory model.',
-      repair: 'Operator fix: spark fix telegram, then spark verify --onboarding.'
+      repair: 'Operator fix: spark fix telegram, then spark live status.'
     };
   }
 
@@ -237,7 +237,7 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
       userLine: 'Spark is missing a dependency or command it needs.',
       detail,
       check: 'Run /diagnose so Spark can identify which module is unhealthy.',
-      repair: 'Operator fix: spark update, then spark verify --onboarding.'
+      repair: 'Operator fix: spark update, then spark live status.'
     };
   }
 
