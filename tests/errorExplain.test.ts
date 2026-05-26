@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { explainSparkError, renderSparkErrorReply } from '../src/errorExplain';
+import { explainSparkError, renderSparkErrorReply, renderPreMissionBuilderGateFailureReply } from '../src/errorExplain';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -155,4 +155,13 @@ test('does not offer doctor PR drafting to non-admin users', () => {
   assert.match(reply, /Please ask the operator/);
   assert.doesNotMatch(reply, /spark doctor llm/);
   assert.doesNotMatch(reply, /upstream PR draft/);
+});
+
+test('pre-mission Builder gate failure says no mission was created and tells user to retry /run', () => {
+  const reply = renderPreMissionBuilderGateFailureReply();
+  assert.match(reply, /No mission was created/);
+  assert.match(reply, /not appear in \/board/);
+  assert.match(reply, /\/diagnose showing healthy is expected/);
+  assert.match(reply, /\/run/);
+  assert.doesNotMatch(reply, /Spark could not reach the Builder memory path/);
 });

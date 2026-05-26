@@ -239,7 +239,7 @@ import axios from 'axios';
 import { describeTier, getTierForUser, type SkillTier } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
 import { requireRelaySecret, resolveTelegramLaunchConfig } from './launchMode';
-import { renderSparkErrorReply } from './errorExplain';
+import { renderSparkErrorReply, explainSparkError, renderPreMissionBuilderGateFailureReply } from './errorExplain';
 import {
   resolveWindowsCommand,
   windowsCmdShimArgs,
@@ -4281,11 +4281,12 @@ export async function buildDispatchRouteConfidenceAllows(input: {
       policy: 'fail_closed_gate_unavailable'
     });
     console.warn('[RouteConfidenceGate] build dispatch failed closed:', redactText(error instanceof Error ? error.message : String(error)));
-    await input.ctx.reply(renderSparkErrorReply(
-      error instanceof Error ? error : new Error(String(error)),
-      'builder',
-      conversation.isAdmin(input.ctx.from)
-    ));
+    const gateErr = error instanceof Error ? error : new Error(String(error));
+    await input.ctx.reply(
+      explainSparkError(gateErr, 'builder').category === 'builder_or_memory'
+        ? renderPreMissionBuilderGateFailureReply()
+        : renderSparkErrorReply(gateErr, 'builder', conversation.isAdmin(input.ctx.from))
+    );
     return false;
   }
 }

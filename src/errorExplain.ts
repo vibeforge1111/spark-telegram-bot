@@ -280,6 +280,15 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   };
 }
 
+export function renderPreMissionBuilderGateFailureReply(): string {
+  return [
+    'No mission was created. The build got stuck at the route gate before reaching Mission Control.',
+    'The attempt will not appear in /board — it did not get far enough to create a mission entry.',
+    '/diagnose showing healthy is expected. The route gate failed transiently, not the runtime.',
+    'To retry: send /run followed by your original prompt.'
+  ].join('\n\n');
+}
+
 export function renderSparkErrorReply(
   error: unknown,
   context: SparkErrorContext = 'chat',
