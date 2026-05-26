@@ -949,6 +949,16 @@ function freeformFailureLines(text: string): string[] {
   return Array.from(new Set(lines)).slice(0, 4);
 }
 
+function renderTaskFailureBody(error: string, missionId: string): string {
+  const stripped = clipText(stripMissionControlBoilerplate(error), 500);
+  const isUnknown = !stripped || /^unknown error$/i.test(stripped.trim());
+  const detail = isUnknown
+    ? 'The step did not return a reason. This can happen when the provider timed out or the spawned runner exited unexpectedly.'
+    : stripped;
+  const recovery = `To retry: send the same prompt again with /run.\nTo check current state: /mission status ${missionId}`;
+  return compactTelegramBlocks(detail, recovery);
+}
+
 function compactTelegramBlocks(...blocks: Array<string | null | undefined | false>): string {
   return blocks
     .filter((block): block is string => Boolean(block && block.trim()))
@@ -2385,7 +2395,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           compactTelegramBlocks(
             voiceLine('failed', `${event.missionId}:${label}:task-failed`),
             `${label} could not finish this step.`,
-            clipText(stripMissionControlBoilerplate(failure.error), 500)
+            renderTaskFailureBody(failure.error, event.missionId)
           ),
           missionRelayTraceExtra(subscription, event, 'mission_failed')
         );
