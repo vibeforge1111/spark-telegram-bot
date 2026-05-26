@@ -437,6 +437,8 @@ export function renderBrowserUseTaskAnswer(
           `${bullet} Retry with direct product URLs to use for inspiration.`
         ].join('\n');
       }
+      const partialReference = browserPartialReferenceResearchAnswer(intent, payload, bullet);
+      if (partialReference) return partialReference;
       return [
         'Browser-use could not finish the reference research.',
         '',
@@ -447,6 +449,8 @@ export function renderBrowserUseTaskAnswer(
         `${bullet} Retry with fewer references or name the products to use for inspiration.`
       ].join('\n');
     }
+    const partialAnswer = browserPartialTaskAnswer(intent, payload, bullet);
+    if (partialAnswer) return partialAnswer;
     return [
       'Browser-use could not finish that run.',
       '',
@@ -489,6 +493,125 @@ export function renderBrowserUseTaskAnswer(
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
   return lines.join('\n');
+}
+
+function browserPartialTaskAnswer(
+  intent: BrowserCapabilityIntent,
+  payload: Record<string, unknown>,
+  bullet: string
+): string {
+  const evidence = browserTaskPartialEvidence(intent, payload);
+  if (!evidence.hasEvidence) return '';
+  const found = browserPartialFoundLines(evidence, bullet);
+  const missing = humanBrowserFailure(String(payload.last_failure_reason || '').trim() || 'The browser agent did not return a clean final answer.');
+  return [
+    'Browser-use partially finished.',
+    '',
+    'Found',
+    ...found,
+    '',
+    'Missing',
+    `${bullet} ${missing}`,
+    '',
+    'Move',
+    `${bullet} Retry with a smaller goal, or use /browser screenshot for a fast fresh read.`
+  ].join('\n');
+}
+
+function browserPartialReferenceResearchAnswer(
+  intent: BrowserCapabilityIntent,
+  payload: Record<string, unknown>,
+  bullet: string
+): string {
+  const evidence = browserTaskPartialEvidence(intent, payload);
+  const requestedRefs = referenceUrlsFromIntent(intent);
+  if (!evidence.hasEvidence) return '';
+  if (evidence.externalUrls.length === 0) {
+    return [
+      'Browser-use did not complete the reference research.',
+      '',
+      'Why',
+      `${bullet} It only inspected the product page, not the reference products.`,
+      '',
+      'Move',
+      `${bullet} Retry with one direct reference URL at a time.`
+    ].join('\n');
+  }
+
+  const visitedReferenceLabels = evidence.externalUrls.map((url) => browserTaskUrlLabel(url));
+  const missingRefs = requestedRefs.filter((url) => !evidence.externalUrls.some((visited) => sameUrl(visited, url)));
+  const inspired = browserPartialReferenceLines(payload, bullet);
+  return [
+    'Browser-use partially finished reference research.',
+    '',
+    'Found',
+    `${bullet} inspected ${visitedReferenceLabels.slice(0, 3).join(', ')}`,
+    ...(inspired.length ? inspired : [`${bullet} use only the visited reference pages as inspiration`]),
+    '',
+    'Missing',
+    `${bullet} ${missingRefs.length ? `${missingRefs.length} requested reference${missingRefs.length === 1 ? '' : 's'} still unverified` : 'the browser agent did not return a clean final answer'}`,
+    '',
+    'Move',
+    `${bullet} Retry the missing references one at a time.`
+  ].join('\n');
+}
+
+function browserTaskPartialEvidence(intent: BrowserCapabilityIntent, payload: Record<string, unknown>): {
+  hasEvidence: boolean;
+  urls: string[];
+  externalUrls: string[];
+  screenshots: number;
+  finalResult: string;
+} {
+  const urls = uniqueStrings([
+    ...arrayOfStrings(payload.urls),
+    ...arrayOfStrings(payload.visited_urls),
+    String((payload.start_page as Record<string, unknown> | undefined)?.url || '').trim(),
+    String(payload.final_url || payload.url || '').trim(),
+  ].filter(Boolean));
+  const screenshots = arrayOfStrings(payload.screenshot_paths).length
+    + (String(payload.screenshot_path || '').trim() ? 1 : 0)
+    + (String((payload.start_page as Record<string, unknown> | undefined)?.screenshot_path || '').trim() ? 1 : 0);
+  const finalResult = cleanBrowserText(String(payload.final_result || '').trim());
+  const hasEvidence = urls.length > 0 || screenshots > 0 || browserTaskHasUsableFinalFragment(finalResult);
+  return {
+    hasEvidence,
+    urls,
+    externalUrls: urls.filter((url) => !isSameLocalBrowserTarget(url, intent.url || '')),
+    screenshots,
+    finalResult,
+  };
+}
+
+function browserTaskHasUsableFinalFragment(value: string): boolean {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  if (/^(?:validationerror|invalid model output|command failed|traceback|info \[agent\])/.test(normalized)) return false;
+  return /\b(?:fix|improve|inspired|observed|found|issue|blocked|visited|inspected|screenshot|page)\b/.test(normalized);
+}
+
+function browserPartialFoundLines(
+  evidence: ReturnType<typeof browserTaskPartialEvidence>,
+  bullet: string
+): string[] {
+  const lines: string[] = [];
+  if (evidence.urls.length > 0) {
+    lines.push(`${bullet} visited ${evidence.urls.slice(0, 3).map(browserTaskUrlLabel).join(', ')}`);
+  }
+  if (evidence.screenshots > 0) {
+    lines.push(`${bullet} captured ${evidence.screenshots === 1 ? 'screenshot evidence' : `${evidence.screenshots} screenshot artifacts`}`);
+  }
+  const fragments = browserTaskResultLines(evidence.finalResult, bullet).filter((line) => !/Completed without a text result/i.test(line));
+  lines.push(...fragments.slice(0, Math.max(0, 3 - lines.length)));
+  return lines.length ? lines : [`${bullet} partial browser evidence was saved`];
+}
+
+function browserPartialReferenceLines(payload: Record<string, unknown>, bullet: string): string[] {
+  const finalResult = cleanBrowserText(String(payload.final_result || '').trim());
+  if (!browserTaskHasUsableFinalFragment(finalResult)) return [];
+  return browserTaskResultLines(finalResult, bullet, '', true)
+    .filter((line) => !/Completed without a text result/i.test(line))
+    .slice(0, 3);
 }
 
 function browserReferenceResearchMissingExternalEvidence(
@@ -890,6 +1013,16 @@ function referenceResearchActionLine(value: string): string {
 
 function referenceResearchConceptAction(value: string): string {
   const normalized = cleanBrowserText(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  if (/\blinear\b.*\b(?:saved filtered views?|right[-\s]?side context|always[-\s]?alive work inspector|work inspector)\b/.test(normalized)
+    || /\balways[-\s]?alive work inspector\b/.test(normalized)) {
+    return 'Linear: be inspired by the always-alive work inspector.';
+  }
+  if (/\bjira\b.*\bmulti[-\s]?view source of truth\b/.test(normalized)) {
+    return 'Jira: be inspired by the multi-view source of truth.';
+  }
+  if (/\bgithub(?: issues)?\b.*\bproof[-\s]?native timelines?\b/.test(normalized)) {
+    return 'GitHub Issues: be inspired by proof-native timelines.';
+  }
   if (/\blanggraphs?\b.*\b(?:stateful\s+)?checkpointers?\b/.test(normalized)) {
     return 'LangGraph: add per-node checkpoints for rollback and resume.';
   }

@@ -975,6 +975,104 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /Fast browser read/);
   });
 
+  await test('renders partial browser evidence after invalid full-task output', () => {
+    const intent = {
+      kind: 'task' as const,
+      url: 'http://127.0.0.1:3333/kanban',
+      goal: 'inspect the board like an operator',
+    };
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'ValidationError: Invalid model output format json_invalid',
+      urls: ['http://127.0.0.1:3333/kanban'],
+      screenshot_paths: ['C:/spark/kanban.png'],
+      final_result: 'The active mission card needs a clearer resume action.',
+    });
+
+    assert.match(reply, /Browser-use partially finished/);
+    assert.match(reply, /visited Kanban/);
+    assert.match(reply, /captured screenshot evidence/);
+    assert.match(reply, /active mission card needs/);
+    assert.match(reply, /invalid action format/);
+    assert.doesNotMatch(reply, /could not finish that run/);
+  });
+
+  await test('keeps generic failure when invalid output has no browser evidence', () => {
+    const intent = requireIntent('Use browser-use to review http://127.0.0.1:3333 and gather feedback.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'ValidationError: Invalid model output format json_invalid',
+    });
+
+    assert.match(reply, /Browser-use could not finish that run/);
+    assert.doesNotMatch(reply, /partially finished/);
+  });
+
+  await test('renders partial reference research when an external reference was visited', () => {
+    const intent = requireIntent([
+      'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app and https://github.com/features/issues.',
+      'Give 5 short Inspired by bullets.'
+    ].join(' '));
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'ValidationError: Invalid model output format json_invalid',
+      urls: ['http://127.0.0.1:3333/canvas', 'https://linear.app'],
+      screenshot_paths: ['C:/spark/canvas.png', 'C:/spark/linear.png'],
+      final_result: 'Linear is strong at saved filtered views and right-side context. Inspired by: always-alive work inspector.',
+    });
+
+    assert.match(reply, /partially finished reference research/);
+    assert.match(reply, /inspected linear\.app/i);
+    assert.match(reply, /Linear: be inspired by the always-alive work inspector/);
+    assert.match(reply, /requested reference/);
+    assert.doesNotMatch(reply, /could not finish the reference research/);
+  });
+
+  await test('does not treat product-only evidence as completed reference research', () => {
+    const intent = requireIntent([
+      'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
+      'Compare http://127.0.0.1:3333/canvas with https://linear.app and https://github.com/features/issues.',
+      'Give 5 short Inspired by bullets.'
+    ].join(' '));
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'ValidationError: Invalid model output format json_invalid',
+      urls: ['http://127.0.0.1:3333/canvas'],
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /did not complete the reference research/);
+    assert.match(reply, /only inspected the product page/);
+    assert.doesNotMatch(reply, /Inspired by/);
+  });
+
+  await test('renders timeout with screenshot evidence as partial', () => {
+    const intent = {
+      kind: 'task' as const,
+      url: 'http://127.0.0.1:3333/canvas',
+      goal: 'inspect the failed mission panel',
+    };
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: false,
+      action: 'task',
+      last_failure_reason: 'Browser-use did not finish before Telegram timed out.',
+      start_page: {
+        url: 'http://127.0.0.1:3333/canvas',
+        screenshot_path: 'C:/spark/canvas-start.png',
+      },
+    });
+
+    assert.match(reply, /Browser-use partially finished/);
+    assert.match(reply, /visited Canvas/);
+    assert.match(reply, /captured screenshot evidence/);
+    assert.match(reply, /took too long/);
+  });
+
   await test('explains missing direct reference URL visits', () => {
     const intent = requireIntent([
       'Use browser-use plus current Spark context to research product inspiration for Spawner Mission Control.',
