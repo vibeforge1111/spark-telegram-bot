@@ -3704,6 +3704,15 @@ function buildLatestAssistantOriginReply(currentText: string, pending: PendingCl
   ].join('\n');
 }
 
+function isLocalhostUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+  } catch {
+    return false;
+  }
+}
+
 export function formatCanvasReadySummary(args: {
 	projectName: string;
 	taskCount: unknown;
@@ -3727,7 +3736,9 @@ export function formatCanvasReadySummary(args: {
     buildStepLine,
     taskPreview,
     skillSummary,
-    ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
+    isLocalhostUrl(args.readyCanvasUrl)
+      ? `Canvas is ready — open it on the machine running Spark:\n${args.readyCanvasUrl}\n(This link only works locally. On another device, open it on the Spark machine or set SPAWNER_UI_PUBLIC_URL.)`
+      : ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
   );
 }
 
