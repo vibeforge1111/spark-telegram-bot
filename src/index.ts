@@ -1678,6 +1678,12 @@ interface PendingDomainChipBuild {
   timestamp: number;
 }
 const pendingDomainChipBuilds = new Map<string, PendingDomainChipBuild>();
+interface PendingDestructiveRun {
+  goal: string;
+  providers: string[];
+  timestamp: number;
+}
+const pendingDestructiveRuns = new Map<string, PendingDestructiveRun>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
@@ -1687,7 +1693,8 @@ function clearPendingExecutionState(key: string): boolean {
   const hadClarification = pendingClarifications.delete(key);
   const hadDomainChip = pendingDomainChipBuilds.delete(key);
   const hadCreatorMission = pendingCreatorMissions.delete(key);
-  return hadClarification || hadDomainChip || hadCreatorMission;
+  const hadDestructiveRun = pendingDestructiveRuns.delete(key);
+  return hadClarification || hadDomainChip || hadCreatorMission || hadDestructiveRun;
 }
 
 function extractCommandName(text: string | undefined): string | null {
@@ -4602,6 +4609,10 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+function isDestructiveGoal(goal: string): boolean {
+  return /\b(delete|remove|drop|force|wipe|purge)\b/i.test(goal);
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -4621,6 +4632,14 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    if (isDestructiveGoal(goal)) {
+      const key = `${ctx.chat.id}-${ctx.from.id}`;
+      pendingDestructiveRuns.set(key, { goal, providers, timestamp: Date.now() });
+      await ctx.reply(
+        `This command includes a potentially destructive keyword.\n\nGoal: "${goal}"\n\nReply "yes" to confirm and run it, or anything else to cancel.`
+      );
+      return;
+    }
     await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
   });
 }
@@ -6045,6 +6064,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isNoExecutionBoundary(text) && clearPendingExecutionState(pendingExecutionKey)) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply('Got it, no build or mission started. We can keep talking here.');
+      return;
+    }
+
+    const pendingDestructiveRun = pendingDestructiveRuns.get(pendingExecutionKey);
+    if (pendingDestructiveRun) {
+      if (Date.now() - pendingDestructiveRun.timestamp > CLARIFICATION_TTL_MS) {
+        pendingDestructiveRuns.delete(pendingExecutionKey);
+        await ctx.reply('Confirmation window expired. Send the /run command again.');
+        return;
+      }
+      pendingDestructiveRuns.delete(pendingExecutionKey);
+      if (/^(?:yes|confirm|go|y)$/i.test(text.trim())) {
+        await handleRunCommand(ctx, pendingDestructiveRun.goal, pendingDestructiveRun.providers);
+      } else {
+        await ctx.reply('Cancelled. No action was taken.');
+      }
       return;
     }
 
