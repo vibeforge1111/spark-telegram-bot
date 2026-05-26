@@ -1,4 +1,4 @@
-export type BrowserCapabilityIntentKind = 'capability' | 'specific_open' | 'specific_screenshot' | 'task' | 'logged_in';
+export type BrowserCapabilityIntentKind = 'capability' | 'evidence' | 'specific_open' | 'specific_screenshot' | 'task' | 'logged_in';
 
 export type BrowserCapabilityIntent = {
   kind: BrowserCapabilityIntentKind;
@@ -58,7 +58,10 @@ export function classifyBrowserCapabilityQuestion(text: string): BrowserCapabili
   const browserWords = /\b(?:browse|browser|browser-use|browser\s+use|web\s+page|webpages?|open\s+pages?|screenshots?)\b/.test(normalized);
   const capabilityWords = /\b(?:can|able|capability|available|working|ready|proven|definitely)\b/.test(normalized);
   const evidenceWords = /\b(?:evidence|proof|receipt|receipts|latest\s+run|last\s+run|latest\s+browser\s+run|what\s+.*(?:saw|see|observed|proved))\b/.test(normalized);
-  if ((asksNow && browserWords && capabilityWords) || (browserWords && evidenceWords)) {
+  if (browserWords && evidenceWords) {
+    return { kind: 'evidence' };
+  }
+  if (asksNow && browserWords && capabilityWords) {
     return { kind: 'capability' };
   }
 
@@ -249,6 +252,34 @@ export function renderBrowserCapabilityAnswer(
       '',
       'Run /probe browser when you want a fresh receipt.'
     ].join('\n');
+  }
+
+  if (intent.kind === 'evidence') {
+    const action = cleanBrowserText(String(payload.action || '').trim());
+    const title = cleanBrowserText(String(payload.title || '').trim());
+    const finalUrl = cleanBrowserText(String(payload.final_url || payload.target_url || '').trim());
+    const boundary = cleanBrowserText(String(payload.boundary || '').trim()).replace(/_/g, ' ');
+    const artifacts = Number(payload.artifact_count || 0);
+    const proven = proofs.length ? proofs : ['browser-use action completed'];
+    const lines = [
+      'Latest browser evidence',
+      '',
+      'Proven',
+    ];
+    if (action && finalUrl) {
+      lines.push(`${bullet} ${action} on ${finalUrl}`);
+    } else if (action) {
+      lines.push(`${bullet} ${action}`);
+    }
+    if (title) lines.push(`${bullet} page: ${title}`);
+    lines.push(...proven.map((proof) => `${bullet} ${proof}`));
+    if (artifacts > 0) {
+      lines.push(`${bullet} ${artifacts === 1 ? 'screenshot/artifact saved' : `${artifacts} screenshots/artifacts saved`}`);
+    }
+    if (boundary) {
+      lines.push('', 'Boundary', `${bullet} ${boundary}`);
+    }
+    return lines.join('\n');
   }
 
   if (intent.kind === 'logged_in') {

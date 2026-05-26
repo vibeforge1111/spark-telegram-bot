@@ -135,6 +135,12 @@ export async function readLatestBrowserProofReceipt(): Promise<BrowserProofRecei
 export function browserProofReceiptToRoutePayload(receipt: BrowserProofReceipt): Record<string, unknown> {
   return {
     status: receipt.result === 'success' || receipt.result === 'partial' ? 'success' : 'failed',
+    action: receipt.action,
+    target_url: receipt.target_url,
+    final_url: receipt.final_url,
+    title: receipt.title,
+    boundary: receipt.boundary,
+    artifact_count: receipt.artifact_refs.length,
     failure_reason: receipt.failure_reason,
     probe_summary: [
       `browser-use receipt action=${receipt.action}`,

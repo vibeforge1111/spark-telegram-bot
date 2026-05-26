@@ -100,6 +100,34 @@ async function main(): Promise<void> {
       assert.equal(latest?.boundary, 'attached browser');
       assert.deepEqual(latest?.proof_labels, ['state_read']);
     });
+
+    await test('renders latest evidence questions as evidence cards', async () => {
+      await recordBrowserProofReceipt({
+        action: 'screenshot',
+        intent: { url: 'https://example.com' },
+        payload: {
+          ok: true,
+          action: 'screenshot',
+          final_url: 'https://example.com/',
+          title: 'Example Domain',
+          screenshot_path: 'C:/spark/browser.png',
+        },
+      });
+
+      const latest = await readLatestBrowserProofReceipt();
+      const reply = renderBrowserCapabilityAnswer(
+        { kind: 'evidence' },
+        browserProofReceiptToRoutePayload(latest!)
+      );
+
+      assert.match(reply, /Latest browser evidence/);
+      assert.match(reply, /screenshot on https:\/\/example\.com\//);
+      assert.match(reply, /page: Example Domain/);
+      assert.match(reply, /screenshot capture/);
+      assert.match(reply, /screenshot\/artifact saved/);
+      assert.match(reply, /public page/);
+      assert.doesNotMatch(reply, /Not for full browser automation/);
+    });
   } finally {
     jsonState.resetJsonStateForTests();
     await rm(stateDir, { recursive: true, force: true });

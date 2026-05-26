@@ -46,11 +46,11 @@ async function main(): Promise<void> {
     );
     assert.deepEqual(
       classifyBrowserCapabilityQuestion('What browser evidence do you have from the latest run?'),
-      { kind: 'capability' }
+      { kind: 'evidence' }
     );
     assert.deepEqual(
       classifyBrowserCapabilityQuestion('Show me the browser proof from the last run.'),
-      { kind: 'capability' }
+      { kind: 'evidence' }
     );
   });
 
