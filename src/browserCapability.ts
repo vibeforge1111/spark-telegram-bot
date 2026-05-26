@@ -476,18 +476,6 @@ export function renderBrowserUseTaskAnswer(
     ].join('\n');
   }
   const resultLines = browserTaskResultLines(finalResult, bullet, intent.url || '', referenceResearch);
-  if (referenceResearch) {
-    const incomplete = browserReferenceResearchQualityIssue(intent, resultLines);
-    if (incomplete) {
-      return browserIncompleteReferenceResearchAnswer(resultLines, incomplete, bullet);
-    }
-  }
-  const lines = [
-    'Browser-use finished.',
-    '',
-    referenceResearch ? 'Inspired by' : 'Fix next',
-    ...resultLines,
-  ];
   const evidence = browserTaskEvidenceLine({
     steps,
     screenshots: screenshots.length,
@@ -496,6 +484,18 @@ export function renderBrowserUseTaskAnswer(
     referenceResearch,
     finalResult,
   });
+  if (referenceResearch) {
+    const incomplete = browserReferenceResearchQualityIssue(intent, resultLines);
+    if (incomplete) {
+      return browserIncompleteReferenceResearchAnswer(resultLines, incomplete, bullet, evidence);
+    }
+  }
+  const lines = [
+    'Browser-use finished.',
+    '',
+    referenceResearch ? 'Inspired by' : 'Fix next',
+    ...resultLines,
+  ];
   if (evidence) {
     lines.push('', 'Evidence', `${bullet} ${evidence}`);
   }
@@ -507,18 +507,18 @@ function browserReferenceResearchQualityIssue(intent: BrowserCapabilityIntent, r
   const useful = resultLines.filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line));
   const clipped = useful.some((line) => referenceResearchLineIsClipped(line) || browserTaskLineHasDanglingFragment(line));
   if (clipped) return 'some inspired-by bullets were clipped';
-  if (requestedCount >= 5 && useful.length < Math.min(3, requestedCount)) {
+  if (requestedCount > 0 && useful.length < requestedCount) {
     return `only ${useful.length} complete inspired-by bullet${useful.length === 1 ? '' : 's'} came back`;
   }
   return '';
 }
 
-function browserIncompleteReferenceResearchAnswer(resultLines: string[], reason: string, bullet: string): string {
+function browserIncompleteReferenceResearchAnswer(resultLines: string[], reason: string, bullet: string, evidence = ''): string {
   const usable = resultLines
     .filter((line) => !referenceResearchLineIsClipped(line) && !browserTaskLineHasDanglingFragment(line))
     .filter((line) => !/Completed without a text result|returned checks instead of fixes/i.test(line))
-    .slice(0, 3);
-  return [
+    .slice(0, 5);
+  const lines = [
     'Browser-use finished, but the research answer was incomplete.',
     '',
     'Found',
@@ -529,7 +529,11 @@ function browserIncompleteReferenceResearchAnswer(resultLines: string[], reason:
     '',
     'Move',
     `${bullet} Retry with direct reference URLs or one product at a time.`
-  ].join('\n');
+  ];
+  if (evidence) {
+    lines.push('', 'Evidence', `${bullet} ${evidence}`);
+  }
+  return lines.join('\n');
 }
 
 function requestedInspiredByCount(intent: BrowserCapabilityIntent): number {
@@ -1042,10 +1046,13 @@ function referenceResearchActionLine(value: string): string {
   if (/crewai|crew ai/i.test(name) && /\b(?:copilot|visual editor|crew building)\b/i.test(details)) {
     return 'CrewAI: add an inline copilot that suggests skill-chain compositions.';
   }
-  if (/^n8n$/i.test(name) && /\b(?:integrations?|mcp|workflow automation|approval)\b/i.test(details)) {
+  if (/crewai|crew ai/i.test(name) && /\b(?:workflow tracing|tracing|monitoring|guardrails?|management)\b/i.test(details)) {
+    return 'CrewAI: add workflow tracing and guardrail status to each mission run.';
+  }
+  if (/^n8n$/i.test(name) && /\b(?:integrations?|mcp|workflow automation|approval|structured i\/o|ports?|canvas)\b/i.test(details)) {
     return 'n8n: make MCP and integration nodes first-class workflow blocks.';
   }
-  if (/langgraph/i.test(name) && /\b(?:long-running|stateful|runtime|orchestration)\b/i.test(details)) {
+  if (/langgraph/i.test(name) && /\b(?:long-running|stateful|runtime|orchestration|durable|checkpoints?|human-in-the-loop)\b/i.test(details)) {
     return 'LangGraph: add durable state and resume points for long-running agent missions.';
   }
   if (/linear/i.test(name) && /\b(?:context|filtered|views?|inspector|project)\b/i.test(details)) {

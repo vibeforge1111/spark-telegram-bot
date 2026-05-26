@@ -440,6 +440,8 @@ async function main(): Promise<void> {
     assert.match(reply, /CrewAI: add an inline copilot that suggests skill-chain compositions\./);
     assert.match(reply, /n8n: make MCP and integration nodes first-class workflow blocks\./i);
     assert.match(reply, /LangGraph: add durable state and resume points for long-running agent missions\./);
+    assert.match(reply, /finished, but the research answer was incomplete/);
+    assert.match(reply, /only 3 complete inspired-by bullets came back/);
     assert.doesNotMatch(reply, /Visual editor \+ AI copilot/);
     assert.doesNotMatch(reply, /based on/);
     assert.match(reply, /Live browser run with Canvas and reference pages with screenshot evidence/);
@@ -517,7 +519,7 @@ async function main(): Promise<void> {
     assert.doesNotMatch(reply, /parallel\./);
   });
 
-  await test('allows successful reference research with three complete bullets', () => {
+  await test('marks successful reference research incomplete when it returns fewer bullets than requested', () => {
     const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 5 short Inspired by bullets.');
     const reply = renderBrowserUseTaskAnswer(intent, {
       ok: true,
@@ -532,10 +534,34 @@ async function main(): Promise<void> {
       screenshot_paths: ['C:/spark/canvas.png'],
     });
 
-    assert.match(reply, /^Browser-use finished\./);
+    assert.match(reply, /finished, but the research answer was incomplete/);
     assert.match(reply, /CrewAI:/);
     assert.match(reply, /n8n:/i);
     assert.match(reply, /LangGraph:/);
+    assert.match(reply, /only 3 complete inspired-by bullets came back/);
+    assert.doesNotMatch(reply, /^Browser-use finished\./m);
+  });
+
+  await test('actionizes complete CrewAI LangGraph and n8n reference labels', () => {
+    const intent = requireIntent('Use browser-use plus current Spark context to find 3 products that inspire agent mission control. Compare them to http://127.0.0.1:3333/canvas and give 3 short Inspired by bullets.');
+    const reply = renderBrowserUseTaskAnswer(intent, {
+      ok: true,
+      action: 'task',
+      final_result: [
+        '1. Inspired by: CrewAI - Visual Workflow Tracing & Agent Guardrails.',
+        '2. Inspired by: LangGraph - Durable Execution & Human-in-the-Loop Checkpoints.',
+        '3. Inspired by: n8n - MCP-Native Integration Canvas & Structured I/O Ports.',
+      ].join('\n'),
+      urls: ['http://127.0.0.1:3333/canvas', 'https://crewai.com', 'https://n8n.io', 'https://langchain-ai.github.io/langgraph'],
+      number_of_steps: 9,
+      screenshot_paths: ['C:/spark/canvas.png'],
+    });
+
+    assert.match(reply, /^Browser-use finished\./);
+    assert.match(reply, /CrewAI: add workflow tracing and guardrail status to each mission run\./);
+    assert.match(reply, /LangGraph: add durable state and resume points for long-running agent missions\./);
+    assert.match(reply, /n8n: make MCP and integration nodes first-class workflow blocks\./i);
+    assert.doesNotMatch(reply, /Inspired by: CrewAI -/);
     assert.doesNotMatch(reply, /incomplete/);
   });
 
