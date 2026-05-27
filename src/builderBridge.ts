@@ -685,6 +685,14 @@ function idString(value: unknown): string {
   return stringValue(value);
 }
 
+export function assertTelegramIntegerId(value: number | string, label: string): string {
+  const normalized = String(value).trim();
+  if (!/^-?\d{1,20}$/.test(normalized)) {
+    throw new Error(`${label} must be a Telegram integer id.`);
+  }
+  return normalized;
+}
+
 function telegramBridgeMessageContext(updatePayload: Record<string, unknown>): {
   text: string;
   userId: string;
@@ -1475,15 +1483,17 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const args = [
     'self',
     'status',
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${userId}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${chatId}:${userId}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -1528,6 +1538,8 @@ export async function runBuilderSelfImprovementPlan(
   }
 
   const goal = input.goal || input.currentMessage || 'Improve Spark weak spots with probe-first evidence.';
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const { stdout, stderr } = await execFileAsync(
     config.pythonCommand,
     pythonModuleInvocation(config, 'spark_intelligence.cli', [
@@ -1537,9 +1549,9 @@ export async function runBuilderSelfImprovementPlan(
       '--home',
       config.builderHome,
       '--human-id',
-      `human:telegram:${String(input.userId).trim()}`,
+      `human:telegram:${userId}`,
       '--session-id',
-      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+      `session:telegram:${chatId}:${userId}`,
       '--channel-kind',
       'telegram',
       '--user-message',
@@ -1574,15 +1586,17 @@ export async function runBuilderAgentOperatingContext(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const args = [
     'self',
     'panel',
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${userId}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${chatId}:${userId}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -2332,10 +2346,13 @@ export async function runBuilderWikiAnswer(
     '--json',
   ];
   if (input.userId !== undefined && input.userId !== null) {
-    args.push('--human-id', `human:telegram:${String(input.userId).trim()}`);
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    args.push('--human-id', `human:telegram:${userId}`);
   }
   if (input.chatId !== undefined && input.chatId !== null && input.userId !== undefined && input.userId !== null) {
-    args.push('--session-id', `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`);
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
+    args.push('--session-id', `session:telegram:${chatId}:${userId}`);
   }
   if (input.chatId !== undefined || input.userId !== undefined) {
     args.push('--channel-kind', 'telegram');
@@ -2488,6 +2505,7 @@ export async function runBuilderConversationColdContext(
   }
 
   try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
       pythonModuleInvocation(config, 'spark_intelligence.cli', [
@@ -2498,7 +2516,7 @@ export async function runBuilderConversationColdContext(
         '--query',
         currentMessage,
         '--subject',
-        `human:telegram:${String(input.userId).trim()}`,
+        `human:telegram:${userId}`,
         '--limit',
         '6',
         '--no-record-activity',

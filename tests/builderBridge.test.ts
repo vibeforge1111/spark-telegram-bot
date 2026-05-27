@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
+  assertTelegramIntegerId,
   buildBuilderAocPreflightCommands,
   compactColdMemoryQuery,
   extractLatestCapabilityProbeReceiptFromBlackBoxPayload,
@@ -555,6 +556,36 @@ test('agent operating context bridge uses the shared AOC panel route', () => {
 
   assert.match(source, /'self',\s*'panel'/);
   assert.doesNotMatch(source, /'self',\s*'context'/);
+});
+
+test('Telegram bridge accepts only integer-shaped Telegram ids before Builder argv use', () => {
+  assert.equal(assertTelegramIntegerId(' 8319079055 ', 'userId'), '8319079055');
+  assert.equal(assertTelegramIntegerId(-1001234567890, 'chatId'), '-1001234567890');
+
+  assert.throws(() => assertTelegramIntegerId('123;--json', 'userId'), /userId must be a Telegram integer id/);
+  assert.throws(() => assertTelegramIntegerId('human:telegram:123', 'userId'), /userId must be a Telegram integer id/);
+  assert.throws(() => assertTelegramIntegerId('123456789012345678901', 'chatId'), /chatId must be a Telegram integer id/);
+});
+
+test('Builder bridge validates Telegram ids on identity-bearing Builder calls', () => {
+  const source = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+
+  for (const functionName of [
+    'runBuilderSelfAwarenessStatus',
+    'runBuilderSelfImprovementPlan',
+    'runBuilderAgentOperatingContext',
+    'runBuilderWikiAnswer',
+    'runBuilderConversationColdContext',
+  ]) {
+    const start = source.indexOf(`export async function ${functionName}`);
+    assert.notEqual(start, -1, `${functionName} exists`);
+    const nextExport = source.indexOf('\nexport ', start + 1);
+    const block = source.slice(start, nextExport === -1 ? undefined : nextExport);
+    assert.match(block, /assertTelegramIntegerId/);
+  }
+
+  assert.doesNotMatch(source, /human:telegram:\$\{String\(input\.userId\)\.trim\(\)\}/);
+  assert.doesNotMatch(source, /session:telegram:\$\{String\(input\.chatId\)\.trim\(\)\}:\$\{String\(input\.userId\)\.trim\(\)\}/);
 });
 
 test('builder repo resolver prefers release-installed Builder when Telegram runs from installed source', () => {
