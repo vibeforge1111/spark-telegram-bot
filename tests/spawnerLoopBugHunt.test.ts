@@ -27,6 +27,8 @@ import {
   isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
+  cleanupSlidingWindowRateLimit,
+  slidingWindowRateLimitAllows,
   shouldUsePendingClarificationForMessage
 } from '../src/index';
 
@@ -49,6 +51,29 @@ function assertBuild(prompt: string, expectedProjectName: string): void {
   assert.ok(intent, `Expected build route for:\n${prompt}`);
   assert.equal(intent.projectName, expectedProjectName);
 }
+
+test('rate limit uses a sliding window instead of a single last-action timestamp', () => {
+  const requests = new Map<number, number[]>();
+
+  assert.equal(slidingWindowRateLimitAllows(requests, 123, 0), true);
+  assert.equal(slidingWindowRateLimitAllows(requests, 123, 400), true);
+  assert.equal(slidingWindowRateLimitAllows(requests, 123, 800), true);
+  assert.equal(slidingWindowRateLimitAllows(requests, 123, 999), false);
+  assert.equal(slidingWindowRateLimitAllows(requests, 123, 1000), true);
+  assert.deepEqual(requests.get(123), [400, 800, 1000]);
+});
+
+test('rate limit cleanup removes stale users and preserves active windows', () => {
+  const requests = new Map<number, number[]>([
+    [123, [0, 10]],
+    [456, [950, 990]],
+  ]);
+
+  cleanupSlidingWindowRateLimit(requests, 1500);
+
+  assert.equal(requests.has(123), false);
+  assert.deepEqual(requests.get(456), [950, 990]);
+});
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {
   [

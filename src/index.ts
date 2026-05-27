@@ -1628,9 +1628,47 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-// Rate limiting (simple in-memory)
-const userLastAction = new Map<number, number>();
-const RATE_LIMIT_MS = 1000; // 1 second between messages
+const userRequestTimestamps = new Map<number, number[]>();
+const RATE_LIMIT_WINDOW_MS = 1000;
+const RATE_LIMIT_MAX_REQUESTS = 3;
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+
+export function slidingWindowRateLimitAllows(
+  requestsByUser: Map<number, number[]>,
+  userId: number,
+  nowMs: number,
+  windowMs = RATE_LIMIT_WINDOW_MS,
+  maxRequests = RATE_LIMIT_MAX_REQUESTS
+): boolean {
+  const recent = (requestsByUser.get(userId) || []).filter((timestamp) => nowMs - timestamp < windowMs);
+  if (recent.length >= maxRequests) {
+    requestsByUser.set(userId, recent);
+    return false;
+  }
+  recent.push(nowMs);
+  requestsByUser.set(userId, recent);
+  return true;
+}
+
+export function cleanupSlidingWindowRateLimit(
+  requestsByUser: Map<number, number[]>,
+  nowMs: number,
+  windowMs = RATE_LIMIT_WINDOW_MS
+): void {
+  for (const [userId, timestamps] of requestsByUser) {
+    const recent = timestamps.filter((timestamp) => nowMs - timestamp < windowMs);
+    if (recent.length) {
+      requestsByUser.set(userId, recent);
+    } else {
+      requestsByUser.delete(userId);
+    }
+  }
+}
+
+const rateLimitCleanupTimer = setInterval(() => {
+  cleanupSlidingWindowRateLimit(userRequestTimestamps, Date.now());
+}, RATE_LIMIT_CLEANUP_INTERVAL_MS);
+rateLimitCleanupTimer.unref?.();
 
 const lastNoEditProbeMissions = new Map<string, NoEditProbeMission>();
 
@@ -2016,11 +2054,9 @@ bot.catch((err, ctx) => {
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
-    const lastAction = userLastAction.get(userId);
-    if (lastAction && Date.now() - lastAction < RATE_LIMIT_MS) {
+    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
       return; // Rate limited
     }
-    userLastAction.set(userId, Date.now());
   }
   return next();
 });
