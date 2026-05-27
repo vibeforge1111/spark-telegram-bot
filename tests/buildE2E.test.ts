@@ -1892,6 +1892,68 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('Mission board query mentioning command-not-found still uses board route', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-board-command-not-found-boundary-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const postCalls: CapturedCall[] = [];
+		const getCalls: string[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			postCalls.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async (url: string) => {
+			getCalls.push(url);
+			return {
+				data: {
+					board: {
+						running: [
+							{
+								missionId: 'mission-command-help-review',
+								missionName: 'Spark Command Help Boundary Review',
+								status: 'running',
+								lastEventType: 'mission_started',
+								lastUpdated: new Date().toISOString(),
+								taskName: 'Review routing boundary',
+								providerResults: [{ providerId: 'codex', status: 'running' }]
+							}
+						],
+						paused: [],
+						completed: [],
+						failed: [],
+						cancelled: [],
+						created: []
+					}
+				}
+			};
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 610, replies);
+		ctx.message.text = 'Show the Mission board status for the latest Spark command not found QA run. Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /Right now/);
+		assert.match(reply, /Spark Command Help Boundary Review/);
+		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-command-help-review/);
+		assert.doesNotMatch(reply, /brand-new terminal|spark\.cmd status|Only consider reinstalling/i);
+		assert.equal(getCalls.length, 1, 'Mission board query must still call the Spawner board API');
+		assert.equal(postCalls.length, 0, 'Mission board query must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
