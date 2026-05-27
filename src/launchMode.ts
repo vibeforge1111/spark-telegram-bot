@@ -32,16 +32,27 @@ export function resolveTelegramLaunchConfig(env: NodeJS.ProcessEnv = process.env
   return { mode: 'polling' };
 }
 
+const RELAY_SECRET_HINT =
+  ' Generate one with `openssl rand -base64 32 | tr -d "=+/" | head -c 32` and set it in your bot .env (the Spawner relay must use the SAME value).';
+
 export function requireRelaySecret(env: NodeJS.ProcessEnv = process.env): string {
   const value = env.TELEGRAM_RELAY_SECRET?.trim();
   if (!value) {
-    throw new Error('TELEGRAM_RELAY_SECRET is required so the local Spawner relay cannot be posted to anonymously.');
+    throw new Error(
+      'TELEGRAM_RELAY_SECRET is required so the local Spawner relay cannot be posted to anonymously.' +
+        RELAY_SECRET_HINT
+    );
   }
   if (value.length < 24 || value.length > 256) {
-    throw new Error('TELEGRAM_RELAY_SECRET must be 24-256 characters.');
+    throw new Error(
+      `TELEGRAM_RELAY_SECRET must be 24-256 characters (got ${value.length}).` + RELAY_SECRET_HINT
+    );
   }
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-    throw new Error('TELEGRAM_RELAY_SECRET may only contain A-Z, a-z, 0-9, _ and -.');
+    throw new Error(
+      'TELEGRAM_RELAY_SECRET may only contain A-Z, a-z, 0-9, _ and - (no spaces, slashes, equals, or punctuation).' +
+        RELAY_SECRET_HINT
+    );
   }
   return value;
 }
