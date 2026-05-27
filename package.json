@@ -4,7 +4,8 @@
   "description": "Spark Telegram ingress gateway for Builder and Spawner",
   "main": "dist/index.js",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.5.0",
+    "npm": ">=10.0.0"
   },
   "scripts": {
     "prestart": "npm run build",
