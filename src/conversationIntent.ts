@@ -1158,7 +1158,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized)
     )
   );
 }
