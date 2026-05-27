@@ -276,6 +276,34 @@ async function ensureBridgeAvailable(config: BuilderBridgeConfig): Promise<boole
   return repoExists && homeExists;
 }
 
+/**
+ * Wrap JSON.parse with a clearer error when a builder subprocess emits
+ * non-JSON to stdout. Without this, callers get an opaque `SyntaxError:
+ * Unexpected token` from V8 that does not name the upstream tool, the
+ * stdout sample, or the stderr context. With this helper, the thrown
+ * Error names the call site and includes truncated, redaction-safe
+ * samples so the operator can diagnose CLI version skew or stderr
+ * leaks without re-running.
+ */
+function safeParseBuilderJson<T>(args: {
+  stdout: string;
+  stderr: string;
+  callsite: string;
+}): T {
+  try {
+    return JSON.parse(args.stdout) as T;
+  } catch (parseError) {
+    const sample = args.stdout.slice(0, 200);
+    const stderrSample = args.stderr.trim().slice(0, 200);
+    const detail =
+      parseError instanceof Error ? parseError.message : String(parseError);
+    throw new Error(
+      `Builder CLI returned non-JSON output from ${args.callsite}. ` +
+      `stdout_sample=${sample} stderr=${stderrSample} parse_error=${detail}`
+    );
+  }
+}
+
 function candidateDiagnosticsRepos(config: BuilderBridgeConfig): string[] {
   return [
     process.env.SPARK_DIAGNOSTICS_BUILDER_REPO || '',
@@ -1467,7 +1495,11 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   if (!trimmedStdout) {
     throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
   }
-  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  const parsed = safeParseBuilderJson<BuilderDiagnosticsScanJson>({
+    stdout: trimmedStdout,
+    stderr,
+    callsite: 'runBuilderDiagnosticsScan',
+  });
   return {
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
