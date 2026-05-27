@@ -1670,6 +1670,12 @@ const rateLimitCleanupTimer = setInterval(() => {
 }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 rateLimitCleanupTimer.unref?.();
 
+// Periodic cleanup of unbounded in-memory maps to prevent memory exhaustion
+const MAP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const LAST_NO_EDIT_PROBE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const LATEST_CANVAS_PLAN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const DOMAIN_CHIP_BUILD_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 const lastNoEditProbeMissions = new Map<string, NoEditProbeMission>();
 
 interface LatestCanvasPlanTask {
@@ -1731,6 +1737,38 @@ interface PendingMissionCancelConfirmation {
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+
+// Periodic cleanup of stale entries in all unbounded maps
+const mapCleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of lastNoEditProbeMissions) {
+    if (now - new Date(entry.startedAt ?? 0).getTime() > LAST_NO_EDIT_PROBE_TTL_MS) {
+      lastNoEditProbeMissions.delete(key);
+    }
+  }
+  for (const [key, entry] of latestCanvasPlans) {
+    if (now - new Date(entry.recordedAt ?? 0).getTime() > LATEST_CANVAS_PLAN_TTL_MS) {
+      latestCanvasPlans.delete(key);
+    }
+  }
+  for (const [key, entry] of pendingClarifications) {
+    if (now - entry.timestamp > CLARIFICATION_TTL_MS) {
+      pendingClarifications.delete(key);
+    }
+  }
+  for (const [key, entry] of pendingDomainChipBuilds) {
+    if (now - entry.timestamp > DOMAIN_CHIP_BUILD_TTL_MS) {
+      pendingDomainChipBuilds.delete(key);
+    }
+  }
+  for (const [key, entry] of pendingMissionCancelConfirmations) {
+    if (now - entry.timestamp > MISSION_CANCEL_CONFIRMATION_TTL_MS) {
+      pendingMissionCancelConfirmations.delete(key);
+    }
+  }
+}, MAP_CLEANUP_INTERVAL_MS);
+mapCleanupTimer.unref?.();
+
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
