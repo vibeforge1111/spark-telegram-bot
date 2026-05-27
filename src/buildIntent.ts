@@ -18,7 +18,18 @@ function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
   if (process.platform === 'win32') {
     const home = process.env.USERPROFILE || 'C:\\Users\\USER';
-    return `${home.replace(/[\\/]$/, '')}\\Desktop`;
+    const trimmed = home.replace(/[\\/]$/, '');
+    // Windows 11 with OneDrive Folder Backup enabled redirects Desktop to
+    // %USERPROFILE%/OneDrive/Desktop. Prefer that path when it exists so
+    // operator references to 'my Desktop' resolve to the real folder rather
+    // than the empty shadow at %USERPROFILE%/Desktop.
+    const onedriveDesktop = `${trimmed}\\OneDrive\\Desktop`;
+    try {
+      if (require('node:fs').existsSync(onedriveDesktop)) return onedriveDesktop;
+    } catch {
+      // existsSync threw (extremely unusual); fall through to the legacy path.
+    }
+    return `${trimmed}\\Desktop`;
   }
   const home = process.env.HOME || '/root';
   return home.replace(/[\\/]$/, '');
