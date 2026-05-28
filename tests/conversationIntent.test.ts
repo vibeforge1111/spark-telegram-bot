@@ -1120,6 +1120,17 @@ test('extracts natural recursive commands for QA Operator loops', () => {
       reason: 'Natural-language request to list recursive loops.'
     }
   );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('show recursive paths'),
+    {
+      rawCommand: 'paths',
+      reason: 'Natural-language request to list recursive paths.'
+    }
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent("I'm confused about which AI is doing what. Explain Spark, Codex, the Telegram bot, Spawner, and Mission Control in simple terms. Do not expose secrets, private paths, tokens, raw logs, or private memory."),
+    null
+  );
 });
 
 test('extracts contextual recursive commands from conversational follow-ups', () => {
