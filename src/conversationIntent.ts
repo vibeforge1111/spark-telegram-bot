@@ -811,7 +811,7 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
     };
   }
 
-  if (/\b(?:show|list|what|which|get|give\s+me)\b.*\b(?:recursive\s+)?(?:loops?|sessions?|runs)\b/i.test(normalized) ||
+  if (/\b(?:show|list|give\s+me)\b.*\b(?:recursive\s+)?(?:loops?|sessions?|runs)\b/i.test(normalized) ||
       /\b(?:what|which)\s+(?:loops?|runs)\s+(?:are|do)\s+(?:open|running|available|we\s+have)\b/i.test(normalized)) {
     return {
       rawCommand: 'sessions',
