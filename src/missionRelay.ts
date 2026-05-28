@@ -818,7 +818,9 @@ function scheduleDelayedCompletionSummary(
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
       if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-    })().catch(() => {});
+    })().catch((err: unknown) => {
+      console.error('[scheduleDelayedCompletionSummary] failed:', err);
+    });
   }, 1000);
 }
 
@@ -910,11 +912,19 @@ function stableHash(text: string): number {
   return hash >>> 0;
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeReplacement(str: string): string {
+  return str.replace(/\$/g, '$$$$');
+}
+
 function voiceLine(kind: keyof typeof VOICE_LINES, seed: string, replacements: Record<string, string> = {}): string {
   const choices = VOICE_LINES[kind];
   let line: string = choices[stableHash(`${kind}:${seed}`) % choices.length] || choices[0];
   for (const [key, value] of Object.entries(replacements)) {
-    line = line.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+    line = line.replace(new RegExp(`\\{${escapeRegExp(key)}\\}`, 'g'), escapeReplacement(value));
   }
   return line;
 }
