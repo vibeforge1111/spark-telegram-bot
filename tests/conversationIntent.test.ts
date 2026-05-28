@@ -980,6 +980,12 @@ test('extracts natural recursive commands for QA Operator loops', () => {
       reason: 'Natural-language request to list recursive loops.'
     }
   );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent(
+      'I am setting up Spark and the network dropped halfway through. GitHub or the provider API may be temporarily unreachable. What should I do next so I do not get stuck in a loop?'
+    ),
+    null
+  );
 });
 
 test('extracts contextual recursive commands from conversational follow-ups', () => {
