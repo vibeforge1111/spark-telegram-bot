@@ -10,6 +10,7 @@ import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUi
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
+let telegramUpdateTrackerInstalled = false;
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 
 type RelayEventType =
@@ -50,6 +51,8 @@ export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled
 export interface MissionRelayRuntimeStatus {
   telegramPolling?: MissionRelayTelegramPollingState;
   pollingStartedAt?: string | null;
+  lastUpdateProcessedAt?: string | null;
+  updatesProcessed?: number;
 }
 
 export interface MissionRelayHealthPayload extends Record<string, unknown> {
@@ -2191,6 +2194,25 @@ export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus):
   relayRuntimeStatus = { ...status };
 }
 
+export function recordMissionRelayTelegramUpdate(now = new Date()): void {
+  relayRuntimeStatus = {
+    ...relayRuntimeStatus,
+    lastUpdateProcessedAt: now.toISOString(),
+    updatesProcessed: (relayRuntimeStatus.updatesProcessed || 0) + 1
+  };
+}
+
+function installTelegramUpdateTracker(bot: Telegraf): void {
+  if (telegramUpdateTrackerInstalled) {
+    return;
+  }
+  telegramUpdateTrackerInstalled = true;
+  bot.use(async (_ctx, next) => {
+    recordMissionRelayTelegramUpdate();
+    await next();
+  });
+}
+
 export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   const polling = relayRuntimeStatus.telegramPolling;
   const ready = polling !== 'starting';
@@ -2205,6 +2227,7 @@ export function missionRelayHealthPayload(): MissionRelayHealthPayload {
 
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
+  installTelegramUpdateTracker(bot);
 
   if (relayServer) {
     return { port: getRelayPort() };

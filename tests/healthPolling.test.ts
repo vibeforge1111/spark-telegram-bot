@@ -40,13 +40,22 @@ test('builds relay health URL from hosted relay callback URL', () => {
 
 test('validates relay runtime without exposing secrets', async () => {
   const fetchImpl = async () => new Response(
-    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+    JSON.stringify({
+      ok: true,
+      relay: { profile: 'spark-agi', port: 8789 },
+      pid: 123,
+      runtime: {
+        telegramPolling: 'active',
+        updatesProcessed: 2,
+        lastUpdateProcessedAt: '2026-05-08T09:32:00.000Z'
+      }
+    }),
     { status: 200, headers: { 'content-type': 'application/json' } }
   );
 
   const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
 
-  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
+  assert.equal(detail, 'spark-agi@8789 pid=123 polling=active updates=2 last_update=2026-05-08T09:32:00.000Z');
 });
 
 test('rejects relay runtime before Telegram polling is active', async () => {
