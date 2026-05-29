@@ -431,6 +431,10 @@ test('bug hunt: casual next-step questions do not recall stale canvas plans', ()
     isLatestCanvasPlanQuestion('Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.'),
     false
   );
+  assert.equal(
+    isLatestCanvasPlanQuestion('Spark Compete QA: Do not start a mission or build anything. Just answer in chat. I want to set up the Z.AI or GLM provider for Spark. What provider name and setup flags should I use, and how should I enter the API key safely? Please include the safest recovery step if the key is missing or rejected, but do not print or ask me to paste any secret into chat.'),
+    false
+  );
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {

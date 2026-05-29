@@ -4222,6 +4222,10 @@ export function isLatestCanvasPlanQuestion(text: string): boolean {
   if (/\b(?:mission|project|build)\s+title\b/.test(normalized) || /\btitle\s+would\s+you\s+use\b/.test(normalized)) {
     return false;
   }
+  if (/\b(?:z\.?ai|glm|provider|providers?|api\s+key|provider\s+key|key\s+missing|key\s+is\s+missing|key\s+rejected|setup\s+flags?)\b/.test(normalized) &&
+      /\b(?:setup|set\s+up|configure|flags?|provider\s+name|api\s+key|secret|clipboard|missing|rejected|recover|recovery)\b/.test(normalized)) {
+    return false;
+  }
   const asksPlanDetails = /\b(?:what|which|show|list|tell me|give me)\b/.test(normalized)
     || /\bfull plan\b/.test(normalized);
   const asksTasksOrSkills = /\b(?:tasks?|steps?|skills?|paired skills?|queued|plan)\b/.test(normalized);
