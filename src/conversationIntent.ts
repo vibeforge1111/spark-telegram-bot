@@ -1199,6 +1199,10 @@ export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
+  if (/\b(?:summari[sz]e|recap|tell\s+me|what\s+did|what\s+have)\b.*\b(?:team|we|our)\b.*\b(?:already\s+)?(?:tried|done|tested|checked|attempted|know|guesses?|assumptions?|open\s+questions?)\b/.test(normalized) ||
+      /\b(?:facts?|guesses?|assumptions?|open\s+questions?|next\s+(?:safest\s+)?action)\b.*\b(?:invent(?:ing)?\s+history|already\s+tried|team\s+history|our\s+history)\b/.test(normalized)) {
+    return null;
+  }
   if (shouldPreferConversationalIdeation(text)) return null;
   if (isProjectLocalhostRequest(normalized)) {
     return 'latest_project_preview';

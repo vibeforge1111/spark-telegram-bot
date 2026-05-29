@@ -384,6 +384,10 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('no the localhost for the beauty centre'), 'latest_project_preview');
   assert.equal(isLocalSparkServiceRequest('no the localhost for the beauty centre', 'Completed Spawner mission spark-123'), false);
   assert.equal(
+    parseSpawnerBoardNaturalIntent('Do not start a mission or build anything. Just answer in chat. Summarize what our team has already tried for this Spark issue. Please separate facts we actually know, guesses or assumptions, open questions, and the next safest action. If you do not know our history, say that clearly instead of inventing it.'),
+    null
+  );
+  assert.equal(
     parseSpawnerBoardNaturalIntent('the canvas event stream looked good, can you check whether the kanban side saw the same mission?'),
     'latest_on_kanban'
   );
