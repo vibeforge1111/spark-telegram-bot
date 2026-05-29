@@ -796,7 +796,9 @@ function scheduleDelayedCompletionSummary(
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
       if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-    })().catch(() => {});
+    })().catch((error) => {
+      console.warn('[MissionRelay] scheduleDelayedCompletionSummary failed for missionId=%s:', event.missionId, error);
+    });
   }, 1000);
 }
 
