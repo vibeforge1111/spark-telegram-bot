@@ -1928,7 +1928,7 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     // Guard: when the generic-observation LLM echoes memory directives
     // as "Noted: X" or "your name is X", replace with neutral acknowledgement.
     if (
-      builderReply.bridgeMode === 'memory_generic_observation' &&
+      (builderReply.bridgeMode === 'memory_generic_observation' || builderReply.bridgeMode === 'memory_raw_episode_update') &&
       (/your name is/i.test(responseText) || /noted|saved/i.test(responseText))
     ) {
       responseText = 'Noted.';
@@ -2034,7 +2034,7 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
       // Guard: the Builder may echo the directive back as "Noted: <directive>"
       // or "Saved: <directive>" — replace with a clean acknowledgement.
       if (
-        builderReply.bridgeMode === 'memory_generic_observation' &&
+        (builderReply.bridgeMode === 'memory_generic_observation' || builderReply.bridgeMode === 'memory_raw_episode_update') &&
         (/your name is/i.test(responseText) || /noted|saved/i.test(responseText))
       ) {
         responseText = 'Noted.';
