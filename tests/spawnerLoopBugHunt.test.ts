@@ -431,6 +431,10 @@ test('bug hunt: casual next-step questions do not recall stale canvas plans', ()
     isLatestCanvasPlanQuestion('Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.'),
     false
   );
+  assert.equal(
+    isLatestCanvasPlanQuestion('Do not start a mission or build anything. Just answer in chat. I want to check whether my Spark providers are ready. What command should I run for spark providers status or the nearest provider test command? Please explain how to read missing keys, role-specific readiness for Agent LLM versus Mission LLM, and the safest next step if one provider is not ready. Do not print raw config, secrets, tokens, or full environment values.'),
+    false
+  );
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {
