@@ -802,6 +802,10 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || normalized.startsWith('/')) return null;
+  if (/\b(?:codex\s+cli|openai\s+api\s+key|api\s+keys?|provider\s+setup|provider\s+key|provider\s+keys?|signed[-\s]?in|sign(?:ed)?\s+in|login|logged\s+in)\b/i.test(normalized) &&
+      /\b(?:setup|set\s+up|configure|provider|api\s+key|key\s+missing|missing\s+key|cannot\s+find|can't\s+find|not\s+found|recovery\s+path|recover|repair|resume)\b/i.test(normalized)) {
+    return null;
+  }
 
   const earlyTarget = naturalRecursiveTarget(normalized, context);
   if (earlyTarget?.chipKey && /\b(?:learn|learned|takeaways?|what\s+stuck|what\s+worked|what\s+did\s+.*(?:learn|find|discover))\b/i.test(normalized)) {
