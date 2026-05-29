@@ -1824,6 +1824,37 @@ function extractCommandName(text: string | undefined): string | null {
   return command || null;
 }
 
+function botUsernameFromContext(ctx: any): string | null {
+  const username = ctx.botInfo?.username || ctx.me || process.env.BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME;
+  return typeof username === 'string' && username.trim() ? username.replace(/^@/, '').trim().toLowerCase() : null;
+}
+
+export function isAddressedGroupText(ctx: any, text: string): boolean {
+  const chatType = ctx.chat?.type;
+  if (chatType !== 'group' && chatType !== 'supergroup') {
+    return true;
+  }
+
+  const trimmed = text.trim();
+  const botUsername = botUsernameFromContext(ctx);
+  if (/^spark\b[:,]?\s+/i.test(trimmed)) {
+    return true;
+  }
+  if (botUsername && new RegExp(`@${botUsername.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) {
+    return true;
+  }
+
+  const replyFrom = ctx.message?.reply_to_message?.from;
+  if (!replyFrom) {
+    return false;
+  }
+  const botId = ctx.botInfo?.id;
+  if (botId !== undefined && replyFrom.id === botId) {
+    return true;
+  }
+  return Boolean(botUsername && typeof replyFrom.username === 'string' && replyFrom.username.toLowerCase() === botUsername);
+}
+
 async function ensurePollingReady(): Promise<void> {
   const webhookInfo = await bot.telegram.getWebhookInfo();
   if (webhookInfo.url) {
@@ -5735,6 +5766,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const text = ctx.message.text;
 
   if (text.startsWith('/')) {
+    return;
+  }
+  if (!isAddressedGroupText(ctx, text)) {
     return;
   }
 
