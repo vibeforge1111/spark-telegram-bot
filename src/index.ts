@@ -1407,7 +1407,6 @@ function deterministicRouteAllowed(route: DeterministicRouteId, text: string): b
     profile: activeTelegramProfile()
   });
   if (!verdict.allow) {
-    console.log(`[RouteFirewall] blocked route=${route} reason=${verdict.reason} textLen=${text.length}`);
   }
   return verdict.allow;
 }
@@ -2003,7 +2002,6 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
   await safeSendChatAction(ctx, 'typing');
   try {
     const builderReply = await runBuilderTelegramBridge(ctx.update as unknown as Record<string, unknown>);
-    console.log(`[Bridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (
       builderReply.used &&
       builderReply.bridgeMode !== 'bridge_error' &&
@@ -3118,14 +3116,11 @@ bot.command('insights', async (ctx) => {
 // deferred dashboard placeholder; voice is a Builder/chip capability now.
 bot.command('voice', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
-  console.log(`[Voice] /voice command received user=${userRef(ctx.from?.id)} chat_type=${ctx.chat?.type || 'unknown'}`);
   try {
     const routed = await replyViaBuilder(ctx, ctx.message?.text || '/voice');
     if (routed) {
-      console.log('[Voice] Builder voice route replied');
       return;
     }
-    console.log('[Voice] Builder voice route unavailable');
   } catch (err) {
     console.warn('[Bridge] /voice Builder route failed:', err);
   }
@@ -6159,7 +6154,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   if (!earlyBuildIntent && shouldPreferConversationalIdeation(text)) {
-    console.log(`[ConversationIntent] early ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
     if (isPendingClarificationAlternativeRequest(text)) {
       pendingClarifications.delete(`${ctx.chat.id}-${ctx.from.id}`);
     }
@@ -6424,7 +6418,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (buildIntent) {
-      console.log(`[BuildIntent] route user=${userRef(ctx.from?.id)} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
       const accessPreference = parseNaturalAccessChangeIntent(text);
       const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
       if (normalizedAccessPreference) {
@@ -6677,7 +6670,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isExplicitContextualBuildRequest(text) && deterministicRouteAllowed('spawner.contextual_improvement', text)) {
       const improvementGoal = buildContextualImprovementGoal(text, contextualTurns);
       if (improvementGoal) {
-        console.log(`[ConversationIntent] inferred contextual improvement mission user=${userRef(ctx.from?.id)} textLen=${text.length}`);
         await conversation.remember(user, text).catch(() => {});
         const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()], undefined, {
           missionName: 'Spark Diagnostic Agent Integration'
@@ -6705,7 +6697,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     const inferredMission = inferMissionFromRecentContext(text, recentMessages);
     if (inferredMission && deterministicRouteAllowed('spawner.contextual_mission', text)) {
-      console.log(`[ConversationIntent] inferred mission from follow-up user=${userRef(ctx.from?.id)} textLen=${text.length}`);
       await conversation.remember(user, text).catch(() => {});
       const missionId = await handleRunCommand(ctx, inferredMission.goal, [missionDefaultProvider()], undefined, {
         missionName: inferredMission.missionName
@@ -6719,7 +6710,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
 
     if (shouldPreferConversationalIdeation(text)) {
-      console.log(`[ConversationIntent] ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
       if (isPendingClarificationAlternativeRequest(text)) {
         pendingClarifications.delete(`${ctx.chat.id}-${ctx.from.id}`);
       }
@@ -6794,7 +6784,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         console.warn('[Bridge] local chat fallback after bridge error:', bridgeError);
       }
     }
-    console.log(`[Bridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error') {
       if (memoryDoctorEvidenceTurns.length > 0 && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
         const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
@@ -6906,7 +6895,6 @@ export async function handleImageMessage(ctx: any): Promise<void> {
           await conversation.getRecentMessages(user, 6).catch(() => [])
         );
     const builderReply = await runBuilderTelegramBridge(bridgeUpdate);
-    console.log(`[ImageBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText) {
       await ctx.reply(builderReply.responseText);
@@ -6949,7 +6937,6 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
     const voiceTiming = builderReply.voiceTiming && Object.keys(builderReply.voiceTiming).length
       ? ` voiceTiming=${JSON.stringify(builderReply.voiceTiming)}`
       : '';
-    console.log(`[VoiceBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}${voiceTiming}`);
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
       await deliverBuilderReply(ctx, builderReply);
@@ -6995,14 +6982,12 @@ bot.on(message('audio'), handleVoiceMessage);
 
 // Graceful shutdown
 process.once('SIGINT', () => {
-  console.log('Shutting down...');
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
 });
 process.once('SIGTERM', () => {
-  console.log('Shutting down...');
   void releaseGatewayOwnership();
   if (pollingActive) {
     bot.stop('SIGTERM');
@@ -7030,17 +7015,13 @@ async function start() {
   const llmHealthy = await llm.isAvailable();
 
   console.log('Spark:  LAUNCH CORE READY');
-  console.log(`LLM:    ${llmHealthy ? 'CONNECTED' : 'OFFLINE'}`);
 
   if (!llmHealthy) {
     console.warn('WARNING: LLM provider is not reachable. Natural language disabled.');
   }
 
   // Start polling
-  console.log('Starting Spark Telegram bot...');
-  console.log(`Mission relay: ${getTelegramRelayIdentity().url || `http://127.0.0.1:${relay.port}/spawner-events`}`);
   if (TELEGRAM_SMOKE_MODE) {
-    console.log('Telegram smoke mode: local relay is running; Telegram API calls are disabled.');
     return;
   }
 
@@ -7064,7 +7045,6 @@ async function start() {
     telegramPolling: 'active',
     pollingStartedAt: new Date().toISOString()
   });
-  console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
   void launchPromise.catch((err) => {
     void releaseGatewayOwnership();
     console.error('Telegram polling stopped:', err);
