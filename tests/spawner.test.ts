@@ -48,8 +48,8 @@ async function run(): Promise<void> {
     restoreAxios();
     process.env.TELEGRAM_RELAY_PORT = '8799';
     process.env.SPARK_TELEGRAM_PROFILE = 'spark-agi';
-    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
-    process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
+    process.env.SPARK_BRIDGE_API_KEY = process.env.TEST_BRIDGE_API_KEY || 'mock-bridge-key';
+    process.env.SPARK_UI_API_KEY = process.env.TEST_UI_API_KEY || 'mock-ui-key';
 
     let capturedUrl = '';
     let capturedBody: any = null;
@@ -102,7 +102,7 @@ async function run(): Promise<void> {
 
   await test('runGoal falls back to the bridge key for hosted UI auth when no UI key is configured', async () => {
     restoreAxios();
-    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
+    process.env.SPARK_BRIDGE_API_KEY = process.env.TEST_BRIDGE_API_KEY || 'mock-bridge-key';
     delete process.env.SPARK_UI_API_KEY;
 
     let capturedOptions: any = null;
