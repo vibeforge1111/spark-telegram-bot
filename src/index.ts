@@ -4330,7 +4330,7 @@ interface RunCommandOptions {
   relayGoal?: string;
 }
 
-function isActiveTaskStatusQuery(text: string): boolean {
+export function isActiveTaskStatusQuery(text: string): boolean {
   const n = text.trim().toLowerCase();
   return (
     /\b(?:status|progress|update|going|done|finish(?:ed)?|complet(?:ed)?)\b/.test(n) &&
@@ -4338,7 +4338,7 @@ function isActiveTaskStatusQuery(text: string): boolean {
   ) || /\bhow.?s\s+(?:it|my\s+(?:task|mission|run|job))\s+(?:going|doing|looking)\b/.test(n);
 }
 
-function isRetryRequest(text: string): boolean {
+export function isRetryRequest(text: string): boolean {
   const n = text.trim().toLowerCase();
   return /\b(?:retry|try\s+again|run\s+(?:it\s+)?again|re-?run\s+it|redo\s+it)\b/.test(n);
 }
