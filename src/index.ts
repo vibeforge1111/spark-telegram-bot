@@ -2210,7 +2210,15 @@ bot.command('wiki', async (ctx) => {
       : wantsInventory
       ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
       : await runBuilderWikiStatus({ refresh: true });
+    const requestId = opaqueTelegramRequestId('tg-wiki');
+    const traceRef = telegramRunTraceRef(requestId);
     await ctx.reply(result.replyText);
+    recordCommandReplyDelivery({
+      command: 'wiki',
+      replyKind: 'wiki_reply',
+      requestId,
+      traceRef
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
