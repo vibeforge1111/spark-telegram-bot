@@ -282,7 +282,7 @@ function candidateDiagnosticsRepos(config: BuilderBridgeConfig): string[] {
     config.builderRepo,
     path.join(os.homedir(), '.spark', 'modules', 'spark-intelligence-builder-release', 'source'),
     path.join(os.homedir(), '.spark', 'modules', 'spark-intelligence-builder', 'source'),
-    path.join(os.homedir(), 'Desktop', 'spark-intelligence-builder'),
+    path.join(os.homedir(), '.spark', 'modules', 'spark-intelligence-builder', 'local'),
   ].filter(Boolean);
 }
 
