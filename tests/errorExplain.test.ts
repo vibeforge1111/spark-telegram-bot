@@ -165,3 +165,13 @@ test('pre-mission Builder gate failure says no mission was created and tells use
   assert.match(reply, /\/run/);
   assert.doesNotMatch(reply, /Spark could not reach the Builder memory path/);
 });
+
+test('pre-mission Builder gate failure reply does not expose internal routing details', () => {
+  // Security: gate threshold values, builder scoring, internal route names must not appear.
+  const reply = renderPreMissionBuilderGateFailureReply();
+  assert.doesNotMatch(reply, /threshold|score|route_name|builder_score|gate_value/i);
+  assert.doesNotMatch(reply, /memory path|builder path|builder_or_memory/i);
+  assert.doesNotMatch(reply, /stack trace|Error at|at Object/i);
+  // Output must be bounded and not expose raw exception state
+  assert.ok(reply.length < 1000, `reply length ${reply.length} is unexpectedly large`);
+});
