@@ -71,6 +71,16 @@ const MISSION_OR_BUILD_ROUTES = new Set<DeterministicRouteId>([
   'domain_chip.pending'
 ]);
 
+const COMMAND_WORD_ROUTES = new Set<DeterministicRouteId>([
+  'access.change',
+  'operator.safe_action',
+  'diagnostics.scan',
+  'diagnostics.followup_test',
+  'natural_run',
+  'pending_task.recovery',
+  'local_workspace.inspect'
+]);
+
 function normalize(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -107,9 +117,10 @@ function isReadoutOrCriticRequest(normalized: string): boolean {
 function isConcreteProjectBuild(normalized: string): boolean {
   return (
     /\b(?:build|create|make|ship|scaffold|generate|develop)\s+this\s+(?:at|in|into)\s+(?:[a-z]:[\\/]|\/)/i.test(normalized) ||
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:backend|api|service|bot)\b/i.test(normalized) ||
     /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:called|named)\s+["'][a-z0-9][a-z0-9 '&.-]{2,80}["']/i.test(normalized) ||
     /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:called|named)\s+[a-z0-9][a-z0-9 '&.-]{2,80}\b/i.test(normalized) ||
-    /\b(?:files|target\s+folder|project\s+path)\s*:/i.test(normalized) ||
+    /\b(?:files|target\s+folder|project\s+path|full\s+local\s+project)\s*:/i.test(normalized) ||
     /\b(?:build|create|make|ship|scaffold|generate|develop)\b.*\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b.*\b(?:should|needs?|with|that|minimal|playable|prototype|prd|plan)\b/i.test(normalized)
   );
 }
@@ -216,6 +227,7 @@ function isProtectedPlainChat(normalized: string): boolean {
 
 export function evaluateDeterministicRoute(route: DeterministicRouteId, text: string): RouteFirewallVerdict {
   const normalized = normalize(text);
+  const concreteProjectBuild = isConcreteProjectBuild(normalized);
   if (!normalized) {
     return { allow: false, reason: 'empty_message', confidence: 'blocked' };
   }
@@ -231,8 +243,11 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
     return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
   }
 
-  if (route === 'spawner.build' && isConcreteProjectBuild(normalized)) {
+  if (route === 'spawner.build' && concreteProjectBuild) {
     return { allow: true, reason: 'concrete_project_build', confidence: 'explicit' };
+  }
+  if (concreteProjectBuild && (COMMAND_WORD_ROUTES.has(route) || route === 'spawner.local_service')) {
+    return { allow: false, reason: 'competing_concrete_project_build', confidence: 'blocked' };
   }
   if (route === 'spawner.build' && isMissionPreferenceLike(normalized)) {
     return { allow: false, reason: 'mission_preference_not_build', confidence: 'blocked' };

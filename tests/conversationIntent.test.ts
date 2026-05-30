@@ -297,6 +297,39 @@ test('does not intercept build-quality review requests as local UI links', () =>
   );
 });
 
+test('does not intercept concrete backend build prompts as local Spark service links', () => {
+  const previousExternal = process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+  process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = '1';
+  try {
+    const prompt = `Continue mission-1780080376626, but do not make another dashboard-only prototype.
+
+Build the real backend for the Telegram group health scoring bot.
+
+Use the existing dashboard files as the frontend starting point:
+C:\\lose state, score or progress feedback
+
+Create a full local project at:
+C:\\Dev\\projects\\telegram-health-bot
+
+Required backend features:
+- no public commands
+- README with BotFather setup, privacy mode disabled, run/test commands
+
+Use Spark Pro skills for telegram-mastery, backend, sqlite/local database, openai integration, security, and dashboard integration.`;
+
+    assert.equal(
+      isLocalSparkServiceRequest(
+        prompt,
+        'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.'
+      ),
+      false
+    );
+  } finally {
+    if (previousExternal === undefined) delete process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS;
+    else process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS = previousExternal;
+  }
+});
+
 test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);

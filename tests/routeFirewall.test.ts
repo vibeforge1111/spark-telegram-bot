@@ -34,6 +34,29 @@ test('allows explicit project builds through the firewall', () => {
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('allows backend project briefs even when they contain command-like words', () => {
+  const prompt = `Continue mission-1780080376626, but do not make another dashboard-only prototype.
+
+Build the real backend for the Telegram group health scoring bot.
+
+Create a full local project at:
+C:\\Dev\\projects\\telegram-health-bot
+
+Required backend features:
+- no public commands
+- README with BotFather setup, privacy mode disabled, run/test commands`;
+
+  const buildVerdict = evaluateDeterministicRoute('spawner.build', prompt);
+  assert.equal(buildVerdict.allow, true);
+  assert.equal(buildVerdict.reason, 'concrete_project_build');
+  assert.equal(buildVerdict.confidence, 'explicit');
+
+  const diagnosticVerdict = evaluateDeterministicRoute('diagnostics.scan', prompt);
+  assert.equal(diagnosticVerdict.allow, false);
+  assert.equal(diagnosticVerdict.reason, 'competing_concrete_project_build');
+  assert.equal(diagnosticVerdict.confidence, 'blocked');
+});
+
 test('allows explicit memory updates even when they mention plans', () => {
   const verdict = evaluateDeterministicRoute(
     'memory.write',

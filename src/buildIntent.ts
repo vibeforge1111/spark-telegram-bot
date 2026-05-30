@@ -33,12 +33,14 @@ function normalizePathForPlatform(value: string): string {
 }
 
 function workspaceRootsFor(candidate: string): string[] {
+  if (/^(?:1|true|yes)$/i.test(process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS?.trim() || '')) return [];
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
   if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
   return [defaultWorkspaceRoot()];
 }
 
 function isInsideWorkspace(candidate: string): boolean {
+  if (/^(?:1|true|yes)$/i.test(process.env.SPARK_ALLOW_EXTERNAL_PROJECT_PATHS?.trim() || '')) return true;
   const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
   return workspaceRootsFor(candidate).some((root) => {
     const normalizedRoot = normalizePathForPlatform(root).toLowerCase();
@@ -143,7 +145,7 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|backend|api|service|bot|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
   const patterns = [
     new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
     new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
@@ -323,8 +325,18 @@ function cleanExtractedPath(value: string): string {
 }
 
 function extractPath(text: string): string | null {
+  const labeledMatch = text.match(
+    /\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/)[^\r\n]+)/i
+  );
+  if (labeledMatch) {
+    const candidate = cleanExtractedPath(labeledMatch[1]);
+    if (isInsideWorkspace(candidate)) {
+      return candidate;
+    }
+  }
+
   const atMatch = text.match(
-    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
+    /(?:at|in|into)\s*:?\s*(?:\r?\n\s*)?((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
   );
   if (atMatch) {
     const candidate = cleanExtractedPath(atMatch[1]);
@@ -339,6 +351,7 @@ function removeLeadingPathPrefix(text: string): string {
   return text
     .replace(/^(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, '')
     .replace(/\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, ' ')
+    .replace(/\b(?:target\s+folder|project\s+path|local\s+project|full\s+local\s+project|create\s+(?:a\s+)?(?:full\s+)?local\s+project\s+(?:at|in|into))\s*:?\s*(?:\r?\n\s*)?(?:[A-Z]:[\\/]|\/)[^\r\n]*/gi, ' ')
     .trim();
 }
 
@@ -506,7 +519,7 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   }
   if (
     /\b(?:what|which|how|why|is|are|do|does|can|could|should|would)\b.*\b(?:build|building)\b.*\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized) &&
-    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
+    !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:backend|api|service|bot|app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
   ) {
     return true;
   }
@@ -677,7 +690,7 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   }
   const concreteStandaloneBrief =
     prd.length >= 80 &&
-    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
+    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:backend|api|service|bot|tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
   if (concreteStandaloneBrief) {
     return false;
   }
@@ -793,10 +806,9 @@ function extractBuildDescription(text: string): string | null {
     return description;
   }
 
-  const inlineCommand = text.match(
-    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
-  );
-  if (inlineCommand?.index !== undefined) {
+  const inlineCommandPattern = /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/gi;
+  for (const inlineCommand of text.matchAll(inlineCommandPattern)) {
+    if (inlineCommand.index === undefined) continue;
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
     if (
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
@@ -805,14 +817,14 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix)
     ) {
-      return null;
+      continue;
     }
     const description = text.slice(inlineCommand.index + inlineCommand[0].length);
     if (
       isSparkCapabilityMakeRequest(description) ||
       (/\bmake\b/i.test(inlineCommand[0]) && (isConversationFramingMakeRequest(description) || isVoiceTuningMakeRequest(description)))
     ) {
-      return null;
+      continue;
     }
     return description;
   }
