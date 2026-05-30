@@ -1,24 +1,66 @@
+/**
+ * Trust-boundary tests for renderTaskFailureBody (task-failed message fix).
+ *
+ * Boundary: external relay event (task_failed payload) → renderTaskFailureBody
+ *           → Telegram message delivered to user
+ *
+ * Before fix: task_failed handler clipped raw error string with no recovery
+ *             path, exposing internal details and leaving no retry guidance.
+ * After fix:  renderTaskFailureBody detects bare unknown errors and substitutes
+ *             a safe description; always appends /run retry + /mission status.
+ *
+ * Security reviewer questions addressed:
+ *   1. No internal task IDs, runner addresses, or stack traces in output —
+ *      boilerplate stripper removes mission IDs; clipText limits to 500 chars.
+ *   2. /mission status <id> uses the caller-supplied missionId (the ID already
+ *      known to the user), not an internal identifier.
+ *   3. Renderer output for unknown/empty error is fully static — no input
+ *      content can inject into the detail line for bare unknown errors.
+ */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { renderTaskFailureBody } from '../src/missionRelay';
 
-const relaySrc = readFileSync(join(__dirname, '..', 'src', 'missionRelay.ts'), 'utf-8');
-
-describe('renderTaskFailureBody task-failed message fix', () => {
-  it('post-fix: renderTaskFailureBody function is defined', () => {
-    // Pre-fix: task_failed handler used a generic clipped failure string
-    // Post-fix: renderTaskFailureBody detects bare unknown-error strings and emits a structured hint
-    expect(relaySrc).toMatch(/renderTaskFailureBody/);
+describe('renderTaskFailureBody — behavioral boundary tests', () => {
+  it('bare unknown-error input emits static safe description (no raw content)', () => {
+    const output = renderTaskFailureBody('unknown error', 'mission-abc-123');
+    expect(output).toMatch(/did not return a reason|provider timed out|runner exited/i);
+    expect(output).not.toContain('unknown error');
   });
 
-  it('post-fix: task_failed handler calls renderTaskFailureBody', () => {
-    expect(relaySrc).toMatch(/task.?failed[\s\S]{0,500}renderTaskFailureBody|renderTaskFailureBody[\s\S]{0,500}task.?failed/);
+  it('empty-error input emits static safe description', () => {
+    const output = renderTaskFailureBody('', 'mission-abc-123');
+    expect(output).toMatch(/did not return a reason|provider timed out/i);
   });
 
-  it('regression: bare generic failure text is no longer used as sole output', () => {
-    // Pre-fix: used a generic truncated failure string
-    // Post-fix: structured message with repair hints
-    // Verify the old bare pattern is replaced
-    expect(relaySrc).toMatch(/renderTaskFailureBody|unknownError|repair.*hint|diagnose/i);
+  it('output always contains /run retry path', () => {
+    const output = renderTaskFailureBody('build failed', 'mission-xyz');
+    expect(output).toMatch(/\/run/);
+  });
+
+  it('output always contains /mission status with caller-supplied missionId', () => {
+    const missionId = 'mission-test-id-9999';
+    const output = renderTaskFailureBody('build failed', missionId);
+    expect(output).toContain(`/mission status ${missionId}`);
+  });
+
+  it('detailed error text is clipped — output is bounded even for very long inputs', () => {
+    const longStack = 'Error: build failed\n' + '  at Object.<anonymous> (runner.js:1:1)\n'.repeat(100);
+    const output = renderTaskFailureBody(longStack, 'mission-stack-test');
+    // clipText truncates to 500 chars; total output including recovery is bounded
+    expect(output.length).toBeLessThan(800);
+  });
+
+  it('internal mission ID patterns are stripped from detailed error text', () => {
+    const errWithInternalId = 'spark-dispatch-900123: runner exited with code 1';
+    const output = renderTaskFailureBody(errWithInternalId, 'mission-user-id');
+    expect(output).not.toContain('spark-dispatch-900123');
+  });
+
+  it('missionId in recovery path is the exact string passed in (no transformation)', () => {
+    const missionId = 'user-facing-mission-id-42';
+    const output = renderTaskFailureBody('step failed', missionId);
+    expect(output).toContain(missionId);
+    const internalMatch = output.match(/\/mission status ([^\n.]+)/);
+    expect(internalMatch?.[1]?.trim()).toBe(missionId);
   });
 });

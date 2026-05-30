@@ -949,7 +949,7 @@ function freeformFailureLines(text: string): string[] {
   return Array.from(new Set(lines)).slice(0, 4);
 }
 
-function renderTaskFailureBody(error: string, missionId: string): string {
+export function renderTaskFailureBody(error: string, missionId: string): string {
   const stripped = clipText(stripMissionControlBoilerplate(error), 500);
   const isUnknown = !stripped || /^unknown error$/i.test(stripped.trim());
   const detail = isUnknown
