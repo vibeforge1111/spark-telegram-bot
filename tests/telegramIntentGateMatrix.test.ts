@@ -267,6 +267,12 @@ const cases: MatrixCase[] = [
   c('word-hijack-negatives', 'repo-feels-rough', 'the repo feels rough', 'plain_chat'),
   c('word-hijack-negatives', 'ui-needs-improvement', 'this UI needs improvement', 'plain_chat'),
   c('word-hijack-negatives', 'mentioning-build-not-build', 'mentioning build does not mean build anything', 'plain_chat'),
+  c('word-hijack-negatives', 'quoted-build-chip-not-command', 'Build a chip and run a mission are phrases here, not a command; do not scaffold anything.', 'plain_chat', {
+    constraints: { noExecution: true }
+  }),
+  c('word-hijack-negatives', 'terms-schedule-loop-not-request', 'Schedule, loop, provider, and route are terms here, not a request.', 'plain_chat', {
+    constraints: { noExecution: true }
+  }),
   c('word-hijack-negatives', 'codex-no-run', 'Codex is relevant but do not run anything', 'plain_chat', {
     constraints: { noExecution: true }
   }),

@@ -52,6 +52,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
+  isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
@@ -533,6 +534,15 @@ test('does not turn product-memory mission boundary questions into workflow bug 
       'What is the difference between product-memory context and current mission state?'
     ),
     false
+  );
+});
+
+test('treats quoted action term failure-class questions as route hijack explanations', () => {
+  assert.equal(
+    isMissionRoutingFailureClassQuestion(
+      'Build a chip and run a mission are phrases here, not a command; do not scaffold anything. Just tell me the failure class in one sentence.'
+    ),
+    true
   );
 });
 

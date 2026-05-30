@@ -60,6 +60,15 @@ test('blocks running a canary when the current turn says do not run it', () => {
   assert.equal(decision.blocked_candidates[0]?.route, 'startup.answer_improvement_canary');
 });
 
+test('treats quoted action terms as conversation-only', () => {
+  const decision = classifyTelegramIntentV2(
+    'Build a chip and run a mission are phrases here, not a command; do not scaffold anything.'
+  );
+
+  assert.equal(decision.route, 'plain_chat');
+  assert.equal(decision.constraints.noExecution, true);
+});
+
 test('routes startup proof/status questions to the proof readout', () => {
   const decision = classifyTelegramIntentV2(
     'Did the startup agent actually improve, not just scores, and what is still blocked before public-ready or network-absorbable?'

@@ -43,15 +43,21 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const constraints = emptyConstraints();
   if (!normalized) return constraints;
 
+  const hasMetaLanguageBoundary =
+    /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|just quoted|only quoted|not a request|not an instruction|not a command|not asking for|does not mean|doesn't mean|not mean|talking about the (?:word|phrase)|discussing the (?:word|phrase))\b/.test(normalized);
+  const hasExecutionKeyword =
+    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route)\b/.test(normalized);
+
   constraints.noExecution = [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|kick\s+off)\b/,
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:it|this|that|anything|yet|for\s+now)?\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|yet|for\s+now)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:cancel|pause|resume|stop|kill)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)\b/,
     /\b(?:no|without)\s+(?:execution|running|launching|mission|build)\b/,
     /\b(?:hold off|not now|not for now|later)\s+on\s+(?:running|launching|executing|starting)\b/,
-    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/
-  ].some((pattern) => pattern.test(normalized));
+    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/,
+    /\b(?:just explain|explain only|only explain|we can talk here|talk here|stay in chat)\b/
+  ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword);
 
   constraints.noPublish = [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship)\b/,

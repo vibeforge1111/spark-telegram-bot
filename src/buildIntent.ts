@@ -621,6 +621,8 @@ function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
     /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,80}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
+    /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,80}\b(?:build|make|create|ship|scaffold|generate|develop)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));
 }
