@@ -2452,7 +2452,21 @@ async function handleCapabilityGardenCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
   try {
-    const summary = await readCapabilityGardenSummary();
+    let summary = await readCapabilityGardenSummary();
+    if (!summary.present || summary.cardCount === 0) {
+      await ctx.reply('Capability garden is empty. Running spark os compile...');
+      await safeSendChatAction(ctx, 'typing');
+      try {
+        const { execFile } = await import('node:child_process');
+        const { promisify } = await import('node:util');
+        const execFileAsync = promisify(execFile);
+        await execFileAsync('spark', ['os', 'compile'], { timeout: 60000 });
+        summary = await readCapabilityGardenSummary();
+      } catch {
+        await ctx.reply('Auto-compile failed. Run `spark os compile` in your terminal, then try /capabilities again.');
+        return;
+      }
+    }
     await ctx.reply(renderCapabilityGardenSummary(summary));
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
