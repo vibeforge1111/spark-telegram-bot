@@ -182,6 +182,7 @@ import { queueRouteArbiterShadow } from './routeArbiter';
 import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
+  buildNoExecutionIdeationReply,
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildProjectImprovementGoal,
@@ -214,6 +215,7 @@ import {
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
@@ -6330,6 +6332,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  if (!earlyBuildIntent && isNoExecutionExplanationPrompt(text)) {
+    const reply = renderMissionRoutingFailureClassReply(text);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.no_execution_explanation', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
   if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
@@ -6426,6 +6437,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'plain_chat.ideation');
+    if (isNoExecutionBoundary(text)) {
+      const response = buildNoExecutionIdeationReply(text);
+      await ctx.reply(response);
+      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
     if (isShortResolvedListPick(text, conversationFrame)) {
       const fastReply = buildSelectedListFastReply(conversationFrame);
@@ -7006,6 +7023,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       console.log(`[ConversationIntent] ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
       if (isPendingClarificationAlternativeRequest(text)) {
         pendingClarifications.delete(`${ctx.chat.id}-${ctx.from.id}`);
+      }
+      if (isNoExecutionBoundary(text)) {
+        const response = buildNoExecutionIdeationReply(text);
+        await ctx.reply(response);
+        await conversation.rememberAssistantReply(user, response).catch(() => {});
+        return;
       }
       await safeSendChatAction(ctx, 'typing');
       if (isShortResolvedListPick(text, conversationFrame)) {

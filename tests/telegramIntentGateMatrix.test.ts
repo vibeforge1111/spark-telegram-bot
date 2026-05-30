@@ -273,6 +273,18 @@ const cases: MatrixCase[] = [
   c('word-hijack-negatives', 'terms-schedule-loop-not-request', 'Schedule, loop, provider, and route are terms here, not a request.', 'plain_chat', {
     constraints: { noExecution: true }
   }),
+  c('word-hijack-negatives', 'meta-language-build-boundary', 'build appears in this sentence as meta-language; stay in chat and explain the boundary.', 'plain_chat', {
+    constraints: { noExecution: true }
+  }),
+  c('word-hijack-negatives', 'bug-report-schedule-no-mission', 'Bug report: schedule hijacked routing before; do not create a mission.', 'plain_chat', {
+    constraints: { noExecution: true }
+  }),
+  c('word-hijack-negatives', 'qa-case-provider-words-alone', 'QA case for provider: words alone should not execute.', 'plain_chat', {
+    constraints: { noExecution: true }
+  }),
+  c('word-hijack-negatives', 'no-create-domain-chip', 'Do not create a domain chip; explain when one would be useful.', 'conversation.ideation', {
+    constraints: { noExecution: true }
+  }),
   c('word-hijack-negatives', 'codex-no-run', 'Codex is relevant but do not run anything', 'plain_chat', {
     constraints: { noExecution: true }
   }),

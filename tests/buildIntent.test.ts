@@ -186,6 +186,17 @@ test('does not treat provenance questions about exact changes as build intent', 
   assert.equal(intent, null);
 });
 
+test('does not treat meta-language build words as build intent', () => {
+  for (const prompt of [
+    'build appears in this sentence as meta-language; stay in chat and explain the boundary',
+    'Bug report: build hijacked routing before; do not create a mission',
+    'QA case for build: words alone should not execute',
+    'Do not create a domain chip; explain when one would be useful.'
+  ]) {
+    assert.equal(parseBuildIntent(prompt), null, prompt);
+  }
+});
+
 test('parses Ubuntu target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
   process.env.SPARK_PROJECT_ROOT = '/root';

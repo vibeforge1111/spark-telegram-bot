@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildIdeationFallbackReply,
+  buildNoExecutionIdeationReply,
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildProjectImprovementGoal,
@@ -53,6 +54,7 @@ import {
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
@@ -133,6 +135,9 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('Can you cancel that one? Do not cancel it.'), true);
   assert.equal(isNoExecutionBoundary('not now, maybe later'), true);
   assert.equal(isNoExecutionBoundary('we can discuss here for now'), true);
+  assert.equal(isNoExecutionBoundary('build appears in this sentence as meta-language; stay in chat and explain the boundary'), true);
+  assert.equal(isNoExecutionBoundary('Bug report: schedule hijacked routing before; do not create a mission'), true);
+  assert.equal(isNoExecutionBoundary('Do not create a domain chip; explain when one would be useful.'), true);
   assert.equal(isNoExecutionBoundary('can you resume that one?'), false);
   assert.equal(isNoExecutionBoundary('can you pause that one?'), false);
   assert.equal(isNoExecutionBoundary('can you cancel that one?'), false);
@@ -544,6 +549,16 @@ test('treats quoted action term failure-class questions as route hijack explanat
     ),
     true
   );
+  assert.equal(
+    isNoExecutionExplanationPrompt(
+      'build appears in this sentence as meta-language; stay in chat and explain the boundary.'
+    ),
+    true
+  );
+  assert.equal(
+    isNoExecutionExplanationPrompt('Build a local timer app at /tmp/spark-timer. Do not publish it.'),
+    false
+  );
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {
@@ -845,6 +860,14 @@ test('adds domain chip guidance for chip ideation', () => {
   assert.match(hint, /advanced Spark domain chip/);
   assert.match(hint, /Do not start a build/);
   assert.match(hint, /most recent list/);
+});
+
+test('renders no-execution ideation locally for domain chip prompts', () => {
+  const reply = buildNoExecutionIdeationReply('Do not create a domain chip; explain when one would be useful.');
+
+  assert.match(reply, /I won't create one here/);
+  assert.match(reply, /useful when Spark keeps needing the same specialized judgment/);
+  assert.doesNotMatch(reply, /start|scaffold|mission/i);
 });
 
 test('keeps hyphenated domain-chip repo references in conversation', () => {
