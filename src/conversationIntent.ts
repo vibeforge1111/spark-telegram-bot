@@ -2524,7 +2524,17 @@ export function buildNoExecutionIdeationReply(text: string): string {
       '',
       'A domain chip is useful when Spark keeps needing the same specialized judgment: a clear trigger, a small playbook, example situations, and evidence that the chip improves answers without stealing unrelated conversations.',
       '',
-      'For this case, I would only shape the boundary: what should activate the chip, what should stay normal chat, and what proof would show it is helping.'
+      'For this case, I would only shape the boundary before creating anything: what should activate the chip, what should stay normal chat, and what proof would show it is helping.'
+    ].join('\n');
+  }
+
+  if (/\b(?:project|app|tool|workspace|kanban|canvas|dashboard)\b/i.test(text)) {
+    return [
+      "I won't build it here.",
+      '',
+      'For a useful first version, I would shape the workflow before starting execution: a small Kanban surface for active work, a Canvas area for the project brief, and one handoff path that turns an approved card into a build only after you explicitly ask.',
+      '',
+      'That keeps the conversation in design mode while still giving the idea a real v1 shape.'
     ].join('\n');
   }
 
