@@ -2143,8 +2143,15 @@ bot.command('diagnose', async (ctx) => {
     // Telegram limit is 4096 chars; diagnose is always well under.
     await ctx.reply(report);
   } catch (err: any) {
-    await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
-  }
+   const requestId = opaqueTelegramRequestId('tg-status');
+  const traceRef = telegramRunTraceRef(requestId);
+  await ctx.reply(lines.join('\n').replace(/\n{3,}/g, '\n\n').trim());
+  recordCommandReplyDelivery({
+    command: 'status',
+    replyKind: 'status_reply',
+    requestId,
+    traceRef
+  });
 });
 
 bot.command('self', async (ctx) => {
