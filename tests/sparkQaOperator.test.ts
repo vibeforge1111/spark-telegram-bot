@@ -8,7 +8,9 @@ import {
   isSparkQaOperatorKey,
   parseSparkQaCommand,
   readLatestStartupBenchDossier,
+  readStartupReleaseVerdict,
   renderStartupBenchDossier,
+  renderStartupReleaseVerdict,
   renderSparkQaAutoloopRound,
   renderSparkQaBenchmarkCreator,
   resolveSparkQaOperatorRepo,
@@ -116,6 +118,35 @@ function writeBoundStartupBenchDossier(repo: string, options: {
     },
   }), 'utf-8');
   return dossierPath;
+}
+
+function writeLatestAutoloopReport(repo: string, options: {
+  claimReady?: boolean;
+  blockers?: string[];
+} = {}): string {
+  const claimReady = options.claimReady === true;
+  const out = path.join(repo, '.spark-swarm', 'autoloop', 'runs', 'latest-autoloop');
+  const reportPath = path.join(out, 'autoloop_round_report.json');
+  mkdirSync(out, { recursive: true });
+  const report = {
+    schemaVersion: 'spark-qa-autoloop-round-report.v1',
+    baselineCandidateDelta: { baselineScore: 0, candidateScore: 1, delta: 1 },
+    captureReplay: { passedCount: 4, caseCount: 4 },
+    evidenceBenchmark: { overallScore: 1 },
+    promotionDossier: {
+      scoreClaimAllowed: claimReady,
+      public_ready: false,
+      network_absorbable: false,
+      blockers: options.blockers || (claimReady ? [] : ['sidecar_review_pending', 'score_reconciliation_missing']),
+    },
+  };
+  writeFileSync(reportPath, JSON.stringify(report), 'utf-8');
+  writeFileSync(
+    path.join(repo, '.spark-swarm', 'autoloop', 'latest_run.json'),
+    JSON.stringify({ reportPath, outputRoot: out }),
+    'utf-8'
+  );
+  return reportPath;
 }
 
 async function main(): Promise<void> {
@@ -231,6 +262,31 @@ async function main(): Promise<void> {
     assert.match(reply, /allows the improvement claim/);
     assert.match(reply, /Public-ready and network-absorbable are still separate release decisions/);
     assert.doesNotMatch(reply, /sidecar 0\/1|wall-clock waiting|Score claim is still blocked/);
+  } finally {
+    if (oldRepo === undefined) delete process.env.SPARK_QA_OPERATOR_REPO;
+    else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;
+    rmSync(repo, { recursive: true, force: true });
+  }
+  });
+
+  await test('canonical startup release verdict combines bound dossier movement with autoloop blockers', async () => {
+  const repo = makeFakeSparkQaRepo();
+  writeBoundStartupBenchDossier(repo, { runId: 'clean-target-fe9718-seeds12-window2', claimReady: true });
+  writeLatestAutoloopReport(repo, { claimReady: false, blockers: ['sidecar_review_pending', 'score_reconciliation_missing'] });
+  const oldRepo = process.env.SPARK_QA_OPERATOR_REPO;
+  try {
+    process.env.SPARK_QA_OPERATOR_REPO = repo;
+    const result = await readStartupReleaseVerdict();
+    assert.equal(result.ok, true);
+    assert.equal(result.verdict?.localImprovementEvidence, true);
+    assert.equal(result.verdict?.releaseClaimAllowed, false);
+    const reply = renderStartupReleaseVerdict(result);
+    assert.match(reply, /local improvement evidence/i);
+    assert.match(reply, /not a promoted or network-absorbable upgrade yet/i);
+    assert.match(reply, /sidecar review/);
+    assert.match(reply, /score reconciliation/);
+    assert.match(reply, /Public-ready: false\. Network-absorbable: false\./);
+    assert.doesNotMatch(reply, /allows the bounded local improvement claim/i);
   } finally {
     if (oldRepo === undefined) delete process.env.SPARK_QA_OPERATOR_REPO;
     else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;

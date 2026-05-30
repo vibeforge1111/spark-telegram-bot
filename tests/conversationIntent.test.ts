@@ -45,6 +45,8 @@ import {
   renderSparkThreadQaGoldenCaseReply,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
+  isStartupReleaseBoundaryQuestion,
+  isStartupFounderAdvisoryQuestion,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
@@ -1701,6 +1703,42 @@ test('memory directives only accept Builder memory-route confirmations', () => {
     ),
     false
   );
+});
+
+test('startup founder advice outranks accidental memory capture', () => {
+  const prompt = 'Outbound volume is high, response quality is falling, and the team wants to add another channel. What should Spark recommend?';
+  assert.equal(isStartupFounderAdvisoryQuestion(prompt), true);
+  assert.equal(extractPlainChatMemoryDirective(prompt), null);
+  assert.equal(
+    isStartupFounderAdvisoryQuestion(
+      'Please answer the outbound channel question now. Do not save memory or instruction. Outbound volume is high, response quality is falling, and the team wants to add another channel. What should Spark recommend?'
+    ),
+    true
+  );
+  assert.equal(
+    isStartupFounderAdvisoryQuestion('Please remember this: outbound channel answers should be concise.'),
+    false
+  );
+});
+
+test('startup release boundary questions use the canonical proof verdict path', () => {
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Did the startup agent actually improve, and what is still blocked? Answer with the proof boundary, not just scores.'),
+    true
+  );
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Is this startup self-improvement proof public-ready or network-absorbable?'),
+    true
+  );
+  assert.equal(isStartupReleaseBoundaryQuestion('What should the startup operator do about pricing?'), false);
+  assert.equal(isStartupReleaseBoundaryQuestion('Please remember this: startup answers should be concise.'), false);
+});
+
+test('suppresses saved-instruction acknowledgements from plain founder chat', () => {
+  const reply = '_(saved instruction: "stop reporting friendly interest as demand Operator line: \\"We have at\\"" - will apply to future replies)_';
+  assert.equal(isMemoryAcknowledgementReply(reply), true);
+  assert.equal(builderReplySuppressionReason(reply, 'plain_chat'), 'memory_acknowledgement');
+  assert.equal(shouldSuppressBuilderReplyForPlainChat(reply, 'plain_chat'), true);
 });
 
 test('memory fallback does not claim a no-op save succeeded', () => {

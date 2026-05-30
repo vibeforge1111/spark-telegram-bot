@@ -51,6 +51,24 @@ export interface StartupBenchDossierResult {
   error?: string;
 }
 
+export interface StartupReleaseVerdictResult {
+  ok: boolean;
+  repoRoot?: string;
+  dossierPath?: string | null;
+  reportPath?: string | null;
+  dossier?: Record<string, any> | null;
+  report?: Record<string, any> | null;
+  verdict?: {
+    localImprovementEvidence: boolean;
+    releaseClaimAllowed: boolean;
+    publicReady: boolean;
+    networkAbsorbable: boolean;
+    blockers: string[];
+    nextGate: string;
+  };
+  error?: string;
+}
+
 function unique(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -353,6 +371,114 @@ function humanBlocker(value: string): string {
 function blockerList(dossier: Record<string, any> | null | undefined): string[] {
   const raw = Array.isArray(dossier?.promotionDossier?.blockers) ? dossier?.promotionDossier?.blockers : [];
   return unique(raw.map((item: unknown) => humanBlocker(String(item))));
+}
+
+function autoloopBlockerList(report: Record<string, any> | null | undefined): string[] {
+  const raw = Array.isArray(report?.promotionDossier?.blockers) ? report?.promotionDossier?.blockers : [];
+  return unique(raw.map((item: unknown) => humanBlocker(String(item))));
+}
+
+function startupDossierClaimAllowed(dossier: Record<string, any> | null | undefined): boolean {
+  return (
+    (dossier?.promotionDossier?.scoreClaimAllowed === true || dossier?.scoreClaimAllowed === true) &&
+    (dossier?.promotionDossier?.improvementClaimAllowed === true || dossier?.improvementClaimAllowed === true)
+  );
+}
+
+function startupDossierHasMovement(dossier: Record<string, any> | null | undefined): boolean {
+  const summary = dossier?.privateScoreSummary || {};
+  const baseline = num(summary.baseline?.scenarioScore);
+  const candidate = num(summary.candidate?.scenarioScore);
+  const delta = num(summary.comparison?.candidateMinusBaseline);
+  return baseline !== null && candidate !== null && (delta === null ? candidate > baseline : delta > 0);
+}
+
+function releaseFlag(record: Record<string, any> | null | undefined, key: string): boolean {
+  return record?.promotionDossier?.[key] === true || record?.[key] === true;
+}
+
+export async function readStartupReleaseVerdict(repoRootOverride?: string): Promise<StartupReleaseVerdictResult> {
+  const dossierResult = await readLatestStartupBenchDossier(repoRootOverride);
+  const autoloopResult = await readLatestSparkQaAutoloopRound(dossierResult.repoRoot || repoRootOverride);
+  if (!dossierResult.ok || !dossierResult.dossier) {
+    return {
+      ok: false,
+      repoRoot: dossierResult.repoRoot,
+      dossierPath: dossierResult.dossierPath,
+      reportPath: autoloopResult.reportPath,
+      report: autoloopResult.report || null,
+      error: dossierResult.error || 'No bound Startup Bench dossier is available yet.',
+    };
+  }
+
+  const dossier = dossierResult.dossier;
+  const report = autoloopResult.report || null;
+  const dossierBlockers = blockerList(dossier);
+  const autoloopBlockers = autoloopResult.ok && report ? autoloopBlockerList(report) : [];
+  const blockers = unique([...dossierBlockers, ...autoloopBlockers]);
+  const dossierAllowed = startupDossierClaimAllowed(dossier);
+  const autoloopAllowed = autoloopResult.ok && report ? claimAllowed(report) : true;
+  const localImprovementEvidence = startupDossierHasMovement(dossier) && dossierAllowed;
+  const releaseClaimAllowed = localImprovementEvidence && autoloopAllowed && blockers.length === 0;
+  const nextGate = releaseClaimAllowed
+    ? 'publication review'
+    : blockers[0] || 'complete the canonical proof verdict gates';
+
+  return {
+    ok: true,
+    repoRoot: dossierResult.repoRoot,
+    dossierPath: dossierResult.dossierPath,
+    reportPath: autoloopResult.reportPath,
+    dossier,
+    report,
+    verdict: {
+      localImprovementEvidence,
+      releaseClaimAllowed,
+      publicReady: releaseClaimAllowed && releaseFlag(dossier, 'public_ready') && releaseFlag(report, 'public_ready'),
+      networkAbsorbable: releaseClaimAllowed && releaseFlag(dossier, 'network_absorbable') && releaseFlag(report, 'network_absorbable'),
+      blockers,
+      nextGate,
+    },
+  };
+}
+
+export function renderStartupReleaseVerdict(result: StartupReleaseVerdictResult): string {
+  if (!result.ok || !result.dossier || !result.verdict) {
+    return `I cannot read the canonical Startup Operator release verdict yet. ${result.error || 'The bound proof is missing.'}`;
+  }
+
+  const dossier = result.dossier;
+  const summary = dossier.privateScoreSummary || {};
+  const baseline = num(summary.baseline?.scenarioScore);
+  const candidate = num(summary.candidate?.scenarioScore);
+  const comparison = summary.comparison || {};
+  const delta = num(comparison.candidateMinusBaseline);
+  const movement = baseline !== null && candidate !== null
+    ? `Startup Bench shows local movement: baseline ${formatNumber(baseline)}, candidate ${formatNumber(candidate)}${delta !== null ? ` (${delta > 0 ? '+' : ''}${formatNumber(delta)})` : ''}.`
+    : 'Startup Bench has a bound dossier, but the score movement is incomplete.';
+  const verdict = result.verdict;
+
+  if (verdict.releaseClaimAllowed) {
+    return [
+      `${movement}`,
+      '',
+      'The canonical release verdict allows the bounded local improvement claim. Public-ready and network-absorbable are still separate explicit decisions.',
+      `Public-ready: ${verdict.publicReady ? 'true' : 'false'}. Network-absorbable: ${verdict.networkAbsorbable ? 'true' : 'false'}.`,
+      result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+    ].filter(Boolean).join('\n');
+  }
+
+  return [
+    `${movement}`,
+    '',
+    verdict.localImprovementEvidence
+      ? 'I would call this local improvement evidence, not a promoted or network-absorbable upgrade yet.'
+      : 'I would not call this improved yet from the canonical release verdict.',
+    `Remaining blockers: ${verdict.blockers.length ? verdict.blockers.join(', ') : 'promotion gates'}.`,
+    `Next: ${verdict.nextGate}.`,
+    'Public-ready: false. Network-absorbable: false.',
+    result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 export function renderStartupBenchDossier(result: StartupBenchDossierResult): string {

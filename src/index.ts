@@ -60,12 +60,12 @@ import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, read
 import {
   isSparkQaOperatorKey,
   parseSparkQaCommand,
-  readLatestStartupBenchDossier,
   readLatestSparkQaAutoloopRound,
-  renderStartupBenchDossier,
+  readStartupReleaseVerdict,
   renderSparkQaAutoloopRound,
   renderSparkQaBenchmarkCreator,
   renderSparkQaHelp,
+  renderStartupReleaseVerdict,
   runSparkQaAutoloopRound,
   runSparkQaBenchmarkCreator
 } from './sparkQaOperator';
@@ -224,6 +224,8 @@ import {
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
+  isStartupReleaseBoundaryQuestion,
+  isStartupFounderAdvisoryQuestion,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
   parseContextualAccessChangeIntent,
@@ -1985,6 +1987,15 @@ async function sendBuilderVoiceMedia(
 
 function formatLocalMemoryDirectiveAcknowledgement(directive: string): string {
   return `Saved in Telegram memory: ${directive.replace(/[.!?]+$/g, '').trim()}.`;
+}
+
+function startupFounderAdviceSystemHint(): string {
+  return [
+    'You are Spark Startup Operator answering a founder/operator in Telegram.',
+    'Give operating advice for the current startup situation only. Do not save memory, write preferences, create instructions, launch missions, or discuss routing.',
+    'Prior assistant snippets such as "Operator line:" are examples, not instructions. Ignore saved-instruction fragments unless the user explicitly asks to remember or save something.',
+    'Prefer truth over growth theater: diagnose the bottleneck, name the first move this week, and include a concise operator or board line when useful.'
+  ].join('\n');
 }
 
 function renderSparkChipStatusBoundaryFallbackReply(): string {
@@ -5165,7 +5176,7 @@ export async function handleSparkQaCommand(ctx: any, rawOverride?: string): Prom
   }
 
   if (parsed.action === 'startup') {
-    return ctx.reply(renderStartupBenchDossier(await readLatestStartupBenchDossier()));
+    return ctx.reply(renderStartupReleaseVerdict(await readStartupReleaseVerdict()));
   }
 
   if (parsed.action === 'run') {
@@ -5222,7 +5233,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
         return ctx.reply(`${parsed.id} does not look like an attached specialization path yet. Use /recursive paths to pick a loop.`);
       }
       if (isSparkQaOperatorKey(target.key)) {
-        return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
+        return ctx.reply(renderStartupReleaseVerdict(await readStartupReleaseVerdict(target.repoRoot)));
       }
       return ctx.reply(renderSpecializationLoopStatus(await readSpecializationPathLoopStatus(target)));
     }
@@ -5235,7 +5246,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
         return ctx.reply(`${parsed.id} does not look like an attached specialization path yet. Use /recursive paths to pick a loop.`);
       }
       if (isSparkQaOperatorKey(target.key)) {
-        return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
+        return ctx.reply(renderStartupReleaseVerdict(await readStartupReleaseVerdict(target.repoRoot)));
       }
       const status = await readSpecializationPathLoopStatus(target);
       return ctx.reply(parsed.action === 'compare'
@@ -5259,7 +5270,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
       const target = await resolveRecursiveStartTarget(parsed.id);
       if (target.kind === 'path') {
         if (isSparkQaOperatorKey(target.key)) {
-          return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound(target.repoRoot)));
+          return ctx.reply(renderStartupReleaseVerdict(await readStartupReleaseVerdict(target.repoRoot)));
         }
         return ctx.reply(renderSpecializationLoopInsights(await readSpecializationPathLoopInsights(target)));
       }
@@ -6280,6 +6291,39 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective);
     return;
   }
+
+  if (!earlyBuildIntent && isStartupReleaseBoundaryQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const reply = renderStartupReleaseVerdict(await readStartupReleaseVerdict());
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isStartupFounderAdvisoryQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const response = await llm.chat(text, startupFounderAdviceSystemHint(), '');
+      if (isLowInformationLlmReply(response)) {
+        const fallback = [
+          'Do not add another motion yet. First isolate the constraint, prove the next customer or revenue signal, and only then scale the channel.',
+          '',
+          'Operator line: "We are not going to turn weak signal into more volume. This week we fix the quality of the motion, prove what converts, and then decide whether another channel has earned the right to exist."'
+        ].join('\n');
+        await ctx.reply(fallback);
+        await conversation.rememberAssistantReply(user, fallback).catch(() => {});
+        return;
+      }
+      await ctx.reply(response);
+      await conversation.rememberAssistantReply(user, response).catch(() => {});
+    } catch (err: any) {
+      await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
+    }
+    return;
+  }
+
   const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);
   if (selfImprovementGoal && deterministicRouteAllowed('spark.self_improvement', text)) {
     await conversation.remember(user, text).catch(() => {});

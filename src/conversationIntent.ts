@@ -2033,11 +2033,16 @@ export function isLowInformationLlmReply(reply: string): boolean {
 }
 
 export function isMemoryAcknowledgementReply(reply: string): boolean {
-  const normalized = reply.trim().toLowerCase();
+  const normalized = reply.trim()
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase();
   return (
     /^noted\s*[:.]/i.test(reply.trim()) ||
     /^saved\s*[:.]/i.test(reply.trim()) ||
     /^remembered\s*[:.]/i.test(reply.trim()) ||
+    normalized.startsWith('saved instruction') ||
+    normalized.startsWith('saved preference') ||
+    normalized.startsWith('saved to memory') ||
     normalized.startsWith('i have saved memory about ') ||
     normalized.startsWith('saved memory about ') ||
     normalized.startsWith('memory saved') ||
@@ -2106,6 +2111,38 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDec
 
 export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {
   return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
+}
+
+export function isStartupFounderAdvisoryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized) || extractPlainChatMemoryDirective(text)) {
+    return false;
+  }
+  if (
+    /\b(?:remember|save|store)\s+(?:this|that|to memory|as|for future replies|instruction|preference)\b/.test(normalized) ||
+    /^(?:memory\s+(?:update|note)|save\s+to\s+memory)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  const asksForAdvice =
+    /\?$/.test(normalized) ||
+    /\b(?:what should|what is the next|what do we do|what should we do|what should spark recommend|how should|should we|what would you do|decide|recommend|tell the operator)\b/.test(normalized);
+  if (!asksForAdvice) return false;
+
+  const startupSignal = /\b(?:startup|founder|operator|board|investors?|runway|burn|pipeline|activation|onboarding|pricing|price|customers?|churn|retention|expansion|sales|outbound|channel|waitlist|pilots?|paid conversion|buying signal|usage|logos?|hiring|headcount|support backlog|revenue|gtm|growth|renewal|trust)\b/.test(normalized);
+  const businessCrisisShape = /\b(?:response quality|noisy|weak|fragile|nervous|backed up|leaking|cash is tight|hard buying signal|friendly interest)\b/.test(normalized);
+  return startupSignal && businessCrisisShape;
+}
+
+export function isStartupReleaseBoundaryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || extractPlainChatMemoryDirective(text)) return false;
+  const startupProof =
+    /\b(?:startup|startup agent|startup operator|startup self[-\s]*improvement)\b/.test(normalized) &&
+    /\b(?:improve|improved|upgrade|proof|blocked|boundary|scores?|public[-\s]*ready|network[-\s]*absorbable|absorption|promotion)\b/.test(normalized);
+  const asksBoundary =
+    /\b(?:what is still blocked|what's still blocked|proof boundary|not just scores|public[-\s]*ready|network[-\s]*absorbable|did .* improve|actually improve)\b/.test(normalized);
+  return startupProof && asksBoundary;
 }
 
 export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
