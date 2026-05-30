@@ -1454,6 +1454,12 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
     extractSparkSelfImprovementGoal('Spark improve your weak spots around route confidence'),
     'improve your weak spots around route confidence'
   );
+  assert.match(
+    extractSparkSelfImprovementGoal(
+      'Run a startup self-improvement canary from Telegram. Do not publish, merge, or claim public/network readiness. Return baseline answer, improved answer, jury verdict, and what still blocks the fully closed startup self-improvement loop.'
+    ) || '',
+    /startup self-improvement canary/
+  );
   assert.equal(
     extractSparkSelfImprovementGoal('Can you improve where you lack in self-awareness?'),
     null
@@ -1729,6 +1735,10 @@ test('startup release boundary questions use the canonical proof verdict path', 
   assert.equal(
     isStartupReleaseBoundaryQuestion('Is this startup self-improvement proof public-ready or network-absorbable?'),
     true
+  );
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Run a startup self-improvement canary from Telegram. Return baseline answer, improved answer, jury verdict, and public/network proof boundary.'),
+    false
   );
   assert.equal(isStartupReleaseBoundaryQuestion('What should the startup operator do about pricing?'), false);
   assert.equal(isStartupReleaseBoundaryQuestion('Please remember this: startup answers should be concise.'), false);

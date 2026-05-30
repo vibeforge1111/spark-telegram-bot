@@ -74,6 +74,7 @@ export function isSparkWikiStatusQuestion(text: string): boolean {
   }
   const mentionsWiki =
     /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\bspark\s+wiki\b/i.test(normalized) ||
     /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
     /\bobsidian\s+vault\b/i.test(normalized);
   if (!mentionsWiki) {
@@ -179,6 +180,28 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (isVoiceOnboardingSetupQuestion(normalized)) {
     return null;
   }
+  if (/\b(?:recursive|recursion|autoloop)\b/i.test(normalized) &&
+      /\b(?:report|status|paths?|sessions?|trace|review|evidence|proof|compare|package|start|run|rounds?)\b/i.test(normalized)) {
+    return null;
+  }
+  if (isStartupSelfImprovementCanaryRequest(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (/\b(?:run|start|perform|execute)\b.{0,80}\b(?:spark\s+)?self[-\s]*improvement\b/i.test(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (/\b(?:run|perform|execute)\b.{0,80}\bbefore\s+and\s+after\b.{0,80}\b(?:answer\s+)?improvement\b/i.test(normalized) &&
+      /\b(?:spark|agent|reasoning|answer\s+quality)\b/i.test(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (
+    /\bwhat\s+would\s+you\s+improve\s+in\s+(?:the\s+)?[\w.-]+\s+repo\b/i.test(normalized) ||
+    /\b(?:repo|codebase|project|app|dashboard|ui|canvas)\b/i.test(normalized) &&
+      /\b(?:what|which|how)\b.{0,60}\b(?:improve|better|polish|fix)\b/i.test(normalized) &&
+      !/\b(?:spark'?s?\s+(?:own\s+)?capabilit(?:y|ies)|your\s+(?:own\s+)?capabilit(?:y|ies)|yourself|self[-\s]*improvement)\b/i.test(normalized)
+  ) {
+    return null;
+  }
   if (shouldPreferConversationalIdeation(normalized)) {
     return null;
   }
@@ -227,6 +250,20 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   }
 
   return null;
+}
+
+export function isStartupSelfImprovementCanaryRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized) || extractPlainChatMemoryDirective(text)) {
+    return false;
+  }
+  return (
+    /\b(?:run|start|perform|execute)\b.{0,80}\b(?:startup\s+)?self[-\s]*improvement\s+canary\b/i.test(normalized) ||
+    (
+      /\b(?:startup\s+)?self[-\s]*improvement\s+loop\b/i.test(normalized) &&
+      /\b(?:baseline|improved\s+answer|before\s*\/\s*after|before\s+and\s+after|jury\s+verdict|blind\s+jury|critique|proof\s+boundary)\b/i.test(normalized)
+    )
+  );
 }
 
 export function isVoiceAnswerRequest(text: string): boolean {
@@ -321,7 +358,7 @@ export function extractSparkWikiPromotionIntent(text: string): SparkWikiPromotio
     /\bobsidian\s+vault\b/i.test(normalized);
   const asksToWrite =
     /\b(?:promote|write|save|add|capture|store|record)\b/i.test(normalized) &&
-    /\b(?:improvement|learning|lesson|note|wiki\s+note|self[-\s]*awareness|introspection|capability|route|trace|probe|evidence)\b/i.test(normalized);
+    /\b(?:improvement|learning|lesson|note|wiki\s+note|self[-\s]*awareness|introspection|capability|route|routing|trace|probe|evidence)\b/i.test(normalized);
   if (!mentionsWiki || !asksToWrite) {
     return null;
   }
@@ -331,6 +368,7 @@ export function extractSparkWikiPromotionIntent(text: string): SparkWikiPromotio
 
   const explicitSummaryPatterns = [
     /\b(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s+(?:improvement\s+)?(?:note|learning|lesson)?\s*[:,-]\s*(.+)$/i,
+    /\b(?:promote|write|save|add|capture|store|record)\s+this\s+(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s*[:,-]\s*(.+)$/i,
     /\b(?:promote|write|save|add|capture|store|record)\s+(?:this\s+)?(?:as\s+)?(?:a\s+)?(?:candidate\s+|verified\s+)?(?:wiki\s+)?(?:improvement|learning|lesson|note)\s*[:,-]?\s*(.+)$/i,
     /\b(?:promote|write|save|add|capture|store|record)\s+(.+?)\s+(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)$/i,
   ];
@@ -384,6 +422,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   const namedPattern = /^\s*(?:a\s+)?(?:new\s+)?domain[-\s]*chip\s+(?:called|named)\s+\S/i;
 
   if (
+    /\bmaybe\s+we\s+should\b/i.test(normalized) ||
     /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/i.test(normalized) &&
     (
       /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(normalized) ||
@@ -1156,13 +1195,24 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   ) {
     return false;
   }
+  if (
+    /\b(?:repo|codebase|project|app|dashboard|ui|canvas)\b/.test(normalized) &&
+    /\b(?:what|which|how)\b.{0,80}\b(?:improve|better|polish|fix|review)\b/.test(normalized)
+  ) {
+    return false;
+  }
   const contextText = context.toLowerCase();
   return (
     (/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) &&
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
-      /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+      /\b(?:browser|open|show|link)\b/.test(normalized) &&
+      /\b(?:spawner|mission board|mission control|dashboard|ui|this|it|diagnostic|spark)\b/.test(normalized)
+    ) ||
+    (
+      /\bdashboard\b/.test(normalized) &&
+      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized) &&
+      /\b(?:open|show|link|where|browser)\b/.test(normalized)
     )
   );
 }
@@ -2130,13 +2180,16 @@ export function isStartupFounderAdvisoryQuestion(text: string): boolean {
   if (!asksForAdvice) return false;
 
   const startupSignal = /\b(?:startup|founder|operator|board|investors?|runway|burn|pipeline|activation|onboarding|pricing|price|customers?|churn|retention|expansion|sales|outbound|channel|waitlist|pilots?|paid conversion|buying signal|usage|logos?|hiring|headcount|support backlog|revenue|gtm|growth|renewal|trust)\b/.test(normalized);
-  const businessCrisisShape = /\b(?:response quality|noisy|weak|fragile|nervous|backed up|leaking|cash is tight|hard buying signal|friendly interest)\b/.test(normalized);
+  const businessCrisisShape = /\b(?:response quality|noisy|weak|fragile|nervous|backed up|leaking|cash is tight|hard buying signal|friendly interest|support backlog|support fatigue|churn risk|delivery risk|focus fatigue)\b/.test(normalized);
   return startupSignal && businessCrisisShape;
 }
 
 export function isStartupReleaseBoundaryQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || extractPlainChatMemoryDirective(text)) return false;
+  if (isStartupSelfImprovementCanaryRequest(text)) {
+    return false;
+  }
   const startupProof =
     /\b(?:startup|startup agent|startup operator|startup self[-\s]*improvement)\b/.test(normalized) &&
     /\b(?:improve|improved|upgrade|proof|blocked|boundary|scores?|public[-\s]*ready|network[-\s]*absorbable|absorption|promotion)\b/.test(normalized);
@@ -2172,6 +2225,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
 
   const explicitSavePatterns = [
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
+    /^(?:for\s+later|note\s+for\s+later)\s*[,:-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:save|store|remember)\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i
   ];
@@ -2371,6 +2425,9 @@ export function isUserMemoryRecallQuestion(text: string): boolean {
 
   return (
     /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission\s+updates?|updates?|about\s+me|about\s+how\s+i|how\s+i\s+work|work\s+style)\b/.test(normalized) ||
+    /\bwhat\s+did\s+i\s+ask\s+you\s+to\s+remember(?:\s+earlier)?\s+about\b/.test(normalized) ||
+    /\brecall\s+(?:my|our|the)\s+(?:current\s+)?(?:project\s+)?(?:focus|plan|context)\b/.test(normalized) ||
+    /\bwho\s+owns\b.*\b(?:launch\s+)?(?:checklist|plan|project|workstream|track)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:prefer|preferred|preference|like)\b.*\bremember\b/.test(normalized) ||
     /\buse\s+memory\s+only\s+as\s+context\b.*\bwhat\s+did\s+we\s+decide\s+about\b/.test(normalized) ||
     /\bwhat\s+did\s+we\s+decide\s+about\b/.test(normalized) ||

@@ -134,7 +134,18 @@ function isExplicitNaturalRun(normalized: string): boolean {
 }
 
 function isExplicitMemoryWrite(normalized: string): boolean {
-  return /^(?:memory\s+(?:update|note)|save\s+to\s+memory|please\s+)?(?:remember|save|store)\b/.test(normalized) || /^memory\s+(?:update|note)\s*[:,-]/.test(normalized);
+  return /^(?:memory\s+(?:update|note)|save\s+to\s+memory|please\s+)?(?:remember|save|store)\b/.test(normalized) ||
+    /^(?:for\s+later|note\s+for\s+later)\s*[,:-]/.test(normalized) ||
+    /^memory\s+(?:update|note)\s*[:,-]/.test(normalized);
+}
+
+function isExplicitSparkSelfImprovementRequest(normalized: string): boolean {
+  return (
+    /\b(?:run|start|perform|execute|pick|choose|decide)\b.{0,100}\b(?:spark\s+)?self[-\s]*improvement\b/.test(normalized) ||
+    /\b(?:what|which)\b.{0,80}\b(?:you|spark|agent)\b.{0,80}\b(?:improve|upgrade|repair|fix|work\s+on)\b/.test(normalized) ||
+    /\b(?:improving|improve|upgrade|change|install|enable|connect|wire|integrate|give|build|create|set\s+up|make)\b.{0,120}\b(?:your|you|spark|agent)\b.{0,80}\b(?:capabilit(?:y|ies)|brain|memory|workflow|voice|email|calendar|files?|tools?|skills?|integrations?)\b/.test(normalized) ||
+    /\b(?:your|you|spark|agent)\b.{0,80}\b(?:capabilit(?:y|ies)|brain|memory|workflow|voice|email|calendar|files?|tools?|skills?|integrations?)\b.{0,120}\b(?:improve|upgrade|change|install|enable|connect|wire|integrate|give|build|create|set\s+up|make)\b/.test(normalized)
+  );
 }
 
 function isBoundedOperatorProbe(normalized: string): boolean {
@@ -176,6 +187,23 @@ function isNoExecutionBoundary(normalized: string): boolean {
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));
+}
+
+function isLocalSelfImprovementCanary(normalized: string): boolean {
+  const asksToRun = /\b(?:run|start|perform|execute)\b/.test(normalized);
+  const selfImprovement =
+    /\b(?:spark\s+)?(?:startup\s+)?self[-\s]*improvement\b/.test(normalized) ||
+    /\bself[-\s]*improving\s+(?:agent|loop)\b/.test(normalized);
+  const canaryShape =
+    /\b(?:canary|baseline|improved\s+answer|before\s*\/\s*after|before\s+and\s+after|jury\s+verdict|blind\s+jury|critique|proof\s+boundary)\b/.test(normalized);
+  const publicationBoundary =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|ship|deploy|merge|claim)\b/.test(normalized) ||
+    /\b(?:public[-\s]*ready|network[-\s]*absorbable|network\s+absorption|promotion\s+gates?)\b/.test(normalized);
+  const explicitNoRun =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|kick\s+off)\b/.test(normalized) ||
+    /\b(?:no|not)\s+(?:run|execution|launch)(?:ning)?\s+(?:yet|for\s+now|right\s+now)\b/.test(normalized);
+
+  return asksToRun && selfImprovement && canaryShape && publicationBoundary && !explicitNoRun;
 }
 
 function isCreatorMissionPlanOnlyRequest(normalized: string): boolean {
@@ -227,6 +255,10 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
     return { allow: true, reason: 'creator_mission_plan_only', confidence: 'explicit' };
   }
 
+  if (route === 'spark.self_improvement' && isNoExecutionBoundary(normalized) && isLocalSelfImprovementCanary(normalized)) {
+    return { allow: true, reason: 'self_improvement_canary_local_only', confidence: 'explicit' };
+  }
+
   if (isNoExecutionBoundary(normalized) && INTERRUPTIVE_ROUTES.has(route)) {
     return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
   }
@@ -251,6 +283,9 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   }
   if (route === 'memory.write' && isExplicitMemoryWrite(normalized)) {
     return { allow: true, reason: 'explicit_memory_write', confidence: 'explicit' };
+  }
+  if (route === 'spark.self_improvement' && isExplicitSparkSelfImprovementRequest(normalized)) {
+    return { allow: true, reason: 'explicit_spark_self_improvement', confidence: 'explicit' };
   }
   if (route === 'spawner.external_research' && isExplicitExternalResearch(normalized)) {
     return { allow: true, reason: 'explicit_external_research', confidence: 'explicit' };
@@ -286,6 +321,7 @@ export function shouldUseRouteArbiter(
     'short_pending_confirmation',
     'explicit_provider_run',
     'explicit_memory_write',
+    'explicit_spark_self_improvement',
     'explicit_external_research',
     'bounded_operator_probe'
   ].includes(verdict.reason)) {

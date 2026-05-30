@@ -547,6 +547,12 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   ) {
     return true;
   }
+  if (
+    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized) &&
+    /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(normalized)
+  ) {
+    return true;
+  }
   if (/\bhijack(?:s|ed|ing)?\b/.test(normalized) && /\b(?:build|access|route|deterministic)\b/.test(normalized)) {
     return true;
   }
@@ -614,6 +620,7 @@ function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
+    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));
 }
@@ -802,6 +809,8 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
       /\b(?:words?|keywords?|terms?|phrases?)\s+(?:like|such\s+as)\b/.test(prefix) ||
+      /\b(?:mentioning|saying|using|writing|typing)\b/.test(prefix) ||
+      /\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/.test(prefix) ||
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix)
     ) {

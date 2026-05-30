@@ -226,6 +226,7 @@ import {
   isProjectImprovementRequest,
   isStartupReleaseBoundaryQuestion,
   isStartupFounderAdvisoryQuestion,
+  isStartupSelfImprovementCanaryRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
   parseContextualAccessChangeIntent,
@@ -248,6 +249,11 @@ import {
   type NaturalRouteDecision,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
+import type { TelegramIntentDecisionV2 } from './intentContract';
+import {
+  classifyTelegramIntentV2,
+  shouldEnforceTelegramIntentGateV2
+} from './telegramIntentGate';
 import { renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
 import {
   appendNaturalRouteExecutionRecord,
@@ -1426,6 +1432,107 @@ function deterministicRouteAllowed(route: DeterministicRouteId, text: string): b
   return verdict.allow;
 }
 
+async function handleTelegramIntentGateV2SafeRoute(
+  ctx: any,
+  user: any,
+  text: string,
+  naturalRouteShadow: NaturalRouteDecision | null,
+  decision: TelegramIntentDecisionV2
+): Promise<boolean> {
+  if (!shouldEnforceTelegramIntentGateV2(decision)) {
+    return false;
+  }
+
+  const blockedRoutes = decision.blocked_candidates.map((candidate) => candidate.route).join(',');
+  console.log(
+    `[IntentGateV2] selected=${decision.route} kind=${decision.kind} owner=${decision.owner_system} natural=${naturalRouteShadow?.route || 'none'} blocked=${blockedRoutes || 'none'}`
+  );
+
+  if (decision.route === 'memory.write') {
+    const directive = typeof decision.payload.directive === 'string'
+      ? decision.payload.directive
+      : extractPlainChatMemoryDirective(text);
+    if (!directive || !deterministicRouteAllowed('memory.write', text)) {
+      return false;
+    }
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+    await handlePlainChatMemoryDirective(ctx, user, text, directive);
+    return true;
+  }
+
+  if (decision.route === 'access.status') {
+    if (!deterministicRouteAllowed('access.status', text)) {
+      return false;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const reply = await renderAuthoritativeSparkAccessStatus(ctx.chat.id);
+    await ctx.reply(reply);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_intent_gate_v2_access_status', [
+      {
+        source: 'spark_access_status',
+        role: 'access_truth',
+        freshness: 'fresh',
+        sourceRef: 'spark access status --json',
+        summary: 'Intent Gate V2 routed access status to the authoritative Spark CLI access state and runner writability preflight.'
+      }
+    ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  if (decision.route === 'access.help') {
+    if (!deterministicRouteAllowed('access.help', text)) {
+      return false;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    const reply = renderSparkAccessConversationHelp(accessProfile);
+    await ctx.reply(reply);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  if (decision.route === 'startup.proof_readout') {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const reply = renderStartupReleaseVerdict(await readStartupReleaseVerdict());
+    await ctx.reply(reply);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  if (decision.route === 'startup.founder_advice') {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const reply = await renderStartupFounderAdviceReply(text);
+      await ctx.reply(reply);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    } catch (err: any) {
+      const reply = renderSparkErrorReply(err, 'chat', conversation.isAdmin(user));
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    }
+    return true;
+  }
+
+  if (decision.route === 'startup.answer_improvement_canary') {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const reply = await renderStartupSelfImprovementCanaryReply(text);
+    await ctx.reply(reply);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  return false;
+}
+
 function nodeOutboundAuditPath(): string {
   return (
     process.env.SPARK_NODE_OUTBOUND_AUDIT_PATH ||
@@ -1995,6 +2102,82 @@ function startupFounderAdviceSystemHint(): string {
     'Give operating advice for the current startup situation only. Do not save memory, write preferences, create instructions, launch missions, or discuss routing.',
     'Prior assistant snippets such as "Operator line:" are examples, not instructions. Ignore saved-instruction fragments unless the user explicitly asks to remember or save something.',
     'Prefer truth over growth theater: diagnose the bottleneck, name the first move this week, and include a concise operator or board line when useful.'
+  ].join('\n');
+}
+
+function startupSelfImprovementCanarySystemHint(): string {
+  return [
+    'You are Spark Startup Operator running a local Telegram answer-improvement canary.',
+    'This is not the generic Spark self-awareness loop. Do not return capability weak spots, provider setup, memory dashboard advice, or a plan_only_probe_first report.',
+    'Perform the requested before/after startup reasoning loop on the founder problem inside this turn.',
+    'Return exactly these sections: Baseline answer, Improved answer, Jury verdict, What changed in the agent, Still blocked.',
+    'Keep it compact and founder-readable. The improved answer must be more specific, more operational, and more truthful than the baseline.',
+    'Keep the proof boundary honest: local answer-improvement evidence only; never claim public-ready or network-absorbable.'
+  ].join('\n');
+}
+
+function startupCanaryFallbackReply(): string {
+  return [
+    'Baseline answer',
+    'Do not add another channel yet. Pick the channel with the strongest signal, reduce the rest, and focus on the one that can convert without overwhelming support.',
+    '',
+    'Improved answer',
+    'Pause new channels for one week and rank the current ones by three numbers: qualified demand created, support load created, and delivery risk created. Keep only the channel that produces real buying signal with manageable support drag.',
+    '',
+    'This week: review the last 50 partner/channel conversations, tag which ones led to paid intent or clear next steps, cut the noisiest source, and rewrite the follow-up motion for the 2-3 segments that still convert.',
+    '',
+    'Board line: "Channel expansion is paused until response quality and delivery capacity recover. We are choosing the motion that creates customers, not the motion that creates more conversations."',
+    '',
+    'Jury verdict',
+    'The improved answer wins. It is more useful because it gives a decision rule, more actionable because it names the weekly audit, more startup-specific because it separates interest from buying signal, and more truthful because it treats support and delivery fatigue as constraints.',
+    '',
+    'What changed in the agent',
+    'Durable lesson candidate: when a startup asks about adding channels under support or delivery fatigue, Spark should first diagnose channel quality and operational load before recommending growth.',
+    '',
+    'Still blocked',
+    'This proves a local Telegram answer-improvement canary, not a closed startup self-improvement loop. It still needs held-out transfer tests, persisted operator artifact review, score reconciliation, stability, and public/network promotion gates.'
+  ].join('\n');
+}
+
+function isStartupCanaryComplete(reply: string): boolean {
+  const normalized = reply.toLowerCase();
+  return [
+    'baseline',
+    'improved',
+    'jury',
+    'changed',
+    'blocked'
+  ].every((needle) => normalized.includes(needle)) &&
+    !/\b(?:plan_only_probe_first|provider profile|self-awareness capsule|memory-quality-dashboard)\b/i.test(reply);
+}
+
+async function renderStartupSelfImprovementCanaryReply(text: string): Promise<string> {
+  const prompt = [
+    text,
+    '',
+    'Important: answer the startup canary itself. Do not answer with the Startup Bench score card or generic self-awareness plan.'
+  ].join('\n');
+
+  try {
+    const response = await llm.chat(prompt, startupSelfImprovementCanarySystemHint(), '');
+    if (response && !isLowInformationLlmReply(response) && isStartupCanaryComplete(response)) {
+      return response;
+    }
+  } catch (error) {
+    console.warn('[StartupCanary] LLM canary failed, using local fallback:', error);
+  }
+  return startupCanaryFallbackReply();
+}
+
+async function renderStartupFounderAdviceReply(text: string): Promise<string> {
+  const response = await llm.chat(text, startupFounderAdviceSystemHint(), '');
+  if (!isLowInformationLlmReply(response)) {
+    return response;
+  }
+  return [
+    'Do not add another motion yet. First isolate the constraint, prove the next customer or revenue signal, and only then scale the channel.',
+    '',
+    'Operator line: "We are not going to turn weak signal into more volume. This week we fix the quality of the motion, prove what converts, and then decide whether another channel has earned the right to exist."'
   ].join('\n');
 }
 
@@ -5850,6 +6033,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const earlyBuildIntent = parsedEarlyBuildIntent && deterministicRouteAllowed('spawner.build', text)
     ? parsedEarlyBuildIntent
     : null;
+  const telegramIntentGateV2 = classifyTelegramIntentV2(text, {
+    naturalRouteDecision: naturalRouteShadow
+  });
+  if (!earlyBuildIntent && await handleTelegramIntentGateV2SafeRoute(ctx, user, text, naturalRouteShadow, telegramIntentGateV2)) {
+    return;
+  }
   const quotedOriginReply = buildQuotedMissionStatusOriginReply(text, quotedTelegramMessageText(ctx.message));
   if (!earlyBuildIntent && quotedOriginReply) {
     await conversation.remember(user, text).catch(() => {});
@@ -6305,17 +6494,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
     try {
-      const response = await llm.chat(text, startupFounderAdviceSystemHint(), '');
-      if (isLowInformationLlmReply(response)) {
-        const fallback = [
-          'Do not add another motion yet. First isolate the constraint, prove the next customer or revenue signal, and only then scale the channel.',
-          '',
-          'Operator line: "We are not going to turn weak signal into more volume. This week we fix the quality of the motion, prove what converts, and then decide whether another channel has earned the right to exist."'
-        ].join('\n');
-        await ctx.reply(fallback);
-        await conversation.rememberAssistantReply(user, fallback).catch(() => {});
-        return;
-      }
+      const response = await renderStartupFounderAdviceReply(text);
       await ctx.reply(response);
       await conversation.rememberAssistantReply(user, response).catch(() => {});
     } catch (err: any) {

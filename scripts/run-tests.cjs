@@ -10,6 +10,8 @@ const tests = [
   'tests/buildRoutingMatrix.test.ts',
   'tests/buildE2E.test.ts',
   'tests/conversationIntent.test.ts',
+  'tests/telegramIntentGate.test.ts',
+  'tests/telegramIntentGateMatrix.test.ts',
   'tests/naturalRouteDecision.test.ts',
   'tests/routeFirewall.test.ts',
   'tests/routeArbiter.test.ts',
