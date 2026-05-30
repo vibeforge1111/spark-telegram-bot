@@ -119,7 +119,6 @@ function hasRecentContext(context: NaturalRouteDecisionContext): boolean {
 
 function recursiveRouteName(rawCommand: string): string {
   const verb = rawCommand.trim().split(/\s+/)[0] || 'command';
-  if (verb === 'compare' || verb === 'evidence') return 'recursive.status';
   return `recursive.${verb}`;
 }
 
