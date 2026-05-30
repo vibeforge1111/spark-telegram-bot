@@ -2568,8 +2568,8 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
     if (config.mode === 'required') {
-      throw new Error(
-        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
+      console.error(
+        `[BuilderBridge] Required bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`
       );
     }
     return {
@@ -2669,15 +2669,17 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       voiceTiming: objectValue(detail.voice_timing),
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     if (config.mode === 'required') {
-      throw error;
+      console.error('[BuilderBridge] Required bridge failed, degrading gracefully:', errorMessage);
+    } else {
+      console.warn('[BuilderBridge] Falling back to local conversation path:', errorMessage);
     }
-    console.warn('[BuilderBridge] Falling back to local conversation path:', error);
     return {
       used: false,
       responseText: '',
       decision: '',
-      bridgeMode: '',
+      bridgeMode: 'bridge_error',
       routingDecision: '',
     };
   } finally {

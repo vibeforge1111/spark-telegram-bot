@@ -50,12 +50,12 @@ function compactDetail(text: string): string {
     .replace(/\bsk-[A-Za-z0-9_-]{6,}\b/g, '[REDACTED]')
     .trim();
   if (!oneLine) return 'Spark did not receive a detailed error from the failed component.';
-  if (
-    /spark_intelligence\.cli|spark-intelligence-builder|simulate-telegram-update|runpy\.run_module/i.test(oneLine)
-  ) {
-    return 'Builder bridge command did not finish cleanly. Run /diagnose for the current Builder and memory status.';
-  }
-  return oneLine.length > 220 ? `${oneLine.slice(0, 217)}...` : oneLine;
+  // Remove internal file paths and stack traces but keep the actual error message
+  const cleaned = oneLine
+    .replace(/(?:\/[\w.-]+)+\.(?:ts|js|py):\d+/g, '[path]')
+    .replace(/\bat\s+\S+\s+\([^)]*\)/g, '')
+    .trim();
+  return cleaned.length > 220 ? `${cleaned.slice(0, 217)}...` : cleaned;
 }
 
 function doctorCommand(category: string, context: SparkErrorContext): string {
