@@ -24,6 +24,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isLocalSparkServiceRequest,
   isMemoryDoctorRequest,
+  isRawLogSafetyQuestion,
   isProjectImprovementRequest,
   isSparkChipStatusOverclaimQuestion,
   isSparkSelfMemoryDiagnosticQuestion,
@@ -472,6 +473,20 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'cold_memory',
       matched_signals: ['user_memory_recall_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isRawLogSafetyQuestion(normalized)) {
+    return decision({
+      route: 'proof.log_safety',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.safety_guidance',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['raw_log_safety_question'],
       blocked_by: [],
       requires_confirmation: false
     });
