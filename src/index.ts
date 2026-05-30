@@ -198,6 +198,7 @@ import {
   isDiagnosticsScanRequest,
   isMissionExecutionConfirmation,
   isAmbiguousLocalSparkServiceRequest,
+  classifySparkCompeteProofWorkflowRequest,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
@@ -222,6 +223,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderSparkCompeteProofWorkflowReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -5832,6 +5834,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_proof_boundary', 'spark-telegram-bot', 'answer');
     await ctx.reply(browserProofAnswer);
     await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
+    return;
+  }
+
+  const sparkCompeteProofWorkflow = earlyBuildIntent ? null : classifySparkCompeteProofWorkflowRequest(text);
+  if (sparkCompeteProofWorkflow) {
+    const reply = renderSparkCompeteProofWorkflowReply(sparkCompeteProofWorkflow);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, `conversation.spark_compete_${sparkCompeteProofWorkflow}`, 'spark-telegram-bot', 'plain_chat.proof_workflow');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 

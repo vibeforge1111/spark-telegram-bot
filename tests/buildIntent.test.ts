@@ -186,6 +186,23 @@ test('does not treat provenance questions about exact changes as build intent', 
   assert.equal(intent, null);
 });
 
+test('does not treat Spark Compete packet or proof writing as build intent', () => {
+  const packetDraft = parseBuildIntent([
+    'Help me turn this raw complaint into a reviewer-ready Spark Compete bug packet.',
+    '',
+    'Raw complaint:',
+    '"I clicked Set up safe workspace and it just said Command failed. I do not know what to do."',
+    '',
+    'Make a safe bug packet draft with Actual, Expected, Repro, Before proof needed, After proof needed, Tests, Duplicate notes, and Risk notes. Do not invent PR URLs, screenshots, test results, team members, or repo ownership.'
+  ].join('\n'));
+  const proofChecklist = parseBuildIntent(
+    'Help me capture before/after proof for a Spark Compete bug in under five minutes. Make the checklist short, safe, and beginner-friendly. Do not ask for raw logs, secrets, private Telegram data, chat IDs, tokens, .env files, or full compile JSON.'
+  );
+
+  assert.equal(packetDraft, null);
+  assert.equal(proofChecklist, null);
+});
+
 test('parses Ubuntu target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
   process.env.SPARK_PROJECT_ROOT = '/root';
