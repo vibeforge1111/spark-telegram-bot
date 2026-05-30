@@ -44,6 +44,27 @@ test('keeps slash commands on the Telegram command path', () => {
   assert.equal(route.payload.text, '/recursive report path:spark-qa-operator');
 });
 
+test('routes beginner workflow guidance questions to plain chat help', () => {
+  const providerRoute = decideNaturalRoute(
+    "I want to check whether Spark's LLM provider setup is healthy. What should I run or check? Explain chat, builder, memory, and mission provider readiness in beginner-friendly terms. Do not ask for API keys, tokens, .env files, raw config, private paths, or raw logs."
+  );
+  const verifyRoute = decideNaturalRoute(
+    'I am a non-coder teammate. A developer says they fixed a Spark bug. Give me short copyable steps to verify the fix safely. Include clear pass/fail signs. Do not assume I can read code. Do not ask for raw logs, secrets, tokens, .env files, private paths, chat IDs, or private Telegram data.'
+  );
+  const duplicateRoute = decideNaturalRoute(
+    'Before I file a Spark Compete PR, how should I check whether this bug is a duplicate? Give me a simple issue/PR search checklist and a short bug fingerprint format. Do not invent search results, existing PRs, issue numbers, or repo ownership.'
+  );
+
+  for (const route of [providerRoute, verifyRoute, duplicateRoute]) {
+    assert.equal(route.owner_system, 'spark-telegram-bot');
+    assert.equal(route.action, 'plain_chat.workflow_guidance');
+    assert.equal(route.requires_confirmation, false);
+  }
+  assert.equal(providerRoute.route, 'workflow.provider_readiness');
+  assert.equal(verifyRoute.route, 'workflow.non_coder_fix_verification');
+  assert.equal(duplicateRoute.route, 'workflow.duplicate_check');
+});
+
 test('routes build clarification follow-ups from pending state', () => {
   const route = decideNaturalRoute("yes let's do it create it after analyzing our systems deeply please", {
     pendingBuildClarification: true

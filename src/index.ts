@@ -198,6 +198,7 @@ import {
   isDiagnosticsScanRequest,
   isMissionExecutionConfirmation,
   isAmbiguousLocalSparkServiceRequest,
+  classifyBeginnerWorkflowGuidance,
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
@@ -221,6 +222,7 @@ import {
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
+  renderBeginnerWorkflowGuidanceReply,
   renderMissionRoutingFailureClassReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
@@ -6073,6 +6075,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  const beginnerWorkflowGuidance = earlyBuildIntent ? null : classifyBeginnerWorkflowGuidance(text);
+  if (beginnerWorkflowGuidance) {
+    const reply = renderBeginnerWorkflowGuidanceReply(beginnerWorkflowGuidance);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, `workflow.${beginnerWorkflowGuidance}`, 'spark-telegram-bot', 'plain_chat.workflow_guidance');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

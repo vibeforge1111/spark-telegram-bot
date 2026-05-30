@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  classifyBeginnerWorkflowGuidance,
   extractAgentDoctrinePreference,
   formatAgentDoctrinePreferenceAcknowledgement,
   formatAgentDoctrinePreferenceForBuilderSync,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderBeginnerWorkflowGuidanceReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -103,6 +105,22 @@ test('routes collaborative mission wording to conversation instead of command he
     shouldPreferConversationalIdeation('how do we make setup automatic without making the bot run a command instantly?'),
     true
   );
+});
+
+test('answers beginner workflow guidance without internal recursive or self-improvement routes', () => {
+  const providerPrompt = "I want to check whether Spark's LLM provider setup is healthy. What should I run or check? Explain chat, builder, memory, and mission provider readiness in beginner-friendly terms. Do not ask for API keys, tokens, .env files, raw config, private paths, or raw logs.";
+  const verifyPrompt = 'I am a non-coder teammate. A developer says they fixed a Spark bug. Give me short copyable steps to verify the fix safely. Include clear pass/fail signs. Do not assume I can read code. Do not ask for raw logs, secrets, tokens, .env files, private paths, chat IDs, or private Telegram data.';
+  const duplicatePrompt = 'Before I file a Spark Compete PR, how should I check whether this bug is a duplicate? Give me a simple issue/PR search checklist and a short bug fingerprint format. Do not invent search results, existing PRs, issue numbers, or repo ownership.';
+
+  assert.equal(classifyBeginnerWorkflowGuidance(providerPrompt), 'provider_readiness');
+  assert.equal(classifyBeginnerWorkflowGuidance(verifyPrompt), 'non_coder_fix_verification');
+  assert.equal(classifyBeginnerWorkflowGuidance(duplicatePrompt), 'duplicate_check');
+  assert.equal(parseNaturalRecursiveCommandIntent(providerPrompt), null);
+  assert.equal(extractSparkSelfImprovementGoal(verifyPrompt), null);
+  assert.equal(extractSparkSelfImprovementGoal(duplicatePrompt), null);
+  assert.match(renderBeginnerWorkflowGuidanceReply('provider_readiness'), /spark providers status/);
+  assert.match(renderBeginnerWorkflowGuidanceReply('non_coder_fix_verification'), /Pass:/);
+  assert.match(renderBeginnerWorkflowGuidanceReply('duplicate_check'), /Bug fingerprint format/);
 });
 
 test('keeps explicit build specs on the build path', () => {

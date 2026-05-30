@@ -5,6 +5,7 @@ import {
 import {
   buildExternalResearchGoal,
   buildProjectImprovementGoal,
+  classifyBeginnerWorkflowGuidance,
   extractAgentDoctrinePreference,
   extractPlainChatMemoryDirective,
   extractSparkSelfImprovementGoal,
@@ -562,6 +563,21 @@ export function decideNaturalRoute(
       matched_signals: ['spark_wiki_promotion_intent'],
       blocked_by: [],
       requires_confirmation: wikiPromotion.status === 'verified'
+    });
+  }
+
+  const beginnerWorkflowGuidance = classifyBeginnerWorkflowGuidance(normalized);
+  if (beginnerWorkflowGuidance) {
+    return decision({
+      route: `workflow.${beginnerWorkflowGuidance}`,
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.workflow_guidance',
+      payload: { kind: beginnerWorkflowGuidance },
+      context_source: 'latest_message',
+      matched_signals: ['beginner_workflow_guidance_request'],
+      blocked_by: [],
+      requires_confirmation: false
     });
   }
 
