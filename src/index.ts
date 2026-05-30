@@ -2306,17 +2306,10 @@ bot.command('new', async (ctx) => {
   await ctx.reply('✨ Fresh conversation started. All context and notes cleared. What would you like to work on?');
 });
 
-// /reset command — reset current conversation context (light reset: keeps long-term notes)
+// /reset command — reset current conversation context (light reset: keeps long-term notes and Builder memories)
 bot.command('reset', async (ctx) => {
   await conversation.resetUser(ctx.from, true);
-  clearBuilderEpisodicMemory();
-  // Tell Builder to forget recent conversation details but keep profile facts.
-  const forgetUpdate = buildUpdateWithText(
-    ctx.update as Record<string, unknown>,
-    'forget recent conversation details and temporary information, but keep my profile facts like my name and preferences.'
-  );
-  await runBuilderTelegramBridge(forgetUpdate).catch(() => {});
-  await ctx.reply('🔄 Conversation context reset. Long-term profile details kept. Ready when you are.');
+  await ctx.reply('🔄 Conversation context reset. Long-term notes and profile details kept. Ready when you are.');
 });
 
 // /help command
