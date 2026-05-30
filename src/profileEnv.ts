@@ -47,7 +47,7 @@ export function sparkSecretPythonBridgeCommand(
   secretId: string,
   env: NodeJS.ProcessEnv = process.env
 ): { python: string; args: string[] } {
-  const sparkCliSrc = env.SPARK_CLI_SRC || path.join(os.homedir(), 'Desktop', 'spark-cli', 'src');
+  const sparkCliSrc = env.SPARK_CLI_SRC || path.join(os.homedir(), '.spark', 'tools', 'spark-cli', 'src');
   const python = env.SPARK_CLI_PYTHON || env.SPARK_BUILDER_PYTHON || env.PYTHON || 'python';
   const script = [
     'import sys',
