@@ -20,7 +20,7 @@ export async function validateRelayRuntime(
 ): Promise<string> {
   const url = relayHealthUrl(env);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2500);
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetchImpl(url, { signal: controller.signal });
     if (!response.ok) {
