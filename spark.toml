@@ -33,6 +33,7 @@ secrets = [
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
+  "x.basic.bearer_token",
 ]
 
 [claims]
@@ -42,6 +43,7 @@ secrets = [
   "llm.zai.api_key",
   "llm.openai.api_key",
   "llm.anthropic.api_key",
+  "x.basic.bearer_token",
 ]
 ports = [8788]
 routes = ["http.spawner-events"]
@@ -81,6 +83,12 @@ prompt = "Anthropic API key for Spark LLM gateway"
 required = false
 storage = "keychain"
 env_var = "ANTHROPIC_API_KEY"
+
+[secrets.x_basic_bearer_token]
+prompt = "Optional X API bearer token for basic Spark-owned post reads"
+required = false
+storage = "keychain"
+env_var = "SPARK_X_BEARER_TOKEN"
 
 [run.default]
 command = "npm run start"

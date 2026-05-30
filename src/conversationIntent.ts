@@ -1811,6 +1811,39 @@ export function isExternalResearchRequest(text: string): boolean {
   return /\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|browse|pull up|research|look\s+up|search|find|can you)\b/i.test(text);
 }
 
+export function isXContentCredentialBoundaryQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  const mentionsXContent = /\b(?:xcontent|x\s*content|domain[-\s]*chip[-\s]*xcontent)\b/.test(normalized);
+  const mentionsXCredential =
+    /\b(?:x|twitter)\s+(?:bearer\s+)?tokens?\b/.test(normalized) ||
+    /\bbearer\s+tokens?\b/.test(normalized) ||
+    /\bcredentials?\b/.test(normalized);
+  const asksUseOrFetch =
+    /\b(?:can|could|should|do|does|did|use|reuse|fetch|read|pull|get|reach|access)\b/.test(normalized);
+  return mentionsXContent && mentionsXCredential && asksUseOrFetch;
+}
+
+export function renderXContentCredentialBoundaryReply(): string {
+  return [
+    'Yes, but Spark should not fetch or expose bearer tokens from XContent.',
+    'XContent stays the premium content chip. Basic X reads should use this Spark agent\'s own `SPARK_X_BEARER_TOKEN`, so people can connect their own X account without needing the XContent domain-chip system.'
+  ].join('\n\n');
+}
+
+export function isXPostReviewFromLinksRequest(text: string): boolean {
+  const urls = text.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/[^\s]+\/status\/\d+/gi) || [];
+  if (urls.length === 0) return false;
+  return /\b(?:read|review|judge|score|evaluate|analy[sz]e|check|thoughts?|updates?|posts?|shared)\b/i.test(text);
+}
+
+export function renderXPostReviewFromLinksBoundaryReply(): string {
+  return [
+    'I can review those X posts once I can see the text.',
+    'For basic X reads, Spark should use this Telegram agent\'s own X API env. XContent is the premium route for deeper scoring, variants, and strategy; it should not be the only way to read a post.'
+  ].join('\n\n');
+}
+
 export function buildExternalResearchGoal(currentText: string, recentMessages: string[]): string {
   const context = recentMessages
     .map((message) => message.trim())

@@ -137,6 +137,28 @@ Default behavior is `auto`, which looks for the release-installed Builder source
 
 Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder-release/source`.
 
+### Agent Environment Files
+
+Spark agents can load their own local env files from `~/.spark/config/agents/`.
+Use this for optional user-owned API keys that should belong to a Spark agent,
+not to a premium domain chip.
+
+Load order for Telegram:
+
+- `~/.spark/config/agents/spark-common.env`
+- `~/.spark/config/agents/spark-telegram-bot.env`
+- `~/.spark/config/agents/spark-telegram-bot.<profile>.env`
+
+For basic X post reads, set:
+
+```bash
+SPARK_X_BEARER_TOKEN=...
+```
+
+That enables simple Spark-owned X reads from the Telegram agent. It is separate
+from `domain-chip-xcontent` / XContent, which remains the premium content
+strategy, scoring, variant, and optimization lane.
+
 ### Agent Style Preference Sync
 
 The Telegram gateway recognizes explicit, durable agent-style requests such as "when you talk to me, use short paragraphs" or "I want my agent to be more conversational". These are not treated as ordinary memory facts.
@@ -202,9 +224,10 @@ is the execution plane behind the gateway.
    generates this for bundled installs.
 5. Keep `TELEGRAM_GATEWAY_MODE=polling`.
 6. Start `spawner-ui` if you want `/run`, `/mission`, and `/board` to work. For hosted two-service deploys, set `SPAWNER_UI_URL` to the private spawner-ui service URL, set this bot's `TELEGRAM_RELAY_URL` to its private `/spawner-events` URL, and put the same callback URL in spawner-ui `MISSION_CONTROL_WEBHOOK_URLS`. `SPARK_SPAWNER_URL` is accepted as a legacy alias for `SPAWNER_UI_URL`.
-7. Start `spark-intelligence-builder` if you want the Builder bridge instead of
+7. Optional: put user-owned agent API keys in `~/.spark/config/agents/`, for example `SPARK_X_BEARER_TOKEN` in `spark-telegram-bot.env` for basic X reads.
+8. Start `spark-intelligence-builder` if you want the Builder bridge instead of
    the local fallback conversation path.
-8. Start the bot:
+9. Start the bot:
 
 ```bash
 npm run dev

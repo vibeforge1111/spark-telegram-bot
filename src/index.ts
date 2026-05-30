@@ -46,6 +46,14 @@ import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
 import {
+  fetchBasicXPosts,
+  renderBasicXConfigReply,
+  renderBasicXPostsForReview,
+  renderBasicXUnavailableReply,
+  resolveBasicXConfig,
+  shouldUseBasicXFetch
+} from './xBasic';
+import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
   formatCreatorMissionSummary,
@@ -211,6 +219,8 @@ import {
   isSparkWorkflowBugHuntRequest,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
+  isXContentCredentialBoundaryQuestion,
+  isXPostReviewFromLinksRequest,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
@@ -224,6 +234,8 @@ import {
   renderMissionRoutingFailureClassReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
+  renderXContentCredentialBoundaryReply,
+  renderXPostReviewFromLinksBoundaryReply,
   builderReplySuppressionReason,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
@@ -5745,6 +5757,61 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = formatGlobalAgentDoctrineRequestReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isXContentCredentialBoundaryQuestion(text)) {
+    const reply = [
+      renderXContentCredentialBoundaryReply(),
+      '',
+      renderBasicXConfigReply(resolveBasicXConfig())
+    ].join('\n');
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'xcontent.credential_boundary', 'spark-telegram-bot', 'answer');
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'xcontent.credential_boundary', [
+      {
+        source: 'spark_agent_env_policy',
+        role: 'credential_boundary',
+        freshness: 'fresh',
+        sourceRef: '~/.spark/config/agents/spark-telegram-bot.env',
+        summary: 'Telegram keeps basic X credentials in Spark-owned agent env and does not read XContent secrets.'
+      }
+    ]);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && shouldUseBasicXFetch(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const result = await fetchBasicXPosts(text.match(/\d{10,}/g) || []);
+    const reply = result.ok
+      ? renderBasicXPostsForReview(result.posts)
+      : renderBasicXUnavailableReply(result.message);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'x.basic_post_read', 'spark-telegram-bot', result.ok ? 'fetch' : 'setup_needed');
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'x.basic_post_read', [
+      {
+        source: result.configured ? 'x_api_basic' : 'spark_agent_env_policy',
+        role: result.configured ? 'post_text_source' : 'credential_boundary',
+        freshness: result.configured && result.ok ? 'live_probed' : 'unknown',
+        sourceRef: result.configured ? 'https://api.x.com/2/tweets' : '~/.spark/config/agents/spark-telegram-bot.env',
+        summary: result.configured
+          ? 'Telegram attempted a basic X API read using Spark-owned agent env.'
+          : 'Telegram asked for Spark-owned X env instead of using XContent secrets.'
+      }
+    ]);
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isXPostReviewFromLinksRequest(text)) {
+    const reply = renderXPostReviewFromLinksBoundaryReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'xcontent.post_review_boundary', 'spark-telegram-bot', 'answer');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
