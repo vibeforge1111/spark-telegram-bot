@@ -29,8 +29,10 @@ import {
   latestCanvasPlanFromLoadState,
   routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
+  isPublicOnboardingCommandText,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
+  telegramRateLimitAllowsMessage,
   shouldUsePendingClarificationForMessage
 } from '../src/index';
 
@@ -75,6 +77,25 @@ test('rate limit cleanup removes stale users and preserves active windows', () =
 
   assert.equal(requests.has(123), false);
   assert.deepEqual(requests.get(456), [950, 990]);
+});
+
+test('bug hunt: public onboarding commands have a bounded rate-limit escape hatch', () => {
+  assert.equal(isPublicOnboardingCommandText('/start'), true);
+  assert.equal(isPublicOnboardingCommandText('/start session-123'), true);
+  assert.equal(isPublicOnboardingCommandText('/myid@SparkBot'), true);
+  assert.equal(isPublicOnboardingCommandText('/run mission'), false);
+  assert.equal(isPublicOnboardingCommandText('please send /myid'), false);
+
+  const requests = new Map<number, number[]>();
+  const onboardingRequests = new Map<number, number[]>();
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, 'hello', 0), true);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, 'still here', 100), true);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, '/run mission', 200), true);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, 'blocked now', 300), false);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, '/myid', 300), true);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, '/start session-123', 300), true);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, '/myid', 300), false);
+  assert.equal(telegramRateLimitAllowsMessage(requests, onboardingRequests, 123, '/run mission', 300), false);
 });
 
 test('bug hunt: strategy, QA, and route-meta conversations do not hijack into builds', () => {

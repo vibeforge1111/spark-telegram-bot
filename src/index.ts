@@ -1641,9 +1641,12 @@ bot.use(async (ctx, next) => {
 });
 
 const userRequestTimestamps = new Map<number, number[]>();
+const publicOnboardingCommandTimestamps = new Map<number, number[]>();
 const RATE_LIMIT_WINDOW_MS = 1000;
 const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_CLEANUP_INTERVAL_MS = 60_000;
+const PUBLIC_ONBOARDING_RATE_LIMIT_WINDOW_MS = 60_000;
+const PUBLIC_ONBOARDING_MAX_REQUESTS = 2;
 
 export function slidingWindowRateLimitAllows(
   requestsByUser: Map<number, number[]>,
@@ -1679,6 +1682,7 @@ export function cleanupSlidingWindowRateLimit(
 
 const rateLimitCleanupTimer = setInterval(() => {
   cleanupSlidingWindowRateLimit(userRequestTimestamps, Date.now());
+  cleanupSlidingWindowRateLimit(publicOnboardingCommandTimestamps, Date.now(), PUBLIC_ONBOARDING_RATE_LIMIT_WINDOW_MS);
 }, RATE_LIMIT_CLEANUP_INTERVAL_MS);
 rateLimitCleanupTimer.unref?.();
 
@@ -1865,6 +1869,33 @@ export function isAddressedGroupText(ctx: any, text: string): boolean {
     return true;
   }
   return Boolean(botUsername && typeof replyFrom.username === 'string' && replyFrom.username.toLowerCase() === botUsername);
+}
+
+export function isPublicOnboardingCommandText(text: string | undefined): boolean {
+  const commandName = extractCommandName(text);
+  return Boolean(commandName && PUBLIC_ONBOARDING_COMMANDS.has(commandName));
+}
+
+export function telegramRateLimitAllowsMessage(
+  requestsByUser: Map<number, number[]>,
+  onboardingRequestsByUser: Map<number, number[]>,
+  userId: number,
+  text: string | undefined,
+  nowMs: number
+): boolean {
+  if (slidingWindowRateLimitAllows(requestsByUser, userId, nowMs)) {
+    return true;
+  }
+  if (!isPublicOnboardingCommandText(text)) {
+    return false;
+  }
+  return slidingWindowRateLimitAllows(
+    onboardingRequestsByUser,
+    userId,
+    nowMs,
+    PUBLIC_ONBOARDING_RATE_LIMIT_WINDOW_MS,
+    PUBLIC_ONBOARDING_MAX_REQUESTS
+  );
 }
 
 async function ensurePollingReady(): Promise<void> {
@@ -2134,8 +2165,9 @@ bot.catch((err, ctx) => {
 // Rate limit middleware
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
+  const text = 'text' in (ctx.message || {}) ? (ctx.message as any).text as string | undefined : undefined;
   if (userId) {
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
+    if (!telegramRateLimitAllowsMessage(userRequestTimestamps, publicOnboardingCommandTimestamps, userId, text, Date.now())) {
       return; // Rate limited
     }
   }
