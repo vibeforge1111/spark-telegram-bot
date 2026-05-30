@@ -258,6 +258,10 @@ async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
   };
 }
 
+function spawnerBoardUnavailableMessage(): string {
+  return 'Spawner board is unavailable right now. Run /diagnose to check the local Spawner service.';
+}
+
 function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
   const entries = [
     ...board.running,
@@ -1666,7 +1670,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1688,7 +1692,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1702,7 +1706,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1724,7 +1728,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1749,7 +1753,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1771,7 +1775,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1793,7 +1797,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   },
@@ -1841,7 +1845,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: spawnerBoardUnavailableMessage()
       };
     }
   }
