@@ -7,6 +7,8 @@ import {
   buildSparkQaBenchmarkCreatorArgs,
   isSparkQaOperatorKey,
   parseSparkQaCommand,
+  readLatestStartupBenchDossier,
+  renderStartupBenchDossier,
   renderSparkQaAutoloopRound,
   renderSparkQaBenchmarkCreator,
   resolveSparkQaOperatorRepo,
@@ -70,9 +72,57 @@ function makeFakeSparkQaRepo(): string {
   return root;
 }
 
+function writeBoundStartupBenchDossier(repo: string, options: {
+  runId?: string;
+  claimReady?: boolean;
+} = {}): string {
+  const claimReady = options.claimReady === true;
+  const dossierPath = path.join(
+    repo,
+    '.spark-swarm',
+    'autoloop',
+    'runs',
+    options.runId || 'telegram-20260530t1008274',
+    'startup_bench_proof_report.bound.json'
+  );
+  mkdirSync(path.dirname(dossierPath), { recursive: true });
+  writeFileSync(dossierPath, JSON.stringify({
+    schemaVersion: 'spark-startup-bench-proof-adapter.v1',
+    status: claimReady ? 'score_claim_ready' : 'runner_proof_ready',
+    scoreClaimAllowed: claimReady,
+    improvementClaimAllowed: claimReady,
+    privateScoreSummary: {
+      baseline: { scenarioScore: 0.6408 },
+      candidate: { scenarioScore: 0.8657 },
+      comparison: {
+        metric: 'scenario_score',
+        candidateMinusBaseline: 0.2249,
+        candidateBeatsBaseline: true,
+      },
+    },
+    promotionDossier: {
+      status: claimReady ? 'score_claim_ready' : 'blocked',
+      scoreClaimAllowed: claimReady,
+      improvementClaimAllowed: claimReady,
+      public_ready: false,
+      network_absorbable: false,
+      blockers: claimReady ? [] : ['sidecar_review_pending', 'wall_clock_stability_window_missing', 'score_reconciliation_missing'],
+      nextGate: claimReady ? 'ready_for_publication_review' : 'clear_startup_bench_proof_blockers',
+    },
+    proofGateBundle: {
+      bundleId: claimReady ? 'startup-bench-proof-c110f7a53c05-a898c828a760' : 'startup-bench-proof-unit',
+      manifestPath: path.join(path.dirname(dossierPath), 'startup_bench_proof_gates.json'),
+      status: claimReady ? 'ready' : 'blocked',
+    },
+  }), 'utf-8');
+  return dossierPath;
+}
+
 async function main(): Promise<void> {
   await test('parses Spark QA commands and keeps level selection explicit', () => {
   assert.deepEqual(parseSparkQaCommand('run'), { action: 'run' });
+  assert.deepEqual(parseSparkQaCommand('startup'), { action: 'startup' });
+  assert.deepEqual(parseSparkQaCommand('startup-bench status'), { action: 'startup' });
   assert.deepEqual(parseSparkQaCommand('score'), { action: 'status' });
   assert.deepEqual(parseSparkQaCommand('benchmark Spark QA Operator level 10'), {
     action: 'benchmark',
@@ -136,6 +186,54 @@ async function main(): Promise<void> {
     else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;
     if (oldPython === undefined) delete process.env.SPARK_QA_OPERATOR_PYTHON;
     else process.env.SPARK_QA_OPERATOR_PYTHON = oldPython;
+    rmSync(repo, { recursive: true, force: true });
+  }
+  });
+
+  await test('renders bound Startup Bench dossier as blocked read-only startup status', async () => {
+  const repo = makeFakeSparkQaRepo();
+  const dossierPath = writeBoundStartupBenchDossier(repo);
+  const oldRepo = process.env.SPARK_QA_OPERATOR_REPO;
+  try {
+    process.env.SPARK_QA_OPERATOR_REPO = repo;
+    const result = await readLatestStartupBenchDossier();
+    assert.equal(result.ok, true);
+    assert.equal(result.dossierPath, dossierPath);
+    const reply = renderStartupBenchDossier(result);
+    assert.match(reply, /startup candidate moved in the private runner/i);
+    assert.match(reply, /baseline 0\.641, candidate 0\.866 \(\+0\.225\)/);
+    assert.match(reply, /cannot call it improved yet/i);
+    assert.match(reply, /scoreClaimAllowed=false and improvementClaimAllowed=false/);
+    assert.match(reply, /sidecar review/);
+    assert.match(reply, /stability/);
+    assert.match(reply, /score reconciliation/);
+    assert.match(reply, /Inspect:/);
+    assert.doesNotMatch(reply, /cleared|allows the improvement claim/i);
+  } finally {
+    if (oldRepo === undefined) delete process.env.SPARK_QA_OPERATOR_REPO;
+    else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;
+    rmSync(repo, { recursive: true, force: true });
+  }
+  });
+
+  await test('prefers a claim-ready bound Startup Bench dossier over newer stale blockers', async () => {
+  const repo = makeFakeSparkQaRepo();
+  const readyPath = writeBoundStartupBenchDossier(repo, { runId: 'clean-target-fe9718-seeds12-window2', claimReady: true });
+  writeBoundStartupBenchDossier(repo, { runId: 'newer-stale-blocked-run', claimReady: false });
+  const oldRepo = process.env.SPARK_QA_OPERATOR_REPO;
+  try {
+    process.env.SPARK_QA_OPERATOR_REPO = repo;
+    const result = await readLatestStartupBenchDossier();
+    assert.equal(result.ok, true);
+    assert.equal(result.dossierPath, readyPath);
+    const reply = renderStartupBenchDossier(result);
+    assert.match(reply, /baseline 0\.641, candidate 0\.866 \(\+0\.225\)/);
+    assert.match(reply, /allows the improvement claim/);
+    assert.match(reply, /Public-ready and network-absorbable are still separate release decisions/);
+    assert.doesNotMatch(reply, /sidecar 0\/1|wall-clock waiting|Score claim is still blocked/);
+  } finally {
+    if (oldRepo === undefined) delete process.env.SPARK_QA_OPERATOR_REPO;
+    else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;
     rmSync(repo, { recursive: true, force: true });
   }
   });

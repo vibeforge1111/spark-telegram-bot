@@ -11,7 +11,7 @@ import { redactText } from './redaction';
 const execFileAsync = promisify(execFile);
 
 export interface SparkQaCommand {
-  action: 'help' | 'run' | 'status' | 'benchmark';
+  action: 'help' | 'run' | 'status' | 'benchmark' | 'startup';
   specializationPath?: string;
   level?: number;
   prompt?: string;
@@ -40,6 +40,14 @@ export interface SparkQaBenchmarkCreatorResult {
   payload?: Record<string, any> | null;
   stdout?: string;
   stderr?: string;
+  error?: string;
+}
+
+export interface StartupBenchDossierResult {
+  ok: boolean;
+  repoRoot?: string;
+  dossierPath?: string | null;
+  dossier?: Record<string, any> | null;
   error?: string;
 }
 
@@ -118,6 +126,45 @@ async function readJsonFile(filePath: string | null | undefined): Promise<Record
   if (!filePath || !existsSync(filePath)) return null;
   const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+}
+
+function startupBenchBoundDossierIsClaimReady(dossier: Record<string, any> | null): boolean {
+  const promotionDossier = dossier?.promotionDossier || {};
+  const proofGateBundle = dossier?.proofGateBundle || {};
+  return (
+    dossier?.scoreClaimAllowed === true &&
+    dossier?.improvementClaimAllowed === true &&
+    promotionDossier.scoreClaimAllowed === true &&
+    promotionDossier.improvementClaimAllowed === true &&
+    promotionDossier.public_ready !== true &&
+    promotionDossier.network_absorbable !== true &&
+    typeof proofGateBundle.bundleId === 'string' &&
+    proofGateBundle.status === 'ready'
+  );
+}
+
+async function findLatestBoundStartupBenchDossier(repoRoot: string): Promise<{ path: string; dossier: Record<string, any> } | null> {
+  const runsRoot = path.join(repoRoot, '.spark-swarm', 'autoloop', 'runs');
+  if (!existsSync(runsRoot)) return null;
+  const { readdir, stat } = await import('node:fs/promises');
+  const candidates: Array<{ path: string; dossier: Record<string, any>; claimReady: boolean; mtimeMs: number }> = [];
+  for (const entry of await readdir(runsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dossierPath = path.join(runsRoot, entry.name, 'startup_bench_proof_report.bound.json');
+    if (!existsSync(dossierPath)) continue;
+    const dossier = await readJsonFile(dossierPath);
+    if (!dossier) continue;
+    const info = await stat(dossierPath);
+    candidates.push({
+      path: dossierPath,
+      dossier,
+      claimReady: startupBenchBoundDossierIsClaimReady(dossier),
+      mtimeMs: info.mtimeMs,
+    });
+  }
+  candidates.sort((a, b) => Number(b.claimReady) - Number(a.claimReady) || b.mtimeMs - a.mtimeMs);
+  const latest = candidates[0];
+  return latest ? { path: latest.path, dossier: latest.dossier } : null;
 }
 
 export function buildSparkQaAutoloopRoundArgs(input: {
@@ -244,6 +291,31 @@ export async function readLatestSparkQaAutoloopRound(repoRootOverride?: string):
   };
 }
 
+export async function readLatestStartupBenchDossier(repoRootOverride?: string): Promise<StartupBenchDossierResult> {
+  const repoRoot = resolveSparkQaOperatorRepo(repoRootOverride);
+  if (!repoRoot) {
+    return {
+      ok: false,
+      error: 'Spark QA Operator repo is not configured. Set SPARK_QA_OPERATOR_REPO to the specialization-path-spark-qa-operator repo.',
+    };
+  }
+  const latest = await findLatestBoundStartupBenchDossier(repoRoot);
+  if (!latest) {
+    return {
+      ok: false,
+      repoRoot,
+      dossierPath: null,
+      error: 'No bound Startup Bench promotion dossier is available yet. Refresh the Spark QA proof bundle before reading startup status.',
+    };
+  }
+  return {
+    ok: true,
+    repoRoot,
+    dossierPath: latest.path,
+    dossier: latest.dossier,
+  };
+}
+
 function num(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -266,6 +338,61 @@ function blockerSummary(report: Record<string, any> | null | undefined): string 
   if (blockers.some((item: string) => /score_reconciliation|score claim/i.test(item))) return 'score reconciliation is still pending';
   if (blockers.some((item: string) => /hidden|heldout/i.test(item))) return 'held-out proof still needs review';
   return blockers[0] ? blockers[0].replace(/[_-]+/g, ' ') : 'promotion gates are still blocked';
+}
+
+function humanBlocker(value: string): string {
+  if (/sidecar/i.test(value)) return 'sidecar review';
+  if (/wall.?clock|stability/i.test(value)) return 'stability';
+  if (/repeated/i.test(value)) return 'repeated stability';
+  if (/score.?reconciliation|score.?claim/i.test(value)) return 'score reconciliation';
+  if (/wrapper/i.test(value)) return 'wrapper/raw reconciliation';
+  if (/hidden|heldout/i.test(value)) return 'held-out proof';
+  return value.replace(/[_-]+/g, ' ');
+}
+
+function blockerList(dossier: Record<string, any> | null | undefined): string[] {
+  const raw = Array.isArray(dossier?.promotionDossier?.blockers) ? dossier?.promotionDossier?.blockers : [];
+  return unique(raw.map((item: unknown) => humanBlocker(String(item))));
+}
+
+export function renderStartupBenchDossier(result: StartupBenchDossierResult): string {
+  if (!result.ok || !result.dossier) {
+    return `I cannot read the bound Startup Bench dossier yet. ${result.error || 'The proof bundle is missing.'}`;
+  }
+
+  const dossier = result.dossier;
+  const summary = dossier.privateScoreSummary || {};
+  const baseline = num(summary.baseline?.scenarioScore);
+  const candidate = num(summary.candidate?.scenarioScore);
+  const comparison = summary.comparison || {};
+  const delta = num(comparison.candidateMinusBaseline);
+  const scoreClaimAllowed = dossier.promotionDossier?.scoreClaimAllowed === true || dossier.scoreClaimAllowed === true;
+  const improvementClaimAllowed = dossier.promotionDossier?.improvementClaimAllowed === true || dossier.improvementClaimAllowed === true;
+  const blockers = blockerList(dossier);
+  const nextGate = typeof dossier.promotionDossier?.nextGate === 'string'
+    ? humanBlocker(dossier.promotionDossier.nextGate)
+    : '';
+  const movement = baseline !== null && candidate !== null
+    ? `The startup candidate moved in the private runner: baseline ${formatNumber(baseline)}, candidate ${formatNumber(candidate)}${delta !== null ? ` (${delta > 0 ? '+' : ''}${formatNumber(delta)})` : ''}.`
+    : 'The bound Startup Bench dossier is present, but the private score movement is incomplete.';
+
+  if (scoreClaimAllowed && improvementClaimAllowed) {
+    return [
+      `${movement}`,
+      '',
+      `The promotion dossier allows the improvement claim for this bound candidate. Next: ${nextGate || 'ready for publication review'}.`,
+      'Public-ready and network-absorbable are still separate release decisions.',
+      result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+    ].filter(Boolean).join('\n');
+  }
+
+  return [
+    `${movement}`,
+    '',
+    `I cannot call it improved yet. scoreClaimAllowed=false and improvementClaimAllowed=false. Remaining blockers: ${blockers.length ? blockers.join(', ') : 'promotion gates'}.`,
+    `Next: ${nextGate || blockers[0] || 'refresh or complete the bound proof gates'}.`,
+    result.dossierPath ? `Inspect: ${result.dossierPath}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 export function renderSparkQaAutoloopRound(result: SparkQaAutoloopRoundResult): string {
@@ -393,6 +520,9 @@ export function parseSparkQaCommand(raw: string): SparkQaCommand | null {
   if (/^(?:run|start|go|autoloop|auto\s+loop)(?:\s+proof|\s+benchmark|\s+round)?$/i.test(text)) {
     return { action: 'run' };
   }
+  if (/^(?:startup|startup\s+status|startup[-\s]+bench|startup[-\s]+bench\s+status)$/i.test(text)) {
+    return { action: 'startup' };
+  }
   if (/^(?:status|score|scores|report|latest|where\s+are\s+we|what'?s\s+next)$/i.test(text)) {
     return { action: 'status' };
   }
@@ -425,6 +555,7 @@ export function renderSparkQaHelp(): string {
     '',
     '/sparkqa run - run the benchmark/autoloop proof',
     '/sparkqa status - read the latest proof dossier',
+    '/sparkqa startup - read the bound Startup Bench promotion dossier',
     '/sparkqa benchmark <specialization path> level <1-10> - create a benchmark packet',
     '',
     'Scores stay blocked unless the promotion dossier says scoreClaimAllowed=true.',

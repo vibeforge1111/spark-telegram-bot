@@ -60,7 +60,9 @@ import { packageSpecializationPathLoop, readSpecializationPathLoopInsights, read
 import {
   isSparkQaOperatorKey,
   parseSparkQaCommand,
+  readLatestStartupBenchDossier,
   readLatestSparkQaAutoloopRound,
+  renderStartupBenchDossier,
   renderSparkQaAutoloopRound,
   renderSparkQaBenchmarkCreator,
   renderSparkQaHelp,
@@ -5160,6 +5162,10 @@ export async function handleSparkQaCommand(ctx: any, rawOverride?: string): Prom
   await safeSendChatAction(ctx, 'typing');
   if (parsed.action === 'status') {
     return ctx.reply(renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound()));
+  }
+
+  if (parsed.action === 'startup') {
+    return ctx.reply(renderStartupBenchDossier(await readLatestStartupBenchDossier()));
   }
 
   if (parsed.action === 'run') {
