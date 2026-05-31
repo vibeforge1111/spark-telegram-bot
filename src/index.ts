@@ -3997,6 +3997,15 @@ function buildLatestAssistantOriginReply(currentText: string, pending: PendingCl
   ].join('\n');
 }
 
+function isLocalhostUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 export function formatCanvasReadySummary(args: {
 	projectName: string;
 	taskCount: unknown;
@@ -4012,10 +4021,13 @@ export function formatCanvasReadySummary(args: {
   const buildStepLine = taskCount > 0
     ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} and is moving now.`
     : 'Spark is moving into the build now.';
+  const canvasLine = isLocalhostUrl(args.readyCanvasUrl)
+    ? `Canvas is ready — open it on the machine running Spark:\n${args.readyCanvasUrl}\n(This link only works locally. On another device, open it on the Spark machine or set SPAWNER_UI_PUBLIC_URL.)`
+    : ['Canvas', `• ${args.readyCanvasUrl}`].join('\n');
   return telegramBlocks(
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
-    ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
+    canvasLine
   );
 }
 
