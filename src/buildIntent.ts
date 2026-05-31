@@ -618,6 +618,18 @@ function isNoExecutionBoundary(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function isMakeSenseConversation(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  return [
+    /^(?:does|did|would|could|can)\s+(?:that|this|it)\s+make\s+sense[?.!]*$/,
+    /^(?:does|did|would|could|can)\s+that\s+make\s+sense\s+to\s+you[?.!]*$/,
+    /^(?:that|this|it)\s+makes\s+sense[?.!]*$/,
+    /^(?:i\s+guess\s+)?that\s+(?:does|did|would|could|can)\s+make\s+sense[?.!]*$/,
+    /^(?:i\s+guess\s+)?that\s+makes\s+sense[?.!]*$/
+  ].some((pattern) => pattern.test(normalized));
+}
+
 function isConversationFramingMakeRequest(description: string): boolean {
   return /^(?:today|tonight|now|chat|conversation|session|thread|this\s+(?:chat|conversation|session|thread)|our\s+(?:chat|conversation|session|thread))\s+(?:also\s+)?(?:about|focused\s+on|for)\b/i.test(
     description.trim()
@@ -835,12 +847,14 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
+  if (isMakeSenseConversation(original)) return null;
   if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
+  if (isMakeSenseConversation(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
   if (isAllocationStrategyQuestion(trimmed)) return null;
   if (isRecursiveInsightPacketRequest(trimmed)) return null;

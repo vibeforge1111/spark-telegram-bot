@@ -271,6 +271,14 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Hey Spark, give me the top 10 ideas about how to build startups in a better way'), null);
   assert.equal(parseBuildIntent('How to build startups in a better way?'), null);
   assert.equal(parseBuildIntent('suggest two project directions for a context tester'), null);
+  assert.equal(parseBuildIntent('Does that make sense?'), null);
+  assert.equal(parseBuildIntent('does this make sense?'), null);
+  assert.equal(parseBuildIntent('that makes sense.'), null);
+  assert.equal(parseBuildIntent('I guess that makes sense.'), null);
+  assert.equal(parseBuildIntent('Would that make sense?'), null);
+  assert.equal(parseBuildIntent('Could that make sense to you?'), null);
+  assert.equal(parseBuildIntent('it makes sense.'), null);
+  assert.equal(parseBuildIntent('I guess that does make sense.'), null);
   assert.equal(
     parseBuildIntent(
       'sure, lets make today also about improving your capabilities of action taking and improving yourself while talking together, for example can you install a voice to yourself right now?'
