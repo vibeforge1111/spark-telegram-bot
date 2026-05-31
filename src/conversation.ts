@@ -249,6 +249,7 @@ export class ConversationMemory {
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
+  private loadingPromise: Promise<void> | null = null;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
@@ -269,6 +270,13 @@ export class ConversationMemory {
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
+    if (this.loadingPromise) return this.loadingPromise;
+    this.loadingPromise = this._doLoad();
+    await this.loadingPromise;
+    this.loadingPromise = null;
+  }
+
+  private async _doLoad(): Promise<void> {
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
