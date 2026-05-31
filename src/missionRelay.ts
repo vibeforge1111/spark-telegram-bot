@@ -2165,6 +2165,11 @@ function isRelayRateLimited(req: IncomingMessage, now = Date.now()): boolean {
   const existing = relayRateLimits.get(key);
   if (!existing || now - existing.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
     relayRateLimits.set(key, { startedAt: now, count: 1 });
+    if (relayRateLimits.size > 500) {
+      for (const [k, v] of relayRateLimits) {
+        if (now - v.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) relayRateLimits.delete(k);
+      }
+    }
     return false;
   }
   existing.count += 1;
