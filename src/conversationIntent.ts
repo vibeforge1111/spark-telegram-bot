@@ -1874,7 +1874,7 @@ export function isLowInformationLlmReply(reply: string): boolean {
       normalized.includes('show the mission board') &&
       normalized.includes('start a new mission')
     ) ||
-    normalized.includes('what would you like help with') ||
+    (normalized.length < 40 && normalized.includes('what would you like help with')) ||
     normalized.includes("couldn't generate") ||
     normalized.includes('having trouble thinking') ||
     (
@@ -1981,6 +1981,18 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDec
 
 export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {
   return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
+}
+
+/**
+ * Detect simple greetings and casual chat that should skip the Builder
+ * and go straight to the LLM chat fallback. This prevents the Builder
+ * from returning a researcher_advisory or route_menu that gets suppressed,
+ * leaving the user with no response.
+ */
+export function isSimpleGreeting(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[!?.]+$/g, '');
+  if (!normalized || normalized.length > 60) return false;
+  return /^(?:hi|hello|hey|halo|hai|yo|sup|howdy|good\s+(?:morning|afternoon|evening|night)|selamat\s+(?:pagi|siang|sore|malam)|apa\s+kabar|how\s+are\s+(?:you|u)|what'?s\s+up|howdy|how\s+do\s+you\s+do|nice\s+to\s+meet|senang\s+berkenalan|test|ping|checking|cek)$/.test(normalized);
 }
 
 export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
