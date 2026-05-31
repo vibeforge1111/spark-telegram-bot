@@ -226,6 +226,7 @@ import {
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
   shouldSuppressBuilderReplyForPlainChat,
+  isSimpleGreeting,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
@@ -6772,6 +6773,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     const hasFreshRuntimeTruth = Boolean(freshRuntimeTruthContext);
+    const skipBuilder = isSimpleGreeting(text);
     let bridgeFailed = false;
     let builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>> = {
       used: false,
@@ -6780,7 +6782,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       bridgeMode: '',
       routingDecision: ''
     };
-    if (!hasFreshRuntimeTruth) {
+    if (!hasFreshRuntimeTruth && !skipBuilder) {
       try {
         const bridgeUpdate = memoryDoctorEvidenceTurns.length > 0
           ? buildUpdateWithText(
@@ -6852,6 +6854,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const response = applyPlainWordsSurfaceRequest(text, await llm.chat(chatPrompt, systemContext, memories));
 
     if (isLowInformationLlmReply(response)) {
+      console.warn(`[LLMFallback] low-info response suppressed textLen=${response.length} preview="${response.slice(0, 80)}"`);
       await conversation.recordInterruptedTask(user, {
         message: text,
         failure: bridgeFailed ? 'Builder bridge failed and chat fallback returned a low-information reply.' : 'Chat runtime returned a low-information reply.',
