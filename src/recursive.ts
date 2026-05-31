@@ -3085,12 +3085,18 @@ function bestComparableOutcome(
   );
   if (comparable.length === 0) return null;
 
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+
   const selectedBest = bestOutcomeId
     ? comparable.find((outcome) => outcome.id === bestOutcomeId)
     : null;
-  if (selectedBest) return selectedBest;
-
-  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  if (selectedBest) {
+    const bestMetric = selectedBest.metricValue as number;
+    const isActuallyBest = lowerIsBetter
+      ? comparable.every((o) => (o.metricValue as number) >= bestMetric)
+      : comparable.every((o) => (o.metricValue as number) <= bestMetric);
+    if (isActuallyBest) return selectedBest;
+  }
   return comparable.slice().sort((a, b) =>
     lowerIsBetter
       ? (a.metricValue as number) - (b.metricValue as number)
