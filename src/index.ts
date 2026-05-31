@@ -2254,6 +2254,65 @@ bot.start(async (ctx) => {
   }
 });
 
+// /new command — start a fresh conversation (full reset: clears all context + notes + Builder memory)
+bot.command('new', async (ctx) => {
+  await conversation.resetUser(ctx.from, false);
+  // Tell Builder to forget profile facts.
+  const forgetUpdate = buildUpdateWithText(
+    ctx.update as Record<string, unknown>,
+    'forget all profile facts about me including my name, preferences, and saved details.'
+  );
+  await runBuilderTelegramBridge(forgetUpdate).catch(() => {});
+  await ctx.reply('✨ Fresh conversation started. All context and notes cleared. What would you like to work on?');
+});
+
+// /reset command — reset current conversation context (light reset: keeps long-term notes and Builder memories)
+bot.command('reset', async (ctx) => {
+  await conversation.resetUser(ctx.from, true);
+  await ctx.reply('🔄 Conversation context reset. Long-term notes and profile details kept. Ready when you are.');
+});
+
+// /help command
+bot.command('help', async (ctx) => {
+  const lines = [
+    '**Available commands:**',
+    '',
+    '**🛠 Agent**',
+    '/status — System status',
+    '/diagnose — Run diagnostics',
+    '/model — Show or change model',
+    '/models — List available models',
+    '/run <prompt> — Execute a task',
+    '/echo <text> — Echo text back',
+    '',
+    '**🧠 Session**',
+    '/new — Full conversation reset (clears all context + notes)',
+    '/reset — Reset conversation context (keeps long-term notes)',
+    '/context — Agent operating context',
+    '/clarify — Request clarification',
+    '',
+    '**💾 Memory**',
+    '/remember <text> — Save a memory',
+    '/recall <topic> — Recall memories',
+    '/forget <text> — Forget a detail',
+    '/about — What I know about you',
+    '',
+    '**ℹ️ Info**',
+    '/myid — Show your Telegram ID',
+    '/self — Agent identity',
+    '/capabilities — Capability overview',
+    '/workspaces — Workspace inventory',
+    '/wiki — Search the Spark wiki',
+    '',
+    '**🔧 Advanced**',
+    '/spark — System overview',
+    '/access — Access level controls',
+    '/mission <goal> — Start a mission',
+    '/schedule — View schedules'
+  ];
+  await ctx.reply(lines.join('\n'));
+});
+
 // /status command
 bot.command('status', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
