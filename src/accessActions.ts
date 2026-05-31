@@ -199,6 +199,7 @@ export async function runSparkAccessActionDetailed(
 }
 
 async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
+  try {
   const { stdout, stderr } = await execFileAsync(
     '/data/data/com.termux/files/usr/bin/bash',
     [process.env.SPARK_BIN || '/data/data/com.termux/files/home/.spark/bin/spark', ...args] as string[],
@@ -211,6 +212,12 @@ async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Pro
     stdout: Buffer.isBuffer(stdout) ? stdout.toString('utf8') : String(stdout || ''),
     stderr: Buffer.isBuffer(stderr) ? stderr.toString('utf8') : String(stderr || ''),
   };
+  } catch (err: any) {
+    return {
+      stdout: Buffer.isBuffer(err.stdout) ? err.stdout.toString('utf8') : String(err.stdout || ''),
+      stderr: Buffer.isBuffer(err.stderr) ? err.stderr.toString('utf8') : String(err.stderr || ''),
+    };
+  }
 }
 
 function parseSparkJson(stdout: string): Record<string, unknown> | null {
