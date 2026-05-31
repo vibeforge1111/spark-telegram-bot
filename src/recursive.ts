@@ -2367,7 +2367,6 @@ function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: numb
   if (/\b(regress\w*|worse|failed|revert\w*)\b/.test(normalized)) return 'regressed';
   if (/\b(flat|same|no[_ -]?gain)\b/.test(normalized)) return 'flat';
   if (/\b(improv\w*|kept|keep|accepted|better|pass\w*)\b/.test(normalized)) return 'improved';
-  if (typeof metric === 'number' && metric > 0) return 'improved';
   return 'flat';
 }
 
