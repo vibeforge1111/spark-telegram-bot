@@ -1735,6 +1735,12 @@ interface PendingMissionCancelConfirmation {
   timestamp: number;
 }
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
+interface PendingRevokeAllRun {
+  goal: string;
+  providers: string[];
+  timestamp: number;
+}
+const pendingRevokeAllRuns = new Map<string, PendingRevokeAllRun>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
@@ -1766,6 +1772,11 @@ const mapCleanupTimer = setInterval(() => {
       pendingMissionCancelConfirmations.delete(key);
     }
   }
+  for (const [key, entry] of pendingRevokeAllRuns) {
+    if (now - entry.timestamp > CLARIFICATION_TTL_MS) {
+      pendingRevokeAllRuns.delete(key);
+    }
+  }
 }, MAP_CLEANUP_INTERVAL_MS);
 mapCleanupTimer.unref?.();
 
@@ -1778,7 +1789,8 @@ function clearPendingExecutionState(key: string): boolean {
   const hadDomainChip = pendingDomainChipBuilds.delete(key);
   const hadCreatorMission = pendingCreatorMissions.delete(key);
   const hadMissionCancel = pendingMissionCancelConfirmations.delete(key);
-  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel;
+  const hadRevokeAll = pendingRevokeAllRuns.delete(key);
+  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel || hadRevokeAll;
 }
 
 function missionCancelConfirmationKey(ctx: any): string {
@@ -4903,6 +4915,11 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isRevokeAllGoal(goal: string): boolean {
+  return /\b(revoke-?all|revoke\s+all)\b/i.test(goal) ||
+    /\bspark\s+security\s+revoke\b/i.test(goal);
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -4922,6 +4939,24 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    if (isRevokeAllGoal(goal)) {
+      const key = `${ctx.chat.id}-${ctx.from.id}`;
+      pendingRevokeAllRuns.set(key, { goal, providers, timestamp: Date.now() });
+      await ctx.reply(
+        [
+          'spark security revoke-all is a high-agency, irreversible operation.',
+          '',
+          'Blast radius: all provider credentials, OAuth sessions, and active pairings will be revoked. Every AI provider (Claude, Codex, MiniMax, Z.AI) will require re-authentication before any mission can run.',
+          '',
+          'To inspect what would be revoked without acting, run spark security audit instead.',
+          '',
+          `Goal: "${goal}"`,
+          '',
+          'Reply "yes" to confirm and run it, or anything else to cancel.'
+        ].join('\n')
+      );
+      return;
+    }
     await handleRunCommand(ctx, goal, providers, undefined, { allowBuildIntent: variant.name === 'run' });
   });
 }
@@ -6367,6 +6402,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const pendingClarification = pendingClarificationForMessage(pendingExecutionKey, text);
 
     if (await handlePendingMissionCancelConfirmation(ctx, text)) {
+      return;
+    }
+
+    const pendingRevokeAll = pendingRevokeAllRuns.get(pendingExecutionKey);
+    if (pendingRevokeAll) {
+      if (Date.now() - pendingRevokeAll.timestamp > CLARIFICATION_TTL_MS) {
+        pendingRevokeAllRuns.delete(pendingExecutionKey);
+        await ctx.reply('Confirmation window expired. Send the /run command again to restart.');
+        return;
+      }
+      pendingRevokeAllRuns.delete(pendingExecutionKey);
+      if (/^(?:yes|confirm|go|y)$/i.test(text.trim())) {
+        await handleRunCommand(ctx, pendingRevokeAll.goal, pendingRevokeAll.providers);
+      } else {
+        await ctx.reply('Cancelled. No credentials were revoked.');
+      }
       return;
     }
 
