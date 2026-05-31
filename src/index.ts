@@ -2501,7 +2501,15 @@ async function handleMemoryMovementCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readMemoryMovementSummary();
+    const requestId = opaqueTelegramRequestId('tg-memory-movement');
+    const traceRef = telegramRunTraceRef(requestId);
     await ctx.reply(renderMemoryMovementSummary(summary));
+    recordCommandReplyDelivery({
+      command: 'memory_movement',
+      replyKind: 'memory_movement_reply',
+      requestId,
+      traceRef
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
