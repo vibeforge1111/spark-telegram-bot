@@ -59,6 +59,7 @@ import {
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
+  isSuspiciousProofLinkSafetyQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderSuspiciousProofLinkSafetyReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -392,6 +394,24 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_on_kanban'
   );
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
+});
+
+test('keeps suspicious proof file links out of Spawner preview routing', () => {
+  const prompt = 'Someone sent me a suspicious file link as proof for a Spark Compete bug. Should I download it and attach it to the PR? Explain the safest evidence alternatives. Do not open unknown downloads, do not ask for cookies, login codes, raw logs, tokens, .env files, private paths, chat IDs, or private Telegram data.';
+
+  assert.equal(isSuspiciousProofLinkSafetyQuestion(prompt), true);
+  assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
+  assert.equal(
+    isLocalSparkServiceRequest(
+      prompt,
+      'Completed Spawner mission spark-123. Result: Spark Run: code sth with codex.'
+    ),
+    false
+  );
+  const reply = renderSuspiciousProofLinkSafetyReply();
+  assert.match(reply, /Do not download or attach suspicious proof files/);
+  assert.match(reply, /redacted screenshot/);
+  assert.match(reply, /unknown downloads/);
 });
 
 test('detects protected mission resume pronouns after active status context', () => {

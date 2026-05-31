@@ -25,6 +25,7 @@ import {
   isLocalSparkServiceRequest,
   isMemoryDoctorRequest,
   isProjectImprovementRequest,
+  isSuspiciousProofLinkSafetyQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkSelfMemoryDiagnosticQuestion,
   isSparkWikiInventoryQuestion,
@@ -472,6 +473,20 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'cold_memory',
       matched_signals: ['user_memory_recall_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isSuspiciousProofLinkSafetyQuestion(normalized)) {
+    return decision({
+      route: 'proof.file_safety',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.safety_guidance',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['suspicious_proof_link_safety_question'],
       blocked_by: [],
       requires_confirmation: false
     });

@@ -64,6 +64,41 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
+export function isSuspiciousProofLinkSafetyQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+
+  const proofContext =
+    /\b(?:proof|evidence|spark\s+compete|pr|bug\s+report|submission)\b/.test(normalized);
+  const suspiciousFile =
+    /\b(?:suspicious|unknown|untrusted|random|external)\b.{0,40}\b(?:file|download|link|attachment|archive|zip|pdf|exe)\b/.test(normalized) ||
+    /\b(?:file|download|link|attachment|archive|zip|pdf|exe)\b.{0,40}\b(?:suspicious|unknown|untrusted|random|external)\b/.test(normalized);
+  const asksForHandling =
+    /\b(?:should|can|could|may)\s+i\s+(?:download|open|attach|include|use|trust)\b/.test(normalized) ||
+    /\b(?:download|open|attach|include|use)\b.{0,80}\b(?:pr|proof|evidence|issue|bug)\b/.test(normalized);
+  const asksForAlternatives =
+    /\b(?:safest|safe)\b.{0,40}\b(?:evidence|proof|alternatives?|path|way)\b/.test(normalized) ||
+    /\b(?:do\s+not|don't|dont)\s+open\s+unknown\s+downloads?\b/.test(normalized);
+
+  return proofContext && suspiciousFile && (asksForHandling || asksForAlternatives);
+}
+
+export function renderSuspiciousProofLinkSafetyReply(): string {
+  return [
+    'Do not download or attach suspicious proof files.',
+    '',
+    'Safest alternatives:',
+    '- Ask the sender for a redacted screenshot or short bounded text excerpt.',
+    '- Ask for exact repro steps, expected behavior, actual behavior, and the command/action used.',
+    '- Use a public GitHub link only if it is inspectable in the browser and clearly belongs to the issue.',
+    '- If the file is required, ask maintainers/lab to inspect it in a controlled environment instead of adding it to the PR.',
+    '',
+    'Do not include cookies, login codes, raw logs, tokens, .env files, private paths, chat IDs, private Telegram data, archives, binaries, unknown downloads, or shortened links.'
+  ].join('\n');
+}
+
 export function isSparkWikiStatusQuestion(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -1118,6 +1153,9 @@ function hasKnownLocalSparkSurface(text: string): boolean {
 }
 
 function isProjectLocalhostRequest(normalized: string): boolean {
+  if (isSuspiciousProofLinkSafetyQuestion(normalized)) {
+    return false;
+  }
   if (/\b(?:do\s+not|don't|dont)\s+open\s+files?\b/.test(normalized)) {
     return false;
   }
@@ -1128,6 +1166,9 @@ function isProjectLocalhostRequest(normalized: string): boolean {
 
 export function isAmbiguousLocalSparkServiceRequest(text: string, context: string = ''): boolean {
   const normalized = text.trim().toLowerCase();
+  if (isSuspiciousProofLinkSafetyQuestion(normalized)) {
+    return false;
+  }
   if (!/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized)) {
     return false;
   }
@@ -1143,6 +1184,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   }
 
   const normalized = text.trim().toLowerCase();
+  if (isSuspiciousProofLinkSafetyQuestion(normalized)) {
+    return false;
+  }
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
