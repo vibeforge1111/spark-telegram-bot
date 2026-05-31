@@ -381,8 +381,8 @@ export function inferDiagnoseLikelyIssue(args: {
   if (!args.spawnerOk) {
     return 'Likely issue: Spawner UI is unreachable, so builds and board checks will fail.';
   }
-  if (args.missionPingOk === false) {
-    return 'Likely issue: mission provider ping failed. Plain chat may work, but Spawner builds are degraded.';
+  if (args.missionPingOk !== true) {
+    return 'Likely issue: mission provider ping failed or not reached. Plain chat may work, but Spawner builds are degraded.';
   }
   return 'Likely issue: no obvious fault detected in relay, access, plain chat, or Spawner ping.';
 }
@@ -471,7 +471,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     'Health',
     `${botRelay.ok ? '🟢' : '🔴'} Relay ${botRelay.ok ? 'ready' : botRelay.err || botRelay.status || 'unreachable'}`,
     `${chatProviderPing.ok && builderBridge.available ? '🟢' : '🔴'} Chat ${chatProviderPing.ok ? 'ready' : 'degraded'}`,
-    `${spawnerProviders.ok && missionPingOk !== false ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === false ? 'degraded' : 'ready') : 'offline'}`,
+    `${spawnerProviders.ok && missionPingOk === true ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === true ? 'ready' : 'degraded') : 'offline'}`,
     `${diagnoseSubject.isAllowed ? '🟢' : '🔴'} Access ${sparkAccessLabel(accessProfile)}${diagnoseSubject.isAdmin ? ' / admin' : ''}`,
     '',
     'Issue',

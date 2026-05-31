@@ -316,3 +316,33 @@ test('infers likely diagnose issue from user-facing failure class', () => {
     /Builder bridge is required/
   );
 });
+
+test('missionPingOk=null (not checked) shows degraded, not "no obvious fault"', () => {
+  // This is the core bug: before the fix, missionPingOk !== false treated
+  // undefined/null as healthy. After fix, only === true shows ready.
+  const base = {
+    subject: { userId: 123, chatId: 456, isAdmin: true, isAllowed: true },
+    botRelayOk: true,
+    spawnerOk: true,
+    builder: { mode: 'auto' as const, available: true, builderRepo: 'repo', builderHome: 'home' },
+    chatProviderOk: true,
+  };
+
+  // null (not checked) should show degraded
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: null }),
+    /mission provider ping failed or not reached/
+  );
+
+  // true should show no obvious fault
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: true }),
+    /no obvious fault/
+  );
+
+  // false should show degraded
+  assert.match(
+    inferDiagnoseLikelyIssue({ ...base, missionPingOk: false }),
+    /mission provider ping failed/
+  );
+});
