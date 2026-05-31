@@ -1986,7 +1986,6 @@ export function isLowInformationLlmReply(reply: string): boolean {
     normalized === 'how can i help you?' ||
     normalized === "i'm here, but i couldn't generate a response right now." ||
     normalized === "i'm having trouble thinking right now. try again in a moment." ||
-    normalized.includes('working memory') ||
     normalized.includes('returned no concrete guidance') ||
     normalized.includes('access is not authorized for this channel') ||
     normalized.includes('no prior list or options to match') ||
