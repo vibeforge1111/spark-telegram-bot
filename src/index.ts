@@ -2617,7 +2617,7 @@ function aocProbeSummaryLine(routeKey: string, payload: Record<string, unknown>)
   const latency = typeof payload.route_latency_ms === 'number' ? `, ${payload.route_latency_ms}ms` : '';
   const failure = String(payload.failure_reason || '').trim();
   const summary = String(payload.probe_summary || failure || '').trim();
-  const evidence = summary ? ` - ${summary.slice(0, 110)}` : '';
+  const evidence = summary ? ` - ${summary.slice(0, 300)}` : '';
   return `- ${label}: ${status}${latency}${evidence}`;
 }
 
