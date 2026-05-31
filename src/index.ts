@@ -2279,12 +2279,19 @@ async function handleAgentBlackBoxCommand
       requestId,
       limit: 12,
     });
+    const bbRequestId = opaqueTelegramRequestId('tg-black-box');
+    const bbTraceRef = telegramRunTraceRef(bbRequestId);
     await ctx.reply(result.replyText);
+    recordCommandReplyDelivery({
+      command: 'black_box',
+      replyKind: 'black_box_reply',
+      requestId: bbRequestId,
+      traceRef: bbTraceRef
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
 }
-
 bot.command('context', handleAgentOperatingContextCommand);
 bot.command('operating_context', handleAgentOperatingContextCommand);
 bot.command('agent_context', handleAgentOperatingContextCommand);
