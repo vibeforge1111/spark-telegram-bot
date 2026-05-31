@@ -629,3 +629,30 @@ export function renderPendingTaskRecoveryReply(task: PendingTaskRecovery): strin
     'I can resume from that instead of starting from scratch.'
   ].filter(Boolean).join('\n');
 }
+// TODO(spark-compete-qa): API key stored in memory without refusal - QA 2026-05-25
+// Bug: Bot stores API keys in memory when user asks it to remember them.
+// Same root cause as password storage bug but affects API credential patterns.
+//
+// Before:
+//   User: "Remember that my API key is sk-ant-1234567890abcdef"
+//   Bot: "Saved in Telegram memory: my API key is sk-ant...cdef."
+//   (API key stored in memory with partial value shown in plain chat)
+//
+// After:
+//   User: "Remember that my API key is sk-ant-1234567890abcdef"
+//   Bot: "I cannot store API keys or credentials in memory.
+//        API keys should be stored in your .env file or a password manager.
+//        Never share API keys in chat — they can be compromised."
+//   (refused, user warned, safe storage suggested)
+//
+// Fix needed in conversation memory handler:
+//   1. Detect API key patterns before storing to memory
+//   2. Refuse storage and warn user immediately
+//   3. Never confirm storage of any API key or credential
+//   4. Suggest .env file or password manager as safe alternative
+//
+// Patterns to detect before memory write:
+//   /\bsk-ant-[a-zA-Z0-9]+/gi -> refuse and warn (Anthropic API key)
+//   /\bsk-[a-zA-Z0-9]{20,}/gi -> refuse and warn (OpenAI-style key)
+//   /\bapi[_\s-]?key\s+is\s+\S+/gi -> refuse and warn
+//   /\b[a-zA-Z0-9]{32,}\b(?=.*api)/gi -> refuse and warn
