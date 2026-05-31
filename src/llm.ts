@@ -852,7 +852,7 @@ export const llm = {
         { timeout: 30000 }
       );
 
-      return res.data.response.trim();
+      return (res.data.response || '').trim();
     } catch (err: any) {
       console.error('LLM error:', {
         provider: resolveChatProviderConfig().provider,
