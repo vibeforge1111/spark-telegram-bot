@@ -312,7 +312,9 @@ function renderTelegramError(prefix: string, error: unknown): string {
 }
 
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
-  const resolvedCommand = resolveWindowsCommand('spark');
+  const sparkBin = process.platform !== 'win32' ? (process.env.SPARK_BIN || require('node:path').join(require('node:os').homedir(), '.spark', 'bin', 'spark')) : 'spark';
+  const resolvedCommand = process.platform !== 'win32' ? '/data/data/com.termux/files/usr/bin/bash' : resolveWindowsCommand(sparkBin);
+  const commandArgs2 = process.platform !== 'win32' ? [sparkBin, ...args] : args;
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
     ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolvedCommand, args)]
     : process.platform === 'win32' && /\.ps1$/i.test(resolvedCommand)
@@ -320,7 +322,7 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
       : [resolvedCommand, args];
   const { stdout, stderr } = await execFileAsync(
     command,
-    commandArgs,
+    process.platform !== 'win32' ? [sparkBin, ...args] : commandArgs,
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
