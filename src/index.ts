@@ -848,7 +848,12 @@ async function readSparkAccessState(): Promise<{
   workspaceWritable: unknown;
 }> {
   const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
-  const payload = JSON.parse(rawStatus) as Record<string, unknown>;
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(rawStatus) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(`Failed to parse access status JSON: ${err}`);
+  }
   const level5 = objectRecord(payload.level5);
   const stateMachine = objectRecord(payload.state_machine);
   const workspacePreflight = objectRecord(payload.workspace_preflight);
