@@ -2242,13 +2242,21 @@ async function handleAgentOperatingContextCommand(ctx: any): Promise<void> {
         : Promise.resolve({ used: false, contextText: '', sourceCount: 0, bridgeMode: 'not_requested' }),
     ]);
     const memorySummary = memoryQuery ? formatMemoryInPlaySummary(memoryInPlay) : '';
+    const requestId = opaqueTelegramRequestId('tg-context');
+    const traceRef = telegramRunTraceRef(requestId);
     await ctx.reply([result.replyText, memorySummary].filter(Boolean).join('\n\n'));
+    recordCommandReplyDelivery({
+      command: 'context',
+      replyKind: 'context_reply',
+      requestId,
+      traceRef
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
 }
 
-async function handleAgentBlackBoxCommand(ctx: any): Promise<void> {
+async function handleAgentBlackBoxCommand
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
   try {
