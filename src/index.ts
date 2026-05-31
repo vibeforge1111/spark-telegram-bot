@@ -2490,7 +2490,15 @@ async function handleTraceRepairCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readTraceRepairSummary();
+    const requestId = opaqueTelegramRequestId('tg-trace-repair');
+    const traceRef = telegramRunTraceRef(requestId);
     await ctx.reply(renderTraceRepairSummary(summary));
+    recordCommandReplyDelivery({
+      command: 'trace_repair',
+      replyKind: 'trace_repair_reply',
+      requestId,
+      traceRef
+    });
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
