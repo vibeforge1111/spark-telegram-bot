@@ -26,7 +26,7 @@ async function responseBuffer(response: Response): Promise<Buffer> {
 
 export async function buildVoiceBridgeUpdate(
   ctx: any,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch
 ): Promise<Record<string, unknown>> {
   const update = objectValue(ctx?.update) || {};
   const message = objectValue(update.message);

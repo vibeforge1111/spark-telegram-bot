@@ -44,7 +44,7 @@ test('validates relay runtime without exposing secrets', async () => {
     { status: 200, headers: { 'content-type': 'application/json' } }
   );
 
-  const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
+  const detail = await validateRelayRuntime(fetchImpl as unknown as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
 
   assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
 });
@@ -56,7 +56,7 @@ test('rejects relay runtime before Telegram polling is active', async () => {
   );
 
   await assert.rejects(
-    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    () => validateRelayRuntime(fetchImpl as unknown as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
     /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling is starting/
   );
 });
@@ -68,7 +68,7 @@ test('rejects stale relay runtime without Telegram polling status', async () => 
   );
 
   await assert.rejects(
-    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    () => validateRelayRuntime(fetchImpl as unknown as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
     /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: Telegram polling status is missing/
   );
 });
@@ -77,7 +77,7 @@ test('explains unreachable relay runtime', async () => {
   const fetchImpl = async () => new Response('missing', { status: 503 });
 
   await assert.rejects(
-    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    () => validateRelayRuntime(fetchImpl as unknown as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
     /Telegram relay runtime is not reachable at http:\/\/127\.0\.0\.1:8789\/health: HTTP 503/
   );
 });

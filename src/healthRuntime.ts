@@ -15,7 +15,7 @@ export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export async function validateRelayRuntime(
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
   const url = relayHealthUrl(env);

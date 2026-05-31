@@ -1308,7 +1308,7 @@ void (async () => {
   await asyncTest('rejects unreachable preview links before Telegram completion handoff', async () => {
     const originalFetch = globalThis.fetch;
     try {
-      globalThis.fetch = (async () => new Response('missing', { status: 404 })) as typeof fetch;
+      globalThis.fetch = (async () => new Response('missing', { status: 404 })) as unknown as typeof fetch;
 
       const link = await resolveReadyProjectOpenLinkForTests(
         'http://127.0.0.1:3333/preview/default/index.html',
