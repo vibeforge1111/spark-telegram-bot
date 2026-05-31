@@ -32,8 +32,7 @@ export async function validateRelayRuntime(
       runtime?: {
         telegramPolling?: string;
         pollingActive?: boolean;
-        lastUpdateProcessedAt?: string | null;
-        updatesProcessed?: number;
+        telegramUpdatesObserved?: boolean;
       };
     };
     const pollingState = payload.runtime?.telegramPolling;
@@ -46,13 +45,10 @@ export async function validateRelayRuntime(
     const profile = payload.relay?.profile || telegramRelayIdentityFromEnv(env).profile;
     const port = payload.relay?.port || new URL(url).port;
     const polling = ` polling=${pollingState}`;
-    const updates = typeof payload.runtime?.updatesProcessed === 'number'
-      ? ` updates=${payload.runtime.updatesProcessed}`
+    const updatesObserved = typeof payload.runtime?.telegramUpdatesObserved === 'boolean'
+      ? ` updates_observed=${payload.runtime.telegramUpdatesObserved ? 'yes' : 'no'}`
       : '';
-    const lastUpdate = payload.runtime?.lastUpdateProcessedAt
-      ? ` last_update=${payload.runtime.lastUpdateProcessedAt}`
-      : '';
-    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling}${updates}${lastUpdate}`;
+    return `${profile}@${port}${payload.pid ? ` pid=${payload.pid}` : ''}${polling}${updatesObserved}`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Telegram relay runtime is not reachable at ${url}: ${message}`);

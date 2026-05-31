@@ -51,8 +51,7 @@ export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled
 export interface MissionRelayRuntimeStatus {
   telegramPolling?: MissionRelayTelegramPollingState;
   pollingStartedAt?: string | null;
-  lastUpdateProcessedAt?: string | null;
-  updatesProcessed?: number;
+  telegramUpdatesObserved?: boolean;
 }
 
 export interface MissionRelayHealthPayload extends Record<string, unknown> {
@@ -2194,11 +2193,10 @@ export function setMissionRelayRuntimeStatus(status: MissionRelayRuntimeStatus):
   relayRuntimeStatus = { ...status };
 }
 
-export function recordMissionRelayTelegramUpdate(now = new Date()): void {
+export function recordMissionRelayTelegramUpdate(): void {
   relayRuntimeStatus = {
     ...relayRuntimeStatus,
-    lastUpdateProcessedAt: now.toISOString(),
-    updatesProcessed: (relayRuntimeStatus.updatesProcessed || 0) + 1
+    telegramUpdatesObserved: true
   };
 }
 

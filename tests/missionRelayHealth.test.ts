@@ -24,8 +24,7 @@ test('relay health is ready once Telegram polling is active', () => {
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
     pollingStartedAt: '2026-05-08T09:30:00.000Z',
-    lastUpdateProcessedAt: null,
-    updatesProcessed: 0
+    telegramUpdatesObserved: false
   });
 
   const payload = missionRelayHealthPayload();
@@ -33,25 +32,24 @@ test('relay health is ready once Telegram polling is active', () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.runtime.telegramPolling, 'active');
   assert.equal(payload.runtime.pollingStartedAt, '2026-05-08T09:30:00.000Z');
-  assert.equal(payload.runtime.lastUpdateProcessedAt, null);
-  assert.equal(payload.runtime.updatesProcessed, 0);
+  assert.equal(payload.runtime.telegramUpdatesObserved, false);
 });
 
-test('relay health records Telegram update processing', () => {
+test('relay health records Telegram update observation without exposing timing or volume', () => {
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
     pollingStartedAt: '2026-05-08T09:30:00.000Z',
-    lastUpdateProcessedAt: null,
-    updatesProcessed: 0
+    telegramUpdatesObserved: false
   });
 
-  recordMissionRelayTelegramUpdate(new Date('2026-05-08T09:31:00.000Z'));
-  recordMissionRelayTelegramUpdate(new Date('2026-05-08T09:32:00.000Z'));
+  recordMissionRelayTelegramUpdate();
+  recordMissionRelayTelegramUpdate();
   const payload = missionRelayHealthPayload();
 
   assert.equal(payload.ok, true);
-  assert.equal(payload.runtime.lastUpdateProcessedAt, '2026-05-08T09:32:00.000Z');
-  assert.equal(payload.runtime.updatesProcessed, 2);
+  assert.equal(payload.runtime.telegramUpdatesObserved, true);
+  assert.equal('lastUpdateProcessedAt' in payload.runtime, false);
+  assert.equal('updatesProcessed' in payload.runtime, false);
 });
 
 test('relay health stays ready for smoke mode without Telegram polling', () => {
