@@ -2226,7 +2226,7 @@ export function buildRecursiveArtifactBridgeArgs(
 
 function truncate(value: string, limit: number): string {
   const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
-  return clean.length <= limit ? clean : `${clean.slice(0, limit - 1).trim()}...`;
+  return clean.length <= limit ? clean : `${clean.slice(0, limit - 3).trim()}...`;
 }
 
 function formatBestSignal(value: string): string {
@@ -2294,7 +2294,7 @@ function sentenceCaseFirst(value: string): string {
 function truncateAtWord(value: string, limit: number): string {
   const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
   if (clean.length <= limit) return clean;
-  const clipped = clean.slice(0, limit - 1);
+  const clipped = clean.slice(0, limit - 3);
   const lastSpace = clipped.lastIndexOf(' ');
   const prefix = lastSpace > Math.floor(limit * 0.6) ? clipped.slice(0, lastSpace) : clipped;
   return `${prefix.trim()}...`;
