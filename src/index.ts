@@ -4165,6 +4165,10 @@ function rememberLatestCanvasPlan(chatId: string | number, userId: string | numb
     readyCanvasUrl: input.readyCanvasUrl,
     recordedAt: new Date().toISOString()
   });
+  if (latestCanvasPlans.size > 200) {
+    const oldest = latestCanvasPlans.keys().next().value;
+    if (oldest !== undefined) latestCanvasPlans.delete(oldest);
+  }
 }
 
 function spawnerUiStatePath(filename: string): string {
@@ -5921,6 +5925,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       };
       const key = noEditProbeKey(ctx);
       lastNoEditProbeMissions.set(key, probeMission);
+      if (lastNoEditProbeMissions.size > 200) {
+        const oldest = lastNoEditProbeMissions.keys().next().value;
+        if (oldest !== undefined) lastNoEditProbeMissions.delete(oldest);
+      }
       await storeNoEditProbeMission(key, probeMission).catch((error) => {
         const detail = error instanceof Error ? error.message : String(error);
         console.warn(`[NoEditProbe] failed to persist mission ${missionId}: ${redactText(detail)}`);
