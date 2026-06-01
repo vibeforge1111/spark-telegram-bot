@@ -693,7 +693,12 @@ async function readOpenAiCompatChatStream(stream: unknown, onProgress?: ChatProg
 
       const payload = line.slice('data:'.length).trim();
       if (!payload || payload === '[DONE]') continue;
-      const parsed = JSON.parse(payload) as OpenAiCompatStreamChunk;
+      let parsed: OpenAiCompatStreamChunk;
+      try {
+        parsed = JSON.parse(payload) as OpenAiCompatStreamChunk;
+      } catch {
+        continue;
+      }
       const delta = parsed.choices?.[0]?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (typeof delta?.reasoning_content === 'string') reasoningContent += delta.reasoning_content;
@@ -720,7 +725,12 @@ async function readOllamaChatStream(stream: unknown, onProgress?: ChatProgressCa
       newlineIndex = buffer.indexOf('\n');
       if (!line) continue;
 
-      const parsed = JSON.parse(line) as OllamaStreamChunk;
+      let parsed: OllamaStreamChunk;
+      try {
+        parsed = JSON.parse(line) as OllamaStreamChunk;
+      } catch {
+        continue;
+      }
       if (typeof parsed.response === 'string') {
         content += parsed.response;
         await emitChatProgress(onProgress, content);
