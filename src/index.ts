@@ -5722,6 +5722,15 @@ bot.command('mission', async (ctx) => {
 
   const args = ctx.message.text.replace('/mission', '').trim().split(/\s+/).filter(Boolean);
   if (args.length < 2) {
+    if (args[0] === 'status') {
+      const latestId = await spawner.latestMissionId();
+      if (latestId) {
+        return ctx.reply(
+          `Usage: /mission status <missionId>\n\nLatest mission on the board: ${latestId}\nExample: /mission status ${latestId}`
+        );
+      }
+      return ctx.reply('Usage: /mission status <missionId>\n\nNo missions found on the board yet. Run /board to check.');
+    }
     return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
   }
 
