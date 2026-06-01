@@ -3,7 +3,9 @@ import { redactText } from './redaction';
 const DEFAULT_VOICE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
 function voiceDownloadMaxBytes(): number {
-  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES || '', 10);
+  const raw = (process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES ?? '').trim();
+  if (!/^\d+$/.test(raw)) return DEFAULT_VOICE_DOWNLOAD_MAX_BYTES;
+  const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_VOICE_DOWNLOAD_MAX_BYTES;
 }
 
