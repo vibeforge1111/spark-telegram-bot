@@ -16,7 +16,14 @@ const GENERIC_TOKEN_PATTERNS = [
   /\bnpm_[A-Za-z0-9]{20,}\b/g,
   /\bpypi-[A-Za-z0-9_-]{20,}\b/g,
   /\bdop_v1_[A-Za-z0-9_-]{20,}\b/g,
-  /\bsscli_[A-Za-z0-9._-]{20,}\b/g,
+  /\bsscli_[A-Za-z0-9._-]{20,}\b/g,  // Z.AI / GLM keys (Spark-supported provider via SPARK_ZAI_API_KEY)
+  /\bglm-[A-Za-z0-9._-]{20,}\b/g,
+  // MiniMax API keys (Spark-supported provider via SPARK_MINIMAX_API_KEY)
+  /\beyJ[A-Za-z0-9_-]{40,}\b/g,
+  // OpenAI-compatible custom provider keys: freemodel.dev (fe_oa_) and similar
+  /\bfe_oa_[A-Za-z0-9]{20,}\b/g,
+  // Generic prefixed secrets: catches custom provider key formats
+  /\b[A-Za-z]{2,8}_[A-Za-z0-9]{2,8}_[A-Za-z0-9]{30,}\b/g,
 ];
 const ENV_SECRET_ASSIGNMENT =
   /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*)(["']?)([^\s"',;]+)/gi;
