@@ -4907,6 +4907,80 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isBugReportRequest(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (isDuplicateCheckRequest(text)) return false;
+  return (
+    /\b(?:found|noticed|discovered|spotted|hit|ran\s+into|ran\s+across)\b.{0,40}\bbug\b/.test(n) ||
+    /\bbug\b.{0,40}\b(?:found|noticed|discovered|spotted)\b/.test(n) ||
+    /\bhow\b.{0,20}\b(?:do\s+i|to)\b.{0,20}\breport\b.{0,20}\bbug\b/.test(n) ||
+    /\breport\b.{0,20}\b(?:a\s+)?bug\b/.test(n) ||
+    (/\bi\s+(?:want|need)\s+to\s+(?:report|file|submit)\b/.test(n) && /\bbug\b/.test(n))
+  );
+}
+
+export function isDuplicateCheckRequest(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  return (
+    /\bhas\s+(?:anyone|someone|this)\b.{0,40}\b(?:reported|filed|submitted|opened)\b/.test(n) ||
+    /\balready\s+(?:reported|filed|submitted|opened)\b/.test(n) ||
+    /\bduplicate\b.{0,40}\bbug\b/.test(n) ||
+    /\bbug\b.{0,40}\bduplicate\b/.test(n) ||
+    /\bexisting\s+(?:issue|report|ticket|bug)\b/.test(n) ||
+    /\b(?:is\s+there\s+(?:an?|already)\s+(?:an?\s+)?(?:issue|report|ticket)|anyone\s+(?:else\s+)?(?:seen|hit|found)\s+this)\b/.test(n)
+  );
+}
+
+export function extractBugFingerprint(text: string): string {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const stopWords = new Set(['a', 'an', 'the', 'this', 'that', 'is', 'are', 'was', 'has', 'have', 'i', 'it', 'in', 'on', 'at', 'to', 'of', 'for', 'and', 'or', 'not', 'no', 'my', 'we', 'you', 'do', 'did', 'be', 'bug', 'issue', 'anyone', 'already', 'reported', 'found', 'how', 'report']);
+  const words = n.replace(/[^a-z0-9\s-]/g, '').split(' ').filter(w => w.length > 2 && !stopWords.has(w));
+  return words.slice(0, 6).join(' ') || 'unknown bug';
+}
+
+export function renderBugReportFlowGuidance(): string {
+  return [
+    'Before filing a new issue, check for existing reports:',
+    '',
+    '1. Generate a fingerprint for your bug:',
+    '   Affected area + symptom + trigger (e.g. "schedule delete ownership check missing")',
+    '',
+    '2. Search existing issues:',
+    '   gh issue list --search "<your fingerprint>" --repo vibeforge1111/spark-telegram-bot',
+    '',
+    '3. If a duplicate is found:',
+    '   Comment on the existing issue with your repro details -- the first complete packet gets credit.',
+    '',
+    '4. If no duplicate:',
+    '   File a structured report with:',
+    '   - One-line description',
+    '   - Repro steps (numbered)',
+    '   - Expected behavior',
+    '   - Actual behavior',
+    '   - Safe redacted proof (never paste raw logs, tokens, or private paths)',
+    '',
+    "What's your one-line bug description? I'll generate a fingerprint and run the duplicate search.",
+  ].join('\n');
+}
+
+export function renderDuplicateCheckGuidance(text: string): string {
+  const fingerprint = extractBugFingerprint(text);
+  return [
+    `Searching for existing reports matching: "${fingerprint}"`,
+    '',
+    'Run this to check for duplicates:',
+    `  gh issue list --search "${fingerprint}" --repo vibeforge1111/spark-telegram-bot`,
+    '',
+    'Also check pull requests (fixes may already be merged):',
+    `  gh pr list --search "${fingerprint}" --repo vibeforge1111/spark-telegram-bot --state all`,
+    '',
+    'If a match is found: comment on the existing issue with your repro details.',
+    'If no match: describe the bug and I will guide you through a structured report.',
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6081,6 +6155,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isDuplicateCheckRequest(text) && deterministicRouteAllowed('bugs.duplicate_check', text)) {
+    const reply = renderDuplicateCheckGuidance(text);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'bugs.duplicate_check', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isBugReportRequest(text) && deterministicRouteAllowed('bugs.report_flow', text)) {
+    const reply = renderBugReportFlowGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'bugs.report_flow', 'spark-telegram-bot', 'plain_chat.qa_plan');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
