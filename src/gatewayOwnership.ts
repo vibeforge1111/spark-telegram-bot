@@ -129,14 +129,18 @@ export async function releaseGatewayOwnership(): Promise<void> {
     leaseHeartbeat = null;
   }
 
-  if (leasePath && existsSync(leasePath)) {
+  // Save leasePath before nulling it, so we can still delete the file.
+  // Null activeLease BEFORE file ops to prevent in-flight heartbeat callbacks
+  // from recreating the lease file after we delete it (race condition fix).
+  const pathToDelete = leasePath;
+  activeLease = null;
+  leasePath = null;
+
+  if (pathToDelete && existsSync(pathToDelete)) {
     try {
-      await unlink(leasePath);
+      await unlink(pathToDelete);
     } catch (error) {
       console.warn('[GatewayOwnership] Failed to remove lease:', error);
     }
   }
-
-  activeLease = null;
-  leasePath = null;
 }
