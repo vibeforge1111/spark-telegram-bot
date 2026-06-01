@@ -268,7 +268,11 @@ async function loadBuilderAttachmentSnapshot(config: PathLoopConfig): Promise<an
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
     maxBuffer: 10 * 1024 * 1024,
   }));
-  return JSON.parse(stdout);
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return {};
+  }
 }
 
 export async function resolveRecursiveStartTarget(targetKey: string): Promise<RecursiveStartTarget> {
@@ -357,7 +361,12 @@ function parseLabeledLine(stdout: string, label: string): string | null {
 
 async function readJsonObject(filePath: string | null): Promise<Record<string, any> | null> {
   if (!filePath || !existsSync(filePath)) return null;
-  const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+  let parsed: any;
+  try {
+    parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+  } catch {
+    return null;
+  }
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
 }
 
@@ -604,7 +613,12 @@ export async function readSpecializationPathLoopStatus(
       env,
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      return { ok: false, pathKey, error: 'Invalid JSON returned from workspace' };
+    }
     return {
       ok: true,
       ...(parsed && typeof parsed === 'object' ? parsed : {}),
@@ -675,7 +689,12 @@ export async function packageSpecializationPathLoop(
       env,
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      return { ok: false, pathKey, error: 'Invalid JSON returned from workspace' };
+    }
     return {
       ok: Boolean(parsed?.ok),
       ...(parsed && typeof parsed === 'object' ? parsed : {}),

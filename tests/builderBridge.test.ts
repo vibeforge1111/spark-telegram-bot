@@ -20,6 +20,7 @@ import {
   formatWikiQueryReply,
   formatWikiStatusReply,
   resolveBuilderRepoPath,
+  safeJsonParse,
   sanitizeRouteConfidenceRouteContext
 } from '../src/builderBridge';
 
@@ -1013,4 +1014,44 @@ test('formats wiki improvement promotions with evidence boundary', () => {
   assert.match(reply, /telegram:123:456/);
   assert.match(reply, /supporting_not_authoritative/);
   assert.match(reply, /not live runtime truth/);
+});
+
+test('safeJsonParse returns parsed JSON for valid input', () => {
+  const result = safeJsonParse('{"key": "value"}');
+  assert.deepStrictEqual(result, { key: 'value' });
+});
+
+test('safeJsonParse returns empty object on malformed input without fallback', () => {
+  const result = safeJsonParse('not json');
+  assert.deepStrictEqual(result, {});
+});
+
+test('safeJsonParse returns fallback value on malformed input', () => {
+  const result = safeJsonParse('not json', { fallback: true });
+  assert.deepStrictEqual(result, { fallback: true });
+});
+
+test('safeJsonParse handles null text as empty object', () => {
+  const result = safeJsonParse(null as any);
+  assert.deepStrictEqual(result, {});
+});
+
+test('safeJsonParse handles empty string as empty object', () => {
+  const result = safeJsonParse('');
+  assert.deepStrictEqual(result, {});
+});
+
+test('safeJsonParse handles arrays', () => {
+  const result = safeJsonParse('[1, 2, 3]');
+  assert.deepStrictEqual(result, [1, 2, 3]);
+});
+
+test('safeJsonParse returns fallback array on malformed input', () => {
+  const result = safeJsonParse('bad', []);
+  assert.deepStrictEqual(result, []);
+});
+
+test('safeJsonParse handles undefined text gracefully', () => {
+  const result = safeJsonParse(undefined as any);
+  assert.deepStrictEqual(result, {});
 });
