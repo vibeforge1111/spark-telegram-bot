@@ -1160,7 +1160,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1214,7 +1214,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1269,7 +1269,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1312,7 +1312,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1356,7 +1356,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        error: err.response?.data?.error || err.message
+        error: err?.response?.data?.error || err?.message
       };
     }
   },
