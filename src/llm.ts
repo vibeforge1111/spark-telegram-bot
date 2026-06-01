@@ -459,23 +459,15 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
   }
 
   try {
-    const res = await axios.post<OllamaResponse>(
-      `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
-      {
-        model: config.model,
-        prompt: 'Reply with exactly: CHAT_OK',
-        system: 'Health check. Reply with exactly CHAT_OK.',
-        stream: false,
-        options: {
-          temperature: 0,
-          num_predict: 8,
-        },
-      },
+    const tagsRes = await axios.get(
+      `${config.baseUrl.replace(/\/+$/, '')}/api/tags`,
       { timeout: timeoutMs }
     );
-    return /CHAT_OK/i.test(res.data.response || '')
-      ? { ok: true, detail: 'completion ok' }
-      : { ok: false, detail: 'unexpected completion' };
+    const models: string[] = ((tagsRes.data as any)?.models || []).map((m: any) => m.name || '');
+    const loaded = models.some((m: string) => m.startsWith(config.model.replace(/:latest$/, '')));
+    return loaded
+      ? { ok: true, detail: 'ollama model available' }
+      : { ok: false, detail: `ollama model ${config.model} not found in local registry` };
   } catch (err: any) {
     return { ok: false, detail: err.code || err.message || 'request failed' };
   }
