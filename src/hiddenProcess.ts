@@ -12,7 +12,8 @@ export function withHiddenWindows<T extends object>(options: T): T & { windowsHi
 }
 
 export function windowsCmdShimArgs(command: string, args: string[]): string[] {
-  return ['/d', '/s', '/c', [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(' ')];
+  const joined = [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(' ');
+  return ['/d', '/s', '/c', `"${joined}"`];
 }
 
 export function windowsPowerShellShimArgs(command: string, args: string[]): string[] {
@@ -45,7 +46,7 @@ export function spawnHidden(command: string, args: string[], options: SpawnOptio
     return spawn('powershell.exe', windowsPowerShellShimArgs(resolvedCommand, args), spawnOptions);
   }
   if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)) {
-    return spawn(process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolvedCommand, args), spawnOptions);
+    return spawn(process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolvedCommand, args), { ...spawnOptions, windowsVerbatimArguments: true });
   }
   return spawn(resolvedCommand, args, spawnOptions);
 }
