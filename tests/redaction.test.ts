@@ -36,6 +36,23 @@ test('redacts common credential shapes', () => {
   assert(!redacted.includes('user:pass'));
 });
 
+test('redacts bare fe provider keys without hiding ordinary feature flags', () => {
+  const openAiFederatedKey = `fe_oa_${'A'.repeat(24)}`;
+  const bringKey = `fe_bri_${'B'.repeat(24)}`;
+  const mcpKey = `fe_mcp_${'C'.repeat(24)}`;
+  const redacted = redactText([
+    `provider key ${openAiFederatedKey}`,
+    `bring key ${bringKey}`,
+    `mcp key ${mcpKey}`,
+    'feature_flag_enabled=true',
+  ].join('\n'));
+
+  assert(!redacted.includes(openAiFederatedKey));
+  assert(!redacted.includes(bringKey));
+  assert(!redacted.includes(mcpKey));
+  assert(redacted.includes('feature_flag_enabled=true'));
+});
+
 test('redacts private key blocks', () => {
   const begin = '-----BEGIN ' + 'PRIVATE KEY-----';
   const end = '-----END ' + 'PRIVATE KEY-----';
