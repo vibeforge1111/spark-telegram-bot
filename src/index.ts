@@ -1778,6 +1778,11 @@ const mapCleanupTimer = setInterval(() => {
       pendingMissionCancelConfirmations.delete(key);
     }
   }
+  for (const [key, entry] of pendingCreatorMissions) {
+    if (now - entry.timestamp > CLARIFICATION_TTL_MS) {
+      pendingCreatorMissions.delete(key);
+    }
+  }
 }, MAP_CLEANUP_INTERVAL_MS);
 mapCleanupTimer.unref?.();
 
