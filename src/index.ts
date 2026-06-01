@@ -203,6 +203,7 @@ import {
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  isRuntimeReadinessComparisonQuestion,
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
@@ -655,6 +656,50 @@ async function renderAuthoritativeSparkLiveStateAnswer(
       'This is a probe failure, not proof that Spawner or Telegram are down.'
     ].join('\n');
   }
+}
+
+async function renderRuntimeReadinessComparisonAnswer(): Promise<string> {
+  const [liveStatusResult, deepVerifyResult, cliStatusResult] = await Promise.allSettled([
+    runSparkCli(['live', 'status'], 45_000),
+    runSparkCli(['verify', '--deep'], 90_000),
+    runSparkCli(['status'], 45_000)
+  ]);
+  const liveStatus = liveStatusResult.status === 'fulfilled' ? liveStatusResult.value : '';
+  const deepVerify = deepVerifyResult.status === 'fulfilled' ? deepVerifyResult.value : '';
+  const summary = parseSparkLiveSummary(
+    liveStatus || '',
+    deepVerify || ''
+  );
+  const liveOk = liveStatusResult.status === 'fulfilled' && summary.liveReady;
+  const telegramOk = liveStatusResult.status === 'fulfilled' && summary.telegramOk;
+  const cliOk = cliStatusResult.status === 'fulfilled';
+  const cliFailure = cliStatusResult.status === 'rejected'
+    ? redactText(cliStatusResult.reason instanceof Error ? cliStatusResult.reason.message : String(cliStatusResult.reason)).split(/\r?\n/)[0]?.trim()
+    : '';
+
+  return [
+    'Spark readiness comparison',
+    '',
+    'Readiness',
+    `- Spark live status: ${liveOk ? 'ready' : 'not proven ready'}.`,
+    `- Telegram readiness: ${telegramOk ? 'polling' : 'not proven polling'}.`,
+    `- Local CLI readiness from this runner: ${cliOk ? 'spark status command ran' : 'not proven'}.`,
+    '',
+    'Evidence',
+    `- Live status probe: ${liveStatusResult.status === 'fulfilled' ? (summary.liveReady ? 'ready' : 'returned, but not fully ready') : 'failed'}.`,
+    `- Telegram evidence: ${summary.telegramOk ? 'reported by spark live status as polling' : 'not confirmed by live status'}.`,
+    cliOk
+      ? '- CLI evidence: this Telegram runner could invoke `spark status`; that does not prove every user terminal has refreshed PATH.'
+      : `- CLI evidence: \`spark status\` did not complete here${cliFailure ? ` (${cliFailure})` : ''}.`,
+    '',
+    'Possible false-ready states',
+    '- Telegram can be polling while a user terminal still has stale PATH or the wrong Windows/WSL shell.',
+    '- Spark live can be ready while provider keys, builds, or voice paths still need separate checks.',
+    '- A CLI check from this runner is local evidence, not proof that another terminal session is ready.',
+    '',
+    'Safe next check',
+    '- In the same terminal the user will actually use, run `spark status`; compare that with `spark live status`, then share only the redacted top status line if they differ.'
+  ].join('\n');
 }
 
 function shouldAnswerRestartNeededQuestion(text: string): boolean {
@@ -6003,6 +6048,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       });
       await conversation.learnAboutUser(user, `Started Spawner golden-path probe mission ${missionId} from Telegram; requested exact reply: ${replyPhrase}.`).catch(() => {});
     }
+    return;
+  }
+
+  if (!earlyBuildIntent && isRuntimeReadinessComparisonQuestion(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = await renderRuntimeReadinessComparisonAnswer();
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_runtime_readiness_comparison', runtimeTruthSourceEvidence('spark live status telegram providers'));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 

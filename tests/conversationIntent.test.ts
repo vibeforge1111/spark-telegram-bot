@@ -52,6 +52,7 @@ import {
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
+  isRuntimeReadinessComparisonQuestion,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
@@ -532,6 +533,14 @@ test('does not turn product-memory mission boundary questions into workflow bug 
     ),
     false
   );
+});
+
+test('detects runtime readiness comparison questions', () => {
+  const prompt = 'Compare spark live status, Telegram readiness, and local CLI readiness. Report confusing differences or false ready states.';
+  assert.equal(isRuntimeReadinessComparisonQuestion(prompt), true);
+  assert.equal(isAccessStatusQuestion(prompt), false);
+  assert.equal(parseSpawnerBoardNaturalIntent(prompt), null);
+  assert.equal(isRuntimeReadinessComparisonQuestion('Spark is healthy right now?'), false);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {
