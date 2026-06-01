@@ -140,7 +140,7 @@ async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResu
         payload: err.response?.data
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: err?.code || err?.message };
   }
 }
 
@@ -238,7 +238,7 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
         payload: err.response?.data || {}
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: err?.code || err?.message };
   }
 }
 
@@ -288,7 +288,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
     }
     return { providerId, ok: false, error: 'timeout' };
   } catch (err: any) {
-    return { providerId, ok: false, error: err.response?.data?.error || err.message };
+    return { providerId, ok: false, error: err?.response?.data?.error || err?.message };
   }
 }
 
