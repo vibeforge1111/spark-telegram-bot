@@ -74,7 +74,11 @@ function readSparkSecretViaPythonBridge(secretId: string): string | null {
 }
 
 export function loadSparkTelegramProfileEnv(args: string[], env: NodeJS.ProcessEnv = process.env): string | null {
-  const profile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
+  const rawProfile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
+  if (!rawProfile) return null;
+  
+  // Sanitize profile to prevent path traversal
+  const profile = path.basename(rawProfile).replace(/[^a-zA-Z0-9_-]/g, '');
   if (!profile) return null;
 
   const configDir = sparkConfigModulesDir(env);
