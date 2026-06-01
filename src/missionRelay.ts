@@ -354,6 +354,15 @@ function prunePausedMissionCache(now = Date.now()): void {
   }
 }
 
+function cleanupMissionNarrationCounts(missionId: string): void {
+  const prefix = `${missionId}:`;
+  for (const key of verboseNarrationCounts.keys()) {
+    if (key.startsWith(prefix)) {
+      verboseNarrationCounts.delete(key);
+    }
+  }
+}
+
 export function markMissionRelayCancelled(missionId: string): void {
   const normalized = missionId.trim();
   if (!normalized) return;
@@ -2352,6 +2361,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
+          cleanupMissionNarrationCounts(event.missionId);
 	        const completion = completionDeliveryCache.has(event.missionId)
 	          ? null
 	          : await fetchMissionCompletionSummary(event.missionId);
