@@ -64,6 +64,96 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
+export type BeginnerWorkflowGuidanceKind =
+  | 'provider_readiness'
+  | 'non_coder_fix_verification'
+  | 'duplicate_check';
+
+export function classifyBeginnerWorkflowGuidance(text: string): BeginnerWorkflowGuidanceKind | null {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+
+  const asksProviderReadiness =
+    /\b(?:llm\s+provider|provider\s+setup|provider\s+readiness|providers?\s+(?:status|healthy|health|ready))\b/.test(normalized) &&
+    /\b(?:chat|builder|memory|mission)\b/.test(normalized) &&
+    /\b(?:beginner[-\s]*friendly|simple|what\s+should\s+i\s+run|what\s+should\s+i\s+check|run\s+or\s+check)\b/.test(normalized);
+  if (asksProviderReadiness) {
+    return 'provider_readiness';
+  }
+
+  const asksNonCoderVerification =
+    /\bnon[-\s]*coder\s+teammate\b/.test(normalized) &&
+    /\b(?:verify|verification|fixed|fix|pass\/fail|pass\s+fail|pass|fail)\b/.test(normalized) &&
+    /\b(?:copyable\s+steps|steps|safe(?:ly)?|do\s+not\s+assume\s+i\s+can\s+read\s+code)\b/.test(normalized);
+  if (asksNonCoderVerification) {
+    return 'non_coder_fix_verification';
+  }
+
+  const asksDuplicateCheck =
+    /\b(?:duplicate|same\s+bug|already\s+filed|existing\s+(?:issue|pr))\b/.test(normalized) &&
+    /\b(?:spark\s+compete|before\s+i\s+file|issue\/pr|pr|bug\s+fingerprint|search\s+checklist)\b/.test(normalized) &&
+    /\b(?:checklist|fingerprint|search)\b/.test(normalized);
+  if (asksDuplicateCheck) {
+    return 'duplicate_check';
+  }
+
+  return null;
+}
+
+export function renderBeginnerWorkflowGuidanceReply(kind: BeginnerWorkflowGuidanceKind): string {
+  if (kind === 'provider_readiness') {
+    return [
+      'Provider readiness checks',
+      '',
+      'Run or ask for these safe checks:',
+      '1. `/diagnose` in Telegram for the bot-side summary.',
+      '2. `spark providers status` locally to see which provider roles are configured.',
+      '3. `spark providers test --role chat` to test normal chat replies.',
+      '4. `spark verify --onboarding` for first-run setup health.',
+      '',
+      'Role map:',
+      '- chat: normal Telegram replies.',
+      '- builder: code/build work.',
+      '- memory: recall and saved context.',
+      '- mission: longer tracked work through Spawner/Mission Control.',
+      '',
+      'Do not paste API keys, tokens, .env files, raw config, private paths, or raw logs.'
+    ].join('\n');
+  }
+
+  if (kind === 'non_coder_fix_verification') {
+    return [
+      'Safe non-coder verification steps',
+      '',
+      '1. Open the same place where the bug happened.',
+      '2. Repeat the exact before repro steps.',
+      '3. Pass: the new expected behavior appears and the old bad reply does not.',
+      '4. Fail: the old bad reply still appears, or the app asks for secrets/raw logs.',
+      '5. Capture an after screenshot with secrets, chat IDs, tokens, private paths, and private Telegram data hidden.',
+      '6. Send the pass/fail result, exact branch/version tested, and the screenshot summary.'
+    ].join('\n');
+  }
+
+  return [
+    'Duplicate check checklist',
+    '',
+    '1. Search open PRs and issues for the exact error text or bot reply.',
+    '2. Search by command/action, feature surface, and user-facing symptom.',
+    '3. Compare whether the same workflow, same bad behavior, and same expected behavior are already covered.',
+    '4. Do not invent search results, PR numbers, issue numbers, or repo ownership.',
+    '',
+    'Bug fingerprint format:',
+    '- Surface: <Telegram / CLI / Spawner / docs>',
+    '- Trigger: <exact command or user action>',
+    '- Bad reply/error: <short redacted text>',
+    '- Expected: <one sentence>',
+    '- Proof: <before screenshot or redacted excerpt>',
+    '- Difference from related PRs: <new value or not a duplicate>'
+  ].join('\n');
+}
+
 export function isSparkWikiStatusQuestion(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -171,6 +261,9 @@ export function extractSparkWikiAnswerQuestion(text: string): string | null {
 export function extractSparkSelfImprovementGoal(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (classifyBeginnerWorkflowGuidance(normalized)) {
     return null;
   }
   if (isVoiceAnswerRequest(normalized) || isAccessSandboxRouteDesignDiscussion(normalized)) {
@@ -802,6 +895,7 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || normalized.startsWith('/')) return null;
+  if (classifyBeginnerWorkflowGuidance(normalized)) return null;
   if (/\b(?:codex\s+cli|openai\s+api\s+key|api\s+keys?|provider\s+setup|provider\s+key|provider\s+keys?|signed[-\s]?in|sign(?:ed)?\s+in|login|logged\s+in)\b/i.test(normalized) &&
       /\b(?:setup|set\s+up|configure|provider|api\s+key|key\s+missing|missing\s+key|cannot\s+find|can't\s+find|not\s+found|recovery\s+path|recover|repair|resume)\b/i.test(normalized)) {
     return null;
