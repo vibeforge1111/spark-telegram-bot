@@ -50,6 +50,7 @@ import {
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
+  isMemoryVoiceStateQuestion,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderMemoryVoiceStateReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -532,6 +534,38 @@ test('does not turn product-memory mission boundary questions into workflow bug 
     ),
     false
   );
+});
+
+test('keeps memory-quality and voice-system state requests in chat', () => {
+  const prompts = [
+    'Show a memory-quality and voice-system state. It should redact sensitive material and distinguish readiness from evidence.',
+    `Do not start a mission or open Mission Control. Just answer in chat.
+
+Show me the memory-quality state and voice-system state.
+
+Please separate:
+- readiness
+- evidence
+- unknowns
+- safe next check
+
+Redact sensitive material. Do not print raw memory, transcripts, tokens, chat IDs, logs, or private paths.`
+  ];
+
+  for (const prompt of prompts) {
+    assert.equal(isMemoryVoiceStateQuestion(prompt), true);
+    assert.equal(isSparkWorkflowBugHuntRequest(prompt), false);
+    assert.equal(isLocalSparkServiceRequest(prompt, 'diagnostic-agent work'), false);
+  }
+
+  const reply = renderMemoryVoiceStateReply(prompts[1]);
+  assert.match(reply, /Readiness/);
+  assert.match(reply, /Evidence/);
+  assert.match(reply, /Unknowns/);
+  assert.match(reply, /Safe next check/);
+  assert.match(reply, /not proven end-to-end/);
+  assert.doesNotMatch(reply, /127\.0\.0\.1:3333/);
+  assert.doesNotMatch(reply, /pid=\d+/);
 });
 
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {

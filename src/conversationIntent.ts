@@ -1143,6 +1143,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   }
 
   const normalized = text.trim().toLowerCase();
+  if (isMemoryVoiceStateQuestion(normalized)) {
+    return false;
+  }
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
@@ -1453,6 +1456,41 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 		'That sounds like route hijack: mission or build words are pulling the conversation toward execution even though the user asked to explain only.',
 		'Fresh user intent should outrank keywords, memory, stale mission state, and pending mission context.'
 	].join('\n');
+}
+
+export function isMemoryVoiceStateQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  const asksState =
+    /\b(?:show|summari[sz]e|report|state|status|readiness)\b/.test(normalized) ||
+    /\b(?:readiness|evidence|unknowns?|safe\s+next\s+check)\b/.test(normalized);
+  const memoryQuality = /\bmemory[-\s]*quality\b/.test(normalized);
+  const voiceSystem = /\bvoice[-\s]*(?:system|state|readiness|transcript|stt|speech[-\s]*to[-\s]*text|spoken\s+repl(?:y|ies))\b/.test(normalized);
+  return asksState && memoryQuality && voiceSystem;
+}
+
+export function renderMemoryVoiceStateReply(_text: string): string {
+  return [
+    'Memory-quality and voice-system state',
+    '',
+    'Readiness',
+    '- Memory quality: not proven from this chat turn alone. Treat it as checkable, not certified.',
+    '- Voice system: not proven end-to-end until speech-to-text ingress, spoken reply generation, and Telegram delivery are each tested.',
+    '',
+    'Evidence',
+    '- Safe evidence is a focused status or smoke result, not raw memory, transcripts, logs, tokens, chat IDs, or private paths.',
+    '- A voice pass needs proof of both directions: a short voice note was understood, and a spoken reply/audio bubble was delivered.',
+    '',
+    'Unknowns',
+    '- Whether recent recall is source-aware and current-state-safe.',
+    '- Whether voice transcripts stayed ephemeral or were stored only with explicit consent.',
+    '- Whether voice delivery was proven in Telegram for this run.',
+    '',
+    'Safe next check',
+    '- Run the narrow memory-quality check and voice smoke separately, then share only pass/fail plus redacted top-level status lines.'
+  ].join('\n');
 }
 
 function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
