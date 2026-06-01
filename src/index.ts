@@ -279,6 +279,9 @@ import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
 
@@ -795,7 +798,7 @@ async function renderAuthoritativeSparkAccessStatus(chatId: string | number): Pr
   const runnerLine = runnerSummary.split('\n').find((line) => /^Runner:/i.test(line)) || 'Runner: not checked yet.';
   try {
     const rawStatus = await runSparkCli(['access', 'status', '--json'], 30_000);
-    const payload = JSON.parse(rawStatus) as Record<string, unknown>;
+    const payload = tryParse(rawStatus) as Record<string, unknown>;
     const level5 = objectRecord(payload.level5);
     const stateMachine = objectRecord(payload.state_machine);
     const effective = payload.effective_access_level ?? stateMachine.effective_access_level ?? 'unknown';
@@ -850,7 +853,7 @@ async function readSparkAccessState(): Promise<{
   const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
   let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(rawStatus) as Record<string, unknown>;
+    payload = tryParse(rawStatus) as Record<string, unknown>;
   } catch (err) {
     throw new Error(`Failed to parse access status JSON: ${err}`);
   }
@@ -935,7 +938,7 @@ async function renderLevel5ActivationAnswer(chatId: string | number): Promise<st
   ]);
   try {
     const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
-    const payload = JSON.parse(rawStatus) as Record<string, unknown>;
+    const payload = tryParse(rawStatus) as Record<string, unknown>;
     const level5 = objectRecord(payload.level5);
     const stateMachine = objectRecord(payload.state_machine);
     const effective = payload.effective_access_level ?? stateMachine.effective_access_level ?? 'unknown';
@@ -1223,7 +1226,7 @@ async function buildFreshRuntimeTruthContext(text: string, chatId: string | numb
   if (signals.access) {
     try {
       const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
-      const payload = JSON.parse(rawStatus) as Record<string, unknown>;
+      const payload = tryParse(rawStatus) as Record<string, unknown>;
       const level5 = objectRecord(payload.level5);
       const stateMachine = objectRecord(payload.state_machine);
       const effective = payload.effective_access_level ?? stateMachine.effective_access_level ?? 'unknown';
@@ -1882,7 +1885,7 @@ function requireAdmin(ctx: any): boolean {
 }
 
 function buildUpdateWithText(update: Record<string, unknown>, text: string): Record<string, unknown> {
-  const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
+  const cloned = tryParse(JSON.stringify(update)) as Record<string, unknown>;
   const messagePayload = cloned.message;
   if (!messagePayload || typeof messagePayload !== 'object') {
     throw new Error('Telegram update is missing a message payload.');
@@ -5493,7 +5496,7 @@ function extractTelegramCommandArgs(text: string, command: string): string {
 async function isLevel5ServiceEnabled(): Promise<boolean> {
   try {
     const rawStatus = await runSparkCli(['access', 'status', '--level', '5', '--json'], 30_000);
-    const payload = JSON.parse(rawStatus) as Record<string, unknown>;
+    const payload = tryParse(rawStatus) as Record<string, unknown>;
     const level5 = objectRecord(payload.level5);
     const stateMachine = objectRecord(payload.state_machine);
     return level5.service_enabled === true || stateMachine.service_can_operate_whole_computer === true;

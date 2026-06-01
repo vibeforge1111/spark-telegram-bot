@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type AuthorityStatusSummary = {
   present: boolean;
   authority: string;
@@ -83,7 +86,7 @@ export function summarizeAuthorityView(payload: unknown): AuthorityStatusSummary
 export async function readAuthorityStatusSummary(viewPath = resolveAuthorityViewPath()): Promise<AuthorityStatusSummary> {
   try {
     const raw = await readFile(viewPath, 'utf-8');
-    return summarizeAuthorityView(JSON.parse(raw));
+    return summarizeAuthorityView(tryParse(raw));
   } catch (error) {
     return {
       present: false,

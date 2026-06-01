@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type MemoryMovementSummary = {
   present: boolean;
   status: string;
@@ -76,7 +79,7 @@ export function summarizeMemoryMovement(payload: unknown): MemoryMovementSummary
 export async function readMemoryMovementSummary(indexPath = resolveMemoryMovementIndexPath()): Promise<MemoryMovementSummary> {
   try {
     const raw = await readFile(indexPath, 'utf-8');
-    return summarizeMemoryMovement(JSON.parse(raw));
+    return summarizeMemoryMovement(tryParse(raw));
   } catch (error) {
     return {
       present: false,

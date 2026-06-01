@@ -8,6 +8,9 @@ import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
 import { chatCommandTimeoutMs } from './timeoutConfig';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
 const CODEX_MODEL = process.env.CODEX_MODEL || process.env.SPARK_CODEX_MODEL || 'gpt-5.5';
@@ -552,7 +555,7 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
   const candidate = fence?.[1]?.trim() || text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1).trim();
   if (!candidate || !candidate.startsWith('{')) return null;
   try {
-    const parsed = JSON.parse(candidate);
+    const parsed = tryParse(candidate);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
   } catch {
     return null;
@@ -693,7 +696,7 @@ async function readOpenAiCompatChatStream(stream: unknown, onProgress?: ChatProg
 
       const payload = line.slice('data:'.length).trim();
       if (!payload || payload === '[DONE]') continue;
-      const parsed = JSON.parse(payload) as OpenAiCompatStreamChunk;
+      const parsed = tryParse(payload) as OpenAiCompatStreamChunk;
       const delta = parsed.choices?.[0]?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (typeof delta?.reasoning_content === 'string') reasoningContent += delta.reasoning_content;
@@ -720,7 +723,7 @@ async function readOllamaChatStream(stream: unknown, onProgress?: ChatProgressCa
       newlineIndex = buffer.indexOf('\n');
       if (!line) continue;
 
-      const parsed = JSON.parse(line) as OllamaStreamChunk;
+      const parsed = tryParse(line) as OllamaStreamChunk;
       if (typeof parsed.response === 'string') {
         content += parsed.response;
         await emitChatProgress(onProgress, content);

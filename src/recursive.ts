@@ -9,6 +9,9 @@ import type { LoopResult } from './chipLoop';
 import type { PathLoopResult, SpecializationLoopInsights, SpecializationLoopPackageResult, SpecializationLoopStatus } from './pathLoop';
 import { redactText } from './redaction';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type RecursiveDecision = 'approve_local' | 'defer' | 'reject' | 'request_more_eval';
 
 export interface RecursiveCommand {
@@ -374,7 +377,7 @@ function bridgeSessionValue(key: string): string | null {
   try {
     const sessionPath = bridgeSessionFilePath();
     if (!existsSync(sessionPath)) return null;
-    const parsed = JSON.parse(readFileSync(sessionPath, 'utf-8'));
+    const parsed = tryParse(readFileSync(sessionPath, 'utf-8'));
     const value = parsed?.[key];
     return typeof value === 'string' && value.trim() ? value.trim() : null;
   } catch {
@@ -667,7 +670,7 @@ function localStatusId(chipKey: string): string {
 
 async function readLocalRecursiveStatus(filePath: string): Promise<LocalRecursiveLoopStatus | null> {
   try {
-    const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+    const parsed = tryParse(await readFile(filePath, 'utf-8'));
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const fallbackKey = path.basename(filePath).replace(/\.status\.json$/i, '');
     const chipKey = String(parsed.chip_key || parsed.chipKey || parsed.chip || parsed.key || fallbackKey).trim();
@@ -977,7 +980,7 @@ function proposalArtifactPath(payload: Record<string, any>, kind: string): strin
 function inferRecursiveProposalDefaults(input: string, payloadPath: string): RecursiveProposalDefaults {
   const defaults: RecursiveProposalDefaults = { payloadPath };
   try {
-    const payload = JSON.parse(readFileSync(payloadPath, 'utf-8'));
+    const payload = tryParse(readFileSync(payloadPath, 'utf-8'));
     const runtimeSource = payload?.runtimeSource && typeof payload.runtimeSource === 'object' ? payload.runtimeSource : {};
     const label = String(runtimeSource.chipLabel || runtimeSource.autoloopId || runtimeSource.chipKey || input || '').trim();
     if (label) defaults.title = labelFromKey(label);

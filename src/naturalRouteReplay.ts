@@ -6,6 +6,9 @@ import {
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
 import {
+
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
   createNaturalRouteExecutionRecord,
   summarizeNaturalRouteExecutionRecords,
   type NaturalRouteExecutionRecord,
@@ -84,7 +87,7 @@ export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayC
     .map((line) => line.trim())
     .map((line, index) => ({ line, lineNumber: index + 1 }))
     .filter(({ line }) => line && !line.startsWith('#'))
-    .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
+    .map(({ line, lineNumber }) => parseReplayCase(tryParse(line), lineNumber));
 }
 
 export function evaluateNaturalRouteReplayCase(testCase: NaturalRouteReplayCase): NaturalRouteReplayResult {

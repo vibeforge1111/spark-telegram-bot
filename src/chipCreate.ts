@@ -8,6 +8,9 @@ import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { buildChipCreateMissionContext, ChipCreateMissionReporter } from './missionControl';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 const execFileAsync = promisify(execFile);
 
 export interface ChipCreateResult {
@@ -42,7 +45,7 @@ export function parseChipCreateJson(stdout: string): ChipCreateResult | null {
   if (!trimmed) return null;
   let parsed: ChipCreateJsonPayload;
   try {
-    parsed = JSON.parse(trimmed) as ChipCreateJsonPayload;
+    parsed = tryParse(trimmed) as ChipCreateJsonPayload;
   } catch {
     return null;
   }

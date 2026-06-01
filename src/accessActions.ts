@@ -3,6 +3,9 @@ import { promisify } from 'node:util';
 import { spawnHidden, withHiddenWindows } from './hiddenProcess';
 import { redactText } from './redaction';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 const execFileAsync = promisify(execFile);
 
 export type SparkAccessActionId =
@@ -217,7 +220,7 @@ function parseSparkJson(stdout: string): Record<string, unknown> | null {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
   try {
-    const parsed = JSON.parse(trimmed);
+    const parsed = tryParse(trimmed);
     return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
   } catch {
     return null;

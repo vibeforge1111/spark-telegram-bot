@@ -2,6 +2,9 @@ import path from 'node:path';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { resolveProjectPreviewBaseUrl } from './spawnerUrl';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export interface ShippedProjectContext {
   chatId: string;
   userId: string;
@@ -64,7 +67,7 @@ export function projectPreviewUrlForPath(projectPath: string): string {
 
 function parseJsonObject(text: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(text);
+    const parsed = tryParse(text);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : null;

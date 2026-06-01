@@ -8,6 +8,9 @@ import { resolveStatePath } from './jsonState';
 import { naturalRouteExecutionOutcome } from './naturalRouteTelemetry';
 import { redactIdentifier } from './redaction';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type NaturalRouteExecutionDelivery = 'selected' | 'delivered' | 'failed' | 'unknown';
 
 export interface NaturalRouteExecutionRecord {
@@ -112,7 +115,7 @@ export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExe
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
+    .map((line) => tryParse(line) as NaturalRouteExecutionRecord);
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {

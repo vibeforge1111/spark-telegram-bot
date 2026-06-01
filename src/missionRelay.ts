@@ -8,6 +8,9 @@ import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
@@ -1042,7 +1045,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function parseJsonObject(text: string): Record<string, unknown> | null {
   try {
-    return asRecord(JSON.parse(text));
+    return asRecord(tryParse(text));
   } catch {
     return null;
   }
@@ -2145,7 +2148,7 @@ function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null>
 
     req.on('end', () => {
       try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as RelayWebhookPayload;
+        const parsed = tryParse(Buffer.concat(chunks).toString('utf-8')) as RelayWebhookPayload;
         resolve(parsed);
       } catch {
         resolve(null);

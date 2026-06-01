@@ -6,6 +6,9 @@ import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 const execFileAsync = promisify(execFile);
 
 export interface LoopResult {
@@ -60,7 +63,7 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    const parsed = tryParse(stdout);
     return {
       ok: Boolean(parsed.ok),
       chipKey: parsed.chip_key,

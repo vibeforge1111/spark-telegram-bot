@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type TraceRepairSummary = {
   present: boolean;
   rowCount: number;
@@ -99,7 +102,7 @@ export function summarizeTraceRepair(payload: unknown): TraceRepairSummary {
 export async function readTraceRepairSummary(tracePath = resolveTraceIndexPath()): Promise<TraceRepairSummary> {
   try {
     const raw = await readFile(tracePath, 'utf-8');
-    return summarizeTraceRepair(JSON.parse(raw));
+    return summarizeTraceRepair(tryParse(raw));
   } catch (error) {
     return {
       present: false,

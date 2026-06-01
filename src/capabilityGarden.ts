@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 export type CapabilityGardenSummary = {
   present: boolean;
   cardCount: number;
@@ -75,7 +78,7 @@ export function summarizeCapabilityCatalog(payload: unknown): CapabilityGardenSu
 export async function readCapabilityGardenSummary(catalogPath = resolveCapabilityCatalogPath()): Promise<CapabilityGardenSummary> {
   try {
     const raw = await readFile(catalogPath, 'utf-8');
-    return summarizeCapabilityCatalog(JSON.parse(raw));
+    return summarizeCapabilityCatalog(tryParse(raw));
   } catch (error) {
     return {
       present: false,

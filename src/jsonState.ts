@@ -3,6 +3,9 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 
+const tryParse = (s: string) => { try { return JSON.parse(s); } catch { return {} as any; } };
+
+
 let db: DatabaseSync | null = null;
 
 function dbPath(): string {
@@ -35,7 +38,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
       .prepare('SELECT json_value FROM gateway_state WHERE state_key = ?')
       .get(filePath) as { json_value?: string } | undefined;
     if (row?.json_value) {
-      return JSON.parse(row.json_value) as T;
+      return tryParse(row.json_value) as T;
     }
 
     if (!existsSync(filePath)) {
@@ -43,7 +46,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
     }
 
     const raw = await readFile(filePath, 'utf-8');
-    const parsed = JSON.parse(raw) as T;
+    const parsed = tryParse(raw) as T;
     await writeJsonAtomic(filePath, parsed);
     return parsed;
   } catch {
