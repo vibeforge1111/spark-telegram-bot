@@ -263,8 +263,11 @@ async function pingProvider(providerId: string): Promise<PingResult> {
       return { providerId, ok: false, error: 'no missionId' };
     }
 
-    for (let i = 0; i < 25; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    const isLocalProvider = ['ollama', 'lmstudio'].includes(providerId);
+    const maxPolls = isLocalProvider ? 60 : 25;
+    const pollInterval = isLocalProvider ? 3000 : 2000;
+    for (let i = 0; i < maxPolls; i++) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
       try {
         const res = await axios.get(`${SPAWNER_UI_URL}/api/mission-control/results`, {
           ...spawnerAxiosOptions(3000),
