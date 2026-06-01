@@ -3243,15 +3243,28 @@ function canvasPlanKey(chatId: string | number | undefined, userId: string | num
 }
 
 // Periodic cleanup of stale entries in all unbounded maps
+function entryAgeMs(now: number, isoString: string | undefined | null): number {
+  // Treat missing or unparseable timestamps as "older than any TTL" so the
+  // entry is deleted instead of leaking forever. Without this guard, a
+  // non-empty unparseable string (e.g. format drift from on-disk
+  // last-canvas-load.json at L4295) makes `now - new Date(<garbage>).getTime()`
+  // resolve to NaN, every TTL comparison evaluates false, and the entry is
+  // never cleaned up.
+  if (!isoString) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(isoString);
+  if (!Number.isFinite(parsed)) return Number.POSITIVE_INFINITY;
+  return now - parsed;
+}
+
 const mapCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of lastNoEditProbeMissions) {
-    if (now - new Date(entry.startedAt ?? 0).getTime() > LAST_NO_EDIT_PROBE_TTL_MS) {
+    if (entryAgeMs(now, entry.startedAt) > LAST_NO_EDIT_PROBE_TTL_MS) {
       lastNoEditProbeMissions.delete(key);
     }
   }
   for (const [key, entry] of latestCanvasPlans) {
-    if (now - new Date(entry.recordedAt ?? 0).getTime() > LATEST_CANVAS_PLAN_TTL_MS) {
+    if (entryAgeMs(now, entry.recordedAt) > LATEST_CANVAS_PLAN_TTL_MS) {
       latestCanvasPlans.delete(key);
     }
   }
