@@ -348,8 +348,6 @@ export function renderModelStatus(): string {
     `Agent chat: ${chat.provider}${chat.model ? ` (${chat.model})` : ''}`,
     `Missions: ${missionProvider}${missionModel ? ` (${missionModel})` : ''}`,
     '',
-    renderModelRecommendations(),
-    '',
     'Change it:',
     '/model agent zai',
     '/model agent codex',

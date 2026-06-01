@@ -36,6 +36,8 @@ test('renders a model status help surface', () => {
     const status = renderModelStatus();
     assert.match(status, /Agent chat: zai \(glm-5\.1\)/);
     assert.match(status, /Missions: codex \(gpt-5\.5\)/);
+    assert.doesNotMatch(status, /Recommended Spark provider paths/);
+    assert.doesNotMatch(status, /Choose one provider first/);
     assert.match(status, /\/model agent claude claude-sonnet-4-6/);
     assert.match(status, /\/model mission claude claude-opus-4-7/);
     assert.match(status, /\/model codex fast high/);
