@@ -4907,6 +4907,33 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isPracticeRepoInstallQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (/\bspark-personality-chip-labs\b/.test(n)) return true;
+  if (/\bpractice\s+(?:repo|fixture|module)\b/.test(n) && /\b(?:install(?:ed)?|starter|default|included|come[s]?\s+with|bundled?)\b/.test(n)) return true;
+  return (
+    /\bpractice\s+repo\b/.test(n) &&
+    /\b(?:is\s+(?:it|the)|does|installed|starter|default)\b/.test(n)
+  );
+}
+
+export function renderPracticeFixtureStatusGuidance(): string {
+  return [
+    'spark-personality-chip-labs is a known optional public practice fixture — it is NOT starter-installed by default.',
+    '',
+    'Install it separately with:',
+    '  spark install spark-personality-chip-labs',
+    '',
+    'Module distinctions:',
+    '  spark-character              — core module; handles voice and behavioral invariants',
+    '  spark-domain-chip-labs       — public creator standards repo for domain chip development',
+    '  spark-personality-chip-labs  — optional practice fixture; not bundled in a default Spark install',
+    '',
+    "To verify what's currently installed: spark status --modules",
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6081,6 +6108,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isPracticeRepoInstallQuestion(text) && deterministicRouteAllowed('modules.practice_fixture_status', text)) {
+    const reply = renderPracticeFixtureStatusGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'modules.practice_fixture_status', 'spark-telegram-bot', 'plain_chat.qa_plan');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
