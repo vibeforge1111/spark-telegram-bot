@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -897,46 +897,50 @@ export async function stageRecursiveSwarmPacket(id: string): Promise<RecursiveSw
 export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactSyncInput): Promise<RecursiveWorkspaceSyncResult> {
   const config = sparkWorkspaceBridgeHints();
   const tempDir = await mkdtemp(path.join(tmpdir(), `spark-recursive-${input.kind}-`));
-  const payloadPath = path.join(tempDir, 'collective-sync.json');
-  const python = (
-    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
-    process.env.SPARK_BUILDER_PYTHON ||
-    process.env.PYTHON ||
-    'python'
-  ).trim();
-  const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
-  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
-  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
-  if (bridgeSrc) {
-    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
-  }
-
-  const bridgeArgs = buildRecursiveArtifactBridgeArgs(input, {
-    payloadPath,
-    apiUrl: config.apiUrl,
-    workspaceId: config.workspaceId,
-    accessToken: config.accessToken
-  });
-  const { stdout } = await execFileAsync(
-    python,
-    bridgeArgs,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
+  try {
+    const payloadPath = path.join(tempDir, 'collective-sync.json');
+    const python = (
+      process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+      process.env.SPARK_BUILDER_PYTHON ||
+      process.env.PYTHON ||
+      'python'
+    ).trim();
+    const bridgeSrc = resolveSparkSwarmBridgeSrc();
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+    if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+    if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN=config...ken;
+    if (bridgeSrc) {
+      env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
     }
-  );
 
-  return {
-    synced: true,
-    pathId: parseBridgeLine(stdout, 'Path') || 'unknown',
-    outcomeId: parseBridgeLine(stdout, 'Outcome'),
-    detail: `${input.kind} artifact synced through Spark Swarm bridge.`,
-    workspaceUrl: sparkWorkspaceRecursionsUrl()
-  };
+    const bridgeArgs = buildRecursiveArtifactBridgeArgs(input, {
+      payloadPath,
+      apiUrl: config.apiUrl,
+      workspaceId: config.workspaceId,
+      accessToken: config.accessToken
+    });
+    const { stdout } = await execFileAsync(
+      python,
+      bridgeArgs,
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    );
+
+    return {
+      synced: true,
+      pathId: parseBridgeLine(stdout, 'Path') || 'unknown',
+      outcomeId: parseBridgeLine(stdout, 'Outcome'),
+      detail: `${input.kind} artifact synced through Spark Swarm bridge.`,
+      workspaceUrl: sparkWorkspaceRecursionsUrl()
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 function localProposalRoots(): string[] {
@@ -1302,70 +1306,74 @@ function parseBridgeLine(stdout: string, label: string): string | null {
 }
 
 async function syncBuilderChipLoopViaBridge(
-  result: LoopResult,
-  config: { apiUrl?: string; workspaceId?: string; accessToken?: string }
-): Promise<RecursiveWorkspaceSyncResult | null> {
-  if (process.env.SPARK_SWARM_DISABLE_BRIDGE_SYNC === '1') return null;
-  const emittedAt = new Date().toISOString();
-  const tempDir = await mkdtemp(path.join(tmpdir(), 'spark-builder-chip-'));
-  const inputPath = path.join(tempDir, 'chip-loop-result.json');
-  const payloadPath = path.join(tempDir, 'collective-sync.json');
-  await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+  async function syncBuilderChipLoopViaBridge(
+    result: LoopResult,
+    config: { apiUrl?: string; workspaceId?: string; accessToken?: string }
+  ): Promise<RecursiveWorkspaceSyncResult | null> {
+    if (process.env.SPARK_SWARM_DISABLE_BRIDGE_SYNC === '1') return null;
+    const emittedAt = new Date().toISOString();
+    const tempDir = await mkdtemp(path.join(tmpdir(), 'spark-builder-chip-'));
+    try {
+      const inputPath = path.join(tempDir, 'chip-loop-result.json');
+      const payloadPath = path.join(tempDir, 'collective-sync.json');
+      await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
 
-  const python = (
-    process.env.SPARK_SWARM_BRIDGE_PYTHON ||
-    process.env.SPARK_BUILDER_PYTHON ||
-    process.env.PYTHON ||
-    'python'
-  ).trim();
-  const bridgeSrc = resolveSparkSwarmBridgeSrc();
-  const env: NodeJS.ProcessEnv = {
-    ...process.env
-  };
-  if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
-  if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
-  if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN = config.accessToken;
-  const refreshToken = firstProcessEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES) || firstBuilderEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES);
-  const authClientKey = firstProcessEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES) || firstBuilderEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES);
-  if (refreshToken) env.SPARK_SWARM_REFRESH_TOKEN = refreshToken;
-  if (authClientKey) env.SPARK_SWARM_AUTH_CLIENT_KEY = authClientKey;
-  if (bridgeSrc) {
-    env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
-  }
+      const python = (
+        process.env.SPARK_SWARM_BRIDGE_PYTHON ||
+        process.env.SPARK_BUILDER_PYTHON ||
+        process.env.PYTHON ||
+        'python'
+      ).trim();
+      const bridgeSrc = resolveSparkSwarmBridgeSrc();
+      const env: NodeJS.ProcessEnv = {
+        ...process.env
+      };
+      if (config.apiUrl) env.SPARK_SWARM_API_URL = config.apiUrl;
+      if (config.workspaceId) env.SPARK_SWARM_WORKSPACE_ID = config.workspaceId;
+      if (config.accessToken) env.SPARK_SWARM_ACCESS_TOKEN=***    const refreshToken = firstProcessEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES) || firstBuilderEnvValue(SWARM_REFRESH_TOKEN_ENV_NAMES);
+      const authClientKey = firstProcessEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES) || firstBuilderEnvValue(SWARM_AUTH_CLIENT_KEY_ENV_NAMES);
+      if (refreshToken) env.SPARK_SWARM_REFRESH_TOKEN=***
+      if (authClientKey) env.SPARK_SWARM_AUTH_CLIENT_KEY=***
+      if (bridgeSrc) {
+        env.PYTHONPATH = env.PYTHONPATH ? `${bridgeSrc}${path.delimiter}${env.PYTHONPATH}` : bridgeSrc;
+      }
 
-  const args = [
-    '-m',
-    'spark_swarm_bridge.cli',
-    'builder-chip-loop',
-    '--input',
-    inputPath,
-    '--payload',
-    payloadPath,
-    '--sync-collective'
-  ];
-  if (config.workspaceId) args.push('--workspace-id', config.workspaceId);
-  if (config.apiUrl) args.push('--api-url', config.apiUrl);
-  if (config.accessToken) args.push('--access-token', config.accessToken);
+      const args = [
+        '-m',
+        'spark_swarm_bridge.cli',
+        'builder-chip-loop',
+        '--input',
+        inputPath,
+        '--payload',
+        payloadPath,
+        '--sync-collective'
+      ];
+      if (config.workspaceId) args.push('--workspace-id', config.workspaceId);
+      if (config.apiUrl) args.push('--api-url', config.apiUrl);
+      if (config.accessToken) args.push('--access-token', config.accessToken);
 
-  const { stdout } = await execFileAsync(
-    python,
-    args,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
+      const { stdout } = await execFileAsync(
+        python,
+        args,
+        {
+          env,
+          timeout: 30000,
+          windowsHide: true,
+          maxBuffer: 1024 * 1024
+        }
+      );
+
+      return {
+        synced: true,
+        pathId: parseBridgeLine(stdout, 'Path') || `path_builder_chip_${normalizeWorkspaceIdPart(result.chipKey || 'chip')}`,
+        outcomeId: parseBridgeLine(stdout, 'Outcome'),
+        detail: 'Builder chip loop synced through Spark Swarm bridge.',
+        workspaceUrl: sparkWorkspaceRecursionsUrl()
+      };
+    } finally {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
     }
-  );
-
-  return {
-    synced: true,
-    pathId: parseBridgeLine(stdout, 'Path') || `path_builder_chip_${normalizeWorkspaceIdPart(result.chipKey || 'chip')}`,
-    outcomeId: parseBridgeLine(stdout, 'Outcome'),
-    detail: 'Builder chip loop synced through Spark Swarm bridge.',
-    workspaceUrl: sparkWorkspaceRecursionsUrl()
-  };
-}
+  }
 
 export async function syncBuilderChipLoopToWorkspace(result: LoopResult): Promise<RecursiveWorkspaceSyncResult> {
   if (!result.ok || !result.chipKey) {
