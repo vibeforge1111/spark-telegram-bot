@@ -1737,6 +1737,11 @@ interface PendingMissionCancelConfirmation {
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const POST_INSTALL_PATH_TTL_MS = 10 * 60 * 1000; // 10 minutes
+interface PendingPostInstallPath {
+  timestamp: number;
+}
+const pendingPostInstallPaths = new Map<string, PendingPostInstallPath>();
 
 // Periodic cleanup of stale entries in all unbounded maps
 const mapCleanupTimer = setInterval(() => {
@@ -1766,6 +1771,11 @@ const mapCleanupTimer = setInterval(() => {
       pendingMissionCancelConfirmations.delete(key);
     }
   }
+  for (const [key, entry] of pendingPostInstallPaths) {
+    if (now - entry.timestamp > POST_INSTALL_PATH_TTL_MS) {
+      pendingPostInstallPaths.delete(key);
+    }
+  }
 }, MAP_CLEANUP_INTERVAL_MS);
 mapCleanupTimer.unref?.();
 
@@ -1778,7 +1788,8 @@ function clearPendingExecutionState(key: string): boolean {
   const hadDomainChip = pendingDomainChipBuilds.delete(key);
   const hadCreatorMission = pendingCreatorMissions.delete(key);
   const hadMissionCancel = pendingMissionCancelConfirmations.delete(key);
-  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel;
+  const hadPostInstall = pendingPostInstallPaths.delete(key);
+  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel || hadPostInstall;
 }
 
 function missionCancelConfirmationKey(ctx: any): string {
@@ -4903,6 +4914,46 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isPostInstallFirstRunQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n || !/\bspark\b/.test(n)) return false;
+  return /\b(?:just|finished?|done|completed?)\b.{0,30}\binstall(?:ed|ing)?\b/.test(n) ||
+    /\binstall(?:ed|ing)?\b.{0,30}\b(?:just|done|finished?|completed?)\b/.test(n) ||
+    /\bafter\s+install(?:ing)?\b/.test(n) ||
+    (/\bwhat\s+(?:should|do)\s+(?:i|we)\s+(?:do|run|try|start)\s+(?:first|next)\b/.test(n) && /\binstall\b/.test(n));
+}
+
+export function resolvePostInstallPath(text: string): 'telegram' | 'cli' | null {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/\btelegram\b/.test(n)) return 'telegram';
+  if (/\b(?:cli|local|command.?line|terminal)\b/.test(n)) return 'cli';
+  return null;
+}
+
+export function renderPostInstallClarificationQuestion(): string {
+  return [
+    'Are you setting up Spark via Telegram bot or local CLI?',
+    '',
+    '• Telegram — reply "Telegram"',
+    '• Local CLI (command line) — reply "CLI"'
+  ].join('\n');
+}
+
+export function renderPostInstallNextAction(path: 'telegram' | 'cli'): string {
+  if (path === 'telegram') {
+    return [
+      'Send /start to your bot to confirm it responds.',
+      '',
+      'Once it replies, you are connected. Next: run /spark to see system status.'
+    ].join('\n');
+  }
+  return [
+    'Run spark verify --onboarding and paste the output here.',
+    '',
+    'That will show what installed cleanly and what still needs attention.'
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -5772,6 +5823,26 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  // Resolve pending post-install path answers before any other route fires
+  const postInstallPathKey = `${ctx.chat.id}-${ctx.from.id}`;
+  const pendingPostInstall = pendingPostInstallPaths.get(postInstallPathKey);
+  if (pendingPostInstall) {
+    if (Date.now() - pendingPostInstall.timestamp > POST_INSTALL_PATH_TTL_MS) {
+      pendingPostInstallPaths.delete(postInstallPathKey);
+      await ctx.reply('That session expired. Send your question again to restart.');
+      return;
+    }
+    const resolvedPath = resolvePostInstallPath(text);
+    if (resolvedPath) {
+      pendingPostInstallPaths.delete(postInstallPathKey);
+      await ctx.reply(renderPostInstallNextAction(resolvedPath));
+      return;
+    }
+    pendingPostInstallPaths.delete(postInstallPathKey);
+    await ctx.reply(renderPostInstallClarificationQuestion());
+    return;
+  }
+
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
@@ -6073,6 +6144,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isPostInstallFirstRunQuestion(text) && deterministicRouteAllowed('onboarding.first_run', text)) {
+    const key = `${ctx.chat.id}-${ctx.from.id}`;
+    pendingPostInstallPaths.set(key, { timestamp: Date.now() });
+    const reply = renderPostInstallClarificationQuestion();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'onboarding.first_run', 'spark-telegram-bot', 'plain_chat.onboarding');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
