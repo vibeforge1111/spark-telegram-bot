@@ -293,3 +293,38 @@ export function shouldUseRouteArbiter(
   }
   return verdict.reason === 'plain_chat_protected' || verdict.reason === 'route_evidence_sufficient';
 }
+// TODO(spark-compete-qa): False positive security filter blocks legitimate questions - QA 2026-05-26
+// Bug: Bot refuses legitimate collaboration and workspace questions claiming
+// they contain "sensitive material" when they contain no sensitive data at all.
+//
+// Before:
+//   User: "What happens if I share my Spark workspace with someone else?"
+//   Bot: "I held off on that one. There was sensitive material in the request
+//        that I'd rather not send out. Pull the secret bits and ask me again."
+//
+//   User: "Can another person use my Spark setup if I give them access?"
+//   Bot: "I held off on that one. There was sensitive material in the request
+//        that I'd rather not send out. Pull the secret bits and ask me again."
+//
+//   User: "How do multiple people use Spark together?"
+//   Bot: "I held off on that one. There was sensitive material in the request
+//        that I'd rather not send out. Pull the secret bits and ask me again."
+//
+//   (all three are completely legitimate questions with no sensitive content)
+//
+// After:
+//   User: "What happens if I share my Spark workspace with someone else?"
+//   Bot: "Spark workspaces are local by default. To share access, each person
+//        needs their own Spark install. Use spark setup --profile to create
+//        separate bot profiles for different users."
+//   (legitimate question answered correctly)
+//
+// Fix needed in routeFirewall.ts:
+//   1. Review false positive trigger patterns
+//   2. Words like "share", "person", "multiple people", "together", "access"
+//      must NOT trigger security filter when used in normal context
+//   3. Add allowlist for common collaboration question patterns
+//   4. Security filter must only trigger on actual sensitive data patterns:
+//      tokens, keys, passwords, credentials — not generic collaboration words
+//   5. Response "Pull the secret bits" is confusing — replace with clear
+//      explanation of what actually triggered the filter
