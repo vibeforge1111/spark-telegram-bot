@@ -1344,6 +1344,19 @@ export function renderProtectedMissionResumePronounReply(): string {
   ].join('\n');
 }
 
+export function isProtectedMissionPausePronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:pause|hold|freeze)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
+}
+
 export function isProtectedMissionCancelPronounIntent(text: string, recentMessages: string[] = []): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized || normalized.startsWith('/')) return false;
