@@ -70,9 +70,25 @@ export function buildChipCreateMissionContext(brief: string): ChipCreateMissionC
   };
 }
 
+const DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS = 1200;
+
+function resolveMissionControlPostTimeoutMs(): number {
+  const raw = process.env.MISSION_CONTROL_POST_TIMEOUT_MS;
+  if (!raw) return DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS;
+  const trimmed = raw.trim();
+  // Strict positive-integer match. parseInt would accept '5m' as 5 and
+  // '-1' as -1, both of which silently break the abort timer.
+  if (!/^\d+$/.test(trimmed)) return DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS;
+  }
+  return parsed;
+}
+
 async function defaultPostJson(url: string, payload: MissionControlEvent): Promise<void> {
   const controller = new AbortController();
-  const timeoutMs = Number.parseInt(process.env.MISSION_CONTROL_POST_TIMEOUT_MS || '1200', 10) || 1200;
+  const timeoutMs = resolveMissionControlPostTimeoutMs();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
