@@ -103,6 +103,34 @@ async function run(): Promise<void> {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  await test('skips malformed JSONL lines without crashing', () => {
+    const validRecord = createNaturalRouteExecutionRecord({
+      decision: decideNaturalRoute('hello'),
+      profile: 'test',
+      userId: 123,
+      chatId: 456,
+      chatType: 'private',
+      admin: false,
+      executedRoute: 'chat',
+      executedOwner: 'chat',
+      executedAction: 'chat',
+      now: new Date('2026-05-09T00:00:00.000Z')
+    });
+    const validLine = JSON.stringify(validRecord);
+    const jsonl = [
+      validLine,
+      'not valid json {{{',
+      '',
+      validLine,
+      'also broken json }}}',
+      validLine
+    ].join('\n');
+
+    const parsed = parseNaturalRouteExecutionLedger(jsonl);
+    assert.equal(parsed.length, 3);
+    assert.equal(parsed[0].shadow_route, validRecord.shadow_route);
+  });
 }
 
 void run();
