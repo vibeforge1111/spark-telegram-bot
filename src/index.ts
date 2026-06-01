@@ -4903,6 +4903,40 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isSshSandboxSetupQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n || !/\bssh\b/.test(n)) return false;
+  return /\b(sandbox|set\s*up|setup|configure|config|remote\s*lane|stricthostkeychecking|known.?hosts)\b/.test(n) ||
+    /\b(how|explain|enable|add)\b/.test(n);
+}
+
+function renderSshSandboxSetupGuidance(): string {
+  return [
+    'SSH remote lanes are optional — Spark does not require SSH to run missions.',
+    '',
+    'Host-key trust',
+    'Never use StrictHostKeyChecking=no. It silently accepts forged host keys.',
+    '• First connect: ssh -o StrictHostKeyChecking=accept-new user@host',
+    '• Verify the fingerprint: ssh-keygen -lf ~/.ssh/known_hosts | grep <host>',
+    '',
+    'No passwords — key-based auth only',
+    'Spark does not store or transmit SSH passwords. Use a dedicated key:',
+    '  ssh-keygen -t ed25519 -C "spark-sandbox"',
+    '  ssh-copy-id -i ~/.ssh/spark-sandbox.pub user@host',
+    '',
+    'Minimal safe config (~/.ssh/config):',
+    '  Host spark-sandbox',
+    '    HostName <your-host>',
+    '    User <your-user>',
+    '    IdentityFile ~/.ssh/spark-sandbox',
+    '    StrictHostKeyChecking yes',
+    '',
+    'SSH lanes are optional. To disable, remove the lane from your access profile via /access_setup.',
+    '',
+    'If any generated config shows StrictHostKeyChecking=no — reject it, that is unsafe.'
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6073,6 +6107,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSshSandboxSetupQuestion(text) && deterministicRouteAllowed('ssh.sandbox_setup', text)) {
+    const reply = renderSshSandboxSetupGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'ssh.sandbox_setup', 'spark-telegram-bot', 'plain_chat.security_guidance');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
