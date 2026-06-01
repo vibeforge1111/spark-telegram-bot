@@ -1772,7 +1772,9 @@ export function heartbeatIntervalMsForTests(verbosity: TelegramRelayVerbosity): 
 }
 
 function heartbeatStaleMs(): number {
-  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS || '', 10);
+  const raw = (process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS ?? '').trim();
+  if (!/^\d+$/.test(raw)) return DEFAULT_HEARTBEAT_STALE_MS;
+  const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HEARTBEAT_STALE_MS;
 }
 
