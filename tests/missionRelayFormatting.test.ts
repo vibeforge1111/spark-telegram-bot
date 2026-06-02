@@ -326,10 +326,16 @@ test('keeps normal freeform completion reports from ending mid-report', () => {
     'Codex: SUCCESS: The process with PID 15876 (child process of PID 26956) has been terminated.',
     'SUCCESS: The process with PID 26956 (child process of PID 28236) has been terminated.',
     'Pulled/fetched latest, continued the test-coverage work, committed, and pushed to GitHub origin/main.',
+    '',
     'Commit pushed: c7e187b Add automated coverage for scoring and APIs',
+    '',
     middle,
-    'What changed: added API coverage for scoring edge cases, validated the report flow, and confirmed the final summary reaches the end.'
-  ].join(' ');
+    '',
+    'What changed:',
+    '- Added API coverage for scoring edge cases.',
+    '- Validated the report flow.',
+    '- Confirmed the final summary reaches the end.'
+  ].join('\n');
 
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
@@ -338,8 +344,11 @@ test('keeps normal freeform completion reports from ending mid-report', () => {
     response: report
   });
 
-  assert.match(message, /What changed: added API coverage/);
-  assert.match(message, /confirmed the final summary reaches the end\./);
+  assert.match(message, /Commit pushed: c7e187b Add automated coverage/);
+  assert.match(message, /coverage detail 24/);
+  assert.match(message, /What changed:/);
+  assert.match(message, /Added API coverage for scoring edge cases\./);
+  assert.match(message, /Confirmed the final summary reaches the end\./);
   assert.doesNotMatch(message, /What chan\.\.\./);
   assert.doesNotMatch(message, /\.\.\.$/);
 });

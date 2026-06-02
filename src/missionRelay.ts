@@ -920,6 +920,21 @@ function completionReportText(text: string): string {
   return compactWhitespace(text);
 }
 
+function looksLikeCompletionReport(text: string): boolean {
+  return /(?:^|\n)\s*(?:commit pushed|what changed|changed|updated docs|validation passed|verified|remaining|working tree)\s*:/i.test(text) ||
+    /\b(?:committed and pushed|pushed to github|origin\/main|test coverage work|working tree is clean)\b/i.test(text);
+}
+
+function detailedCompletionReportText(text: string): string {
+  return text
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 const VOICE_LINES = {
   missionStarted: [
     '🛠️ Spark is on it.',
@@ -1468,6 +1483,12 @@ export function formatProviderCompletionForTelegram(input: {
     const completionKind = providerCompletionKind(null, clean);
     const lines = [voiceLine(completionKind, `${input.missionId}:${provider}:freeform`)];
     const failureLines = completionKind === 'failed' ? freeformFailureLines(input.response) : [];
+    if (completionKind === 'completed' && looksLikeCompletionReport(clean) && !openLink) {
+      return compactTelegramBlocks(
+        lines[0],
+        detailedCompletionReportText(cleanWithoutProvider)
+      );
+    }
     if (failureLines.length > 0) {
       lines.push('', 'What blocked it', ...failureLines.map((line) => `• ${line}`));
     } else if (lead) {
