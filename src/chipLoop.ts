@@ -8,6 +8,15 @@ import { resolveBuilderRepoPath } from './builderRepoPath';
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_CHIP_LOOP_TIMEOUT_MS = 900000;
+
+function parsePositiveIntEnv(raw: string | undefined, fallback: number): number {
+  const trimmed = (raw ?? '').trim();
+  if (!/^\d+$/.test(trimmed)) return fallback;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export interface LoopResult {
   ok: boolean;
   chipKey?: string;
@@ -38,7 +47,7 @@ function resolveConfig(): LoopConfig {
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
-    timeoutMs: Number.parseInt(process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositiveIntEnv(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_CHIP_LOOP_TIMEOUT_MS),
   };
 }
 
