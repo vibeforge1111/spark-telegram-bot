@@ -362,6 +362,16 @@ function prunePausedMissionCache(now = Date.now()): void {
   }
 }
 
+const OPEN_TASK_CACHE_TTL_MS = 10 * 60_000;
+
+function pruneOpenTaskStartCache(now = Date.now()): void {
+  for (const [key, entry] of openTaskStartCache.entries()) {
+    if (now - entry.timestamp > OPEN_TASK_CACHE_TTL_MS) {
+      openTaskStartCache.delete(key);
+    }
+  }
+}
+
 export function markMissionRelayCancelled(missionId: string): void {
   const normalized = missionId.trim();
   if (!normalized) return;
@@ -415,6 +425,7 @@ export function isMissionRelayPaused(missionId: string): boolean {
 export function shouldSuppressMissionHandoff(missionId: string): boolean {
   pruneCancelledMissionCache();
   prunePausedMissionCache();
+  pruneOpenTaskStartCache();
   const normalized = missionId.trim();
   return cancelledMissionCache.has(normalized) || pausedMissionCache.has(normalized);
 }
@@ -1628,6 +1639,7 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
     openTaskStartCache.delete(openTaskKey);
   }
   if (event.type === 'task_started') {
+    pruneOpenTaskStartCache();
     const taskKey = cleanTaskLabel(event.taskName || event.taskId || 'task').toLowerCase();
     const openTask = openTaskStartCache.get(openTaskKey);
     if (openTask && openTask.taskKey !== taskKey && now - openTask.timestamp < 10 * 60_000) {
