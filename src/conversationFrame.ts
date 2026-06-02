@@ -432,7 +432,7 @@ function resolveReference(
     /\b(?:no\.?|number|option|#)\s*(\d{1,2})\b|\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\s+(?:one|option|idea|direction|item)\b/i
   );
   if (optionMatch) {
-    const index = optionMatch[1] ? Number(optionMatch[1]) : ORDINALS[optionMatch[2].toLowerCase()];
+    const index = optionMatch[1] ? Number(optionMatch[1]) : ORDINALS[optionMatch[2]?.toLowerCase()];
     const latestList = [...artifacts].reverse().find((artifact) => artifact.kind === 'list' && isSelectableListArtifact(artifact));
     if (latestList && index >= 1 && index <= latestList.items.length) {
       return {
