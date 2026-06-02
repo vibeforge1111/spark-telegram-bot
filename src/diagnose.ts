@@ -14,6 +14,7 @@ import {
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { relayHealthUrl } from './healthRuntime';
+import { redactText } from './redaction';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 
@@ -84,6 +85,11 @@ function httpPortLabel(url: string): string {
   }
 }
 
+function formatDiagnoseErrorDetail(value: unknown, fallback = 'unavailable'): string {
+  const text = typeof value === 'string' ? value : String(value || fallback);
+  return redactText(text).replace(/\s+/g, ' ').trim().slice(0, 120) || fallback;
+}
+
 export function readableLocalServiceUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -140,7 +146,7 @@ async function httpStatus(url: string, timeoutMs = 3000): Promise<HttpStatusResu
         payload: err.response?.data
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: formatDiagnoseErrorDetail(err.code || err.message, 'unreachable') };
   }
 }
 
@@ -151,7 +157,7 @@ function isLocalOpenAICompatProvider(provider: ProviderStatus): boolean {
 export function describeRelayHealth(status: HttpStatusResult, expected: RelayIdentity): string {
   const label = `:${expected.port}/${expected.profile}`;
   if (!status.ok) {
-    return `• Bot mission relay (${label}): ❌ ${status.err || status.status}`;
+    return `• Bot mission relay (${label}): ❌ ${formatDiagnoseErrorDetail(status.err || status.status, 'unreachable')}`;
   }
 
   const payload = status.payload && typeof status.payload === 'object'
@@ -238,7 +244,7 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
         payload: err.response?.data || {}
       };
     }
-    return { ok: false, err: err.code || err.message };
+    return { ok: false, err: formatDiagnoseErrorDetail(err.code || err.message, 'unreachable') };
   }
 }
 
@@ -279,7 +285,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
             providerId,
             ok: false,
             ms: Date.now() - started,
-            error: result.error?.slice(0, 120) || 'failed'
+            error: formatDiagnoseErrorDetail(result.error, 'failed')
           };
         }
       } catch {
@@ -288,7 +294,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
     }
     return { providerId, ok: false, error: 'timeout' };
   } catch (err: any) {
-    return { providerId, ok: false, error: err.response?.data?.error || err.message };
+    return { providerId, ok: false, error: formatDiagnoseErrorDetail(err.response?.data?.error || err.message, 'failed') };
   }
 }
 
@@ -323,7 +329,7 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 }
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
-  return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
+  return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${formatDiagnoseErrorDetail(result.detail)})`;
 }
 
 export function resolveDiagnoseRouteProviders(
@@ -409,7 +415,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     })),
     pingChatProvider().catch((error) => ({
       ok: false,
-      detail: error instanceof Error ? error.message : String(error)
+      detail: formatDiagnoseErrorDetail(error instanceof Error ? error.message : String(error))
     })),
     getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
   ]);
