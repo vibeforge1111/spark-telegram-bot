@@ -11,6 +11,15 @@ import { resolveBuilderRepoPath } from './builderRepoPath';
 
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_PATH_LOOP_TIMEOUT_MS = 900000;
+
+function parsePositivePathLoopTimeoutMs(raw: string | undefined, fallback: number): number {
+  const trimmed = (raw ?? '').trim();
+  if (!/^\d+$/.test(trimmed)) return fallback;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export interface RecursiveStartTarget {
   kind: 'chip' | 'path';
   key: string;
@@ -181,7 +190,10 @@ function resolveConfig(): PathLoopConfig {
     ),
     swarmRuntimeRoot,
     startupBenchRepo,
-    timeoutMs: Number.parseInt(process.env.PATH_LOOP_TIMEOUT_MS || process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositivePathLoopTimeoutMs(
+      process.env.PATH_LOOP_TIMEOUT_MS,
+      parsePositivePathLoopTimeoutMs(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_PATH_LOOP_TIMEOUT_MS),
+    ),
   };
 }
 
