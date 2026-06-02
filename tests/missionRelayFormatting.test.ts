@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -211,6 +212,52 @@ test('formats structured provider failures without raw JSON noise', () => {
   assert.doesNotMatch(message, /"status"/);
   assert.doesNotMatch(message, /execution_contract/);
   assert.doesNotMatch(message, /exact_commands/);
+});
+
+test('task failures use the Mission Board provider error when the relay event is generic', () => {
+  const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), 'spark-provider-failure-test-'));
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(path.join(stateDir, 'mission-provider-results.json'), JSON.stringify({
+    missions: {
+      'mission-hydration': [
+        {
+          providerId: 'codex',
+          status: 'failed',
+          error: 'codex CLI "codex" not found in PATH'
+        }
+      ]
+    }
+  }), 'utf8');
+  process.env.SPAWNER_STATE_DIR = stateDir;
+
+  try {
+    const message = formatProgressMessageForTelegram(
+      {
+        type: 'task_failed',
+        missionId: 'mission-hydration',
+        message: 'Task failed.',
+        source: 'mission-control',
+        data: {}
+      },
+      {
+        missionId: 'mission-hydration',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-hydration',
+        goal: 'Build a hydration tracker.',
+        createdAt: '2026-05-21T00:00:00Z'
+      },
+      'normal',
+      'board'
+    );
+
+    assert.match(message || '', /codex CLI "codex" not found in PATH/);
+    assert.doesNotMatch(message || '', /unknown error/i);
+  } finally {
+    if (originalSpawnerStateDir === undefined) delete process.env.SPAWNER_STATE_DIR;
+    else process.env.SPAWNER_STATE_DIR = originalSpawnerStateDir;
+  }
 });
 
 test('treats blocked freeform provider completions as mission failures', () => {
