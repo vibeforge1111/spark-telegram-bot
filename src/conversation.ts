@@ -246,6 +246,15 @@ export class ConversationMemory {
   private readonly notesByUser = new Map<number, string[]>();
   private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
   private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
+  private readonly maxUsers = 500;
+
+  private pruneMap<V>(map: Map<number, V>): void {
+    if (map.size > this.maxUsers) {
+      const oldest = map.keys().next().value as number;
+      map.delete(oldest);
+    }
+  }
+
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
@@ -374,6 +383,7 @@ export class ConversationMemory {
       text,
       createdAt: new Date().toISOString()
     });
+    this.pruneMap(this.frameStateByUser);
     this.frameStateByUser.set(key, next);
     await this.persist();
   }
@@ -416,6 +426,7 @@ export class ConversationMemory {
     const message = input.message.trim();
     const failure = input.failure.trim();
     if (!message || !failure) return;
+    this.pruneMap(this.interruptedByUser);
     this.interruptedByUser.set(this.userKey(user), {
       message,
       failure,
