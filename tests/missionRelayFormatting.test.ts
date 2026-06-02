@@ -319,11 +319,13 @@ test('summarizes freeform Codex build output without dumping file links', () => 
 });
 
 test('keeps normal freeform completion reports from ending mid-report', () => {
+  const middle = Array.from({ length: 24 }, (_, index) => `coverage detail ${index + 1}`).join(', ');
   const report = [
     'Codex: SUCCESS: The process with PID 15876 (child process of PID 26956) has been terminated.',
     'SUCCESS: The process with PID 26956 (child process of PID 28236) has been terminated.',
     'Pulled/fetched latest, continued the test-coverage work, committed, and pushed to GitHub origin/main.',
     'Commit pushed: c7e187b Add automated coverage for scoring and APIs',
+    middle,
     'What changed: added API coverage for scoring edge cases, validated the report flow, and confirmed the final summary reaches the end.'
   ].join(' ');
 
@@ -337,6 +339,24 @@ test('keeps normal freeform completion reports from ending mid-report', () => {
   assert.match(message, /What changed: added API coverage/);
   assert.match(message, /confirmed the final summary reaches the end\./);
   assert.doesNotMatch(message, /What chan\.\.\./);
+  assert.doesNotMatch(message, /\.\.\.$/);
+});
+
+test('keeps structured completion summaries long enough for Telegram chunking', () => {
+  const middle = Array.from({ length: 90 }, (_, index) => `report detail ${index + 1}`).join(', ');
+  const tail = 'Final result tail: all report sections reached Telegram.';
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-structured-report-tail',
+    verbosity: 'normal',
+    response: JSON.stringify({
+      status: 'completed',
+      summary: `Started report. ${middle}. ${tail}`
+    })
+  });
+
+  assert.match(message, /Started report/);
+  assert.match(message, /Final result tail: all report sections reached Telegram\./);
   assert.doesNotMatch(message, /\.\.\.$/);
 });
 

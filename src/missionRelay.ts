@@ -866,6 +866,10 @@ function clipText(text: string, maxLength: number): string {
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
+function completionReportText(text: string): string {
+  return compactWhitespace(text);
+}
+
 const VOICE_LINES = {
   missionStarted: [
     '🛠️ Spark is on it.',
@@ -1263,7 +1267,7 @@ function extractFreeformLeadSummary(text: string): string | null {
       !/^(what shipped|verification passed|created exactly|mission:|note:)/i.test(entry) &&
       !/\[[^\]]+\]\(/.test(entry)
     );
-  return line ? clipText(line.replace(/^Done\.\s*/i, ''), 1200) : null;
+  return line ? completionReportText(line.replace(/^Done\.\s*/i, '')) : null;
 }
 
 function taskNumberFromEvent(event: DeliverableRelayEvent): string | null {
@@ -1471,7 +1475,7 @@ export function formatProviderCompletionForTelegram(input: {
 
   const lines: string[] = [voiceLine(completionKind, `${input.missionId}:${provider}:structured`)];
   if (summary) {
-    lines.push('', clipText(summary, verbosity === 'verbose' ? 1800 : 1200));
+    lines.push('', completionReportText(summary));
   } else if (input.goal) {
     lines.push('', `Goal: ${clipText(input.goal, 260)}`);
   }
