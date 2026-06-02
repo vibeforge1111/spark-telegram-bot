@@ -289,7 +289,15 @@ async function loadBuilderAttachmentSnapshot(config: PathLoopConfig): Promise<an
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
     maxBuffer: 10 * 1024 * 1024,
   }));
-  return JSON.parse(stdout);
+  try {
+    return JSON.parse(stdout);
+  } catch (err) {
+    const length = typeof stdout === 'string' ? stdout.length : 0;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `builder attachments snapshot returned non-JSON output (length=${length}): ${message}`
+    );
+  }
 }
 
 export async function resolveRecursiveStartTarget(targetKey: string): Promise<RecursiveStartTarget> {
