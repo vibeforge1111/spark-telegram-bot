@@ -6,6 +6,16 @@ export interface MemoryDoctorEvidenceTurn {
 const CONTEXTUAL_MEMORY_DOCTOR_PATTERN =
   /\b(?:previous|last|recent|current|turn|reply|answer|response|request|message|what\s+happened|went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about)\b/i;
 
+function isMarketChartProofBoundaryQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  const marketChart =
+    /\b(?:tradingview|trading view|hypeusd|hypeusdt|support\s+and\s+resistance|support|resistance|weekly\s+(?:timeframe|chart)|market|chart)\b/.test(normalized);
+  const proofBoundary =
+    /\b(?:do\s+not\s+trade|financial\s+advice|cannot\s+directly\s+inspect|current\s+tradingview|proof|do\s+not\s+invent|exact\s+levels?|draw\s+support|resistance\s+lines?)\b/.test(normalized);
+  return marketChart && proofBoundary;
+}
+
 function compactEvidenceText(value: string, limit = 700): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (normalized.length <= limit) {
@@ -19,7 +29,11 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
-  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (isMarketChartProofBoundaryQuestion(normalized)) {
+    return false;
+  }
+  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(normalized);
 }
 
 function sameNormalizedText(a: string, b: string): boolean {
