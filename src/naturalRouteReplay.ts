@@ -79,12 +79,16 @@ function parseReplayCase(value: unknown, lineNumber: number): NaturalRouteReplay
 }
 
 export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayCase[] {
-  return jsonl
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .map((line, index) => ({ line, lineNumber: index + 1 }))
-    .filter(({ line }) => line && !line.startsWith('#'))
-    .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
+  const cases: NaturalRouteReplayCase[] = [];
+  for (const [index, line] of jsonl.split(/\r?\n/).map((l) => l.trim()).entries()) {
+    if (!line || line.startsWith('#')) continue;
+    try {
+      cases.push(parseReplayCase(JSON.parse(line), index + 1));
+    } catch {
+      // Skip malformed JSONL lines instead of crashing the entire parse
+    }
+  }
+  return cases;
 }
 
 export function evaluateNaturalRouteReplayCase(testCase: NaturalRouteReplayCase): NaturalRouteReplayResult {
