@@ -1150,6 +1150,9 @@ function runtimeTruthSignals(text: string): RuntimeTruthSignals {
   if (!normalized) {
     return { access: false, live: false, providers: false, memory: false };
   }
+  if (parseBuildIntent(text)) {
+    return { access: false, live: false, providers: false, memory: false };
+  }
   if (isNamedTelegramProfileSetupQuestion(normalized)) {
     return { access: false, live: false, providers: false, memory: false };
   }

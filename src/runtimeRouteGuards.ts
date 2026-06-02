@@ -1,5 +1,11 @@
+import { parseBuildIntent } from './buildIntent';
+
 function normalizeRouteText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function isBuildIntentText(text: string): boolean {
+  return parseBuildIntent(text) !== null;
 }
 
 function isRuntimeDoctrineDiscussion(normalized: string): boolean {
@@ -9,6 +15,9 @@ function isRuntimeDoctrineDiscussion(normalized: string): boolean {
 export function shouldAnswerSparkRepairRequest(text: string): boolean {
   const normalized = normalizeRouteText(text);
   if (!normalized) return false;
+  if (isBuildIntentText(text)) {
+    return false;
+  }
   if (isRuntimeDoctrineDiscussion(normalized)) {
     return false;
   }
@@ -21,6 +30,9 @@ export function shouldAnswerSparkRepairRequest(text: string): boolean {
 export function isLiveSparkHealthQuestion(text: string): boolean {
   const normalized = normalizeRouteText(text);
   if (!normalized) return false;
+  if (isBuildIntentText(text)) {
+    return false;
+  }
   if (isRuntimeDoctrineDiscussion(normalized)) {
     return false;
   }

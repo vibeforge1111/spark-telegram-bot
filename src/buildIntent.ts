@@ -239,6 +239,15 @@ function inferGamePrototypeName(prd: string): string | null {
   return titleCaseProjectName(title);
 }
 
+function inferBackendProductName(prd: string): string | null {
+  const normalized = prd.replace(/\s+/g, ' ').trim();
+  const match = normalized.match(
+    /\bbackend\s+for\s+(?:(?:a|an|the)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,80}?\b(?:bot|app|application|platform|system|service|api))\b/i
+  );
+  if (!match?.[1]) return null;
+  return titleCaseProjectName(match[1]);
+}
+
 function inferQuotedHeadingProjectName(prd: string): string | null {
   const headingMatch = prd.match(
     /\b(?:big\s+|large\s+|hero\s+)?(?:heading|headline|title|h1)\b(?:\s+(?:that\s+)?(?:says|reads|called|named))?\s*[:\-]?\s*["']([^"']{3,80})["']/i
@@ -296,6 +305,8 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   if (dashboardPurposeName) return dashboardPurposeName;
   const gamePrototypeName = inferGamePrototypeName(prd);
   if (gamePrototypeName) return gamePrototypeName;
+  const backendProductName = inferBackendProductName(prd);
+  if (backendProductName) return backendProductName;
   const productPhraseName = inferProductPhraseProjectName(prd);
   if (productPhraseName) return productPhraseName;
   const firstWords = prd.split(/\s+/).slice(0, 6).join(' ');
@@ -324,7 +335,7 @@ function cleanExtractedPath(value: string): string {
 
 function extractPath(text: string): string | null {
   const atMatch = text.match(
-    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
+    /(?:at|in|into)\s*:?\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
   );
   if (atMatch) {
     const candidate = cleanExtractedPath(atMatch[1]);
@@ -373,7 +384,7 @@ function inferBuildMode(text: string, prd: string, projectPath: string | null): 
     };
   }
 
-  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|platform|system)\b/.test(lower)) {
+  if (/\b(?:prd|tas|task acceptance|acceptance criteria|domain\s*chip|mission control|new project|real project|complete project|from scratch|full app|full local project|platform|system|backend|api routes?|persistence|runnable local setup)\b/.test(lower)) {
     return {
       mode: 'advanced_prd',
       reason: 'Request looks like a new project or systematic feature that benefits from PRD-to-task planning.'
@@ -618,6 +629,27 @@ function isNoExecutionBoundary(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function hasExplicitBuildAfterPrototypeBoundary(text: string): boolean {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (!normalized) return false;
+  const prototypeBoundary =
+    /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont)\s+(?:make|build|create)\s+(?:another|a\s+)?[^.!?\n]{0,100}\b(?:prototype|dashboard[-\s]*only|dashboard\s+only)\b/i;
+  if (!prototypeBoundary.test(normalized)) {
+    return false;
+  }
+  return /(?:^|[.!?]\s+)(?:build|create|make|ship|scaffold|generate)\b/i.test(normalized);
+}
+
+function explicitBuildTailAfterPrototypeBoundary(text: string): string | null {
+  if (!hasExplicitBuildAfterPrototypeBoundary(text)) {
+    return null;
+  }
+  const match = text.trim().replace(/\s+/g, ' ').match(
+    /(?:^|[.!?]\s+)((?:build|create|make|ship|scaffold|generate)\b.+)$/i
+  );
+  return match?.[1]?.trim() || null;
+}
+
 function isConversationFramingMakeRequest(description: string): boolean {
   return /^(?:today|tonight|now|chat|conversation|session|thread|this\s+(?:chat|conversation|session|thread)|our\s+(?:chat|conversation|session|thread))\s+(?:also\s+)?(?:about|focused\s+on|for)\b/i.test(
     description.trim()
@@ -832,11 +864,12 @@ function extractBuildDescription(text: string): string | null {
 
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
+  const commandText = explicitBuildTailAfterPrototypeBoundary(original) || original;
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
-  if (isNoExecutionBoundary(original)) return null;
-  if (isBuildRouteMetaDiscussion(original)) return null;
-  const trimmed = normalizeBuildCommandText(original);
+  if (isNoExecutionBoundary(original) && !hasExplicitBuildAfterPrototypeBoundary(original)) return null;
+  if (isBuildRouteMetaDiscussion(commandText)) return null;
+  const trimmed = normalizeBuildCommandText(commandText);
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;

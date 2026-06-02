@@ -66,6 +66,26 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes explicit backend continuation requests to Spawner instead of health or self-improvement', () => {
+  const originalRoot = process.env.SPARK_PROJECT_ROOT;
+  process.env.SPARK_PROJECT_ROOT = String.raw`C:\Dev\projects`;
+  try {
+    const route = decideNaturalRoute(String.raw`Continue mission-1780080376626, but do not make another dashboard-only prototype. Build the real backend for the Telegram group scoring bot. Create a full local project at: C:\Dev\projects\telegram-health-bot Include API routes, persistence, scoring logic, and a runnable local setup.`);
+
+    assert.equal(route.route, 'spawner.build');
+    assert.equal(route.owner_system, 'spawner-ui');
+    assert.equal(route.context_source, 'visible_exact_artifact');
+    assert.equal(route.payload.projectName, 'Telegram Health Bot');
+    assert.equal(route.payload.hasProjectPath, true);
+    assert.equal(route.payload.buildMode, 'advanced_prd');
+    assert.deepEqual(route.matched_signals, ['build_intent']);
+    assert.equal(route.requires_confirmation, false);
+  } finally {
+    if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [

@@ -38,6 +38,25 @@ test('promotes larger new projects to advanced PRD mode', () => {
   assert.doesNotMatch(intent.prd, /^at C:\\Users\\USER\\Desktop/);
 });
 
+test('keeps explicit backend builds after a negated prototype boundary', () => {
+  const originalRoot = process.env.SPARK_PROJECT_ROOT;
+  process.env.SPARK_PROJECT_ROOT = String.raw`C:\Dev\projects`;
+  try {
+    const intent = parseBuildIntent(String.raw`Continue mission-1780080376626, but do not make another dashboard-only prototype. Build the real backend for the Telegram group scoring bot. Create a full local project at: C:\Dev\projects\telegram-health-bot Include API routes, persistence, scoring logic, and a runnable local setup.`);
+
+    assert.ok(intent);
+    assert.equal(intent.projectPath, String.raw`C:\Dev\projects\telegram-health-bot`);
+    assert.equal(intent.projectName, 'Telegram Health Bot');
+    assert.equal(intent.buildMode, 'advanced_prd');
+    assert.equal(intent.buildLane, 'advanced_prd');
+    assert.match(intent.prd, /real backend/i);
+    assert.doesNotMatch(intent.prd, /dashboard-only prototype/i);
+  } finally {
+    if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
+    else process.env.SPARK_PROJECT_ROOT = originalRoot;
+  }
+});
+
 test('parses conversational immediate new-project build requests', () => {
   const intent = parseBuildIntent(
     "Let's build right now a new project called the Game of Ascension and make it a surprising game right now"
