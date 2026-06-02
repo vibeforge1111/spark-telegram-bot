@@ -23,6 +23,7 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
 }
 
 const user = { id: 12345, first_name: 'Tester' };
+const chatId = 99999;
 
 async function withTempState(fn: () => Promise<void>): Promise<void> {
   const previous = process.env.SPARK_GATEWAY_STATE_DIR;
@@ -51,10 +52,10 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.learnAboutUser(user, 'User asked Spark to remember: you are a QA agent');
-    await memory.remember(user, 'can you remember that you are a QA agent');
+    await memory.learnAboutUser(user, 'User asked Spark to remember: you are a QA agent', chatId);
+    await memory.remember(user, 'can you remember that you are a QA agent', chatId);
 
-    const context = await memory.getContext(user, 'what are you');
+    const context = await memory.getContext(user, 'what are you', chatId);
 
     assert.match(context, /Session notes from this chat/);
     assert.match(context, /you are a QA agent/);
@@ -66,18 +67,18 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.learnAboutUser(user, 'User asked Spark to remember: audit marker: Spark E2E fresh-state phase on 2026-05-17');
-    await memory.remember(user, 'remember this: audit marker: Spark E2E fresh-state phase on 2026-05-17');
-    await memory.rememberAssistantReply(user, 'Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17"');
-    await memory.rememberAssistantReply(user, 'I remember this: Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17".');
+    await memory.learnAboutUser(user, 'User asked Spark to remember: audit marker: Spark E2E fresh-state phase on 2026-05-17', chatId);
+    await memory.remember(user, 'remember this: audit marker: Spark E2E fresh-state phase on 2026-05-17', chatId);
+    await memory.rememberAssistantReply(user, 'Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17"', chatId);
+    await memory.rememberAssistantReply(user, 'I remember this: Noted: "audit marker: Spark E2E fresh-state phase on 2026-05-17".', chatId);
 
-    const recalled = await memory.recall(user, 'Spark E2E fresh-state phase', 1);
+    const recalled = await memory.recall(user, 'Spark E2E fresh-state phase', chatId, 1);
 
     assert.equal(recalled.length, 1);
     assert.match(recalled[0].content, /audit marker: Spark E2E fresh-state phase on 2026-05-17/);
     assert.doesNotMatch(recalled[0].content, /User asked Spark to remember/i);
     assert.doesNotMatch(recalled[0].content, /^Noted/i);
-    assert.deepEqual(await memory.recall(user, 'me', 1), []);
+    assert.deepEqual(await memory.recall(user, 'me', chatId, 1), []);
   });
   });
 
@@ -85,9 +86,9 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.learnAboutUser(user, 'User asked Spark to remember: you are a QA agent');
+    await memory.learnAboutUser(user, 'User asked Spark to remember: you are a QA agent', chatId);
 
-    const otherContext = await memory.getContext({ id: 67890 }, 'what are you');
+    const otherContext = await memory.getContext({ id: 67890 }, 'what are you', chatId);
 
     assert.equal(otherContext, 'No prior memories.');
   });
@@ -97,23 +98,23 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be concise');
-    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [format]: use paragraph spacing between thoughts');
-    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be more detailed when tradeoffs matter');
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be concise', chatId);
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [format]: use paragraph spacing between thoughts', chatId);
+    await memory.storeAgentDoctrinePreference(user, 'Agent interaction preference [detail]: be more detailed when tradeoffs matter', chatId);
 
-    const context = await memory.getContext(user, 'how should you reply?');
-    const otherContext = await memory.getContext({ id: 67890 }, 'how should you reply?');
+    const context = await memory.getContext(user, 'how should you reply?', chatId);
+    const otherContext = await memory.getContext({ id: 67890 }, 'how should you reply?', chatId);
 
     assert.match(context, /Agent interaction preference \[detail\]: be more detailed when tradeoffs matter/);
     assert.match(context, /Agent interaction preference \[format\]: use paragraph spacing between thoughts/);
     assert.doesNotMatch(context, /Agent interaction preference \[detail\]: be concise/);
     assert.equal(otherContext, 'No prior memories.');
 
-    assert.deepEqual(await memory.getAgentDoctrinePreferences(user), [
+    assert.deepEqual(await memory.getAgentDoctrinePreferences(user, chatId), [
       'Agent interaction preference [format]: use paragraph spacing between thoughts',
       'Agent interaction preference [detail]: be more detailed when tradeoffs matter'
     ]);
-    assert.deepEqual(await memory.getAgentDoctrinePreferences({ id: 67890 }), []);
+    assert.deepEqual(await memory.getAgentDoctrinePreferences({ id: 67890 }, chatId), []);
   });
   });
 
@@ -121,11 +122,11 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, "let's build something together shall we");
-    await memory.remember(user, 'a new domain chip');
-    await memory.remember(user, 'recognizing bugs happening in Spark systems');
+    await memory.remember(user, "let's build something together shall we", chatId);
+    await memory.remember(user, 'a new domain chip', chatId);
+    await memory.remember(user, 'recognizing bugs happening in Spark systems', chatId);
 
-    const recent = await memory.getRecentMessages(user, 2);
+    const recent = await memory.getRecentMessages(user, chatId, 2);
 
     assert.deepEqual(recent, ['a new domain chip', 'recognizing bugs happening in Spark systems']);
   });
@@ -135,17 +136,17 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, "I don't know what should we be building");
+    await memory.remember(user, "I don't know what should we be building", chatId);
     await memory.rememberAssistantReply(user, [
       'A few directions:',
       '1. Spark Command Palette',
       '2. Domain Chip Workbench',
       '3. Spark Timeline'
-    ].join('\n'));
-    await memory.remember(user, 'no.1 could be handy - how would you think of the no2?');
+    ].join('\n'), chatId);
+    await memory.remember(user, 'no.1 could be handy - how would you think of the no2?', chatId);
 
-    const context = await memory.getContext(user, 'no.1 could be handy - how would you think of the no2?');
-    const recentUserMessages = await memory.getRecentMessages(user, 4);
+    const context = await memory.getContext(user, 'no.1 could be handy - how would you think of the no2?', chatId);
+    const recentUserMessages = await memory.getRecentMessages(user, chatId, 4);
 
     assert.match(context, /Spark: A few directions/);
     assert.match(context, /2\. Domain Chip Workbench/);
@@ -160,10 +161,10 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, 'What could we build?');
-    await memory.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'));
+    await memory.remember(user, 'What could we build?', chatId);
+    await memory.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'), chatId);
 
-    const turns = await memory.getRecentTurns(user, 4);
+    const turns = await memory.getRecentTurns(user, chatId, 4);
 
     assert.deepEqual(turns, [
       { role: 'user', text: 'What could we build?' },
@@ -176,10 +177,10 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const first = new ConversationMemory();
 
-    await first.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'));
+    await first.rememberAssistantReply(user, ['A few directions:', '1. Spark Command Palette', '2. Domain Chip Workbench'].join('\n'), chatId);
 
     const second = new ConversationMemory();
-    const frame = await second.getConversationFrame(user, 'the second one');
+    const frame = await second.getConversationFrame(user, 'the second one', chatId);
 
     assert.equal(frame.referenceResolution.kind, 'list_item');
     assert.equal(frame.referenceResolution.value, 'Domain Chip Workbench');
@@ -190,14 +191,14 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, "Hey Spark, let's build something like a magazine about AGI");
+    await memory.remember(user, "Hey Spark, let's build something like a magazine about AGI", chatId);
     await memory.rememberAssistantReply(user, [
       'Two ways to take this: a content chip that generates magazine-style AGI pieces on demand, or a recurring publication workflow that curates, writes, and packages issues on a schedule.',
       '',
       "Which form factor are you picturing?"
-    ].join('\n'));
+    ].join('\n'), chatId);
 
-    const resolved = await memory.resolveRecentOptionReference(user, 'The second');
+    const resolved = await memory.resolveRecentOptionReference(user, chatId, 'The second');
 
     assert.equal(optionOrdinalFromText('The second'), 2);
     assert.deepEqual(extractAssistantOptions('Spark: Pick one:\n1. First path\n2. Second path'), ['First path', 'Second path']);
@@ -210,7 +211,7 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, 'shape a tiny magical object maker first');
+    await memory.remember(user, 'shape a tiny magical object maker first', chatId);
     await memory.rememberAssistantReply(user, [
       'Two splits to decide on first:',
       '',
@@ -223,9 +224,9 @@ async function main(): Promise<void> {
       '- Curated set of hand-designed magical objects',
       '',
       "Which direction pulls you more on each split?"
-    ].join('\n'));
+    ].join('\n'), chatId);
 
-    const resolved = await memory.resolveRecentOptionReference(user, 'The second');
+    const resolved = await memory.resolveRecentOptionReference(user, chatId, 'The second');
 
     assert.deepEqual(extractAssistantOptions([
       'Spark: Two splits:',
@@ -242,13 +243,13 @@ async function main(): Promise<void> {
   await withTempState(async () => {
     const memory = new ConversationMemory();
 
-    await memory.remember(user, 'help me choose a game direction');
+    await memory.remember(user, 'help me choose a game direction', chatId);
     await memory.rememberAssistantReply(user, [
       'Pick a direction:',
       '1. Cozy physics toy',
       '2. Fast score-chasing arcade loop',
       '3. Puzzle garden with unlocks'
-    ].join('\n'));
+    ].join('\n'), chatId);
 
     const checks: Array<[string, number, RegExp]> = [
       ['option 2', 2, /score-chasing/],
@@ -263,7 +264,7 @@ async function main(): Promise<void> {
     ];
 
     for (const [reply, ordinal, expected] of checks) {
-      const resolved = await memory.resolveRecentOptionReference(user, reply);
+      const resolved = await memory.resolveRecentOptionReference(user, chatId, reply);
       assert.equal(optionOrdinalFromText(reply), ordinal);
       assert.equal(resolved?.ordinal, ordinal);
       assert.match(resolved?.choice || '', expected);
@@ -277,7 +278,7 @@ async function main(): Promise<void> {
     ];
 
     for (const [reply, expected] of lastReferences) {
-      const resolved = await memory.resolveRecentOptionReference(user, reply);
+      const resolved = await memory.resolveRecentOptionReference(user, chatId, reply);
       assert.equal(resolved?.ordinal, 3);
       assert.match(resolved?.choice || '', expected);
     }
@@ -287,11 +288,11 @@ async function main(): Promise<void> {
   await test('persists recent planning context across ConversationMemory instances', async () => {
   await withTempState(async () => {
     const first = new ConversationMemory();
-    await first.remember(user, 'a new domain chip');
-    await first.remember(user, 'recognizing bugs happening in Spark systems');
+    await first.remember(user, 'a new domain chip', chatId);
+    await first.remember(user, 'recognizing bugs happening in Spark systems', chatId);
 
     const second = new ConversationMemory();
-    const recent = await second.getRecentMessages(user, 4);
+    const recent = await second.getRecentMessages(user, chatId, 4);
 
     assert.deepEqual(recent, ['a new domain chip', 'recognizing bugs happening in Spark systems']);
   });
@@ -300,15 +301,15 @@ async function main(): Promise<void> {
   await test('persists interrupted task recovery context across instances', async () => {
   await withTempState(async () => {
     const first = new ConversationMemory();
-    await first.recordInterruptedTask(user, {
+    await first.recordInterruptedTask(user, chatId, {
       message: 'analyze our systems to see what memory layers we have',
       failure: 'Promise timed out after 90000 milliseconds',
       stage: 'telegram_handler'
     });
 
     const second = new ConversationMemory();
-    const pending = await second.getPendingTaskRecovery(user);
-    const context = await second.getContext(user, 'what happened');
+    const pending = await second.getPendingTaskRecovery(user, chatId);
+    const context = await second.getContext(user, 'what happened', chatId);
 
     assert.equal(pending?.message, 'analyze our systems to see what memory layers we have');
     assert.equal(pending?.failure, 'Promise timed out after 90000 milliseconds');
