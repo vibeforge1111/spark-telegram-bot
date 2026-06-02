@@ -1207,12 +1207,14 @@ export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
 }
 
 function compactRuntimeOutput(output: string, maxLines = 18): string {
-  return output
+  const lines = output
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line && !/^Useful:/i.test(line))
-    .slice(0, maxLines)
-    .join('\n');
+    .filter((line) => line && !/^Useful:/i.test(line));
+  if (lines.length <= maxLines) {
+    return lines.join('\n');
+  }
+  return [...lines.slice(0, maxLines), '[truncated]'].join('\n');
 }
 
 async function buildFreshRuntimeTruthContext(text: string, chatId: string | number): Promise<string> {
