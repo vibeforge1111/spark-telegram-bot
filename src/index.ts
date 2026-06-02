@@ -6513,7 +6513,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'local_workspace_inspection'
-        }).catch(() => {});
+        }).catch((e) => {
+          console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+        });
         await ctx.reply(`Local workspace inspection failed: ${detail}`);
       }
       return;
@@ -6706,7 +6708,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'diagnostics_scan'
-        }).catch(() => {});
+        }).catch((e) => {
+          console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+        });
         await ctx.reply(`Diagnostics scan failed: ${detail}`);
       }
       return;
@@ -6894,7 +6898,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         message: text,
         failure: bridgeFailed ? 'Builder bridge failed and chat fallback returned a low-information reply.' : 'Chat runtime returned a low-information reply.',
         stage: bridgeFailed ? 'builder_bridge_fallback' : 'chat_runtime'
-      }).catch(() => {});
+      }).catch((e) => {
+        console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+      });
       await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));
       return;
     }
@@ -6924,7 +6930,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       message: text,
       failure: detail,
       stage: 'telegram_message_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleTextMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
 }
@@ -6958,7 +6966,9 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleImageMessage] Failed to record interrupted task:', e);
+    });
   } catch (err) {
     console.error('Image handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -6966,7 +6976,9 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: detail,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleImageMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }
@@ -7007,7 +7019,9 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: '[voice message]',
       failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleVoiceMessage] Failed to record interrupted task:', e);
+    });
   } catch (err) {
     console.error('Voice handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -7015,7 +7029,9 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: '[voice message]',
       failure: detail,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleVoiceMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }
