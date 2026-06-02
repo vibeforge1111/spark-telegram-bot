@@ -318,6 +318,28 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.doesNotMatch(message, /Mission: mission-orbit/);
 });
 
+test('keeps normal freeform completion reports from ending mid-report', () => {
+  const report = [
+    'Codex: SUCCESS: The process with PID 15876 (child process of PID 26956) has been terminated.',
+    'SUCCESS: The process with PID 26956 (child process of PID 28236) has been terminated.',
+    'Pulled/fetched latest, continued the test-coverage work, committed, and pushed to GitHub origin/main.',
+    'Commit pushed: c7e187b Add automated coverage for scoring and APIs',
+    'What changed: added API coverage for scoring edge cases, validated the report flow, and confirmed the final summary reaches the end.'
+  ].join(' ');
+
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-report-tail',
+    verbosity: 'normal',
+    response: report
+  });
+
+  assert.match(message, /What changed: added API coverage/);
+  assert.match(message, /confirmed the final summary reaches the end\./);
+  assert.doesNotMatch(message, /What chan\.\.\./);
+  assert.doesNotMatch(message, /\.\.\.$/);
+});
+
 test('summarizes inline verification without leaking command text', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
