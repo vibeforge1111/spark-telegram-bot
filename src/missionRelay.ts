@@ -122,6 +122,7 @@ const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
 const MISSION_STATE_CACHE_TTL_MS = 6 * 60 * 60_000;
+const REGISTRY_TTL_MS = 7 * 24 * 60 * 60_000;
 let registryLoaded = false;
 let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -316,8 +317,25 @@ async function loadRegistry(): Promise<void> {
         registry.set(entry.missionId, entry);
       }
     }
+    pruneStaleRegistryEntries();
   } catch (error) {
     console.warn('[MissionRelay] Failed to load registry:', error);
+  }
+}
+
+
+function pruneStaleRegistryEntries(): void {
+  const cutoff = Date.now() - REGISTRY_TTL_MS;
+  let pruned = 0;
+  for (const [missionId, entry] of registry.entries()) {
+    const created = new Date(entry.createdAt).getTime();
+    if (!Number.isFinite(created) || created < cutoff) {
+      registry.delete(missionId);
+      pruned += 1;
+    }
+  }
+  if (pruned > 0) {
+    console.log(`[MissionRelay] Pruned ${pruned} stale registry entries (TTL: ${REGISTRY_TTL_MS / 3600_000}h)`);
   }
 }
 
@@ -343,6 +361,7 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
     relayProfile: input.relayProfile || getRelayProfile()
   };
   registry.set(input.missionId, subscription);
+  pruneStaleRegistryEntries();
   await persistRegistry();
 }
 
@@ -1980,6 +1999,7 @@ async function handleMissionCompletionMemory(
   await recordShippedProjectFromMission({
     chatId: subscription.chatId,
     userId: subscription.userId,
+
     missionId: event.missionId,
     requestId: subscription.requestId,
     goal: subscription.goal,
