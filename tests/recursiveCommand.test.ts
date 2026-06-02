@@ -40,7 +40,7 @@ function fakeCtx(text: string): any {
 }
 
 async function main(): Promise<void> {
-  const { handleRecursiveCommand, parseNaturalRecursiveProposalIntent } = await import('../src/index');
+  const { handleRecursiveCommand, handleSparkQaCommand, parseNaturalRecursiveProposalIntent } = await import('../src/index');
 
   await test('natural recursive proposal intent keeps command language human', async () => {
     assert.deepEqual(
@@ -64,6 +64,48 @@ async function main(): Promise<void> {
     const ctx = fakeCtx('/recursive start');
     await handleRecursiveCommand(ctx);
     assert.equal(ctx.replies[0], 'Usage: /recursive start <targetKey> [rounds <n>]');
+  });
+
+  await test('sparkqa command uses autoloop proof and blocks score claims', async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'spark-qa-command-repo-'));
+    const moduleDir = path.join(repo, 'src', 'specialization_path_spark_qa_operator');
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(path.join(repo, 'specialization-path.json'), JSON.stringify({ key: 'spark-qa-operator' }), 'utf-8');
+    writeFileSync(path.join(moduleDir, '__init__.py'), '', 'utf-8');
+    writeFileSync(path.join(moduleDir, 'cli.py'), [
+      'from __future__ import annotations',
+      'import argparse, json, pathlib, sys',
+      'parser = argparse.ArgumentParser()',
+      'parser.add_argument("hook")',
+      'parser.add_argument("--output-root", default="")',
+      'parser.add_argument("--timeout-seconds", default="180")',
+      'args = parser.parse_args()',
+      'out = pathlib.Path(args.output_root)',
+      'out.mkdir(parents=True, exist_ok=True)',
+      'report = {"schemaVersion": "spark-qa-autoloop-round-report.v1", "baselineCandidateDelta": {"baselineScore": 0.0, "candidateScore": 1.0, "delta": 1.0}, "captureReplay": {"passedCount": 4, "caseCount": 4}, "evidenceBenchmark": {"overallScore": 1.0}, "failureQueue": {"ticketCount": 2}, "promotionDossier": {"scoreClaimAllowed": False, "blockers": ["wrapper_raw_not_reconciled"]}}',
+      'print(json.dumps(report))',
+      'sys.exit(1)',
+      '',
+    ].join('\n'), 'utf-8');
+    const oldRepo = process.env.SPARK_QA_OPERATOR_REPO;
+    const oldPython = process.env.SPARK_QA_OPERATOR_PYTHON;
+    try {
+      process.env.SPARK_QA_OPERATOR_REPO = repo;
+      process.env.SPARK_QA_OPERATOR_PYTHON = 'python3';
+      const ctx = fakeCtx('/sparkqa run');
+      await handleSparkQaCommand(ctx);
+      const reply = ctx.replies.join('\n');
+      assert.match(reply, /Starting the Spark QA benchmark\/autoloop proof/);
+      assert.match(reply, /would not claim an upgrade yet/);
+      assert.match(reply, /wrapper\/raw reconciliation is still pending/);
+      assert.doesNotMatch(reply, /cleared the benchmark\/autoloop score gate/);
+    } finally {
+      if (oldRepo === undefined) delete process.env.SPARK_QA_OPERATOR_REPO;
+      else process.env.SPARK_QA_OPERATOR_REPO = oldRepo;
+      if (oldPython === undefined) delete process.env.SPARK_QA_OPERATOR_PYTHON;
+      else process.env.SPARK_QA_OPERATOR_PYTHON = oldPython;
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   await test('recursive sessions report local Builder loops without Workspace credentials', async () => {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildIdeationFallbackReply,
+  buildNoExecutionIdeationReply,
   buildIdeationSystemHint,
   buildContextualImprovementGoal,
   buildProjectImprovementGoal,
@@ -45,11 +46,15 @@ import {
   renderSparkThreadQaGoldenCaseReply,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
+  isStartupReleaseBoundaryQuestion,
+  isStartupFounderAdvisoryQuestion,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
+  isMissionRoutingFailureClassQuestion,
+  isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
@@ -130,6 +135,9 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('Can you cancel that one? Do not cancel it.'), true);
   assert.equal(isNoExecutionBoundary('not now, maybe later'), true);
   assert.equal(isNoExecutionBoundary('we can discuss here for now'), true);
+  assert.equal(isNoExecutionBoundary('build appears in this sentence as meta-language; stay in chat and explain the boundary'), true);
+  assert.equal(isNoExecutionBoundary('Bug report: schedule hijacked routing before; do not create a mission'), true);
+  assert.equal(isNoExecutionBoundary('Do not create a domain chip; explain when one would be useful.'), true);
   assert.equal(isNoExecutionBoundary('can you resume that one?'), false);
   assert.equal(isNoExecutionBoundary('can you pause that one?'), false);
   assert.equal(isNoExecutionBoundary('can you cancel that one?'), false);
@@ -534,6 +542,25 @@ test('does not turn product-memory mission boundary questions into workflow bug 
   );
 });
 
+test('treats quoted action term failure-class questions as route hijack explanations', () => {
+  assert.equal(
+    isMissionRoutingFailureClassQuestion(
+      'Build a chip and run a mission are phrases here, not a command; do not scaffold anything. Just tell me the failure class in one sentence.'
+    ),
+    true
+  );
+  assert.equal(
+    isNoExecutionExplanationPrompt(
+      'build appears in this sentence as meta-language; stay in chat and explain the boundary.'
+    ),
+    true
+  );
+  assert.equal(
+    isNoExecutionExplanationPrompt('Build a local timer app at /tmp/spark-timer. Do not publish it.'),
+    false
+  );
+});
+
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {
   const prompt = 'Do not build anything. Turn the H70 Orbit Proof interruption into a golden Thread QA test case. Keep it natural and short.';
   assert.equal(isSparkThreadQaGoldenCaseRequest(prompt), true);
@@ -833,6 +860,14 @@ test('adds domain chip guidance for chip ideation', () => {
   assert.match(hint, /advanced Spark domain chip/);
   assert.match(hint, /Do not start a build/);
   assert.match(hint, /most recent list/);
+});
+
+test('renders no-execution ideation locally for domain chip prompts', () => {
+  const reply = buildNoExecutionIdeationReply('Do not create a domain chip; explain when one would be useful.');
+
+  assert.match(reply, /I won't create one here/);
+  assert.match(reply, /useful when Spark keeps needing the same specialized judgment/);
+  assert.doesNotMatch(reply, /start|scaffold|mission/i);
 });
 
 test('keeps hyphenated domain-chip repo references in conversation', () => {
@@ -1458,6 +1493,12 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
     extractSparkSelfImprovementGoal('Spark improve your weak spots around route confidence'),
     'improve your weak spots around route confidence'
   );
+  assert.match(
+    extractSparkSelfImprovementGoal(
+      'Run a startup self-improvement canary from Telegram. Do not publish, merge, or claim public/network readiness. Return baseline answer, improved answer, jury verdict, and what still blocks the fully closed startup self-improvement loop.'
+    ) || '',
+    /startup self-improvement canary/
+  );
   assert.equal(
     extractSparkSelfImprovementGoal('Can you improve where you lack in self-awareness?'),
     null
@@ -1707,6 +1748,46 @@ test('memory directives only accept Builder memory-route confirmations', () => {
     ),
     false
   );
+});
+
+test('startup founder advice outranks accidental memory capture', () => {
+  const prompt = 'Outbound volume is high, response quality is falling, and the team wants to add another channel. What should Spark recommend?';
+  assert.equal(isStartupFounderAdvisoryQuestion(prompt), true);
+  assert.equal(extractPlainChatMemoryDirective(prompt), null);
+  assert.equal(
+    isStartupFounderAdvisoryQuestion(
+      'Please answer the outbound channel question now. Do not save memory or instruction. Outbound volume is high, response quality is falling, and the team wants to add another channel. What should Spark recommend?'
+    ),
+    true
+  );
+  assert.equal(
+    isStartupFounderAdvisoryQuestion('Please remember this: outbound channel answers should be concise.'),
+    false
+  );
+});
+
+test('startup release boundary questions use the canonical proof verdict path', () => {
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Did the startup agent actually improve, and what is still blocked? Answer with the proof boundary, not just scores.'),
+    true
+  );
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Is this startup self-improvement proof public-ready or network-absorbable?'),
+    true
+  );
+  assert.equal(
+    isStartupReleaseBoundaryQuestion('Run a startup self-improvement canary from Telegram. Return baseline answer, improved answer, jury verdict, and public/network proof boundary.'),
+    false
+  );
+  assert.equal(isStartupReleaseBoundaryQuestion('What should the startup operator do about pricing?'), false);
+  assert.equal(isStartupReleaseBoundaryQuestion('Please remember this: startup answers should be concise.'), false);
+});
+
+test('suppresses saved-instruction acknowledgements from plain founder chat', () => {
+  const reply = '_(saved instruction: "stop reporting friendly interest as demand Operator line: \\"We have at\\"" - will apply to future replies)_';
+  assert.equal(isMemoryAcknowledgementReply(reply), true);
+  assert.equal(builderReplySuppressionReason(reply, 'plain_chat'), 'memory_acknowledgement');
+  assert.equal(shouldSuppressBuilderReplyForPlainChat(reply, 'plain_chat'), true);
 });
 
 test('memory fallback does not claim a no-op save succeeded', () => {

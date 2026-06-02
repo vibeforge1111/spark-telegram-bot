@@ -164,6 +164,20 @@ function userFacingMemoryContent(text: string): string {
   return cleaned;
 }
 
+function isPollutedInstructionMemoryLine(text: string): boolean {
+  const normalized = text
+    .replace(/^Spark:\s*/i, '')
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase()
+    .trim();
+  return (
+    normalized.startsWith('saved instruction') ||
+    normalized.startsWith('saved preference') ||
+    normalized.startsWith('saved to memory') ||
+    normalized.includes('will apply to future replies')
+  );
+}
+
 export function optionOrdinalFromText(text: string): number | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const numeric = normalized.match(/(?:\b(?:no\.?|number|option)\s*|#\s*)([1-9]\d*)\b/);
@@ -494,8 +508,11 @@ export class ConversationMemory {
     const lines: string[] = [];
 
     if (notes.length > 0) {
-      lines.push('Session notes from this chat:');
-      for (const note of notes) {
+      const cleanNotes = notes.filter((note) => !isPollutedInstructionMemoryLine(note));
+      if (cleanNotes.length > 0) {
+        lines.push('Session notes from this chat:');
+      }
+      for (const note of cleanNotes) {
         lines.push(`- ${note}`);
       }
     }
@@ -509,8 +526,11 @@ export class ConversationMemory {
     }
 
     if (recent.length > 0) {
-      lines.push('Recent Telegram turns:');
-      for (const item of recent.slice(-12)) {
+      const cleanRecent = recent.filter((item) => !isPollutedInstructionMemoryLine(item)).slice(-12);
+      if (cleanRecent.length > 0) {
+        lines.push('Recent Telegram turns:');
+      }
+      for (const item of cleanRecent) {
         lines.push(`- ${item}`);
       }
     }

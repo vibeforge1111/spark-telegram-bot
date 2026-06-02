@@ -156,6 +156,21 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('filters polluted saved-instruction acknowledgements out of chat context', async () => {
+  await withTempState(async () => {
+    const memory = new ConversationMemory();
+
+    await memory.remember(user, 'Outbound volume is high, response quality is falling. What should Spark recommend?');
+    await memory.rememberAssistantReply(user, '_(saved instruction: "stop reporting friendly interest as demand Operator line: \\"We have at\\"" - will apply to future replies)_');
+
+    const context = await memory.getContext(user, 'What should Spark recommend?');
+
+    assert.match(context, /Outbound volume is high/);
+    assert.doesNotMatch(context, /saved instruction/i);
+    assert.doesNotMatch(context, /will apply to future replies/i);
+  });
+  });
+
   await test('exposes recent full turns for the conversation frame harness', async () => {
   await withTempState(async () => {
     const memory = new ConversationMemory();

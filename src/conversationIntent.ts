@@ -74,6 +74,7 @@ export function isSparkWikiStatusQuestion(text: string): boolean {
   }
   const mentionsWiki =
     /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
+    /\bspark\s+wiki\b/i.test(normalized) ||
     /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
     /\bobsidian\s+vault\b/i.test(normalized);
   if (!mentionsWiki) {
@@ -179,6 +180,28 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (isVoiceOnboardingSetupQuestion(normalized)) {
     return null;
   }
+  if (/\b(?:recursive|recursion|autoloop)\b/i.test(normalized) &&
+      /\b(?:report|status|paths?|sessions?|trace|review|evidence|proof|compare|package|start|run|rounds?)\b/i.test(normalized)) {
+    return null;
+  }
+  if (isStartupSelfImprovementCanaryRequest(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (/\b(?:run|start|perform|execute)\b.{0,80}\b(?:spark\s+)?self[-\s]*improvement\b/i.test(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (/\b(?:run|perform|execute)\b.{0,80}\bbefore\s+and\s+after\b.{0,80}\b(?:answer\s+)?improvement\b/i.test(normalized) &&
+      /\b(?:spark|agent|reasoning|answer\s+quality)\b/i.test(normalized)) {
+    return normalized.replace(/[?.!]+$/, '').trim();
+  }
+  if (
+    /\bwhat\s+would\s+you\s+improve\s+in\s+(?:the\s+)?[\w.-]+\s+repo\b/i.test(normalized) ||
+    /\b(?:repo|codebase|project|app|dashboard|ui|canvas)\b/i.test(normalized) &&
+      /\b(?:what|which|how)\b.{0,60}\b(?:improve|better|polish|fix)\b/i.test(normalized) &&
+      !/\b(?:spark'?s?\s+(?:own\s+)?capabilit(?:y|ies)|your\s+(?:own\s+)?capabilit(?:y|ies)|yourself|self[-\s]*improvement)\b/i.test(normalized)
+  ) {
+    return null;
+  }
   if (shouldPreferConversationalIdeation(normalized)) {
     return null;
   }
@@ -227,6 +250,20 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   }
 
   return null;
+}
+
+export function isStartupSelfImprovementCanaryRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized) || extractPlainChatMemoryDirective(text)) {
+    return false;
+  }
+  return (
+    /\b(?:run|start|perform|execute)\b.{0,80}\b(?:startup\s+)?self[-\s]*improvement\s+canary\b/i.test(normalized) ||
+    (
+      /\b(?:startup\s+)?self[-\s]*improvement\s+loop\b/i.test(normalized) &&
+      /\b(?:baseline|improved\s+answer|before\s*\/\s*after|before\s+and\s+after|jury\s+verdict|blind\s+jury|critique|proof\s+boundary)\b/i.test(normalized)
+    )
+  );
 }
 
 export function isVoiceAnswerRequest(text: string): boolean {
@@ -321,7 +358,7 @@ export function extractSparkWikiPromotionIntent(text: string): SparkWikiPromotio
     /\bobsidian\s+vault\b/i.test(normalized);
   const asksToWrite =
     /\b(?:promote|write|save|add|capture|store|record)\b/i.test(normalized) &&
-    /\b(?:improvement|learning|lesson|note|wiki\s+note|self[-\s]*awareness|introspection|capability|route|trace|probe|evidence)\b/i.test(normalized);
+    /\b(?:improvement|learning|lesson|note|wiki\s+note|self[-\s]*awareness|introspection|capability|route|routing|trace|probe|evidence)\b/i.test(normalized);
   if (!mentionsWiki || !asksToWrite) {
     return null;
   }
@@ -331,6 +368,7 @@ export function extractSparkWikiPromotionIntent(text: string): SparkWikiPromotio
 
   const explicitSummaryPatterns = [
     /\b(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s+(?:improvement\s+)?(?:note|learning|lesson)?\s*[:,-]\s*(.+)$/i,
+    /\b(?:promote|write|save|add|capture|store|record)\s+this\s+(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)\s*[:,-]\s*(.+)$/i,
     /\b(?:promote|write|save|add|capture|store|record)\s+(?:this\s+)?(?:as\s+)?(?:a\s+)?(?:candidate\s+|verified\s+)?(?:wiki\s+)?(?:improvement|learning|lesson|note)\s*[:,-]?\s*(.+)$/i,
     /\b(?:promote|write|save|add|capture|store|record)\s+(.+?)\s+(?:to|into|in)\s+(?:your\s+|the\s+|spark\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)$/i,
   ];
@@ -384,6 +422,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   const namedPattern = /^\s*(?:a\s+)?(?:new\s+)?domain[-\s]*chip\s+(?:called|named)\s+\S/i;
 
   if (
+    /\bmaybe\s+we\s+should\b/i.test(normalized) ||
     /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/i.test(normalized) &&
     (
       /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/i.test(normalized) ||
@@ -933,9 +972,12 @@ export function isNoExecutionBoundary(text: string): boolean {
     /^(?:pause|cancel|stop)(?:[.!]+|\s*$)/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|publish|share|ship|deploy|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:resume|unpause|continue|pause|hold|freeze|cancel|stop|kill)\s+(?:it|this|that|that\s+one|this\s+one|the\s+one|anything|something|missions?|work)?\b/,
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|the\s+mission|the\s+build|the\s+project|it|this|that)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
+    /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas)\b/,
+    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
+    /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/,
     /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/
   ].some((pattern) => pattern.test(normalized));
@@ -1160,13 +1202,24 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   ) {
     return false;
   }
+  if (
+    /\b(?:repo|codebase|project|app|dashboard|ui|canvas)\b/.test(normalized) &&
+    /\b(?:what|which|how)\b.{0,80}\b(?:improve|better|polish|fix|review)\b/.test(normalized)
+  ) {
+    return false;
+  }
   const contextText = context.toLowerCase();
   return (
     (/\b(?:localhost|local\s*host|local\s+url)\b/.test(normalized) &&
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
-      /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+      /\b(?:browser|open|show|link)\b/.test(normalized) &&
+      /\b(?:spawner|mission board|mission control|dashboard|ui|this|it|diagnostic|spark)\b/.test(normalized)
+    ) ||
+    (
+      /\bdashboard\b/.test(normalized) &&
+      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized) &&
+      /\b(?:open|show|link|where|browser)\b/.test(normalized)
     )
   );
 }
@@ -1447,7 +1500,13 @@ export function isMissionRoutingFailureClassQuestion(text: string): boolean {
 		return false;
 	}
 	const asksFailureClass = /\b(?:failure\s+class|likely\s+failure|classify|classification|what\s+kind\s+of\s+bug)\b/.test(normalized);
-	const mentionsRouting = /\b(?:mission\s+routing|route\s+hijack|routing\s+bug|mission\s+route|spawner\s+route)\b/.test(normalized);
+	const mentionsRouting = (
+		/\b(?:mission\s+routing|route\s+hijack|routing\s+bug|mission\s+route|spawner\s+route)\b/.test(normalized) ||
+		(
+			/\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|not a request|not an instruction|not a command)\b/.test(normalized) &&
+			/\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route)\b/.test(normalized)
+		)
+	);
 	const noExecution = isNoExecutionBoundary(normalized);
 	return asksFailureClass && mentionsRouting && noExecution;
 }
@@ -1457,6 +1516,17 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 		'That sounds like route hijack: mission or build words are pulling the conversation toward execution even though the user asked to explain only.',
 		'Fresh user intent should outrank keywords, memory, stale mission state, and pending mission context.'
 	].join('\n');
+}
+
+export function isNoExecutionExplanationPrompt(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {
+    return false;
+  }
+  return (
+    /\b(?:meta[-\s]*language|bug\s+report|qa\s+case|quoted|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|not a request|not an instruction|not a command)\b/.test(normalized) ||
+    /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/.test(normalized)
+  );
 }
 
 function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
@@ -2037,11 +2107,16 @@ export function isLowInformationLlmReply(reply: string): boolean {
 }
 
 export function isMemoryAcknowledgementReply(reply: string): boolean {
-  const normalized = reply.trim().toLowerCase();
+  const normalized = reply.trim()
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase();
   return (
     /^noted\s*[:.]/i.test(reply.trim()) ||
     /^saved\s*[:.]/i.test(reply.trim()) ||
     /^remembered\s*[:.]/i.test(reply.trim()) ||
+    normalized.startsWith('saved instruction') ||
+    normalized.startsWith('saved preference') ||
+    normalized.startsWith('saved to memory') ||
     normalized.startsWith('i have saved memory about ') ||
     normalized.startsWith('saved memory about ') ||
     normalized.startsWith('memory saved') ||
@@ -2112,6 +2187,41 @@ export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDe
   return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
 }
 
+export function isStartupFounderAdvisoryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || parseBuildIntent(normalized) || extractPlainChatMemoryDirective(text)) {
+    return false;
+  }
+  if (
+    /\b(?:remember|save|store)\s+(?:this|that|to memory|as|for future replies|instruction|preference)\b/.test(normalized) ||
+    /^(?:memory\s+(?:update|note)|save\s+to\s+memory)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  const asksForAdvice =
+    /\?$/.test(normalized) ||
+    /\b(?:what should|what is the next|what do we do|what should we do|what should spark recommend|how should|should we|what would you do|decide|recommend|tell the operator)\b/.test(normalized);
+  if (!asksForAdvice) return false;
+
+  const startupSignal = /\b(?:startup|founder|operator|board|investors?|runway|burn|pipeline|activation|onboarding|pricing|price|customers?|churn|retention|expansion|sales|outbound|channel|waitlist|pilots?|paid conversion|buying signal|usage|logos?|hiring|headcount|support backlog|revenue|gtm|growth|renewal|trust)\b/.test(normalized);
+  const businessCrisisShape = /\b(?:response quality|noisy|weak|fragile|nervous|backed up|leaking|cash is tight|hard buying signal|friendly interest|support backlog|support fatigue|churn risk|delivery risk|focus fatigue)\b/.test(normalized);
+  return startupSignal && businessCrisisShape;
+}
+
+export function isStartupReleaseBoundaryQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || extractPlainChatMemoryDirective(text)) return false;
+  if (isStartupSelfImprovementCanaryRequest(text)) {
+    return false;
+  }
+  const startupProof =
+    /\b(?:startup|startup agent|startup operator|startup self[-\s]*improvement)\b/.test(normalized) &&
+    /\b(?:improve|improved|upgrade|proof|blocked|boundary|scores?|public[-\s]*ready|network[-\s]*absorbable|absorption|promotion)\b/.test(normalized);
+  const asksBoundary =
+    /\b(?:what is still blocked|what's still blocked|proof boundary|not just scores|public[-\s]*ready|network[-\s]*absorbable|did .* improve|actually improve)\b/.test(normalized);
+  return startupProof && asksBoundary;
+}
+
 export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
   const base = bridgeFailed
     ? 'Spark can see the chat, but its reasoning path is not healthy right now.'
@@ -2139,6 +2249,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
 
   const explicitSavePatterns = [
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
+    /^(?:for\s+later|note\s+for\s+later)\s*[,:-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?(?:save|store|remember)\s+(?:my\s+)?(?:current\s+)?(?:plan|focus|context)\s*[:,-]\s*(.+?)[.!?]?$/i
   ];
@@ -2338,6 +2449,9 @@ export function isUserMemoryRecallQuestion(text: string): boolean {
 
   return (
     /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission\s+updates?|updates?|about\s+me|about\s+how\s+i|how\s+i\s+work|work\s+style)\b/.test(normalized) ||
+    /\bwhat\s+did\s+i\s+ask\s+you\s+to\s+remember(?:\s+earlier)?\s+about\b/.test(normalized) ||
+    /\brecall\s+(?:my|our|the)\s+(?:current\s+)?(?:project\s+)?(?:focus|plan|context)\b/.test(normalized) ||
+    /\bwho\s+owns\b.*\b(?:launch\s+)?(?:checklist|plan|project|workstream|track)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:prefer|preferred|preference|like)\b.*\bremember\b/.test(normalized) ||
     /\buse\s+memory\s+only\s+as\s+context\b.*\bwhat\s+did\s+we\s+decide\s+about\b/.test(normalized) ||
     /\bwhat\s+did\s+we\s+decide\s+about\b/.test(normalized) ||
@@ -2404,5 +2518,33 @@ export function buildIdeationFallbackReply(text: string): string {
     'A strong first version should have one clear loop: choose a tiny goal, interact with it in a playful way, get satisfying feedback, and come back later because progress is saved.',
     '',
     'I would explore three directions: a mini quest tracker, a playful mission dashboard, or a creative prompt machine. Which one feels most alive to you?'
+  ].join('\n');
+}
+
+export function buildNoExecutionIdeationReply(text: string): string {
+  if (/\bdomain[-\s]*chip[-\w]*\b/i.test(text)) {
+    return [
+      "I won't create one here.",
+      '',
+      'A domain chip is useful when Spark keeps needing the same specialized judgment: a clear trigger, a small playbook, example situations, and evidence that the chip improves answers without stealing unrelated conversations.',
+      '',
+      'For this case, I would only shape the boundary before creating anything: what should activate the chip, what should stay normal chat, and what proof would show it is helping.'
+    ].join('\n');
+  }
+
+  if (/\b(?:project|app|tool|workspace|kanban|canvas|dashboard)\b/i.test(text)) {
+    return [
+      "I won't build it here.",
+      '',
+      'For a useful first version, I would shape the workflow before starting execution: a small Kanban surface for active work, a Canvas area for the project brief, and one handoff path that turns an approved card into a build only after you explicitly ask.',
+      '',
+      'That keeps the conversation in design mode while still giving the idea a real v1 shape.'
+    ].join('\n');
+  }
+
+  return [
+    'Got it, staying in chat.',
+    '',
+    'The useful move is to shape the idea without starting work: define the target, name the trigger that would make action appropriate, and keep execution paused until you explicitly ask for it.'
   ].join('\n');
 }

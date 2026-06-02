@@ -147,6 +147,22 @@ test('routes private benchmarked specialization staging without execution', () =
   assert.match(String(route.payload.brief), /network_absorbable=false/);
 });
 
+test('routes startup self-improvement canaries despite publication boundaries', () => {
+  const route = decideNaturalRoute([
+    'Run a startup self-improvement canary from Telegram.',
+    'Do not publish, merge, or claim public/network readiness.',
+    'Take this founder problem: every new channel creates support, delivery, and focus fatigue.',
+    'First produce a baseline answer, then run the startup self-improvement loop, critique it, produce an improved answer, and run a blind jury comparison.',
+    'Return the baseline answer, improved answer, jury verdict, what changed in the agent, and what still blocks a fully closed startup self-improvement loop.'
+  ].join(' '));
+
+  assert.equal(route.route, 'spark.self_improvement');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.requires_confirmation, true);
+  assert.match(String(route.payload.goal), /startup self-improvement canary/);
+});
+
 test('routes Memory Doctor and answer-audit wording to Builder despite stale creator context', () => {
   const context = {
     recentMessages: [

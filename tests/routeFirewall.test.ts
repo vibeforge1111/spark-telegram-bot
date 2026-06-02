@@ -90,6 +90,28 @@ test('allows reusable loop template staging while run and publish are blocked', 
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('allows local self-improvement canaries while publication is blocked', () => {
+  const prompt = [
+    'Run a startup self-improvement canary from Telegram.',
+    'Do not publish, merge, or claim public/network readiness.',
+    'First produce a baseline answer, then run the startup self-improvement loop, produce an improved answer, and run a blind jury verdict.',
+    'Keep the proof boundary honest.'
+  ].join(' ');
+
+  const verdict = evaluateDeterministicRoute('spark.self_improvement', prompt);
+
+  assert.equal(verdict.allow, true);
+  assert.equal(verdict.reason, 'self_improvement_canary_local_only');
+  assert.equal(verdict.confidence, 'explicit');
+
+  const blocked = evaluateDeterministicRoute(
+    'spark.self_improvement',
+    'Do not run a startup self-improvement canary yet. Just talk through the proof boundary.'
+  );
+  assert.equal(blocked.allow, false);
+  assert.equal(blocked.reason, 'no_execution_boundary');
+});
+
 test('uses the firewall as a broad route-arbitration smoke matrix', () => {
   const cases: Array<{
     name: string;
