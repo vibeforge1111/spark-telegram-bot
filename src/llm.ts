@@ -595,9 +595,21 @@ export function buildClarificationMicrocopyPrompt(input: BuildClarificationMicro
   ].join('\n');
 }
 
+const DEFAULT_CLARIFICATION_COPY_TIMEOUT_MS = 8000;
+
+function parsePositiveIntEnv(raw: string | undefined, fallback: number): number {
+  const trimmed = (raw ?? '').trim();
+  if (!/^\d+$/.test(trimmed)) return fallback;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export async function generateBuildClarificationMicrocopy(
   input: BuildClarificationMicrocopyInput,
-  timeoutMs: number = Number(process.env.SPARK_CLARIFICATION_COPY_TIMEOUT_MS || 8000)
+  timeoutMs: number = parsePositiveIntEnv(
+    process.env.SPARK_CLARIFICATION_COPY_TIMEOUT_MS,
+    DEFAULT_CLARIFICATION_COPY_TIMEOUT_MS
+  )
 ): Promise<BuildClarificationMicrocopy | null> {
   if (process.env.SPARK_CLARIFICATION_COPY_LLM === '0') return null;
   const prompt = buildClarificationMicrocopyPrompt(input);
