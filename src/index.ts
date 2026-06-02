@@ -3004,7 +3004,9 @@ function startPrdCanvasReadyNotifier(args: {
           await bot.telegram.sendMessage(args.chatId, formatCanvasShapingHeartbeatSummary({
             projectName: args.projectName,
             elapsedSeconds: elapsedSec
-          })).catch(() => {});
+          })).catch((e) => {
+            console.error('[CanvasShaping] Failed to send heartbeat:', e);
+          });
           heartbeatIndex += 1;
         }
 
@@ -3854,7 +3856,9 @@ async function handleCreatorMissionPlan(ctx: any, parsed: ParsedCreatorCommand):
     await conversation.learnAboutUser(
       ctx.from,
       `Planned creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
-    ).catch(() => {});
+    ).catch((e) => {
+      console.error('[CreatorMission] Failed to learn about user:', e);
+    });
   }
 }
 
@@ -4451,7 +4455,9 @@ function recordRouteConfidenceDispatchOutcome(input: {
   };
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
-    .catch(() => {});
+    .catch((e) => {
+      console.error('[RouteConfidenceAudit] Failed to write audit record:', e);
+    });
 }
 
 export async function buildDispatchRouteConfidenceAllows(input: {
@@ -5050,7 +5056,9 @@ bot.command('creator', async (ctx) => {
         await conversation.learnAboutUser(
           ctx.from,
           `Ran validation for creator mission ${result.missionId} from Telegram.`
-        ).catch(() => {});
+        ).catch((e) => {
+          console.error('[CreatorMission] Failed to learn about user:', e);
+        });
       }
       return;
     }
@@ -5063,7 +5071,9 @@ bot.command('creator', async (ctx) => {
         await conversation.learnAboutUser(
           ctx.from,
           `Started execution for creator mission ${result.missionId} from Telegram.`
-        ).catch(() => {});
+        ).catch((e) => {
+          console.error('[CreatorMission] Failed to learn about user:', e);
+        });
       }
       return;
     }
@@ -5630,14 +5640,18 @@ bot.command('level5_setup', async (ctx) => handleSparkAccessActionCommand(ctx, '
 bot.command('level5_disable', async (ctx) => handleSparkAccessActionCommand(ctx, 'level5_disable'));
 
 bot.action(/^spark_access:(workspace_setup|docker_doctor|docker_smoke|level5_enable|level5_disable)(?::(confirm))?$/, async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {});
+  await ctx.answerCbQuery().catch((e) => {
+      console.error('[SparkAccessAction] Failed to answer callback query:', e);
+    });
   const match = String((ctx.callbackQuery as any)?.data || '').match(/^spark_access:(workspace_setup|docker_doctor|docker_smoke|level5_enable|level5_disable)(?::(confirm))?$/);
   if (!match) return;
   await handleSparkAccessAction(ctx, match[1] as SparkAccessActionId, match[2] === 'confirm');
 });
 
 bot.action(/^spark_access_level:operator:confirm$/, async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {});
+  await ctx.answerCbQuery().catch((e) => {
+      console.error('[SparkAccessAction] Failed to answer callback query:', e);
+    });
   if (!requireAdmin(ctx)) return;
   await applySparkAccessProfileChange(ctx, 'operator');
 });
