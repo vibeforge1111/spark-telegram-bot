@@ -1,4 +1,5 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
@@ -331,7 +332,14 @@ async function persistEnvUpdates(updates: Record<string, string>): Promise<strin
     const after = updateEnvContent(before, updates);
     if (after !== before) {
       await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, after, 'utf8');
+      const dir = await mkdtemp(path.join(tmpdir(), 'spark-model-'));
+      const tmp = path.join(dir, 'env.tmp');
+      try {
+        await writeFile(tmp, after, 'utf8');
+        await rename(tmp, filePath);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
       changed.push(filePath);
     }
   }
