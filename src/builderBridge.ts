@@ -238,7 +238,8 @@ export interface BuilderWikiPromotionResult {
 }
 
 function parseBridgeMode(): BuilderBridgeMode {
-  const raw = (process.env.SPARK_BUILDER_BRIDGE_MODE || 'auto').trim().toLowerCase();
+  const configured = process.env.SPARK_BUILDER_BRIDGE_MODE;
+  const raw = (configured ?? 'auto').trim().toLowerCase();
   if (raw === 'auto' || raw === 'off' || raw === 'required') {
     return raw;
   }
