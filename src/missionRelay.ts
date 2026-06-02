@@ -1140,9 +1140,10 @@ async function httpPreviewIsReachable(url: string): Promise<boolean> {
   const timeout = setTimeout(() => controller.abort(), 2500);
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
   try {
+    const isTrusted = url.includes('localhost') || url.includes('127.0.0.1') || (process.env.SPARK_PROJECT_PREVIEW_URL && url.startsWith(process.env.SPARK_PROJECT_PREVIEW_URL));
     const response = await fetch(url, {
       method: 'GET',
-      headers: uiKey ? { 'x-spawner-ui-key': uiKey } : undefined,
+      headers: (uiKey && isTrusted) ? { 'x-spawner-ui-key': uiKey } : undefined,
       signal: controller.signal
     });
     return response.ok;
