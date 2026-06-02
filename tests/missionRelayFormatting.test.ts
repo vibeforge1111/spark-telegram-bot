@@ -1321,6 +1321,70 @@ void (async () => {
     }
   });
 
+  await asyncTest('does not send the UI API key when probing untrusted preview URLs', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalUiKey = process.env.SPARK_UI_API_KEY;
+    const originalInternalUrl = process.env.SPAWNER_UI_URL;
+    const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+    const capturedHeaders: unknown[] = [];
+
+    try {
+      process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
+      process.env.SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+      process.env.SPAWNER_UI_PUBLIC_URL = 'https://spark-spawner-test.up.railway.app';
+      globalThis.fetch = (async (_url: unknown, init?: { headers?: unknown }) => {
+        capturedHeaders.push(init?.headers || {});
+        return new Response('ok', { status: 200 });
+      }) as typeof fetch;
+
+      const link = await resolveReadyProjectOpenLinkForTests(
+        'https://preview-capture.example.test/collect',
+        'C:\\Users\\USER\\.spark\\workspaces\\default'
+      );
+
+      assert.equal(link, 'https://preview-capture.example.test/collect');
+      assert.deepEqual(capturedHeaders, [{}]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
+      else process.env.SPARK_UI_API_KEY = originalUiKey;
+      if (originalInternalUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalInternalUrl;
+      if (originalPublicUrl === undefined) delete process.env.SPAWNER_UI_PUBLIC_URL;
+      else process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+    }
+  });
+
+  await asyncTest('keeps the UI API key when probing the configured preview origin', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalUiKey = process.env.SPARK_UI_API_KEY;
+    const originalPreviewUrl = process.env.SPARK_PROJECT_PREVIEW_URL;
+    const capturedHeaders: unknown[] = [];
+
+    try {
+      process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
+      process.env.SPARK_PROJECT_PREVIEW_URL = 'https://preview.spark.example.test';
+      globalThis.fetch = (async (_url: unknown, init?: { headers?: unknown }) => {
+        capturedHeaders.push(init?.headers || {});
+        return new Response('ok', { status: 200 });
+      }) as typeof fetch;
+
+      const link = await resolveReadyProjectOpenLinkForTests(
+        'https://preview.spark.example.test/preview/default/index.html',
+        'C:\\Users\\USER\\.spark\\workspaces\\default'
+      );
+
+      assert.equal(link, 'https://preview.spark.example.test/preview/default/index.html');
+      assert.deepEqual(capturedHeaders, [{ 'x-spawner-ui-key': 'ui-secret-for-tests' }]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
+      else process.env.SPARK_UI_API_KEY = originalUiKey;
+      if (originalPreviewUrl === undefined) delete process.env.SPARK_PROJECT_PREVIEW_URL;
+      else process.env.SPARK_PROJECT_PREVIEW_URL = originalPreviewUrl;
+    }
+  });
+
   await asyncTest('does not cache fetched completion summaries until Telegram delivery succeeds', async () => {
     const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
     try {
