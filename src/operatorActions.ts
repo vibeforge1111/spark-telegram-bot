@@ -38,7 +38,7 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
   if (
     windowsPath &&
-    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' &&
+    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' && path.win32.normalize(windowsPath).toLowerCase().startsWith('c:\\users\\') &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
