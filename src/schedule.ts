@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { redactText } from './redaction';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 
@@ -65,6 +66,11 @@ export function formatNextFireLocal(iso: string | null): string {
   }
 }
 
+export function formatScheduleError(error: unknown, fallback: string): string {
+  const detail = typeof error === 'string' ? error : String(error || fallback);
+  return redactText(detail).replace(/\s+/g, ' ').trim() || fallback;
+}
+
 export function humanSummary(rec: ScheduleRecord): string {
   if (rec.action === 'mission') {
     const goal = String((rec.payload as { goal?: string }).goal ?? '(no goal)');
@@ -79,10 +85,11 @@ export function formatScheduleList(schedules: ScheduleRecord[]): string {
   if (schedules.length === 0) return 'No schedules.';
   const lines = [`Schedules (${schedules.length}):`, ''];
   for (const s of schedules) {
+    const lastStatus = s.lastStatus ? redactText(s.lastStatus).replace(/\s+/g, ' ').trim().slice(0, 80) : '';
     lines.push(humanSummary(s));
     lines.push(`  Schedule: ${humanizeCron(s.cron)}`);
     lines.push(`  Next: ${formatNextFireLocal(s.nextFireAt)}`);
-    lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${s.lastStatus.slice(0, 80)}` : ''}`);
+    lines.push(`  Fires so far: ${s.fireCount}${lastStatus ? ` | last: ${lastStatus}` : ''}`);
     lines.push(`  Id: ${s.id}`);
     lines.push('');
   }
@@ -111,26 +118,37 @@ export async function createSchedule(input: {
 }): Promise<{ ok: boolean; schedule?: ScheduleRecord; error?: string }> {
   try {
     const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error };
+    return {
+      ok: Boolean(res.data?.ok),
+      schedule: res.data?.schedule,
+      error: res.data?.error ? formatScheduleError(res.data.error, 'create failed') : undefined,
+    };
   } catch (err: any) {
-    return { ok: false, error: err?.response?.data?.error || err?.message || 'create failed' };
+    return { ok: false, error: formatScheduleError(err?.response?.data?.error || err?.message, 'create failed') };
   }
 }
 
 export async function listSchedules(): Promise<{ ok: boolean; schedules?: ScheduleRecord[]; error?: string }> {
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error };
+    return {
+      ok: Boolean(res.data?.ok),
+      schedules: res.data?.schedules || [],
+      error: res.data?.error ? formatScheduleError(res.data.error, 'list failed') : undefined,
+    };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'list failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'list failed') };
   }
 }
 
 export async function deleteSchedule(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await axios.delete(`${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`, spawnerAxiosOptions(10000));
-    return { ok: Boolean(res.data?.ok), error: res.data?.error };
+    return {
+      ok: Boolean(res.data?.ok),
+      error: res.data?.error ? formatScheduleError(res.data.error, 'delete failed') : undefined,
+    };
   } catch (err: any) {
-    return { ok: false, error: err?.message || 'delete failed' };
+    return { ok: false, error: formatScheduleError(err?.message, 'delete failed') };
   }
 }
