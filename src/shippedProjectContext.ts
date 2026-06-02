@@ -140,14 +140,22 @@ function projectNameFromGoal(goal: string, projectPath: string): string {
 }
 
 function summaryFromResponse(response: string): string | undefined {
+  const MAX_SUMMARY_LENGTH = 500;
   const parsed = parseJsonObject(response);
   const parsedSummary = parsed ? stringField(parsed.summary) || stringField(parsed.message) : null;
-  if (parsedSummary) return parsedSummary.slice(0, 500);
+  if (parsedSummary) {
+    return parsedSummary.length > MAX_SUMMARY_LENGTH
+      ? parsedSummary.slice(0, MAX_SUMMARY_LENGTH) + ' [truncated]'
+      : parsedSummary;
+  }
   const line = response
     .split(/\r?\n/)
     .map((entry) => entry.trim())
     .find((entry) => entry && !entry.startsWith('-') && !/\[[^\]]+\]\(/.test(entry));
-  return line ? line.slice(0, 500) : undefined;
+  if (!line) return undefined;
+  return line.length > MAX_SUMMARY_LENGTH
+    ? line.slice(0, MAX_SUMMARY_LENGTH) + ' [truncated]'
+    : line;
 }
 
 export async function recordShippedProjectFromMission(
