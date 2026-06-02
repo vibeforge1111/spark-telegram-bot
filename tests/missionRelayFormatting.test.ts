@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,7 @@ import {
   buildMissionSurfaceLinks,
   formatMissionHeartbeatForTelegram,
   formatProgressMessageForTelegram,
+  fetchMissionCompletionSummaryForTests,
   getTelegramRelayIdentity,
   formatProviderCompletionForTelegram,
   formatMissionRelayStateMessageForTelegram,
@@ -1360,6 +1362,54 @@ void (async () => {
       assert.equal(link, null);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  await asyncTest('completion fetch recovers full local provider response when trace summary is capped', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerStateDir = process.env.SPAWNER_STATE_DIR;
+    const stateDir = mkdtempSync(path.join(os.tmpdir(), 'spark-completion-response-test-'));
+    const missionId = 'mission-full-response';
+    const fullTail = 'Final handoff tail reaches Telegram from local provider results.';
+    const fullResponse = `Started report. ${Array.from({ length: 100 }, (_, index) => `detail ${index + 1}`).join(', ')}. ${fullTail}`;
+    writeFileSync(path.join(stateDir, 'mission-provider-results.json'), JSON.stringify({
+      missions: {
+        [missionId]: [
+          {
+            providerId: 'codex',
+            status: 'completed',
+            response: fullResponse,
+            completedAt: '2026-06-02T00:00:00.000Z'
+          }
+        ]
+      }
+    }), 'utf8');
+    process.env.SPAWNER_STATE_DIR = stateDir;
+
+    try {
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        phase: 'completed',
+        providerSummary: 'Codex: Started report. detail 1, detail 2...',
+        providerResults: [
+          {
+            providerId: 'codex',
+            status: 'completed',
+            summary: 'Started report. detail 1, detail 2...'
+          }
+        ],
+        projectLineage: {}
+      }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests(missionId);
+
+      assert.ok(completion);
+      assert.equal(completion?.response, fullResponse);
+      assert.match(completion?.response || '', new RegExp(fullTail));
+      assert.doesNotMatch(completion?.response || '', /\.\.\.$/);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerStateDir === undefined) delete process.env.SPAWNER_STATE_DIR;
+      else process.env.SPAWNER_STATE_DIR = originalSpawnerStateDir;
     }
   });
 

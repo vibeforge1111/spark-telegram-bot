@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { Telegraf } from 'telegraf';
 import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
@@ -689,6 +691,33 @@ function firstString(record: Record<string, unknown> | null, keys: string[]): st
   return null;
 }
 
+function looksTruncatedForHandoff(value: string): boolean {
+  return /\.\.\.\s*$/.test(value.trim());
+}
+
+function resolveSpawnerStateDir(): string {
+  const configured = process.env.SPAWNER_STATE_DIR || process.env.SPARK_SPAWNER_STATE_DIR;
+  if (configured && configured.trim()) return configured.trim();
+  return path.join(os.homedir(), '.spark', 'state', 'spawner-ui');
+}
+
+function readLocalProviderCompletionResponse(missionId: string): string | null {
+  const providerResultsPath = path.join(resolveSpawnerStateDir(), 'mission-provider-results.json');
+  if (!existsSync(providerResultsPath)) return null;
+  try {
+    const state = JSON.parse(readFileSync(providerResultsPath, 'utf8')) as MissionProviderResultsState;
+    const results = Array.isArray(state.missions?.[missionId]) ? state.missions[missionId] : [];
+    const completed = [...results].reverse().find((result) =>
+      String(result?.status || '').toLowerCase() === 'completed' &&
+      typeof result?.response === 'string' &&
+      result.response.trim()
+    );
+    return typeof completed?.response === 'string' ? completed.response.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMissionCompletionSummary(
   missionId: string,
   options: MissionCompletionFetchOptions = {}
@@ -713,10 +742,17 @@ async function fetchMissionCompletionSummary(
         const completedProvider =
           providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
           providerResults.find((entry) => typeof entry?.summary === 'string' && entry.summary.trim());
+        const resultResponse = completedProvider && typeof completedProvider.response === 'string'
+          ? completedProvider.response.trim()
+          : '';
         const resultSummary = completedProvider && typeof completedProvider.summary === 'string'
           ? completedProvider.summary.trim()
           : '';
-        const responseText = providerSummary || resultSummary;
+        const compactResponseText = resultResponse || providerSummary || resultSummary;
+        const localFullResponse = compactResponseText && looksTruncatedForHandoff(compactResponseText)
+          ? readLocalProviderCompletionResponse(missionId)
+          : null;
+        const responseText = localFullResponse || compactResponseText;
         if (phase !== 'completed' || !responseText) continue;
 
         const projectLineage = asRecord(payload.projectLineage);
@@ -741,6 +777,8 @@ async function fetchMissionCompletionSummary(
   }
   return null;
 }
+
+export const fetchMissionCompletionSummaryForTests = fetchMissionCompletionSummary;
 
 function isProviderLevelCompletionEvent(event: DeliverableRelayEvent): boolean {
   return event.type === 'task_completed' && !event.taskId && !event.taskName;
@@ -864,6 +902,18 @@ function clipText(text: string, maxLength: number): string {
   const compact = compactWhitespace(text);
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+interface ProviderMissionResultSnapshot {
+  providerId?: string;
+  status?: string;
+  response?: string | null;
+  error?: string | null;
+  completedAt?: string | null;
+}
+
+interface MissionProviderResultsState {
+  missions?: Record<string, ProviderMissionResultSnapshot[]>;
 }
 
 function completionReportText(text: string): string {
