@@ -2,12 +2,19 @@ import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
+import { redactText } from './redaction';
 import { DEFAULT_LOCAL_SERVICE_TIMEOUT_MS, localServiceDefaultTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import type { SkillTier } from './userTier';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const PROJECT_PREVIEW_URL = resolveProjectPreviewBaseUrl();
 const SPARK_RUN_PROJECT_PATH = process.env.SPARK_RUN_PROJECT_PATH?.trim();
+
+function formatMissionControlErrorDetail(error: unknown, fallback = 'Mission Control request failed.'): string {
+  const value = error as { response?: { data?: { error?: unknown } }; message?: unknown };
+  const raw = value?.response?.data?.error ?? value?.message ?? error ?? fallback;
+  return redactText(String(raw)).replace(/\s+/g, ' ').trim().slice(0, 180) || fallback;
+}
 
 type MissionAction = 'status' | 'pause' | 'resume' | 'kill';
 type CreatorPrivacyMode = 'local_only' | 'github_pr' | 'swarm_shared';
@@ -1282,7 +1289,7 @@ export const spawner = {
       if (res.data?.ok === false) {
         return {
           success: false,
-          message: res.data?.error || `Mission ${missionId} command was rejected.`
+          message: formatMissionControlErrorDetail(res.data?.error, `Mission ${missionId} command was rejected.`)
         };
       }
 
@@ -1330,7 +1337,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: formatMissionControlErrorDetail(err)
       };
     }
   },
@@ -1390,7 +1397,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before pausing: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before pausing: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1436,7 +1443,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1475,7 +1482,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1535,7 +1542,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before resuming: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before resuming: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1577,7 +1584,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before preparing cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before preparing cancellation: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1611,7 +1618,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before answering: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
@@ -1651,7 +1658,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: `I could not check Mission Control before confirming cancellation: ${err.response?.data?.error || err.message}`
+        message: `I could not check Mission Control before confirming cancellation: ${formatMissionControlErrorDetail(err)}`
       };
     }
   },
