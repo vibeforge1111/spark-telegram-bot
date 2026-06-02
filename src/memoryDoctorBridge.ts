@@ -13,7 +13,11 @@ function isMarketChartProofBoundaryQuestion(text: string): boolean {
     /\b(?:tradingview|trading view|hypeusd|hypeusdt|support\s+and\s+resistance|support|resistance|weekly\s+(?:timeframe|chart)|market|chart)\b/.test(normalized);
   const proofBoundary =
     /\b(?:do\s+not\s+trade|financial\s+advice|cannot\s+directly\s+inspect|current\s+tradingview|proof|do\s+not\s+invent|exact\s+levels?|draw\s+support|resistance\s+lines?)\b/.test(normalized);
-  return marketChart && proofBoundary;
+  const tradingViewLevelExtraction =
+    /\b(?:tradingview|trading view)\b/.test(normalized) &&
+    /\b(?:hypeusd|hypeusdt|support|resistance|levels?|lines?)\b/.test(normalized) &&
+    /\b(?:show|draw|mark|plot|sketch|image|weekly|timeframe|extract(?:ed)?|from)\b/.test(normalized);
+  return marketChart && (proofBoundary || tradingViewLevelExtraction);
 }
 
 function compactEvidenceText(value: string, limit = 700): string {

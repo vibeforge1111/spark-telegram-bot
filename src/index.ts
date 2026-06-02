@@ -5776,7 +5776,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
-  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
+  const marketChartProofBoundary = isMarketChartProofBoundaryQuestion(text);
+  const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest && !marketChartProofBoundary ? parseBuildIntent(text) : null;
   const earlyBuildIntent = parsedEarlyBuildIntent && deterministicRouteAllowed('spawner.build', text)
     ? parsedEarlyBuildIntent
     : null;
@@ -5981,7 +5982,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && isMarketChartProofBoundaryQuestion(text)) {
+  if (!earlyBuildIntent && marketChartProofBoundary) {
     const reply = renderMarketChartProofBoundaryReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.market_chart_proof_boundary', 'spark-telegram-bot', 'plain_chat.safety_boundary');

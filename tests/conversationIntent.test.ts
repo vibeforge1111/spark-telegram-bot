@@ -982,6 +982,20 @@ Explain what proof you would need to draw support and resistance lines safely, a
   assert.doesNotMatch(reply, /Memory Doctor/);
 });
 
+test('blocks invented TradingView support and resistance extraction claims', () => {
+  const prompt = 'In an image form, show me the support and resistance lines of HypeUsd in a weekly timeframe extracted from trading view';
+
+  assert.equal(isMarketChartProofBoundaryQuestion(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderMarketChartProofBoundaryReply(prompt);
+  assert.match(reply, /cannot safely claim current TradingView weekly HYPEUSD levels/);
+  assert.match(reply, /current weekly TradingView screenshot/);
+  assert.match(reply, /will not invent exact support or resistance levels/);
+  assert.doesNotMatch(reply, /Levels used/);
+});
+
 test('selects immediate prior turns for contextual Memory Doctor evidence', () => {
   const turns = selectMemoryDoctorEvidenceTurns('run memory doctor for last request', [
     { role: 'user', text: 'all your chips work, right?' },
