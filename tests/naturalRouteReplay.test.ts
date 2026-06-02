@@ -51,3 +51,23 @@ test('creates redacted dry-run ledger records from replay results', () => {
   assert.equal(ledgerSummary.total, 1);
   assert.doesNotMatch(serialized, /Neon Harbor|Telegram memory test|current plan/i);
 });
+
+test('rejects duplicate replay case ids before evaluating fixtures', () => {
+  const duplicateReplayCases = [
+    JSON.stringify({
+      id: 'memory.write.duplicate',
+      currentMessage: 'remember this: concise replies',
+      expectedRoute: 'memory.write'
+    }),
+    JSON.stringify({
+      id: 'memory.write.duplicate',
+      currentMessage: 'save this preference: short answers',
+      expectedRoute: 'memory.write'
+    })
+  ].join('\n');
+
+  assert.throws(
+    () => parseNaturalRouteReplayCases(duplicateReplayCases),
+    /Replay case id memory\.write\.duplicate is duplicated\./
+  );
+});

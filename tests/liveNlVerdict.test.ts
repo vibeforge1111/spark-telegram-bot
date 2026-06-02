@@ -256,6 +256,30 @@ test('names every missing required live command field', () => {
   );
 });
 
+test('rejects duplicate live NL command case ids before selection', () => {
+  assert.throws(
+    () => parseLiveNlCommandCases([
+      {
+        id: 'safe-duplicate',
+        suite: 'memory',
+        risk: 'safe',
+        prompt: 'remember this: concise replies',
+        expectedRoute: 'memory_directive',
+        expectedOutcome: 'Saves the preference.'
+      },
+      {
+        id: 'safe-duplicate',
+        suite: 'wiki',
+        risk: 'safe',
+        prompt: 'what pages are in your LLM wiki?',
+        expectedRoute: 'natural_wiki_inventory',
+        expectedOutcome: 'Lists wiki pages.'
+      }
+    ]),
+    /Live NL case id safe-duplicate is duplicated\./
+  );
+});
+
 test('actual live command catalog keeps route-boundary prompt cards', () => {
   const catalogPath = resolve(__dirname, '../ops/natural-language-live-commands.json');
   const actualCases = parseLiveNlCommandCases(JSON.parse(readFileSync(catalogPath, 'utf8')));

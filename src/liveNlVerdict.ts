@@ -179,7 +179,15 @@ export function parseLiveNlCommandCases(value: unknown): LiveNlCommandCase[] {
   if (!Array.isArray(value)) {
     throw new Error('Live NL command cases must be a JSON array.');
   }
-  return value.map(parseLiveNlCommandCase);
+  const cases = value.map(parseLiveNlCommandCase);
+  const seen = new Set<string>();
+  for (const testCase of cases) {
+    if (seen.has(testCase.id)) {
+      throw new Error(`Live NL case id ${testCase.id} is duplicated.`);
+    }
+    seen.add(testCase.id);
+  }
+  return cases;
 }
 
 export function liveNlCaseTurns(entry: LiveNlCommandCase): string[] {
