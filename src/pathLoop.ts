@@ -396,8 +396,12 @@ function parseLabeledLine(stdout: string, label: string): string | null {
 
 async function readJsonObject(filePath: string | null): Promise<Record<string, any> | null> {
   if (!filePath || !existsSync(filePath)) return null;
-  const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  try {
+    const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 async function readBenchmarkCaseCount(casesPath: string): Promise<number | null> {
