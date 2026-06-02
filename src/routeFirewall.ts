@@ -115,7 +115,12 @@ const MISSION_OR_BUILD_ROUTES = new Set<DeterministicRouteId>([
 ]);
 
 function normalize(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, ' ').trim();
+  // NFC: combine compatible code points into their canonical composed form
+  // before lower-casing. Without this, the same visible string can take
+  // two byte forms (e.g., a precomposed "é" vs an "e" + combining acute)
+  // and equality checks downstream compare unequal even though the
+  // operator typed the same word.
+  return text.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function isQuestionLike(normalized: string): boolean {
