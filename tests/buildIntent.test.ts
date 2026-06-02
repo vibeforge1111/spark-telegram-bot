@@ -357,6 +357,31 @@ test('does not treat philosophical questions with modal verbs as build intent', 
   assert.ok(parseBuildIntent('Could we build a landing page?'));
 });
 
+test('does not let a modal verb in an earlier clause suppress a real build command', () => {
+  // The philosophical guard must only look at the build verb's own clause. A modal
+  // verb in a preceding clause ("should show", "will need", "must load") must not
+  // cause a legitimate inline build request to be silently dropped.
+  assert.ok(
+    parseBuildIntent('The dashboard should show sales numbers. Also build a login page for it.'),
+    'multi-clause build after a "should" clause should still build',
+  );
+  assert.ok(
+    parseBuildIntent('Notes should sync across devices. Also create a settings screen.'),
+    'multi-clause build after a "should" clause should still build',
+  );
+  assert.ok(
+    parseBuildIntent('Users will need accounts later, but for now make a landing page.'),
+    'build after a "will need" clause should still build',
+  );
+  assert.ok(
+    parseBuildIntent('The app must load fast, so build a caching layer.'),
+    'build after a "must load" clause should still build',
+  );
+  // Regression guard: single-clause philosophical questions are still suppressed.
+  assert.equal(parseBuildIntent("Can God create a rock so heavy that even He can't lift it?"), null);
+  assert.equal(parseBuildIntent('I was thinking earlier. Can God create a rock too heavy to lift?'), null);
+});
+
 test('infers a compact product name for long conceptual build briefs', () => {
   const intent = parseBuildIntent(`Let's build this A narrow tool that takes a founder's messy weekly notes - half-written thoughts, customer quotes, random metrics, meeting takeaways - and turns them into a running strategy document that actually stays current.
 

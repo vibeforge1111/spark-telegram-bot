@@ -798,6 +798,12 @@ function extractBuildDescription(text: string): string | null {
   );
   if (inlineCommand?.index !== undefined) {
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
+    // The philosophical-question guard below must only inspect the clause that
+    // actually contains the build verb. A modal verb in an *earlier* clause
+    // ("The app must load fast, so build a caching layer.") is unrelated to the
+    // build request and must not suppress it, so scope that check to the text
+    // after the last sentence/clause boundary.
+    const clausePrefix = prefix.split(/[.!?;:,]/).pop() ?? prefix;
     if (
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
@@ -805,8 +811,10 @@ function extractBuildDescription(text: string): string | null {
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
       isNegatedBuildCommandPrefix(prefix) ||
       // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
-      // Modal verb + subject other than "you/we" before the build verb = not a build request.
-      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(prefix)
+      // Modal verb + subject other than "you/we" immediately before the build verb =
+      // not a build request. Scoped to the build verb's own clause (clausePrefix) so a
+      // modal in a preceding clause does not wrongly drop a real build command.
+      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(clausePrefix)
     ) {
       return null;
     }
