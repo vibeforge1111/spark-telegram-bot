@@ -21,6 +21,7 @@ const tests = [
   'tests/routeBoundaryHandlerHarness.test.ts',
   'tests/runtimeFreshness.test.ts',
   'tests/runtimeOutputTruncation.test.ts',
+  'tests/browserProofBoundary.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',
   'tests/conversationMemory.test.ts',
   'tests/commandTelemetry.test.ts',

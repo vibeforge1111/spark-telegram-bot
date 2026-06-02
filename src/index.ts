@@ -2448,10 +2448,20 @@ export function formatAocQuestionAnswer(query: string): string {
   return '';
 }
 
+// Roughly a two-sentence question. The browser-capability boundary answer is only
+// meaningful for a direct question to Spark; anything longer is a pasted document.
+const BROWSER_PROOF_QUESTION_MAX_LENGTH = 240;
+
 export function formatBrowserProofQuestionAnswer(query: string): string {
   const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
-  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?|pages?)\b/.test(normalized);
+  // Only answer the browser-capability boundary for a concise, capability-directed
+  // question. A long pasted document (e.g. a competition brief) that merely mentions
+  // "browser", "page", or "proof" in passing must not trigger it just because those
+  // keywords are scattered across the text. Bare "page(s)" is excluded too — a "proof
+  // page" or "this page" is not a question about Spark's browser route.
+  if (normalized.length > BROWSER_PROOF_QUESTION_MAX_LENGTH) return '';
+  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?)\b/.test(normalized);
   const asksForProof = /\b(capabilit(?:y|ies)|available|definitely|prove|proof|proven|right now|can you)\b/.test(normalized);
   if (!asksAboutBrowser || !asksForProof) return '';
 
