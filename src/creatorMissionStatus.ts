@@ -140,7 +140,9 @@ function requireRecord(value: unknown, label: string): Record<string, unknown> {
 
 function requireAllowed(value: unknown, allowed: string[], label: string): void {
   if (typeof value !== 'string' || !allowed.includes(value)) {
-    throw new Error(`Unsupported ${label}: ${String(value)}`);
+    throw new Error(
+      `Unsupported ${label}: ${String(value)}. Allowed values: ${allowed.join(', ')}.`
+    );
   }
 }
 

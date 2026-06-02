@@ -84,3 +84,94 @@ test('rejects creator mission status packets that request secret paste', () => {
 
   assert.throws(() => validateCreatorMissionStatusForTelegram(unsafe), /secret paste/i);
 });
+
+test('rejects unknown verdict and names the allowed verdict values', () => {
+  const unsafe = packet({
+    canonical: {
+      ...packet().canonical,
+      verdict: 'shipped' as never
+    }
+  });
+
+  assert.throws(
+    () => validateCreatorMissionStatusForTelegram(unsafe),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return (
+        /Unsupported verdict/.test(message) &&
+        /shipped/.test(message) &&
+        /Allowed values:/.test(message) &&
+        /prototype/.test(message) &&
+        /ready_for_baseline/.test(message) &&
+        /ready_for_swarm_packet/.test(message) &&
+        /blocked/.test(message)
+      );
+    }
+  );
+});
+
+test('rejects unknown stage status and names the allowed stage status values', () => {
+  const unsafe = packet({
+    canonical: {
+      ...packet().canonical,
+      stage_status: 'pending' as never
+    }
+  });
+
+  assert.throws(
+    () => validateCreatorMissionStatusForTelegram(unsafe),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return (
+        /Unsupported stage status/.test(message) &&
+        /pending/.test(message) &&
+        /Allowed values:/.test(message) &&
+        /review_required/.test(message)
+      );
+    }
+  );
+});
+
+test('rejects unknown evidence tier and names the allowed evidence tier values', () => {
+  const unsafe = packet({
+    canonical: {
+      ...packet().canonical,
+      evidence_tier: 'private' as never
+    }
+  });
+
+  assert.throws(
+    () => validateCreatorMissionStatusForTelegram(unsafe),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return (
+        /Unsupported evidence tier/.test(message) &&
+        /private/.test(message) &&
+        /Allowed values:/.test(message) &&
+        /transfer_supported/.test(message)
+      );
+    }
+  );
+});
+
+test('rejects unknown publish mode and names the allowed publish mode values', () => {
+  const unsafe = packet({
+    publication: {
+      ...packet().publication,
+      publish_mode: 'broadcast' as never
+    }
+  });
+
+  assert.throws(
+    () => validateCreatorMissionStatusForTelegram(unsafe),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return (
+        /Unsupported publish mode/.test(message) &&
+        /broadcast/.test(message) &&
+        /Allowed values:/.test(message) &&
+        /swarm_shared/.test(message)
+      );
+    }
+  );
+});
