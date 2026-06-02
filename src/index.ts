@@ -1191,8 +1191,17 @@ function shouldAttachFreshRuntimeTruthContext(text: string): boolean {
   return signals.access || signals.live || signals.providers || signals.memory;
 }
 
+// Roughly a two-sentence question. An authoritative runtime-status answer is a
+// response to a direct status question, never to a pasted document.
+const RUNTIME_STATUS_QUESTION_MAX_LENGTH = 240;
+
 export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  // Several checks below use ".*" that spans the whole message, so a long pasted
+  // document (e.g. a competition brief mentioning "spark", "telegram", "running",
+  // "status") would otherwise satisfy them and hijack the reply with a status report.
+  // Only treat a concise message as a status question; longer input falls through to chat.
+  if (normalized.length > RUNTIME_STATUS_QUESTION_MAX_LENGTH) return false;
   if (!runtimeTruthSignals(text).live) return false;
   return (
     /\b(?:raw|debug|details?|full|exact)\b.*\b(?:live|health|status|state)\b/.test(normalized) ||

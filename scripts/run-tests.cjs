@@ -20,6 +20,7 @@ const tests = [
   'tests/liveNlVerdict.test.ts',
   'tests/routeBoundaryHandlerHarness.test.ts',
   'tests/runtimeFreshness.test.ts',
+  'tests/runtimeStatusBoundary.test.ts',
   'tests/runtimeOutputTruncation.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',
   'tests/conversationMemory.test.ts',
