@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  codexClientConfigArgsFromModelCommand,
   normalizeModelProvider,
   normalizeModelRole,
   providerIsConfigured,
@@ -42,6 +43,60 @@ test('renders a model status help surface', () => {
   } finally {
     process.env = before;
   }
+});
+
+test('parses Codex client config model commands for Telegram', () => {
+  assert.deepEqual(codexClientConfigArgsFromModelCommand('agent codex'), { handled: false });
+  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex status'), {
+    handled: true,
+    args: ['providers', 'codex']
+  });
+  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex fast high'), {
+    handled: true,
+    args: ['providers', 'codex', '--service-tier', 'fast', '--reasoning-effort', 'high']
+  });
+  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex model=gpt-5.5 tier=fast reasoning=high'), {
+    handled: true,
+    args: [
+      'providers',
+      'codex',
+      '--model',
+      'gpt-5.5',
+      '--service-tier',
+      'fast',
+      '--reasoning-effort',
+      'high'
+    ]
+  });
+  assert.deepEqual(codexClientConfigArgsFromModelCommand('codex model=gpt-5.5 tier=FAST reasoning=HIGH'), {
+    handled: true,
+    args: [
+      'providers',
+      'codex',
+      '--model',
+      'gpt-5.5',
+      '--service-tier',
+      'fast',
+      '--reasoning-effort',
+      'high'
+    ]
+  });
+  assert.match(
+    (codexClientConfigArgsFromModelCommand('codex weird') as { handled: true; error: string }).error,
+    /do not recognize/
+  );
+  assert.match(
+    (codexClientConfigArgsFromModelCommand('codex tier=rocket') as { handled: true; error: string }).error,
+    /service tier "rocket"/i
+  );
+  assert.match(
+    (codexClientConfigArgsFromModelCommand('codex reasoning=banana') as { handled: true; error: string }).error,
+    /reasoning effort "banana"/i
+  );
+  assert.match(
+    (codexClientConfigArgsFromModelCommand('codex tier=rocket reasoning=banana') as { handled: true; error: string }).error,
+    /service tier "rocket"/i
+  );
 });
 
 test('renders recommended model versions for Claude families', () => {
