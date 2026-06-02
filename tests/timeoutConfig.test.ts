@@ -55,6 +55,18 @@ test('timeout env parsing accepts positive integers only', () => {
   assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: 'nope' }, 'TEST_TIMEOUT_MS', 99), 99);
 });
 
+test('timeout env parsing rejects suffixed and float forms (suffix-trap)', () => {
+  // The previous Number.parseInt-only form silently accepted '30s' as 30
+  // and '5m' as 5, turning an operator typo into a millisecond-scale
+  // timeout that aborts handlers immediately.
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '30s' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '5m' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '1.5' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '1e3' }, 'TEST_TIMEOUT_MS', 99), 99);
+  assert.equal(positiveIntegerEnv({ TEST_TIMEOUT_MS: '  30000  ' }, 'TEST_TIMEOUT_MS', 99), 30000);
+  assert.equal(positiveIntegerEnv({}, 'TEST_TIMEOUT_MS', 99), 99);
+});
+
 test('specific timeout env vars override defaults', () => {
   assert.equal(telegramHandlerTimeoutMs({ SPARK_TELEGRAM_HANDLER_TIMEOUT_MS: '700000' }), 700000);
   assert.equal(chatCommandTimeoutMs({ SPARK_CHAT_COMMAND_TIMEOUT_MS: '800000' }), 800000);
