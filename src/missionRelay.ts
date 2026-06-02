@@ -115,7 +115,17 @@ function pruneCompletionDeliveryCache(now = Date.now()): void {
   }
 }
 
-const verboseNarrationCounts = new Map<string, number>();
+const verboseNarrationCounts = new Map<string, { count: number; updatedAt: number }>();
+const VERBOSE_NARRATION_CACHE_TTL_MS = 6 * 60 * 60_000;
+
+function pruneVerboseNarrationCounts(now = Date.now()): void {
+  for (const [key, entry] of verboseNarrationCounts) {
+    if (now - entry.updatedAt > VERBOSE_NARRATION_CACHE_TTL_MS) {
+      verboseNarrationCounts.delete(key);
+    }
+  }
+}
+
 const cancelledMissionCache = new Map<string, number>();
 const pausedMissionCache = new Map<string, number>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -1723,12 +1733,15 @@ function claimVerboseNarrationSlot(
   if (['mission_started', 'mission_completed', 'mission_failed', 'task_failed', 'task_cancelled'].includes(event.type)) {
     return true;
   }
+  const now = Date.now();
+  pruneVerboseNarrationCounts(now);
   const key = `${event.missionId}:${chatId}`;
-  const count = verboseNarrationCounts.get(key) || 0;
+  const existing = verboseNarrationCounts.get(key);
+  const count = existing?.count || 0;
   if (count >= 3) {
     return false;
   }
-  verboseNarrationCounts.set(key, count + 1);
+  verboseNarrationCounts.set(key, { count: count + 1, updatedAt: now });
   return true;
 }
 
