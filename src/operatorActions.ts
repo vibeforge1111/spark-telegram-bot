@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export type SafeOperatorAction =
@@ -21,6 +22,14 @@ function isExpectedLevel5SmokePath(filePath: string): boolean {
   return normalized.endsWith('\\appdata\\local\\temp\\spark-telegram-level5-smoke.txt');
 }
 
+export function isExpectedDesktopPath(folderPath: string): boolean {
+  const normalized = path.win32.normalize(folderPath).toLowerCase();
+  const homeDir = os.homedir().toLowerCase();
+  const expectedDesktop = path.win32.join(homeDir, 'desktop').toLowerCase();
+  const oneDriveDesktop = path.win32.join(homeDir, 'onedrive', 'desktop').toLowerCase();
+  return normalized === expectedDesktop || normalized === oneDriveDesktop;
+}
+
 export function parseSafeOperatorAction(text: string): SafeOperatorAction | null {
   const normalized = normalizeMessage(text);
   const windowsPath = extractWindowsPath(text);
@@ -38,7 +47,7 @@ export function parseSafeOperatorAction(text: string): SafeOperatorAction | null
 
   if (
     windowsPath &&
-    path.win32.basename(path.win32.normalize(windowsPath)).toLowerCase() === 'desktop' &&
+    isExpectedDesktopPath(windowsPath) &&
     /\bcheck\s+whether\b.*\bexists\b/.test(normalized) &&
     /\blist\s+only\s+the\s+first\s+\d+\s+top[-\s]+level\s+folder\s+names\b/.test(normalized) &&
     /\b(?:do\s+not|don't|dont)\s+open\s+files\b/.test(normalized) &&
