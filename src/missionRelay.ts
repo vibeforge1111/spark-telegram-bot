@@ -1626,6 +1626,12 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
       return true;
     }
     openTaskStartCache.set(openTaskKey, { taskKey, timestamp: now });
+    if (openTaskStartCache.size > 200) {
+      const cutoff = now - 10 * 60_000;
+      for (const [key, val] of openTaskStartCache.entries()) {
+        if (val.timestamp < cutoff) openTaskStartCache.delete(key);
+      }
+    }
     const taskSignature = `${event.missionId}:${event.type}:${taskKey}:${providerKey}`;
     const previousTask = deliveryCache.get(taskSignature);
     if (typeof previousTask === 'number' && now - previousTask < 5 * 60_000) {
