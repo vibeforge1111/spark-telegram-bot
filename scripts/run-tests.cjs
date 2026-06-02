@@ -33,6 +33,8 @@ const tests = [
   'tests/outboundSanitize.test.ts',
   'tests/redaction.test.ts',
   'tests/errorExplain.test.ts',
+  'tests/llmAdminLeak.test.ts',
+  'tests/llmAdminApi.test.ts',
   'tests/spawner.test.ts',
   'tests/spawnerUrl.test.ts',
   'tests/timeoutConfig.test.ts',
