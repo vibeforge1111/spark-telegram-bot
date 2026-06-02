@@ -7,8 +7,10 @@ import { withHiddenWindows } from './hiddenProcess';
 import { builderBridgeTimeoutMs, positiveIntegerEnv } from './timeoutConfig';
 import { buildChipCreateMissionContext, ChipCreateMissionReporter } from './missionControl';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
+const LOCAL_PATH_PATTERN = /(?:[A-Za-z]:\\[^\s"'`<>]+|\/(?:Users|home|tmp)\/[^\s"'`<>]+|\/var\/folders\/[^\s"'`<>]+)/g;
 
 export interface ChipCreateResult {
   ok: boolean;
@@ -59,21 +61,25 @@ export function parseChipCreateJson(stdout: string): ChipCreateResult | null {
   };
 }
 
+function sanitizeChipCreateFailure(text: string): string {
+  return redactText(text).replace(LOCAL_PATH_PATTERN, '<local-path>').trim();
+}
+
 export function formatChipCreateProcessError(err: any): string {
   const stdout = typeof err?.stdout === 'string' ? err.stdout : '';
   const stdoutResult = parseChipCreateJson(stdout);
   if (stdoutResult?.error) {
-    return stdoutResult.error;
+    return sanitizeChipCreateFailure(stdoutResult.error);
   }
 
   const stderr = typeof err?.stderr === 'string' ? err.stderr.trim().slice(-400) : '';
   const stderrResult = parseChipCreateJson(stderr);
   if (stderrResult?.error) {
-    return stderrResult.error;
+    return sanitizeChipCreateFailure(stderrResult.error);
   }
 
   const message = err?.message || 'chip create failed';
-  return stderr ? `${message}: ${stderr}` : message;
+  return sanitizeChipCreateFailure(stderr ? `${message}: ${stderr}` : message);
 }
 
 function resolveConfig(): ChipCreateConfig {
@@ -152,9 +158,10 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
         warnings: parsed.warnings ?? [],
       });
     } else {
-      const error = parsed.error || 'chip create failed';
+      const error = sanitizeChipCreateFailure(parsed.error || 'chip create failed');
       await reporter.taskFailed('task-scaffold', 'Scaffold Spark-compatible domain chip', error);
       await reporter.failed(error);
+      return { ...parsed, error };
     }
     return parsed;
   } catch (err: any) {

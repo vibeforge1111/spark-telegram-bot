@@ -5075,7 +5075,7 @@ bot.command('creator', async (ctx) => {
   await handleCreatorMissionPlan(ctx, parsed);
 });
 
-bot.command('chip', async (ctx) => {
+export async function handleChipCommand(ctx: any): Promise<unknown> {
   if (!requireAdmin(ctx)) return;
 
   const raw = ctx.message.text.replace('/chip', '').trim();
@@ -5107,7 +5107,9 @@ bot.command('chip', async (ctx) => {
     for (const w of result.warnings) lines.push(`- ${w}`);
   }
   await ctx.reply(lines.join('\n'));
-});
+}
+
+bot.command('chip', handleChipCommand);
 
 bot.command('loop', async (ctx) => {
   if (!requireAdmin(ctx)) return;
