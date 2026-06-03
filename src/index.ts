@@ -5758,6 +5758,10 @@ bot.command('mission', async (ctx) => {
     return ctx.reply('Use a real mission ID from /board, for example: /mission status spark-1776768300668 or /mission status mission-creator-1776768300668');
   }
 
+  // Workspace folders append a name suffix e.g. mission-1780337877867-game.
+  // Strip the trailing name part so the Spawner API can find the mission.
+  const normalizedMissionId = missionId.replace(/^((?:spark|mission)-\d+)-[A-Za-z].*$/, '$1');
+
   const accessProfile = await getSparkAccessProfile(ctx.chat.id);
   if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
     await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
@@ -5765,15 +5769,15 @@ bot.command('mission', async (ctx) => {
   }
 
   await safeSendChatAction(ctx, 'typing');
-  const result = await spawner.missionCommand(action, missionId);
+  const result = await spawner.missionCommand(action, normalizedMissionId);
   if (result.success && action === 'kill') {
-    markMissionRelayCancelled(missionId);
+    markMissionRelayCancelled(normalizedMissionId);
   }
   if (result.success && action === 'pause') {
-    markMissionRelayPaused(missionId);
+    markMissionRelayPaused(normalizedMissionId);
   }
   if (result.success && action === 'resume') {
-    markMissionRelayResumed(missionId);
+    markMissionRelayResumed(normalizedMissionId);
   }
   await ctx.reply(result.success ? result.message : `Mission command failed: ${result.message}`);
 });
