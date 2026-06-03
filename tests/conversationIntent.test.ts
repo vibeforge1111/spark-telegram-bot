@@ -1479,6 +1479,11 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
+  // Ordinary requests about the USER's own systems/workflow must not trigger a Spark
+  // Builder self-improvement plan (generic "systems"/"workflow" are no longer capability nouns).
+  assert.equal(extractSparkSelfImprovementGoal('Could you set up a smoke test for the checkout workflow?'), null);
+  assert.equal(extractSparkSelfImprovementGoal('are the systems at my office running on schedule this week?'), null);
+  assert.equal(extractSparkSelfImprovementGoal('can you automate my deployment workflow?'), null);
   assert.equal(extractSparkSelfImprovementGoal('Can you help me set up voice locally for Spark?'), null);
   assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
   assert.equal(
