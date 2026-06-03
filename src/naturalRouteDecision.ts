@@ -354,7 +354,7 @@ export function decideNaturalRoute(
       context_source: 'latest_message',
       matched_signals: ['explicit_access_change'],
       blocked_by: [],
-      requires_confirmation: false
+      requires_confirmation: true
     });
   }
 
@@ -370,7 +370,7 @@ export function decideNaturalRoute(
       context_source: 'hot_recent_turns',
       matched_signals: ['recent_access_focus', 'contextual_access_change'],
       blocked_by: [],
-      requires_confirmation: false
+      requires_confirmation: true
     });
   }
 

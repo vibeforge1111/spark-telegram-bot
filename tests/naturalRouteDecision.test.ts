@@ -430,3 +430,28 @@ test('blocks global Spark system natural-language doctrine changes from a chat t
   assert.equal(route.requires_confirmation, true);
   assert.deepEqual(route.blocked_by, ['chat_cannot_change_global_agent_doctrine']);
 });
+
+test('access change via explicit natural language requires confirmation', () => {
+  const route = decideNaturalRoute('change my access level to 3');
+
+  assert.equal(route.route, 'access.change');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.requires_confirmation, true);
+  assert.equal(route.payload.level, '3');
+});
+
+test('access change via contextual natural language requires confirmation', () => {
+  const recentMessages = [
+    'User: Change my access level to three please',
+    'Spark: Done - I changed this chat to Access level 3.'
+  ];
+
+  const route = decideNaturalRoute('level 4', { recentMessages });
+
+  assert.equal(route.route, 'access.change');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'contextual');
+  assert.equal(route.requires_confirmation, true);
+  assert.equal(route.payload.level, '4');
+});
