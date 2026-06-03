@@ -156,7 +156,7 @@ function userFacingMemoryContent(text: string): string {
   for (let index = 0; index < 3; index += 1) {
     const next = cleaned
       .replace(/^(?:I remember this:|Noted:)\s*/i, '')
-      .replace(/^["“]+|["”]+$/g, '')
+      .replace(/^[""]+|[""]+$/g, '')
       .trim();
     if (next === cleaned) break;
     cleaned = next;
@@ -242,10 +242,10 @@ export function extractAssistantOptions(message: string): string[] {
 }
 
 export class ConversationMemory {
-  private readonly recentByUser = new Map<number, string[]>();
-  private readonly notesByUser = new Map<number, string[]>();
-  private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
-  private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
+  private readonly recentByUser = new Map<string, string[]>();
+  private readonly notesByUser = new Map<string, string[]>();
+  private readonly interruptedByUser = new Map<string, PendingTaskRecovery>();
+  private readonly frameStateByUser = new Map<string, RollingConversationFrameState>();
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
@@ -263,8 +263,8 @@ export class ConversationMemory {
     return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
   }
 
-  private userKey(user: TelegramUser): number {
-    return user.id;
+  private userKey(user: TelegramUser, chatId: number): string {
+    return `${user.id}:${chatId}`;
   }
 
   private async ensureLoaded(): Promise<void> {
@@ -272,32 +272,28 @@ export class ConversationMemory {
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
-        const userId = Number(key);
-        if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.recentByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
+        if (Array.isArray(value)) {
+          // Accept both old numeric keys (migration) and new composite keys
+          this.recentByUser.set(key, value.filter((item) => typeof item === 'string').slice(-this.maxRecent));
         }
       }
     }
     if (snapshot?.notesByUser) {
       for (const [key, value] of Object.entries(snapshot.notesByUser)) {
-        const userId = Number(key);
-        if (Number.isSafeInteger(userId) && userId > 0 && Array.isArray(value)) {
-          this.notesByUser.set(userId, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
+        if (Array.isArray(value)) {
+          this.notesByUser.set(key, value.filter((item) => typeof item === 'string').slice(-this.maxNotes));
         }
       }
     }
     if (snapshot?.interruptedByUser) {
       for (const [key, value] of Object.entries(snapshot.interruptedByUser)) {
-        const userId = Number(key);
         if (
-          Number.isSafeInteger(userId) &&
-          userId > 0 &&
           value &&
           typeof value.message === 'string' &&
           typeof value.failure === 'string' &&
           typeof value.recordedAt === 'string'
         ) {
-          this.interruptedByUser.set(userId, {
+          this.interruptedByUser.set(key, {
             message: value.message,
             failure: value.failure,
             stage: typeof value.stage === 'string' ? value.stage : undefined,
@@ -308,19 +304,18 @@ export class ConversationMemory {
     }
     if (snapshot?.frameStateByUser) {
       for (const [key, value] of Object.entries(snapshot.frameStateByUser)) {
-        const userId = Number(key);
-        if (Number.isSafeInteger(userId) && userId > 0 && value && typeof value === 'object') {
-          this.frameStateByUser.set(userId, value);
+        if (value && typeof value === 'object') {
+          this.frameStateByUser.set(key, value);
         }
       }
     }
     this.loaded = true;
   }
 
-  private recordFromMap(map: Map<number, string[]>): Record<string, string[]> {
+  private recordFromMap(map: Map<string, string[]>): Record<string, string[]> {
     const record: Record<string, string[]> = {};
     for (const [key, value] of map.entries()) {
-      record[String(key)] = value;
+      record[key] = value;
     }
     return record;
   }
@@ -328,11 +323,11 @@ export class ConversationMemory {
   private async persist(): Promise<void> {
     const interruptedByUser: Record<string, PendingTaskRecovery> = {};
     for (const [key, value] of this.interruptedByUser.entries()) {
-      interruptedByUser[String(key)] = value;
+      interruptedByUser[key] = value;
     }
     const frameStateByUser: Record<string, RollingConversationFrameState> = {};
     for (const [key, value] of this.frameStateByUser.entries()) {
-      frameStateByUser[String(key)] = value;
+      frameStateByUser[key] = value;
     }
     await writeJsonAtomic(this.statePath, {
       recentByUser: this.recordFromMap(this.recentByUser),
@@ -342,7 +337,7 @@ export class ConversationMemory {
     });
   }
 
-  private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
+  private async pushBounded(map: Map<string, string[]>, key: string, value: string, limit: number): Promise<void> {
     await this.ensureLoaded();
     const normalized = value.trim();
     if (!normalized) return;
@@ -353,21 +348,21 @@ export class ConversationMemory {
     await this.persist();
   }
 
-  async remember(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'user', message);
+  async remember(user: TelegramUser, message: string, chatId: number): Promise<Memory | null> {
+    await this.pushBounded(this.recentByUser, this.userKey(user, chatId), `User: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, chatId, 'user', message);
     return null;
   }
 
-  async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'assistant', message);
+  async rememberAssistantReply(user: TelegramUser, message: string, chatId: number): Promise<Memory | null> {
+    await this.pushBounded(this.recentByUser, this.userKey(user, chatId), `Spark: ${message}`, this.maxRecent);
+    await this.updateRollingFrame(user, chatId, 'assistant', message);
     return null;
   }
 
-  private async updateRollingFrame(user: TelegramUser, role: 'user' | 'assistant', text: string): Promise<void> {
+  private async updateRollingFrame(user: TelegramUser, chatId: number, role: 'user' | 'assistant', text: string): Promise<void> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const previous = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     const next = updateRollingConversationFrameState(previous, {
       role,
@@ -378,17 +373,17 @@ export class ConversationMemory {
     await this.persist();
   }
 
-  async learnAboutUser(user: TelegramUser, insight: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), insight, this.maxNotes);
+  async learnAboutUser(user: TelegramUser, insight: string, chatId: number): Promise<Memory | null> {
+    await this.pushBounded(this.notesByUser, this.userKey(user, chatId), insight, this.maxNotes);
     return null;
   }
 
-  async storeAgentDoctrinePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
+  async storeAgentDoctrinePreference(user: TelegramUser, preference: string, chatId: number): Promise<Memory | null> {
     await this.ensureLoaded();
     const normalized = preference.trim();
     if (!normalized) return null;
 
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const items = this.notesByUser.get(key) || [];
     const dimension = normalized.match(/^Agent interaction preference \[([a-z_]+)\]:/i)?.[1]?.toLowerCase();
     const prefix = dimension ? `agent interaction preference [${dimension}]:` : null;
@@ -402,21 +397,22 @@ export class ConversationMemory {
     return null;
   }
 
-  async getAgentDoctrinePreferences(user: TelegramUser): Promise<string[]> {
+  async getAgentDoctrinePreferences(user: TelegramUser, chatId: number): Promise<string[]> {
     await this.ensureLoaded();
-    const notes = this.notesByUser.get(this.userKey(user)) || [];
+    const notes = this.notesByUser.get(this.userKey(user, chatId)) || [];
     return notes.filter((note) => /^Agent interaction preference \[[a-z_]+\]:/i.test(note));
   }
 
   async recordInterruptedTask(
     user: TelegramUser,
+    chatId: number,
     input: { message: string; failure: string; stage?: string }
   ): Promise<void> {
     await this.ensureLoaded();
     const message = input.message.trim();
     const failure = input.failure.trim();
     if (!message || !failure) return;
-    this.interruptedByUser.set(this.userKey(user), {
+    this.interruptedByUser.set(this.userKey(user, chatId), {
       message,
       failure,
       stage: input.stage?.trim() || undefined,
@@ -425,19 +421,19 @@ export class ConversationMemory {
     await this.persist();
   }
 
-  async getPendingTaskRecovery(user: TelegramUser): Promise<PendingTaskRecovery | null> {
+  async getPendingTaskRecovery(user: TelegramUser, chatId: number): Promise<PendingTaskRecovery | null> {
     await this.ensureLoaded();
-    return this.interruptedByUser.get(this.userKey(user)) || null;
+    return this.interruptedByUser.get(this.userKey(user, chatId)) || null;
   }
 
-  async storePreference(user: TelegramUser, preference: string): Promise<Memory | null> {
-    await this.pushBounded(this.notesByUser, this.userKey(user), `Preference: ${preference}`, this.maxNotes);
+  async storePreference(user: TelegramUser, preference: string, chatId: number): Promise<Memory | null> {
+    await this.pushBounded(this.notesByUser, this.userKey(user, chatId), `Preference: ${preference}`, this.maxNotes);
     return null;
   }
 
-  async recall(user: TelegramUser, query: string, limit: number = 5): Promise<Memory[]> {
+  async recall(user: TelegramUser, query: string, chatId: number, limit: number = 5): Promise<Memory[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const queryText = normalizeMemorySearchText(query);
     const queryTokens = memorySearchTokens(query);
     if (!queryText && queryTokens.length === 0) return [];
@@ -447,8 +443,8 @@ export class ConversationMemory {
       return (
         /^user:\s*\/recall\b/.test(lower) ||
         /^user:\s*what do you remember about\b/.test(lower) ||
-        /^spark:\s*i remember this:/.test(lower) ||
-        /^user:\s*please remember this:/.test(lower) ||
+        /^spark:\s*i remember this:/i.test(lower) ||
+        /^user:\s*please remember this:/i.test(lower) ||
         lower.includes("don't currently have saved entity state") ||
         lower.includes('do not currently have saved entity state')
       );
@@ -482,13 +478,13 @@ export class ConversationMemory {
       .filter((memory) => memory.content.length > 0);
   }
 
-  async recallRecent(_user: TelegramUser, _limit: number = 5): Promise<Memory[]> {
+  async recallRecent(_user: TelegramUser, _chatId: number, _limit: number = 5): Promise<Memory[]> {
     return [];
   }
 
-  async getContext(user: TelegramUser, _currentMessage: string): Promise<string> {
+  async getContext(user: TelegramUser, _currentMessage: string, chatId: number): Promise<string> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const notes = this.notesByUser.get(key) || [];
     const recent = this.recentByUser.get(key) || [];
     const lines: string[] = [];
@@ -518,9 +514,9 @@ export class ConversationMemory {
     return lines.length > 0 ? lines.join('\n') : 'No prior memories.';
   }
 
-  async getRecentMessages(user: TelegramUser, limit: number = 6): Promise<string[]> {
+  async getRecentMessages(user: TelegramUser, chatId: number, limit: number = 6): Promise<string[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const recent = this.recentByUser.get(key) || [];
     return recent
       .filter((item) => !/^Spark:\s*/i.test(item))
@@ -529,9 +525,9 @@ export class ConversationMemory {
       .filter(Boolean);
   }
 
-  async getRecentTurns(user: TelegramUser, limit: number = 16): Promise<RecentConversationTurn[]> {
+  async getRecentTurns(user: TelegramUser, chatId: number, limit: number = 16): Promise<RecentConversationTurn[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const recent = this.recentByUser.get(key) || [];
     return recent
       .slice(-Math.max(1, limit))
@@ -546,13 +542,13 @@ export class ConversationMemory {
       .filter((turn) => turn.text.length > 0);
   }
 
-  async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {
+  async resolveRecentOptionReference(user: TelegramUser, chatId: number, text: string): Promise<ResolvedOptionReference | null> {
     const ordinal = optionOrdinalFromText(text);
     const wantsLast = /\b(?:last|final|bottom)\s+(?:one|option|idea|direction|item|path|choice)?\b/i.test(text);
     if (!ordinal && !wantsLast) return null;
 
     await this.ensureLoaded();
-    const recent = this.recentByUser.get(this.userKey(user)) || [];
+    const recent = this.recentByUser.get(this.userKey(user, chatId)) || [];
     for (const item of [...recent].reverse()) {
       if (!/^Spark:\s*/i.test(item)) continue;
       const options = extractAssistantOptions(item);
@@ -570,29 +566,29 @@ export class ConversationMemory {
     return null;
   }
 
-  async getConversationFrame(user: TelegramUser, currentMessage: string): Promise<ConversationFrame> {
+  async getConversationFrame(user: TelegramUser, currentMessage: string, chatId: number): Promise<ConversationFrame> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     const state = this.frameStateByUser.get(key) || emptyRollingConversationFrameState();
     if (state.hotTurns.length > 0 || state.warmSummary || state.artifacts.length > 0) {
       return buildConversationFrameFromState(currentMessage, state);
     }
-    const recentTurns = await this.getRecentTurns(user, 24);
+    const recentTurns = await this.getRecentTurns(user, chatId, 24);
     return buildConversationFrameFromState(currentMessage, {
       ...emptyRollingConversationFrameState(),
       hotTurns: recentTurns
     });
   }
 
-  async getConversationFrameDiagnostics(user: TelegramUser): Promise<string> {
+  async getConversationFrameDiagnostics(user: TelegramUser, chatId: number): Promise<string> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     return renderConversationFrameDiagnostics(this.frameStateByUser.get(key) || emptyRollingConversationFrameState());
   }
 
-  async getMemoryCount(user: TelegramUser): Promise<number> {
+  async getMemoryCount(user: TelegramUser, chatId: number): Promise<number> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
+    const key = this.userKey(user, chatId);
     return (this.notesByUser.get(key) || []).length + (this.recentByUser.get(key) || []).length;
   }
 

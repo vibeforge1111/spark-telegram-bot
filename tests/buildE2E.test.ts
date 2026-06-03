@@ -771,14 +771,17 @@ async function run(): Promise<void> {
 			await indexModule.handleTextMessage(priorCtx);
 			await conversationModule.conversation.remember(
 				{ id: testUserId, username: 'memory-test' },
-				'run memory doctor for last request'
+				'run memory doctor for last request',
+				testUserId
 			);
 			await conversationModule.conversation.rememberAssistantReply(
 				{ id: testUserId, username: 'memory-test' },
-				'Both Spark MCP tools need permission to run. Which do you prefer?'
+				'Both Spark MCP tools need permission to run. Which do you prefer?',
+				testUserId
 			);
 			await conversationModule.conversation.recordInterruptedTask(
 				{ id: testUserId, username: 'memory-test' },
+				testUserId,
 				{ message: 'What do you know about yourself and where do you lack?', failure: 'message is too long', stage: 'telegram_message_handler' }
 			);
 
@@ -1132,7 +1135,8 @@ async function run(): Promise<void> {
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 		await conversationModule.conversation.remember(
 			{ id: 8319079055, username: 'cem' },
-			'We are shaping a Startup YC specialization path with domain chip, benchmark pack, autoloop, and shareable insight packet.'
+			'We are shaping a Startup YC specialization path with domain chip, benchmark pack, autoloop, and shareable insight packet.',
+			8319079055
 		);
 
 		const replies: string[] = [];
@@ -1277,11 +1281,13 @@ async function run(): Promise<void> {
 			const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 			await conversationModule.conversation.remember(
 				{ id: testUserId, username: 'cem' },
-				'We are working on Spark QA Operator and path:spark-qa-operator.'
+				'We are working on Spark QA Operator and path:spark-qa-operator.',
+				testUserId
 			);
 			await conversationModule.conversation.remember(
 				{ id: testUserId, username: 'cem' },
-				'compare baseline vs candidate for Startup YC. Do not run anything.'
+				'compare baseline vs candidate for Startup YC. Do not run anything.',
+				testUserId
 			);
 
 			try {

@@ -2227,7 +2227,7 @@ export async function approvePendingMissionLesson(userId: string | number, remem
     `Source refs: ${approval.sourceRefs.join(', ')}.`,
     `Goal: ${clipText(approval.goal, 220)}`
   ].join(' ');
-  await conversation.learnAboutUser({ id: numericUserId }, note);
+  await conversation.learnAboutUser({ id: numericUserId }, note, 0);
 
   delete pendingByUserId[normalizedUserId];
   await writeMissionLessonApprovalState({ pendingByUserId });
