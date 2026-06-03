@@ -473,6 +473,23 @@ function isBuildIdeationRequest(text: string): boolean {
   );
 }
 
+// Questions ABOUT building/making something (informational), not commands to build a
+// project: "how do I build muscle", "what does it take to build a credit score", "can
+// you explain how compilers build an AST", "why do birds build nests". These reuse a
+// build verb but must not spin up a Spawner project. "you" is excluded as the actor so
+// genuine requests like "can you build me a dashboard" / "how can you build X" still build.
+function isInformationalBuildQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const verb = '(?:build|building|make|making|create|creating|develop|developing|generate|generating)';
+  return (
+    new RegExp(`\\bhow\\s+(?:do|does|did|can|could|would|should|will)\\s+(?!you\\b|u\\b)\\w+\\b[^?.!]{0,50}\\b${verb}\\b`).test(n) ||
+    /\bhow\s+(?:is|are|was|were)\b[^?.!]{0,50}\b(?:built|made|created|developed|generated)\b/.test(n) ||
+    new RegExp(`\\bwhat(?:'s| is| does| do| would| will)?\\b[^?.!]{0,40}\\b(?:take|takes|need|needs|require|requires|involved|goes?\\s+into)\\b[^?.!]{0,25}\\bto\\s+${verb}\\b`).test(n) ||
+    new RegExp(`\\b(?:explain|describe|walk\\s+me\\s+through|tell\\s+me)\\b[^?.!]{0,60}\\bhow\\b[^?.!]{0,60}\\b${verb}s?\\b`).test(n) ||
+    new RegExp(`\\bwhy\\s+(?:do|does|did|would|are|is)\\b[^?.!]{0,60}\\b${verb}\\b`).test(n)
+  );
+}
+
 function isBuildContextRecallProbe(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
@@ -839,6 +856,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
+  if (isInformationalBuildQuestion(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
