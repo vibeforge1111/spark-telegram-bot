@@ -49,7 +49,12 @@ After: the same prompt is accepted as build work: `Got it. Spark is on it.` and 
 
 ## Packet Validation
 
-Run after the PR is created and replace `PENDING_PR_URL` with the real PR URL.
+PASS `POST https://compete.sparkswarm.ai/api/packet/validate`
+
+- `status=pass`
+- `packet_valid=true`
+- `warning_count=0`
+- `next_step=continue_to_review_gates`
 
 ## Packet
 
@@ -58,7 +63,7 @@ Run after the PR is created and replace `PENDING_PR_URL` with the real PR URL.
   "schema": "spark-compete-hotfix-v1",
   "event": "spark-compete-first-event",
   "submission_mode": "public_repo_pr",
-  "submission_target_url": "PENDING_PR_URL",
+  "submission_target_url": "https://github.com/vibeforge1111/spark-telegram-bot/pull/498",
   "team": {
     "name": "Old Men Club",
     "members": ["NoRegretz", "YenixPetnik", "MileLarts"],
@@ -89,7 +94,7 @@ Run after the PR is created and replace `PENDING_PR_URL` with the real PR URL.
     "safe_links_only": true,
     "before_after_proof": "Before screenshot shows the backend build prompt containing telegram-health-bot being answered as a Spark health report. After screenshot shows the same prompt being accepted as build work and routed toward a planning canvas.",
     "links": [
-      "PENDING_PR_URL",
+      "https://github.com/vibeforge1111/spark-telegram-bot/pull/498",
       "https://raw.githubusercontent.com/NoRegretz/spark-telegram-bot/codex/spark-compete-context-build-routing/docs/compete-evidence/telegram-health-build-before.png",
       "https://raw.githubusercontent.com/NoRegretz/spark-telegram-bot/codex/spark-compete-context-build-routing/docs/compete-evidence/telegram-health-build-after.png"
     ],
@@ -115,7 +120,7 @@ Run after the PR is created and replace `PENDING_PR_URL` with the real PR URL.
     "title_prefix": "[spark-compete]",
     "author_github": "NoRegretz",
     "body_must_include": ["packet", "team", "pr_author", "repo", "actual_behavior", "expected_behavior", "repro_steps", "before_after_proof", "tests_or_smoke", "duplicate_notes", "risk_notes", "review_claim"],
-    "url": "PENDING_PR_URL"
+    "url": "https://github.com/vibeforge1111/spark-telegram-bot/pull/498"
   },
   "review_claim": {
     "impact_claim": "high",
