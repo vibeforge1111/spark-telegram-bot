@@ -222,7 +222,16 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (normalized.startsWith('/')) {
     return { allow: true, reason: 'slash_command', confidence: 'explicit' };
   }
-
+// Block external URLs — refuse and ask for safe alternatives
+  const externalUrlPattern = /https?:\/\/(?!127\.0\.0\.1|localhost|t\.co\/|github\.com\/)[^\s]+/i;
+  if (externalUrlPattern.test(normalized)) {
+    return { 
+      allow: false, 
+      reason: 'external_url_blocked', 
+      confidence: 'blocked',
+      replyOverride: 'I do not follow external links from chat messages. Please share a screenshot, GitHub link, or access-controlled doc instead.'
+    };
+  }
   if (route === 'creator.mission' && isNoExecutionBoundary(normalized) && isCreatorMissionPlanOnlyRequest(normalized)) {
     return { allow: true, reason: 'creator_mission_plan_only', confidence: 'explicit' };
   }
