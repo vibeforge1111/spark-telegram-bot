@@ -2681,7 +2681,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       routingDecision: '',
     };
   } finally {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await rm(tempDir, { recursive: true, force: true }).catch((e) => { console.error('[BuilderBridge] temp dir cleanup failed:', e); });
   }
 }
 
