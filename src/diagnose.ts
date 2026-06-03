@@ -382,7 +382,7 @@ export function inferDiagnoseLikelyIssue(args: {
     return 'Likely issue: Spawner UI is unreachable, so builds and board checks will fail.';
   }
   if (args.missionPingOk !== true) {
-    return 'Likely issue: mission provider ping failed or not reached. Plain chat may work, but Spawner builds are degraded.';
+    return 'Likely issue: mission provider ping failed or not reached. Plain chat may work, but Spawner builds are degraded.\n\nRepair\n• Run /model to check your current mission provider.\n• Run /probe builder to check the builder gateway status.\n• If using Claude, make sure Claude Code is installed and signed in.\n• Run spark providers status in terminal to verify provider health.';
   }
   return 'Likely issue: no obvious fault detected in relay, access, plain chat, or Spawner ping.';
 }
