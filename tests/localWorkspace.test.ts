@@ -74,9 +74,9 @@ async function main(): Promise<void> {
 
       assert.equal(summary.roots[0].exists, true);
       assert.equal(summary.projects.length, 2);
-      assert.equal(byName.get('spark-repo')?.isGitRepo, true);
-      assert.deepEqual(byName.get('spark-repo')?.signals, ['git', 'node']);
-      assert.deepEqual(byName.get('plain-app')?.signals, ['docs']);
+      const sr = byName.get('spark-repo'); assert.ok(sr, 'spark-repo not found'); assert.equal(sr.isGitRepo, true);
+      const sr2 = byName.get('spark-repo'); assert.ok(sr2, 'spark-repo not found'); assert.deepEqual(sr2.signals, ['git', 'node']);
+      const pa = byName.get('plain-app'); assert.ok(pa, 'plain-app not found'); assert.deepEqual(pa.signals, ['docs']);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
