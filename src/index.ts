@@ -2062,8 +2062,7 @@ async function buildLocalRecallReply(user: any, query: string): Promise<string |
     const normalizedQuery = query.toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ').trim();
     if (
       normalizedContent === normalizedQuery ||
-      normalizedContent.includes(`user asked spark to remember: ${normalizedQuery}`) ||
-      normalizedContent.includes(normalizedQuery)
+      normalizedContent.includes(`user asked spark to remember: ${normalizedQuery}`)
     ) {
       return null;
     }
