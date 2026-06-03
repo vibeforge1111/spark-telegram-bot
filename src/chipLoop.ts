@@ -33,7 +33,7 @@ interface LoopConfig {
 function resolveConfig(): LoopConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
   return {
-    pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON),
+    pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON || 'python3'),
     builderRepo,
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
