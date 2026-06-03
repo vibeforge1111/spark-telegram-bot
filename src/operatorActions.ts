@@ -119,3 +119,29 @@ export async function runSafeOperatorAction(action: SafeOperatorAction): Promise
 //   3. Explain all 6 views: capability, authority, trace, memory, repo-board, gaps
 //   4. Redact local paths — use <spark-home> instead of ~/.spark/diagnostics
 //   5. Confirm command is read-only and never publishes private maps
+export function isOsCompileQuestion(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return (
+    normalized.includes('os compile') ||
+    normalized.includes('spark os') ||
+    (normalized.includes('compile') && normalized.includes('spark'))
+  );
+}
+
+export function getOsCompileExplanation(): string {
+  return [
+    'spark os compile --json reads your local Spark installation and produces 6 redacted views:',
+    '',
+    '1. Capability view — what Spark can do across installed modules',
+    '2. Authority view — access levels, sandbox lanes, and guarded actions',
+    '3. Trace view — trace health, missing refs, and open high-severity events',
+    '4. Memory view — memory movement counts and authority buckets',
+    '5. Repo-board view — module registry state and release readiness',
+    '6. Gaps view — missing evidence and blocked capability promotions',
+    '',
+    'Run: spark os compile --json',
+    '',
+    'It is read-only and never publishes private repo maps.',
+    'Output is saved to <spark-home>/state/system-map'
+  ].join('\n');
+}
