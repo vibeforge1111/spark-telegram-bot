@@ -5613,8 +5613,11 @@ async function handleSparkAccessAction(ctx: any, actionId: SparkAccessActionId, 
   } catch (error) {
     const detail = redactText(error instanceof Error ? error.message : String(error));
     const isDockerError = /docker|sandbox/i.test(detail);
+    const isAccessSetupError = /access setup|access_setup|identity_access/i.test(detail);
     const repairHint = isDockerError
       ? '\n\nRepair\n• Make sure Docker Desktop is installed and running.\n• Run: spark sandbox docker doctor --json in terminal for details.'
+      : isAccessSetupError
+      ? '\n\nRepair\n• Run spark access setup in terminal and type: approve access change when prompted.\n• Or run /access_setup after confirming you want to set up the workspace.'
       : '';
     await ctx.reply(`Spark access action failed: ${detail}${repairHint}`);
   }
