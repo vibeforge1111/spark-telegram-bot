@@ -151,6 +151,7 @@ import {
   markMissionRelayResumed,
   registerMissionRelay,
   shouldSuppressMissionHandoff,
+  tryClaimMissionHandoffOutcome,
   setMissionRelayRuntimeStatus,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
@@ -2753,6 +2754,9 @@ function startPrdCanvasReadyNotifier(args: {
               tier: args.tier || 'base',
               readyCanvasUrl
             });
+            if (!tryClaimMissionHandoffOutcome(args.missionId, 'canvas_ready')) {
+              return;
+            }
             await bot.telegram.sendMessage(args.chatId, formatCanvasReadySummary({
               projectName: args.projectName,
               taskCount,

@@ -110,6 +110,7 @@ const completionDeliveryInFlight = new Set<string>();
 const verboseNarrationCounts = new Map<string, number>();
 const cancelledMissionCache = new Map<string, number>();
 const pausedMissionCache = new Map<string, number>();
+const missionHandoffOutcomeCache = new Map<string, { outcome: 'failed' | 'canvas_ready'; timestamp: number }>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
@@ -354,6 +355,14 @@ function prunePausedMissionCache(now = Date.now()): void {
   }
 }
 
+function pruneMissionHandoffOutcomeCache(now = Date.now()): void {
+  for (const [missionId, entry] of missionHandoffOutcomeCache.entries()) {
+    if (now - entry.timestamp > MISSION_STATE_CACHE_TTL_MS) {
+      missionHandoffOutcomeCache.delete(missionId);
+    }
+  }
+}
+
 export function markMissionRelayCancelled(missionId: string): void {
   const normalized = missionId.trim();
   if (!normalized) return;
@@ -382,11 +391,44 @@ export function isMissionRelayPaused(missionId: string): boolean {
   return pausedMissionCache.has(missionId.trim());
 }
 
+export function getMissionHandoffOutcome(missionId: string): 'failed' | 'canvas_ready' | null {
+  pruneMissionHandoffOutcomeCache();
+  const normalized = missionId.trim();
+  if (!normalized) return null;
+  return missionHandoffOutcomeCache.get(normalized)?.outcome || null;
+}
+
+export function tryClaimMissionHandoffOutcome(
+  missionId: string,
+  outcome: 'failed' | 'canvas_ready'
+): boolean {
+  const normalized = missionId.trim();
+  if (!normalized) return false;
+  pruneMissionHandoffOutcomeCache();
+  if (missionHandoffOutcomeCache.has(normalized)) {
+    return false;
+  }
+  missionHandoffOutcomeCache.set(normalized, { outcome, timestamp: Date.now() });
+  if (outcome === 'failed') {
+    pausedMissionCache.delete(normalized);
+    clearHeartbeatForMission(normalized);
+  }
+  return true;
+}
+
+export function shouldSuppressMissionFailureRelay(missionId: string): boolean {
+  return getMissionHandoffOutcome(missionId) === 'canvas_ready';
+}
+
 export function shouldSuppressMissionHandoff(missionId: string): boolean {
   pruneCancelledMissionCache();
   prunePausedMissionCache();
   const normalized = missionId.trim();
-  return cancelledMissionCache.has(normalized) || pausedMissionCache.has(normalized);
+  return (
+    cancelledMissionCache.has(normalized)
+    || pausedMissionCache.has(normalized)
+    || getMissionHandoffOutcome(normalized) === 'failed'
+  );
 }
 
 function subscriptionBelongsToThisRelay(entry: MissionSubscription): boolean {
@@ -1642,6 +1684,7 @@ export function resetMissionRelayDeliveryStateForTests(): void {
   completionDeliveryInFlight.clear();
   cancelledMissionCache.clear();
   pausedMissionCache.clear();
+  missionHandoffOutcomeCache.clear();
   verboseNarrationCounts.clear();
 }
 
@@ -2393,7 +2436,15 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         return;
       }
 
-	      if (event.type === 'mission_failed') {
+      if (event.type === 'mission_failed') {
+        if (shouldSuppressMissionFailureRelay(event.missionId)) {
+          writeJson(res, 200, { ok: true, suppressed: 'canvas_ready_handoff_already_sent' });
+          return;
+        }
+        if (!tryClaimMissionHandoffOutcome(event.missionId, 'failed')) {
+          writeJson(res, 200, { ok: true, suppressed: 'mission_failure_handoff_already_claimed' });
+          return;
+        }
         clearHeartbeatForMission(event.missionId);
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
