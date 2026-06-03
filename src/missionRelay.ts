@@ -47,10 +47,12 @@ export interface MissionSubscription {
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
 export type TelegramMissionLinkPreference = 'none' | 'board' | 'canvas' | 'both';
 export type MissionRelayTelegramPollingState = 'starting' | 'active' | 'disabled';
+export type MissionRelayLlmProviderState = 'connected' | 'offline';
 
 export interface MissionRelayRuntimeStatus {
   telegramPolling?: MissionRelayTelegramPollingState;
   pollingStartedAt?: string | null;
+  llmProvider?: MissionRelayLlmProviderState;
 }
 
 export interface MissionRelayHealthPayload extends Record<string, unknown> {
