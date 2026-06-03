@@ -144,7 +144,25 @@ function memorySearchTokens(text: string): string[] {
       .filter((token) => token.length > 1 && !MEMORY_SEARCH_STOPWORDS.has(token))
   ));
 }
+const CREDENTIAL_PATTERNS = [
+  /\bpassword\s+is\s+\S+/i,
+  /\bpassword[:=]\s*\S+/i,
+  /\bmy\s+password\b/i,
+  /\bapi[_\s-]?key\s+is\s+\S+/i,
+  /\bsk-[a-zA-Z0-9]{10,}/i,
+  /\btoken\s+is\s+\S+/i,
+  /\bsecret\s+is\s+\S+/i,
+  /\bmy\s+pin\s+is\s+\d+/i,
+  /\bcredential\s+is\s+\S+/i,
+];
 
+export function containsCredential(text: string): boolean {
+  return CREDENTIAL_PATTERNS.some(pattern => pattern.test(text));
+}
+
+export function credentialRefusalMessage(): string {
+  return 'I cannot store passwords, API keys, or credentials in memory. Never share sensitive credentials in chat — chat history is not secure. Use a password manager like Bitwarden or 1Password instead.';
+}
 function userFacingMemoryContent(text: string): string {
   let cleaned = compactLine(text)
     .replace(/^User asked Spark to remember:\s*/i, '')
