@@ -2548,6 +2548,23 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 	      if (event.type === 'mission_failed') {
         cleanupMissionNarrationCounts(event.missionId);
         clearHeartbeatForMission(event.missionId);
+        const failureMsg = formatProgressMessageForTelegram(event, subscription, verbosity, linkPreference, payload.summary);
+        const finalMsg = failureMsg || compactTelegramBlocks(
+          voiceLine('failed', `${event.missionId}:failed`),
+          'Mission failed.',
+          `Mission board: ${resolveSpawnerUiUrl()}/kanban?mission=${event.missionId}`
+        );
+        const failChunks = chunkForTelegram(finalMsg);
+        for (let i = 0; i < failChunks.length; i++) {
+          const prefix = failChunks.length > 1 ? `(part ${i + 1} of ${failChunks.length})\n` : '';
+          await bot.telegram.sendMessage(
+            chatId,
+            `${prefix}${failChunks[i]}`,
+            missionRelayTraceExtra(subscription, event, 'mission_failed')
+          );
+        }
+        writeJson(res, 200, { ok: true, chunks: failChunks.length });
+        return;
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }
