@@ -394,6 +394,12 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('what failed most recently in Spawner? Do not start anything.'), 'latest_failure');
   assert.equal(parseSpawnerBoardNaturalIntent('no the localhost for the beauty centre'), 'latest_project_preview');
   assert.equal(isLocalSparkServiceRequest('no the localhost for the beauty centre', 'Completed Spawner mission spark-123'), false);
+  // "open" + a bare pronoun ("it") must NOT route to the latest project preview.
+  assert.equal(parseSpawnerBoardNaturalIntent('open the wikipedia page about the french revolution and summarize it'), null);
+  assert.equal(parseSpawnerBoardNaturalIntent('open the door and lock it'), null);
+  // genuine project-preview asks still resolve.
+  assert.equal(parseSpawnerBoardNaturalIntent('open the app you just built'), 'latest_project_preview');
+  assert.equal(parseSpawnerBoardNaturalIntent('send me the link to the website'), 'latest_project_preview');
   assert.equal(
     parseSpawnerBoardNaturalIntent('Do not start a mission or build anything. Just answer in chat. Summarize what our team has already tried for this Spark issue. Please separate facts we actually know, guesses or assumptions, open questions, and the next safest action. If you do not know our history, say that clearly instead of inventing it.'),
     null
