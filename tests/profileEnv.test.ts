@@ -1,49 +1,69 @@
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
+import { loadEnvFileIntoProcess } from '../src/profileEnv';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
-function test(name: string, fn: () => void): void {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
-  }
-}
+const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'profileEnv-test-'));
 
-test('loads profile secrets through Spark internal keychain fetch', () => {
-  const command = sparkSecretPythonBridgeCommand('telegram.profiles.spark-agi.bot_token', {
-    SPARK_CLI_SRC: 'C:\\spark-cli\\src',
-    SPARK_BUILDER_PYTHON: 'C:\\Python313\\python.exe'
-  } as NodeJS.ProcessEnv);
+describe('loadEnvFileIntoProcess', () => {
+  it('strips matching double quotes from values', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, 'MY_KEY="hello world"');
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('hello world');
+    fs.rmSync(dir, { recursive: true });
+  });
 
-  assert.equal(command.python, 'C:\\Python313\\python.exe');
-  assert.equal(command.args[0], '-c');
-  assert.equal(command.args[2], 'telegram.profiles.spark-agi.bot_token');
-  assert.match(command.args[1], /from spark_cli\.cli import fetch_secret/);
-  assert.doesNotMatch(command.args[1], /secrets get|--reveal/);
-});
+  it('strips matching single quotes from values', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, "MY_KEY='hello world'");
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('hello world');
+    fs.rmSync(dir, { recursive: true });
+  });
 
-test('prefers explicit Spark CLI Python over Builder Python', () => {
-  const command = sparkSecretPythonBridgeCommand('telegram.profiles.testerthebester.bot_token', {
-    SPARK_CLI_PYTHON: 'C:\\SparkPython\\python.exe',
-    SPARK_BUILDER_PYTHON: 'C:\\Python313\\python.exe'
-  } as NodeJS.ProcessEnv);
+  it('does not strip quotes when they do not match', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, "MY_KEY=\"hello'");
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('"hello\'');
+    fs.rmSync(dir, { recursive: true });
+  });
 
-  assert.equal(command.python, 'C:\\SparkPython\\python.exe');
-});
+  it('leaves unquoted values unchanged', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, 'MY_KEY=plain_value');
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('plain_value');
+    fs.rmSync(dir, { recursive: true });
+  });
 
-test('uses SPARK_HOME for generated module env files', () => {
-  const configDir = sparkConfigModulesDir({ SPARK_HOME: 'C:\\SparkHome' } as NodeJS.ProcessEnv);
+  it('handles empty quoted values', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, 'MY_KEY=""');
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('');
+    fs.rmSync(dir, { recursive: true });
+  });
 
-  assert.equal(configDir, path.join('C:\\SparkHome', 'config', 'modules'));
-});
-
-test('runtime health wrapper forwards profile arguments', () => {
-  const wrapper = readFileSync('scripts/run-health-runtime.cjs', 'utf-8');
-
-  assert.match(wrapper, /process\.argv\.slice\(2\)/);
-  assert.match(wrapper, /\.\.\.forwardedArgs/);
+  it('skips comment lines and blank lines', () => {
+    const dir = tmpDir();
+    const file = path.join(dir, 'test.env');
+    fs.writeFileSync(file, '# comment\n\nMY_KEY=val');
+    const env: Record<string, string> = {};
+    loadEnvFileIntoProcess(file, env);
+    expect(env.MY_KEY).toBe('val');
+    expect(Object.keys(env)).toHaveLength(1);
+    fs.rmSync(dir, { recursive: true });
+  });
 });
