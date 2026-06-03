@@ -1,6 +1,8 @@
 // Build-project intent parser. Catches natural-language phrasing that should
 // kick off a Spawner PRD-based project flow (multi-task canvas + execution).
 
+import path from 'node:path';
+
 export interface BuildIntent {
   projectPath: string | null;
   prd: string;
@@ -38,11 +40,12 @@ function workspaceRootsFor(candidate: string): string[] {
   return [defaultWorkspaceRoot()];
 }
 
-function isInsideWorkspace(candidate: string): boolean {
-  const normalizedCandidate = normalizePathForPlatform(candidate).toLowerCase();
+export function isInsideWorkspace(candidate: string): boolean {
+  if (!candidate.trim()) return false;
+  const resolvedCandidate = path.resolve(candidate).toLowerCase();
   return workspaceRootsFor(candidate).some((root) => {
-    const normalizedRoot = normalizePathForPlatform(root).toLowerCase();
-    return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${normalizedRoot.includes('\\') ? '\\' : '/'}`);
+    const resolvedRoot = path.resolve(root).toLowerCase();
+    return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(resolvedRoot + path.sep);
   });
 }
 
