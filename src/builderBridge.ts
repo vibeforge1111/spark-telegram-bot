@@ -1770,24 +1770,31 @@ export async function runBuilderAgentBlackBox(
   };
 }
 
-function parseGatewayProbeSummary(summary: string): { gatewayReady: boolean | null; providers: number | null } {
+function parseRouteProbeSummary(summary: string): {
+  gatewayReady: boolean | null;
+  providers: number | null;
+  degradedSurfaces: number | null;
+} {
   const gatewayMatch = summary.match(/\bgateway ready=(True|False|true|false)\b/);
   const providersMatch = summary.match(/\bproviders=(\d+)\b/);
+  const degradedSurfacesMatch = summary.match(/\bdegraded_surfaces=(\d+)\b/);
   return {
     gatewayReady: gatewayMatch ? gatewayMatch[1].toLowerCase() === 'true' : null,
     providers: providersMatch ? Number(providersMatch[1]) : null,
+    degradedSurfaces: degradedSurfacesMatch ? Number(degradedSurfacesMatch[1]) : null,
   };
 }
 
 export function normalizeRouteProbePayload(payload: Record<string, unknown>): Record<string, unknown> {
   const summary = String(payload.probe_summary || '').trim();
-  if (!summary.includes('gateway ready=')) {
+  if (!summary) {
     return payload;
   }
-  const { gatewayReady, providers } = parseGatewayProbeSummary(summary);
+  const { gatewayReady, providers, degradedSurfaces } = parseRouteProbeSummary(summary);
   const gatewayNotReady = gatewayReady === false;
   const noProviders = providers === 0;
-  if (!gatewayNotReady && !noProviders) {
+  const hasDegradedSurfaces = degradedSurfaces !== null && degradedSurfaces > 0;
+  if (!gatewayNotReady && !noProviders && !hasDegradedSurfaces) {
     return payload;
   }
   return {
