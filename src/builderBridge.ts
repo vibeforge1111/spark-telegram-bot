@@ -16,6 +16,7 @@ import {
 import { withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
+const CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200;
 
 export { resolveBuilderRepoPath };
 
@@ -173,6 +174,16 @@ export interface BuilderSourceUsedResult {
 export interface BuilderRouteProbeResult {
   replyText: string;
   payload: Record<string, unknown>;
+}
+
+export interface BuilderCapabilityProbeReceipt {
+  capabilityKey: string;
+  status: string;
+  failureReason: string;
+  probeSummary: string;
+  routeLatencyMs: number | null;
+  eventId: string;
+  createdAt: string;
 }
 
 export interface BuilderRouteConfidenceGateInput {
@@ -672,6 +683,14 @@ function idString(value: unknown): string {
     return String(Math.trunc(value));
   }
   return stringValue(value);
+}
+
+export function assertTelegramIntegerId(value: number | string, label: string): string {
+  const normalized = String(value).trim();
+  if (!/^-?\d{1,20}$/.test(normalized)) {
+    throw new Error(`${label} must be a Telegram integer id.`);
+  }
+  return normalized;
 }
 
 function telegramBridgeMessageContext(updatePayload: Record<string, unknown>): {
@@ -1464,15 +1483,17 @@ export async function runBuilderSelfAwarenessStatus(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const args = [
     'self',
     'status',
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${userId}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${chatId}:${userId}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -1517,6 +1538,8 @@ export async function runBuilderSelfImprovementPlan(
   }
 
   const goal = input.goal || input.currentMessage || 'Improve Spark weak spots with probe-first evidence.';
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const { stdout, stderr } = await execFileAsync(
     config.pythonCommand,
     pythonModuleInvocation(config, 'spark_intelligence.cli', [
@@ -1526,9 +1549,9 @@ export async function runBuilderSelfImprovementPlan(
       '--home',
       config.builderHome,
       '--human-id',
-      `human:telegram:${String(input.userId).trim()}`,
+      `human:telegram:${userId}`,
       '--session-id',
-      `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+      `session:telegram:${chatId}:${userId}`,
       '--channel-kind',
       'telegram',
       '--user-message',
@@ -1563,15 +1586,17 @@ export async function runBuilderAgentOperatingContext(
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
+  const userId = assertTelegramIntegerId(input.userId, 'userId');
+  const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
   const args = [
     'self',
     'panel',
     '--home',
     config.builderHome,
     '--human-id',
-    `human:telegram:${String(input.userId).trim()}`,
+    `human:telegram:${userId}`,
     '--session-id',
-    `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`,
+    `session:telegram:${chatId}:${userId}`,
     '--channel-kind',
     'telegram',
     '--user-message',
@@ -1897,7 +1922,12 @@ export async function runBuilderRouteConfidenceGate(
   if (!trimmedStdout) {
     throw new Error(`Builder route confidence gate returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`Builder route confidence gate returned invalid JSON: ${error instanceof Error ? error.message : String(error)}. Output: ${trimmedStdout.slice(0, 300)}`);
+  }
   return {
     payload,
     replyText: formatRouteConfidenceGateReply(payload),
@@ -1959,6 +1989,80 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
     payload,
     replyText: formatRouteProbeReply(payload),
   };
+}
+
+export async function readLatestCapabilityProbeReceipt(
+  capabilityKey: string
+): Promise<BuilderCapabilityProbeReceipt | null> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    return null;
+  }
+
+  const routeKey = String(capabilityKey || '').trim();
+  if (!routeKey) {
+    return null;
+  }
+
+  const args = [
+    'self',
+    'black-box',
+    '--home',
+    config.builderHome,
+    '--limit',
+    String(CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT),
+    '--json',
+  ];
+  const { stdout } = await execFileAsync(
+    config.pythonCommand,
+    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+    withHiddenWindows({
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
+  return extractLatestCapabilityProbeReceiptFromBlackBoxPayload(payload, routeKey);
+}
+
+export function extractLatestCapabilityProbeReceiptFromBlackBoxPayload(
+  payload: Record<string, unknown>,
+  capabilityKey: string
+): BuilderCapabilityProbeReceipt | null {
+  const routeKey = String(capabilityKey || '').trim();
+  if (!routeKey) {
+    return null;
+  }
+
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  for (const item of entries) {
+    if (!item || typeof item !== 'object') continue;
+    const entry = item as Record<string, unknown>;
+    if (String(entry.event_type || '') !== 'capability_probed') continue;
+    if (String(entry.route_chosen || '') !== routeKey) continue;
+    const blockers = Array.isArray(entry.blockers) ? entry.blockers.map((value) => String(value || '').trim()).filter(Boolean) : [];
+    const sources = Array.isArray(entry.sources_used) ? entry.sources_used : [];
+    const sourceSummary = sources
+      .map((source) => source && typeof source === 'object' ? String((source as Record<string, unknown>).summary || '').trim() : '')
+      .find(Boolean) || '';
+    const changed = Array.isArray(entry.changed) ? entry.changed.map((value) => String(value || '')) : [];
+    const changedStatus = changed
+      .map((value) => value.match(/last_probe=([a-z_]+)/i)?.[1] || '')
+      .find(Boolean) || '';
+    return {
+      capabilityKey: routeKey,
+      status: blockers.length ? 'failure' : changedStatus || 'unknown',
+      failureReason: blockers[0] || '',
+      probeSummary: sourceSummary,
+      routeLatencyMs: null,
+      eventId: String(entry.event_id || '').trim(),
+      createdAt: String(entry.created_at || '').trim(),
+    };
+  }
+  return null;
 }
 
 function sanitizedPreflightLabel(value: unknown, fallback: string): string {
@@ -2247,10 +2351,13 @@ export async function runBuilderWikiAnswer(
     '--json',
   ];
   if (input.userId !== undefined && input.userId !== null) {
-    args.push('--human-id', `human:telegram:${String(input.userId).trim()}`);
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    args.push('--human-id', `human:telegram:${userId}`);
   }
   if (input.chatId !== undefined && input.chatId !== null && input.userId !== undefined && input.userId !== null) {
-    args.push('--session-id', `session:telegram:${String(input.chatId).trim()}:${String(input.userId).trim()}`);
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const chatId = assertTelegramIntegerId(input.chatId, 'chatId');
+    args.push('--session-id', `session:telegram:${chatId}:${userId}`);
   }
   if (input.chatId !== undefined || input.userId !== undefined) {
     args.push('--channel-kind', 'telegram');
@@ -2403,6 +2510,7 @@ export async function runBuilderConversationColdContext(
   }
 
   try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
       pythonModuleInvocation(config, 'spark_intelligence.cli', [
@@ -2413,7 +2521,7 @@ export async function runBuilderConversationColdContext(
         '--query',
         currentMessage,
         '--subject',
-        `human:telegram:${String(input.userId).trim()}`,
+        `human:telegram:${userId}`,
         '--limit',
         '6',
         '--no-record-activity',
