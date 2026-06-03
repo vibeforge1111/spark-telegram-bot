@@ -5324,7 +5324,7 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
           if (sparkWorkspaceConfigured()) {
             try {
               sync = await syncBuilderChipLoopToWorkspace(result);
-            } catch (syncErr: any) {
+            } catch (syncErr: unknown) {
               syncError = syncErr?.message || String(syncErr);
             }
           }
