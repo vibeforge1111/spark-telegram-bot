@@ -13,9 +13,11 @@ import { Telegraf } from 'telegraf';
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import {
-  conversation,
+ conversation,
   isPendingTaskRecoveryQuestion,
-  renderPendingTaskRecoveryReply
+  renderPendingTaskRecoveryReply,
+  containsCredential,
+  credentialRefusalMessage
 } from './conversation';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
@@ -1914,7 +1916,11 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
   if (!text) {
     return ctx.reply('Usage: /remember <something to remember>');
   }
-
+// Credential safety check — refuse to store passwords, API keys, or secrets
+  if (containsCredential(text)) {
+    await ctx.reply(credentialRefusalMessage());
+    return;
+  }
   try {
     const missionLessonReply = await approvePendingMissionLesson(ctx.from.id, text);
     if (missionLessonReply) {
