@@ -26,7 +26,9 @@ export type DeterministicRouteId =
   | 'pending_task.recovery'
   | 'local_workspace.inspect'
   | 'mission_updates.preference'
-  | 'domain_chip.pending';
+  | 'domain_chip.pending'
+  | 'bugs.report_flow'
+  | 'bugs.duplicate_check';
 
 export interface RouteFirewallVerdict {
   allow: boolean;
