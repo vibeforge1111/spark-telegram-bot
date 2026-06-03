@@ -717,6 +717,51 @@ test('extracts browser probe receipt beyond noisy black-box head entries', () =>
   });
 });
 
+test('extracts newest browser probe receipt instead of stale earlier success', () => {
+  const entries: Record<string, unknown>[] = [
+    {
+      event_id: 'evt-browser-success-old',
+      event_type: 'capability_probed',
+      route_chosen: 'spark_browser',
+      blockers: [],
+      changed: ['spark_browser:last_probe=success'],
+      sources_used: [
+        {
+          summary: 'browser-use adapter status=ready proofs=public_page_open,state_read',
+        },
+      ],
+      created_at: '2026-05-24T15:00:00Z',
+    },
+    {
+      event_id: 'evt-memory-newer',
+      event_type: 'capability_probed',
+      route_chosen: 'spark_memory',
+      blockers: [],
+      changed: ['spark_memory:last_probe=success'],
+      created_at: '2026-05-24T15:45:00Z',
+    },
+    {
+      event_id: 'evt-browser-failure-newer',
+      event_type: 'capability_probed',
+      route_chosen: 'spark_browser',
+      blockers: ['browser-use adapter status source is not ready.'],
+      changed: ['spark_browser:last_probe=failure'],
+      sources_used: [
+        {
+          summary: 'browser-use adapter status=missing_status package_available=False cli_available=False',
+        },
+      ],
+      created_at: '2026-05-24T16:00:00Z',
+    },
+  ];
+
+  const receipt = extractLatestCapabilityProbeReceiptFromBlackBoxPayload({ entries }, 'spark_browser');
+
+  assert.equal(receipt?.eventId, 'evt-browser-failure-newer');
+  assert.equal(receipt?.status, 'failure');
+  assert.equal(receipt?.failureReason, 'browser-use adapter status source is not ready.');
+});
+
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
   const commands = buildBuilderAocPreflightCommands(
     {
