@@ -58,6 +58,15 @@ test('parses compact JSON classifier replies', () => {
   });
 });
 
+test('malformed classifier JSON fails closed without crashing the route', () => {
+  assert.deepEqual(parseRouteArbiterResponse('prefix {\"intent\":\"execute\" broken} suffix'), {
+    intent: 'unclear',
+    allow: false,
+    confidence: 'low',
+    rationaleTag: 'unspecified'
+  });
+});
+
 test('route arbiter records keep raw prompt text out of the ledger', () => {
   const text = 'how can we make sure access level 4 creates the right setup for access level to be really 4?';
   const verdict = evaluateDeterministicRoute('access.change', text);
