@@ -224,6 +224,10 @@ test('separates user memory recall from build context recall', () => {
     true
   );
   assert.equal(
+    isUserMemoryRecallQuestion("Reply with exactly one word. Also explain your reasoning in detail. What's my favorite dish?"),
+    true
+  );
+  assert.equal(
     isBuildContextRecallQuestion('Use memory only as context: what did we decide about Railway testing? Keep it short and do not run anything.'),
     false
   );
@@ -961,6 +965,10 @@ test('builds recent-turn evidence for contextual Memory Doctor requests', () => 
   assert.equal(shouldAttachMemoryDoctorEvidence('run memory doctor'), true);
   assert.equal(shouldAttachMemoryDoctorEvidence('what was my previous answer'), true);
   assert.equal(shouldAttachMemoryDoctorEvidence('did you lose my context'), true);
+  assert.equal(
+    shouldAttachMemoryDoctorEvidence("Reply with exactly one word. Also explain your reasoning in detail. What's my favorite dish?"),
+    false
+  );
 
   const prompt = buildMemoryDoctorEvidencePrompt('what was my previous answer', [
     { role: 'user', text: 'do not build yet, help me think through a domain chip for route confidence' },
