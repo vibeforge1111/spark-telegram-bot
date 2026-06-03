@@ -1886,7 +1886,9 @@ function requireAdmin(ctx: any): boolean {
     return true;
   }
 
-  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch(() => {});
+  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch((e) => {
+    console.error('[RequireAdmin] Failed to send admin warning:', e);
+  });
   return false;
 }
 
@@ -2130,7 +2132,9 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
 // Error handler
 bot.catch((err, ctx) => {
   console.error(`Error for ${ctx.updateType}:`, err);
-  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
+  ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch((e) => {
+    console.error('[ErrorHandler] Failed to send error reply:', e);
+  });
 });
 
 // Rate limit middleware
@@ -3002,7 +3006,9 @@ function startPrdCanvasReadyNotifier(args: {
           await bot.telegram.sendMessage(args.chatId, formatCanvasShapingHeartbeatSummary({
             projectName: args.projectName,
             elapsedSeconds: elapsedSec
-          })).catch(() => {});
+          })).catch((e) => {
+            console.error('[CanvasShaping] Failed to send heartbeat:', e);
+          });
           heartbeatIndex += 1;
         }
 
@@ -3852,7 +3858,9 @@ async function handleCreatorMissionPlan(ctx: any, parsed: ParsedCreatorCommand):
     await conversation.learnAboutUser(
       ctx.from,
       `Planned creator mission ${result.missionId} for ${parsed.brief.slice(0, 220)}`
-    ).catch(() => {});
+    ).catch((e) => {
+      console.error('[CreatorMission] Failed to learn about user:', e);
+    });
   }
 }
 
@@ -4449,7 +4457,9 @@ function recordRouteConfidenceDispatchOutcome(input: {
   };
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
-    .catch(() => {});
+    .catch((e) => {
+      console.error('[RouteConfidenceAudit] Failed to write audit record:', e);
+    });
 }
 
 export async function buildDispatchRouteConfidenceAllows(input: {
@@ -5048,7 +5058,9 @@ bot.command('creator', async (ctx) => {
         await conversation.learnAboutUser(
           ctx.from,
           `Ran validation for creator mission ${result.missionId} from Telegram.`
-        ).catch(() => {});
+        ).catch((e) => {
+          console.error('[CreatorMission] Failed to learn about user:', e);
+        });
       }
       return;
     }
@@ -5061,7 +5073,9 @@ bot.command('creator', async (ctx) => {
         await conversation.learnAboutUser(
           ctx.from,
           `Started execution for creator mission ${result.missionId} from Telegram.`
-        ).catch(() => {});
+        ).catch((e) => {
+          console.error('[CreatorMission] Failed to learn about user:', e);
+        });
       }
       return;
     }
@@ -5628,14 +5642,18 @@ bot.command('level5_setup', async (ctx) => handleSparkAccessActionCommand(ctx, '
 bot.command('level5_disable', async (ctx) => handleSparkAccessActionCommand(ctx, 'level5_disable'));
 
 bot.action(/^spark_access:(workspace_setup|docker_doctor|docker_smoke|level5_enable|level5_disable)(?::(confirm))?$/, async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {});
+  await ctx.answerCbQuery().catch((e) => {
+      console.error('[SparkAccessAction] Failed to answer callback query:', e);
+    });
   const match = String((ctx.callbackQuery as any)?.data || '').match(/^spark_access:(workspace_setup|docker_doctor|docker_smoke|level5_enable|level5_disable)(?::(confirm))?$/);
   if (!match) return;
   await handleSparkAccessAction(ctx, match[1] as SparkAccessActionId, match[2] === 'confirm');
 });
 
 bot.action(/^spark_access_level:operator:confirm$/, async (ctx) => {
-  await ctx.answerCbQuery().catch(() => {});
+  await ctx.answerCbQuery().catch((e) => {
+      console.error('[SparkAccessAction] Failed to answer callback query:', e);
+    });
   if (!requireAdmin(ctx)) return;
   await applySparkAccessProfileChange(ctx, 'operator');
 });
@@ -6497,7 +6515,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'local_workspace_inspection'
-        }).catch(() => {});
+        }).catch((e) => {
+          console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+        });
         await ctx.reply(`Local workspace inspection failed: ${detail}`);
       }
       return;
@@ -6690,7 +6710,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           message: text,
           failure: detail,
           stage: 'diagnostics_scan'
-        }).catch(() => {});
+        }).catch((e) => {
+          console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+        });
         await ctx.reply(`Diagnostics scan failed: ${detail}`);
       }
       return;
@@ -6878,7 +6900,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         message: text,
         failure: bridgeFailed ? 'Builder bridge failed and chat fallback returned a low-information reply.' : 'Chat runtime returned a low-information reply.',
         stage: bridgeFailed ? 'builder_bridge_fallback' : 'chat_runtime'
-      }).catch(() => {});
+      }).catch((e) => {
+        console.error('[HandleTextMessage] Failed to record interrupted task:', e);
+      });
       await ctx.reply(renderChatRuntimeFailureReply(conversation.isAdmin(user), bridgeFailed));
       return;
     }
@@ -6908,7 +6932,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       message: text,
       failure: detail,
       stage: 'telegram_message_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleTextMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
   }
 }
@@ -6942,7 +6968,9 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleImageMessage] Failed to record interrupted task:', e);
+    });
   } catch (err) {
     console.error('Image handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -6950,7 +6978,9 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       message: imageMemoryText,
       failure: detail,
       stage: 'telegram_image_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleImageMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }
@@ -6991,7 +7021,9 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: '[voice message]',
       failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleVoiceMessage] Failed to record interrupted task:', e);
+    });
   } catch (err) {
     console.error('Voice handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -6999,7 +7031,9 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       message: '[voice message]',
       failure: detail,
       stage: 'telegram_voice_handler'
-    }).catch(() => {});
+    }).catch((e) => {
+      console.error('[HandleVoiceMessage] Failed to record interrupted task in catch:', e);
+    });
     await ctx.reply(renderSparkErrorReply(err, 'telegram', conversation.isAdmin(user)));
   }
 }

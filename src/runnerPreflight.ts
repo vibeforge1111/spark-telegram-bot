@@ -19,7 +19,9 @@ export async function probeTelegramRunnerWritability(): Promise<RunnerPreflight>
   try {
     await mkdir(path.dirname(marker), { recursive: true });
     await writeFile(marker, `spark runner preflight ${checkedAt}\n`, { encoding: 'utf-8', flag: 'wx' });
-    await unlink(marker).catch(() => {});
+    await unlink(marker).catch((e) => {
+      console.error('[RunnerPreflight] Failed to clean up marker file:', e);
+    });
     return {
       runnerWritable: 'yes',
       runnerLabel: 'telegram bot runner writable (preflight write/delete ok)',
@@ -27,7 +29,9 @@ export async function probeTelegramRunnerWritability(): Promise<RunnerPreflight>
       latencyMs: Date.now() - startedAt,
     };
   } catch (error) {
-    await unlink(marker).catch(() => {});
+    await unlink(marker).catch((e) => {
+      console.error('[RunnerPreflight] Failed to clean up marker file after error:', e);
+    });
     const failureReason = compactRunnerPreflightError(error);
     return {
       runnerWritable: 'no',
