@@ -80,7 +80,8 @@ export function formatScheduleList(schedules: ScheduleRecord[]): string {
   const lines = [`Schedules (${schedules.length}):`, ''];
   for (const s of schedules) {
     lines.push(humanSummary(s));
-    lines.push(`  Schedule: ${humanizeCron(s.cron)}`);
+    const tz = typeof s.timezone === 'string' && s.timezone.trim() ? ` (${s.timezone})` : '';
+    lines.push(`  Schedule: ${humanizeCron(s.cron)}${tz}`);
     lines.push(`  Next: ${formatNextFireLocal(s.nextFireAt)}`);
     lines.push(`  Fires so far: ${s.fireCount}${s.lastStatus ? ` | last: ${s.lastStatus.slice(0, 80)}` : ''}`);
     lines.push(`  Id: ${s.id}`);
@@ -95,6 +96,14 @@ export interface ScheduleRecord {
   action: 'mission' | 'loop';
   payload: Record<string, unknown>;
   chatId?: string | null;
+  // IANA timezone the cron is evaluated in on the spawner-ui side
+  // (vibeship-spawner-ui/src/lib/server/scheduler.ts:56). Legacy records and
+  // bot-created schedules (which do not yet forward a timezone) come back as
+  // null and `formatScheduleList` falls back to the spawner process timezone.
+  // Surfacing the field here means an operator who scheduled "Daily at 9 AM"
+  // in Europe/Zurich on the spawner-ui side sees "Daily at 9 AM (Europe/Zurich)"
+  // in /schedules even when their Telegram client is in a different TZ.
+  timezone?: string | null;
   createdAt: string;
   lastFiredAt: string | null;
   nextFireAt: string | null;
