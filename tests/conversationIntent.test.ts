@@ -1479,6 +1479,11 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   );
   assert.equal(extractSparkSelfImprovementGoal('search your wiki for weak spots'), null);
   assert.equal(extractSparkSelfImprovementGoal('build me a self-improvement dashboard'), null);
+  // "how do I improve MY <own thing>" is a self-help question, not a request to change
+  // Spark's capabilities, so it must not trigger a Builder self-improvement plan.
+  assert.equal(extractSparkSelfImprovementGoal('I keep losing my train of thought, how do I improve my memory?'), null);
+  assert.equal(extractSparkSelfImprovementGoal('how do I improve my memory?'), null);
+  assert.equal(extractSparkSelfImprovementGoal('how can we boost my focus at work?'), null);
   assert.equal(extractSparkSelfImprovementGoal('Can you help me set up voice locally for Spark?'), null);
   assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
   assert.equal(

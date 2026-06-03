@@ -192,6 +192,12 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (/^(?:can|could|would|should)\s+you\s+improve\b/i.test(normalized)) {
     return null;
   }
+  // "how do I improve my memory?" is the user asking how THEY can improve THEIR OWN
+  // thing (self-help), not a request to change Spark's capabilities. (Spark's own memory
+  // is referred to as "your memory" / "Spark ... memory", which this does not match.)
+  if (/\bhow\s+(?:do|does|can|could|should|would)\s+(?:i|we)\b[^?.!]{0,30}\b(?:improve|fix|boost|strengthen|sharpen|train|increase|enhance|better|build|develop)\b[^?.!]{0,20}\bmy\b/i.test(normalized)) {
+    return null;
+  }
   const asksSparkToChooseImprovement =
     /\b(?:what|which)\b.{0,40}\b(?:you|spark|agent)\b.{0,40}\b(?:improve|upgrade|repair|fix|work\s+on)\b/i.test(normalized) ||
     /\b(?:what|which)\b.{0,40}\b(?:should|would|could)\b.{0,20}\b(?:you|spark|agent)\b.{0,40}\b(?:improve|upgrade|repair|fix|work\s+on)\b/i.test(normalized) ||
