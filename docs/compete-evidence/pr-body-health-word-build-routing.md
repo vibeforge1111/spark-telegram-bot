@@ -45,7 +45,7 @@ After: the same prompt is accepted as build work: `Got it. Spark is on it.` and 
 - PASS `npx ts-node tests\runtimeRouteGuards.test.ts`
 - PASS `npx ts-node tests\buildE2E.test.ts`
 - PASS installed-runtime smoke: `parseBuildIntent(...)` returned `advanced_prd`, `Telegram Health Bot`, and `C:\Dev\projects\telegram-health-bot`; runtime health guards returned false for the exact prompt.
-- PASS live Telegram smoke after restart: screenshot shows the same prompt now routes to the build/canvas path instead of health diagnostics.
+- PASS live Telegram smoke after restart: screenshot shows the same redacted prompt/reply excerpt now routes to the build/canvas path instead of health diagnostics.
 
 ## Packet Validation
 
@@ -119,7 +119,7 @@ Run after the PR is created and replace `PENDING_PR_URL` with the real PR URL.
   },
   "review_claim": {
     "impact_claim": "high",
-    "evidence_types": ["before_screenshot", "after_screenshot", "failing_test", "passing_test", "smoke_test"],
+    "evidence_types": ["before_screenshot", "after_screenshot", "redacted_conversation_excerpt", "failing_test", "passing_test", "smoke_test"],
     "duplicate_notes": "PR #315 is related but separate: this PR targets the exact live health-word false route, adds explicit runtime health guard regression coverage, suppresses runtime truth signals for concrete builds, and includes before/after proof from the telegram-health-bot prompt.",
     "risk_notes": "Low dependency and operational risk: no dependencies, secrets, provider setup, installer behavior, or persistence schema changes. Regression risk is bounded to routing precedence for concrete build prompts and is covered by focused tests.",
     "review_state_requested": "pr_review"
