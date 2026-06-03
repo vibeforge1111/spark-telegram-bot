@@ -545,6 +545,24 @@ test('does not turn product-memory mission boundary questions into workflow bug 
   );
 });
 
+test('does not turn ordinary "write tests for my <generic surface>" requests into Spark workflow bug hunt cards', () => {
+  // QA language plus an ordinary engineering word (route/routing/workflow/relay/
+  // builder) with no Spark context must NOT trigger the Spark internal-QA reply.
+  for (const q of [
+    'Can you write some unit tests for my routing logic?',
+    'I need help adding edge cases to the route handler in my app',
+    'Could you set up a smoke test for the checkout workflow?',
+    'I want comprehensive tests for the relay between my microservices',
+    'help me with qa for the new builder component',
+  ]) {
+    assert.equal(isSparkWorkflowBugHuntRequest(q), false, `should not hijack: ${q}`);
+  }
+  // Genuine Spark workflow QA requests still match.
+  assert.equal(isSparkWorkflowBugHuntRequest('Should we add unit tests and a bug hunt for the spawner mission routing?'), true);
+  assert.equal(isSparkWorkflowBugHuntRequest('Can you do a QA pass with edge cases on the mission control workflow?'), true);
+  assert.equal(isSparkWorkflowBugHuntRequest("write edge case tests for spark's routing"), true);
+});
+
 test('recognizes H70 Thread QA golden-case requests as conversation fixtures', () => {
   const prompt = 'Do not build anything. Turn the H70 Orbit Proof interruption into a golden Thread QA test case. Keep it natural and short.';
   assert.equal(isSparkThreadQaGoldenCaseRequest(prompt), true);

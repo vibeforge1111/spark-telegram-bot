@@ -1412,8 +1412,14 @@ export function isSparkWorkflowBugHuntRequest(text: string): boolean {
     return false;
   }
   const qaLanguage = /\b(?:unit\s+tests?|qa|bug\s+hunt(?:er|ing)?|edge\s+cases?|regressions?|smoke\s+tests?|test\s+suite|comprehensive\s+tests?|trigger\s+bugs?|bug\s+hunter)\b/.test(normalized);
-  const sparkSurface = /\b(?:spawner|mission\s+control|mission\s+loop|telegram|relay|workflow|canvas|kanban|builder|route|routing)\b/.test(normalized);
-  return qaLanguage && sparkSurface;
+  // Unambiguous Spark surfaces always count. The rest (workflow, route/routing,
+  // relay, builder, canvas, telegram) are ordinary engineering words, so they only
+  // count when "spark" is also present — otherwise a normal request like "write unit
+  // tests for my routing logic" was hijacked into Spark's internal-QA reply.
+  const unambiguousSparkSurface = /\b(?:spawner|mission\s+control|mission\s+loop|kanban)\b/.test(normalized);
+  const ambiguousSurface = /\b(?:telegram|relay|workflow|canvas|builder|route|routing)\b/.test(normalized);
+  const mentionsSpark = /\bspark\b/.test(normalized);
+  return qaLanguage && (unambiguousSparkSurface || (ambiguousSurface && mentionsSpark));
 }
 
 export function isSparkThreadQaGoldenCaseRequest(text: string): boolean {
