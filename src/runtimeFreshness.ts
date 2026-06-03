@@ -113,7 +113,13 @@ function fileHash(absPath: string): string | null {
   if (!fs.existsSync(absPath)) return null;
   const stat = fs.statSync(absPath);
   if (!stat.isFile()) return null;
-  return createHash('sha256').update(fs.readFileSync(absPath)).digest('hex');
+  let buf: Buffer;
+  try {
+    buf = fs.readFileSync(absPath);
+  } catch {
+    return null;
+  }
+  return createHash('sha256').update(buf).digest('hex');
 }
 
 function statusFor(sourceHash: string | null, runtimeHash: string | null): RuntimeFreshnessPathStatus {
