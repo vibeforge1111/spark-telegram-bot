@@ -6,6 +6,20 @@ export interface MemoryDoctorEvidenceTurn {
 const CONTEXTUAL_MEMORY_DOCTOR_PATTERN =
   /\b(?:what\s+happened|went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about|what\s+(?:was|did)\s+(?:my|your)\s+(?:last|previous)\s+(?:answer|response|reply|message)|did\s+you\s+(?:forget|lose|drop)\s+(?:my|the|what)\s+(?:context|message|conversation)|(?:run|check|show|diagnose|audit)\s+(?:the\s+)?memory\s+doctor)\b/i;
 
+function isMarketChartProofBoundaryQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  const marketChart =
+    /\b(?:tradingview|trading view|hypeusd|hypeusdt|support\s+and\s+resistance|support|resistance|weekly\s+(?:timeframe|chart)|market|chart)\b/.test(normalized);
+  const proofBoundary =
+    /\b(?:do\s+not\s+trade|financial\s+advice|cannot\s+directly\s+inspect|current\s+tradingview|proof|do\s+not\s+invent|exact\s+levels?|draw\s+support|resistance\s+lines?)\b/.test(normalized);
+  const tradingViewLevelExtraction =
+    /\b(?:tradingview|trading view)\b/.test(normalized) &&
+    /\b(?:hypeusd|hypeusdt|support|resistance|levels?|lines?)\b/.test(normalized) &&
+    /\b(?:show|draw|mark|plot|sketch|image|weekly|timeframe|extract(?:ed)?|from)\b/.test(normalized);
+  return marketChart && (proofBoundary || tradingViewLevelExtraction);
+}
+
 function compactEvidenceText(value: string, limit = 700): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (normalized.length <= limit) {
@@ -19,7 +33,11 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
-  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (isMarketChartProofBoundaryQuestion(normalized)) {
+    return false;
+  }
+  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(normalized);
 }
 
 function sameNormalizedText(a: string, b: string): boolean {

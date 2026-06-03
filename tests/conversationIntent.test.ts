@@ -48,6 +48,7 @@ import {
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
+  isMarketChartProofBoundaryQuestion,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderMarketChartProofBoundaryReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -972,6 +974,39 @@ test('builds recent-turn evidence for contextual Memory Doctor requests', () => 
   assert.match(prompt, /Do not ask the user to paste the previous turn unless no recent turns are listed\./);
   assert.match(prompt, /- user: do not build yet, help me think through a domain chip for route confidence/);
   assert.match(prompt, /- assistant: Good problem to formalize\./);
+});
+
+test('keeps market chart proof boundaries out of Memory Doctor', () => {
+  const prompt = `Do not trade or give financial advice.
+
+If you cannot directly inspect a current TradingView weekly HYPEUSD chart, say that clearly.
+
+Explain what proof you would need to draw support and resistance lines safely, and do not invent exact levels.`;
+
+  assert.equal(isMarketChartProofBoundaryQuestion(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderMarketChartProofBoundaryReply(prompt);
+  assert.match(reply, /cannot safely claim current TradingView weekly HYPEUSD levels/);
+  assert.match(reply, /current weekly TradingView screenshot/);
+  assert.match(reply, /not financial advice/);
+  assert.match(reply, /will not invent exact support or resistance levels/);
+  assert.doesNotMatch(reply, /Memory Doctor/);
+});
+
+test('blocks invented TradingView support and resistance extraction claims', () => {
+  const prompt = 'In an image form, show me the support and resistance lines of HypeUsd in a weekly timeframe extracted from trading view';
+
+  assert.equal(isMarketChartProofBoundaryQuestion(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderMarketChartProofBoundaryReply(prompt);
+  assert.match(reply, /cannot safely claim current TradingView weekly HYPEUSD levels/);
+  assert.match(reply, /current weekly TradingView screenshot/);
+  assert.match(reply, /will not invent exact support or resistance levels/);
+  assert.doesNotMatch(reply, /Levels used/);
 });
 
 test('selects immediate prior turns for contextual Memory Doctor evidence', () => {

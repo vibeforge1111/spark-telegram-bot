@@ -426,6 +426,9 @@ export function isMemoryDoctorRequest(text: string): boolean {
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
+  if (isMarketChartProofBoundaryQuestion(normalized)) {
+    return false;
+  }
 
   if (/\bmemory\s+doctor\b/.test(normalized)) {
     return true;
@@ -1457,6 +1460,40 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 		'That sounds like route hijack: mission or build words are pulling the conversation toward execution even though the user asked to explain only.',
 		'Fresh user intent should outrank keywords, memory, stale mission state, and pending mission context.'
 	].join('\n');
+}
+
+export function isMarketChartProofBoundaryQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return false;
+  }
+  const marketChart =
+    /\b(?:tradingview|trading view|hypeusd|hypeusdt|support\s+and\s+resistance|support|resistance|weekly\s+(?:timeframe|chart)|market|chart)\b/.test(normalized);
+  const proofBoundary =
+    /\b(?:do\s+not\s+trade|financial\s+advice|cannot\s+directly\s+inspect|current\s+tradingview|proof|do\s+not\s+invent|exact\s+levels?|draw\s+support|resistance\s+lines?)\b/.test(normalized);
+  const tradingViewLevelExtraction =
+    /\b(?:tradingview|trading view)\b/.test(normalized) &&
+    /\b(?:hypeusd|hypeusdt|support|resistance|levels?|lines?)\b/.test(normalized) &&
+    /\b(?:show|draw|mark|plot|sketch|image|weekly|timeframe|extract(?:ed)?|from)\b/.test(normalized);
+  return marketChart && (proofBoundary || tradingViewLevelExtraction);
+}
+
+export function renderMarketChartProofBoundaryReply(_text: string): string {
+  return [
+    'I cannot safely claim current TradingView weekly HYPEUSD levels from chat alone.',
+    '',
+    'To draw support and resistance lines safely, I would need one of these:',
+    '- a current weekly TradingView screenshot supplied by you',
+    '- direct browser access that visibly opens the current HYPEUSD weekly chart',
+    '- a public chart/source with timestamped levels and enough context to verify timeframe',
+    '',
+    'What I can do without that proof:',
+    '- explain how to identify swing highs/lows, consolidation zones, and prior weekly closes',
+    '- mark levels on a screenshot you provide',
+    '- keep it educational and not financial advice',
+    '',
+    'I will not invent exact support or resistance levels, and I will not present trade guidance as a chart extraction.'
+  ].join('\n');
 }
 
 function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
