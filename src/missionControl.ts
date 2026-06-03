@@ -232,3 +232,22 @@ export class ChipCreateMissionReporter {
 //   3. Direct users to localhost:3333 Kanban for bulk clear actions
 //   4. Add clear failed jobs guidance to the usage message
 //   5. Usage message should list all valid subcommands explicitly
+// Valid mission subcommands — never suggest commands outside this list
+export const VALID_MISSION_SUBCOMMANDS = ['status', 'pause', 'resume', 'kill'] as const;
+export type ValidMissionSubcommand = typeof VALID_MISSION_SUBCOMMANDS[number];
+
+export function isValidMissionSubcommand(cmd: string): cmd is ValidMissionSubcommand {
+  return VALID_MISSION_SUBCOMMANDS.includes(cmd as ValidMissionSubcommand);
+}
+
+export function getMissionUsageMessage(): string {
+  return 'Usage: /mission <status|pause|resume|kill> <missionId>\n\nTo clear failed missions, open the Kanban board at localhost:3333 and use the archive action on the failed column.';
+}
+
+// Safety check — never suggest /mission clear failed as it does not exist
+export function validateMissionSubcommand(cmd: string): string | null {
+  if (!isValidMissionSubcommand(cmd)) {
+    return getMissionUsageMessage();
+  }
+  return null;
+}
