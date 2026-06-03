@@ -325,6 +325,7 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
 function mergeEnvFile(env: NodeJS.ProcessEnv, envPath: string): void {
   let text = '';
   try {
+    if (envPath.includes('..') || !envPath.startsWith('/')) { throw new Error('Invalid env path'); }
     text = readFileSync(envPath, 'utf-8');
   } catch {
     return;
