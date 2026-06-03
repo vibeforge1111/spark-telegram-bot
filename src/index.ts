@@ -201,6 +201,7 @@ import {
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
+  isMarketChartProofBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isProtectedMissionCancelPronounIntent,
@@ -221,6 +222,7 @@ import {
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
+  renderMarketChartProofBoundaryReply,
   renderMissionRoutingFailureClassReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
@@ -5993,6 +5995,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Telegram answered from no-edit Spawner probe mission evidence when available.'
       }
     ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isMarketChartProofBoundaryQuestion(text)) {
+    const reply = renderMarketChartProofBoundaryReply(text);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.market_chart_proof_boundary', 'spark-telegram-bot', 'plain_chat.safety_boundary');
+    await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
