@@ -9,8 +9,7 @@
  * fixes were not enough.
  */
 
-import { redactText } from './redaction';
-
+import { redactText, redactTelegramIds } from './redaction';
 const EM_DASH_FAMILY = [
   '\u2014', // em dash
   '\u2013', // en dash
@@ -61,9 +60,8 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
 }
 
 export function sanitizeOutbound(text: string): string {
-  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
+  return redactTelegramIds(redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text)))));
 }
-
 function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {
   const parts = text
     .trim()
