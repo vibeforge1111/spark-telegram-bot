@@ -38,10 +38,14 @@ export function requireRelaySecret(env: NodeJS.ProcessEnv = process.env): string
     throw new Error('TELEGRAM_RELAY_SECRET is required so the local Spawner relay cannot be posted to anonymously.');
   }
   if (value.length < 24 || value.length > 256) {
-    throw new Error('TELEGRAM_RELAY_SECRET must be 24-256 characters.');
+    throw new Error(
+      `TELEGRAM_RELAY_SECRET must be 24-256 characters (got ${value.length}).`
+    );
   }
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-    throw new Error('TELEGRAM_RELAY_SECRET may only contain A-Z, a-z, 0-9, _ and -.');
+    throw new Error(
+      'TELEGRAM_RELAY_SECRET may only contain A-Z, a-z, 0-9, _ and - (no spaces, slashes, equals signs, or other punctuation).'
+    );
   }
   return value;
 }

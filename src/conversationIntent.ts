@@ -12,6 +12,9 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
   /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
   /\bwhat\s+would\s+you\s+(?:build|make|create|suggest)\b/i,
+  /\bwhat\s+else\s+(?:would\s+you\s+)?(?:recommend|suggest|try|build|make|create)\b/i,
+  /\b(?:something|anything)\s+(?:different|else)\b.*\b(?:recommend|suggest|try|build|make|create)\b/i,
+  /\b(?:try|do|explore)\s+something\s+different\b/i,
   /\b(?:give|show|suggest|list)\s+(?:me\s+)?(?:\d+|one|two|three|four|five|a\s+few|some)\s+(?:build\s+)?ideas?\b/i,
   /\bwhat\s+would\s+(?:the\s+)?(?:first\s+version|mvp|v1)\s+be\b/i,
   /\bwhat\s+would\s+be\s+(?:the\s+)?(?:best\s+)?(?:first\s+version|mvp|v1)\b/i,
@@ -799,6 +802,14 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || normalized.startsWith('/')) return null;
+  if (/\b(?:named\s+telegram\s+profile|telegram\s+profile|profile\s+setup|disposable\s+(?:lane|profile|bot|chat)|read[-\s]*only\s+lane|test\s+lane)\b/i.test(normalized) &&
+      /\b(?:\/myid|env|config|logs?|log\s+separation|primary\s+bot|separate\s+(?:bot|token|chat|env|config|logs?))\b/i.test(normalized)) {
+    return null;
+  }
+  if (/\b(?:codex\s+cli|openai\s+api\s+key|api\s+keys?|provider\s+setup|provider\s+key|provider\s+keys?|signed[-\s]?in|sign(?:ed)?\s+in|login|logged\s+in)\b/i.test(normalized) &&
+      /\b(?:setup|set\s+up|configure|provider|api\s+key|key\s+missing|missing\s+key|cannot\s+find|can't\s+find|not\s+found|recovery\s+path|recover|repair|resume)\b/i.test(normalized)) {
+    return null;
+  }
 
   const earlyTarget = naturalRecursiveTarget(normalized, context);
   if (earlyTarget?.chipKey && /\b(?:learn|learned|takeaways?|what\s+stuck|what\s+worked|what\s+did\s+.*(?:learn|find|discover))\b/i.test(normalized)) {
@@ -918,8 +929,10 @@ export function isNoExecutionBoundary(text: string): boolean {
     /^(?:no|nah|nope)(?:[,\s.!]+|$)/,
     /\bno\s+(?:build|mission|execution|new\s+work)(?:\s+or\s+(?:build|mission|execution|new\s+work))*\s+for\s+now\b/,
     /\bno\s+(?:build|mission|execution|new\s+work)\s+for\s+now\b/,
-    /\b(?:no need|not needed|not now|not for now|maybe later|later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
+    /\b(?:no need|not needed|not now|not for now|maybe later|later|hold off|never mind|nevermind)\b/,
+    /^(?:pause|cancel|stop)(?:[.!]+|\s*$)/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|publish|share|ship|deploy|kick\s+off)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:resume|unpause|continue|pause|hold|freeze|cancel|stop|kill)\s+(?:it|this|that|that\s+one|this\s+one|the\s+one|anything|something|missions?|work)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|the\s+mission|the\s+build|the\s+project|it|this|that)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
@@ -1153,7 +1166,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized)
     )
   );
 }
@@ -1185,11 +1198,15 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
   ].join('\n');
 }
 
-export type SpawnerBoardNaturalIntent = 'board' | 'latest_on_kanban' | 'latest_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
+export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_failed_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
+  if (/\b(?:summari[sz]e|recap|tell\s+me|what\s+did|what\s+have)\b.*\b(?:team|we|our)\b.*\b(?:already\s+)?(?:tried|done|tested|checked|attempted|know|guesses?|assumptions?|open\s+questions?)\b/.test(normalized) ||
+      /\b(?:facts?|guesses?|assumptions?|open\s+questions?|next\s+(?:safest\s+)?action)\b.*\b(?:invent(?:ing)?\s+history|already\s+tried|team\s+history|our\s+history)\b/.test(normalized)) {
+    return null;
+  }
   if (shouldPreferConversationalIdeation(text)) return null;
   if (isProjectLocalhostRequest(normalized)) {
     return 'latest_project_preview';
@@ -1200,6 +1217,7 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
 
   if (
     /^(?:what happened|what went wrong|why did it fail|why failed)$/i.test(normalized) ||
+    /\bwhat\s+fail(?:ed|ure)?\b.*\b(?:latest|last|recent|newest|recently|spawner|mission|job|run|build)\b/.test(normalized) ||
     /\bwhy\b.*\b(?:latest|last|recent|newest)?\s*(?:spawner|mission|job|run|build)\b.*\bfail(?:ed|ure)?\b/.test(normalized) ||
     /\b(?:latest|last|recent|newest)\b.*\b(?:spawner|mission|job|run|build)\b.*\bfail(?:ed|ure)?\b/.test(normalized)
   ) {
@@ -1210,6 +1228,15 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
     /\bwhat\s+happened\b.*\b(?:latest|last|recent|newest)\b.*\b(?:spawner\s+)?(?:mission|job|run|build)\b/.test(normalized)
   ) {
     return 'latest_mission';
+  }
+
+  if (
+    /\b(?:which|what)\s+(?:llm|model|provider|agent)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b/.test(normalized) ||
+    /\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run|build)\b.*\b(?:which|what)\s+(?:llm|model|provider|agent)\b/.test(normalized) ||
+    /\b(?:who|what)\s+(?:took|handled|ran|accepted)\b.*\b(?:latest|last|recent|newest)\b.*\bfailed\b.*\b(?:spawner|mission|job|run)\b/.test(normalized) ||
+    /\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b.*\b(?:broken|failed|failing|busted)\s+(?:one|job|run|mission|build)\b/.test(normalized)
+  ) {
+    return 'latest_failed_provider';
   }
 
   if (
@@ -1237,6 +1264,16 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   }
 
   if (
+    /\b(?:running|paused|active|in\s+progress)\b/.test(normalized) &&
+    (
+      /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b/.test(normalized) ||
+      /\bwhat'?s\s+(?:currently\s+)?(?:running|paused)\b/.test(normalized)
+    )
+  ) {
+    return 'active_missions';
+  }
+
+  if (
     /\b(?:show|display|list|pull\s+up|what'?s|what\s+is|status\s+of|current)\b.*\b(?:spawner|kanban|mission\s+board|mission\s+control)\b.*\b(?:board|kanban|missions?)?\b/.test(normalized) ||
     /\b(?:spawner|kanban|mission\s+board|mission\s+control)\b.*\b(?:board|status|current|running|completed|failed)\b/.test(normalized) ||
     /\bwhat'?s\s+running\b/.test(normalized)
@@ -1245,6 +1282,98 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   }
 
   return null;
+}
+
+export function parseContextualSpawnerBoardNaturalIntent(text: string, recentMessages: string[] = []): SpawnerBoardNaturalIntent | null {
+  const directIntent = parseSpawnerBoardNaturalIntent(text);
+  if (directIntent) return directIntent;
+
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  const hasRecentFailureContext = recentIntents.includes('latest_failed_provider') || recentIntents.includes('latest_failure');
+  const latestStatusContext = [...recentIntents]
+    .reverse()
+    .find((intent) => intent === 'active_missions' || intent === 'latest_failed_provider' || intent === 'latest_failure');
+
+  const openPronounFollowup =
+    /\b(?:can|could|would|where|how|open|link|url|inspect|show|pull\s+up)\b.*\b(?:open|link|url|inspect|show|pull\s+up|see)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:open|link|url|inspect|show|pull\s+up|see)\b/.test(normalized);
+  if (openPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
+  const statusPronounFollowup =
+    /\b(?:is|was|were|does|did|has|have|can)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|paused|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:still\s+)?(?:working|running|active|going|moving|paused|in\s+progress|processing|finished|done|complete|completed|failed|stopped)\b/.test(normalized);
+  if (statusPronounFollowup) {
+    if (latestStatusContext === 'active_missions') return 'active_missions';
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
+  const blockerPronounFollowup =
+    /\b(?:what|which)\b.*\b(?:blocked|blocker|stopped|broke|failed|went\s+wrong)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:blocked|stopped|broke|failed|went\s+wrong)\b/.test(normalized) ||
+    /\b(?:why|how)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:fail|failed|break|broke|blocked|stop|stopped)\b/.test(normalized);
+  if (blockerPronounFollowup) {
+    return hasRecentFailureContext ? 'latest_failure' : null;
+  }
+
+  const providerPronounFollowup =
+    /\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b.*\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized) ||
+    /\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b.*\b(?:who|what|which\s+(?:llm|model|provider|agent))\b.*\b(?:took|handled|ran|accepted)\b/.test(normalized);
+  if (!providerPronounFollowup) return null;
+
+  if (hasRecentFailureContext) {
+    return 'latest_failed_provider';
+  }
+  if (recentIntents.includes('latest_provider')) {
+    return 'latest_provider';
+  }
+  return null;
+}
+
+export function isProtectedMissionResumePronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:resume|unpause|continue)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
+}
+
+export function isProtectedMissionPausePronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:pause|hold|freeze)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
+}
+
+export function isProtectedMissionCancelPronounIntent(text: string, recentMessages: string[] = []): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized.startsWith('/')) return false;
+  if (!/\b(?:cancel|kill|stop|terminate|abort|shut\s+down)\b/.test(normalized)) return false;
+  if (!/\b(?:that|it|this|that\s+one|this\s+one|the\s+one)\b/.test(normalized)) return false;
+
+  const recentIntents = recentMessages
+    .slice(-6)
+    .map((message) => parseSpawnerBoardNaturalIntent(message))
+    .filter(Boolean);
+  return recentIntents.includes('active_missions');
 }
 
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {

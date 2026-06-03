@@ -8,8 +8,10 @@ import { withHiddenWindows } from './hiddenProcess';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_PATH_LOOP_TIMEOUT_MS = 900000;
 
 export interface RecursiveStartTarget {
   kind: 'chip' | 'path';
@@ -181,7 +183,10 @@ function resolveConfig(): PathLoopConfig {
     ),
     swarmRuntimeRoot,
     startupBenchRepo,
-    timeoutMs: Number.parseInt(process.env.PATH_LOOP_TIMEOUT_MS || process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositiveIntegerEnvValue(
+      process.env.PATH_LOOP_TIMEOUT_MS,
+      parsePositiveIntegerEnvValue(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_PATH_LOOP_TIMEOUT_MS)
+    ),
   };
 }
 

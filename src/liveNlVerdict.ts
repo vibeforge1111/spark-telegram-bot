@@ -69,8 +69,12 @@ function parseLiveNlCommandCase(value: unknown, index: number): LiveNlCommandCas
   if (!parsed.id || !parsed.suite || !parsed.prompt || !parsed.expectedRoute || !parsed.expectedOutcome) {
     throw new Error(`Live NL case ${index + 1} needs id, suite, prompt or turns, expectedRoute, and expectedOutcome.`);
   }
-  if (!['safe', 'mission', 'writes_files', 'external'].includes(parsed.risk)) {
-    throw new Error(`Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}.`);
+  const allowedRisks = ['safe', 'mission', 'writes_files', 'external'] as const;
+  if (!allowedRisks.includes(parsed.risk as (typeof allowedRisks)[number])) {
+    throw new Error(
+      `Live NL case ${parsed.id} has unsupported risk ${parsed.risk || 'unknown'}. ` +
+        `Allowed risks: ${allowedRisks.join(', ')}.`
+    );
   }
 
   return parsed;

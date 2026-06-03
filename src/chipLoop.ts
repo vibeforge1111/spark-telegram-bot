@@ -5,8 +5,10 @@ import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_CHIP_LOOP_TIMEOUT_MS = 900000;
 
 export interface LoopResult {
   ok: boolean;
@@ -38,7 +40,7 @@ function resolveConfig(): LoopConfig {
     builderHome: path.resolve(
       process.env.SPARK_BUILDER_HOME || path.join(os.homedir(), '.spark', 'state', 'spark-intelligence')
     ),
-    timeoutMs: Number.parseInt(process.env.CHIP_LOOP_TIMEOUT_MS || '900000', 10) || 900000,
+    timeoutMs: parsePositiveIntegerEnvValue(process.env.CHIP_LOOP_TIMEOUT_MS, DEFAULT_CHIP_LOOP_TIMEOUT_MS),
   };
 }
 

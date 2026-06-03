@@ -2,8 +2,8 @@
  * userTier.ts — resolves a Telegram user ID to a Spark skill tier.
  *
  * Tier model (matches spawner-ui/src/lib/server/skill-tiers.ts):
- *   - base: 30 canonical starter skills from spark-skill-graphs.
- *   - pro:  ~615 skills, the full spark-skill-graphs catalog.
+ *   - base: 30 canonical starter skills.
+ *   - pro:  the full Spark skill catalog.
  *
  * Resolution order:
  *   1. If userId is in BOT_PRO_USER_IDS, tier = 'pro'.
@@ -48,6 +48,6 @@ export function getTierForUser(userId: number | string | undefined): SkillTier {
 
 export function describeTier(tier: SkillTier): string {
 	return tier === 'pro'
-		? 'pro tier (full spark-skill-graphs catalog)'
+		? 'pro tier (full Spark skill catalog)'
 		: 'base tier (30-skill starter loadout)';
 }

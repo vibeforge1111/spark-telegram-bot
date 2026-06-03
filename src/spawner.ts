@@ -166,7 +166,7 @@ interface CreatorMissionValidationResult {
 interface BoardEntry {
   missionId: string;
   missionName?: string | null;
-  status: 'created' | 'running' | 'paused' | 'completed' | 'failed';
+  status: 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
   lastEventType: string;
   lastUpdated: string;
   lastSummary: string;
@@ -194,7 +194,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   zai: 'Z.AI'
 };
 
-type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'created';
+type BoardBucket = 'running' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'created';
 type BoardSnapshot = Record<BoardBucket, BoardEntry[]>;
 
 export function localServiceTimeoutMs(envKey: string, fallbackMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS): number {
@@ -253,6 +253,7 @@ async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
     paused: normalizeBucket(board.paused),
     completed: normalizeBucket(board.completed),
     failed: normalizeBucket(board.failed),
+    cancelled: normalizeBucket(board.cancelled),
     created: normalizeBucket(board.created)
   };
 }
@@ -263,6 +264,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.paused,
     ...board.completed,
     ...board.failed,
+    ...board.cancelled,
     ...board.created
   ];
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
@@ -378,7 +380,88 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
 }
 
 function missionTitle(entry: BoardEntry): string {
-  return entry.missionName || entry.taskName || entry.missionId || 'latest mission';
+  return entry.missionName || entry.taskName || readableMissionTitleFromId(entry.missionId) || entry.missionId || 'latest mission';
+}
+
+function missionTitleForActiveSummary(entry: BoardEntry): string | null {
+  const title = entry.missionName || entry.taskName || '';
+  return title.trim() || readableMissionTitleFromId(entry.missionId);
+}
+
+function readableMissionTitleFromId(missionId: string | undefined): string | null {
+  const slug = (missionId || '')
+    .trim()
+    .replace(/^spark-/i, '')
+    .replace(/^mission-\d{6,}-?/i, '')
+    .replace(/-\d{6,}.*$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!slug || !/[a-z]/i.test(slug)) return null;
+  return slug
+    .split(' ')
+    .map((word) => word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word)
+    .join(' ');
+}
+
+function countWord(count: number): string {
+  if (count === 0) return 'no';
+  if (count === 1) return 'one';
+  if (count === 2) return 'two';
+  if (count === 3) return 'three';
+  return String(count);
+}
+
+function activeMissionClause(entries: BoardEntry[], status: 'running' | 'paused'): string {
+  if (entries.length === 0) return `no ${status} missions`;
+  const visibleTitles = entries
+    .map(missionTitleForActiveSummary)
+    .filter((title): title is string => Boolean(title));
+  if (entries.length === 1 && visibleTitles[0]) {
+    return `one ${status} mission: ${visibleTitles[0]}`;
+  }
+  if (visibleTitles.length > 0) {
+    const shown = visibleTitles.slice(0, 3).join(', ');
+    const remaining = entries.length - visibleTitles.slice(0, 3).length;
+    return `${countWord(entries.length)} ${status} missions: ${shown}${remaining > 0 ? `, plus ${remaining} more` : ''}`;
+  }
+  return `${countWord(entries.length)} ${status} mission${entries.length === 1 ? '' : 's'}`;
+}
+
+function contextualMissionCommandPicker(entries: BoardEntry[], statusLabel: string, action: MissionAction, verb: string): string {
+  const shown = entries.slice(0, 5);
+  const noun = statusLabel === 'active' ? 'active missions' : `${statusLabel} missions`;
+  const lines = [
+    `I see ${countWord(entries.length)} ${noun}. Which one should I ${verb}?`,
+    '',
+    ...shown.map((entry) => `- ${missionTitle(entry)}: \`/mission ${action} ${entry.missionId}\``)
+  ];
+  const remaining = entries.length - shown.length;
+  if (remaining > 0) {
+    lines.push('', `There ${remaining === 1 ? 'is' : 'are'} ${remaining} more on the board.`);
+  }
+  return lines.join('\n');
+}
+
+function formatActiveMissionsTelegramSummary(board: BoardSnapshot): string {
+  if (board.running.length === 0 && board.paused.length === 0) {
+    return 'Mission Control has nothing running or paused right now.';
+  }
+
+  if (board.running.length === 0) {
+    const paused = activeMissionClause(board.paused, 'paused');
+    const nextAction = board.paused.length === 1 ? ' You can say `resume that one` if you want it moving again.' : '';
+    return `Mission Control has nothing running. ${paused[0]?.toUpperCase()}${paused.slice(1)}.${nextAction}`;
+  }
+
+  if (board.paused.length === 0) {
+    const nextAction = board.running.length === 1 ? ' You can say `pause that one` if you want it held.' : '';
+    return `Mission Control has ${activeMissionClause(board.running, 'running')}. Nothing paused.${nextAction}`;
+  }
+
+  const running = activeMissionClause(board.running, 'running');
+  const paused = activeMissionClause(board.paused, 'paused');
+  return `Mission Control has ${running}. ${paused[0]?.toUpperCase()}${paused.slice(1)}.`;
 }
 
 function statusPhrase(status: string): string {
@@ -386,6 +469,7 @@ function statusPhrase(status: string): string {
   if (status === 'failed') return 'failed';
   if (status === 'running') return 'is still running';
   if (status === 'paused') return 'is paused';
+  if (status === 'cancelled') return 'was cancelled';
   return 'is waiting to start';
 }
 
@@ -451,6 +535,9 @@ function formatLatestMissionTelegramSummary(entry: BoardEntry): string {
       ? `${title} did not make it through. ${provider} was attached.`
       : `${title} did not make it through before a provider was reported.`;
   }
+  if (status === 'cancelled') {
+    return `${title} was cancelled.`;
+  }
   if (status === 'paused') {
     return provider
       ? `${title} is paused. ${provider} is attached.`
@@ -466,50 +553,56 @@ function statusWord(status: string): string {
   if (status === 'failed') return 'failed';
   if (status === 'running') return 'running';
   if (status === 'paused') return 'paused';
+  if (status === 'cancelled') return 'cancelled';
   return 'queued';
 }
 
-function providerSummarySentence(provider: string | null, status: string): string {
+function providerSummarySentence(provider: string | null, status: string, subject = 'latest Spawner job'): string {
   if (!provider) {
-    if (status === 'queued') return 'No LLM has picked up the latest Spawner job yet.';
-    if (status === 'failed') return 'The latest Spawner job failed before it reported an LLM provider.';
-    if (status === 'paused') return 'The latest Spawner job is paused before any LLM provider was reported.';
-    return 'The latest Spawner job has not reported an LLM provider yet.';
+    if (status === 'queued') return `No LLM has picked up the ${subject} yet.`;
+    if (status === 'failed') return `The ${subject} failed before it reported an LLM provider.`;
+    if (status === 'paused') return `The ${subject} is paused before any LLM provider was reported.`;
+    if (status === 'cancelled') return `The ${subject} was cancelled before any LLM provider was reported.`;
+    return `The ${subject} has not reported an LLM provider yet.`;
   }
   if (status === 'completed') {
-    return `${provider} took the latest Spawner job, and it finished.`;
+    return `${provider} took the ${subject}, and it finished.`;
   }
   if (status === 'running') {
-    return `${provider} is on the latest Spawner job right now.`;
+    return `${provider} is on the ${subject} right now.`;
   }
   if (status === 'failed') {
-    return `The latest Spawner job reached ${provider}, then failed.`;
+    return `The ${subject} reached ${provider}, then failed.`;
+  }
+  if (status === 'cancelled') {
+    return `The ${subject} was cancelled after ${provider} was attached.`;
   }
   if (status === 'paused') {
-    return `The latest Spawner job is paused with ${provider} attached.`;
+    return `The ${subject} is paused with ${provider} attached.`;
   }
-  return `${provider} is attached to the latest Spawner job.`;
+  return `${provider} is attached to the ${subject}.`;
 }
 
-function formatLatestProviderTelegramSummary(entry: BoardEntry): string {
+function formatLatestProviderTelegramSummary(entry: BoardEntry, opts: { subject?: string; boardOnly?: boolean } = {}): string {
   const provider = providerNames(entry);
   const status = statusWord(entry.status);
   const needsInspectionLink = entry.status === 'failed' || entry.status === 'paused';
+  const subject = opts.subject || 'latest Spawner job';
 
   if (!provider) {
     const lines = [
-      providerSummarySentence(null, status)
+      providerSummarySentence(null, status, subject)
     ];
 
     if (needsInspectionLink) {
-      lines.push('', ...missionInspectionLines(entry.missionId));
+      lines.push('', opts.boardOnly ? `Board: ${missionScopedBoardUrl(entry.missionId)}` : missionInspectionLines(entry.missionId).join('\n'));
     }
 
     return lines.join('\n');
   }
 
   const lines = [
-    providerSummarySentence(provider, status)
+    providerSummarySentence(provider, status, subject)
   ];
 
   if (entry.status === 'failed') {
@@ -519,21 +612,22 @@ function formatLatestProviderTelegramSummary(entry: BoardEntry): string {
     );
   }
 
-  lines.push('', ...missionInspectionLines(entry.missionId));
+  lines.push('', opts.boardOnly ? `Board: ${missionScopedBoardUrl(entry.missionId)}` : missionInspectionLines(entry.missionId).join('\n'));
   return lines.join('\n');
 }
 
 function failureCauseLines(entry: BoardEntry): string[] {
   const text = providerResultText(entry).toLowerCase();
   const causes: string[] = [];
+  const hasSkillApiFailure = /\bh70\b|\bskill api\b|\bapi\/h70-skills\b/.test(text);
 
-  if (/\bh70\b|\bskill api\b|\bapi\/h70-skills\b/.test(text)) {
+  if (hasSkillApiFailure) {
     causes.push('Skill API was unreachable from the spawned Codex lane.');
   }
   if (/\bread[-\s]*only\b|\boperation not permitted\b|\bpatch was rejected\b|\bwrite probe\b|\bwrite(?:able|ability)?\b.*\bfailed\b/.test(text)) {
     causes.push('The spawned workspace was read-only.');
   }
-  if (/\bconnection refused\b|\beconnrefused\b|\bfailed to connect\b/.test(text)) {
+  if (!hasSkillApiFailure && /\bconnection refused\b|\beconnrefused\b|\bfailed to connect\b/.test(text)) {
     causes.push('A local service connection failed inside the spawned lane.');
   }
   if (/\bauth\b|\boauth\b|\bunauthorized\b|\bforbidden\b|\b401\b|\b403\b/.test(text)) {
@@ -547,13 +641,29 @@ function formatLatestFailureTelegramSummary(entry: BoardEntry): string {
   const title = missionTitle(entry);
   const causes = failureCauseLines(entry);
   return [
-    `That run did not make it through. It was ${title}.`,
+    `That run did not make it through: ${title}.`,
     '',
-    causes.length === 1 ? 'The blocker I can prove:' : 'The blockers I can prove:',
+    'What blocked it',
     ...causes.map((line) => `• ${line}`),
     '',
-    ...missionInspectionLines(entry.missionId)
+    `Board: ${missionScopedBoardUrl(entry.missionId)}`
   ].join('\n');
+}
+
+function boardEntrySentence(entry: BoardEntry, label: 'Active' | 'Latest'): string {
+  const title = missionTitle(entry);
+  const status = statusWord(entry.status);
+  if (status === 'running') return `${label}: ${title} is running.`;
+  if (status === 'paused') return `${label}: ${title} is paused.`;
+  if (status === 'completed') return `${label}: ${title} finished.`;
+  if (status === 'failed') return `${label}: ${title} failed.`;
+  if (status === 'cancelled') return `${label}: ${title} was cancelled.`;
+  return `${label}: ${title} is queued.`;
+}
+
+function boardCountLine(label: 'running' | 'paused' | 'queued', count: number, entry?: BoardEntry): string {
+  const title = entry ? missionTitle(entry) : '';
+  return `• ${label}: ${count}${title ? ` - ${title}` : ''}`;
 }
 
 function formatBoardTelegramSummary(board: BoardSnapshot): string {
@@ -562,56 +672,45 @@ function formatBoardTelegramSummary(board: BoardSnapshot): string {
     paused: board.paused.length,
     completed: board.completed.length,
     failed: board.failed.length,
+    cancelled: board.cancelled.length,
     queued: board.created.length
   };
+  const history = counts.completed + counts.failed + counts.cancelled;
   const latest = latestBoardEntry(board);
   const lines = [
-    'Spawner board',
+    'Right now',
+    boardCountLine('running', counts.running, board.running[0]),
+    boardCountLine('paused', counts.paused, board.paused[0]),
+    boardCountLine('queued', counts.queued, board.created[0]),
     '',
-    'Counts',
-    `• running: ${counts.running}`,
-    `• paused: ${counts.paused}`,
-    `• completed: ${counts.completed}`,
+    'History',
+    `• total: ${history}`,
+    `• complete: ${counts.completed}`,
     `• failed: ${counts.failed}`,
-    `• queued: ${counts.queued}`
+    `• cancelled: ${counts.cancelled}`
   ];
 
   const active = board.running[0] || board.paused[0] || board.created[0] || null;
   if (active) {
-    lines.push(
-      '',
-      'Active',
-      `• ${missionTitle(active)}`,
-      `• ${statusWord(active.status)}`
-    );
     const activeProvider = providerNames(active);
     if (activeProvider) {
-      lines.push(`• provider: ${activeProvider}`);
+      lines.push('', `${activeProvider} is attached.`);
     }
   }
 
   if (latest && latest !== active) {
-    lines.push(
-      '',
-      'Latest',
-      `• ${missionTitle(latest)}`,
-      `• ${statusWord(latest.status)}`
-    );
+    lines.push('', boardEntrySentence(latest, 'Latest'));
     const provider = providerNames(latest);
     if (provider) {
-      lines.push(`• provider: ${provider}`);
+      lines.push(`${provider} is attached to the latest item.`);
     }
   }
 
   const inspectTarget = active || latest;
   if (inspectTarget) {
-    lines.push('', ...missionInspectionLines(inspectTarget.missionId));
+    lines.push('', `Board: ${missionScopedBoardUrl(inspectTarget.missionId)}`);
   } else {
-    lines.push(
-      '',
-      'Mission board',
-      `• ${missionBoardUrl()}`
-    );
+    lines.push('', boardInspectLine());
   }
 
   return lines.join('\n');
@@ -1236,6 +1335,327 @@ export const spawner = {
     }
   },
 
+  async pauseContextualActiveMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const running = board.running;
+
+      if (running.length === 1) {
+        const mission = running[0];
+        const title = missionTitle(mission);
+        const result = await spawner.missionCommand('pause', mission.missionId);
+        if (!result.success) {
+          return {
+            success: false,
+            message: `I could not pause ${title}: ${result.message}`
+          };
+        }
+        return {
+          success: true,
+          missionId: mission.missionId,
+          commandSent: true,
+          message: [
+            `I paused ${title}.`,
+            '',
+            `Board: ${missionScopedBoardUrl(mission.missionId)}`
+          ].join('\n')
+        };
+      }
+
+      if (running.length > 1) {
+        return {
+          success: false,
+          message: contextualMissionCommandPicker(running, 'running', 'pause', 'pause')
+        };
+      }
+
+      if (board.paused.length === 1) {
+        return {
+          success: true,
+          message: `That mission is already paused: ${missionTitle(board.paused[0])}.`
+        };
+      }
+
+      if (board.paused.length > 1) {
+        return {
+          success: true,
+          message: 'I do not see a running mission to pause. The active items I can see are already paused, so I did not send a command.'
+        };
+      }
+
+      return {
+        success: false,
+        message: 'I do not see a running mission to pause right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before pausing: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async describeContextualActiveMissionPauseBoundary(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const running = board.running;
+
+      if (running.length === 1) {
+        const title = missionTitle(running[0]);
+        return {
+          success: true,
+          message: `I did not pause it. ${title} is still running.`
+        };
+      }
+
+      if (running.length > 1) {
+        return {
+          success: true,
+          message: `I did not pause anything. I see ${countWord(running.length)} running missions, so I need you to choose one before I pause anything.`
+        };
+      }
+
+      if (board.paused.length === 1) {
+        return {
+          success: true,
+          message: `I did not pause anything. ${missionTitle(board.paused[0])} is already paused.`
+        };
+      }
+
+      if (board.paused.length > 1) {
+        return {
+          success: true,
+          message: 'I did not pause anything. The active items I can see are already paused.'
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not pause anything. Mission Control has nothing running right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async describeContextualPausedMissionResumeBoundary(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const paused = board.paused;
+
+      if (paused.length === 1) {
+        const title = missionTitle(paused[0]);
+        return {
+          success: true,
+          message: `I did not resume it. ${title} is still paused. If you want it moving again, say \`resume that one\`.`
+        };
+      }
+
+      if (paused.length > 1) {
+        return {
+          success: true,
+          message: `I did not resume anything. I see ${countWord(paused.length)} paused missions, so I need you to choose one before I move anything.`
+        };
+      }
+
+      if (board.running.length > 0) {
+        return {
+          success: true,
+          message: 'I did not resume anything. I do not see a paused mission right now.'
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not resume anything. Mission Control has nothing paused right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async resumeContextualPausedMission(): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const paused = board.paused;
+
+      if (paused.length === 1) {
+        const mission = paused[0];
+        const title = missionTitle(mission);
+        const result = await spawner.missionCommand('resume', mission.missionId);
+        if (!result.success) {
+          return {
+            success: false,
+            message: `I could not resume ${title}: ${result.message}`
+          };
+        }
+        return {
+          success: true,
+          missionId: mission.missionId,
+          commandSent: true,
+          message: [
+            `I resumed ${title}.`,
+            '',
+            `Board: ${missionScopedBoardUrl(mission.missionId)}`
+          ].join('\n')
+        };
+      }
+
+      if (paused.length > 1) {
+        return {
+          success: false,
+          message: contextualMissionCommandPicker(paused, 'paused', 'resume', 'resume')
+        };
+      }
+
+      if (board.running.length === 1) {
+        return {
+          success: true,
+          message: `That mission is already running: ${missionTitle(board.running[0])}.`
+        };
+      }
+
+      if (board.running.length > 1) {
+        return {
+          success: true,
+          message: 'I do not see a paused mission to resume. The active items I can see are already running, so I did not send a command.'
+        };
+      }
+
+      return {
+        success: false,
+        message: 'I do not see a paused mission to resume right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before resuming: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async prepareContextualMissionCancel(): Promise<{ success: boolean; message: string; missionId?: string; title?: string; needsConfirmation?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const active = [...board.running, ...board.paused];
+
+      if (active.length === 1) {
+        const mission = active[0];
+        const title = missionTitle(mission);
+        return {
+          success: true,
+          missionId: mission.missionId,
+          title,
+          needsConfirmation: true,
+          message: [
+            `I can cancel ${title}.`,
+            '',
+            'Reply `yes, cancel it` to confirm.',
+            '',
+            `Board: ${missionScopedBoardUrl(mission.missionId)}`
+          ].join('\n')
+        };
+      }
+
+      if (active.length > 1) {
+        return {
+          success: false,
+          message: contextualMissionCommandPicker(active, 'active', 'kill', 'cancel')
+        };
+      }
+
+      return {
+        success: false,
+        message: 'I do not see a running or paused mission to cancel right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before preparing cancellation: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async describeContextualMissionCancelBoundary(): Promise<{ success: boolean; message: string; missionId?: string; title?: string; needsConfirmation?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const active = [...board.running, ...board.paused];
+
+      if (active.length === 1) {
+        const mission = active[0];
+        const title = missionTitle(mission);
+        const status = mission.status === 'paused' || mission.lastEventType === 'mission_paused' ? 'paused' : 'active';
+        return {
+          success: true,
+          message: `I did not cancel it. ${title} is still ${status}.`
+        };
+      }
+
+      if (active.length > 1) {
+        return {
+          success: true,
+          message: `I did not cancel anything. I see ${countWord(active.length)} active missions, so I need you to choose one before I stop anything.`
+        };
+      }
+
+      return {
+        success: true,
+        message: 'I did not cancel anything. Mission Control has nothing running or paused right now.'
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before answering: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
+  async confirmContextualMissionCancel(missionId: string, title: string): Promise<{ success: boolean; message: string; missionId?: string; commandSent?: boolean }> {
+    try {
+      const board = await fetchBoardSnapshot();
+      const active = [...board.running, ...board.paused];
+      const mission = active.find((entry) => entry.missionId === missionId);
+
+      if (!mission) {
+        return {
+          success: false,
+          message: [
+            'That mission is no longer running or paused, so I did not cancel it.',
+            '',
+            `Board: ${missionScopedBoardUrl(missionId)}`
+          ].join('\n')
+        };
+      }
+
+      const currentTitle = missionTitle(mission) || title;
+      const result = await spawner.missionCommand('kill', missionId);
+      if (!result.success) {
+        return {
+          success: false,
+          message: `I could not cancel ${currentTitle}: ${result.message}`
+        };
+      }
+
+      return {
+        success: true,
+        missionId,
+        commandSent: true,
+        message: result.message
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `I could not check Mission Control before confirming cancellation: ${err.response?.data?.error || err.message}`
+      };
+    }
+  },
+
   async board(): Promise<{ success: boolean; message: string }> {
     try {
       const board = await fetchBoardSnapshot();
@@ -1273,6 +1693,20 @@ export const spawner = {
     }
   },
 
+  async activeMissionSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      return {
+        success: true,
+        message: formatActiveMissionsTelegramSummary(await fetchBoardSnapshot())
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
   async latestProviderSummary(): Promise<{ success: boolean; message: string }> {
     try {
       const latest = latestBoardEntry(await fetchBoardSnapshot());
@@ -1286,6 +1720,31 @@ export const spawner = {
       return {
         success: true,
         message: formatLatestProviderTelegramSummary(latest)
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.response?.data?.error || err.message
+      };
+    }
+  },
+
+  async latestFailedProviderSummary(): Promise<{ success: boolean; message: string }> {
+    try {
+      const latest = latestFailureEntry(await fetchBoardSnapshot());
+      if (!latest) {
+        return {
+          success: true,
+          message: 'I do not see a failed Spawner mission in the current board.'
+        };
+      }
+
+      return {
+        success: true,
+        message: formatLatestProviderTelegramSummary(latest, {
+          subject: 'latest failed Spawner job',
+          boardOnly: true
+        })
       };
     } catch (err: any) {
       return {

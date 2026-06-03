@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
@@ -6,6 +6,10 @@ import { resolveChatDefaultProvider, resolveKnownProviderId, resolveMissionDefau
 
 type ProviderId = 'zai' | 'codex' | 'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'minimax' | 'ollama' | 'lmstudio';
 type ModelRole = 'agent' | 'mission';
+type CodexClientConfigParse =
+  | { handled: false }
+  | { handled: true; args: string[] }
+  | { handled: true; error: string };
 
 interface ProviderSpec {
   provider: ProviderId;
@@ -123,6 +127,66 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
     requiredEnv: []
   }
 };
+
+const CODEX_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+const CODEX_SERVICE_TIERS = new Set(['auto', 'default', 'fast', 'flex', 'priority']);
+
+function isModelLikeToken(token: string): boolean {
+  return /^(?:gpt|o\d|openai\/|codex\/)/i.test(token) || token.includes('/');
+}
+
+export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientConfigParse {
+  const tokens = raw.trim().split(/\s+/).filter(Boolean);
+  if (tokens[0]?.toLowerCase() !== 'codex') return { handled: false };
+  const args = ['providers', 'codex'];
+  const rest = tokens.slice(1);
+  if (rest.length === 0 || rest[0]?.toLowerCase() === 'status') return { handled: true, args };
+
+  let modelSet = false;
+  let reasoningSet = false;
+  let tierSet = false;
+  for (let index = 0; index < rest.length; index += 1) {
+    const token = rest[index];
+    const lower = token.toLowerCase();
+    const [rawKey, rawValue] = token.includes('=') ? token.split(/=(.*)/s, 2) : ['', ''];
+    const key = (rawKey || lower).toLowerCase().replace(/_/g, '-');
+    const value = rawValue || rest[index + 1] || '';
+
+    if (['model', 'reasoning', 'reasoning-effort', 'effort', 'tier', 'service-tier'].includes(key)) {
+      if (!rawValue) index += 1;
+      if (!value) return { handled: true, error: 'Use /model codex fast high, or /model codex tier=fast reasoning=high.' };
+      if (key === 'model') {
+        args.push('--model', value);
+        modelSet = true;
+      } else if (key === 'reasoning' || key === 'reasoning-effort' || key === 'effort') {
+        args.push('--reasoning-effort', value);
+        reasoningSet = true;
+      } else {
+        args.push('--service-tier', value);
+        tierSet = true;
+      }
+      continue;
+    }
+
+    if (CODEX_REASONING_EFFORTS.has(lower) && !reasoningSet) {
+      args.push('--reasoning-effort', lower);
+      reasoningSet = true;
+      continue;
+    }
+    if (CODEX_SERVICE_TIERS.has(lower) && !tierSet) {
+      args.push('--service-tier', lower);
+      tierSet = true;
+      continue;
+    }
+    if (isModelLikeToken(token) && !modelSet) {
+      args.push('--model', token);
+      modelSet = true;
+      continue;
+    }
+    return { handled: true, error: `I do not recognize "${token}". Use /model codex status, /model codex fast high, or /model codex model=gpt-5.5 tier=fast reasoning=high.` };
+  }
+  return { handled: true, args };
+}
 
 const CLAUDE_MISSION_MODEL = 'claude-opus-4-7';
 const CLAUDE_MISSION_DISPLAY = 'Claude Opus 4.7 (claude-opus-4-7)';
@@ -259,6 +323,20 @@ function updateEnvContent(content: string, updates: Record<string, string>): str
   return lines.join('\n').replace(/\n*$/, '\n');
 }
 
+async function writeFileAtomicSameDir(filePath: string, content: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  );
+  try {
+    await writeFile(tempPath, content, 'utf8');
+    await rename(tempPath, filePath);
+  } finally {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
+}
+
 async function persistEnvUpdates(updates: Record<string, string>): Promise<string[]> {
   const changed: string[] = [];
   for (const filePath of envFiles()) {
@@ -267,7 +345,7 @@ async function persistEnvUpdates(updates: Record<string, string>): Promise<strin
     const after = updateEnvContent(before, updates);
     if (after !== before) {
       await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, after, 'utf8');
+      await writeFileAtomicSameDir(filePath, after);
       changed.push(filePath);
     }
   }
@@ -284,8 +362,6 @@ export function renderModelStatus(): string {
     `Agent chat: ${chat.provider}${chat.model ? ` (${chat.model})` : ''}`,
     `Missions: ${missionProvider}${missionModel ? ` (${missionModel})` : ''}`,
     '',
-    renderModelRecommendations(),
-    '',
     'Change it:',
     '/model agent zai',
     '/model agent codex',
@@ -296,6 +372,8 @@ export function renderModelStatus(): string {
     '/model agent lmstudio <loaded-model-id>',
     '/model agent huggingface google/gemma-4-26B-A4B-it:fastest',
     '/model mission huggingface google/gemma-4-31B-it:fastest',
+    '/model codex status',
+    '/model codex fast high',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');

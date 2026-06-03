@@ -117,7 +117,28 @@ function polishInferredProjectName(value: string): string {
 }
 
 export function polishBuildProjectName(value: string): string {
-  return polishInferredProjectName(value);
+  let clean = value
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[.!?]+$/, '')
+    .replace(/\bfor\s+now\b/gi, ' ')
+    .replace(/\b(?:right\s+)?now\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system)\s+(?:for\s+)?spark$/i);
+  if (genericSparkMatch) {
+    const noun = genericSparkMatch[1].toLowerCase() === 'something' || genericSparkMatch[1].toLowerCase() === 'anything'
+      ? 'App'
+      : titleCaseProjectName(genericSparkMatch[1]);
+    clean = `Spark ${noun}`;
+  }
+
+  if (/^(?:something|anything)$/i.test(clean)) {
+    clean = 'Spark App';
+  }
+
+  return polishInferredProjectName(clean);
 }
 
 function inferProductPhraseProjectName(prd: string): string | null {
@@ -445,7 +466,11 @@ function normalizeBuildCommandText(text: string): string {
 
 function isBuildIdeationRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return /\b(?:give|show|list|suggest|brainstorm|recommend|rank)\s+(?:me\s+|us\s+)?(?:\w+\s+){0,4}(?:build|project|app|dashboard)\s+(?:ideas?|directions?|concepts?|options?)\b/.test(normalized);
+  return (
+    /\b(?:give|show|list|suggest|brainstorm|recommend|rank)\s+(?:me\s+|us\s+)?(?:\w+\s+){0,4}(?:build|project|app|dashboard)\s+(?:ideas?|directions?|concepts?|options?)\b/.test(normalized) ||
+    /\b(?:give|show|list|suggest|brainstorm|recommend|rank|tell)\s+(?:me\s+|us\s+)?(?:the\s+)?(?:top\s+\d+\s+)?(?:\w+\s+){0,4}(?:ideas?|ways?|tips?|advice|recommendations?|playbooks?|frameworks?)\b.{0,80}\b(?:how\s+to\s+)?(?:build|building|create|creating|make|making|ship|shipping|launch|launching|start|starting)\b/.test(normalized) ||
+    /^(?:how\s+to|what(?:'s| is)\s+the\s+(?:best|right|better)\s+way\s+to)\s+(?:build|create|make|ship|launch|start)\b/.test(normalized)
+  );
 }
 
 function isBuildContextRecallProbe(text: string): boolean {
@@ -482,6 +507,24 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
   if (
     /\b(?:what|which|how|why|is|are|do|does|can|could|should|would)\b.*\b(?:build|building)\b.*\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized) &&
     !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:where|how)\s+(?:and\s+how\s+)?(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:make|made|apply|change|update|edit|adjust)\b/.test(normalized) &&
+    /\b(?:exact\s+changes?|changes?|route|decision|classification|correction|memory|state|logic)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:what|which)\s+(?:exact\s+)?changes\b/.test(normalized) &&
+    /\b(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:make|apply|change|update|edit|adjust)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:what|which)\s+(?:part|step|layer|file|rule|branch|route|path|code|state|memory|logic)\b/.test(normalized) &&
+    /\b(?:did|do|does|would|should)\s+(?:you|we|it)\s+(?:change|update|touch|use|hit|reach)\b/.test(normalized)
   ) {
     return true;
   }
@@ -657,6 +700,36 @@ function isConversationalStrategyStructureRequest(text: string, prd: string): bo
   return strategyDomain && speculative && abstractStructure && !concreteArtifact;
 }
 
+function isAllocationStrategyQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const allocationDomain =
+    /\b(?:tokenomics?|tokens?|airdrop|liquidity|dex|seedify|seedworld|vibecoder|lifetime\s+buyers?|team|ecosystem|rewards?|treasury|advisors?|partners?|community|allocation|allocations?)\b/.test(normalized);
+  const hasPercent = /\b\d+(?:\.\d+)?\s*%/.test(normalized);
+  const asksStrategy =
+    /\b(?:what\s+if|wondering|would\s+it\s+be|too\s+small|good\s+enough|how\s+would\s+you\s+organize|organize\s+the\s+rest|remaining|fixed|makes?\s+sense|should\s+we|could\s+we)\b/.test(normalized);
+  const concreteArtifact =
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|repo|repository)\b/.test(normalized);
+  const explicitArtifactBuild =
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock)\b/.test(normalized);
+  return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
+}
+
+function isRecursiveInsightPacketRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const packetArtifact =
+    /\b(?:shareable\s+|local\s+|private\s+|review\s+|contribution\s+)?(?:insight|proof|review|contribution)\s+packet\b/.test(normalized);
+  const recursiveDomain =
+    /\b(?:startup[-\s]+yc|recursive|autoloop|auto\s+loop|benchmark|benchmarks?|speciali[sz]ation\s+path|domain[-\s]*chip|builder\s+chip|loop\s+evidence)\b/.test(normalized);
+  const nonPublishBoundary =
+    /\b(?:do\s+not|don't|dont|without|no)\s+(?:publish|share|run|start|launch|post|broadcast)\b/.test(normalized) ||
+    /\blocal(?:ly)?\b|\bprivate(?:ly)?\b/.test(normalized);
+  const concreteBuildSurface =
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalized);
+  return packetArtifact && recursiveDomain && nonPublishBoundary && !concreteBuildSurface;
+}
+
 function isAgentChosenGameBrief(text: string, prd: string): boolean {
 	const combined = `${text}\n${prd}`.toLowerCase().replace(/\s+/g, ' ').trim();
 	if (/\bcalled\s+[a-z0-9][a-z0-9 :.'&-]{2,80}/i.test(combined)) return false;
@@ -664,7 +737,10 @@ function isAgentChosenGameBrief(text: string, prd: string): boolean {
 		/\bgame\b/.test(combined) &&
 		/\b(?:what would you|what would u|what do you|what'd you)\b/.test(combined) &&
 		/\b(?:wanna|want to|would like to)\s+build\b/.test(combined) &&
-		/\b(?:rec|recursive sage|for you|you'?d wanna play|you would want to play)\b/.test(combined)
+		(
+			/\b(?:rec|recursive sage|for you|you'?d wanna play|you would want to play)\b/.test(combined) ||
+			/\b(?:wanna|want to|would like to)\s+build\b.{0,80}\b(?:as|for)\s+a\s+game\b/.test(combined)
+		)
 	);
 	const asksForRecursivePlayableGame = (
 		/\b(?:build|make|create)\b.*\bgame\b/.test(combined) &&
@@ -727,7 +803,10 @@ function extractBuildDescription(text: string): string | null {
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
       /\b(?:words?|keywords?|terms?|phrases?)\s+(?:like|such\s+as)\b/.test(prefix) ||
       /\b(?:best|right|safe|secure)\s+way\s+to\b/.test(prefix) ||
-      isNegatedBuildCommandPrefix(prefix)
+      isNegatedBuildCommandPrefix(prefix) ||
+      // Philosophical/hypothetical questions: "Can God create...", "Could gravity break..."
+      // Modal verb + subject other than "you/we" before the build verb = not a build request.
+      /\b(?:can|could|would|will|shall|should|may|might|must)\s+(?!you\b|we\b)[a-z]+\s/i.test(prefix)
     ) {
       return null;
     }
@@ -763,6 +842,8 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
+  if (isAllocationStrategyQuestion(trimmed)) return null;
+  if (isRecursiveInsightPacketRequest(trimmed)) return null;
 
   const stripped = extractBuildDescription(trimmed);
 
@@ -776,8 +857,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
+  if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
+  if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
-  const projectName = inferProjectName(prd, projectPath);
+  const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
   const buildMode = inferBuildMode(original, prd, projectPath);
   const buildLane = inferBuildLane(original, prd, projectPath, buildMode.mode);
 

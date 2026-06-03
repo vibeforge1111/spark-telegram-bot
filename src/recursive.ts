@@ -1820,7 +1820,7 @@ function friendlyProposalGate(gate: string): string {
 export function renderRecursiveNetworkProposal(result: RecursiveNetworkProposalResult): string {
   const ready = result.readyForPr && result.missingGates.length === 0;
   const title = result.title ? labelFromKey(result.title) : 'Review packet';
-  const isSent = result.submitted || Boolean(result.submitError);
+  const isSent = result.submitted;
   const subject = result.title ? title : 'Review packet';
   const lines = [
     isSent
@@ -1837,6 +1837,8 @@ export function renderRecursiveNetworkProposal(result: RecursiveNetworkProposalR
   if (isSent) {
     if (result.submitted && result.submitState) lines.push(`• review state: ${labelFromKey(result.submitState)}`);
     lines.push(result.submitError ? `• ${result.submitError}` : `• ${sparkWorkspaceDecisionsUrl()}`);
+  } else if (result.submitError) {
+    lines.push('', 'Submit', `• ${result.submitError}`);
   }
   return lines.join('\n');
 }

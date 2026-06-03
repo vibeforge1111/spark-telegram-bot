@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
-import { chatCommandTimeoutMs } from './timeoutConfig';
+import { chatCommandTimeoutMs, parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
 
@@ -71,7 +71,7 @@ function joinUrl(baseUrl: string, pathName: string): string {
 
 function stripReasoningPreamble(text: string): string {
   return text
-    .replace(/<think>[\s\S]*?(?:<\/think>|<\/thin>|$)/gi, '')
+    .replace(/<think>[\s\S]*?(?:<\/think>|<\/thin>)/gi, '')
     .trim();
 }
 
@@ -290,6 +290,7 @@ When the user asks what Spark knows or can do, explain these capabilities plainl
 Spark does have a Telegram chat access-level system. Never say there is no access level, tier, permission system, or permission surface when the user is asking about Spark access. If they ask to see it, say they can ask "what is my access level?" If they ask to change it, say they can ask "change my access level to 3" or use /access 3. If a task is blocked, name the minimum access level that would unlock it.
 Access level is permission; runner capability is what this exact process can do right now. If Level 4 or 5 is allowed but the runner is read-only, say "allowed, blocked here" and direct the user to /access_setup, Spark restart, or a writable Spawner/Codex route rather than claiming full access.
 When the user asks you to inspect a public GitHub repo, URL, or local Spark surface, do not claim you have no access as a blanket statement. Explain the truthful boundary: plain chat cannot browse by itself, but Spark can use Spawner/Codex missions for public repo/web inspection when this chat is at Access Level 3, 4, or 5. If access is not enabled, tell the user to run /access 3 or /access 4; reserve /access 5 for trusted whole-computer operator work.
+When the user asks whether browser or web access is available right now, separate public web fetch/search from full browser automation. Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result. Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn and the evidence is visible. If no fresh proof is attached, say "registered or possible, unproven right now" and name the probe to run.
 The Telegram gateway can start missions from explicit natural-language requests or /run. Never say you started, launched, kicked off, created, queued, or are running a Spawner mission unless the gateway returns a mission id or explicit acknowledgement. If no mission id or gateway acknowledgement is present, offer to shape the request or ask the user to confirm the mission goal.`;
 
 export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env): string {
@@ -596,7 +597,7 @@ export function buildClarificationMicrocopyPrompt(input: BuildClarificationMicro
 
 export async function generateBuildClarificationMicrocopy(
   input: BuildClarificationMicrocopyInput,
-  timeoutMs: number = Number(process.env.SPARK_CLARIFICATION_COPY_TIMEOUT_MS || 8000)
+  timeoutMs: number = parsePositiveIntegerEnvValue(process.env.SPARK_CLARIFICATION_COPY_TIMEOUT_MS, 8000)
 ): Promise<BuildClarificationMicrocopy | null> {
   if (process.env.SPARK_CLARIFICATION_COPY_LLM === '0') return null;
   const prompt = buildClarificationMicrocopyPrompt(input);
@@ -692,7 +693,8 @@ async function readOpenAiCompatChatStream(stream: unknown, onProgress?: ChatProg
 
       const payload = line.slice('data:'.length).trim();
       if (!payload || payload === '[DONE]') continue;
-      const parsed = JSON.parse(payload) as OpenAiCompatStreamChunk;
+      let parsed: OpenAiCompatStreamChunk;
+      try { parsed = JSON.parse(payload) as OpenAiCompatStreamChunk; } catch { continue; }
       const delta = parsed.choices?.[0]?.delta;
       if (typeof delta?.content === 'string') content += delta.content;
       if (typeof delta?.reasoning_content === 'string') reasoningContent += delta.reasoning_content;
@@ -719,7 +721,8 @@ async function readOllamaChatStream(stream: unknown, onProgress?: ChatProgressCa
       newlineIndex = buffer.indexOf('\n');
       if (!line) continue;
 
-      const parsed = JSON.parse(line) as OllamaStreamChunk;
+      let parsed: OllamaStreamChunk;
+      try { parsed = JSON.parse(line) as OllamaStreamChunk; } catch { continue; }
       if (typeof parsed.response === 'string') {
         content += parsed.response;
         await emitChatProgress(onProgress, content);
@@ -851,7 +854,7 @@ export const llm = {
         { timeout: 30000 }
       );
 
-      return res.data.response.trim();
+      return (res.data.response || '').trim();
     } catch (err: any) {
       console.error('LLM error:', {
         provider: resolveChatProviderConfig().provider,
