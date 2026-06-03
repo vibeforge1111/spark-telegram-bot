@@ -59,11 +59,31 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
       '\n\nSince this lives inside the existing Spawner UI routes, the useful question is: which surface should we tighten first - Kanban state accuracy, Canvas execution state, or Telegram relay messaging?'
     );
 }
-
-export function sanitizeOutbound(text: string): string {
-  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
+// Redact file names, line numbers, and exploit details from security audit output
+export function sanitizeSecurityAuditOutput(text: string): string {
+  return text
+    // Remove file names with extensions
+    .replace(/\([a-zA-Z0-9_/-]+\.(ts|js|py|go|rs|java|rb|php|sh)\s*~?\s*(?:line\s+\d+)?\)/gi, '')
+    // Remove standalone line number references
+    .replace(/~?\s*line\s+\d+/gi, '')
+    // Remove file:line patterns
+    .replace(/[a-zA-Z0-9_/-]+\.(ts|js|py|go):\d+/gi, '[REDACTED]')
+    // Remove port references that look like exploit details
+    .replace(/:\d{4,5}\b(?!\s*(?:AM|PM|ms|s\b))/g, '')
+    .trim();
 }
 
+export function isSecurityAuditOutput(text: string): boolean {
+  const auditKeywords = ['HIGH:', 'MEDIUM:', 'LOW:', 'CRITICAL:', 'security audit', 'vulnerability', 'exploit', 'CVE-'];
+  const filePatterns = /\.(ts|js|py|go)\s*(?:~?\s*line\s+\d+)?/i;
+  return auditKeywords.some(kw => text.toLowerCase().includes(kw.toLowerCase())) && filePatterns.test(text);
+}
+export function sanitizeOutbound(text: string): string {
+  const sanitized = isSecurityAuditOutput(text) 
+    ? sanitizeSecurityAuditOutput(text)
+    : text;
+  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(sanitized))));
+}
 function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {
   const parts = text
     .trim()
