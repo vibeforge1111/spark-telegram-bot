@@ -1,4 +1,5 @@
 import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 export interface MissionControlEvent {
   type: string;
@@ -22,6 +23,7 @@ export interface ChipCreateMissionContext {
 export type MissionControlPost = (url: string, payload: MissionControlEvent) => Promise<void>;
 
 const SOURCE = 'spark-telegram-bot';
+const DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS = 1200;
 
 function truncate(value: string, maxLength: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
@@ -72,7 +74,10 @@ export function buildChipCreateMissionContext(brief: string): ChipCreateMissionC
 
 async function defaultPostJson(url: string, payload: MissionControlEvent): Promise<void> {
   const controller = new AbortController();
-  const timeoutMs = Number.parseInt(process.env.MISSION_CONTROL_POST_TIMEOUT_MS || '1200', 10) || 1200;
+  const timeoutMs = parsePositiveIntegerEnvValue(
+    process.env.MISSION_CONTROL_POST_TIMEOUT_MS,
+    DEFAULT_MISSION_CONTROL_POST_TIMEOUT_MS
+  );
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {

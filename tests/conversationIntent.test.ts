@@ -330,6 +330,17 @@ Use Spark Pro skills for telegram-mastery, backend, sqlite/local database, opena
   }
 });
 
+test('does not treat ordinary pronoun text as a local Spark service request', () => {
+  assert.equal(
+    isLocalSparkServiceRequest(
+      "There is no such a thing as punishment in it. But it has to show people's real behaviour.",
+      ''
+    ),
+    false
+  );
+  assert.equal(isLocalSparkServiceRequest('Yes. Can you give me the Spawner UI localhost?', ''), true);
+});
+
 test('asks for clarification on cold localhost requests', () => {
   assert.equal(isAmbiguousLocalSparkServiceRequest('can you run the localhost for me', ''), true);
   assert.equal(isLocalSparkServiceRequest('can you run the localhost for me', ''), false);
@@ -978,16 +989,18 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {
-  assert.equal(shouldAttachMemoryDoctorEvidence('audit previous turn'), true);
-  assert.equal(shouldAttachMemoryDoctorEvidence('diagnose last answer'), true);
-  assert.equal(shouldAttachMemoryDoctorEvidence('run memory doctor'), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence('audit previous turn'), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence('diagnose last answer'), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence('run memory doctor'), true);
+  assert.equal(shouldAttachMemoryDoctorEvidence('what was my previous answer'), true);
+  assert.equal(shouldAttachMemoryDoctorEvidence('did you lose my context'), true);
 
-  const prompt = buildMemoryDoctorEvidencePrompt('audit previous turn', [
+  const prompt = buildMemoryDoctorEvidencePrompt('what was my previous answer', [
     { role: 'user', text: 'do not build yet, help me think through a domain chip for route confidence' },
     { role: 'assistant', text: 'Good problem to formalize. Route confidence is currently implicit in Builder.' }
   ]);
 
-  assert.match(prompt, /^audit previous turn/);
+  assert.match(prompt, /^what was my previous answer/);
   assert.match(prompt, /Route: memory\.doctor/);
   assert.match(prompt, /Do not ask the user to paste the previous turn unless no recent turns are listed\./);
   assert.match(prompt, /- user: do not build yet, help me think through a domain chip for route confidence/);
@@ -1159,6 +1172,10 @@ test('extracts natural recursive commands for QA Operator loops', () => {
   );
   assert.equal(
     parseNaturalRecursiveCommandIntent('Do not start a mission or build anything. Just answer in chat. I am setting up Spark with Codex CLI. I already signed in to Codex CLI, but Spark is asking about provider setup or API keys. Does signed-in Codex CLI use mean I still need an OpenAI API key for Spark? Please explain the difference clearly, and give me the safest recovery path if Spark cannot find Codex CLI or says the provider key is missing.'),
+    null
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent('Do not start a mission or build anything. Just answer in chat. I want to test named Telegram profile setup in a disposable or read-only lane. How should I safely set up and verify a separate Telegram profile without disturbing the primary bot? Please cover using /myid safely, keeping env/config separate, keeping logs separate, warning signs, and what to do if I cannot isolate a disposable lane cleanly.'),
     null
   );
 });

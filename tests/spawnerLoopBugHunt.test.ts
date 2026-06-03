@@ -21,6 +21,7 @@ import {
   formatCanvasStillRunningSummary,
   formatLatestCanvasPlanReply,
   isLatestCanvasPlanQuestion,
+  isNamedTelegramProfileSetupQuestion,
   isDomainChipPendingDirection,
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
@@ -29,6 +30,7 @@ import {
   routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
   slidingWindowRateLimitAllows,
+  shouldAnswerAuthoritativeRuntimeStatus,
   shouldUsePendingClarificationForMessage
 } from '../src/index';
 
@@ -435,6 +437,16 @@ test('bug hunt: casual next-step questions do not recall stale canvas plans', ()
     isLatestCanvasPlanQuestion('Do not start a mission or build anything. Just answer in chat. I want to check whether my Spark providers are ready. What command should I run for spark providers status or the nearest provider test command? Please explain how to read missing keys, role-specific readiness for Agent LLM versus Mission LLM, and the safest next step if one provider is not ready. Do not print raw config, secrets, tokens, or full environment values.'),
     false
   );
+});
+
+test('bug hunt: named Telegram profile setup stays out of live health status', () => {
+  const prompt = [
+    'Spark Compete QA: Test named Telegram profile setup in a disposable or read-only lane.',
+    'Check /myid, env separation, log separation, and warnings not to disturb the primary bot.'
+  ].join(' ');
+
+  assert.equal(isNamedTelegramProfileSetupQuestion(prompt), true);
+  assert.equal(shouldAnswerAuthoritativeRuntimeStatus(prompt), false);
 });
 
 test('bug hunt: latest canvas plan can be restored from persisted Spawner state after restart', () => {

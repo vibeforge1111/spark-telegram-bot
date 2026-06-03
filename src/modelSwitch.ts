@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveChatProviderConfig } from './llm';
@@ -323,6 +323,20 @@ function updateEnvContent(content: string, updates: Record<string, string>): str
   return lines.join('\n').replace(/\n*$/, '\n');
 }
 
+async function writeFileAtomicSameDir(filePath: string, content: string): Promise<void> {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  );
+  try {
+    await writeFile(tempPath, content, 'utf8');
+    await rename(tempPath, filePath);
+  } finally {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
+}
+
 async function persistEnvUpdates(updates: Record<string, string>): Promise<string[]> {
   const changed: string[] = [];
   for (const filePath of envFiles()) {
@@ -331,7 +345,7 @@ async function persistEnvUpdates(updates: Record<string, string>): Promise<strin
     const after = updateEnvContent(before, updates);
     if (after !== before) {
       await mkdir(path.dirname(filePath), { recursive: true });
-      await writeFile(filePath, after, 'utf8');
+      await writeFileAtomicSameDir(filePath, after);
       changed.push(filePath);
     }
   }
@@ -347,8 +361,6 @@ export function renderModelStatus(): string {
     '',
     `Agent chat: ${chat.provider}${chat.model ? ` (${chat.model})` : ''}`,
     `Missions: ${missionProvider}${missionModel ? ` (${missionModel})` : ''}`,
-    '',
-    renderModelRecommendations(),
     '',
     'Change it:',
     '/model agent zai',

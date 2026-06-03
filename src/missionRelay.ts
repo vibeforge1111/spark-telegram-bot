@@ -5,8 +5,10 @@ import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
+import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
 let relayRuntimeStatus: MissionRelayRuntimeStatus = {};
@@ -105,15 +107,45 @@ const LEGACY_REGISTRY_PATH = resolveStatePath('.spark-spawner-missions.json');
 const PREFERENCES_PATH = resolveStatePath('.spark-telegram-preferences.json');
 const deliveryCache = new Map<string, number>();
 const openTaskStartCache = new Map<string, { taskKey: string; timestamp: number }>();
-const completionDeliveryCache = new Set<string>();
+const OPEN_TASK_CACHE_TTL_MS = 10 * 60_000;
+const completionDeliveryCache = new Map<string, number>();
+const COMPLETION_CACHE_TTL_MS = 24 * 60 * 60_000;
 const completionDeliveryInFlight = new Set<string>();
-const verboseNarrationCounts = new Map<string, number>();
+const verboseNarrationCounts = new Map<string, { count: number; updatedAt: number }>();
+const VERBOSE_NARRATION_CACHE_TTL_MS = 6 * 60 * 60_000;
+
+function pruneCompletionDeliveryCache(now = Date.now()): void {
+  for (const [key, ts] of completionDeliveryCache) {
+    if (now - ts > COMPLETION_CACHE_TTL_MS) completionDeliveryCache.delete(key);
+  }
+}
+
+function pruneOpenTaskStartCache(now = Date.now()): void {
+  for (const [key, entry] of openTaskStartCache) {
+    if (now - entry.timestamp > OPEN_TASK_CACHE_TTL_MS) openTaskStartCache.delete(key);
+  }
+}
+
+function pruneVerboseNarrationCounts(now = Date.now()): void {
+  for (const [key, entry] of verboseNarrationCounts) {
+    if (now - entry.updatedAt > VERBOSE_NARRATION_CACHE_TTL_MS) verboseNarrationCounts.delete(key);
+  }
+}
+
+function cleanupMissionNarrationCounts(missionId: string): void {
+  const prefix = `${missionId}:`;
+  for (const key of verboseNarrationCounts.keys()) {
+    if (key.startsWith(prefix)) verboseNarrationCounts.delete(key);
+  }
+}
+
 const cancelledMissionCache = new Map<string, number>();
 const pausedMissionCache = new Map<string, number>();
 const heartbeatTimers = new Map<string, ReturnType<typeof setInterval>>();
 const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
 const MISSION_STATE_CACHE_TTL_MS = 6 * 60 * 60_000;
+const REGISTRY_TTL_MS = 7 * 24 * 60 * 60_000;
 let registryLoaded = false;
 let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -155,12 +187,12 @@ export function getTelegramRelayIdentity(): { port: number; profile: string; url
 }
 
 function normalizeRelayPort(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 65535) {
     return Math.trunc(value);
   }
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value.trim());
-    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= 65535 ? Math.trunc(parsed) : null;
   }
   return null;
 }
@@ -308,8 +340,19 @@ async function loadRegistry(): Promise<void> {
         registry.set(entry.missionId, entry);
       }
     }
+    pruneRegistry();
   } catch (error) {
     console.warn('[MissionRelay] Failed to load registry:', error);
+  }
+}
+
+function pruneRegistry(now = Date.now()): void {
+  const cutoff = now - REGISTRY_TTL_MS;
+  for (const [missionId, entry] of registry) {
+    const createdMs = Date.parse(entry.createdAt || '');
+    if (!Number.isFinite(createdMs) || createdMs < cutoff) {
+      registry.delete(missionId);
+    }
   }
 }
 
@@ -335,6 +378,7 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
     relayProfile: input.relayProfile || getRelayProfile()
   };
   registry.set(input.missionId, subscription);
+  pruneRegistry();
   await persistRegistry();
 }
 
@@ -360,6 +404,7 @@ export function markMissionRelayCancelled(missionId: string): void {
   pruneCancelledMissionCache();
   cancelledMissionCache.set(normalized, Date.now());
   pausedMissionCache.delete(normalized);
+  cleanupMissionNarrationCounts(normalized);
   clearHeartbeatForMission(normalized);
 }
 
@@ -407,6 +452,7 @@ export function isMissionRelayPaused(missionId: string): boolean {
 export function shouldSuppressMissionHandoff(missionId: string): boolean {
   pruneCancelledMissionCache();
   prunePausedMissionCache();
+  pruneOpenTaskStartCache();
   const normalized = missionId.trim();
   return cancelledMissionCache.has(normalized) || pausedMissionCache.has(normalized);
 }
@@ -777,6 +823,7 @@ async function sendFetchedCompletionSummary(
   completionDeliveryInFlight.add(event.missionId);
   try {
     clearHeartbeatForMission(event.missionId);
+    cleanupMissionNarrationCounts(event.missionId);
     const message = formatProviderCompletionForTelegram({
       providerLabel: completion.providerLabel,
       response: completion.response,
@@ -796,7 +843,7 @@ async function sendFetchedCompletionSummary(
         missionRelayTraceExtra(subscription, event, 'mission_completion')
       );
     }
-    completionDeliveryCache.add(event.missionId);
+    completionDeliveryCache.set(event.missionId, Date.now());
     await saveCompletionDeliveryCache();
     await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response);
     return chunks.length;
@@ -818,10 +865,32 @@ function scheduleDelayedCompletionSummary(
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
       if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-    })().catch((err) => {
-      console.error('[CompletionSummary] delivery failed:', err);
+    })().catch((error) => {
+      console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
     });
   }, 1000);
+}
+
+function safeCompletionSummaryErrorDetail(error: unknown): string {
+  if (error instanceof Error) {
+    const prefix = error.name && error.name !== 'Error' ? `${error.name}: ` : '';
+    return redactText(`${prefix}${error.message || 'unknown error'}`);
+  }
+  if (typeof error === 'string') return redactText(error);
+  if (error && typeof error === 'object') {
+    try {
+      return redactText(JSON.stringify(error));
+    } catch {
+      return redactText(String(error));
+    }
+  }
+  return redactText(String(error ?? 'unknown error'));
+}
+
+function formatCompletionSummaryDeliveryFailureLog(missionId: string, error: unknown): string {
+  const missionRef = redactIdentifier(missionId, 'mission');
+  const detail = safeCompletionSummaryErrorDetail(error).trim() || 'unknown error';
+  return `[CompletionSummary] delivery failed mission=${missionRef} error=${detail}`;
 }
 
 function humanizeProviderLabel(label: string): string {
@@ -856,6 +925,25 @@ function clipText(text: string, maxLength: number): string {
   const compact = compactWhitespace(text);
   if (compact.length <= maxLength) return compact;
   return `${compact.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function looksLikeCompletionReport(text: string): boolean {
+  return /(?:^|\n)\s*(?:commit pushed|what changed|changed|verification|validation|remaining|working tree)\s*:/i.test(text) ||
+    /\b(?:committed and pushed|pushed to github|origin\/main|working tree is clean)\b/i.test(text);
+}
+
+function detailedCompletionReportText(text: string): string {
+  return text
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function completionSummaryText(text: string, maxLength: number): string {
+  return looksLikeCompletionReport(text) ? detailedCompletionReportText(text) : clipText(text, maxLength);
 }
 
 const VOICE_LINES = {
@@ -1406,6 +1494,9 @@ export function formatProviderCompletionForTelegram(input: {
     const completionKind = providerCompletionKind(null, clean);
     const lines = [voiceLine(completionKind, `${input.missionId}:${provider}:freeform`)];
     const failureLines = completionKind === 'failed' ? freeformFailureLines(input.response) : [];
+    if (completionKind === 'completed' && looksLikeCompletionReport(clean) && !openLink) {
+      return compactTelegramBlocks(lines[0], detailedCompletionReportText(cleanWithoutProvider));
+    }
     if (failureLines.length > 0) {
       lines.push('', 'What blocked it', ...failureLines.map((line) => `• ${line}`));
     } else if (lead) {
@@ -1463,7 +1554,7 @@ export function formatProviderCompletionForTelegram(input: {
 
   const lines: string[] = [voiceLine(completionKind, `${input.missionId}:${provider}:structured`)];
   if (summary) {
-    lines.push('', clipText(summary, verbosity === 'verbose' ? 700 : 420));
+    lines.push('', completionSummaryText(summary, verbosity === 'verbose' ? 700 : 420));
   } else if (input.goal) {
     lines.push('', `Goal: ${clipText(input.goal, 260)}`);
   }
@@ -1609,12 +1700,13 @@ export function formatProgressMessageForTelegram(
 }
 
 function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
+  const now = Date.now();
+  pruneOpenTaskStartCache(now);
   const providerKey = typeof event.data?.provider === 'string' && event.data.provider
     ? event.data.provider
     : event.source || 'none';
   const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
   const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
-  const now = Date.now();
   const openTaskKey = `${event.missionId}:${providerKey}`;
   if (event.type === 'task_completed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     openTaskStartCache.delete(openTaskKey);
@@ -1686,14 +1778,15 @@ export function releaseCompletionDeliveryClaimForTests(missionId: string): void 
 }
 
 async function saveCompletionDeliveryCache(): Promise<void> {
-  await writeJsonAtomic(completionDeliveryPathForCurrentRelay(), Array.from(completionDeliveryCache.values()));
+  pruneCompletionDeliveryCache();
+  await writeJsonAtomic(completionDeliveryPathForCurrentRelay(), Array.from(completionDeliveryCache.keys()));
 }
 
 export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
   const entries = (await readJsonFile<string[]>(completionDeliveryPathForCurrentRelay())) || [];
   for (const missionId of entries) {
     if (typeof missionId === 'string' && missionId.trim()) {
-      completionDeliveryCache.add(missionId.trim());
+      completionDeliveryCache.set(missionId.trim(), Date.now());
     }
   }
 }
@@ -1701,6 +1794,28 @@ export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
 export function resetMissionRelayRegistryForTests(): void {
   registry.clear();
   registryLoaded = false;
+}
+
+export function missionRelayCacheSizesForTests(): {
+  delivery: number;
+  openTaskStart: number;
+  completionDelivery: number;
+  verboseNarration: number;
+  registry: number;
+} {
+  return {
+    delivery: deliveryCache.size,
+    openTaskStart: openTaskStartCache.size,
+    completionDelivery: completionDeliveryCache.size,
+    verboseNarration: verboseNarrationCounts.size,
+    registry: registry.size
+  };
+}
+
+export function pruneMissionRelayCachesForTests(now = Date.now()): void {
+  pruneOpenTaskStartCache(now);
+  pruneVerboseNarrationCounts(now);
+  pruneRegistry(now);
 }
 
 function claimVerboseNarrationSlot(
@@ -1714,12 +1829,15 @@ function claimVerboseNarrationSlot(
   if (['mission_started', 'mission_completed', 'mission_failed', 'task_failed', 'task_cancelled'].includes(event.type)) {
     return true;
   }
+  const now = Date.now();
+  pruneVerboseNarrationCounts(now);
   const key = `${event.missionId}:${chatId}`;
-  const count = verboseNarrationCounts.get(key) || 0;
+  const existing = verboseNarrationCounts.get(key);
+  const count = existing?.count || 0;
   if (count >= 3) {
     return false;
   }
-  verboseNarrationCounts.set(key, count + 1);
+  verboseNarrationCounts.set(key, { count: count + 1, updatedAt: now });
   return true;
 }
 
@@ -1740,6 +1858,10 @@ export async function sendFetchedCompletionSummaryForTests(
   completion: MissionCompletionSummary
 ): Promise<number> {
   return sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+}
+
+export function formatCompletionSummaryDeliveryFailureLogForTests(missionId: string, error: unknown): string {
+  return formatCompletionSummaryDeliveryFailureLog(missionId, error);
 }
 
 export function resolveReadyProjectOpenLinkForTests(
@@ -1763,8 +1885,7 @@ export function heartbeatIntervalMsForTests(verbosity: TelegramRelayVerbosity): 
 }
 
 function heartbeatStaleMs(): number {
-  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS || '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_HEARTBEAT_STALE_MS;
+  return parsePositiveIntegerEnvValue(process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS, DEFAULT_HEARTBEAT_STALE_MS);
 }
 
 function isTerminalMissionStatus(status: string | undefined | null): boolean {
@@ -2167,6 +2288,11 @@ function isRelayRateLimited(req: IncomingMessage, now = Date.now()): boolean {
   const existing = relayRateLimits.get(key);
   if (!existing || now - existing.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) {
     relayRateLimits.set(key, { startedAt: now, count: 1 });
+    if (relayRateLimits.size > 500) {
+      for (const [k, v] of relayRateLimits) {
+        if (now - v.startedAt >= RELAY_RATE_LIMIT_WINDOW_MS) relayRateLimits.delete(k);
+      }
+    }
     return false;
   }
   existing.count += 1;
@@ -2352,6 +2478,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
+          cleanupMissionNarrationCounts(event.missionId);
 	        const completion = completionDeliveryCache.has(event.missionId)
 	          ? null
 	          : await fetchMissionCompletionSummary(event.missionId);
@@ -2372,6 +2499,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
             writeJson(res, 200, { ok: true, suppressed: true });
             return;
           }
+          cleanupMissionNarrationCounts(event.missionId);
           clearHeartbeatForMission(event.missionId);
           const hasProjectLink = !!(previewLinkFromEvent(event) || projectPathFromEvent(event));
           const openLink = hasProjectLink ? await readyProjectOpenLinkFromEvent(event) : undefined;
@@ -2418,6 +2546,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       }
 
 	      if (event.type === 'mission_failed') {
+        cleanupMissionNarrationCounts(event.missionId);
         clearHeartbeatForMission(event.missionId);
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);

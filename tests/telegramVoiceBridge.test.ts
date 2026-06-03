@@ -87,3 +87,40 @@ test('leaves the update unchanged when Telegram download is unavailable', async 
 
   assert.equal(enriched, update);
 });
+
+test('falls back when voice byte limit env has a unit suffix', async () => {
+  const originalLimit = process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+  process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = '1kb';
+  const update = {
+    update_id: 12,
+    message: {
+      message_id: 22,
+      voice: {
+        file_id: 'voice-file-id',
+        mime_type: 'audio/ogg',
+      },
+    },
+  };
+
+  try {
+    const enriched = await buildVoiceBridgeUpdate(
+      {
+        update,
+        telegram: {
+          async getFileLink(): Promise<string> {
+            return 'https://telegram.example/file.ogg';
+          },
+        },
+      },
+      async () => fakeResponse(Buffer.from('voice-bytes'), {
+        'content-length': '11',
+        'content-type': 'audio/ogg',
+      })
+    );
+
+    assert.equal((enriched.message as any).spark_media.size_bytes, 11);
+  } finally {
+    if (originalLimit === undefined) delete process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES;
+    else process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES = originalLimit;
+  }
+});

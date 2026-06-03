@@ -121,6 +121,24 @@ test('renders recursive network proposal gates without overclaiming', () => {
   assert.doesNotMatch(reply, /C:\\crypto/);
 });
 
+test('renders recursive proposal submit errors without claiming it was sent', () => {
+  const reply = renderRecursiveNetworkProposal({
+    title: 'Crypto Trading Autoloop',
+    proposalPath: 'C:\\crypto\\.spark-swarm\\network-proposals\\proposal\\contribution.json',
+    currentTier: 'private_draft',
+    proposedTier: 'reviewed_candidate',
+    readyForPr: true,
+    missingGates: [],
+    submitted: false,
+    submitState: null,
+    submitError: 'submission failed'
+  });
+
+  assert.match(reply, /Crypto Trading Autoloop is ready for review/);
+  assert.doesNotMatch(reply, /sent for review/);
+  assert.match(reply, /submission failed/);
+});
+
 test('resolves human proposal keys to local collective payloads', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'spark-recursive-proposal-root-'));
   const oldRoots = process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS;

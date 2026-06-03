@@ -344,6 +344,19 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.ok(parseBuildIntent('Build an NFT launch planner app with sections for hype ideas and token sale timing.'));
 });
 
+test('does not treat philosophical questions with modal verbs as build intent', () => {
+  // "Can God create..." - modal verb + subject other than you/we
+  assert.equal(parseBuildIntent("Can God create a rock so heavy that even He can't lift it?"), null);
+  // "Could gravity break..."
+  assert.equal(parseBuildIntent('Could gravity break a wall if it were strong enough?'), null);
+  // "Would time stop..."
+  assert.equal(parseBuildIntent('Would time stop if nothing moved?'), null);
+  // But "Can you create..." should still trigger build intent
+  assert.ok(parseBuildIntent('Can you create a dashboard for me?'));
+  // And "Could we build..." should still trigger
+  assert.ok(parseBuildIntent('Could we build a landing page?'));
+});
+
 test('infers a compact product name for long conceptual build briefs', () => {
   const intent = parseBuildIntent(`Let's build this A narrow tool that takes a founder's messy weekly notes - half-written thoughts, customer quotes, random metrics, meeting takeaways - and turns them into a running strategy document that actually stays current.
 

@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
   codexClientConfigArgsFromModelCommand,
   normalizeModelProvider,
@@ -36,6 +39,8 @@ test('renders a model status help surface', () => {
     const status = renderModelStatus();
     assert.match(status, /Agent chat: zai \(glm-5\.1\)/);
     assert.match(status, /Missions: codex \(gpt-5\.5\)/);
+    assert.doesNotMatch(status, /Recommended Spark provider paths/);
+    assert.doesNotMatch(status, /Choose one provider first/);
     assert.match(status, /\/model agent claude claude-sonnet-4-6/);
     assert.match(status, /\/model mission claude claude-opus-4-7/);
     assert.match(status, /\/model codex fast high/);
@@ -133,6 +138,28 @@ test('uses a lightweight Ollama default for local model switching', async () => 
     const config = resolveChatProviderConfig(process.env);
     assert.equal(config.provider, 'ollama');
     assert.equal(config.model, 'llama3.2:3b');
+  } finally {
+    process.env = before;
+  }
+});
+
+test('persists model env updates through a same-directory temp replacement', async () => {
+  const before = { ...process.env };
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'spark-model-env-test-'));
+  const envPath = path.join(dir, 'spark-telegram-bot.env');
+  try {
+    await writeFile(envPath, 'SPARK_LLM_PROVIDER=old\nBOT_DEFAULT_PROVIDER=old\n', 'utf8');
+    process.env.SPARK_MODULE_CONFIG_DIR = dir;
+    delete process.env.SPARK_TELEGRAM_PROFILE;
+
+    const reply = await switchModelRoute('agent', 'ollama');
+    const content = await readFile(envPath, 'utf8');
+    const leftovers = (await readdir(dir)).filter((name) => name.endsWith('.tmp'));
+
+    assert.match(reply, /Saved for future Spark restarts/);
+    assert.match(content, /SPARK_LLM_PROVIDER=ollama/);
+    assert.match(content, /BOT_DEFAULT_PROVIDER=ollama/);
+    assert.equal(leftovers.length, 0);
   } finally {
     process.env = before;
   }

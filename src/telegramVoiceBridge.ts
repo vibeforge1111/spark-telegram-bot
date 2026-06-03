@@ -1,10 +1,13 @@
 import { redactText } from './redaction';
+import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const DEFAULT_VOICE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
 function voiceDownloadMaxBytes(): number {
-  const parsed = Number.parseInt(process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES || '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_VOICE_DOWNLOAD_MAX_BYTES;
+  return parsePositiveIntegerEnvValue(
+    process.env.SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES,
+    DEFAULT_VOICE_DOWNLOAD_MAX_BYTES
+  );
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {

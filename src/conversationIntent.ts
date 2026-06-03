@@ -802,6 +802,10 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || normalized.startsWith('/')) return null;
+  if (/\b(?:named\s+telegram\s+profile|telegram\s+profile|profile\s+setup|disposable\s+(?:lane|profile|bot|chat)|read[-\s]*only\s+lane|test\s+lane)\b/i.test(normalized) &&
+      /\b(?:\/myid|env|config|logs?|log\s+separation|primary\s+bot|separate\s+(?:bot|token|chat|env|config|logs?))\b/i.test(normalized)) {
+    return null;
+  }
   if (/\b(?:codex\s+cli|openai\s+api\s+key|api\s+keys?|provider\s+setup|provider\s+key|provider\s+keys?|signed[-\s]?in|sign(?:ed)?\s+in|login|logged\s+in)\b/i.test(normalized) &&
       /\b(?:setup|set\s+up|configure|provider|api\s+key|key\s+missing|missing\s+key|cannot\s+find|can't\s+find|not\s+found|recovery\s+path|recover|repair|resume)\b/i.test(normalized)) {
     return null;
@@ -1162,7 +1166,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|this|it|diagnostic|spark)\b/.test(normalized)
+      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized)
     )
   );
 }

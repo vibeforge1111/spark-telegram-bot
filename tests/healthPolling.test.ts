@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describeTelegramTokenError } from '../src/healthPolling';
 import { relayHealthUrl, validateRelayRuntime } from '../src/healthRuntime';
 
@@ -18,6 +20,13 @@ test('explains rejected Telegram tokens without echoing token material', () => {
   assert.match(message, /Telegram rejected BOT_TOKEN/);
   assert.match(message, /BotFather/);
   assert.doesNotMatch(message, /\d+:[A-Za-z0-9_-]+/);
+});
+
+test('README health polling guidance points installed operators at source directory', () => {
+  const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf8');
+
+  assert.match(readme, /run from this package directory/i);
+  assert.match(readme, /~\/\.spark\/modules\/spark-telegram-bot\/source/);
 });
 
 test('keeps unknown Telegram health failures actionable', () => {

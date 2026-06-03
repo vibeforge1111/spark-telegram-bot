@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  formatCompletionSummaryDeliveryFailureLogForTests,
   resetMissionRelayDeliveryStateForTests,
   sendFetchedCompletionSummaryForTests
 } from '../src/missionRelay';
@@ -15,6 +16,20 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await test('sanitizes delayed completion summary delivery failure logs', async () => {
+    const missionId = 'mission-raw-8319079055';
+    const secret = `sk-${'a'.repeat(30)}`;
+    const line = formatCompletionSummaryDeliveryFailureLogForTests(
+      missionId,
+      new Error(`network failed with OPENAI_API_KEY=${secret}`)
+    );
+
+    assert.match(line, /^\[CompletionSummary\] delivery failed mission=mission_[a-f0-9]{16} error=/);
+    assert.match(line, /network failed/);
+    assert.doesNotMatch(line, new RegExp(missionId));
+    assert.doesNotMatch(line, new RegExp(secret));
+  });
+
   await test('suppresses concurrent completion handoffs for one mission', async () => {
     resetMissionRelayDeliveryStateForTests();
 

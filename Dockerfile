@@ -18,6 +18,7 @@ COPY scripts/deploy-doctor.mjs ./scripts/deploy-doctor.mjs
 COPY scripts/run-health-polling.cjs ./scripts/run-health-polling.cjs
 COPY scripts/run-health-runtime.cjs ./scripts/run-health-runtime.cjs
 COPY agent-knowledge ./agent-knowledge
-RUN mkdir -p /data/spark-gateway
+RUN mkdir -p /data/spark-gateway && chown -R node:node /app /data/spark-gateway
+USER node
 EXPOSE 8788
 CMD ["npm", "start"]

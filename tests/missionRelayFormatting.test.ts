@@ -6,6 +6,7 @@ import {
   approvePendingMissionLesson,
   buildMissionLessonCandidates,
   buildMissionSurfaceLinks,
+  claimVerboseNarrationSlotForTests,
   formatMissionHeartbeatForTelegram,
   formatProgressMessageForTelegram,
   getTelegramRelayIdentity,
@@ -16,10 +17,14 @@ import {
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
+  missionRelayCacheSizesForTests,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
+  pruneMissionRelayCachesForTests,
+  registerMissionRelay,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
+  resetMissionRelayRegistryForTests,
   resolveReadyProjectOpenLinkForTests,
   sendFetchedCompletionSummaryForTests,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
@@ -316,6 +321,51 @@ test('summarizes freeform Codex build output without dumping file links', () => 
   assert.doesNotMatch(message, /\[index\.html\]/);
   assert.doesNotMatch(message, /<\/c\/Users/);
   assert.doesNotMatch(message, /Mission: mission-orbit/);
+});
+
+test('keeps report-shaped completion text from ending mid-report', () => {
+  const middle = Array.from({ length: 36 }, (_, index) => `coverage detail ${index + 1}`).join(', ');
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-report-tail',
+    verbosity: 'normal',
+    response: [
+      'Codex: Pulled latest, continued the reliability work, committed, and pushed to GitHub origin/main.',
+      '',
+      'Commit pushed: abc1234 Add reliability coverage',
+      '',
+      middle,
+      '',
+      'What changed:',
+      '- Added cache cleanup regression coverage.',
+      '- Confirmed the final report reaches the end.'
+    ].join('\n')
+  });
+
+  assert.match(message, /Commit pushed: abc1234 Add reliability coverage/);
+  assert.match(message, /coverage detail 36/);
+  assert.match(message, /What changed:/);
+  assert.match(message, /Confirmed the final report reaches the end\./);
+  assert.doesNotMatch(message, /\.\.\.$/);
+});
+
+test('keeps structured report summaries long enough for Telegram chunking', () => {
+  const middle = Array.from({ length: 60 }, (_, index) => `report detail ${index + 1}`).join(', ');
+  const tail = 'What changed: the final result tail reached Telegram.';
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-structured-report-tail',
+    verbosity: 'normal',
+    response: JSON.stringify({
+      status: 'completed',
+      summary: `Commit pushed: abc1234. ${middle}. ${tail}`
+    })
+  });
+
+  assert.match(message, /Commit pushed: abc1234/);
+  assert.match(message, /report detail 60/);
+  assert.match(message, /final result tail reached Telegram/);
+  assert.doesNotMatch(message, /\.\.\.$/);
 });
 
 test('summarizes inline verification without leaking command text', () => {
@@ -1096,6 +1146,21 @@ test('stops mission heartbeats for terminal or stale runs', () => {
   }), false);
 });
 
+test('heartbeat stale env rejects unit suffixes instead of truncating', () => {
+  const originalValue = process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS;
+  process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS = '5m';
+
+  try {
+    assert.equal(shouldStopMissionHeartbeat({
+      elapsedMs: 10,
+      snapshot: { missionId: 'spark-unit-suffix', status: 'running' }
+    }), false);
+  } finally {
+    if (originalValue === undefined) delete process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS;
+    else process.env.SPARK_TELEGRAM_HEARTBEAT_STALE_MS = originalValue;
+  }
+});
+
 test('cancelled missions suppress delayed build handoffs', () => {
   resetMissionRelayDeliveryStateForTests();
   assert.equal(shouldSuppressMissionHandoff('mission-123'), false);
@@ -1294,6 +1359,77 @@ test('reports this relay identity from env', () => {
   }
 });
 
+test('falls back from relay ports above the TCP upper bound', () => {
+  const originalPort = process.env.TELEGRAM_RELAY_PORT;
+  process.env.TELEGRAM_RELAY_PORT = '70000';
+
+  try {
+    assert.equal(getTelegramRelayIdentity().port, 8788);
+  } finally {
+    if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+    else process.env.TELEGRAM_RELAY_PORT = originalPort;
+  }
+});
+
+test('prunes stale open task start cache entries', () => {
+  const originalNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  try {
+    resetMissionRelayDeliveryStateForTests();
+    assert.equal(shouldSkipDuplicateForTests({
+      type: 'task_started',
+      missionId: 'mission-open-task-ttl',
+      taskName: 'Build first screen',
+      source: 'codex',
+      data: { provider: 'codex' }
+    }), false);
+    assert.equal(missionRelayCacheSizesForTests().openTaskStart, 1);
+
+    now += 10 * 60_000 + 1;
+    assert.equal(shouldSkipDuplicateForTests({
+      type: 'progress',
+      missionId: 'mission-open-task-ttl',
+      message: 'still working',
+      source: 'codex',
+      data: { provider: 'codex' }
+    }), false);
+    assert.equal(missionRelayCacheSizesForTests().openTaskStart, 0);
+  } finally {
+    Date.now = originalNow;
+    resetMissionRelayDeliveryStateForTests();
+  }
+});
+
+test('prunes stale verbose narration counters and keeps active caps', () => {
+  const originalNow = Date.now;
+  let now = 2_000_000;
+  Date.now = () => now;
+  const event = {
+    type: 'progress' as const,
+    missionId: 'mission-verbose-ttl',
+    message: 'useful progress',
+    source: 'codex'
+  };
+
+  try {
+    resetMissionRelayDeliveryStateForTests();
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), false);
+    assert.equal(missionRelayCacheSizesForTests().verboseNarration, 1);
+
+    now += 6 * 60 * 60_000 + 1;
+    pruneMissionRelayCachesForTests(now);
+    assert.equal(missionRelayCacheSizesForTests().verboseNarration, 0);
+    assert.equal(claimVerboseNarrationSlotForTests(event, 12345, 'verbose'), true);
+  } finally {
+    Date.now = originalNow;
+    resetMissionRelayDeliveryStateForTests();
+  }
+});
+
 async function asyncTest(name: string, fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
@@ -1318,6 +1454,38 @@ void (async () => {
       assert.equal(link, null);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  await asyncTest('prunes stale mission registry entries on registration', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-registry-ttl-test-'));
+      await registerMissionRelay({
+        missionId: 'mission-stale-registry',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-stale-registry',
+        goal: 'Stale mission.',
+        createdAt: new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString()
+      });
+      await registerMissionRelay({
+        missionId: 'mission-fresh-registry',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-fresh-registry',
+        goal: 'Fresh mission.',
+        createdAt: new Date().toISOString()
+      });
+
+      assert.equal(missionRelayCacheSizesForTests().registry, 1);
+    } finally {
+      resetMissionRelayRegistryForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
     }
   });
 
