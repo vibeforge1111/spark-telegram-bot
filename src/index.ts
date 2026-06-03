@@ -4921,6 +4921,23 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isSparkVersionCheckQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (/\bspark\s+--version\b/.test(n)) return true;
+  if (/\b(?:what|which|check|show|get)\b.{0,30}\bspark\b.{0,30}\bversion\b/.test(n)) return true;
+  if (/\b(?:what|which)\b.{0,10}\bversion\b.{0,30}\bspark\b/.test(n)) return true;
+  if (/\bspark\b.{0,30}\bversion\b.{0,30}\b(?:installed|running|current|is)\b/.test(n)) return true;
+  if (/\bhow\b.{0,20}\b(?:do\s+i|to)\b.{0,20}\bcheck\b.{0,20}\bspark\b.{0,20}\bversion\b/.test(n)) return true;
+  return false;
+}
+
+export function renderSparkVersionCheckReply(cliOutput: string): string {
+  const trimmed = cliOutput.trim();
+  if (!trimmed) return 'spark --version returned no output. Ensure Spark CLI is installed and on your PATH.';
+  return [`Spark version:`, '', trimmed].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6097,6 +6114,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkVersionCheckQuestion(text) && deterministicRouteAllowed('spark.version_check', text)) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.version_check', 'spark-telegram-bot', 'spark.version_check');
+    await safeSendChatAction(ctx, 'typing');
+    try {
+      const cliOutput = await runSparkCli(['--version'], 15_000);
+      const reply = renderSparkVersionCheckReply(cliOutput);
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    } catch (err: any) {
+      const reply = `spark --version failed: ${err?.message || String(err)}`;
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    }
     return;
   }
 
