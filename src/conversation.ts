@@ -246,6 +246,15 @@ export class ConversationMemory {
   private readonly notesByUser = new Map<number, string[]>();
   private readonly interruptedByUser = new Map<number, PendingTaskRecovery>();
   private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
+  private readonly maxUsers = 500;
+
+  private pruneMap<V>(map: Map<number, V>): void {
+    if (map.size > this.maxUsers) {
+      const oldest = map.keys().next().value as number;
+      map.delete(oldest);
+    }
+  }
+
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
@@ -349,6 +358,7 @@ export class ConversationMemory {
     const items = map.get(key) || [];
     const deduped = items.filter((item) => item.toLowerCase() !== normalized.toLowerCase());
     deduped.push(normalized);
+    this.pruneMap(map);
     map.set(key, deduped.slice(-limit));
     await this.persist();
   }
@@ -397,6 +407,7 @@ export class ConversationMemory {
       return lower !== normalized.toLowerCase() && (!prefix || !lower.startsWith(prefix));
     });
     next.push(normalized);
+    this.pruneMap(this.notesByUser);
     this.notesByUser.set(key, next.slice(-this.maxNotes));
     await this.persist();
     return null;
