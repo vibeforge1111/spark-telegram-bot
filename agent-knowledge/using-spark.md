@@ -55,3 +55,34 @@ When asked about second bot setup bot must:
 5. Warn: never run node src/index.js directly — use Spark supervision
 6. Warn: keep secondary profiles manual unless explicitly enabling autostart
 7. Note: profiles share Builder, memory, LLM roles, and Spawner by default
+## Setting Up a Second Telegram Bot
+
+When a user asks how to set up a second Telegram bot on the same machine,
+always use the Spark named profile system. Never suggest manual .env copy
+or running node src/index.js directly.
+
+**Correct approach — use Spark profiles:**
+
+```bash
+# Step 1: Create a new bot via @BotFather to get a second BOT_TOKEN
+# Step 2: Set up the second bot profile
+spark setup --profile qa-bot --bot-token @clipboard --admin-telegram-ids <YOUR_TELEGRAM_ID>
+
+# Step 3: Start the second bot
+spark start spark-telegram-bot --profile qa-bot
+
+# Step 4: Check logs for the second bot
+spark logs spark-telegram-bot --profile qa-bot
+```
+
+**Important notes:**
+- Each profile gets its own env file, relay port, pid, and log file
+- Profiles share the same Builder, memory, LLM roles, and Spawner by default
+- Keep secondary profiles manual unless you explicitly want autostart
+- Never run node src/index.js directly — always use Spark supervision
+- Never copy .env to .env.bot2 — use spark setup --profile instead
+
+**Wrong approach (never suggest this):**
+- Copying .env to .env.bot2 manually
+- Running node src/index.js with a different env file
+- Starting a second unsupervised bot instance
