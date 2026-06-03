@@ -4921,6 +4921,42 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isPrivateRepoQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  return /\bprivate\b/.test(n) && /\b(?:repo(?:sitory)?|github|clone|access)\b/.test(n);
+}
+
+export function renderPrivateRepoGuidance(): string {
+  return [
+    'For private repos, use a reviewer-routed proof packet — describe what you need and let the maintainer verify access, rather than sharing your raw token.',
+    '',
+    'Safe credential setup:',
+    '  spark credentials set github.token   (stores your PAT securely — never paste it into chat or a PR body)',
+    '',
+    'If the repo requires maintainer approval, Spark will route the request through the reviewer handoff path — you will be prompted before any access is attempted.',
+    '',
+    'To start: describe what you want to do with the private repo and Spark will route it correctly.'
+  ].join('\n');
+}
+
+export function isAmbiguousRepoQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (!/\b(?:repo(?:sitory)?|github)\b/.test(n)) return false;
+  return /\b(?:not\s+sure|unsure|unclear|don'?t\s+know|figure\s+out|which\s+repo|can\s+you\s+figure|which\s+one|ambiguous?|determine)\b/.test(n);
+}
+
+export function renderAmbiguousRepoGuidance(): string {
+  return [
+    "I can't determine the target repo without more context.",
+    '',
+    'If the target repo is private or unclear, use a reviewer-routed proof packet — describe what you are trying to do and the maintainer will confirm the correct repo before any access is attempted.',
+    '',
+    'What are you trying to do — fix a bug, add a feature, or review code?'
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6095,6 +6131,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isPrivateRepoQuestion(text) && deterministicRouteAllowed('repo.private_guidance', text)) {
+    const reply = renderPrivateRepoGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'repo.private_guidance', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isAmbiguousRepoQuestion(text) && deterministicRouteAllowed('repo.ambiguous_guidance', text)) {
+    const reply = renderAmbiguousRepoGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'repo.ambiguous_guidance', 'spark-telegram-bot', 'plain_chat.qa_plan');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
