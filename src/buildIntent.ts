@@ -141,6 +141,26 @@ export function polishBuildProjectName(value: string): string {
   return polishInferredProjectName(clean);
 }
 
+// Guard against a filesystem path leaking into the project name. extractPath only
+// recognizes C:\... and /... paths, so a "~/..."-rooted (or otherwise unhandled) path
+// in "build a page at ~/Desktop/my project/index.html ..." flows into name inference,
+// and a capital in the path (e.g. "Desktop") makes the polisher keep it verbatim. If the
+// inferred name still looks like a path, drop it and fall back to the product noun.
+function looksLikeLeakedPath(name: string): boolean {
+  // A project name should never contain a path separator, a "~" home marker, a drive
+  // letter, or a source-file extension. (Title-casing rewrites "/" to spaces, so a bare
+  // leftover "~" is the tell for a "~/..."-rooted path that leaked through.)
+  return /[\\/~]|\b[A-Za-z]:[\\/]|\.(?:html?|jsx?|tsx?|css|scss|py|json|md|txt|php|rb|go|rs|java|cpp?|sh|ya?ml)\b/i.test(name);
+}
+
+function cleanProjectNameOfLeakedPath(name: string, sourceText: string): string {
+  if (!looksLikeLeakedPath(name)) return name;
+  const noun = sourceText
+    .toLowerCase()
+    .match(/\b(landing\s+page|web\s+app|dashboard|website|application|app|tool|site|page|game|tracker|planner|portal|panel|viewer|board|blog|wiki|cms|api)\b/);
+  return noun ? titleCaseProjectName(noun[1]) : 'Spark App';
+}
+
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
   const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
@@ -860,7 +880,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
   if (isRecursiveInsightPacketRequest(`${trimmed} ${prd}`)) return null;
   if (isAmbiguousContextualBuildRequest(trimmed, projectPath, prd)) return null;
-  const projectName = polishBuildProjectName(inferProjectName(prd, projectPath));
+  const projectName = cleanProjectNameOfLeakedPath(
+    polishBuildProjectName(inferProjectName(prd, projectPath)),
+    original
+  );
   const buildMode = inferBuildMode(original, prd, projectPath);
   const buildLane = inferBuildLane(original, prd, projectPath, buildMode.mode);
 
