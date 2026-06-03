@@ -6202,7 +6202,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const llmResponse = await llm.chat(
       ideationPrompt,
       [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
-      memories
+      memories,
+      { isAdmin: conversation.isAdmin(user) }
     );
     const response = applyPlainWordsSurfaceRequest(text, isLowInformationLlmReply(llmResponse)
       ? buildIdeationFallbackReply(text)
@@ -6760,7 +6761,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const llmResponse = await llm.chat(
         ideationPrompt,
         [buildIdeationSystemHint(text), renderSparkAccessRuntimeHint(accessProfile)].join('\n\n'),
-        memories
+        memories,
+        { isAdmin: conversation.isAdmin(user) }
       );
       const response = applyPlainWordsSurfaceRequest(text, isLowInformationLlmReply(llmResponse)
         ? buildIdeationFallbackReply(text)
@@ -6871,7 +6873,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ].filter(Boolean).join('\n\n');
 
     // Get LLM response with Spark context
-    const response = applyPlainWordsSurfaceRequest(text, await llm.chat(chatPrompt, systemContext, memories));
+    const response = applyPlainWordsSurfaceRequest(text, await llm.chat(chatPrompt, systemContext, memories, { isAdmin: conversation.isAdmin(user) }));
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {

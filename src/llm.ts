@@ -54,6 +54,16 @@ interface AnthropicMessagesResponse {
 
 export type ChatProgressCallback = (text: string) => Promise<void> | void;
 
+/**
+ * Caller context threaded into chat()/chatStream() so that, when the provider
+ * errors, the user-facing error reply is rendered with the REAL admin status of
+ * the requesting Telegram user. Defaults to non-admin so any caller that omits
+ * it can never leak operator-only repair guidance.
+ */
+export interface ChatErrorOptions {
+  isAdmin?: boolean;
+}
+
 export interface BuildClarificationMicrocopyInput {
   projectName: string;
   questions: string[];
@@ -782,8 +792,10 @@ export const llm = {
   async chat(
     userMessage: string,
     conversationHistory: string = '',
-    memories: string = ''
+    memories: string = '',
+    options: ChatErrorOptions = {}
   ): Promise<string> {
+    const isAdmin = options.isAdmin === true;
     const systemPrompt = buildSparkChatSystemPrompt(conversationHistory, memories);
 
     try {
@@ -862,7 +874,7 @@ export const llm = {
         status: err?.response?.status,
         message: err?.response?.data?.error || err?.message || String(err)
       });
-      return renderSparkErrorReply(err, 'chat', true);
+      return renderSparkErrorReply(err, 'chat', isAdmin);
     }
   },
 
@@ -874,8 +886,10 @@ export const llm = {
     userMessage: string,
     conversationHistory: string = '',
     memories: string = '',
-    onProgress?: ChatProgressCallback
+    onProgress?: ChatProgressCallback,
+    options: ChatErrorOptions = {}
   ): Promise<string> {
+    const isAdmin = options.isAdmin === true;
     const systemPrompt = buildSparkChatSystemPrompt(conversationHistory, memories);
 
     try {
@@ -931,7 +945,7 @@ export const llm = {
         return content || "I'm here, but I couldn't generate a response right now.";
       }
 
-      const content = await llm.chat(userMessage, conversationHistory, memories);
+      const content = await llm.chat(userMessage, conversationHistory, memories, { isAdmin });
       await emitChatProgress(onProgress, content);
       return content;
     } catch (err: any) {
@@ -941,7 +955,7 @@ export const llm = {
         status: err?.response?.status,
         message: err?.response?.data?.error || err?.message || String(err)
       });
-      return renderSparkErrorReply(err, 'chat', true);
+      return renderSparkErrorReply(err, 'chat', isAdmin);
     }
   },
 };
