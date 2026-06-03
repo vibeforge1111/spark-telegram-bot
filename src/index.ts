@@ -4921,6 +4921,64 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isSparkUpdateRequest(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (/\b(?:what\s+happens?|affect|overwrite|break|consequence|my\s+current\s+work)\b/.test(n)) return false;
+  return /\bspark\s+update\b/.test(n) ||
+    /\bupdat(?:e|ing)\s+spark\b/.test(n) ||
+    /\b(?:how|want|need|run|should)\b.{0,30}\bupdat(?:e|ing)\b.{0,30}\bspark\b/.test(n) ||
+    /\bspark\b.{0,30}\b(?:how|want|need)\b.{0,30}\bupdat(?:e|ing)\b/.test(n);
+}
+
+export function renderSparkUpdateGuidance(): string {
+  return [
+    'Before updating, check for uncommitted changes:',
+    '  git status   (in each Spark module directory)',
+    '  spark os compile --json   (shows workspace state)',
+    '',
+    'Then run the update:',
+    '  spark update',
+    '  spark verify --onboarding   (confirm modules are clean after update)',
+    '',
+    'Rollback if something breaks:',
+    '  spark update --version <previous-ref>',
+    '  -- or --',
+    '  git checkout <ref>   (in the affected module directory)',
+    '',
+    'Updates pull from registry pins. Run spark verify after updating to confirm module versions match what you expect.'
+  ].join('\n');
+}
+
+export function isSparkUpdateConsequenceQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  if (!/\bspark\b/.test(n) && !/\bupdat(?:e|ed|ing)\b/.test(n)) return false;
+  return (
+    /\bmy\s+current\s+work\b/.test(n) ||
+    /\bwhat\s+happens?\b.{0,60}\b(?:work|files?|code|changes?|spark|update)\b/.test(n) ||
+    /\bwill\b.{0,40}\b(?:update|spark)\b.{0,40}\baffect\b/.test(n) ||
+    /\bdoes\b.{0,30}\bspark\s*update\b.{0,30}\b(?:overwrite|break|wipe|affect|change)\b/.test(n)
+  );
+}
+
+export function renderSparkUpdateConsequenceGuidance(): string {
+  return [
+    'spark update pulls new module versions from registry pins.',
+    '',
+    'Before running it:',
+    '• Check for uncommitted changes: git status in your Spark modules directory',
+    '• spark update does not overwrite your missions, canvas plans, or agent memory',
+    '• It replaces module binaries and config — uncommitted local changes to module source will conflict',
+    '',
+    'If the update breaks something:',
+    '• Roll back: spark update --version <previous-ref>',
+    '• Or: git checkout <ref> in the affected module directory',
+    '',
+    'Run spark verify --onboarding after updating to confirm everything came back clean.'
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6095,6 +6153,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkUpdateConsequenceQuestion(text) && deterministicRouteAllowed('spark.update_consequence', text)) {
+    const reply = renderSparkUpdateConsequenceGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.update_consequence', 'spark-telegram-bot', 'plain_chat.update_safety');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSparkUpdateRequest(text) && deterministicRouteAllowed('spark.update_guidance', text)) {
+    const reply = renderSparkUpdateGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.update_guidance', 'spark-telegram-bot', 'plain_chat.update_guidance');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
