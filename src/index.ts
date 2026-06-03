@@ -4921,6 +4921,35 @@ function missionDefaultProvider(): string {
   return resolveMissionDefaultProvider();
 }
 
+export function isCredentialSetupQuestion(text: string): boolean {
+  const n = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!n) return false;
+  const hasCredentialWord = /\b(?:credential(?:s)?|token|api\s*key|github\s+token|access\s+token|secret\s+key)\b/.test(n);
+  if (!hasCredentialWord) return false;
+  const hasSparkContext = /\b(?:spark|set\s+up|setup|configure|add|store|save|how\s+do\s+i)\b/.test(n);
+  if (!hasSparkContext) return false;
+  return /\b(?:set\s+up|setup|configure|add|store|save|how|credentials?\s+set|credentials?\s+list)\b/.test(n);
+}
+
+export function renderCredentialSetupGuidance(): string {
+  return [
+    'Credential setup — safe steps:',
+    '',
+    '1. Use `spark credentials set <key-name>` from your terminal — never paste tokens in Telegram chat.',
+    '2. Tokens entered in Telegram are stored in conversation memory. Use terminal only for secrets.',
+    '3. Verify what is stored: `spark credentials list`',
+    '4. For private repo access, use the reviewer-routed proof packet — do not paste PATs in chat.',
+    '',
+    'Key names used by Spark:',
+    '  GITHUB_TOKEN          GitHub API / private repo access',
+    '  OPENAI_API_KEY        OpenAI models',
+    '  ANTHROPIC_API_KEY     Claude models',
+    '  OPENROUTER_API_KEY    OpenRouter multi-model',
+    '',
+    'If you need to revoke a credential: `spark credentials delete <key-name>`',
+  ].join('\n');
+}
+
 const RUN_VARIANTS: Array<{ name: string; providers: string[]; usage: string }> = [
   { name: 'run', providers: [], usage: '/run <goal>  (default: current mission provider)' },
   { name: 'runminimax', providers: ['minimax'], usage: '/runminimax <goal>' },
@@ -6095,6 +6124,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isCredentialSetupQuestion(text) && deterministicRouteAllowed('spark.credential_setup', text)) {
+    const reply = renderCredentialSetupGuidance();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark.credential_setup', 'spark-telegram-bot', 'spark.credential_setup');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

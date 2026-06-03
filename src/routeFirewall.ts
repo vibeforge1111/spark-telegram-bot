@@ -26,7 +26,8 @@ export type DeterministicRouteId =
   | 'pending_task.recovery'
   | 'local_workspace.inspect'
   | 'mission_updates.preference'
-  | 'domain_chip.pending';
+  | 'domain_chip.pending'
+  | 'spark.credential_setup';
 
 export interface RouteFirewallVerdict {
   allow: boolean;
