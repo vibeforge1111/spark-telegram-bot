@@ -72,7 +72,23 @@ export function defaultLocalWorkspaceRoots(env: NodeJS.ProcessEnv = process.env)
     path.join(home, '.spark', 'workspaces')
   ];
 }
+// Redact private user paths before exposing in chat output
+export function redactUserPath(filePath: string): string {
+  return filePath
+    // Redact Windows username: C:\Users\USERNAME\ -> <user-home>\
+    .replace(/^[A-Za-z]:\\Users\\[^\\]+/i, '<user-home>')
+    // Redact Unix home: /home/username/ -> <user-home>/
+    .replace(/^\/home\/[^/]+/, '<user-home>')
+    // Redact macOS home: /Users/username/ -> <user-home>/
+    .replace(/^\/Users\/[^/]+/, '<user-home>')
+    // Redact ~ expansion
+    .replace(/^~/, '<user-home>');
+}
 
+export function redactWorkspaceOutput(text: string): string {
+  // Replace full Windows paths with redacted versions
+  return text.replace(/[A-Za-z]:\\Users\\[^\\]+/gi, '<user-home>');
+}
 function hasFile(projectPath: string, fileName: string): boolean {
   return existsSync(path.join(projectPath, fileName));
 }
