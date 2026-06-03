@@ -108,8 +108,13 @@ export function renderMemoryMovementSummary(summary: MemoryMovementSummary): str
     return [
       'Memory movement index is not compiled yet.',
       '',
+      'Why',
+      '• The Builder memory status file has not been generated yet at the expected path.',
+      '',
       'Move',
-      '• Run `spark os compile`, then try `/memory_movement` again.'
+      '• Run `spark os compile`, then try `/memory_movement` again.',
+      '• If this persists after compiling, run `spark-intelligence self memory-movement` to generate the Builder memory status.',
+      '• Check that the Builder module has completed at least one memory operation.'
     ].join('\n');
   }
 
