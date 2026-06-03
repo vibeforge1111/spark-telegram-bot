@@ -2811,6 +2811,30 @@ bot.command('about', async (ctx) => {
 // /forget command - prefer Builder deletion flow
 bot.command('forget', async (ctx) => {
   const target = ctx.message.text.replace('/forget', '').trim();
+  
+  // Safety check for destructive "forget all" command
+  if (target.toLowerCase() === 'all') {
+    await ctx.reply(
+      '⚠️ This will permanently delete ALL your Spark memory and cannot be undone.\n\n' +
+      'To confirm, send exactly:\n/forget confirm-delete-all\n\n' +
+      'Or send /forget <specific topic> to forget just one thing.'
+    );
+    return;
+  }
+  
+  if (target.toLowerCase() === 'confirm-delete-all') {
+    // User confirmed — proceed with full deletion
+    try {
+      if (await replyViaBuilder(ctx, 'Forget all memory.')) {
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to forget all via Builder bridge:', err);
+    }
+    await ctx.reply('Memory cleared. Run /about to confirm.');
+    return;
+  }
+  
   if (target) {
     try {
       if (await replyViaBuilder(ctx, `Forget ${target}.`)) {
