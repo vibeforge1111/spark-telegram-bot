@@ -470,8 +470,32 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     '',
     'Health',
     `${botRelay.ok ? '🟢' : '🔴'} Relay ${botRelay.ok ? 'ready' : botRelay.err || botRelay.status || 'unreachable'}`,
-    `${chatProviderPing.ok && builderBridge.available ? '🟢' : '🔴'} Chat ${chatProviderPing.ok ? 'ready' : 'degraded'}`,
-    `${spawnerProviders.ok && missionPingOk !== false ? '🟢' : '🟡'} Builds ${spawnerProviders.ok ? (missionPingOk === false ? 'degraded' : 'ready') : 'offline'}`,
+    `${
+      chatProviderPing.ok && builderBridge.available
+        ? '🟢'
+        : chatProviderPing.ok
+          ? '🟡'
+          : '🔴'
+    } Chat ${
+      chatProviderPing.ok && builderBridge.available
+        ? 'ready'
+        : chatProviderPing.ok
+          ? 'ready, bridge offline'
+          : 'degraded'
+    }`,
+    `${
+      spawnerProviders.ok && missionPingOk !== false
+        ? '🟢'
+        : spawnerProviders.ok
+          ? '🟡'
+          : '🔴'
+    } Builds ${
+      spawnerProviders.ok
+        ? missionPingOk === false
+          ? 'degraded'
+          : 'ready'
+        : 'offline'
+    }`,
     `${diagnoseSubject.isAllowed ? '🟢' : '🔴'} Access ${sparkAccessLabel(accessProfile)}${diagnoseSubject.isAdmin ? ' / admin' : ''}`,
     '',
     'Issue',
