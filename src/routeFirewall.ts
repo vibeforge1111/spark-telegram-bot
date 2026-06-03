@@ -32,8 +32,8 @@ export interface RouteFirewallVerdict {
   allow: boolean;
   reason: string;
   confidence: 'explicit' | 'contextual' | 'blocked';
+  replyOverride?: string;
 }
-
 const INTERRUPTIVE_ROUTES = new Set<DeterministicRouteId>([
   'access.change',
   'spawner.build',
