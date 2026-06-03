@@ -2229,7 +2229,11 @@ export function extractAgentDoctrinePreference(text: string): string | null {
     /\b(?:adjust|change|update|improve|tune|adapt|shift)\s+(?:your|the|my\s+agent'?s|spark'?s)?\s*(?:personality|style|tone|format|interaction|collaboration|working|reply|response|communication|rules|doctrine)\s+(?:to|so\s+you|so\s+it|toward|around)\s+(.+)$/i,
     /\b(?:i\s+prefer|i'?d\s+prefer|i\s+want|i'?d\s+like)\s+(?:you|spark|my\s+agent|the\s+agent)\s+to\s+(.+)$/i,
     /\b(?:be|stay|keep|use|act|respond|reply|talk|speak|write)\s+(?:more\s+|less\s+)?(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|gentle|blunt|structured|paragraph|checklist|dense|friendly)\b.*$/i,
-    /\b(?:do not|don't|dont|stop)\s+(?:be|being|sound|sounding|write|writing|reply|respond|use|give)\b.*$/i
+    // Negative form ("don't be …", "stop being …") only counts as a how-to-talk
+    // preference when the object is an agent style/communication descriptor in the
+    // same clause — otherwise ordinary sentences ("stop being so hard on yourself",
+    // "don't be late tomorrow") were wrongly saved as interaction preferences.
+    /\b(?:do not|don't|dont|stop)\s+(?:be|being|sound|sounding|write|writing|reply|respond|use|give)\b[^.?!]{0,40}\b(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|gentle|blunt|structured|paragraphs?|checklists?|dense|friendly|verbose|wordy|chatty|robotic|robots?|stiff|terse|rambl\w*|repetitive|preachy|condescending|patronizing|salesy|cheesy|cringe|technical|jargon|filler|fluff|emojis?|em[-\s]?dashes?|markdown|bullet\s*points?|tone|style|formatting|wording|chatbot[-\s]?like|generic|replies|responses?|answers?|messages?)\b.*$/i
   ];
 
   for (const pattern of patterns) {

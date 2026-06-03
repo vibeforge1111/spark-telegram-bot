@@ -1631,6 +1631,20 @@ test('extracts explicit user-scoped agent doctrine preferences', () => {
   );
 });
 
+test('does not treat ordinary "don\'t be / stop being" sentences as agent style preferences', () => {
+  // The negative-form preference pattern must require an agent style/communication
+  // descriptor, otherwise everyday chatter is wrongly saved as a "how to talk to me"
+  // preference and gets a canned acknowledgement instead of a real reply.
+  assert.equal(extractAgentDoctrinePreference('stop being so hard on yourself, you did great'), null);
+  assert.equal(extractAgentDoctrinePreference("don't be late tomorrow, the meeting starts at 9"), null);
+  assert.equal(extractAgentDoctrinePreference('please stop being mean to your brother'), null);
+  assert.equal(isStandaloneAgentDoctrinePreference('stop being so hard on yourself, you did great'), false);
+  // Genuine negative-form style preferences must still be recognized.
+  assert.ok(extractAgentDoctrinePreference("don't use em-dashes in your replies"));
+  assert.ok(extractAgentDoctrinePreference('stop being so verbose'));
+  assert.ok(extractAgentDoctrinePreference("don't be so formal with me"));
+});
+
 test('does not persist one-off or global doctrine requests as personal agent guidance', () => {
   assert.equal(extractAgentDoctrinePreference('Just for this reply, be blunt.'), null);
   assert.equal(extractAgentDoctrinePreference('For now use bullets while we debug this.'), null);
