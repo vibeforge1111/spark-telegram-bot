@@ -2211,7 +2211,10 @@ export function relayEventMatchesSubscription(
 ): boolean {
   const identity = relayIdentityFromEvent(event);
   if (!identity.chatId && !identity.userId) {
-    return event.missionId === subscription.missionId;
+    // Reject events with no identity fields — falling back to missionId alone is
+    // tautologically true (the subscription was already looked up by missionId)
+    // and would allow any relay-secret holder to deliver events to any chat.
+    return false;
   }
   return identity.chatId === subscription.chatId && identity.userId === subscription.userId;
 }
