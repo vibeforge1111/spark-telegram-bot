@@ -6914,6 +6914,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 }
 
 export async function handleImageMessage(ctx: any): Promise<void> {
+  // In group chats only act on media that addresses Spark, matching the text
+  // handler guard (isAddressedGroupText). Without this, the bot replies to
+  // every group member's photo. Private chats always pass (returns true).
+  if (!isAddressedGroupText(ctx, ctx.message?.caption || '')) {
+    return;
+  }
   const user = ctx.from;
   const imageMemoryText = telegramImageMemoryText(ctx.message);
 
@@ -6956,6 +6962,12 @@ export async function handleImageMessage(ctx: any): Promise<void> {
 }
 
 export async function handleVoiceMessage(ctx: any): Promise<void> {
+  // In group chats only act on voice notes that address Spark, matching the
+  // text handler guard (isAddressedGroupText). Without this, the bot replies to
+  // every group member's voice note. Private chats always pass (returns true).
+  if (!isAddressedGroupText(ctx, ctx.message?.caption || '')) {
+    return;
+  }
   const user = ctx.from;
   const startedAt = Date.now();
 
