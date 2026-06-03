@@ -62,7 +62,31 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
   const problem = `Spark ${context} failure: ${category}`;
   return `spark doctor llm "${problem}" --save-report --upstream-report`;
 }
+const HYPOTHETICAL_PATTERNS = [
+  /\bwhat\s+(?:would|will|happens?)\s+(?:happen\s+)?if\b/i,
+  /\bif\s+(?:the\s+)?(?:spark|bot|spawner|relay|provider)\s+(?:is\s+)?(?:not|down|offline|broken|fails?)\b/i,
+  /\bwhat\s+if\b/i,
+  /\bsuppose\b/i,
+  /\bhypothetically\b/i,
+];
 
+export function isHypotheticalQuestion(text: string): boolean {
+  return HYPOTHETICAL_PATTERNS.some(p => p.test(text));
+}
+
+export function explainHypotheticalScenario(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('spawner') && (lower.includes('not running') || lower.includes('down') || lower.includes('offline'))) {
+    return 'If Spawner is not running, /run will fail with a relay error: "Mission relay unavailable."\n\nTo fix:\n1. Run spark fix spawner\n2. Run spark restart spawner-ui\n3. Run spark live status to confirm\n4. Retry your /run command';
+  }
+  if (lower.includes('provider') && (lower.includes('not') || lower.includes('down') || lower.includes('fail'))) {
+    return 'If a provider fails, Spark will show a provider auth error in /diagnose.\n\nTo fix:\n1. Check your API key in .env\n2. Run spark providers test --role chat\n3. Run spark fix telegram if the bot is quiet';
+  }
+  if (lower.includes('relay') && (lower.includes('not') || lower.includes('down') || lower.includes('fail'))) {
+    return 'If the relay is down, Telegram notifications will stop but missions keep running in Spawner.\n\nTo fix:\n1. Run spark fix telegram\n2. Run spark restart telegram-starter\n3. Check /board after restart for completed missions';
+  }
+  return 'If Spark encounters an error, run /diagnose first to identify the failing component, then run spark fix <component> to repair it.';
+}
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
   const detail = compactDetail(extractErrorText(error));
   const lower = detail.toLowerCase();
