@@ -2054,7 +2054,20 @@ async function buildLocalRecallReply(user: any, query: string): Promise<string |
     const memories = await conversation.recall(user, query, 1);
     const memory = memories[0];
     if (!memory?.content) return null;
-    return `I remember this: ${memory.content.replace(/[.!?]+$/g, '').trim()}.`;
+    const content = memory.content.replace(/[.!?]+$/g, '').trim();
+    if (/^Memory Doctor:/i.test(content) || /\bTrigger:\s*identity correction complaint\b/i.test(content)) {
+      return null;
+    }
+    const normalizedContent = content.toLowerCase().replace(/\s+/g, ' ').trim();
+    const normalizedQuery = query.toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ').trim();
+    if (
+      normalizedContent === normalizedQuery ||
+      normalizedContent.includes(`user asked spark to remember: ${normalizedQuery}`) ||
+      normalizedContent.includes(normalizedQuery)
+    ) {
+      return null;
+    }
+    return `I remember this: ${content}.`;
   } catch (error) {
     console.warn('[SlashRecall] local recall failed:', error);
     return null;
@@ -2073,10 +2086,20 @@ function extractNaturalLocalMemoryRecallQuery(text: string): string | null {
   return isUserMemoryRecallQuestion(text) ? text : null;
 }
 
+function wantsExactlyOneWordReply(text: string): boolean {
+  return /\breply\s+with\s+exactly\s+one\s+word\b/i.test(text) ||
+    /\banswer\s+with\s+exactly\s+one\s+word\b/i.test(text) ||
+    /\bone[-\s]*word\s+answer\b/i.test(text);
+}
+
 async function buildNaturalLocalMemoryRecallReply(user: any, text: string): Promise<string | null> {
   const query = extractNaturalLocalMemoryRecallQuery(text);
   if (!query) return null;
-  return buildLocalRecallReply(user, query);
+  const reply = await buildLocalRecallReply(user, query);
+  if (reply) return reply;
+  return wantsExactlyOneWordReply(text)
+    ? 'Unknown'
+    : 'I do not know that from memory yet.';
 }
 
 export async function handleRememberCommand(ctx: any): Promise<void> {
@@ -5853,6 +5876,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  const earlyNaturalLocalMemoryRecall = earlyBuildIntent ? null : await buildNaturalLocalMemoryRecallReply(user, text);
+  if (earlyNaturalLocalMemoryRecall) {
+    await conversation.remember(user, text).catch(() => {});
+    await ctx.reply(earlyNaturalLocalMemoryRecall);
+    await conversation.rememberAssistantReply(user, earlyNaturalLocalMemoryRecall).catch(() => {});
+    return;
+  }
+
   if (
     !earlyBuildIntent &&
     !shouldAttachMemoryDoctorEvidence(text) &&
@@ -6335,13 +6366,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     } catch (err: any) {
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
-    return;
-  }
-  const naturalLocalMemoryRecall = earlyBuildIntent ? null : await buildNaturalLocalMemoryRecallReply(user, text);
-  if (naturalLocalMemoryRecall) {
-    await conversation.remember(user, text).catch(() => {});
-    await ctx.reply(naturalLocalMemoryRecall);
-    await conversation.rememberAssistantReply(user, naturalLocalMemoryRecall).catch(() => {});
     return;
   }
   const recentRememberedAnswer = earlyBuildIntent ? null : answerFromRememberTurns(text, [

@@ -6,6 +6,12 @@ export interface MemoryDoctorEvidenceTurn {
 const CONTEXTUAL_MEMORY_DOCTOR_PATTERN =
   /\b(?:what\s+happened|went\s+blank|go(?:t|ing)?\s+blank|blankness|lost\s+(?:the\s+)?context|dropped\s+(?:the\s+)?context|forgot\s+(?:the\s+)?context|not\s+remember(?:ing)?\s+what\s+we\s+were\s+talking\s+about|what\s+(?:was|did)\s+(?:my|your)\s+(?:last|previous)\s+(?:answer|response|reply|message)|did\s+you\s+(?:forget|lose|drop)\s+(?:my|the|what)\s+(?:context|message|conversation)|(?:run|check|show|diagnose|audit)\s+(?:the\s+)?memory\s+doctor)\b/i;
 
+function isNaturalPreferenceRecallQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  return /\bwhat(?:'s|\s+is)\s+my\s+(?:favorite|favourite|preferred)\s+[\w\s-]{2,80}\??\s*$/.test(normalized) ||
+    /\bwhich\s+[\w\s-]{2,80}\s+do\s+i\s+(?:like|prefer)\b/.test(normalized);
+}
+
 function compactEvidenceText(value: string, limit = 700): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (normalized.length <= limit) {
@@ -19,7 +25,11 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
-  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (isNaturalPreferenceRecallQuestion(normalized)) {
+    return false;
+  }
+  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(normalized);
 }
 
 function sameNormalizedText(a: string, b: string): boolean {
