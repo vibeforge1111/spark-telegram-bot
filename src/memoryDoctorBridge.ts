@@ -1,3 +1,16 @@
+// Redact Telegram IDs and internal scores from memory doctor output
+const TELEGRAM_ID_REDACT = /telegram:\d{5,16}/gi;
+const SCORE_REDACT = /\bvisibility\s+\d+\/100\b/gi;
+const BENCHMARK_REDACT = /\bbenchmark[:\s]+\d+\/100\b/gi;
+const WEAKEST_REDACT = /\bweakest\s*=\s*\S+/gi;
+
+export function redactMemoryDoctorOutput(text: string): string {
+  return text
+    .replace(TELEGRAM_ID_REDACT, '[TELEGRAM_ID_REDACTED]')
+    .replace(SCORE_REDACT, '[SCORE_REDACTED]')
+    .replace(BENCHMARK_REDACT, '[BENCHMARK_REDACTED]')
+    .replace(WEAKEST_REDACT, '[DETAIL_REDACTED]');
+}
 export interface MemoryDoctorEvidenceTurn {
   role: 'user' | 'assistant' | string;
   text: string;
