@@ -263,6 +263,7 @@ import {
 import {
   buildMemoryDoctorEvidencePrompt,
   isMemoryDoctorBridgeDetourReply,
+  redactMemoryDoctorOutput,
   renderMemoryDoctorEvidenceFallback,
   selectMemoryDoctorEvidenceTurns,
   shouldAttachMemoryDoctorEvidence,
@@ -6379,7 +6380,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       : [];
     await conversation.remember(user, text).catch(() => {});
     if (memoryDoctorEvidenceTurns.length > 0 && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
-      const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
+      const fallback = redactMemoryDoctorOutput(renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns));
       await ctx.reply(fallback);
       await conversation.rememberAssistantReply(user, fallback).catch(() => {});
       return;
