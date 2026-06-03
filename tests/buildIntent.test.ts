@@ -38,6 +38,26 @@ test('never lets a filesystem path leak into the inferred project name', () => {
   }
 });
 
+test('does not treat informational "how do I build / how does X build" questions as build commands', () => {
+  // Questions ABOUT building something must not spin up a Spawner project.
+  for (const q of [
+    'how do I build muscle at the gym?',
+    'what does it take to build a good credit score?',
+    'can you explain how compilers build an AST?',
+    'how do I make a smoothie?',
+    'why do birds build nests?',
+    'how does a compiler build an AST?',
+  ]) {
+    assert.equal(parseBuildIntent(q), null, `should not be a build: ${q}`);
+  }
+  // Genuine build commands (including "can you build me …" / "I want you to build …")
+  // must still parse.
+  assert.ok(parseBuildIntent('build a todo app'));
+  assert.ok(parseBuildIntent('can you build me a dashboard'));
+  assert.ok(parseBuildIntent('I want you to build a dashboard for sales'));
+  assert.ok(parseBuildIntent('Build a tiny static landing page for a cafe with a menu section.'));
+});
+
 test('promotes larger new projects to advanced PRD mode', () => {
   const intent = parseBuildIntent(
     'build this at C:\\Users\\USER\\Desktop\\spark-advanced-probe: a vanilla-JS single-page web app called Spark Advanced Probe. Files: index.html, styles.css, app.js, README.md. No build step. It shows cards, filters, editable notes, localStorage persistence, animated status states, and responsive layout.'
