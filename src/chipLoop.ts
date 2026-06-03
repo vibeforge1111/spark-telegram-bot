@@ -60,7 +60,8 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    let parsed: any;
+    try { parsed = JSON.parse(stdout); } catch { return { ok: false, error: 'invalid JSON from chip loop' }; }
     return {
       ok: Boolean(parsed.ok),
       chipKey: parsed.chip_key,
