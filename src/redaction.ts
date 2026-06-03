@@ -83,7 +83,25 @@ export function redactIdentifier(value: string | number | null | undefined, pref
   const digest = createHash('sha256').update(text).digest('hex').slice(0, 16);
   return `${safePrefix}_${digest}`;
 }
+const TELEGRAM_ID_PATTERNS = [
+  /\btelegram:\d{5,16}\b/gi,
+  /\b\d{7,12}\b(?=.*(?:telegram|admin|user.?id))/gi,
+];
 
+export function redactTelegramIds(text: string): string {
+  let result = text;
+  for (const pattern of TELEGRAM_ID_PATTERNS) {
+    result = result.replace(pattern, '[TELEGRAM_ID_REDACTED]');
+  }
+  return result;
+}
+
+export function containsTelegramId(text: string): boolean {
+  return TELEGRAM_ID_PATTERNS.some(pattern => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  });
+}
 export function installConsoleRedaction(): void {
   if (consoleRedactionInstalled) return;
   consoleRedactionInstalled = true;
