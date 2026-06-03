@@ -78,7 +78,15 @@ export function humanSummary(rec: ScheduleRecord): string {
 }
 
 export function formatScheduleList(schedules: ScheduleRecord[]): string {
-  if (schedules.length === 0) return 'No schedules.';
+  if (schedules.length === 0) {
+    return [
+      'No Spark schedules.',
+      '',
+      'Add one with:',
+      '  /schedule mission <cron> <goal>',
+      '  /schedule loop <cron> <chip> [rounds]',
+    ].join('\n');
+  }
   const lines = [`Schedules (${schedules.length}):`, ''];
   for (const s of schedules) {
     lines.push(humanSummary(s));
