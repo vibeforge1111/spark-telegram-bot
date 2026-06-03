@@ -5612,7 +5612,11 @@ async function handleSparkAccessAction(ctx: any, actionId: SparkAccessActionId, 
     }
   } catch (error) {
     const detail = redactText(error instanceof Error ? error.message : String(error));
-    await ctx.reply(`Spark access action failed: ${detail}`);
+    const isDockerError = /docker|sandbox/i.test(detail);
+    const repairHint = isDockerError
+      ? '\n\nRepair\n• Make sure Docker Desktop is installed and running.\n• Run: spark sandbox docker doctor --json in terminal for details.'
+      : '';
+    await ctx.reply(`Spark access action failed: ${detail}${repairHint}`);
   }
 }
 
