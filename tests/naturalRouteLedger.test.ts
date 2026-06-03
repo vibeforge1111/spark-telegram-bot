@@ -26,6 +26,16 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 }
 
 async function run(): Promise<void> {
+  await test('skips malformed JSONL rows while preserving valid route evidence', () => {
+    const valid = JSON.stringify({
+      schema_version: 'spark.natural_route.execution.v1',
+      shadow_route: 'plain_chat'
+    });
+    const parsed = parseNaturalRouteExecutionLedger(`${valid}\n{"broken":\n`);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].shadow_route, 'plain_chat');
+  });
+
   await test('creates a route execution record without raw text or payload fields', () => {
     const decision = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\spark-timer: a tiny timer app');
     const record = createNaturalRouteExecutionRecord({
