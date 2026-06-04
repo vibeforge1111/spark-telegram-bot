@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
@@ -312,7 +313,23 @@ function renderTelegramError(prefix: string, error: unknown): string {
 }
 
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
-  const resolvedCommand = resolveWindowsCommand('spark');
+  // The bot process is usually launched by systemd / a launcher / a Telegram
+  // service that does not inherit the user's interactive shell PATH. `spark`
+  // lives at `$SPARK_HOME/bin/spark` (default `~/.spark/bin/spark`). Prepend
+  // that directory to PATH so `resolveWindowsCommand('spark')` and the
+  // execFile lookup can find the binary on every platform.
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  const sparkBinDir = path.join(sparkHome, 'bin');
+  const inheritedEnv: NodeJS.ProcessEnv = { ...process.env };
+  if (existsSync(sparkBinDir)) {
+    const currentPath = inheritedEnv.PATH || inheritedEnv.Path || inheritedEnv.path || '';
+    const delim = path.delimiter;
+    const pathDirs = currentPath.split(delim).filter(Boolean);
+    if (!pathDirs.includes(sparkBinDir)) {
+      inheritedEnv.PATH = [sparkBinDir, ...pathDirs].join(delim);
+    }
+  }
+  const resolvedCommand = resolveWindowsCommand('spark', inheritedEnv);
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
     ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolvedCommand, args)]
     : process.platform === 'win32' && /\.ps1$/i.test(resolvedCommand)
@@ -324,6 +341,7 @@ async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> 
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
+      env: inheritedEnv,
     })
   );
   return redactText([stdout, stderr].map((value) => String(value || '').trim()).filter(Boolean).join('\n'));
