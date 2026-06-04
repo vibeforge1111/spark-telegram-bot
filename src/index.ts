@@ -179,6 +179,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  buildRuntimeOutputArtifactReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -214,6 +215,7 @@ import {
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  isRuntimeOutputArtifactRequest,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -6635,6 +6637,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               ? await spawner.latestFailureSummary()
           : await spawner.board();
       await ctx.reply(result.success ? result.message : `Board failed: ${result.message}`);
+      return;
+    }
+
+    if (isRuntimeOutputArtifactRequest(text) && deterministicRouteAllowed('spawner.local_service', text)) {
+      await conversation.remember(user, text).catch(() => {});
+      await ctx.reply(buildRuntimeOutputArtifactReply());
       return;
     }
 
