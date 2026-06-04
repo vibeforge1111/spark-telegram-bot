@@ -12,6 +12,7 @@ export interface TelegramCommandTelemetryInput {
   errorName?: string | null;
 }
 
+// guard: null-safe wrapping
 function safeField(value: string | number | null | undefined, fallback = 'unknown'): string {
   const text = String(value ?? '').trim();
   return text ? text.replace(/\s+/g, '_') : fallback;
