@@ -100,6 +100,21 @@ async function main(): Promise<void> {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  await test('redacts local workspace root error details before rendering', () => {
+    const reply = renderLocalWorkspaceInspectionReply({
+      roots: [{
+        path: '/tmp/spark-workspaces',
+        exists: true,
+        error: 'scan failed: OPENAI_API_KEY=sk-placeholder-local-workspace-token-123456'
+      }],
+      projects: [],
+      truncated: false
+    });
+
+    assert.match(reply, /OPENAI_API_KEY=\*\*\*/);
+    assert.doesNotMatch(reply, /sk-placeholder-local-workspace-token-123456/);
+  });
 }
 
 void main();

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseBuildIntent } from './buildIntent';
+import { redactText } from './redaction';
 
 export interface LocalWorkspaceRootSummary {
   path: string;
@@ -164,7 +165,7 @@ function relativeAge(timestamp: string): string {
 
 export function renderLocalWorkspaceInspectionReply(summary: LocalWorkspaceSummary): string {
   const rootLines = summary.roots.map((root) => {
-    const status = root.error ? `error: ${root.error}` : root.exists ? 'ok' : 'missing';
+    const status = root.error ? `error: ${redactText(root.error)}` : root.exists ? 'ok' : 'missing';
     return `- ${root.path} (${status})`;
   });
 
