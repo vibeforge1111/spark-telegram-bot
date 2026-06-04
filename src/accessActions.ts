@@ -240,11 +240,21 @@ export function formatSparkAccessActionReply(actionId: SparkAccessActionId, payl
     ].filter(Boolean).join('\n');
   }
   if (actionId === 'docker_smoke') {
-    return [
+    const lines = [
       ok ? 'Docker sandbox smoke passed.' : 'Docker sandbox smoke failed.',
       'This smoke is designed to run without Spark secrets, home-folder mounts, or Docker socket access.',
       String(payload.next || ''),
-    ].filter(Boolean).join('\n');
+    ];
+    if (!ok) {
+      lines.push(
+        '',
+        'Common causes:',
+        '- Docker is not installed: install Docker Desktop (macOS/Windows) or docker-ce (Linux) and retry.',
+        '- Docker is installed but the daemon is not running: start Docker Desktop or `sudo systemctl start docker`.',
+        '- The current user cannot reach the Docker socket: add yourself to the docker group (Linux) or run Spark from a shell that can talk to Docker.'
+      );
+    }
+    return lines.filter(Boolean).join('\n');
   }
   if (actionId === 'level5_enable') {
     const state = objectValue(payload.level5);
