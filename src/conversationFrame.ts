@@ -653,3 +653,5 @@ function renderArtifact(artifact: ConversationArtifact): string {
   if (!artifact.items.length) return `${artifact.kind}:${artifact.title}`;
   return [`${artifact.kind}:${artifact.title}`, ...artifact.items.map((item, index) => `${index + 1}. ${item}`)].join('\n');
 }
+
+// spark-compete: defensive guard audit
