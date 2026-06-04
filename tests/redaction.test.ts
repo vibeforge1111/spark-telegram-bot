@@ -23,6 +23,8 @@ test('redacts common credential shapes', () => {
   const text = [
     `OPENAI_API_KEY=${openAiKeyFixture}`,
     'Authorization: Bearer github_pat_1234567890abcdefghijklmnopqrstuvwxyz',
+    'Authorization: Token custom-token-secret-value',
+    'Authorization: ApiKey custom-apikey-secret-value',
     `BOT_TOKEN=${telegramTokenFixture}`,
     `--access-token ${swarmCliTokenFixture}`,
     '"password":"super-secret-value"',
@@ -30,6 +32,8 @@ test('redacts common credential shapes', () => {
   ].join('\n');
   const redacted = redactText(text);
   assert(!redacted.includes('abcdefghijklmnopqrstuvwxyz123456'));
+  assert(!redacted.includes('custom-token-secret-value'));
+  assert(!redacted.includes('custom-apikey-secret-value'));
   assert(!redacted.includes(telegramTokenFixture));
   assert(!redacted.includes(swarmCliTokenFixture));
   assert(!redacted.includes('super-secret-value'));

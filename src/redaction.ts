@@ -23,7 +23,7 @@ const ENV_SECRET_ASSIGNMENT =
   /\b([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*\s*=\s*)(["']?)([^\s"',;]+)/gi;
 const JSON_SECRET_FIELD =
   /(["']?[A-Za-z0-9_]*(?:api[_-]?key|token|secret|password|private[_-]?key)["']?\s*:\s*["'])([^"']+)(["'])/gi;
-const AUTH_HEADER = /\b(Authorization\s*:\s*Bearer\s+)([A-Za-z0-9._~+/=-]{12,})/gi;
+const AUTH_HEADER = /\b(Authorization\s*:\s*(?:Bearer|Token|ApiKey|OAuth)\s+)([^\r\n,;]+)/gi;
 const DATABASE_URL = /\b((?:postgres|postgresql|mysql|mongodb|redis):\/\/)([^@\s]+)@/gi;
 
 let consoleRedactionInstalled = false;
