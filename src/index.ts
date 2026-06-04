@@ -161,6 +161,11 @@ import {
 import { buildDiagnoseReport } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
+import {
+  isDestructiveRunConfirmationText,
+  isDestructiveRunGoal,
+  renderDestructiveRunConfirmationPrompt
+} from './runDestructiveGuard';
 import { readMemoryMovementSummary, renderMemoryMovementSummary } from './memoryMovement';
 import { readTraceRepairSummary, renderTraceRepairSummary } from './traceRepair';
 import { parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
@@ -1749,8 +1754,17 @@ interface PendingMissionCancelConfirmation {
   timestamp: number;
 }
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
+interface PendingDestructiveRunConfirmation {
+  goal: string;
+  providers: string[];
+  requiredAccess?: SparkAccessRequirement;
+  options: RunCommandOptions;
+  timestamp: number;
+}
+const pendingDestructiveRunConfirmations = new Map<string, PendingDestructiveRunConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const DESTRUCTIVE_RUN_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 // Periodic cleanup of stale entries in all unbounded maps
 const mapCleanupTimer = setInterval(() => {
@@ -1780,6 +1794,11 @@ const mapCleanupTimer = setInterval(() => {
       pendingMissionCancelConfirmations.delete(key);
     }
   }
+  for (const [key, entry] of pendingDestructiveRunConfirmations) {
+    if (now - entry.timestamp > DESTRUCTIVE_RUN_CONFIRMATION_TTL_MS) {
+      pendingDestructiveRunConfirmations.delete(key);
+    }
+  }
 }, MAP_CLEANUP_INTERVAL_MS);
 mapCleanupTimer.unref?.();
 
@@ -1792,7 +1811,8 @@ function clearPendingExecutionState(key: string): boolean {
   const hadDomainChip = pendingDomainChipBuilds.delete(key);
   const hadCreatorMission = pendingCreatorMissions.delete(key);
   const hadMissionCancel = pendingMissionCancelConfirmations.delete(key);
-  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel;
+  const hadDestructiveRun = pendingDestructiveRunConfirmations.delete(key);
+  return hadClarification || hadDomainChip || hadCreatorMission || hadMissionCancel || hadDestructiveRun;
 }
 
 function missionCancelConfirmationKey(ctx: any): string {
@@ -1805,6 +1825,31 @@ function isMissionCancelConfirmationText(text: string): boolean {
     /^(?:yes[,\s]+)?(?:cancel|kill|stop)\s+(?:it|that|that\s+mission|this\s+mission|the\s+mission)$/.test(normalized) ||
     /^confirm\s+(?:cancel|kill|stop)(?:\s+(?:it|that|that\s+mission|this\s+mission|the\s+mission))?$/.test(normalized)
   );
+}
+
+async function handlePendingDestructiveRunConfirmation(ctx: any, text: string): Promise<boolean> {
+  if (!isDestructiveRunConfirmationText(text)) return false;
+
+  const key = missionCancelConfirmationKey(ctx);
+  const pending = pendingDestructiveRunConfirmations.get(key);
+  if (!pending) return false;
+
+  pendingDestructiveRunConfirmations.delete(key);
+  await conversation.remember(ctx.from, text).catch(() => {});
+
+  if (Date.now() - pending.timestamp > DESTRUCTIVE_RUN_CONFIRMATION_TTL_MS) {
+    await ctx.reply('That destructive /run confirmation expired. Send `/run` again if you still want to proceed.');
+    return true;
+  }
+
+  await handleRunCommand(
+    ctx,
+    pending.goal,
+    pending.providers,
+    pending.requiredAccess,
+    { ...pending.options, confirmedDestructiveRun: true }
+  );
+  return true;
 }
 
 async function handlePendingMissionCancelConfirmation(ctx: any, text: string): Promise<boolean> {
@@ -4639,6 +4684,7 @@ interface RunCommandOptions {
   allowBuildIntent?: boolean;
   missionName?: string;
   relayGoal?: string;
+  confirmedDestructiveRun?: boolean;
 }
 
 export async function handleRunCommand(
@@ -4661,6 +4707,18 @@ export async function handleRunCommand(
       buildIntent.buildLane,
       buildIntent.buildLaneReason
     );
+    return null;
+  }
+
+  if (!options.confirmedDestructiveRun && isDestructiveRunGoal(goal)) {
+    pendingDestructiveRunConfirmations.set(missionCancelConfirmationKey(ctx), {
+      goal,
+      providers,
+      requiredAccess,
+      options: { ...options },
+      timestamp: Date.now()
+    });
+    await ctx.reply(renderDestructiveRunConfirmationPrompt(goal));
     return null;
   }
 
@@ -6387,6 +6445,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const buildIntent = earlyBuildIntent;
     const pendingExecutionKey = `${ctx.chat.id}-${ctx.from.id}`;
     const pendingClarification = pendingClarificationForMessage(pendingExecutionKey, text);
+
+    if (await handlePendingDestructiveRunConfirmation(ctx, text)) {
+      return;
+    }
 
     if (await handlePendingMissionCancelConfirmation(ctx, text)) {
       return;
