@@ -354,15 +354,43 @@ export class ConversationMemory {
   }
 
   async remember(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'user', message);
+    try {
+      await this.pushBounded(this.recentByUser, this.userKey(user), `User: ${message}`, this.maxRecent);
+      await this.updateRollingFrame(user, 'user', message);
+    } catch (error) {
+      this.handleMemoryFailure('remember', error);
+    }
     return null;
   }
 
   async rememberAssistantReply(user: TelegramUser, message: string): Promise<Memory | null> {
-    await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
-    await this.updateRollingFrame(user, 'assistant', message);
+    try {
+      await this.pushBounded(this.recentByUser, this.userKey(user), `Spark: ${message}`, this.maxRecent);
+      await this.updateRollingFrame(user, 'assistant', message);
+    } catch (error) {
+      this.handleMemoryFailure('rememberAssistantReply', error);
+    }
     return null;
+  }
+
+  private memoryDegradedSince: number | null = null;
+  private memoryFailureCount = 0;
+
+  isMemoryDegraded(): boolean {
+    return this.memoryDegradedSince !== null;
+  }
+
+  memoryDegradedSummary(): { since: number | null; failures: number } {
+    return { since: this.memoryDegradedSince, failures: this.memoryFailureCount };
+  }
+
+  private handleMemoryFailure(operation: string, error: unknown): void {
+    if (this.memoryDegradedSince === null) {
+      this.memoryDegradedSince = Date.now();
+    }
+    this.memoryFailureCount += 1;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[conversation] ${operation} failed: ${detail}`);
   }
 
   private async updateRollingFrame(user: TelegramUser, role: 'user' | 'assistant', text: string): Promise<void> {
