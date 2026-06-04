@@ -64,6 +64,42 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
+export function isRawLogSafetyQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+
+  const mentionsLogs =
+    /\braw\s+logs?\b/.test(normalized) ||
+    /\bfull\s+logs?\b/.test(normalized) ||
+    /\blogs?\b.{0,40}\b(?:last\s+\d+\s+lines?|tail|excerpt|paste|share)\b/.test(normalized);
+  const asksWhetherToPaste =
+    /\b(?:should|can|could|may)\s+i\s+(?:paste|share|send|include)\b/.test(normalized) ||
+    /\b(?:paste|share|send|include)\b.{0,50}\b(?:here|chat|pr|proof|issue)\b/.test(normalized);
+  const safetyContext =
+    /\b(?:bug|debug|diagnos|troubleshoot|proof|evidence|spark\s+compete|help)\b/.test(normalized) ||
+    /\blast\s+\d+\s+lines?\b/.test(normalized);
+
+  return mentionsLogs && asksWhetherToPaste && safetyContext;
+}
+
+export function renderRawLogSafetyReply(): string {
+  return [
+    'Do not paste full raw logs.',
+    '',
+    'Share only a short, bounded, redacted excerpt if it is needed to prove the issue.',
+    '',
+    'Remove or hide:',
+    '- tokens, API keys, bot tokens, private keys, wallet material',
+    '- chat IDs, private usernames, private Telegram messages',
+    '- .env values, local private paths, cookies, SSH keys, deploy keys',
+    '- raw memory bodies, private repo maps, and full compile JSON',
+    '',
+    'Safer proof: a redacted screenshot, exact repro steps, the command/action used, the user-visible error, and a short pass/fail summary.'
+  ].join('\n');
+}
+
 export function isSparkWikiStatusQuestion(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -423,7 +459,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
 
 export function isMemoryDoctorRequest(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
-  if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+  if (!normalized || isRawLogSafetyQuestion(normalized) || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
 

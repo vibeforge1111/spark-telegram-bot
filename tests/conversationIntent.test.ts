@@ -59,6 +59,7 @@ import {
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
+  isRawLogSafetyQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderRawLogSafetyReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -953,6 +955,18 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
     assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
     assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
   }
+});
+
+test('answers raw-log sharing questions with safety guidance instead of Memory Doctor', () => {
+  const prompt = 'I have a Spark bug and I think the logs may help. Should I paste the full raw logs here, including everything from the last 200 lines?';
+
+  assert.equal(isRawLogSafetyQuestion(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+  const reply = renderRawLogSafetyReply();
+  assert.match(reply, /Do not paste full raw logs/);
+  assert.match(reply, /short, bounded, redacted excerpt/);
+  assert.match(reply, /tokens, API keys, bot tokens/);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {

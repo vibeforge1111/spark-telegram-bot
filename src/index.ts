@@ -206,6 +206,7 @@ import {
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
+  isRawLogSafetyQuestion,
   isSparkChipStatusOverclaimQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkWorkflowBugHuntRequest,
@@ -222,6 +223,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderRawLogSafetyReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -5850,6 +5852,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_proof_boundary', 'spark-telegram-bot', 'answer');
     await ctx.reply(browserProofAnswer);
     await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isRawLogSafetyQuestion(text)) {
+    const reply = renderRawLogSafetyReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'proof.log_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 

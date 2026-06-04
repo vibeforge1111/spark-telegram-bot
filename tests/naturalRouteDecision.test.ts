@@ -163,6 +163,17 @@ test('routes Memory Doctor and answer-audit wording to Builder despite stale cre
   }
 });
 
+test('routes raw-log sharing safety questions to chat guidance', () => {
+  const route = decideNaturalRoute(
+    'I have a Spark bug and I think the logs may help. Should I paste the full raw logs here, including everything from the last 200 lines?'
+  );
+
+  assert.equal(route.route, 'proof.log_safety');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.requires_confirmation, false);
+  assert.equal(route.action, 'plain_chat.safety_guidance');
+});
+
 test('routes explicit domain-chip creation before creator or build routes', () => {
   const route = decideNaturalRoute('build a domain-chip for Telegram memory routing');
 
