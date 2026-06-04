@@ -1,3 +1,8 @@
+
+function isSelfCritiqueRequest(text: string): boolean {
+  return /critique your own response|critique your previous response|review your previous answer|review your answer|identify weaknesses|improve it|self[- ]?critique|rewrite it better|do not use memory tools/i.test(text);
+}
+
 export interface MemoryDoctorEvidenceTurn {
   role: 'user' | 'assistant' | string;
   text: string;
@@ -19,6 +24,7 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
+  if (isSelfCritiqueRequest(text)) return false;
   return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
 }
 

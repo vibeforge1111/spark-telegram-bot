@@ -1,3 +1,13 @@
+
+function isMemoryForgetRequest(text: string): boolean {
+  return /(forget my last memory|forget memory|delete memory|remove memory)/i.test(text);
+}
+
+
+function isSelfCritiqueRequest(text: string): boolean {
+  return /critique your own response|critique your previous response|review your answer|identify weaknesses|improve it|self[- ]?critique|rewrite it better/i.test(text);
+}
+
 import {
   parseBuildIntent,
   type BuildIntent
@@ -101,10 +111,10 @@ function decision(input: Omit<NaturalRouteDecision, 'schema_version'>): NaturalR
 
 function noRoute(text: string, blockedBy: string[] = ['no_matching_route']): NaturalRouteDecision {
   return decision({
-    route: 'plain_chat',
+    route: isMemoryForgetRequest(text) ? 'memory.doctor' : 'plain_chat',
     owner_system: 'none',
     confidence: text.trim() ? 'weak' : 'blocked',
-    action: 'plain_chat',
+    action: isMemoryForgetRequest(text) ? 'memory.doctor' : 'plain_chat',
     payload: {},
     context_source: text.trim() ? 'latest_message' : 'none',
     matched_signals: [],
@@ -480,13 +490,13 @@ export function decideNaturalRoute(
   if (isMemoryDoctorRequest(normalized)) {
     const contextual = /\b(?:previous|last|recent|current|turn|reply|answer|response|request|message|what\s+happened)\b/i.test(normalized);
     return decision({
-      route: 'memory.doctor',
+      route: isSelfCritiqueRequest(text) ? 'chat' : 'memory.doctor',
       owner_system: 'spark-intelligence-builder',
       confidence: 'explicit',
-      action: 'memory.doctor',
+      action: isSelfCritiqueRequest(text) ? 'chat' : 'memory.doctor',
       payload: {},
       context_source: contextual && hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
-      matched_signals: ['memory_doctor_request'],
+      matched_signals: isSelfCritiqueRequest(text) ? ['self_critique_request'] : ['memory_doctor_request'],
       blocked_by: [],
       requires_confirmation: false
     });

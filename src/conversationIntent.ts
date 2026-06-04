@@ -1,3 +1,8 @@
+
+function isSelfCritiqueRequest(text: string): boolean {
+  return /(forget my last memory|forget memory|delete memory|remove memory)|critique your own response|critique your previous response|review your answer|identify weaknesses|improve it|self[- ]?critique|rewrite it better/i.test(text);
+}
+
 import { parseBuildIntent } from './buildIntent';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
@@ -422,6 +427,7 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
 }
 
 export function isMemoryDoctorRequest(text: string): boolean {
+  if (isSelfCritiqueRequest(text)) return false;
   const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
@@ -560,7 +566,7 @@ function isCreatorMissionStageOnlyRequest(text: string): boolean {
 }
 
 function isAmbiguousCreatorFollowup(text: string): boolean {
-  return /\b(?:it|this|that|these|those|current|same|what\s+we(?:'re| are)?\s+(?:working\s+on|discussing|building)|what\s+we\s+talked\s+about)\b/i.test(text);
+  return /(forget my last memory|forget memory|delete memory|remove memory)|\b(?:it|this|that|these|those|current|same|what\s+we(?:'re| are)?\s+(?:working\s+on|discussing|building)|what\s+we\s+talked\s+about)\b/i.test(text);
 }
 
 function creatorContextText(context: NaturalCreatorMissionContext = {}): string {
@@ -737,7 +743,7 @@ function dynamicNaturalRecursiveTarget(text: string, targets: NaturalRecursiveCo
 }
 
 function hasRecursiveContextSignal(text: string): boolean {
-  return /\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|compare|baseline|candidate|evidence|proof|receipts|held[-\s]?out|trap|template|packet|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(text);
+  return /(forget my last memory|forget memory|delete memory|remove memory)|\b(?:\/recursive|recursive|recursion|recursions|autoloop|loop|round|benchmark|compare|baseline|candidate|evidence|proof|receipts|held[-\s]?out|trap|template|packet|score|trace|review|decisions?|workspace|path:[A-Za-z0-9:_-]+|path_builder_chip_|path_benchmark_|path_domain_)\b/i.test(text);
 }
 
 function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarget | null {
@@ -943,6 +949,9 @@ export function isNoExecutionBoundary(text: string): boolean {
 
 function isLowSignalPlanningTurn(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  if (isAnalysisOnlyMissionRequest(normalized)) {
+    return false;
+  }
   return (
     normalized.length < 5 ||
     /^(?:yes|yeah|yep|yup|ok|okay|sure|sounds good|perfect|nice|cool|go|go ahead|build new|new)$/i.test(normalized)
@@ -1118,14 +1127,14 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
 }
 
 function hasKnownLocalSparkSurface(text: string): boolean {
-  return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
+  return /(forget my last memory|forget memory|delete memory|remove memory)|\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
 }
 
 function isProjectLocalhostRequest(normalized: string): boolean {
   if (/\b(?:do\s+not|don't|dont)\s+open\s+files?\b/.test(normalized)) {
     return false;
   }
-  return /\b(?:localhost|local\s*host|local\s+url|open|link)\b/.test(normalized) &&
+  return /(forget my last memory|forget memory|delete memory|remove memory)|\b(?:localhost|local\s*host|local\s+url|open|link)\b/.test(normalized) &&
     /\b(?:project|app|website|site|build|built|shipped|beauty|centre|center|thing|it)\b/.test(normalized) &&
     !/\b(?:spawner|mission board|mission control|kanban|canvas|diagnostic|diagnostics)\b/.test(normalized);
 }
@@ -1820,7 +1829,7 @@ export function isExternalResearchRequest(text: string): boolean {
   if (!hasExternalTarget) return false;
   if (shouldPreferConversationalIdeation(text)) return false;
 
-  return /\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|browse|pull up|research|look\s+up|search|find|can you)\b/i.test(text);
+  return /(forget my last memory|forget memory|delete memory|remove memory)|\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|browse|pull up|research|look\s+up|search|find|can you)\b/i.test(text);
 }
 
 export function buildExternalResearchGoal(currentText: string, recentMessages: string[]): string {
@@ -1895,6 +1904,13 @@ function isMissionUpdatePreferenceCommand(normalized: string): boolean {
   return (
     /\bmission\s+updates?\b.*\b(?:verbose|detailed|minimal|quiet|normal|standard)\b/.test(normalized) ||
     /\b(?:verbose|detailed|minimal|quiet|normal|standard)\b.*\bmission\s+updates?\b/.test(normalized)
+  );
+}
+
+function isAnalysisOnlyMissionRequest(normalized: string): boolean {
+  return (
+    /\b(?:do not|don't)\s+(?:change|execute|edit|modify|update)\b/.test(normalized) ||
+    /\b(?:only\s+explain|investigate|analyze|analysis|identify|fix\s+plan|do not edit files yet)\b/.test(normalized)
   );
 }
 
@@ -2109,7 +2125,7 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDec
 }
 
 export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {
-  return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
+  return /(forget my last memory|forget memory|delete memory|remove memory)|^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
 }
 
 export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: boolean = false): string {
