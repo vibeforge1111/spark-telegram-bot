@@ -201,6 +201,7 @@ import {
   isExternalResearchRequest,
   isExplicitContextualBuildRequest,
   isGlobalAgentDoctrineRequest,
+  isMemoryVoiceStateQuestion,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isProtectedMissionCancelPronounIntent,
@@ -221,6 +222,7 @@ import {
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
+  renderMemoryVoiceStateReply,
   renderMissionRoutingFailureClassReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
@@ -6025,6 +6027,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       });
       await conversation.learnAboutUser(user, `Started Spawner golden-path probe mission ${missionId} from Telegram; requested exact reply: ${replyPhrase}.`).catch(() => {});
     }
+    return;
+  }
+
+  if (!earlyBuildIntent && isMemoryVoiceStateQuestion(text)) {
+    const reply = renderMemoryVoiceStateReply(text);
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.memory_voice_state', 'spark-telegram-bot', 'plain_chat.state_boundary');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
 
