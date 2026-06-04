@@ -216,6 +216,12 @@ function isRetryableLocalServiceError(err: any): boolean {
   );
 }
 
+const RETRY_DELAY_MS = 800;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function postLocalServiceWithRetry<T = any>(
   url: string,
   body: unknown,
@@ -225,6 +231,7 @@ export async function postLocalServiceWithRetry<T = any>(
     return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
+    await delay(RETRY_DELAY_MS);
     try {
       return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
     } catch (retryErr: any) {
