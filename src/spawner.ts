@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
@@ -244,12 +245,20 @@ export async function postLocalServiceWithRetry<T = any>(
   body: unknown,
   timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
 ): Promise<{ data: T }> {
+  // Generate a stable Idempotency-Key once so the retry POST carries the same
+  // key as the first attempt. Spawner-UI endpoints that dedupe on this header
+  // see the retry as a re-delivery and skip the duplicate side effect; servers
+  // that ignore unknown headers see a no-op so the change is forward-compatible.
+  const idempotencyKey = randomUUID();
+  const baseOptions = spawnerAxiosOptions(timeoutMs, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
   try {
-    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+    return await axios.post(url, body, baseOptions);
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
     try {
-      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+      return await axios.post(url, body, baseOptions);
     } catch (retryErr: any) {
       const original = err?.message || 'local service request failed';
       const retry = retryErr?.message || 'retry failed';
