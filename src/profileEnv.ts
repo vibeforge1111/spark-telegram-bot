@@ -32,6 +32,31 @@ export function sparkConfigModulesDir(env: NodeJS.ProcessEnv = process.env): str
   return path.join(sparkHome, 'config', 'modules');
 }
 
+export function sparkConfigAgentsDir(env: NodeJS.ProcessEnv = process.env): string {
+  const sparkHome = env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return path.join(sparkHome, 'config', 'agents');
+}
+
+export function safeAgentEnvName(agentName: string): string | null {
+  const trimmed = agentName.trim();
+  if (!/^[A-Za-z0-9._-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function loadSparkAgentEnv(agentName: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  const safeName = safeAgentEnvName(agentName);
+  if (!safeName) return [];
+  const loaded: string[] = [];
+  const commonFile = path.join(sparkConfigAgentsDir(env), 'spark-common.env');
+  const agentFile = path.join(sparkConfigAgentsDir(env), `${safeName}.env`);
+  for (const file of [commonFile, agentFile]) {
+    if (!fs.existsSync(file)) continue;
+    loadEnvFileIntoProcess(file, env);
+    loaded.push(file);
+  }
+  return loaded;
+}
+
 export function readSparkSecret(secretId: string): string | null {
   const viaPython = readSparkSecretViaPythonBridge(secretId);
   if (viaPython) return viaPython;
@@ -80,6 +105,9 @@ function readSparkSecretViaPythonBridge(secretId: string): string | null {
 export function loadSparkTelegramProfileEnv(args: string[], env: NodeJS.ProcessEnv = process.env): string | null {
   const profile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
   if (!profile) return null;
+
+  loadSparkAgentEnv('spark-telegram-bot', env);
+  loadSparkAgentEnv(`spark-telegram-bot.${profile}`, env);
 
   const configDir = sparkConfigModulesDir(env);
   loadEnvFileIntoProcess(path.join(configDir, 'spark-telegram-bot.env'), env);

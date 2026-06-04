@@ -45,6 +45,8 @@ import {
   renderSparkThreadQaGoldenCaseReply,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
+  isXContentCredentialBoundaryQuestion,
+  isXPostReviewFromLinksRequest,
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isMissionExecutionConfirmation,
@@ -68,6 +70,8 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderXContentCredentialBoundaryReply,
+  renderXPostReviewFromLinksBoundaryReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -1789,6 +1793,33 @@ test('recognizes fuzzy access system help questions', () => {
   assert.equal(isAccessHelpQuestion('is there a permission management surface for this chat?'), true);
   assert.equal(isAccessHelpQuestion('please remember that access levels matter to me'), false);
   assert.equal(isAccessHelpQuestion('I like access to clean design tools'), false);
+});
+
+test('keeps XContent bearer-token questions on the Spark agent env boundary', () => {
+  assert.equal(
+    isXContentCredentialBoundaryQuestion('we had x bearer tokens in xcontent tool can we fetch it from there'),
+    true
+  );
+  assert.equal(isXContentCredentialBoundaryQuestion('can XContent polish this post?'), false);
+
+  const reply = renderXContentCredentialBoundaryReply();
+  assert.match(reply, /should not fetch or expose bearer tokens from XContent/);
+  assert.match(reply, /SPARK_X_BEARER_TOKEN/);
+  assert.match(reply, /premium content chip/);
+});
+
+test('keeps X post links separate from the premium XContent route', () => {
+  const prompt = [
+    'let me share you the most recent updates i shared on X too',
+    'https://x.com/meta_alchemist/status/2060300738040082786',
+    'https://x.com/Spark_coded/status/2060349528503726357'
+  ].join('\n');
+
+  assert.equal(isXPostReviewFromLinksRequest(prompt), true);
+  const reply = renderXPostReviewFromLinksBoundaryReply();
+  assert.match(reply, /basic X reads/);
+  assert.match(reply, /XContent is the premium route/);
+  assert.doesNotMatch(reply, /Bearer/i);
 });
 
 test('provides a conversational fallback for mission dashboard refinement', () => {
