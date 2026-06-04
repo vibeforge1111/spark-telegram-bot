@@ -176,7 +176,14 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
-  return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  const raw = fs.readFileSync(filePath, 'utf8');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Failed to parse conversation smoke scenarios from ${filePath}: invalid JSON`);
+  }
+  return parseConversationSmokeScenarios(parsed);
 }
 
 export function runConversationSmokeScenarios(scenarios: ConversationSmokeScenario[]): ConversationSmokeSummary {
