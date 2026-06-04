@@ -56,3 +56,25 @@ test('redacts stable Telegram identifiers without raw IDs', () => {
   assert(!ref.includes('8319079055'));
   assert.equal(redactIdentifier(null, 'user'), 'unknown');
 });
+test('redactTelegramIds strips telegram: prefixed numeric IDs', () => {
+  const { redactTelegramIds } = require('../src/redaction');
+  const input = 'Memory Doctor: healthy. Request: telegram:768628429. Brain: visible.';
+  const output = redactTelegramIds(input);
+  assert(!output.includes('768628429'), 'Telegram ID should be redacted');
+  assert(output.includes('[TELEGRAM_ID_REDACTED]'), 'Should contain redaction marker');
+});
+
+test('redactTelegramIds strips multiple Telegram IDs in one message', () => {
+  const { redactTelegramIds } = require('../src/redaction');
+  const input = 'user telegram:768628429 and admin telegram:1145923083 both connected';
+  const output = redactTelegramIds(input);
+  assert(!output.includes('768628429'), 'First ID should be redacted');
+  assert(!output.includes('1145923083'), 'Second ID should be redacted');
+});
+
+test('redactTelegramIds does not affect normal text without IDs', () => {
+  const { redactTelegramIds } = require('../src/redaction');
+  const input = 'Memory Doctor: healthy. No issues found. Brain visibility 81/100.';
+  const output = redactTelegramIds(input);
+  assert.equal(output, input, 'Normal text should pass through unchanged');
+});
