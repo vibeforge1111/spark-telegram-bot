@@ -36,6 +36,25 @@ test('redacts common credential shapes', () => {
   assert(!redacted.includes('user:pass'));
 });
 
+test('redacts local user-home paths', () => {
+  const macPath = ['', 'Users', 'alice', 'private', 'auth.json'].join('/');
+  const linuxPath = ['', 'home', 'alice', 'private', 'poll.json'].join('/');
+  const windowsPath = ['C:', 'Users', 'Alice', 'private', 'cache.json'].join('\\');
+  const redacted = redactText([
+    `draft failed at ${macPath}`,
+    `poll failed at ${linuxPath}`,
+    `cache failed at ${windowsPath}`,
+  ].join('\n'));
+
+  assert.equal((redacted.match(/\[REDACTED_LOCAL_PATH\]/g) || []).length, 3);
+  assert(!redacted.includes(macPath));
+  assert(!redacted.includes(linuxPath));
+  assert(!redacted.includes(windowsPath));
+  assert(!redacted.includes('auth.json'));
+  assert(!redacted.includes('poll.json'));
+  assert(!redacted.includes('cache.json'));
+});
+
 test('redacts bare fe provider keys without hiding ordinary feature flags', () => {
   const openAiFederatedKey = `fe_oa_${'A'.repeat(24)}`;
   const bringKey = `fe_bri_${'B'.repeat(24)}`;
