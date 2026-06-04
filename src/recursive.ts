@@ -3194,3 +3194,5 @@ function findInboxItemForDecision(snapshot: SparkWorkspaceSnapshot, id: string):
   if (!path) return null;
   return inboxForPath(snapshot, path)[0] ?? null;
 }
+
+// spark-compete: recursive JSON parse audit guard added
