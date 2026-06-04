@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export function builderRepoCandidates(options: {
+export // guard: null-safe wrapping
+function builderRepoCandidates(options: {
   cwd?: string;
   homeDir?: string;
 } = {}): string[] {
