@@ -132,15 +132,29 @@ export class ChipCreateMissionReporter {
     };
   }
 
+  private isTerminalEventType(type: string): boolean {
+    // Terminal events name the chip-create lifecycle outcome (mission completion,
+    // mission failure, per-task failure). Mission Control needs to see these
+    // even if an earlier progress emit failed once, otherwise an upstream Kanban
+    // board records the mission as "still running" forever.
+    return type === 'mission_completed' || type === 'mission_failed' || type === 'task_failed';
+  }
+
   private async emit(partial: Omit<MissionControlEvent, 'missionId' | 'missionName' | 'source'>): Promise<void> {
-    if (this.disabled) return;
+    const isTerminal = this.isTerminalEventType(partial.type);
+    if (this.disabled && !isTerminal) return;
     const ok = await emitMissionControlEvent({
       missionId: this.context.missionId,
       missionName: this.context.missionName,
       source: SOURCE,
       ...partial,
     }, this.post);
-    if (!ok) this.disabled = true;
+    if (!ok && !isTerminal) {
+      // Suppress NON-terminal progress emits after the first failure to avoid
+      // hammering a slow Mission Control endpoint; preserve terminal emits so
+      // the outcome still surfaces if the endpoint recovers in time.
+      this.disabled = true;
+    }
   }
 
   async created(): Promise<void> {
