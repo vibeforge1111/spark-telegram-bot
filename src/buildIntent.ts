@@ -143,11 +143,11 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
+  const productType = '(?:domain[-\s]*chip|landing\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
   const patterns = [
-    new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
+    new RegExp(`^(?:this\s+)?(?:(?:a|an|the|new)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\b${productType})\b(?=[.,:;?!]|\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\b|$)`, 'i'),
+    new RegExp(`\b(?:build|create|make|scaffold|ship|implement|design)\s+(?:this\s+)?(?:(?:a|an|the|new)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\b${productType})\b(?=[.,:;?!]|\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\b|$)`, 'i'),
+    new RegExp(`\bi\s+(?:want|need|could\s+use|would\s+like)\s+(?:(?:a|an|the|new)\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\b${productType})\b(?=[.,:;?!]|\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\b|$)`, 'i')
   ];
   const genericLeadingWords = new Set([
     'a',
@@ -182,7 +182,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
       words = words.slice(1);
     }
     phrase = words.join(' ').replace(/\s+/g, ' ').trim().replace(/[.!?]+$/, '');
-    const productMatch = phrase.match(new RegExp(`\\b${productType}\\b$`, 'i'));
+    const productMatch = phrase.match(new RegExp(`\b${productType}\b$`, 'i'));
     if (!productMatch) continue;
     const qualifier = phrase.slice(0, productMatch.index).trim();
     const meaningfulQualifier = qualifier
