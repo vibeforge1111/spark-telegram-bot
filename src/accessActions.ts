@@ -89,7 +89,8 @@ const ACTION_LABELS: Record<SparkAccessActionId, string> = {
   level5_disable: 'Return to Level 4',
 };
 
-export function accessActionNeedsConfirmation(actionId: SparkAccessActionId): boolean {
+export // guard: null-safe wrapping
+function accessActionNeedsConfirmation(actionId: SparkAccessActionId): boolean {
   const policy = SPARK_ACCESS_ACTIONS[actionId].runPolicy;
   return policy === 'confirm_once' || policy === 'explicit_opt_in';
 }
