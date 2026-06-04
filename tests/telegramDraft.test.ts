@@ -103,6 +103,32 @@ async function run(): Promise<void> {
     assert.match(String(calls[1].payload.text), /full Builder reply/);
   });
 
+  await test('full reply draft preview failures redact local paths in warning logs', async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      await replayTelegramDraftPreview(
+        { chat: { id: 42, type: 'private' } },
+        {
+          async callApi() {
+            throw new Error('failed at /Users/alice/private/telegram-drafts/cache.json');
+          },
+        },
+        'Hey Cem. This is a full Builder reply that should preview as a draft.',
+        { SPARK_TELEGRAM_CHAT_STREAMING: '1', SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '0' }
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /<local-path>/);
+    assert.doesNotMatch(warnings[0], /\/Users\/alice\/private\/telegram-drafts\/cache\.json/);
+  });
+
   await test('streamer sends stable draft id updates through sendMessageDraft', async () => {
     const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
     const streamer = createTelegramDraftStreamer(
@@ -125,6 +151,34 @@ async function run(): Promise<void> {
     assert.equal(calls[0].payload.text, 'Hel');
     assert.equal(calls[1].payload.text, 'Hello Spark');
     assert.equal(calls[1].payload.draft_id, calls[0].payload.draft_id);
+  });
+
+  await test('streamer draft failures redact local paths in warning logs', async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      const streamer = createTelegramDraftStreamer(
+        { chat: { id: 42, type: 'private' } },
+        {
+          async callApi() {
+            throw new Error('draft write failed at C:\\Users\\Alice\\Private\\draft-cache.json');
+          },
+        },
+        { SPARK_TELEGRAM_CHAT_STREAMING: '1', SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '0' }
+      );
+
+      assert.ok(streamer);
+      await streamer.push('Hello **Spark**');
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /<local-path>/);
+    assert.doesNotMatch(warnings[0], /C:\\Users\\Alice\\Private\\draft-cache\.json/);
   });
 
   await test('streamer throttles draft updates', async () => {

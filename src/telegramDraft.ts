@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { sanitizeOutbound } from './outboundSanitize';
+import { redactText } from './redaction';
 
 export interface TelegramDraftApi {
   callApi(method: string, payload: Record<string, unknown>): Promise<unknown>;
@@ -15,6 +16,8 @@ export type TelegramStreamingConfigAction =
 
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
+const TELEGRAM_DRAFT_LOCAL_PATH_PATTERN =
+  /\b[A-Z]:\\[^\s`'"]+|(?<![\w.])\/(?:Users|home|tmp|var|private|Volumes|workspace|mnt|root)\/[^\s`'"]+/gi;
 
 export function telegramDraftStreamingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.SPARK_TELEGRAM_CHAT_STREAMING === '1';
@@ -44,6 +47,12 @@ export function prepareTelegramDraftText(text: string): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeTelegramDraftFailureDetail(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  const redacted = redactText(detail).replace(TELEGRAM_DRAFT_LOCAL_PATH_PATTERN, '<local-path>').trim();
+  return redacted || 'draft update failed';
 }
 
 function sliceAtWord(text: string, target: number): string {
@@ -94,8 +103,7 @@ export async function replayTelegramDraftPreview(
       }
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.warn(`[TelegramDraft] ignored full-reply draft preview failure: ${detail}`);
+    console.warn(`[TelegramDraft] ignored full-reply draft preview failure: ${safeTelegramDraftFailureDetail(error)}`);
   }
 }
 
@@ -170,8 +178,7 @@ export function createTelegramDraftStreamer(
         lastText = draftText;
       } catch (error) {
         disabled = true;
-        const detail = error instanceof Error ? error.message : String(error);
-        console.warn(`[TelegramDraft] disabled after sendMessageDraft failure: ${detail}`);
+        console.warn(`[TelegramDraft] disabled after sendMessageDraft failure: ${safeTelegramDraftFailureDetail(error)}`);
       }
     },
   };
