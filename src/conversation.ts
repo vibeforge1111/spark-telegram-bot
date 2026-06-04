@@ -248,6 +248,8 @@ export class ConversationMemory {
   private readonly frameStateByUser = new Map<number, RollingConversationFrameState>();
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
+  private readonly maxInterrupted = 500;
+  private readonly maxFrameState = 500;
   private loaded = false;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
@@ -325,6 +327,17 @@ export class ConversationMemory {
     return record;
   }
 
+  private pruneMap<K, V>(map: Map<K, V>, maxSize: number): void {
+    if (map.size > maxSize) {
+      const excess = map.size - maxSize;
+      const keys = map.keys();
+      for (let i = 0; i < excess; i++) {
+        const oldest = keys.next().value;
+        if (oldest !== undefined) map.delete(oldest);
+      }
+    }
+  }
+
   private async persist(): Promise<void> {
     const interruptedByUser: Record<string, PendingTaskRecovery> = {};
     for (const [key, value] of this.interruptedByUser.entries()) {
@@ -375,6 +388,7 @@ export class ConversationMemory {
       createdAt: new Date().toISOString()
     });
     this.frameStateByUser.set(key, next);
+    this.pruneMap(this.frameStateByUser, this.maxFrameState);
     await this.persist();
   }
 
@@ -416,12 +430,14 @@ export class ConversationMemory {
     const message = input.message.trim();
     const failure = input.failure.trim();
     if (!message || !failure) return;
-    this.interruptedByUser.set(this.userKey(user), {
+    const iKey = this.userKey(user);
+    this.interruptedByUser.set(iKey, {
       message,
       failure,
       stage: input.stage?.trim() || undefined,
       recordedAt: new Date().toISOString()
     });
+    this.pruneMap(this.interruptedByUser, this.maxInterrupted);
     await this.persist();
   }
 
