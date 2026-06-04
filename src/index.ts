@@ -7772,7 +7772,11 @@ bot.command('chip', async (ctx) => {
   const prompt = parts.join(' ').trim();
 
   if (action !== 'create' || !prompt) {
-    return ctx.reply('Usage: /chip create <natural language description>');
+    return ctx.reply(
+      'Usage: /chip create <natural language description>\n' +
+        'Scaffolds a new domain chip from your brief and registers it with the router.\n' +
+        'Example: /chip create founder-pitch-coach that drills startup pitches with YC-style questions'
+    );
   }
 
   const authorization = telegramCommandActionAuthorityDecision(ctx, {
