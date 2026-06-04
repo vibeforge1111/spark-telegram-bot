@@ -5,6 +5,7 @@ import {
 import {
   buildExternalResearchGoal,
   buildProjectImprovementGoal,
+  classifySparkCompeteProofWorkflowRequest,
   extractAgentDoctrinePreference,
   extractPlainChatMemoryDirective,
   extractSparkSelfImprovementGoal,
@@ -248,6 +249,21 @@ export function decideNaturalRoute(
       payload: { text: normalized },
       context_source: 'slash_command',
       matched_signals: ['leading_slash'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const sparkCompeteProofWorkflow = classifySparkCompeteProofWorkflowRequest(normalized);
+  if (sparkCompeteProofWorkflow) {
+    return decision({
+      route: `conversation.spark_compete_${sparkCompeteProofWorkflow}`,
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.proof_workflow',
+      payload: { kind: sparkCompeteProofWorkflow },
+      context_source: 'latest_message',
+      matched_signals: ['spark_compete_proof_workflow_request'],
       blocked_by: [],
       requires_confirmation: false
     });

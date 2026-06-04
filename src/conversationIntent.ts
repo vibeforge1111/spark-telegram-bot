@@ -64,6 +64,66 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
+export type SparkCompeteProofWorkflowKind = 'bug_packet_draft' | 'proof_checklist';
+
+export function classifySparkCompeteProofWorkflowRequest(text: string): SparkCompeteProofWorkflowKind | null {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (!/\bspark\s+compete\b/.test(normalized)) {
+    return null;
+  }
+
+  const asksForPacketDraft =
+    /\b(?:bug\s+packet|packet\s+draft|reviewer[-\s]*ready|turn\s+this\s+raw\s+complaint)\b/.test(normalized) &&
+    /\b(?:actual|expected|repro|before\s+proof|after\s+proof|duplicate\s+notes|risk\s+notes)\b/.test(normalized);
+  if (asksForPacketDraft) {
+    return 'bug_packet_draft';
+  }
+
+  const asksForProofChecklist =
+    /\b(?:before\/after|before\s+and\s+after|before\s+after)\s+proof\b/.test(normalized) &&
+    /\b(?:checklist|capture|steps?|beginner[-\s]*friendly|under\s+five\s+minutes?)\b/.test(normalized);
+  if (asksForProofChecklist) {
+    return 'proof_checklist';
+  }
+
+  return null;
+}
+
+export function renderSparkCompeteProofWorkflowReply(kind: SparkCompeteProofWorkflowKind): string {
+  if (kind === 'bug_packet_draft') {
+    return [
+      'Safe Spark Compete bug packet draft',
+      '',
+      'Actual: <what the user saw, quoted briefly and redacted>.',
+      'Expected: <what should have happened in plain English>.',
+      'Repro:',
+      '1. <start state or command/action>.',
+      '2. <exact user-visible step>.',
+      '3. <observed reply or failure>.',
+      'Before proof needed: redacted screenshot or short bounded excerpt showing the bad behavior.',
+      'After proof needed: redacted screenshot or smoke result showing the corrected behavior.',
+      'Tests: <focused test or safe smoke command; do not invent a pass>.',
+      'Duplicate notes: search open PRs/issues for the same symptom, command, and owner surface.',
+      'Risk notes: no secrets, raw logs, chat IDs, tokens, .env values, private paths, or private Telegram data.',
+      '',
+      'Missing fields to fill: target repo, PR URL, branch, screenshots, test result, and exact duplicate search result.'
+    ].join('\n');
+  }
+
+  return [
+    'Safe before/after proof checklist',
+    '',
+    '1. Capture the before screenshot or a short redacted output excerpt.',
+    '2. Write the exact repro steps that produced it.',
+    '3. Apply or test the fix on the same path.',
+    '4. Capture the after screenshot or passing focused smoke/test result.',
+    '5. Confirm the proof hides secrets, raw logs, chat IDs, tokens, .env files, private Telegram data, private paths, and full compile JSON.'
+  ].join('\n');
+}
+
 export function isSparkWikiStatusQuestion(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {

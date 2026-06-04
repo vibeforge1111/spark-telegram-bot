@@ -618,6 +618,20 @@ function isNoExecutionBoundary(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function isSparkCompeteProofWritingRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!/\bspark\s+compete\b/.test(normalized)) return false;
+
+  const asksForPacketDraft =
+    /\b(?:bug\s+packet|packet\s+draft|reviewer[-\s]*ready|turn\s+this\s+raw\s+complaint)\b/.test(normalized) &&
+    /\b(?:actual|expected|repro|before\s+proof|after\s+proof|duplicate\s+notes|risk\s+notes)\b/.test(normalized);
+  const asksForProofChecklist =
+    /\b(?:before\/after|before\s+and\s+after|before\s+after)\s+proof\b/.test(normalized) &&
+    /\b(?:checklist|capture|steps?|beginner[-\s]*friendly|under\s+five\s+minutes?)\b/.test(normalized);
+
+  return asksForPacketDraft || asksForProofChecklist;
+}
+
 function isConversationFramingMakeRequest(description: string): boolean {
   return /^(?:today|tonight|now|chat|conversation|session|thread|this\s+(?:chat|conversation|session|thread)|our\s+(?:chat|conversation|session|thread))\s+(?:also\s+)?(?:about|focused\s+on|for)\b/i.test(
     description.trim()
@@ -835,9 +849,11 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
+  if (isSparkCompeteProofWritingRequest(original)) return null;
   if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
+  if (isSparkCompeteProofWritingRequest(trimmed)) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;

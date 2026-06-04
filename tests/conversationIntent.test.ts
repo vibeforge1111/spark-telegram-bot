@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  classifySparkCompeteProofWorkflowRequest,
   extractAgentDoctrinePreference,
   formatAgentDoctrinePreferenceAcknowledgement,
   formatAgentDoctrinePreferenceForBuilderSync,
@@ -70,7 +71,8 @@ import {
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
-  shouldPreferConversationalIdeation
+  shouldPreferConversationalIdeation,
+  renderSparkCompeteProofWorkflowReply
 } from '../src/conversationIntent';
 import { buildConversationFrame } from '../src/conversationFrame';
 import {
@@ -103,6 +105,25 @@ test('routes collaborative mission wording to conversation instead of command he
     shouldPreferConversationalIdeation('how do we make setup automatic without making the bot run a command instantly?'),
     true
   );
+});
+
+test('answers Spark Compete packet and proof workflow requests as safe writing tasks', () => {
+  const packetPrompt = [
+    'Help me turn this raw complaint into a reviewer-ready Spark Compete bug packet.',
+    '',
+    'Raw complaint:',
+    '"I clicked Set up safe workspace and it just said Command failed. I do not know what to do."',
+    '',
+    'Make a safe bug packet draft with Actual, Expected, Repro, Before proof needed, After proof needed, Tests, Duplicate notes, and Risk notes. Do not invent PR URLs, screenshots, test results, team members, or repo ownership.'
+  ].join('\n');
+  const checklistPrompt = 'Help me capture before/after proof for a Spark Compete bug in under five minutes. Make the checklist short, safe, and beginner-friendly. Do not ask for raw logs, secrets, private Telegram data, chat IDs, tokens, .env files, or full compile JSON.';
+
+  assert.equal(classifySparkCompeteProofWorkflowRequest(packetPrompt), 'bug_packet_draft');
+  assert.equal(classifySparkCompeteProofWorkflowRequest(checklistPrompt), 'proof_checklist');
+  assert.match(renderSparkCompeteProofWorkflowReply('bug_packet_draft'), /Actual:/);
+  assert.match(renderSparkCompeteProofWorkflowReply('bug_packet_draft'), /Duplicate notes:/);
+  assert.match(renderSparkCompeteProofWorkflowReply('proof_checklist'), /Capture the before screenshot/);
+  assert.match(renderSparkCompeteProofWorkflowReply('proof_checklist'), /full compile JSON/);
 });
 
 test('keeps explicit build specs on the build path', () => {

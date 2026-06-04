@@ -55,6 +55,23 @@ test('routes build clarification follow-ups from pending state', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes Spark Compete packet and proof drafting to plain chat workflow help', () => {
+  const packetRoute = decideNaturalRoute([
+    'Help me turn this raw complaint into a reviewer-ready Spark Compete bug packet.',
+    '',
+    'Make a safe bug packet draft with Actual, Expected, Repro, Before proof needed, After proof needed, Tests, Duplicate notes, and Risk notes. Do not invent PR URLs, screenshots, test results, team members, or repo ownership.'
+  ].join('\n'));
+  const proofRoute = decideNaturalRoute(
+    'Help me capture before/after proof for a Spark Compete bug in under five minutes. Make the checklist short, safe, and beginner-friendly. Do not ask for raw logs, secrets, private Telegram data, chat IDs, tokens, .env files, or full compile JSON.'
+  );
+
+  assert.equal(packetRoute.route, 'conversation.spark_compete_bug_packet_draft');
+  assert.equal(packetRoute.owner_system, 'spark-telegram-bot');
+  assert.equal(packetRoute.requires_confirmation, false);
+  assert.equal(proofRoute.route, 'conversation.spark_compete_proof_checklist');
+  assert.equal(proofRoute.requires_confirmation, false);
+});
+
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 
