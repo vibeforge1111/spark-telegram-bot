@@ -1925,8 +1925,19 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
     return;
   }
-  if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+  let responseText = builderReply.responseText;
+  if (responseText) {
+    // Guard: when the generic-observation LLM reinterprets a neutral
+    // "name:" as "your name is" but the message wasn't a profile fact,
+    // replace with a neutral acknowledgment.
+    if (
+      builderReply.bridgeMode === 'memory_generic_observation' &&
+      /your name is/i.test(responseText) &&
+      builderReply.routingDecision !== 'memory_profile_fact_observation'
+    ) {
+      responseText = 'Noted.';
+    }
+    await replyWithSanitizedTelegramText(ctx, responseText);
   }
 }
 
@@ -2023,8 +2034,19 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
       builderReply.bridgeMode !== 'bridge_error' &&
       shouldUseBuilderReplyForMemoryDirective(builderReply.responseText, builderReply.routingDecision)
     ) {
-      await ctx.reply(builderReply.responseText);
-      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      let responseText = builderReply.responseText;
+      // Guard: the generic-observation LLM reinterprets neutral
+      // "name: X" as "your name is X". If the message wasn't
+      // routed as a profile fact, replace with a neutral ack.
+      if (
+        builderReply.bridgeMode === 'memory_generic_observation' &&
+        /your name is/i.test(responseText) &&
+        builderReply.routingDecision !== 'memory_profile_fact_observation'
+      ) {
+        responseText = 'Noted.';
+      }
+      await ctx.reply(responseText);
+      await conversation.rememberAssistantReply(user, responseText).catch(() => {});
       return;
     }
   } catch (error) {
@@ -2032,7 +2054,7 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
   }
 
   const reply = localSaved
-    ? formatLocalMemoryDirectiveAcknowledgement(directive)
+    ? 'Noted.'
     : buildMemoryBridgeUnavailableReply('remember');
   await ctx.reply(reply);
   await conversation.rememberAssistantReply(user, reply).catch(() => {});
