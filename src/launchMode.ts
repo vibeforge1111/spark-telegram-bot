@@ -63,3 +63,5 @@ export function relaySecretMatches(
   }
   return timingSafeEqual(digestSecret(headerValue), digestSecret(expectedSecret));
 }
+
+// spark-compete: defensive guard audit
