@@ -51,6 +51,7 @@ import {
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
+  isSparkCommandNotFoundHelpRequest,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderSparkCommandNotFoundHelpReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -134,6 +136,20 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('can you pause that one?'), false);
   assert.equal(isNoExecutionBoundary('can you cancel that one?'), false);
   assert.equal(isNoExecutionBoundary('go ahead and build it'), false);
+});
+
+test('recognizes spark command-not-found install support requests', () => {
+  const prompt = "I installed Spark, but when I open my terminal and type spark status, I get spark: command not found or 'spark' is not recognized as an internal or external command. What is the smallest safe fix before reinstalling?";
+  assert.equal(isSparkCommandNotFoundHelpRequest(prompt), true);
+  assert.equal(isSparkCommandNotFoundHelpRequest('Show the Mission board status for the latest Spark command not found QA run.'), false);
+  assert.equal(parseSpawnerBoardNaturalIntent('Show the Mission board status for the latest Spark command not found QA run.'), 'board');
+  const reply = renderSparkCommandNotFoundHelpReply();
+  assert.match(reply, /brand-new terminal/i);
+  assert.match(reply, /PowerShell or Windows Terminal/);
+  assert.match(reply, /WSL terminal/);
+  assert.match(reply, /spark\.cmd status/);
+  assert.match(reply, /Only consider reinstalling after/i);
+  assert.doesNotMatch(reply, /spawner|mission board|kanban|canvas|plain_chat|route|prd|builder/i);
 });
 
 test('infers Spark bug-recognition mission from recent planning context', () => {

@@ -1861,6 +1861,100 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('spark command-not-found QA stays in install support instead of Mission board', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-command-not-found-help-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+		ctx.message.text = "Reproduce a spark command not found moment. Do not start a mission or build anything. Just answer in chat.\n\nI installed Spark, but when I open my terminal and type spark status, I get spark: command not found or 'spark' is not recognized as an internal or external command.\n\nWhat is the smallest safe fix I should try first before reinstalling?";
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /brand-new terminal/i);
+		assert.match(reply, /spark\.cmd status/);
+		assert.match(reply, /Only consider reinstalling after/i);
+		assert.doesNotMatch(reply, /latest app-like completed run|Mission board|Canvas|Kanban/i);
+		assert.equal(captured.length, 0, 'install support prompt must not call Spawner or PRD bridge');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('Mission board query mentioning command-not-found still uses board route', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-board-command-not-found-boundary-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+
+		const postCalls: CapturedCall[] = [];
+		const getCalls: string[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			postCalls.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async (url: string) => {
+			getCalls.push(url);
+			return {
+				data: {
+					board: {
+						running: [
+							{
+								missionId: 'mission-command-help-review',
+								missionName: 'Spark Command Help Boundary Review',
+								status: 'running',
+								lastEventType: 'mission_started',
+								lastUpdated: new Date().toISOString(),
+								taskName: 'Review routing boundary',
+								providerResults: [{ providerId: 'codex', status: 'running' }]
+							}
+						],
+						paused: [],
+						completed: [],
+						failed: [],
+						cancelled: [],
+						created: []
+					}
+				}
+			};
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 610, replies);
+		ctx.message.text = 'Show the Mission board status for the latest Spark command not found QA run. Do not start anything.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.match(reply, /Right now/);
+		assert.match(reply, /Spark Command Help Boundary Review/);
+		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-command-help-review/);
+		assert.doesNotMatch(reply, /brand-new terminal|spark\.cmd status|Only consider reinstalling/i);
+		assert.equal(getCalls.length, 1, 'Mission board query must still call the Spawner board API');
+		assert.equal(postCalls.length, 0, 'Mission board query must not start a mission or build');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
