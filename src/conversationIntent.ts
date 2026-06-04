@@ -1459,6 +1459,18 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 	].join('\n');
 }
 
+export function isRuntimeReadinessComparisonQuestion(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  const asksCompare = /\b(?:compare|difference|differences|false[-\s]*ready|ready\s+states?|readiness)\b/.test(normalized);
+  const live = /\bspark\s+live\s+status\b|\blive\s+status\b/.test(normalized);
+  const telegram = /\btelegram\s+(?:readiness|ready|polling|bot|gateway)\b/.test(normalized);
+  const localCli = /\b(?:local\s+cli|cli\s+readiness|terminal|spark\s+status|command\s+line)\b/.test(normalized);
+  return asksCompare && live && telegram && localCli;
+}
+
 function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
   const mentionsProductMemory =
     /\b(?:spark\s+thread\s+qa|thread\s+qa|product\s+polish|product[-\s]*memory|product\s+conversation)\b/.test(normalized);
