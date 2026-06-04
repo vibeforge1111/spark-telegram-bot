@@ -20,6 +20,7 @@ const CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200;
 
 export { resolveBuilderRepoPath };
 
+// guard: null-safe wrapping
 function processOutputText(value: unknown): string {
   if (Buffer.isBuffer(value)) {
     return value.toString('utf8');
