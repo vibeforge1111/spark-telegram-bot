@@ -8873,14 +8873,22 @@ bot.command('mission', async (ctx) => {
 
   const args = ctx.message.text.replace('/mission', '').trim().split(/\s+/).filter(Boolean);
   if (args.length < 2) {
-    return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
+    return ctx.reply(
+      'Usage: /mission <status|pause|resume|kill> <missionId>\n' +
+        'Inspects or controls a running mission. Get the missionId from /board or the reply of /run.\n' +
+        'Example: /mission status spark-1776768300668'
+    );
   }
 
   const action = args[0] as 'status' | 'pause' | 'resume' | 'kill';
   const missionId = args[1];
 
   if (!['status', 'pause', 'resume', 'kill'].includes(action)) {
-    return ctx.reply('Usage: /mission <status|pause|resume|kill> <missionId>');
+    return ctx.reply(
+      'Usage: /mission <status|pause|resume|kill> <missionId>\n' +
+        'Inspects or controls a running mission. Get the missionId from /board or the reply of /run.\n' +
+        'Example: /mission status spark-1776768300668'
+    );
   }
 
   if (missionId.includes('<') || missionId.includes('>')) {
