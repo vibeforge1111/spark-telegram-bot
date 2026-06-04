@@ -133,6 +133,7 @@ import {
   buildSparkAccessConfirmationKeyboard,
   buildSparkAccessLevel5ConfirmKeyboard,
   formatSparkAccessActionConfirmationPrompt,
+  formatSparkAccessActionFailureReply,
   formatSparkAccessAutomaticRestartNotice,
   runSparkAccessActionDetailed,
   scheduleSparkRestartAfterAccessChange,
@@ -5611,8 +5612,7 @@ async function handleSparkAccessAction(ctx: any, actionId: SparkAccessActionId, 
       scheduleSparkRestartAfterAccessChange();
     }
   } catch (error) {
-    const detail = redactText(error instanceof Error ? error.message : String(error));
-    await ctx.reply(`Spark access action failed: ${detail}`);
+    await ctx.reply(formatSparkAccessActionFailureReply(actionId, error));
   }
 }
 
