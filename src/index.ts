@@ -2016,11 +2016,21 @@ bot.catch((err, ctx) => {
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
+    const now = Date.now();
     const lastAction = userLastAction.get(userId);
-    if (lastAction && Date.now() - lastAction < RATE_LIMIT_MS) {
+    if (lastAction && now - lastAction < RATE_LIMIT_MS) {
       return; // Rate limited
     }
-    userLastAction.set(userId, Date.now());
+    userLastAction.set(userId, now);
+    // Prune stale entries to prevent unbounded growth
+    if (userLastAction.size > 5000) {
+      const cutoff = now - 60_000; // Remove entries older than 1 minute
+      for (const [uid, timestamp] of userLastAction.entries()) {
+        if (timestamp < cutoff) {
+          userLastAction.delete(uid);
+        }
+      }
+    }
   }
   return next();
 });
