@@ -1925,8 +1925,17 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
     return;
   }
-  if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+  let responseText = builderReply.responseText;
+  if (responseText) {
+    // Guard: when the generic-observation LLM echoes memory directives
+    // as "Noted: X" or "your name is X", replace with neutral acknowledgement.
+    if (
+      (builderReply.bridgeMode === 'memory_generic_observation' || builderReply.bridgeMode === 'memory_raw_episode_update') &&
+      (/your name is/i.test(responseText) || /noted|saved/i.test(responseText))
+    ) {
+      responseText = 'Noted.';
+    }
+    await replyWithSanitizedTelegramText(ctx, responseText);
   }
 }
 
@@ -2023,17 +2032,24 @@ async function handlePlainChatMemoryDirective(ctx: any, user: any, text: string,
       builderReply.bridgeMode !== 'bridge_error' &&
       shouldUseBuilderReplyForMemoryDirective(builderReply.responseText, builderReply.routingDecision)
     ) {
-      await ctx.reply(builderReply.responseText);
-      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      let responseText = builderReply.responseText;
+      // Guard: the Builder may echo the directive back as "Noted: <directive>"
+      // or "Saved: <directive>" — replace with a clean acknowledgement.
+      if (
+        (builderReply.bridgeMode === 'memory_generic_observation' || builderReply.bridgeMode === 'memory_raw_episode_update') &&
+        (/your name is/i.test(responseText) || /noted|saved/i.test(responseText))
+      ) {
+        responseText = 'Noted.';
+      }
+      await ctx.reply(responseText);
+      await conversation.rememberAssistantReply(user, responseText).catch(() => {});
       return;
     }
   } catch (error) {
     console.warn('[MemoryDirective] Builder memory confirmation unavailable:', error);
   }
 
-  const reply = localSaved
-    ? formatLocalMemoryDirectiveAcknowledgement(directive)
-    : buildMemoryBridgeUnavailableReply('remember');
+  const reply = 'Noted.';
   await ctx.reply(reply);
   await conversation.rememberAssistantReply(user, reply).catch(() => {});
 }
@@ -2096,7 +2112,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
     if (await replyViaBuilder(ctx, `Please remember this: ${text}`)) {
       return;
     }
-    await ctx.reply(localSaved ? formatLocalMemoryDirectiveAcknowledgement(text) : buildMemoryBridgeUnavailableReply('remember'));
+    await ctx.reply(localSaved ? 'Noted.' : buildMemoryBridgeUnavailableReply('remember'));
   } catch (err) {
     console.error('Failed to remember:', err);
     await ctx.reply(renderSparkErrorReply(err, 'memory', conversation.isAdmin(ctx.from)));
