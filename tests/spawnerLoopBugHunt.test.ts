@@ -16,6 +16,7 @@ import {
 } from '../src/conversationIntent';
 import {
   formatBuildClarificationReplyWithMicrocopy,
+  formatCanvasQueueFailureSummary,
   formatCanvasReadySummary,
   formatCanvasShapingHeartbeatSummary,
   formatCanvasStillRunningSummary,
@@ -332,6 +333,17 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);
+});
+
+test('bug hunt: canvas queue failure reply masks local failure details', () => {
+  const reply = formatCanvasQueueFailureSummary(
+    new Error('failed while reading /Users/alice/private/canvas-cache.json')
+  );
+
+  assert.match(reply, /Analysis finished but I couldn't queue the canvas:/);
+  assert.match(reply, /<local-path>/);
+  assert.doesNotMatch(reply, /\/Users\/alice/);
+  assert.doesNotMatch(reply, /canvas-cache\.json/);
 });
 
 test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () => {
