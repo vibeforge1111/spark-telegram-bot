@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -299,19 +299,48 @@ When the user asks you to inspect a public GitHub repo, URL, or local Spark surf
 When the user asks whether browser or web access is available right now, separate public web fetch/search from full browser automation. Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result. Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn and the evidence is visible. If no fresh proof is attached, say "registered or possible, unproven right now" and name the probe to run.
 The Telegram gateway can start missions from explicit natural-language requests or /run. Never say you started, launched, kicked off, created, queued, or are running a Spawner mission unless the gateway returns a mission id or explicit acknowledgement. If no mission id or gateway acknowledgement is present, offer to shape the request or ask the user to confirm the mission goal.`;
 
+interface AgentKnowledgeCacheEntry {
+  root: string;
+  signature: string;
+  joined: string;
+}
+
+let _agentKnowledgeCache: AgentKnowledgeCacheEntry | null = null;
+
+function computeAgentKnowledgeSignature(root: string, names: string[]): string {
+  const parts: string[] = [];
+  for (const name of names) {
+    try {
+      const s = statSync(path.join(root, name));
+      parts.push(`${name}:${s.size}:${s.mtimeMs}`);
+    } catch {
+      parts.push(`${name}:missing`);
+    }
+  }
+  return parts.join('|');
+}
+
 export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env): string {
   if (env.SPARK_AGENT_KNOWLEDGE_ENABLED === '0') return '';
   const root = env.SPARK_AGENT_KNOWLEDGE_DIR?.trim() || DEFAULT_AGENT_KNOWLEDGE_DIR;
   if (!existsSync(root)) return '';
+  const names = readdirSync(root)
+    .filter((file) => file.toLowerCase().endsWith('.md') && !file.startsWith('.'))
+    .sort();
+  const signature = computeAgentKnowledgeSignature(root, names);
+  const cached = _agentKnowledgeCache;
+  if (cached && cached.root === root && cached.signature === signature) {
+    return cached.joined;
+  }
   const chunks: string[] = [];
-  for (const name of readdirSync(root).filter((file) => file.toLowerCase().endsWith('.md')).sort()) {
-    if (name.startsWith('.')) continue;
+  for (const name of names) {
     const filePath = path.join(root, name);
     const content = readFileSync(filePath, 'utf-8').trim();
     if (!content) continue;
     chunks.push(`### ${name}\n${content}`);
   }
   const joined = chunks.join('\n\n').slice(0, MAX_AGENT_KNOWLEDGE_CHARS).trim();
+  _agentKnowledgeCache = { root, signature, joined };
   return joined;
 }
 
