@@ -26,6 +26,13 @@ function firstString(...values: unknown[]): string {
   return '';
 }
 
+function maskLocalPathDetails(value: string): string {
+  return value.replace(
+    /(?:[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/][^\s"'`<>]+|\/(?:Users|home)\/[^\s"'`<>]+)/g,
+    '<local-path>'
+  );
+}
+
 function extractErrorText(error: unknown): string {
   const anyError = error as any;
   const responseError = anyError?.response?.data?.error;
@@ -40,7 +47,7 @@ function extractErrorText(error: unknown): string {
   const status = anyError?.response?.status ? `HTTP ${anyError.response.status}` : '';
   const message = error instanceof Error ? error.message : String(error || 'unknown error');
   const code = firstString(anyError?.code);
-  return redactText([status, responseDetail, code, message].filter(Boolean).join(' - '));
+  return maskLocalPathDetails(redactText([status, responseDetail, code, message].filter(Boolean).join(' - ')));
 }
 
 function compactDetail(text: string): string {

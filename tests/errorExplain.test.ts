@@ -149,6 +149,18 @@ test('redacts secrets from user-facing errors', () => {
   assert.match(reply, /\[REDACTED\]|\*\*\*/);
 });
 
+test('masks local user paths from user-facing errors', () => {
+  const reply = renderSparkErrorReply(
+    new Error('Spawner PRD queue failed while reading /Users/alice/private/prd-result.json'),
+    'spawner',
+    true
+  );
+
+  assert.match(reply, /<local-path>/);
+  assert.doesNotMatch(reply, /\/Users\/alice/);
+  assert.doesNotMatch(reply, /prd-result\.json/);
+});
+
 test('does not offer doctor PR drafting to non-admin users', () => {
   const reply = renderSparkErrorReply(new Error('fetch failed'), 'chat', false);
 
