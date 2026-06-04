@@ -2039,13 +2039,16 @@ export function isLowInformationLlmReply(reply: string): boolean {
 export function isMemoryAcknowledgementReply(reply: string): boolean {
   const normalized = reply.trim().toLowerCase();
   return (
-    /^noted\s*[:.]/i.test(reply.trim()) ||
-    /^saved\s*[:.]/i.test(reply.trim()) ||
-    /^remembered\s*[:.]/i.test(reply.trim()) ||
+    /^noted\b/i.test(reply.trim()) ||
+    /^saved\b/i.test(reply.trim()) ||
+    /^remembered\b/i.test(reply.trim()) ||
     normalized.startsWith('i have saved memory about ') ||
     normalized.startsWith('saved memory about ') ||
     normalized.startsWith('memory saved') ||
-    normalized.startsWith('got it, i will remember')
+    normalized.startsWith('got it, i will remember') ||
+    normalized.startsWith("got it, i'll remember") ||
+    normalized.startsWith('got it, noted') ||
+    normalized.startsWith("i'll remember that")
   );
 }
 
