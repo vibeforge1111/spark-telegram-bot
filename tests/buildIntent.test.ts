@@ -316,6 +316,19 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
   assert.equal(
+    parseBuildIntent(
+      [
+        'Use the existing repo only: C:\\Dev\\projects\\telegram-health-bot',
+        '',
+        'Confirm current folder, run git status, pull latest from https://github.com/NoRegretz/Social-scoring-database, run npm install if needed, run npm build, then wait for my next task.',
+        'Do not create a new project.'
+      ].join('\n')
+    ),
+    null
+  );
+  assert.equal(parseBuildIntent('run npm build, then wait for my next task'), null);
+  assert.equal(parseBuildIntent('please run pnpm run build and wait for my next instruction'), null);
+  assert.equal(
     parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null
   );
