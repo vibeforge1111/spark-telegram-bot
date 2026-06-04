@@ -278,6 +278,7 @@ import {
 import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
+import { sanitizeTelegramMessage } from './messageSanitizer';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
@@ -5781,7 +5782,7 @@ bot.command('mission', async (ctx) => {
 // Handle regular text messages
 export async function handleTextMessage(ctx: any): Promise<void> {
   const user = ctx.from;
-  const text = ctx.message.text;
+  const text = sanitizeTelegramMessage(ctx.message.text);
 
   if (text.startsWith('/')) {
     return;
