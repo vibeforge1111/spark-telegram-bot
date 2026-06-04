@@ -55,6 +55,17 @@ test('routes build clarification follow-ups from pending state', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes suspicious proof file link questions to safety guidance', () => {
+  const route = decideNaturalRoute(
+    'Someone sent me a suspicious file link as proof for a Spark Compete bug. Should I download it and attach it to the PR? Explain the safest evidence alternatives. Do not open unknown downloads, do not ask for cookies, login codes, raw logs, tokens, .env files, private paths, chat IDs, or private Telegram data.'
+  );
+
+  assert.equal(route.route, 'proof.file_safety');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.safety_guidance');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 

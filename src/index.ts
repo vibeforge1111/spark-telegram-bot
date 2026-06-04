@@ -207,6 +207,7 @@ import {
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
+  isSuspiciousProofLinkSafetyQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkWorkflowBugHuntRequest,
   isSparkWikiInventoryQuestion,
@@ -222,6 +223,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderSuspiciousProofLinkSafetyReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -6095,6 +6097,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isSuspiciousProofLinkSafetyQuestion(text)) {
+    const reply = renderSuspiciousProofLinkSafetyReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'proof.file_safety', 'spark-telegram-bot', 'plain_chat.safety_guidance');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
