@@ -10,6 +10,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  buildRuntimeOutputArtifactReply,
   extractAgentDoctrinePreference,
   formatAgentDoctrinePreferenceAcknowledgement,
   formatAgentDoctrinePreferenceForBuilderSync,
@@ -52,6 +53,7 @@ import {
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
   isLowInformationLlmReply,
+  isRuntimeOutputArtifactRequest,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
   isStandaloneAgentDoctrinePreference,
@@ -272,6 +274,22 @@ test('recognizes local Spark service URL requests', () => {
   );
   assert.match(buildLocalSparkServiceReply(true), /http:\/\/127\.0\.0\.1:3333/);
   assert.match(buildLocalSparkServiceReply(false), /spark start spawner-ui/);
+});
+
+test('does not answer runtime stdout log requests with Mission Control guidance', () => {
+  const prompt = 'show the Codex stdout/log for this run';
+  const context = 'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent.';
+
+  assert.equal(isRuntimeOutputArtifactRequest(prompt), true);
+  assert.equal(isLocalSparkServiceRequest(prompt, context), false);
+
+  const reply = buildRuntimeOutputArtifactReply();
+  assert.match(reply, /stdout\/log request/);
+  assert.match(reply, /spark logs spark-telegram-bot --lines 80/);
+  assert.match(reply, /spark logs spawner-ui --lines 80/);
+  assert.match(reply, /~\/\.spark\/diagnostics/);
+  assert.match(reply, /not itself the Codex stdout\/log/);
+  assert.doesNotMatch(reply, /http:\/\/127\.0\.0\.1:3333/);
 });
 
 test('does not confuse mission-control ideation with opening the local UI', () => {

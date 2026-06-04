@@ -1150,6 +1150,9 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
   if (shouldPreferConversationalIdeation(text)) {
     return false;
   }
+  if (isRuntimeOutputArtifactRequest(text)) {
+    return false;
+  }
   if (isProjectLocalhostRequest(normalized)) {
     return false;
   }
@@ -1195,6 +1198,33 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
     'Spawner UI is not reachable from the Telegram gateway right now.',
     'Run `spark start spawner-ui` or `spark start telegram-starter`, then open http://127.0.0.1:3333.',
     'After that, I can use the Spawner API path again through missions.'
+  ].join('\n');
+}
+
+export function isRuntimeOutputArtifactRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || parseBuildIntent(normalized)) {
+    return false;
+  }
+  const asksToShow =
+    /\b(?:show|send|give|paste|print|display|fetch|get|share|provide|open)\b/.test(normalized) ||
+    /\bwhat\s+(?:did|does|is|was)\b.{0,40}\b(?:output|log|stdout|stderr)\b/.test(normalized);
+  const runtimeArtifact =
+    /\b(?:stdout|stderr|std\s*out|std\s*err|logs?|output)\b/.test(normalized) &&
+    /\b(?:codex|run|mission|spawner|telegram|this|current|latest)\b/.test(normalized);
+  return asksToShow && runtimeArtifact;
+}
+
+export function buildRuntimeOutputArtifactReply(): string {
+  return [
+    'I should not answer a stdout/log request with only the Mission Control URL.',
+    '',
+    'Use the exact artifact path for what you mean:',
+    '- Telegram service logs: `spark logs spark-telegram-bot --lines 80`',
+    '- Spawner UI logs: `spark logs spawner-ui --lines 80`',
+    '- Diagnostic notes: `~/.spark/diagnostics`',
+    '',
+    'Mission Control can help inspect a run, but it is not itself the Codex stdout/log. If you want a specific mission output, send the mission id or ask for the execution/proof view for that mission.'
   ].join('\n');
 }
 
