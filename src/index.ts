@@ -3948,7 +3948,11 @@ function pendingClarificationForMessage(key: string, text: string): PendingClari
   const pending = pendingClarifications.get(key);
   if (!pending) return null;
   if (!shouldUsePendingClarificationForMessage(pending, text)) {
-    pendingClarifications.delete(key);
+    // Only check TTL expiry — don't delete on non-followup messages
+    const expired = Date.now() - pending.timestamp > CLARIFICATION_TTL_MS;
+    if (expired) {
+      pendingClarifications.delete(key);
+    }
     return null;
   }
   return pending;
