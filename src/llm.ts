@@ -359,10 +359,18 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
     let stdout = '';
     let stderr = '';
     let finished = false;
+    let killEscalation: ReturnType<typeof setTimeout> | null = null;
     const timer = setTimeout(() => {
       if (finished) return;
       finished = true;
-      child.kill('SIGTERM');
+      try { child.kill('SIGTERM'); } catch { /* already exited */ }
+      // Escalate to SIGKILL after a short grace period so the child does not
+      // linger as an orphan when codex catches and ignores SIGTERM. unref so
+      // the escalation timer does not pin the event loop on shutdown.
+      killEscalation = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch { /* already exited */ }
+      }, 2000);
+      killEscalation.unref?.();
       resolve({ ok: false, stdout, stderr: `${stderr}\ncommand timed out after ${timeoutMs}ms`.trim() });
     }, timeoutMs);
 
@@ -373,12 +381,20 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
       stderr += chunk.toString();
     });
     child.on('error', (error) => {
+      if (killEscalation) {
+        clearTimeout(killEscalation);
+        killEscalation = null;
+      }
       if (finished) return;
       finished = true;
       clearTimeout(timer);
       resolve({ ok: false, stdout, stderr: error.message });
     });
     child.on('close', (code) => {
+      if (killEscalation) {
+        clearTimeout(killEscalation);
+        killEscalation = null;
+      }
       if (finished) return;
       finished = true;
       clearTimeout(timer);
