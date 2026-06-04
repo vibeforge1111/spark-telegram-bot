@@ -55,5 +55,19 @@ export function resolvePythonCommand(rawValue?: string, envPath = process.env.PA
   if (rawValue) {
     throw new Error(`SPARK_BUILDER_PYTHON was not found on PATH: ${raw}`);
   }
+
+  // The default `python` binary was not found on PATH. Debian/Ubuntu, slim
+  // container images (e.g. node:*-bookworm-slim) and most CI runners ship only
+  // `python3` with no unversioned `python`, so fall back to `python3` before
+  // returning the unresolved default and letting the Builder bridge spawn a
+  // command that does not exist.
+  for (const candidate of pathCandidates('python3', envPath)) {
+    try {
+      return assertSafePythonExecutable(candidate);
+    } catch {
+      // Keep searching PATH.
+    }
+  }
+
   return raw;
 }
