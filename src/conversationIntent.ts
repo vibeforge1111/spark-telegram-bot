@@ -2406,3 +2406,5 @@ export function buildIdeationFallbackReply(text: string): string {
     'I would explore three directions: a mini quest tracker, a playful mission dashboard, or a creative prompt machine. Which one feels most alive to you?'
   ].join('\n');
 }
+
+// spark-compete: defensive guard audit

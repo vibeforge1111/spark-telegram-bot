@@ -112,7 +112,14 @@ export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExe
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
+    .reduce((records: NaturalRouteExecutionRecord[], line) => {
+      try {
+        records.push(JSON.parse(line) as NaturalRouteExecutionRecord);
+      } catch {
+        // Skip corrupt lines; a single malformed row must not crash the entire ledger read
+      }
+      return records;
+    }, []);
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {

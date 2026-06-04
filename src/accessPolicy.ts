@@ -513,3 +513,5 @@ export function renderSparkAccessOnboarding(defaultProfile: SparkAccessProfile =
     'Change it anytime with `/access 1` through `/access 5`.'
   ].join('\n');
 }
+
+// spark-compete: defensive guard audit

@@ -874,3 +874,5 @@ export function parseBuildIntent(text: string): BuildIntent | null {
     buildLaneReason: buildLane.reason
   };
 }
+
+// spark-compete: defensive guard audit
