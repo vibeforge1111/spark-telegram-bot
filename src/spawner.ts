@@ -490,6 +490,14 @@ function missionTraceUrl(missionId: string, baseUrl = spawnerPublicUrl()): strin
 }
 
 function missionInspectionLines(missionId: string, baseUrl = spawnerPublicUrl()): string[] {
+  const isLocalhost = baseUrl.includes('127.0.0.1') || baseUrl.includes('localhost');
+  if (isLocalhost) {
+    return [
+      'Inspect',
+      `• Open localhost:3333 on the machine running Spark`,
+      `• Navigate to Kanban or Trace for mission: ${missionId.slice(0, 24)}...`
+    ];
+  }
   return [
     'Inspect',
     `• Detail: ${missionDetailUrl(missionId, baseUrl)}`,
