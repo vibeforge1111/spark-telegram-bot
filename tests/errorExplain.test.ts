@@ -23,6 +23,33 @@ test('explains provider auth failures with a repair path', () => {
   assert.doesNotMatch(reply, /Try again in a moment/);
 });
 
+test('classifies OpenRouter 402 token limit errors as provider context limits', () => {
+  const explanation = explainSparkError(
+    new Error('HTTP 402 - Prompt tokens limit exceeded: 9124 > 6401. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account - ERR_BAD_REQUEST - Request failed with status code 402'),
+    'chat'
+  );
+
+  assert.equal(explanation.category, 'provider_context_limit');
+  assert.match(explanation.userLine, /prompt is too large/);
+  assert.match(explanation.check, /shorter message|provider plan limits/);
+  assert.match(explanation.repair, /larger context window|provider credits/);
+});
+
+test('renders OpenRouter 402 token limit errors without auth repair commands', () => {
+  const reply = renderSparkErrorReply(
+    new Error('HTTP 402 - Prompt tokens limit exceeded: 9124 > 6401. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account - ERR_BAD_REQUEST - Request failed with status code 402'),
+    'chat',
+    true
+  );
+
+  assert.match(reply, /context is too large|model limit/);
+  assert.match(reply, /shorter message|larger-context model|provider limits/);
+  assert.doesNotMatch(reply, /provider authentication is not working/);
+  assert.doesNotMatch(reply, /provider_auth/);
+  assert.doesNotMatch(reply, /openrouter\.ai|Prompt tokens limit exceeded|9124|6401|ERR_BAD_REQUEST|402/);
+  assert.doesNotMatch(reply, /spark providers status|spark setup|spark doctor llm|save-report|upstream-report/);
+});
+
 test('explains local service network failures', () => {
   const explanation = explainSparkError(new Error('ECONNREFUSED 127.0.0.1:3333'), 'spawner');
 
