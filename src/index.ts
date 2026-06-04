@@ -311,6 +311,27 @@ function renderTelegramError(prefix: string, error: unknown): string {
   return `${prefix}: ${detail}`;
 }
 
+function positiveIntegerEnv(key: string, fallbackMs: number): number {
+  const parsed = Number.parseInt(process.env[key] || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
+function withTimeout<T>(label: string, promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
   const resolvedCommand = resolveWindowsCommand('spark');
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
@@ -6851,8 +6872,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);
     }
 
-    // Get context from previous memories
-    const storedMemoryContext = await conversation.getContext(user, text);
+    // Get context from previous memories. This is helpful, but it must not make
+    // Telegram look silent if the memory/context bridge stalls.
+    const storedMemoryContext = await withTimeout(
+      'conversation context lookup',
+      conversation.getContext(user, text),
+      positiveIntegerEnv('SPARK_CONTEXT_LOOKUP_TIMEOUT_MS', 15_000)
+    ).catch((error) => {
+      console.warn('[ReplyPath] local chat continuing without memory context:', error);
+      return '';
+    });
     const memories = freshRuntimeTruthContext
       ? [freshRuntimeTruthContext, conversationFrameContext, storedMemoryContext].filter(Boolean).join('\n\n')
       : [storedMemoryContext, conversationFrameContext].filter(Boolean).join('\n\n');
@@ -6870,8 +6899,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         : ''
     ].filter(Boolean).join('\n\n');
 
-    // Get LLM response with Spark context
-    const response = applyPlainWordsSurfaceRequest(text, await llm.chat(chatPrompt, systemContext, memories));
+    // Get LLM response with Spark context. Bound the fallback so suppressed
+    // Builder replies cannot leave the user staring at an indefinite typing state.
+    console.log(`[ReplyPath] local_chat_start user=${userRef(ctx.from?.id)} bridgeSuppressed=${builderReply.used && builderReply.bridgeMode !== 'bridge_error'} routing=${builderReply.routingDecision || 'none'}`);
+    const response = applyPlainWordsSurfaceRequest(
+      text,
+      await withTimeout(
+        'local chat fallback',
+        llm.chat(chatPrompt, systemContext, memories),
+        positiveIntegerEnv('SPARK_PLAIN_CHAT_FALLBACK_TIMEOUT_MS', 90_000)
+      )
+    );
+    console.log(`[ReplyPath] local_chat_done user=${userRef(ctx.from?.id)} chars=${response.length}`);
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {

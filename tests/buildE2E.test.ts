@@ -45,6 +45,8 @@ const originalEnv = {
 	SPARK_CLARIFICATION_COPY_LLM: process.env.SPARK_CLARIFICATION_COPY_LLM,
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
 	SPARK_FINAL_ANSWER_GATE_AUDIT_PATH: process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH,
+	SPARK_CONTEXT_LOOKUP_TIMEOUT_MS: process.env.SPARK_CONTEXT_LOOKUP_TIMEOUT_MS,
+	SPARK_PLAIN_CHAT_FALLBACK_TIMEOUT_MS: process.env.SPARK_PLAIN_CHAT_FALLBACK_TIMEOUT_MS,
 	SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
 	SPAWNER_UI_PUBLIC_URL: process.env.SPAWNER_UI_PUBLIC_URL,
 	SPAWNER_UI_URL: process.env.SPAWNER_UI_URL
@@ -853,6 +855,53 @@ async function run(): Promise<void> {
 			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
 			(llmModule.llm as any).chat = originalChat;
 			rmSync(auditDir, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('suppressed Builder reply still falls back when memory context lookup stalls', async () => {
+		restoreAxios();
+		const testUserId = 8319079571;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_CONTEXT_LOOKUP_TIMEOUT_MS = '20';
+		process.env.SPARK_PLAIN_CHAT_FALLBACK_TIMEOUT_MS = '1000';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const llmModule = require('../src/llm') as typeof import('../src/llm');
+		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const originalChat = llmModule.llm.chat;
+		const originalGetContext = conversationModule.conversation.getContext;
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: 'Noted: saved.',
+			decision: 'test',
+			bridgeMode: 'test',
+			routingDecision: 'researcher_advisory',
+			requestId: 'req-context-timeout',
+			traceRef: 'trace:req-context-timeout'
+		});
+		(llmModule.llm as any).chat = async () => 'Local fallback after context timeout.';
+		(conversationModule.conversation as any).getContext = async () => new Promise<string>(() => {});
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 5654, replies);
+			ctx.message.text = 'hello after context timeout';
+			(ctx as any).update = { update_id: 5654, message: ctx.message };
+
+			await indexModule.handleTextMessage(ctx);
+
+			assert.deepEqual(replies, ['Local fallback after context timeout.']);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			(llmModule.llm as any).chat = originalChat;
+			(conversationModule.conversation as any).getContext = originalGetContext;
 			restoreAxios();
 			restoreEnv();
 		}
