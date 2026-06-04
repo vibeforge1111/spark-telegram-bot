@@ -311,6 +311,13 @@ function renderTelegramError(prefix: string, error: unknown): string {
   return `${prefix}: ${detail}`;
 }
 
+function maskLocalPathDetails(value: string): string {
+  return value.replace(
+    /(?:[A-Za-z]:[\\/](?:Users|Documents and Settings)[\\/][^\s"'`<>]+|\/(?:Users|home)\/[^\s"'`<>]+)/g,
+    '<local-path>'
+  );
+}
+
 async function runSparkCli(args: string[], timeoutMs = 30_000): Promise<string> {
   const resolvedCommand = resolveWindowsCommand('spark');
   const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedCommand)
@@ -3044,7 +3051,7 @@ function startPrdCanvasReadyNotifier(args: {
           } catch (queueErr: any) {
             await bot.telegram.sendMessage(
               args.chatId,
-              `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+              formatCanvasQueueFailureSummary(queueErr)
             );
           }
           return;
@@ -3281,6 +3288,12 @@ export function formatCanvasStillRunningSummary(args: {
     `still preparing ${args.projectName}. It is taking a little longer than usual, and I will send the canvas when it is ready.`,
     `Board: ${args.kanbanUrl}`
   );
+}
+
+export function formatCanvasQueueFailureSummary(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error || 'unknown');
+  const detail = maskLocalPathDetails(redactText(raw)).trim() || 'unknown';
+  return `Analysis finished but I couldn't queue the canvas: ${sentenceWithPeriod(detail)}`;
 }
 
 export function formatCanvasShapingHeartbeatSummary(args: {
