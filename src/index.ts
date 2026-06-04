@@ -2347,6 +2347,7 @@ bot.command('wiki', async (ctx) => {
     const answerMatch = text.match(/^\/wiki(?:@\w+)?\s+answer\s+(.+)$/i);
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
+    const pageMatch = text.match(/^\/wiki(?:@\w+)?\s+([\w\/.-]+\.md)$/i);
     const result = promoteMatch?.[2]?.trim()
       ? await runBuilderWikiPromoteImprovement({
           title: promoteMatch[2].trim(),
@@ -2367,6 +2368,8 @@ bot.command('wiki', async (ctx) => {
         })
       : queryMatch?.[1]?.trim()
       ? await runBuilderWikiQuery({ query: queryMatch[1].trim(), refresh: true, limit: 5 })
+      : pageMatch?.[1]?.trim()
+      ? await runBuilderWikiQuery({ query: pageMatch[1].trim(), refresh: true, limit: 3 })
       : wantsInventory
       ? await runBuilderWikiInventory({ refresh: true, limit: 12 })
       : await runBuilderWikiStatus({ refresh: true });
