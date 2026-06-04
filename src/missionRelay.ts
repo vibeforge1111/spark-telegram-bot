@@ -2066,6 +2066,11 @@ function scheduleHeartbeat(
       });
   }, interval);
 
+  // Heartbeat is a background nudge — do not let it pin the event loop and
+  // block graceful shutdown when SIGTERM arrives while a mission is still
+  // streaming progress events.
+  timer.unref?.();
+
   heartbeatTimers.set(key, timer);
 }
 
