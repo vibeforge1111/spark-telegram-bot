@@ -66,6 +66,33 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes incomplete Spark Compete PR body drafts to safe chat answers', () => {
+  const route = decideNaturalRoute(`Create a Spark Compete PR body from this incomplete bug report.
+
+Bug:
+Telegram /access_setup shows "Command failed" without recovery guidance.
+
+Known proof:
+Before screenshot exists.
+
+Missing:
+No after screenshot yet.
+No PR URL yet.
+No duplicate search yet.
+No test result yet.
+No confirmed owner repo yet.
+
+Rules:
+Do not invent missing information. Use placeholders and clearly mark what still needs to be collected.`);
+
+  assert.equal(route.route, 'workflow.spark_compete_pr_body_draft');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'answer');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.requires_confirmation, false);
+  assert.deepEqual(route.matched_signals, ['spark_compete_pr_body_draft']);
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [
