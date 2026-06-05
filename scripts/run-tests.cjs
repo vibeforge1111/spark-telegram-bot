@@ -64,6 +64,7 @@ const tests = [
   'tests/creatorMissionStatus.test.ts',
   'tests/launchConversationQuality.test.ts',
   'tests/builderBridge.test.ts',
+  'tests/builderRepoPath.test.ts',
   'tests/telegramVoiceBridge.test.ts',
   'tests/voiceCaption.test.ts',
   'tests/pythonCommand.test.ts',
