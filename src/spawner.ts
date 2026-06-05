@@ -267,6 +267,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.cancelled,
     ...board.created
   ];
+  // NOTE: .sort() mutates the input array. Use .toSorted() (ES2023) or `[...arr].sort()` to avoid surprising callers. The function signature doesn't suggest in-place sort.
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
   return entries[0] || null;
 }
