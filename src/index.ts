@@ -4418,8 +4418,7 @@ function routeConfidenceHumanNextAction(payload: Record<string, unknown>): strin
 }
 
 function sanitizeForLog(value: string): string {
-  return value.replace(/[
-]/g, "_").slice(0, 200);
+  return value.replace(new RegExp("[\r\n\x1b]", "g"), "_").slice(0, 200);
 }
 
 function redactedRef(label: string, value: string): string {
