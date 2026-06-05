@@ -1976,7 +1976,7 @@ async function sendBuilderVoiceMedia(
   const caption = voiceMediaCaption(voiceMedia, fallbackText);
   const options = caption ? { caption } : undefined;
   console.log(
-    `[BridgeVoice] delivering media filename=${voiceMedia.filename} mime=${voiceMedia.mimeType} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length} captionChars=${caption?.length || 0} spokenChars=${(voiceMedia.spokenText || '').length}`
+    `[BridgeVoice] delivering media filename=${sanitizeForLog(voiceMedia.filename || "")} mime=${sanitizeForLog(voiceMedia.mimeType || "")} voiceCompatible=${voiceMedia.voiceCompatible} bytes=${audioBuffer.length} captionChars=${caption?.length || 0} spokenChars=${(voiceMedia.spokenText || '').length}`
   );
   if (voiceMedia.voiceCompatible) {
     await ctx.replyWithVoice(inputFile, options);
@@ -4415,6 +4415,11 @@ function routeConfidenceHumanNextAction(payload: Record<string, unknown>): strin
   return typeof payload.human_next_action === 'string'
     ? payload.human_next_action
     : 'Reply with a clearer scope or explicit confirmation before I start a mission.';
+}
+
+function sanitizeForLog(value: string): string {
+  return value.replace(/[
+]/g, "_").slice(0, 200);
 }
 
 function redactedRef(label: string, value: string): string {
