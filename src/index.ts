@@ -163,7 +163,7 @@ import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './auth
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
 import { readMemoryMovementSummary, renderMemoryMovementSummary } from './memoryMovement';
 import { readTraceRepairSummary, renderTraceRepairSummary } from './traceRepair';
-import { parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
+import { isSparkCompetePrBodyDraftingRequest, parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
 import { parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
 import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
 import { queueRouteArbiterShadow } from './routeArbiter';
@@ -222,6 +222,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderSparkCompetePrBodyDraftReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -6239,6 +6240,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   if (memoryDirective && deterministicRouteAllowed('memory.write', text)) {
     await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective);
+    return;
+  }
+  if (!earlyBuildIntent && isSparkCompetePrBodyDraftingRequest(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    const reply = renderSparkCompetePrBodyDraftReply(text);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'workflow.spark_compete_pr_body_draft', 'spark-telegram-bot', 'answer');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   const selfImprovementGoal = earlyBuildIntent ? null : extractSparkSelfImprovementGoal(text);

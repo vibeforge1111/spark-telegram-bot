@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseBuildIntent } from '../src/buildIntent';
+import { isSparkCompetePrBodyDraftingRequest, parseBuildIntent } from '../src/buildIntent';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -22,6 +22,29 @@ test('parses a compact direct build request', () => {
   assert.equal(intent.projectName, 'Spark Direct Probe');
   assert.match(intent.prd, /Files: index\.html, app\.js\./);
   assert.doesNotMatch(intent.prd, /C:\\Users\\USER\\Desktop/);
+});
+
+test('keeps incomplete Spark Compete PR body drafts out of build routing', () => {
+  const prompt = `Create a Spark Compete PR body from this incomplete bug report.
+
+Bug:
+Telegram /access_setup shows "Command failed" without recovery guidance.
+
+Known proof:
+Before screenshot exists.
+
+Missing:
+No after screenshot yet.
+No PR URL yet.
+No duplicate search yet.
+No test result yet.
+No confirmed owner repo yet.
+
+Rules:
+Do not invent missing information. Use placeholders and clearly mark what still needs to be collected.`;
+
+  assert.equal(isSparkCompetePrBodyDraftingRequest(prompt), true);
+  assert.equal(parseBuildIntent(prompt), null);
 });
 
 test('promotes larger new projects to advanced PRD mode', () => {

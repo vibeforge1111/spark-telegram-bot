@@ -14,6 +14,22 @@ export interface BuildIntent {
 export type BuildMode = 'direct' | 'advanced_prd';
 export type BuildLane = 'fast_direct' | 'direct' | 'advanced_prd';
 
+export function isSparkCompetePrBodyDraftingRequest(text: string): boolean {
+  const normalized = text.replace(/[‘’]/g, "'").replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+
+  const mentionsSparkCompete = /\bspark[-\s]*compete\b/i.test(normalized);
+  const asksForPrBody =
+    /\b(?:create|draft|write|prepare|make)\b.{0,80}\b(?:pr|pull\s+request)\s+(?:body|description|text)\b/i.test(normalized) ||
+    /\b(?:pr|pull\s+request)\s+(?:body|description|text)\b.{0,80}\b(?:from|for)\b/i.test(normalized);
+  const mentionsIncompleteReport =
+    /\b(?:incomplete|missing|placeholder|placeholders?|todo|do\s+not\s+invent|don't\s+invent|dont\s+invent)\b/i.test(normalized) ||
+    /\bno\s+(?:after\s+screenshot|pr\s+url|duplicate\s+search|test\s+result|confirmed\s+owner\s+repo)\b/i.test(normalized) ||
+    /\bclearly\s+mark\s+what\s+still\s+needs\s+to\s+be\s+collected\b/i.test(normalized);
+
+  return mentionsSparkCompete && asksForPrBody && mentionsIncompleteReport;
+}
+
 function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
   if (process.platform === 'win32') {
@@ -832,6 +848,7 @@ function extractBuildDescription(text: string): string | null {
 
 export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
+  if (isSparkCompetePrBodyDraftingRequest(original)) return null;
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
   if (isNoExecutionBoundary(original)) return null;

@@ -1,4 +1,4 @@
-import { parseBuildIntent } from './buildIntent';
+import { isSparkCompetePrBodyDraftingRequest, parseBuildIntent } from './buildIntent';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
@@ -168,9 +168,101 @@ export function extractSparkWikiAnswerQuestion(text: string): string | null {
   return null;
 }
 
+function cleanSparkCompeteDraftLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().replace(/^[-*]\s*/, '').replace(/[.]+$/, '');
+}
+
+function extractSparkCompeteDraftSection(text: string, label: string, nextLabels: string[]): string | null {
+  const next = nextLabels.map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const labelPattern = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(?:^|\\n)\\s*${labelPattern}:\\s*\\n?([\\s\\S]*?)(?=\\n\\s*(?:${next}):|$)`, 'i');
+  const match = text.match(pattern);
+  const section = match?.[1]?.trim();
+  return section || null;
+}
+
+function extractSparkCompeteDraftList(section: string | null): string[] {
+  if (!section) return [];
+  return section
+    .split(/\n+/)
+    .map(cleanSparkCompeteDraftLine)
+    .filter(Boolean);
+}
+
+export function renderSparkCompetePrBodyDraftReply(text: string): string {
+  const bug = cleanSparkCompeteDraftLine(
+    text.match(/(?:^|\n)\s*Bug:\s*([^\n]+)/i)?.[1] || ''
+  );
+  const knownProof = extractSparkCompeteDraftSection(text, 'Known proof', ['Missing', 'Rules', 'Expected', 'Actual', 'Repro']);
+  const missingItems = extractSparkCompeteDraftList(
+    extractSparkCompeteDraftSection(text, 'Missing', ['Rules', 'Expected', 'Actual', 'Repro', 'Before proof', 'After proof'])
+  );
+  const placeholders = missingItems.length ? missingItems : [
+    'after screenshot if not collected yet',
+    'PR URL if the PR is not open yet',
+    'duplicate search result if not checked yet',
+    'test or smoke result if not run yet',
+    'confirmed owner repo if ownership is still unclear'
+  ];
+  const summary = bug || 'TODO: add the bug summary from the incomplete report';
+  const beforeProof = knownProof
+    ? `Known: ${cleanSparkCompeteDraftLine(knownProof)}`
+    : 'TODO: add the before screenshot or short redacted behavior excerpt.';
+
+  return [
+    'Draft PR body',
+    '',
+    '## Summary',
+    `Fix: ${summary}`,
+    '',
+    '## Actual',
+    `Known: ${summary}`,
+    'The PR drafting request should not be routed to unrelated internal planning output.',
+    '',
+    '## Expected',
+    'Spark should create a Spark Compete PR body draft that preserves known facts and marks missing information as TODO placeholders.',
+    '',
+    '## Repro',
+    '1. Open the Spark Telegram bot.',
+    '2. Ask Spark to create a Spark Compete PR body from an incomplete bug report.',
+    '3. Include known proof and missing items.',
+    '4. Tell Spark not to invent missing information and to use placeholders.',
+    '5. Confirm Spark returns a PR body draft instead of unrelated internal planning output.',
+    '',
+    '## Before Proof',
+    beforeProof,
+    '',
+    '## After Proof',
+    '- TODO: collect the after screenshot or safe smoke result before marking this complete.',
+    '',
+    '## Tests / Smoke',
+    '- TODO: add the focused test command or Telegram smoke result.',
+    '',
+    '## Duplicate Notes',
+    '- TODO: search existing issues and PRs for the same prompt family before filing.',
+    '',
+    '## Owner Repo',
+    '- TODO: confirm the owning repo before opening the PR.',
+    '',
+    '## PR URL',
+    '- TODO: add the PR URL after opening the PR.',
+    '',
+    '## Risk Notes',
+    '- Keep the fix limited to natural-language routing or fallback handling.',
+    '- Do not change self-improvement internals, mission execution, access levels, CI, dependencies, or secret handling.',
+    '- Do not include secrets, tokens, .env files, raw logs, chat IDs, private paths, or private Telegram data.',
+    '',
+    '## Still Needed',
+    ...placeholders.map((item) => `- TODO: ${item}`),
+  ].join('\n');
+}
+
 export function extractSparkSelfImprovementGoal(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (isSparkCompetePrBodyDraftingRequest(normalized)) {
     return null;
   }
   if (isVoiceAnswerRequest(normalized) || isAccessSandboxRouteDesignDiscussion(normalized)) {

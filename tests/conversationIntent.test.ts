@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { isSparkCompetePrBodyDraftingRequest } from '../src/buildIntent';
 import {
   buildIdeationFallbackReply,
   buildIdeationSystemHint,
@@ -68,6 +69,7 @@ import {
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
+  renderSparkCompetePrBodyDraftReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
@@ -1537,6 +1539,56 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
     extractSparkSelfImprovementGoal('Okay Spark, what do you want to improve today?') || '',
     /highest-leverage Spark self-improvement/
   );
+});
+
+test('drafts incomplete Spark Compete PR bodies with placeholders instead of self-improvement goals', () => {
+  const prompt = `Create a Spark Compete PR body from this incomplete bug report.
+
+Bug:
+Telegram /access_setup shows "Command failed" without recovery guidance.
+
+Known proof:
+Before screenshot exists.
+
+Missing:
+No after screenshot yet.
+No PR URL yet.
+No duplicate search yet.
+No test result yet.
+No confirmed owner repo yet.
+
+Rules:
+Do not invent missing information. Use placeholders and clearly mark what still needs to be collected.`;
+
+  assert.equal(isSparkCompetePrBodyDraftingRequest(prompt), true);
+  assert.equal(extractSparkSelfImprovementGoal(prompt), null);
+
+  const reply = renderSparkCompetePrBodyDraftReply(prompt);
+  assert.match(reply, /Draft PR body/);
+  for (const heading of [
+    'Summary',
+    'Actual',
+    'Expected',
+    'Repro',
+    'Before Proof',
+    'After Proof',
+    'Tests / Smoke',
+    'Duplicate Notes',
+    'Owner Repo',
+    'PR URL',
+    'Risk Notes',
+    'Still Needed'
+  ]) {
+    assert.match(reply, new RegExp(`## ${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  }
+  assert.match(reply, /Telegram \/access_setup shows "Command failed" without recovery guidance/);
+  assert.match(reply, /TODO: No after screenshot yet/);
+  assert.match(reply, /TODO: No PR URL yet/);
+  assert.match(reply, /TODO: No duplicate search yet/);
+  assert.match(reply, /TODO: No test result yet/);
+  assert.match(reply, /TODO: No confirmed owner repo yet/);
+  assert.doesNotMatch(reply, /Spark self-improvement plan/);
+  assert.match(reply, /Do not include secrets, tokens, \.env files, raw logs, chat IDs, private paths, or private Telegram data/);
 });
 
 test('recognizes chip status overclaim questions as anti-drift probes', () => {
