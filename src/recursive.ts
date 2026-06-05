@@ -448,6 +448,7 @@ function builderConfigPaths(): string[] {
 function builderSwarmConfigValue(key: string): string | null {
   for (const configPath of builderConfigPaths()) {
     try {
+      // NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
       if (!existsSync(configPath)) continue;
       let inSpark = false;
       let sparkIndent = -1;
