@@ -327,7 +327,7 @@ async function writeFileAtomicSameDir(filePath: string, content: string): Promis
   const dir = path.dirname(filePath);
   const tempPath = path.join(
     dir,
-    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${require("crypto").randomBytes(4).toString("hex")}.tmp`
   );
   try {
     await writeFile(tempPath, content, 'utf8');
