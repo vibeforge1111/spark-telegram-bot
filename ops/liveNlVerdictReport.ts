@@ -30,7 +30,12 @@ function timestampForFile(date = new Date()): string {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const casesPath = path.join(__dirname, 'natural-language-live-commands.json');
-  const allCases = parseLiveNlCommandCases(JSON.parse(fs.readFileSync(casesPath, 'utf8')));
+  try {
+    const allCases = parseLiveNlCommandCases(JSON.parse(fs.readFileSync(casesPath, 'utf8')));
+  } catch (error) {
+    console.error('readFileSync failed:', error);
+    throw error;
+  }
   const suite = argValue(args, 'suite');
   const selected = selectLiveNlCommandCases(allCases, {
     caseId: argValue(args, 'case'),
