@@ -36,7 +36,12 @@ function parseArgs(argv: string[]): Args {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const cases = parseNaturalRouteReplayCases(fs.readFileSync(args.fixturePath, 'utf8'));
+  try {
+    const cases = parseNaturalRouteReplayCases(fs.readFileSync(args.fixturePath, 'utf8'));
+  } catch (error) {
+    console.error('readFileSync failed:', error);
+    throw error;
+  }
   const replay = runNaturalRouteReplayCases(cases);
   const records = createNaturalRouteReplayLedgerRecords(replay, { profile: args.profile });
 
