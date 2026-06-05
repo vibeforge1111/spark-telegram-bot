@@ -204,7 +204,7 @@ function resolveConfig(): PathLoopConfig {
   };
 }
 
-function normalizeKey(value: string): string {
+function normalizeKey(value: unknown): string {
   return String(value || '').trim().toLowerCase();
 }
 
@@ -213,18 +213,23 @@ function normalizeRepoRoot(value: unknown): string | undefined {
   return normalized || undefined;
 }
 
-function recordCapabilities(record: any): string[] {
-  return Array.isArray(record?.capabilities) ? record.capabilities.map((item: unknown) => String(item)) : [];
+function recordCapabilities(record: unknown): string[] {
+  if (!record || typeof record !== 'object') return [];
+  const capabilities = (record as Record<string, unknown>).capabilities;
+  return Array.isArray(capabilities) ? capabilities.map((item: unknown) => String(item)) : [];
 }
 
-export function classifyBuilderAttachmentTargetFromSnapshot(snapshot: any, targetKey: string): RecursiveStartTarget {
+export function classifyBuilderAttachmentTargetFromSnapshot(snapshot: unknown, targetKey: string): RecursiveStartTarget {
   const fallback: RecursiveStartTarget = { kind: 'chip', key: targetKey };
   const normalizedTarget = normalizeKey(targetKey);
-  const records = Array.isArray(snapshot?.records) ? snapshot.records : [];
+  const snapshotRecord = (snapshot && typeof snapshot === 'object') ? snapshot as Record<string, unknown> : null;
+  const records: unknown[] = Array.isArray(snapshotRecord?.records) ? snapshotRecord.records as unknown[] : [];
 
-  const pathRecord = records.find((record: any) => (
-    normalizeKey(record?.kind) === 'path' && normalizeKey(record?.key) === normalizedTarget
-  ));
+  const pathRecord = records.find((record: unknown) => {
+    if (!record || typeof record !== 'object') return false;
+    const r = record as Record<string, unknown>;
+    return normalizeKey(r.kind) === 'path' && normalizeKey(r.key) === normalizedTarget;
+  }) as Record<string, unknown> | undefined;
   if (pathRecord) {
     return {
       kind: 'path',
@@ -234,9 +239,11 @@ export function classifyBuilderAttachmentTargetFromSnapshot(snapshot: any, targe
     };
   }
 
-  const chipRecord = records.find((record: any) => (
-    normalizeKey(record?.kind) === 'chip' && normalizeKey(record?.key) === normalizedTarget
-  ));
+  const chipRecord = records.find((record: unknown) => {
+    if (!record || typeof record !== 'object') return false;
+    const r = record as Record<string, unknown>;
+    return normalizeKey(r.kind) === 'chip' && normalizeKey(r.key) === normalizedTarget;
+  }) as Record<string, unknown> | undefined;
   if (chipRecord) {
     return {
       kind: 'chip',
