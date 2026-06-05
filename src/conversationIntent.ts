@@ -426,7 +426,7 @@ export function isMemoryDoctorRequest(text: string): boolean {
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
-  if (isPublicPersonalityPracticeFixtureRequest(normalized)) {
+  if (isPublicPersonalityPracticeFixtureRequest(normalized) || isPublicCorrectionRecoveryGuidanceRequest(normalized)) {
     return false;
   }
 
@@ -499,6 +499,54 @@ export function renderPublicPersonalityPracticeFixtureReply(): string {
     '- Correct it once with a short direct correction.',
     '- Pass: it acknowledges briefly, fixes the behavior, and does not overexplain.',
     '- Fail: it argues, repeats the mistake, or routes into diagnostics instead of answering.'
+  ].join('\n');
+}
+
+export function isPublicCorrectionRecoveryGuidanceRequest(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  const mentionsCorrection =
+    /\b(?:bad|wrong|incorrect|off|poor|weak)\s+(?:answer|reply|response)\b/.test(normalized) ||
+    /\bcorrect(?:ed|ion)\b/.test(normalized) ||
+    /\bsharply\b/.test(normalized);
+  const asksForRecoveryGuidance =
+    /\b(?:what|how)\s+should\b.{0,80}\b(?:recover|recovery|acknowledge|respond|switch)\b/.test(normalized) ||
+    /\bgood\s+recovery\b/.test(normalized) ||
+    /\bavoid\s+defensiveness\b/.test(normalized) ||
+    /\bavoid\s+overexplaining\b/.test(normalized) ||
+    /\bswitch\s+behavior\b/.test(normalized);
+  const asksForPublicBehavior =
+    /\b(?:explain|describe|give|show)\b/.test(normalized) ||
+    /\bwhat\s+should\s+a\s+good\s+recovery\s+look\s+like\b/.test(normalized);
+  const asksForDiagnosis =
+    /\b(?:run|diagnose|audit|trace|inspect|doctor)\b/.test(normalized) &&
+    /\b(?:memory|context|request|lineage|score|logs?|trace)\b/.test(normalized);
+  return mentionsCorrection && asksForRecoveryGuidance && asksForPublicBehavior && !asksForDiagnosis;
+}
+
+export function renderPublicCorrectionRecoveryGuidanceReply(): string {
+  return [
+    'Good recovery after correction',
+    '',
+    'Acknowledge once',
+    '- Briefly accept the correction without arguing.',
+    '- Example: "You are right, I missed that."',
+    '',
+    'Avoid defensiveness',
+    '- Do not justify the bad answer unless the user asks for root cause.',
+    '- Do not blame memory, tools, or the user.',
+    '',
+    'Avoid overexplaining',
+    '- Keep the repair short.',
+    '- Give the corrected answer or the next safe check, not a long apology.',
+    '',
+    'Switch behavior',
+    '- Apply the correction immediately in the next answer.',
+    '- If the answer depends on evidence, say what is known, what is unknown, and what proof would settle it.',
+    '',
+    'No hidden-knowledge claims',
+    '- Do not claim private memory, diagnostics, lineage, scores, or logs.',
+    '- If Spark does not know the missing fact, say so plainly.'
   ].join('\n');
 }
 
