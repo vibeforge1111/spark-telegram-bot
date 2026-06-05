@@ -2801,7 +2801,7 @@ async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {
     const summary = await summarizeLocalWorkspaces();
     const reply = renderLocalWorkspaceInspectionReply(summary);
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     await ctx.reply(`Local workspace inspection failed: ${detail}`);
@@ -5477,7 +5477,7 @@ bot.command('access', async (ctx) => {
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
       return;
     }
   }
@@ -5548,7 +5548,7 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
       ].filter(Boolean).join('\n')
     : baseReply;
   await ctx.reply(reply, buildSparkAccessChangeKeyboard(next));
-  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
   if (level5DisableResult?.needsSparkRestart) {
     scheduleSparkRestartAfterAccessChange();
   }
@@ -5574,7 +5574,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<void> {
         : await renderSparkAccessChangeReply('operator'),
     ].join('\n');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
     if (result.needsSparkRestart) {
       scheduleSparkRestartAfterAccessChange();
     }
@@ -5606,7 +5606,7 @@ async function handleSparkAccessAction(ctx: any, actionId: SparkAccessActionId, 
       ? [result.reply, '', formatSparkAccessAutomaticRestartNotice(actionId)].join('\n')
       : result.reply;
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
     if (result.needsSparkRestart) {
       scheduleSparkRestartAfterAccessChange();
     }
@@ -5655,7 +5655,7 @@ async function handleAccessChangeRequest(ctx: any, raw: string): Promise<boolean
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      if (ctx.from) await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
       return true;
     }
   }
