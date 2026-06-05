@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 
 export interface MissionControlEvent {
@@ -29,7 +30,7 @@ function truncate(value: string, maxLength: number): string {
 }
 
 function randomId(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return randomBytes(4).toString('hex');
 }
 
 function missionControlDisabled(): boolean {
