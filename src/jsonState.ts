@@ -38,6 +38,7 @@ export async function readJsonFile<T>(filePath: string): Promise<T | null> {
       return JSON.parse(row.json_value) as T;
     }
 
+    // NOTE: existsSync check then use is a TOCTOU pattern in concurrent code. The file may be deleted between the check and the read. Consider using try/catch ENOENT or async fs.promises.access.
     if (!existsSync(filePath)) {
       return null;
     }
