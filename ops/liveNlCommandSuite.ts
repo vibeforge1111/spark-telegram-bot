@@ -26,7 +26,12 @@ function argList(name: string): string[] {
 
 function loadCases(): LiveNlCommandCase[] {
   const file = path.join(__dirname, 'natural-language-live-commands.json');
-  return parseLiveNlCommandCases(JSON.parse(fs.readFileSync(file, 'utf-8')));
+  try {
+    return parseLiveNlCommandCases(JSON.parse(fs.readFileSync(file, 'utf-8')));
+  } catch (error) {
+    console.error('readFileSync failed:', error);
+    throw error;
+  }
 }
 
 function renderCase(entry: LiveNlCommandCase): string {
