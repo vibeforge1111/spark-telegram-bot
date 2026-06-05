@@ -1751,6 +1751,7 @@ interface PendingMissionCancelConfirmation {
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const CREATOR_MISSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Periodic cleanup of stale entries in all unbounded maps
 const mapCleanupTimer = setInterval(() => {
@@ -1773,6 +1774,11 @@ const mapCleanupTimer = setInterval(() => {
   for (const [key, entry] of pendingDomainChipBuilds) {
     if (now - entry.timestamp > DOMAIN_CHIP_BUILD_TTL_MS) {
       pendingDomainChipBuilds.delete(key);
+    }
+  }
+  for (const [key, entry] of pendingCreatorMissions) {
+    if (now - entry.timestamp > CREATOR_MISSION_TTL_MS) {
+      pendingCreatorMissions.delete(key);
     }
   }
   for (const [key, entry] of pendingMissionCancelConfirmations) {
