@@ -301,7 +301,12 @@ export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env
   for (const name of readdirSync(root).filter((file) => file.toLowerCase().endsWith('.md')).sort()) {
     if (name.startsWith('.')) continue;
     const filePath = path.join(root, name);
-    const content = readFileSync(filePath, 'utf-8').trim();
+    try {
+      const content = readFileSync(filePath, 'utf-8').trim();
+    } catch (error) {
+      console.error('readFileSync failed:', error);
+      throw error;
+    }
     if (!content) continue;
     chunks.push(`### ${name}\n${content}`);
   }
