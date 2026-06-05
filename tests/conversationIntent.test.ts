@@ -51,6 +51,7 @@ import {
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
+  isVoiceReadinessProofQuestion,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
@@ -67,6 +68,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
+  renderVoiceReadinessProofReply,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
@@ -953,6 +955,29 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
     assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
     assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
   }
+});
+
+test('recognizes voice readiness proof questions outside self-improvement', () => {
+  const prompt = [
+    'I sent a voice note and Spark replied with text only.',
+    '',
+    'Does that mean voice is fully working, partly working, or not proven yet?',
+    '',
+    'Please separate speech-to-text input, spoken reply generation, audio encoding, and Telegram voice delivery proof. Give me one safe next check.'
+  ].join('\n');
+
+  assert.equal(isVoiceReadinessProofQuestion(prompt), true);
+  assert.equal(extractSparkSelfImprovementGoal(prompt), null);
+
+  const reply = renderVoiceReadinessProofReply();
+  assert.match(reply, /Partly working, not fully proven/);
+  assert.match(reply, /Speech-to-text input/);
+  assert.match(reply, /Spoken reply generation/);
+  assert.match(reply, /Audio encoding/);
+  assert.match(reply, /Telegram voice delivery proof/);
+  assert.match(reply, /Safe next check/);
+  assert.doesNotMatch(reply, /Spark self-improvement plan/);
+  assert.doesNotMatch(reply, /live self-awareness capsule/);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {
