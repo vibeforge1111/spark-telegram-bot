@@ -2278,6 +2278,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
     }
 
     try {
+      if (!Number.isFinite(Number(subscription.chatId))) return;
       const chatId = Number(subscription.chatId);
       const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
       const linkPreference = await getTelegramMissionLinkPreference(subscription.chatId);
