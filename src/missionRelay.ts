@@ -2220,6 +2220,7 @@ export async function approvePendingMissionLesson(userId: string | number, remem
   if (!lesson) return null;
 
   const numericUserId = Number(normalizedUserId);
+    if (!Number.isFinite(numericUserId)) return;
   if (!Number.isFinite(numericUserId)) return null;
   const note = [
     `Approved mission lesson from Spawner mission ${approval.missionId} via ${humanizeProviderLabel(approval.providerLabel)}.`,
@@ -2429,6 +2430,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
     try {
       const chatId = Number(subscription.chatId);
+      if (!Number.isFinite(chatId)) continue;
       const verbosity = await getTelegramRelayVerbosity(subscription.chatId);
       const linkPreference = await getTelegramMissionLinkPreference(subscription.chatId);
 
