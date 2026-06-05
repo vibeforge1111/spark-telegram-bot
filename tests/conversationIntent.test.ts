@@ -51,6 +51,8 @@ import {
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
+  isPublicCorrectionRecoveryGuidanceRequest,
+  isPublicPersonalityPracticeFixtureRequest,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
@@ -67,6 +69,8 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
+  renderPublicCorrectionRecoveryGuidanceReply,
+  renderPublicPersonalityPracticeFixtureReply,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
@@ -953,6 +957,59 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
     assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
     assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
   }
+});
+
+test('recognizes public personality practice fixture prompts outside Memory Doctor diagnostics', () => {
+  const prompt = [
+    'Use spark-personality-chip-labs only as a public behavior practice fixture.',
+    '',
+    'How should I test:',
+    '- voice drift',
+    '- boundary confusion',
+    '- overconfident claims',
+    '- recovery after a bad answer',
+    '',
+    'Please give a public-safe QA checklist. Do not run Memory Doctor, do not inspect memory, and do not print diagnostics, scores, request IDs, lineage, or raw logs.'
+  ].join('\n');
+
+  assert.equal(isPublicPersonalityPracticeFixtureRequest(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderPublicPersonalityPracticeFixtureReply();
+  assert.match(reply, /Public personality practice checklist/);
+  assert.match(reply, /Voice drift/);
+  assert.match(reply, /Boundary confusion/);
+  assert.match(reply, /Overconfident claims/);
+  assert.match(reply, /Recovery after a bad answer/);
+  assert.doesNotMatch(reply, /Request:/);
+  assert.doesNotMatch(reply, /Lineage scope/);
+  assert.doesNotMatch(reply, /Benchmark:/);
+});
+
+test('recognizes public correction recovery guidance outside Memory Doctor diagnostics', () => {
+  const prompt = [
+    'Spark gave a bad answer and I corrected it sharply.',
+    '',
+    'What should a good recovery look like?',
+    '',
+    'Please explain how Spark should acknowledge the correction, avoid defensiveness, avoid overexplaining, and switch behavior without claiming hidden knowledge.'
+  ].join('\n');
+
+  assert.equal(isPublicCorrectionRecoveryGuidanceRequest(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderPublicCorrectionRecoveryGuidanceReply();
+  assert.match(reply, /Good recovery after correction/);
+  assert.match(reply, /Acknowledge once/);
+  assert.match(reply, /Avoid defensiveness/);
+  assert.match(reply, /Avoid overexplaining/);
+  assert.match(reply, /Switch behavior/);
+  assert.match(reply, /No hidden-knowledge claims/);
+  assert.doesNotMatch(reply, /Request:/);
+  assert.doesNotMatch(reply, /Lineage scope/);
+  assert.doesNotMatch(reply, /Benchmark:/);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {

@@ -1,3 +1,8 @@
+import {
+  isPublicCorrectionRecoveryGuidanceRequest,
+  isPublicPersonalityPracticeFixtureRequest
+} from './conversationIntent';
+
 export interface MemoryDoctorEvidenceTurn {
   role: 'user' | 'assistant' | string;
   text: string;
@@ -19,7 +24,10 @@ function normalizeEvidenceRole(role: string): 'user' | 'assistant' {
 }
 
 export function shouldAttachMemoryDoctorEvidence(text: string): boolean {
-  return CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(text.replace(/\s+/g, ' ').trim());
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return !isPublicPersonalityPracticeFixtureRequest(normalized) &&
+    !isPublicCorrectionRecoveryGuidanceRequest(normalized) &&
+    CONTEXTUAL_MEMORY_DOCTOR_PATTERN.test(normalized);
 }
 
 function sameNormalizedText(a: string, b: string): boolean {

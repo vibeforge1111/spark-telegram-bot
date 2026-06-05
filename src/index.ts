@@ -203,6 +203,8 @@ import {
   isGlobalAgentDoctrineRequest,
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
+  isPublicCorrectionRecoveryGuidanceRequest,
+  isPublicPersonalityPracticeFixtureRequest,
   isProtectedMissionCancelPronounIntent,
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
@@ -222,6 +224,8 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderPublicCorrectionRecoveryGuidanceReply,
+  renderPublicPersonalityPracticeFixtureReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -6095,6 +6099,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isPublicPersonalityPracticeFixtureRequest(text)) {
+    const reply = renderPublicPersonalityPracticeFixtureReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.personality_practice_fixture', 'spark-telegram-bot', 'plain_chat.qa_fixture');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isPublicCorrectionRecoveryGuidanceRequest(text)) {
+    const reply = renderPublicCorrectionRecoveryGuidanceReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.correction_recovery_guidance', 'spark-telegram-bot', 'plain_chat.qa_fixture');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

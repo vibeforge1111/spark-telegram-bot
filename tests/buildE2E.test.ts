@@ -800,6 +800,129 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('public personality fixture QA stays out of Memory Doctor diagnostics', async () => {
+		restoreAxios();
+		const testUserId = 8319079591;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let bridgeCalls = 0;
+		(builderBridge as any).runBuilderTelegramBridge = async () => {
+			bridgeCalls += 1;
+			return {
+				used: true,
+				responseText: [
+					'Memory Doctor: healthy.',
+					'Request: telegram:368510915.',
+					'Lineage scope: 1 session(s), 1 channel(s) visible.',
+					'Benchmark: 75/100.'
+				].join('\n'),
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'memory.doctor'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 5653, replies);
+			ctx.message.text = [
+				'Use spark-personality-chip-labs only as a public behavior practice fixture.',
+				'',
+				'How should I test:',
+				'- voice drift',
+				'- boundary confusion',
+				'- overconfident claims',
+				'- recovery after a bad answer',
+				'',
+				'Please give a public-safe QA checklist. Do not run Memory Doctor, do not inspect memory, and do not print diagnostics, scores, request IDs, lineage, or raw logs.'
+			].join('\n');
+			(ctx as any).update = { update_id: 5653, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.equal(bridgeCalls, 0);
+			assert.match(reply, /Public personality practice checklist/);
+			assert.match(reply, /Voice drift/);
+			assert.match(reply, /Boundary confusion/);
+			assert.match(reply, /Overconfident claims/);
+			assert.match(reply, /Recovery after a bad answer/);
+			assert.doesNotMatch(reply, /Memory Doctor:/);
+			assert.doesNotMatch(reply, /Request: telegram/);
+			assert.doesNotMatch(reply, /Lineage scope/);
+			assert.doesNotMatch(reply, /Benchmark:/);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('public correction recovery guidance stays out of Memory Doctor diagnostics', async () => {
+		restoreAxios();
+		const testUserId = 8319079592;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let bridgeCalls = 0;
+		(builderBridge as any).runBuilderTelegramBridge = async () => {
+			bridgeCalls += 1;
+			return {
+				used: true,
+				responseText: [
+					'Memory Doctor: healthy.',
+					'Request: telegram:368510915.',
+					'Lineage scope: 1 session(s), 1 channel(s) visible.',
+					'Benchmark: 75/100.'
+				].join('\n'),
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'memory.doctor'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 5654, replies);
+			ctx.message.text = [
+				'Spark gave a bad answer and I corrected it sharply.',
+				'',
+				'What should a good recovery look like?',
+				'',
+				'Please explain how Spark should acknowledge the correction, avoid defensiveness, avoid overexplaining, and switch behavior without claiming hidden knowledge.'
+			].join('\n');
+			(ctx as any).update = { update_id: 5654, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.equal(bridgeCalls, 0);
+			assert.match(reply, /Good recovery after correction/);
+			assert.match(reply, /Acknowledge once/);
+			assert.match(reply, /Avoid defensiveness/);
+			assert.match(reply, /Avoid overexplaining/);
+			assert.match(reply, /Switch behavior/);
+			assert.match(reply, /No hidden-knowledge claims/);
+			assert.doesNotMatch(reply, /Memory Doctor:/);
+			assert.doesNotMatch(reply, /Request: telegram/);
+			assert.doesNotMatch(reply, /Lineage scope/);
+			assert.doesNotMatch(reply, /Benchmark:/);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('final-answer gate audit preserves Builder trace ids for suppressed replies', async () => {
 		restoreAxios();
 		const testUserId = 8319079570;
