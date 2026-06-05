@@ -176,7 +176,7 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (isVoiceAnswerRequest(normalized) || isAccessSandboxRouteDesignDiscussion(normalized)) {
     return null;
   }
-  if (isVoiceOnboardingSetupQuestion(normalized)) {
+  if (isVoiceOnboardingSetupQuestion(normalized) || isVoiceReadinessProofQuestion(normalized)) {
     return null;
   }
   if (shouldPreferConversationalIdeation(normalized)) {
@@ -243,6 +243,51 @@ export function isVoiceAnswerRequest(text: string): boolean {
     /^(?:send|reply)\s+(?:me\s+)?(?:a\s+)?(?:voice|audio|spoken)\s+(?:message|reply|note)\s+(?:about|on|for)\s+.+$/i,
     /^(?:answer|respond\s+to)\s+.+?\s+(?:by|with|in)\s+(?:voice|audio|speech)$/i,
   ].some((pattern) => pattern.test(lowered));
+}
+
+export function isVoiceReadinessProofQuestion(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized) return false;
+  const mentionsVoice =
+    /\b(?:voice\s+note|voice|speech[-\s]*to[-\s]*text|spoken\s+reply|audio\s+(?:reply|encoding)|telegram\s+voice|telegram\s+delivery)\b/.test(normalized);
+  if (!mentionsVoice) return false;
+  const asksReadiness =
+    /\b(?:fully\s+working|partly\s+working|not\s+proven|proof|delivery\s+proof|readiness|safe\s+next\s+check|separate)\b/.test(normalized);
+  const namesVoiceStages =
+    /\bspeech[-\s]*to[-\s]*text\b/.test(normalized) ||
+    /\bspoken\s+reply\s+generation\b/.test(normalized) ||
+    /\baudio\s+encoding\b/.test(normalized) ||
+    /\btelegram\s+voice\s+delivery\s+proof\b/.test(normalized) ||
+    /\btext\s+only\b/.test(normalized);
+  const asksCapabilityChange =
+    /\b(?:install|set\s+up|setup|configure|add|enable|build|create)\b/.test(normalized) &&
+    /\b(?:voice|provider|tts|speech)\b/.test(normalized);
+  return asksReadiness && namesVoiceStages && !asksCapabilityChange;
+}
+
+export function renderVoiceReadinessProofReply(): string {
+  return [
+    'Partly working, not fully proven.',
+    '',
+    'Speech-to-text input',
+    '- Likely worked if Spark understood your voice note and replied to the right topic in text.',
+    '- If the reply was off-topic or garbled, this part is still unknown.',
+    '',
+    'Spoken reply generation',
+    '- Not proven from a text-only reply.',
+    '- A pass needs Spark to produce an actual spoken/audio reply.',
+    '',
+    'Audio encoding',
+    '- Not proven from text alone.',
+    '- A pass needs the generated audio to be encoded into a playable Telegram-compatible format.',
+    '',
+    'Telegram voice delivery proof',
+    '- Not proven until Telegram shows a playable voice/audio message from Spark.',
+    '- Backend generation alone is weak proof if no audio reaches Telegram.',
+    '',
+    'Safe next check',
+    '- Run the narrow voice status check, then send one short voice note and verify whether the reply arrives as an actual playable Telegram voice message.'
+  ].join('\n');
 }
 
 function isAccessSandboxRouteDesignDiscussion(text: string): boolean {

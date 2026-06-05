@@ -214,6 +214,7 @@ import {
   isProjectImprovementRequest,
   isLocalSparkServiceRequest,
   isLowInformationLlmReply,
+  isVoiceReadinessProofQuestion,
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
@@ -222,6 +223,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
   renderMissionRoutingFailureClassReply,
+  renderVoiceReadinessProofReply,
   renderSparkThreadQaGoldenCaseReply,
   renderSparkWorkflowBugHuntReply,
   builderReplySuppressionReason,
@@ -6095,6 +6097,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderSparkWorkflowBugHuntReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+
+  if (!earlyBuildIntent && isVoiceReadinessProofQuestion(text)) {
+    const reply = renderVoiceReadinessProofReply();
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.voice_readiness_proof', 'spark-telegram-bot', 'plain_chat.qa_fixture');
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;

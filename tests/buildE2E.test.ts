@@ -800,6 +800,58 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('voice readiness proof question stays out of self-improvement planning', async () => {
+		restoreAxios();
+		const testUserId = 8319079593;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalSelfImprovement = builderBridge.runBuilderSelfImprovementPlan;
+		let selfImprovementCalls = 0;
+		(builderBridge as any).runBuilderSelfImprovementPlan = async () => {
+			selfImprovementCalls += 1;
+			return {
+				replyText: [
+					'Spark self-improvement plan',
+					'Mode: plan_only_probe_first',
+					'Evidence: live_self_snapshot_with_wiki_support'
+				].join('\n')
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 5655, replies);
+			ctx.message.text = [
+				'I sent a voice note and Spark replied with text only.',
+				'',
+				'Does that mean voice is fully working, partly working, or not proven yet?',
+				'',
+				'Please separate speech-to-text input, spoken reply generation, audio encoding, and Telegram voice delivery proof. Give me one safe next check.'
+			].join('\n');
+			(ctx as any).update = { update_id: 5655, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.equal(selfImprovementCalls, 0);
+			assert.match(reply, /Partly working, not fully proven/);
+			assert.match(reply, /Speech-to-text input/);
+			assert.match(reply, /Spoken reply generation/);
+			assert.match(reply, /Audio encoding/);
+			assert.match(reply, /Telegram voice delivery proof/);
+			assert.doesNotMatch(reply, /Spark self-improvement plan/);
+			assert.doesNotMatch(reply, /live self-awareness capsule/);
+		} finally {
+			(builderBridge as any).runBuilderSelfImprovementPlan = originalSelfImprovement;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('final-answer gate audit preserves Builder trace ids for suppressed replies', async () => {
 		restoreAxios();
 		const testUserId = 8319079570;
