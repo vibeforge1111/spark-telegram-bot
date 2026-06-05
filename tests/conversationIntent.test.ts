@@ -51,6 +51,7 @@ import {
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
   isNoExecutionBoundary,
+  isPublicPersonalityPracticeFixtureRequest,
   isLowInformationLlmReply,
   isAgentDoctrinePreferenceStatusQuestion,
   isGlobalAgentDoctrineRequest,
@@ -67,6 +68,7 @@ import {
   parseMissionUpdatePreferenceIntent,
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
+  renderPublicPersonalityPracticeFixtureReply,
   renderChatRuntimeFailureReply,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseBuilderReplyForMemoryDirective,
@@ -953,6 +955,34 @@ test('keeps Memory Doctor and answer-audit requests out of stale creator context
     assert.equal(isMemoryDoctorRequest(prompt), true, `${prompt} should be recognized as a Memory Doctor request`);
     assert.equal(parseNaturalCreatorMissionIntent(prompt, context), null, `${prompt} should not plan a creator mission`);
   }
+});
+
+test('recognizes public personality practice fixture prompts outside Memory Doctor diagnostics', () => {
+  const prompt = [
+    'Use spark-personality-chip-labs only as a public behavior practice fixture.',
+    '',
+    'How should I test:',
+    '- voice drift',
+    '- boundary confusion',
+    '- overconfident claims',
+    '- recovery after a bad answer',
+    '',
+    'Please give a public-safe QA checklist. Do not run Memory Doctor, do not inspect memory, and do not print diagnostics, scores, request IDs, lineage, or raw logs.'
+  ].join('\n');
+
+  assert.equal(isPublicPersonalityPracticeFixtureRequest(prompt), true);
+  assert.equal(isMemoryDoctorRequest(prompt), false);
+  assert.equal(shouldAttachMemoryDoctorEvidence(prompt), false);
+
+  const reply = renderPublicPersonalityPracticeFixtureReply();
+  assert.match(reply, /Public personality practice checklist/);
+  assert.match(reply, /Voice drift/);
+  assert.match(reply, /Boundary confusion/);
+  assert.match(reply, /Overconfident claims/);
+  assert.match(reply, /Recovery after a bad answer/);
+  assert.doesNotMatch(reply, /Request:/);
+  assert.doesNotMatch(reply, /Lineage scope/);
+  assert.doesNotMatch(reply, /Benchmark:/);
 });
 
 test('builds recent-turn evidence for contextual Memory Doctor requests', () => {
