@@ -3094,6 +3094,17 @@ type PendingCreatorMission = {
 
 const pendingCreatorMissions = new Map<string, PendingCreatorMission>();
 
+// Periodic cleanup: evict stale pendingCreatorMissions entries (30-min TTL)
+const CREATOR_MISSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of pendingCreatorMissions) {
+    if (now - entry.timestamp > CLARIFICATION_TTL_MS) {
+      pendingCreatorMissions.delete(key);
+    }
+  }
+}, CREATOR_MISSION_CLEANUP_INTERVAL_MS);
+
 const CREATOR_USAGE = [
   'Usage: /creator plan [private|github|swarm] [risk low|medium|high] <brief>',
   '       /creator run <mission-creator-id>',
