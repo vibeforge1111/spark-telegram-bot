@@ -381,7 +381,7 @@ function objectEntries(value: unknown): [string, unknown][] {
 function formatTopCounts(value: unknown): string {
   const entries = objectEntries(value)
     .filter(([, count]) => typeof count === 'number')
-    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .sort((a, b) => Number(b[1]) - Number(a[1]) || a[0].localeCompare(b[0]))
     .slice(0, 4)
     .map(([key, count]) => `${key}: ${count}`);
   return entries.length ? entries.join(', ') : 'none';
