@@ -1758,8 +1758,14 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
 
   deliveryCache.set(signature, now);
   if (deliveryCache.size > 500) {
-    const cutoff = now - 30_000;
+    // deliveryCache stores two TTL classes: 30s for the general signature
+    // entries and 5min for task_started taskSignature entries. The previous
+    // single-cutoff prune used 30s for both, silently shortening taskSignature
+    // entries to 30s and re-firing duplicate task_started warnings.
+    const signatureCutoff = now - 30_000;
+    const taskSignatureCutoff = now - 5 * 60_000;
     for (const [key, timestamp] of deliveryCache.entries()) {
+      const cutoff = key.includes(':task_started:') ? taskSignatureCutoff : signatureCutoff;
       if (timestamp < cutoff) {
         deliveryCache.delete(key);
       }
