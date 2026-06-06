@@ -176,8 +176,13 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
-// BUG: Uncaught JSON.parse can crash Node process at line 179
-  return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    throw new Error(`Invalid JSON in conversation smoke scenarios file: ${filePath}`);
+  }
+  return parseConversationSmokeScenarios(parsed);
 }
 
 export function runConversationSmokeScenarios(scenarios: ConversationSmokeScenario[]): ConversationSmokeSummary {

@@ -31,8 +31,12 @@ export function buildContextualImageUpdate(
   update: Record<string, unknown>,
   recentMessages: string[]
 ): Record<string, unknown> {
-// BUG: Uncaught JSON.parse can crash Node process at line 34
-  const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
+  let cloned: Record<string, unknown>;
+  try {
+    cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
+  } catch {
+    throw new Error('Failed to clone update object via JSON serialization');
+  }
   const message = cloned.message;
   if (!message || typeof message !== 'object') {
     return cloned;

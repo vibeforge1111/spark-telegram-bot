@@ -112,8 +112,13 @@ export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExe
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-// BUG: Uncaught JSON.parse can crash Node process at line 115
-    .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
+    .map((line) => {
+      try {
+        return JSON.parse(line) as NaturalRouteExecutionRecord;
+      } catch {
+        throw new Error(`Invalid JSON line in natural route ledger`);
+      }
+    });
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {
