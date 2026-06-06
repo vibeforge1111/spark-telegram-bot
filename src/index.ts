@@ -11655,7 +11655,8 @@ async function start() {
   }
   setMissionRelayRuntimeStatus({
     telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting',
-    pollingStartedAt: null
+    pollingStartedAt: null,
+    llmProvider: undefined
   });
   const relay = await startMissionRelay(bot);
 
@@ -11695,7 +11696,8 @@ async function start() {
   pollingActive = true;
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
-    pollingStartedAt: new Date().toISOString()
+    pollingStartedAt: new Date().toISOString(),
+    llmProvider: llmHealthy ? 'connected' : 'offline'
   });
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
   void launchPromise.catch((err) => {
