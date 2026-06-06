@@ -315,6 +315,36 @@ export function loadSparkAgentKnowledgeBase(env: NodeJS.ProcessEnv = process.env
   return joined;
 }
 
+/**
+ * Cache-stable system prompt: rules + primer + agent knowledge, with NO per-turn
+ * memories or conversation history. Pair with buildSparkChatUserContext() when the
+ * provider supports prompt-prefix caching. OpenAI auto-caches prompt prefixes
+ * (~1024 tokens or more) for 5 minutes after each hit, but only when the prefix
+ * bytes are identical across calls. Interpolating per-turn memories/history into
+ * the system prompt blocks the cache from firing on multi-turn conversations.
+ */
+export function buildSparkChatStableSystemPrompt(): string {
+  return buildSparkChatSystemPrompt('', '');
+}
+
+/**
+ * Per-turn user content: memories and conversation history (the volatile sections
+ * that previously trailed the system prompt) plus the user's actual message.
+ * Keeping these out of the system prompt preserves the stable prefix that the
+ * OpenAI auto-cache needs to fire on follow-up turns.
+ */
+export function buildSparkChatUserContext(
+  userMessage: string,
+  conversationHistory: string = '',
+  memories: string = ''
+): string {
+  const sections: string[] = [];
+  if (memories.trim()) sections.push(`## What I remember\n${memories.trim()}`);
+  if (conversationHistory.trim()) sections.push(`## Where we left off\n${conversationHistory.trim()}`);
+  sections.push(userMessage);
+  return sections.join('\n\n');
+}
+
 export function buildSparkChatSystemPrompt(conversationHistory: string = '', memories: string = ''): string {
   const agentKnowledge = loadSparkAgentKnowledgeBase();
   return `You are Spark, the user's personal operator and thinking partner. Not a generic assistant.
@@ -812,13 +842,15 @@ export const llm = {
       }
 
       if (config.kind === 'openai_compat') {
+        const stableSystem = buildSparkChatStableSystemPrompt();
+        const userContent = buildSparkChatUserContext(userMessage, conversationHistory, memories);
         const res = await axios.post<ZaiChatResponse>(
           joinUrl(config.baseUrl, '/chat/completions'),
           {
             model: config.model,
             messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage }
+              { role: 'system', content: stableSystem },
+              { role: 'user', content: userContent }
             ],
             temperature: 0.7,
             max_tokens: 384,
@@ -887,13 +919,15 @@ export const llm = {
     try {
       const config = resolveChatProviderConfig();
       if (config.kind === 'openai_compat') {
+        const stableSystem = buildSparkChatStableSystemPrompt();
+        const userContent = buildSparkChatUserContext(userMessage, conversationHistory, memories);
         const res = await axios.post(
           joinUrl(config.baseUrl, '/chat/completions'),
           {
             model: config.model,
             messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage }
+              { role: 'system', content: stableSystem },
+              { role: 'user', content: userContent }
             ],
             temperature: 0.7,
             max_tokens: 384,
