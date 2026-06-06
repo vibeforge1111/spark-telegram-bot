@@ -1223,14 +1223,29 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function isAllowedPreviewHost(url: string): boolean {
+  const configuredPreview = process.env.SPARK_PROJECT_PREVIEW_URL?.trim();
+  if (!configuredPreview) return false;
+  try {
+    const allowed = new URL(configuredPreview);
+    const candidate = new URL(url);
+    return candidate.hostname.toLowerCase() === allowed.hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
+  // Only forward the API key to the operator-configured preview host.
+  // Attacker-controlled or unconfigured external URLs must never receive it.
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
+  const attachKey = uiKey && isAllowedPreviewHost(url);
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: uiKey ? { 'x-spawner-ui-key': uiKey } : undefined,
+      headers: attachKey ? { 'x-spawner-ui-key': uiKey } : undefined,
       signal: controller.signal
     });
     return response.ok;
