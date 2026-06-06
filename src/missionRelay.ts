@@ -2369,6 +2369,40 @@ export function missionRelayHealthPayload(): MissionRelayHealthPayload {
   };
 }
 
+export async function stopMissionRelay(): Promise<void> {
+  const server = relayServer;
+  if (!server) return;
+  relayServer = null;
+  // Stop accepting NEW spawner-event POSTs immediately, then wait for in-flight
+  // requests to finish so a mission_completed event that arrived during SIGTERM
+  // is preserved through to bot.telegram.sendMessage instead of being dropped
+  // mid-handoff. The 5s force-close timer guards against a stuck connection.
+  await new Promise<void>((resolve) => {
+    let resolved = false;
+    const settle = (): void => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+    const forceCloseTimer = setTimeout(() => {
+      try {
+        (server as unknown as { closeAllConnections?: () => void }).closeAllConnections?.();
+      } catch (error) {
+        console.warn('[MissionRelay] Failed to close lingering connections during shutdown:', error);
+      }
+      settle();
+    }, 5000);
+    forceCloseTimer.unref?.();
+    server.close((error) => {
+      clearTimeout(forceCloseTimer);
+      if (error) {
+        console.warn('[MissionRelay] Failed to close relay server during shutdown:', error);
+      }
+      settle();
+    });
+  });
+}
+
 export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }> {
   await loadRegistry();
 

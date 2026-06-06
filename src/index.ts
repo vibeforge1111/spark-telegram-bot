@@ -171,7 +171,8 @@ import {
   setMissionRelayRuntimeStatus,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
-  startMissionRelay
+  startMissionRelay,
+  stopMissionRelay
 } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
@@ -11630,6 +11631,11 @@ bot.on(message('audio'), handleVoiceMessage);
 process.once('SIGINT', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  // Drain the mission relay HTTP server BEFORE/alongside stopping the bot so a
+  // Spawner-side mission_completed event that arrived during SIGINT still
+  // reaches bot.telegram.sendMessage instead of being silently dropped at the
+  // gateway when the runner exits.
+  void stopMissionRelay();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
@@ -11637,6 +11643,7 @@ process.once('SIGINT', () => {
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  void stopMissionRelay();
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
