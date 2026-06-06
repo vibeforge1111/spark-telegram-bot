@@ -1751,6 +1751,7 @@ interface PendingMissionCancelConfirmation {
 const pendingMissionCancelConfirmations = new Map<string, PendingMissionCancelConfirmation>();
 const CLARIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MISSION_CANCEL_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const CREATOR_MISSION_TTL_MS = 30 * 60 * 1000; // 30 minutes — independent from clarification TTL
 
 // Periodic cleanup of stale entries in all unbounded maps
 const mapCleanupTimer = setInterval(() => {
@@ -3860,7 +3861,7 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string): Promi
   const key = pendingCreatorMissionKey(ctx);
   const pending = pendingCreatorMissions.get(key);
   if (!pending) return false;
-  if (Date.now() - pending.timestamp > CLARIFICATION_TTL_MS) {
+  if (Date.now() - pending.timestamp > CREATOR_MISSION_TTL_MS) {
     pendingCreatorMissions.delete(key);
     return false;
   }
