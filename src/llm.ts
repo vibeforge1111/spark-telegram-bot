@@ -531,11 +531,25 @@ async function anthropicMessage(
     throw new Error('ANTHROPIC_API_KEY is required for Anthropic API chat');
   }
 
+  // Convert the (large, stable) system prompt into a structured-content
+  // block carrying cache_control: ephemeral so Anthropic prompt caching
+  // can deduplicate the prefix across turns. The Spark chat system
+  // prompt assembles SPARK_SYSTEM_PRIMER + base instructions + the
+  // agent knowledge base + recalled memories + conversation history,
+  // which is typically several thousand tokens per call. Without
+  // cache_control the entire prefix is rebilled at the model input
+  // rate on every turn; with it, the second turn within ~5 minutes
+  // reuses the cached prefix at roughly one tenth of the per-token
+  // input cost. The user message stays in messages[0] unchanged.
+  const systemBlocks = input.system && input.system.trim().length > 0
+    ? [{ type: 'text', text: input.system, cache_control: { type: 'ephemeral' } }]
+    : undefined;
+
   const res = await axios.post<AnthropicMessagesResponse>(
     joinUrl(config.baseUrl, '/messages'),
     {
       model: config.model,
-      system: input.system,
+      ...(systemBlocks ? { system: systemBlocks } : {}),
       messages: [{ role: 'user', content: input.user }],
       temperature: input.temperature,
       max_tokens: input.maxTokens
