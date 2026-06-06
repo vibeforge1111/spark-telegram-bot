@@ -84,6 +84,7 @@ export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayC
     .map((line) => line.trim())
     .map((line, index) => ({ line, lineNumber: index + 1 }))
     .filter(({ line }) => line && !line.startsWith('#'))
+// BUG: Uncaught JSON.parse can crash Node process at line 87
     .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
 }
 

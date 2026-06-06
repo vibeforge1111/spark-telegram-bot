@@ -176,6 +176,7 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
+// BUG: Uncaught JSON.parse can crash Node process at line 179
   return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
 }
 

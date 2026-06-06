@@ -115,6 +115,7 @@ function safeRationaleTag(value: unknown): string {
 
 export function parseRouteArbiterResponse(raw: string): RouteArbiterParsedResponse {
   const match = raw.match(/\{[\s\S]*\}/);
+// BUG: Uncaught JSON.parse can crash Node process at line 118
   const parsed = match ? JSON.parse(match[0]) as Record<string, unknown> : {};
   const intent = normalizeIntent(parsed.intent);
   const explicitAllow = typeof parsed.allow === 'boolean' ? parsed.allow : null;

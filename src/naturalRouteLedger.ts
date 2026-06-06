@@ -112,6 +112,7 @@ export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExe
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
+// BUG: Uncaught JSON.parse can crash Node process at line 115
     .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
 }
 
