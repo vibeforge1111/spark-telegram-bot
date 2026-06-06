@@ -24,8 +24,7 @@ async function validateTelegramToken(token: string): Promise<string> {
   }
   const bot = new Telegraf(token);
   try {
-    const me = await bot.telegram.getMe();
-    await bot.telegram.getWebhookInfo();
+    const [me] = await Promise.all([bot.telegram.getMe(), bot.telegram.getWebhookInfo()]);
     return me.username ? `@${me.username}` : String(me.id);
   } catch (error) {
     throw new Error(describeTelegramTokenError(error));
