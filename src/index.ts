@@ -11627,16 +11627,16 @@ bot.on(message('voice'), handleVoiceMessage);
 bot.on(message('audio'), handleVoiceMessage);
 
 // Graceful shutdown
-process.once('SIGINT', () => {
+process.once('SIGINT', async () => {
   console.log('Shutting down...');
-  void releaseGatewayOwnership();
+  await releaseGatewayOwnership().catch((err) => console.warn('[Shutdown] releaseGatewayOwnership failed:', err));
   if (pollingActive) {
     bot.stop('SIGINT');
   }
 });
-process.once('SIGTERM', () => {
+process.once('SIGTERM', async () => {
   console.log('Shutting down...');
-  void releaseGatewayOwnership();
+  await releaseGatewayOwnership().catch((err) => console.warn('[Shutdown] releaseGatewayOwnership failed:', err));
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
