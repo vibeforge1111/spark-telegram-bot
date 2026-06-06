@@ -6446,7 +6446,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (buildIntent) {
-      console.log(`[BuildIntent] route user=${userRef(ctx.from?.id)} project=${JSON.stringify(buildIntent.projectName).slice(0, 80)}`);
+      console.log(`[BuildIntent] route user=${userRef(ctx.from?.id)} project=${JSON.stringify(buildIntent.projectName).replace(/[\r\n\x00-\x1f]/g, " ").slice(0, 80)}`);
       const accessPreference = parseNaturalAccessChangeIntent(text);
       const normalizedAccessPreference = accessPreference ? normalizeSparkAccessProfile(accessPreference) : null;
       if (normalizedAccessPreference) {
