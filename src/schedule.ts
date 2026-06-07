@@ -47,6 +47,7 @@ export function formatNextFireLocal(iso: string | null): string {
   if (!iso) return '-';
   try {
     const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
     const ms = d.getTime() - Date.now();
     const local = d.toLocaleString(undefined, {
       weekday: 'short',
