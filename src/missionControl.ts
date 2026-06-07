@@ -90,6 +90,11 @@ async function defaultPostJson(url: string, payload: MissionControlEvent): Promi
       const body = await response.text().catch(() => '');
       throw new Error(`Mission Control HTTP ${response.status}: ${body.slice(0, 200)}`);
     }
+    // Drain the success body so the underlying connection can return to the
+    // keep-alive pool. Mission Control posts fire on every task lifecycle
+    // step; an undrained body kept the socket pending until garbage
+    // collection, which slowly exhausted the undici dispatcher pool.
+    await response.body?.cancel().catch(() => undefined);
   } finally {
     clearTimeout(timeout);
   }
