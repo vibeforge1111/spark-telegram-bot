@@ -2120,7 +2120,7 @@ function workspaceDecisionForAction(action: 'approve' | 'defer' | 'reject' | 'mo
 
 function parseRounds(parts: string[]): number {
   const roundIndex = parts.findIndex((part) => part.toLowerCase() === 'rounds');
-  const raw = roundIndex >= 0 ? parts[roundIndex + 1] : parts[0];
+  const raw = roundIndex >= 0 && roundIndex + 1 < parts.length ? parts[roundIndex + 1] : parts[0];
   return Math.max(1, Math.min(50, Number.parseInt(raw || '3', 10) || 3));
 }
 
