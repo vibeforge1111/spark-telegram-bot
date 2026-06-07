@@ -100,8 +100,7 @@ async function summarizeRoot(root: string, limit: number): Promise<{
     const entries = await readdir(resolvedRoot, { withFileTypes: true });
     const directories = entries
       .filter((entry) => entry.isDirectory())
-      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()))
-      .slice(0, Math.max(limit * 3, limit));
+      .filter((entry) => !SKIP_NAMES.has(entry.name.toLowerCase()));
 
     const projects: LocalWorkspaceProject[] = [];
     for (const entry of directories) {
