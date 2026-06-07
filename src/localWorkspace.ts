@@ -179,7 +179,7 @@ export function renderLocalWorkspaceInspectionReply(summary: LocalWorkspaceSumma
 
   const projectLines = summary.projects.slice(0, 12).map((project, index) => {
     const signalText = project.signals.length > 0 ? project.signals.join(', ') : 'folder';
-    return `${index + 1}. ${project.name} - ${signalText} - ${relativeAge(project.modifiedAt)}\n   ${project.path}`;
+    return `${index + 1}. ${project.name} - ${signalText} - ${relativeAge(project.modifiedAt)}`;
   });
 
   return [
