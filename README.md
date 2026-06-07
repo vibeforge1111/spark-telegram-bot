@@ -133,9 +133,9 @@ Bridge env:
 - `SPARK_BUILDER_TIMEOUT_MS`
 - `SPARK_CONTEXT_BRIDGE_TIMEOUT_MS`
 
-Default behavior is `auto`, which looks for the release-installed Builder source first, then legacy installed and checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+Default behavior is `auto`, which looks for the active installed Builder source first, then checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
-Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder-release/source`.
+Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 
 ### Agent Environment Files
 
