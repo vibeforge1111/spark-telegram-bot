@@ -127,6 +127,17 @@ function percent(value: number): string {
 
 export function renderTraceRepairSummary(summary: TraceRepairSummary): string {
   if (!summary.present) {
+    const cause = summary.error || '';
+    const looksLikeMissingFile = /ENOENT|no such file|not found/i.test(cause);
+    if (cause && !looksLikeMissingFile) {
+      return [
+        'Trace repair index could not be read.',
+        '',
+        'Move',
+        '• Reason: ' + cause.slice(0, 200),
+        '• If this looks like malformed JSON or a stale file, re-run `spark os compile` (it will regenerate trace-index.json from scratch).'
+      ].join('\n');
+    }
     return [
       'Trace repair index is not compiled yet.',
       '',
