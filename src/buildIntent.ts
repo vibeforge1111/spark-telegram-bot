@@ -810,10 +810,10 @@ function extractBuildDescription(text: string): string | null {
     ) {
       return null;
     }
-    const description = text.slice(inlineCommand.index + inlineCommand[0].length);
+    const description = text.slice(inlineCommand.index + (inlineCommand && inlineCommand.length > 0) ? inlineCommand[0] : ''.length);
     if (
       isSparkCapabilityMakeRequest(description) ||
-      (/\bmake\b/i.test(inlineCommand[0]) && (isConversationFramingMakeRequest(description) || isVoiceTuningMakeRequest(description)))
+      (/\bmake\b/i.test((inlineCommand && inlineCommand.length > 0) ? inlineCommand[0] : '') && (isConversationFramingMakeRequest(description) || isVoiceTuningMakeRequest(description)))
     ) {
       return null;
     }
