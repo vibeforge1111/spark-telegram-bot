@@ -7657,7 +7657,7 @@ bot.command('board', async (ctx) => {
 bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/creator', '').trim();
+  const raw = ctx.message.text.replace(/^\/creator(?:@\w+)?\s*/i, '').trim();
   const control = parseCreatorMissionControlCommand(raw);
   const parsed = control ? null : parseCreatorPlanCommand(raw);
   if (!control && !parsed) {
@@ -7821,7 +7821,7 @@ bot.command('chip', async (ctx) => {
 bot.command('loop', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/loop', '').trim();
+  const raw = ctx.message.text.replace(/^\/loop(?:@\w+)?\s*/i, '').trim();
   const parts = raw.split(/\s+/).filter(Boolean);
   const chipKey = parts[0];
   const rounds = Math.max(1, Math.min(10, Number.parseInt(parts[1] ?? '3', 10) || 3));
