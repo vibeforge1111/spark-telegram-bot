@@ -41,10 +41,8 @@ function missionControlDisabled(): boolean {
 
 export function getMissionControlEventsUrl(): string | null {
   if (missionControlDisabled()) return null;
-  const base = (
-    process.env.MISSION_CONTROL_URL ||
-    resolveSpawnerUiUrl()
-  ).trim();
+  const explicit = process.env.MISSION_CONTROL_URL?.trim();
+  const base = explicit || resolveSpawnerUiUrl().trim();
   if (!base) return null;
   return `${base.replace(/\/+$/, '')}/api/events`;
 }
