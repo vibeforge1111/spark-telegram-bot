@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
 
@@ -71,7 +72,7 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       error: parsed.error ?? undefined,
     };
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
+    const stderr = typeof err?.stderr === 'string' ? redactText(err.stderr.slice(-400)) : '';
     return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
   }
 }
