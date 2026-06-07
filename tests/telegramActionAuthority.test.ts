@@ -59,8 +59,9 @@ test('blocks action words when the fresh turn is meta or no-execution', () => {
 
   assert.equal(result.allow, false);
   assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
   assert.equal(result.toolAuthorization.verdict, 'blocked');
-  assert.ok(result.reasonCodes.includes('route_firewall:no_execution_boundary'));
+  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
 
@@ -84,7 +85,7 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
 });
 
-test('explicit route evidence cannot substitute for envelope-selected mutating route', () => {
+test('fresh envelope selection is required before mutating route evidence can authorize', () => {
   const staleEnvelopeText = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const freshText = 'Iterate on the current project by tightening the stale-context labels and report layout.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(staleEnvelopeText), {
@@ -95,9 +96,10 @@ test('explicit route evidence cannot substitute for envelope-selected mutating r
     mutationClass: 'launches_mission'
   });
 
-  assert.equal(result.routeVerdict.allow, true);
-  assert.equal(result.routeVerdict.confidence, 'explicit');
-  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
+  assert.equal(result.routeVerdict.confidence, 'blocked');
+  assert.equal(result.toolAuthorization.verdict, 'blocked');
   assert.equal(result.allow, false);
   assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.notEqual(result.governorDecision?.outcome, 'execute');
@@ -201,7 +203,7 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
   });
 
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(envelope.directive.noExecution, false);
   assert.equal(envelope.executionPolicy.canLaunchMission, true);
@@ -217,7 +219,7 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
     mutationClass: 'launches_mission'
   });
   assert.equal(probeResult.allow, true);
-  assert.equal(probeResult.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(probeResult.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(probeEnvelope.directive.noExecution, false);
   assert.equal(probeEnvelope.executionPolicy.canLaunchMission, true);
   assert.equal(probeEnvelope.executionPolicy.canMutateFiles, false);
@@ -246,7 +248,7 @@ test('allows explicit no-edit Mission Control diagnostics through Spawner', () =
   });
 
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(envelope.directive.noExecution, false);
   assert.equal(envelope.executionPolicy.canLaunchMission, true);
@@ -266,7 +268,7 @@ test('lets benchmark-pack creation own stale score wording', () => {
 
   assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_creator_artifact');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 

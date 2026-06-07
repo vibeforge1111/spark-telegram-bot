@@ -19,7 +19,13 @@ import {
   verifyHarnessCoreGovernorExecutionAuthority
 } from '@spark/harness-core';
 import { recordHarnessCoreAuthorizationLedger } from './harnessCoreLedger';
-import { evaluateDeterministicRoute, type DeterministicRouteId, type RouteFirewallVerdict } from './routeFirewall';
+import type { DeterministicRouteId } from './routeTypes';
+
+export interface RouteEvidenceVerdict {
+  allow: boolean;
+  reason: 'envelope_selected_route' | 'route_not_selected_by_turn_envelope';
+  confidence: 'explicit' | 'blocked';
+}
 
 export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
   route: DeterministicRouteId;
@@ -29,7 +35,7 @@ export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
 export interface TelegramActionAuthorityResult {
   allow: boolean;
   legacyEnvelope?: TurnIntentEnvelopeV1;
-  routeVerdict: RouteFirewallVerdict;
+  routeVerdict: RouteEvidenceVerdict;
   toolAuthorization: ToolAuthorizationResult;
   harnessCore?: {
     envelope: TurnIntentEnvelopeVNext;
@@ -98,27 +104,36 @@ export function authorizeTelegramActionFromEnvelope(
   envelope: TurnIntentEnvelopeV1 | null | undefined,
   input: TelegramActionAuthorityInput
 ): TelegramActionAuthorityResult {
-  const routeVerdict = evaluateDeterministicRoute(input.route, input.text);
   const routeSelectedByEnvelope = envelopeSelectedRoute(envelope, input.route);
-  const explicitRouteEvidence = routeVerdict.confidence === 'explicit';
-  const routeAuthorizedByTurn = routeSelectedByEnvelope || (input.mutationClass === 'read_only' && explicitRouteEvidence);
-  const toolAuthorization = authorizeToolCallFromEnvelope(envelope, {
+  const routeVerdict: RouteEvidenceVerdict = routeSelectedByEnvelope
+    ? { allow: true, reason: 'envelope_selected_route', confidence: 'explicit' }
+    : { allow: false, reason: 'route_not_selected_by_turn_envelope', confidence: 'blocked' };
+  const routeAuthorizedByTurn = routeSelectedByEnvelope;
+  const rawToolAuthorization = authorizeToolCallFromEnvelope(envelope, {
     toolName: input.toolName,
     ownerSystem: input.ownerSystem,
     mutationClass: input.mutationClass,
     publishes: input.publishes,
     externalNetwork: input.externalNetwork
   });
+  const toolAuthorization: ToolAuthorizationResult = routeAuthorizedByTurn
+    ? rawToolAuthorization
+    : {
+        verdict: 'blocked',
+        reasonCodes: Array.from(new Set([
+          'route_not_selected_by_turn_envelope',
+          ...rawToolAuthorization.reasonCodes
+        ]))
+      };
   const harnessCore = envelope
     ? authorizeHarnessCoreTelegramAction(
         envelope,
         input,
         toolAuthorization,
-        routeVerdict.allow && routeAuthorizedByTurn
+        routeAuthorizedByTurn
       )
     : null;
   const preliminaryAllow =
-    routeVerdict.allow &&
     routeAuthorizedByTurn &&
     toolAuthorization.verdict === 'allowed' &&
     harnessCore?.authorization.verdict === 'allow';
@@ -149,7 +164,6 @@ export function authorizeTelegramActionFromEnvelope(
     : null;
   const allow = consumerVerification?.allowed === true;
   const reasonCodes = Array.from(new Set([
-    ...(routeVerdict.allow ? [] : [`route_firewall:${routeVerdict.reason}`]),
     ...(routeAuthorizedByTurn ? [] : ['route_not_selected_by_turn_envelope']),
     ...toolAuthorization.reasonCodes,
     ...(!allow && envelope?.directive.noExecution ? ['no_execution_boundary'] : []),

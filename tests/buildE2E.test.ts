@@ -1039,6 +1039,32 @@ async function run(): Promise<void> {
 				false,
 				'quoted browser/computer-use wording inside a memory note must not trigger read-only browser status'
 			);
+
+			const replies2: string[] = [];
+			const ctx2 = makeFakeCtx(testUserId, testUserId, 5663, replies2);
+			ctx2.message.text = 'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."';
+			(ctx2 as any).update = { update_id: 5663, message: ctx2.message };
+			await indexModule.handleTextMessage(ctx2);
+
+			assert.equal(
+				writtenText,
+				'harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action'
+			);
+			assert.match(replies2.join('\n'), /Saved quoted tool-surface note/i);
+			const ledgerRecords2 = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords2.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'note-exactly memory directive must record governed memory.write success'
+			);
+			assert.equal(
+				ledgerRecords2.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'note-exactly memory directive must not trigger read-only browser status'
+			);
 		} finally {
 			indexModule.__setBuilderMemoryWriteRunnerForTest(null);
 			rmSync(tempRoot, { recursive: true, force: true });

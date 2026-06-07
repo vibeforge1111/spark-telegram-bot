@@ -12,8 +12,6 @@ const tests = [
   'tests/conversationIntent.test.ts',
   'tests/noExecutionBridgeBoundary.test.ts',
   'tests/naturalRouteDecision.test.ts',
-  'tests/routeFirewall.test.ts',
-  'tests/routeArbiter.test.ts',
   'tests/conversationSmoke.test.ts',
   'tests/naturalRouteTelemetry.test.ts',
   'tests/naturalRouteLedger.test.ts',

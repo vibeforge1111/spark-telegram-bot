@@ -304,6 +304,27 @@ test('allows quoted tool-surface wording inside an explicit memory note', () => 
   assert.ok(browserAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
 });
 
+test('allows note-exactly wording inside an explicit memory note', () => {
+  const envelope = envelopeFor(
+    'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+
+  const browserAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'browser.use',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+  assert.equal(browserAuthorization.verdict, 'blocked');
+  assert.ok(browserAuthorization.reasonCodes.includes('external_network_not_authorized'));
+});
+
 test('authorizes explicit Memory Doctor as read-only diagnostics', () => {
   const envelope = envelopeFor('run memory doctor for last request');
 

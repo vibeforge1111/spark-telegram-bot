@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseBuildIntent } from '../src/buildIntent';
-import { evaluateDeterministicRoute } from '../src/routeFirewall';
 import {
   isLocalSparkServiceRequest,
   parseMissionUpdatePreferenceIntent,
@@ -78,7 +77,6 @@ test('mixed preference and access wording still reaches the builder', () => {
   const mazePrototypeIntent = parseBuildIntent(mazePrototypePrompt);
   assert.ok(mazePrototypeIntent);
   assert.equal(mazePrototypeIntent.projectName, 'Tiny Maze Game');
-  assert.equal(evaluateDeterministicRoute('spawner.build', mazePrototypePrompt).allow, true);
 
   const updatePrompt = `Use verbose updates and build a Three.js world tree called Spark World Tree.
 

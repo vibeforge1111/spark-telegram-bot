@@ -108,18 +108,6 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       summary: 'Natural route decision helpers are demoted to route evidence and blocked candidates for the TurnIntent envelope.'
     }),
     evidenceOnlyPlane({
-      id: 'telegram-route-firewall',
-      plane_type: 'regex_router',
-      source_path: 'src/routeFirewall.ts',
-      summary: 'Route firewall verdicts are boundary evidence; they cannot grant execution without envelope, authorization, Governor, and ledger.'
-    }),
-    evidenceOnlyPlane({
-      id: 'telegram-route-arbiter-shadow',
-      plane_type: 'regex_router',
-      source_path: 'src/telegramRouteEvidence.ts',
-      summary: 'Route arbiter shadow logging records evidence and disagreements, but never owns the final action decision.'
-    }),
-    evidenceOnlyPlane({
       id: 'telegram-build-intent-parser',
       plane_type: 'keyword_detector',
       source_path: 'src/buildIntent.ts',

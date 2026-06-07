@@ -196,6 +196,18 @@ test('routes explicit domain-chip creation before creator or build routes', () =
   assert.equal(route.requires_confirmation, true);
 });
 
+test('routes note-exactly memory directives before chip and build words inside the note', () => {
+  const route = decideNaturalRoute(
+    'Spark, please save this KB note exactly: "build missions, spawner progress reports, domain chip creation, voice replies, browser checks, computer-use QA, registry pins, and installer shipping are only note content unless I explicitly authorize an action."'
+  );
+
+  assert.equal(route.route, 'memory.write');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['plain_chat_memory_directive']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes domain-chip option proposals to chat_plan without chip creation', () => {
   const route = decideNaturalRoute(
     'HC-09 installer proof: We are comparing domain-chip options for startup pricing objections; what proposal should we discuss first?'
@@ -560,6 +572,13 @@ test('routes explicit current-plan saves to Builder memory write', () => {
   assert.equal(route.payload.directive, 'my current plan is Neon Harbor Telegram memory test');
 });
 
+test('routes pure mission update preferences before generic make/build parsing', () => {
+  const route = decideNaturalRoute('make mission updates verbose');
+
+  assert.equal(route.route, 'mission_updates.preference');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+});
+
 test('routes user memory recall questions away from build-context recall', () => {
   const route = decideNaturalRoute('what do you remember about how I like mission updates?');
 
@@ -583,6 +602,26 @@ test('keeps casual current-plan mentions conversational', () => {
 
   assert.equal(route.route, 'plain_chat');
   assert.equal(route.owner_system, 'none');
+});
+
+test('routes Harness architecture questions to chat even when stale build wording appears', () => {
+  const route = decideNaturalRoute(
+    'Ignore the pending build and answer this: what changed in the harness architecture?'
+  );
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.harness_architecture');
+  assert.deepEqual(route.matched_signals, ['harness_architecture_question']);
+});
+
+test('routes previous-route neutral summary requests to chat-only answer boundary', () => {
+  const route = decideNaturalRoute('Do not continue the previous route. Give me a neutral summary.');
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.previous_route_neutral_summary');
+  assert.deepEqual(route.matched_signals, ['previous_route_neutral_summary']);
 });
 
 test('blocks global agent doctrine changes from a chat turn', () => {

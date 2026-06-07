@@ -225,7 +225,6 @@ import {
   telegramPendingMissionCancelKey
 } from './telegramPendingMissionCancelEvidence';
 import { parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
-import { queueRouteArbiterShadow } from './routeArbiter';
 import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
@@ -2503,12 +2502,6 @@ function telegramActionAuthorityDecision(
   input: TelegramActionAuthorityInput
 ): TelegramActionAuthorityResult {
   const authorization = authorizeTelegramActionFromEnvelope(envelope, input);
-  queueRouteArbiterShadow({
-    route: input.route,
-    text: input.text,
-    verdict: authorization.routeVerdict,
-    profile: activeTelegramProfile()
-  });
   if (!authorization.allow) {
     console.log(
       `[TelegramActionAuthority] blocked route=${input.route} tool=${input.toolName} reasons=${authorization.reasonCodes.join(',')} textLen=${input.text.length}`
@@ -2605,12 +2598,6 @@ function telegramCommandActionAuthorityDecision(
     accessProfile: conversation.isAdmin(ctx.from) ? 'admin' : 'standard',
     conversationKind: 'command'
   });
-  queueRouteArbiterShadow({
-    route: input.route,
-    text: input.text,
-    verdict: authorization.routeVerdict,
-    profile: activeTelegramProfile()
-  });
   if (!authorization.allow) {
     console.log(
       `[TelegramCommandAuthority] blocked command=${input.commandName} route=${input.route} tool=${input.toolName} reasons=${authorization.reasonCodes.join(',')} textLen=${input.text.length}`
@@ -2638,12 +2625,6 @@ function telegramMediaActionAuthorityDecision(
     accessProfile: conversation.isAdmin(ctx.from) ? 'admin' : 'standard',
     conversationKind: 'dm',
     kind: 'runtime_truth_or_operator'
-  });
-  queueRouteArbiterShadow({
-    route: input.route,
-    text: input.text,
-    verdict: authorization.routeVerdict,
-    profile: activeTelegramProfile()
   });
   if (!authorization.allow) {
     console.log(
@@ -3435,11 +3416,6 @@ function shouldBypassBuilderBridgeForTurnIntent(
 ): boolean {
   const selectedPlainChat = decision.kind === 'plain_conversation' && decision.route === 'plain_chat';
   return Boolean(
-    (
-      envelope.directive.noExecution &&
-      decision.route === 'plain_chat' &&
-      naturalRoute?.blocked_by?.some((reason) => reason === 'route_firewall:no_execution_boundary')
-    ) ||
     (
       selectedPlainChat &&
       isHarnessCoreArchitectureQuestion(text)
@@ -7000,7 +6976,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         trace_ref: input.traceRef,
         joined_sources: [
           'telegram_access_policy',
-          'telegram_route_firewall',
+          'telegram_harness_core_authority',
           'builder_route_confidence_gate'
         ],
         data_boundary: {
