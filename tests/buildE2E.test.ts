@@ -1876,6 +1876,7 @@ async function run(): Promise<void> {
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 
 		const indexModule: any = await import('../src/index');
 		const prd = indexModule.buildDomainChipPrd('creates weird poster prompts from dream fragments');
