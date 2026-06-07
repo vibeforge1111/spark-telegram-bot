@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -112,7 +113,10 @@ export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExe
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
+    .flatMap((line) => {
+    const parsed = safeJsonParse<NaturalRouteExecutionRecord | null>(line, null, 'natural-route-ledger');
+    return parsed ? [parsed] : [];
+  });
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {
