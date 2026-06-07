@@ -132,21 +132,24 @@ test('formats route confidence gate missing evidence as a proof refusal', () => 
   assert.match(reply, /Refresh Spawner evidence, then ask again\./);
 });
 
-test('Builder bridge exposes metadata-only RouteConfidenceGateV1 action preflight', () => {
+test('Builder route-confidence probe is advisory and cannot veto build dispatch', () => {
   const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
   const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-  const gateBlock = indexSource.match(/async function buildDispatchRouteConfidenceAllows[\s\S]*?\r?\n}\r?\n\r?\ninterface RunCommandOptions/)?.[0] || '';
+  const buildDispatchBlock = indexSource.match(/export async function handleBuildIntent[\s\S]*?const polishedProjectName/)?.[0] || '';
+  const clarificationBlock = indexSource.match(/export async function handleClarificationAnswers[\s\S]*?const projectName/)?.[0] || '';
   const pendingDomainChipBlock = indexSource.match(/async function handlePendingDomainChipBuild[\s\S]*?\r?\n}\r?\n\r?\nasync function handleCreatorMissionPlan/)?.[0] || '';
 
   assert.match(bridgeSource, /routeContext\?: Record<string, unknown>/);
   assert.match(bridgeSource, /--route-context-json/);
-  assert.match(indexSource, /async function buildDispatchRouteConfidenceAllows/);
-  assert.match(indexSource, /candidateRoute: 'spawner\.build'/);
-  assert.match(indexSource, /builder_route_confidence_gate/);
-  assert.match(indexSource, /exports_raw_prompt: false/);
-  assert.match(indexSource, /exports_chat_id: false/);
-  assert.match(indexSource, /exports_memory_body: false/);
-  assert.doesNotMatch(gateBlock, /currentMessage|user_message|raw_provider_output|raw_memory_body/);
+  assert.doesNotMatch(indexSource, /buildDispatchRouteConfidenceAllows|recordRouteConfidenceDispatchOutcome|route-confidence-gate|RouteConfidenceGate/);
+  assert.match(buildDispatchBlock, /buildDispatchAuthorityFailureReason\(options\.executionAuthority\)/);
+  assert.ok(
+    buildDispatchBlock.indexOf('buildDispatchAuthorityFailureReason(options.executionAuthority)') <
+      buildDispatchBlock.indexOf('recordBuilderAocPreflightForRun'),
+    'Harness authority must be verified before Builder AOC evidence recording'
+  );
+  assert.doesNotMatch(buildDispatchBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
+  assert.doesNotMatch(clarificationBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
   assert.match(pendingDomainChipBlock, /confirmationState: 'confirmed'/);
 });
 

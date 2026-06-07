@@ -5145,39 +5145,6 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
-	await test('confirmed pending build proceeds when route-confidence gate asks again', async () => {
-		restoreAxios();
-		restoreEnv();
-		delete process.env.SPARK_BOT_TEST_MODE;
-
-		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 625, replies);
-		const indexModule: any = await import('../src/index');
-		const allowed = await indexModule.buildDispatchRouteConfidenceAllows({
-			ctx,
-			accessRequirement: 'spawner_build',
-			prd: '# Domain Chip Startup Pricing Objections\n\nLocal-only domain chip package.',
-			requestId: 'req-confirmed-domain-chip',
-			traceRef: 'trace-confirmed-domain-chip',
-			runnerPreflight: { runnerWritable: 'yes' },
-			confirmationState: 'confirmed',
-			spawnerAvailableProbe: async () => true,
-			gateRunner: async () => ({
-				payload: {
-					decision: 'ask',
-					human_next_action: 'Ask one confirmation question before taking the side-effecting action.',
-					safe_reply_policy: 'ask'
-				}
-			})
-		});
-
-		assert.equal(allowed, true);
-		assert.equal(replies.length, 0, 'confirmed go should not leak meta confirmation copy');
-
-		restoreAxios();
-		restoreEnv();
-	});
-
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

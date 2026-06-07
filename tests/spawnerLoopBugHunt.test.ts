@@ -27,9 +27,7 @@ import {
   isDomainChipPendingDirection,
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
-  isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
@@ -586,60 +584,6 @@ test('bug hunt: created mission handoff is not framed as finished work', () => {
   assert.match(message, /Created the focused Spawner mission v1/i);
   assert.doesNotMatch(message, /I got this one finished|got it done|came back clean|this one is finished/i);
   assert.doesNotMatch(message, /^✨/);
-});
-
-test('bug hunt: missing Builder route-confidence command degrades through local compatibility gate', () => {
-  assert.equal(
-    isRouteConfidenceGateUnsupportedError(
-      new Error("spark-intelligence self: error: argument self_command: invalid choice: 'route-confidence-gate'")
-    ),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'no_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'missing',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: false,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'no'
-    }),
-    false
-  );
 });
 
 test('bug hunt: pause, resume, and cancel relay state messages stay compact', () => {

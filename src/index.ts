@@ -3,7 +3,7 @@ import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -27,7 +27,6 @@ import {
   runBuilderAgentOperatingContext,
   runBuilderConversationColdContext,
   runBuilderDiagnosticsScan,
-  runBuilderRouteConfidenceGate,
   runBuilderRouteProbe,
   readLatestCapabilityProbeReceipt,
   runBuilderSourceUsed,
@@ -5075,20 +5074,6 @@ export async function handleClarificationAnswers(
   }
   const buildLane = pending.buildLane || buildLaneForMode(pending.buildMode);
   const buildLaneReason = pending.buildLaneReason || 'Build lane inferred from build mode.';
-  const accessRequirement: SparkAccessRequirement = sparkMissionNeedsOperatingSystemAccess(enrichedPrd, pending.projectPath)
-    ? 'operating_system'
-    : 'spawner_build';
-  if (!(await buildDispatchRouteConfidenceAllows({
-    ctx,
-    accessRequirement,
-    prd: enrichedPrd,
-    requestId: newRequestId,
-    traceRef,
-    runnerPreflight,
-    confirmationState: runWithDefaults ? 'confirmed' : 'not_required'
-  }))) {
-    return;
-  }
   const projectName = pending.capabilityProposalPacket
     ? pending.projectName
     : polishBuildProjectName(pending.projectName);
@@ -6871,262 +6856,6 @@ async function recordBuilderAocPreflightForRun(input: {
   }
 }
 
-function buildDispatchConsequenceRisk(prd: string): 'medium' | 'external' {
-  const text = prd.toLowerCase();
-  const asksForExternalSideEffect = /\b(push|publish|deploy|release|ship|upload|send|post|email|tweet|live|production)\b/.test(text);
-  const boundedLocalOnly = /\b(local-only|local only|do not publish|do not deploy|do not push|no network calls|static proof)\b/.test(text);
-  return asksForExternalSideEffect && !boundedLocalOnly ? 'external' : 'medium';
-}
-
-function routeConfidenceDecision(payload: Record<string, unknown>): string {
-  return typeof payload.decision === 'string' ? payload.decision : 'ask';
-}
-
-function routeConfidenceHumanNextAction(payload: Record<string, unknown>): string {
-  return typeof payload.human_next_action === 'string'
-    ? payload.human_next_action
-    : 'Reply with a clearer scope or explicit confirmation before I start a mission.';
-}
-
-function redactedRef(label: string, value: string): string {
-  return `${label}:sha256:${createHash('sha256').update(value).digest('hex').slice(0, 16)}`;
-}
-
-function recordRouteConfidenceDispatchOutcome(input: {
-  route: string;
-  decision: string;
-  outcome: 'acted' | 'blocked' | 'failed_closed';
-  requestId: string;
-  traceRef: string;
-  policy?: string;
-}): void {
-  const auditPath = process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH || path.join(
-    os.homedir(),
-    '.spark',
-    'state',
-    'spark-telegram-bot',
-    'route-confidence-audit.jsonl'
-  );
-  const record = {
-    schema_version: 'spark.telegram_route_confidence_audit.v1',
-    recorded_at: new Date().toISOString(),
-    route: input.route,
-    decision: input.decision,
-    outcome: input.outcome,
-    safe_reply_policy: input.policy || null,
-    request_ref: redactedRef('request', input.requestId),
-    trace_ref: redactedRef('trace', input.traceRef),
-    privacy: 'metadata_only'
-  };
-  mkdir(path.dirname(auditPath), { recursive: true })
-    .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
-    .catch(() => {});
-}
-
-export async function buildDispatchRouteConfidenceAllows(input: {
-  ctx: any;
-  accessRequirement: SparkAccessRequirement;
-  prd: string;
-  requestId: string;
-  traceRef: string;
-  runnerPreflight: Awaited<ReturnType<typeof probeTelegramRunnerWritability>> | null;
-  latestInstruction?: 'allow_execution' | 'no_execution';
-  confirmationState?: 'not_required' | 'confirmed' | 'missing';
-  gateRunner?: typeof runBuilderRouteConfidenceGate;
-  spawnerAvailableProbe?: () => Promise<boolean>;
-}): Promise<boolean> {
-  if (process.env.SPARK_BOT_TEST_MODE === '1') {
-    return true;
-  }
-  let spawnerAvailable = false;
-  const runnerWritable = input.runnerPreflight?.runnerWritable || 'unknown';
-
-  try {
-    const gateRunner = input.gateRunner || runBuilderRouteConfidenceGate;
-    spawnerAvailable = input.spawnerAvailableProbe
-      ? await input.spawnerAvailableProbe()
-      : await spawner.isAvailable().catch(() => false);
-    const routeCapabilityState = spawnerAvailable ? 'available' : 'unavailable';
-    const routeRunnerState = runnerWritable === 'no' ? 'unavailable' : 'available';
-    const authorityVerdict = {
-      schema_version: 'spark.authority_verdict.v1',
-      decision: 'allowed',
-      source_owner: 'spark-telegram-bot',
-      action_family: 'spawner.build',
-      permission_required: input.accessRequirement,
-      confirmation_state: input.confirmationState || 'not_required'
-    };
-    const gate = await gateRunner({
-      intent: 'build_dispatch',
-      candidateRoute: 'spawner.build',
-      routeContext: {
-        latest_instruction: input.latestInstruction || 'allow_execution',
-        intent_clarity: 'explicit',
-        route_fit: 'exact',
-        consequence_risk: buildDispatchConsequenceRisk(input.prd),
-        permission_required: input.accessRequirement,
-        authority_verdict: authorityVerdict,
-        capability_state: routeCapabilityState,
-        runner_state: routeRunnerState,
-        confirmation_state: input.confirmationState || 'not_required',
-        reversibility: 'reversible',
-        source_status: 'present',
-        freshness: 'current_turn',
-        request_id: input.requestId,
-        trace_ref: input.traceRef,
-        joined_sources: [
-          'telegram_access_policy',
-          'telegram_harness_core_authority',
-          'builder_route_confidence_gate'
-        ],
-        data_boundary: {
-          exports_raw_prompt: false,
-          exports_chat_id: false,
-          exports_provider_output: false,
-          exports_memory_body: false,
-          exports_transcript_body: false,
-          exports_audio: false,
-          exports_env_value: false,
-          exports_secret: false
-        },
-        verification_command: 'spark os trace --json'
-      }
-    });
-
-    const decision = routeConfidenceDecision(gate.payload);
-    if (decision === 'act') {
-      recordRouteConfidenceDispatchOutcome({
-        route: 'spawner.build',
-        decision,
-        outcome: 'acted',
-        requestId: input.requestId,
-        traceRef: input.traceRef,
-        policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined
-      });
-      return true;
-    }
-    if (
-      decision === 'ask' &&
-      input.confirmationState === 'confirmed' &&
-      buildDispatchConsequenceRisk(input.prd) === 'medium' &&
-      routeConfidenceGateCompatibilityAllows({
-        latestInstruction: input.latestInstruction || 'allow_execution',
-        confirmationState: input.confirmationState,
-        spawnerAvailable,
-        runnerWritable
-      })
-    ) {
-      recordRouteConfidenceDispatchOutcome({
-        route: 'spawner.build',
-        decision: 'act',
-        outcome: 'acted',
-        requestId: input.requestId,
-        traceRef: input.traceRef,
-        policy: 'confirmed_local_compatibility_after_gate_ask'
-      });
-      return true;
-    }
-    recordRouteConfidenceDispatchOutcome({
-      route: 'spawner.build',
-      decision,
-      outcome: 'blocked',
-      requestId: input.requestId,
-      traceRef: input.traceRef,
-      policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined
-    });
-    if (decision === 'explain') {
-      await input.ctx.reply([
-        'Spark will not start a build from this message.',
-        '',
-        routeConfidenceHumanNextAction(gate.payload)
-      ].join('\n'));
-      return false;
-    }
-    if (decision === 'refuse') {
-      await input.ctx.reply([
-        'I cannot start that build safely from this route.',
-        '',
-        routeConfidenceHumanNextAction(gate.payload)
-      ].join('\n'));
-      return false;
-    }
-    await input.ctx.reply([
-      'I can prepare this build, but I need one confirmation first.',
-      '',
-      routeConfidenceHumanNextAction(gate.payload)
-    ].join('\n'));
-    return false;
-  } catch (error) {
-    if (isRouteConfidenceGateUnsupportedError(error)) {
-      const allowedByLocalCompatibility = routeConfidenceGateCompatibilityAllows({
-        latestInstruction: input.latestInstruction || 'allow_execution',
-        confirmationState: input.confirmationState || 'not_required',
-        spawnerAvailable,
-        runnerWritable
-      });
-      recordRouteConfidenceDispatchOutcome({
-        route: 'spawner.build',
-        decision: allowedByLocalCompatibility ? 'act' : 'unavailable',
-        outcome: allowedByLocalCompatibility ? 'acted' : 'failed_closed',
-        requestId: input.requestId,
-        traceRef: input.traceRef,
-        policy: 'compat_builder_route_confidence_gate_missing'
-      });
-      if (allowedByLocalCompatibility) {
-        console.warn('[RouteConfidenceGate] Builder gate command is unavailable; using local compatibility gate for explicit build dispatch.');
-        return true;
-      }
-      await input.ctx.reply([
-        'I can shape the build, but I cannot prove the route gate from this Builder version yet.',
-        '',
-        'Try /diagnose, then ask again after Spark finishes syncing.'
-      ].join('\n'));
-      return false;
-    }
-    recordRouteConfidenceDispatchOutcome({
-      route: 'spawner.build',
-      decision: 'unavailable',
-      outcome: 'failed_closed',
-      requestId: input.requestId,
-      traceRef: input.traceRef,
-      policy: 'fail_closed_gate_unavailable'
-    });
-    console.warn('[RouteConfidenceGate] build dispatch failed closed:', redactText(error instanceof Error ? error.message : String(error)));
-    await input.ctx.reply(renderSparkErrorReply(
-      error instanceof Error ? error : new Error(String(error)),
-      'builder',
-      conversation.isAdmin(input.ctx.from)
-    ));
-    return false;
-  }
-}
-
-export function isRouteConfidenceGateUnsupportedError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    /\broute-confidence-gate\b/i.test(message) &&
-    (
-      /\binvalid choice\b/i.test(message) ||
-      /\bunrecognized arguments?\b/i.test(message) ||
-      /\bNo such command\b/i.test(message) ||
-      /\bunknown command\b/i.test(message)
-    )
-  );
-}
-
-export function routeConfidenceGateCompatibilityAllows(input: {
-  latestInstruction: 'allow_execution' | 'no_execution';
-  confirmationState: 'not_required' | 'confirmed' | 'missing';
-  spawnerAvailable: boolean;
-  runnerWritable: 'yes' | 'no' | 'unknown';
-}): boolean {
-  if (input.latestInstruction === 'no_execution') return false;
-  if (input.confirmationState === 'missing') return false;
-  if (!input.spawnerAvailable) return false;
-  if (input.runnerWritable === 'no') return false;
-  return true;
-}
-
 interface RunCommandOptions {
   allowBuildIntent?: boolean;
   missionName?: string;
@@ -7295,6 +7024,11 @@ export async function handleBuildIntent(
   const requestId = opaqueTelegramRequestId('tg-build');
   const missionId = missionIdFromTelegramBuildRequest(requestId);
   const traceRef = spawnerPrdTraceRef(missionId);
+  const authorityError = buildDispatchAuthorityFailureReason(options.executionAuthority);
+  if (authorityError) {
+    await ctx.reply('I did not enqueue that build because this turn did not carry fresh Harness Core execution authority.');
+    return { status: 'failure', summary: authorityError, requestId, traceRef };
+  }
   await recordBuilderAocPreflightForRun({
     ctx,
     requestId,
@@ -7303,23 +7037,6 @@ export async function handleBuildIntent(
     userIntent: buildMode === 'advanced_prd' ? 'telegram_run_advanced_prd_build' : 'telegram_run_direct_build',
     reason: `Telegram access gate passed for build /run; dispatching to Spawner PRD bridge with ${buildLane} lane.`
   });
-  if (!(await buildDispatchRouteConfidenceAllows({
-    ctx,
-    accessRequirement,
-    prd,
-    requestId,
-    traceRef,
-    runnerPreflight,
-    confirmationState: options.confirmationState || 'not_required'
-  }))) {
-    return { status: 'failure', summary: 'Build dispatch blocked by route-confidence gate.' };
-  }
-
-  const authorityError = buildDispatchAuthorityFailureReason(options.executionAuthority);
-  if (authorityError) {
-    await ctx.reply('I did not enqueue that build because this turn did not carry fresh Harness Core execution authority.');
-    return { status: 'failure', summary: authorityError, requestId, traceRef };
-  }
 
   const polishedProjectName = capabilityProposalPacket
     ? projectName
