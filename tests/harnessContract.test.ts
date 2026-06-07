@@ -271,6 +271,39 @@ test('allows scoped owner-approved memory write while denying other negative sid
   }
 });
 
+test('allows quoted tool-surface wording inside an explicit memory note', () => {
+  const envelope = envelopeFor(
+    'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.quotedOrMetaLanguage, true);
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('meta_language_boundary'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+
+  const memoryAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+  assert.deepEqual(memoryAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const browserAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'browser.use',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+  assert.equal(browserAuthorization.verdict, 'blocked');
+  assert.ok(browserAuthorization.reasonCodes.includes('external_network_not_authorized'));
+  assert.ok(browserAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+});
+
 test('authorizes explicit Memory Doctor as read-only diagnostics', () => {
   const envelope = envelopeFor('run memory doctor for last request');
 

@@ -451,14 +451,14 @@ function defaultRuntimeOwnership(): RuntimeOwnershipV1 {
 
 function defaultThreatDefense(
   decision: TelegramIntentDecisionV2,
-  options: { noExecutionBoundary?: boolean; scopedNoExecutionBoundary?: boolean } = {}
+  options: { noExecutionBoundary?: boolean; scopedNoExecutionBoundary?: boolean; metaLanguageBoundary?: boolean } = {}
 ): ThreatDefenseV1 {
   const reasonCodes = ['fresh_user_turn_is_authority'];
   const noExecutionBoundary = options.noExecutionBoundary ?? decision.constraints.noExecution;
   if (noExecutionBoundary) reasonCodes.push('no_execution_boundary');
   if (options.scopedNoExecutionBoundary) reasonCodes.push('scoped_no_execution_boundary');
   if (decision.constraints.localOnly) reasonCodes.push('local_only_boundary');
-  if (routeLooksMetaLanguage(decision)) reasonCodes.push('meta_language_boundary');
+  if (options.metaLanguageBoundary || routeLooksMetaLanguage(decision)) reasonCodes.push('meta_language_boundary');
   return {
     userText: 'trusted',
     recalledMemory: 'evidence_only',
@@ -471,24 +471,26 @@ function defaultThreatDefense(
 }
 
 function isScopedMemoryWriteWithNegativeConstraints(decision: TelegramIntentDecisionV2, normalizedText: string): boolean {
-  if (!decision.constraints.noExecution) return false;
   if (decision.enforcement === 'blocked') return false;
   if (decision.kind !== 'memory_write' && decision.route !== 'memory.write' && decision.route !== 'spark_wiki.promote' && decision.route !== 'spark.wiki') {
     return false;
   }
-  if (routeLooksMetaLanguage(decision)) return false;
-  const hasExplicitWrite = /\b(?:owner\s+approves|approved|approve)\b.{0,80}\b(?:memory\s+write|kb\s+note|memory\s+note|save|store|remember)\b/.test(normalizedText) ||
-    /\bexactly\s+one\s+(?:memory\s+write|kb\s+note|memory\s+note)\b/.test(normalizedText) ||
-    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b/.test(normalizedText);
-  const hasScopedNegative = /\b(?:do\s+not|don't|dont|no\s+need\s+to)\s+(?:start|run|launch|create|change|publish|merge|ship|deploy|use|open|record|send)\b/.test(normalizedText);
-  return hasExplicitWrite && hasScopedNegative;
+  const lowerText = normalizedText.toLowerCase();
+  const hasExplicitWrite = /\b(?:owner\s+approves|approved|approve)\b.{0,80}\b(?:memory\s+write|kb\s+note|memory\s+note|save|store|remember)\b/.test(lowerText) ||
+    /\bexactly\s+one\s+(?:memory\s+write|kb\s+note|memory\s+note)\b/.test(lowerText) ||
+    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b/.test(lowerText);
+  const hasDirectMemoryDenial = /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to|without)\s+(?:save|store|remember|write)\b/.test(lowerText);
+  const hasScopedNegative = /\b(?:do\s+not|don't|dont|no\s+need\s+to)\s+(?:start|run|launch|create|change|publish|merge|ship|deploy|use|open|record|send)\b/.test(lowerText);
+  const hasQuotedDirectiveContent = /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b[^"“”]{0,80}["“].+["”]/.test(lowerText);
+  const hasNonOwningMetaLanguage = hasQuotedDirectiveContent && routeLooksMetaLanguage(decision, normalizedText);
+  return hasExplicitWrite && !hasDirectMemoryDenial && (hasScopedNegative || hasNonOwningMetaLanguage);
 }
 
 export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelopeInput): TurnIntentEnvelopeV1 {
   const normalized = normalizeText(input.text);
   const quotedOrMetaLanguage = routeLooksMetaLanguage(input.decision, normalized);
   const scopedNoExecutionBoundary = isScopedMemoryWriteWithNegativeConstraints(input.decision, normalized);
-  const noExecution = (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) || quotedOrMetaLanguage;
+  const noExecution = (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) || (quotedOrMetaLanguage && !scopedNoExecutionBoundary);
   const executionPolicy = executionPolicyForDecision(input.decision, { noExecutionBoundary: noExecution });
   const mutationClassesAllowed = mutationClassesForPolicy(executionPolicy);
   const sessionKey = [
@@ -578,7 +580,7 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
           stopRule: 'Stop on no-execution, local-only conflict, or failed promotion gate.'
         }
       : undefined,
-    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary }),
+    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary, metaLanguageBoundary: quotedOrMetaLanguage }),
     executionPolicy,
     consumedBy: []
   };

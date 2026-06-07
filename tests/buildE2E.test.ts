@@ -983,6 +983,70 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('memory directive outranks quoted browser computer-use proof wording', async () => {
+		restoreAxios();
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-memory-browser-quote-e2e-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		let writtenText = '';
+		const indexModule: any = await import('../src/index');
+		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: { noteText: string }) => {
+			writtenText = input.noteText;
+			return {
+				used: true,
+				status: 'succeeded',
+				acceptedCount: 1,
+				rejectedCount: 0,
+				skippedCount: 0,
+				abstained: false,
+				reason: '',
+				responseText: 'Saved quoted tool-surface note through Builder/domain-chip memory.',
+				bridgeMode: 'test',
+				payload: { status: 'succeeded', accepted_count: 1 }
+			};
+		});
+
+		try {
+			const replies: string[] = [];
+			const testUserId = 8319079888;
+			const ctx = makeFakeCtx(testUserId, testUserId, 5662, replies);
+			ctx.message.text = 'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."';
+			(ctx as any).update = { update_id: 5662, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			assert.equal(
+				writtenText,
+				'harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn'
+			);
+			assert.match(replies.join('\n'), /Saved quoted tool-surface note/i);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'quoted browser/computer-use wording inside a memory note must still record governed memory.write success'
+			);
+			assert.equal(
+				ledgerRecords.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'quoted browser/computer-use wording inside a memory note must not trigger read-only browser status'
+			);
+		} finally {
+			indexModule.__setBuilderMemoryWriteRunnerForTest(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('XContent token follow-up answers capability boundary before Builder fallback', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

@@ -9192,7 +9192,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
+  const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
+  const browserProofAnswer = !earlyBuildIntent && !memoryDirective ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     const browserProofAuthorization = telegramActionAuthorityDecision(
       telegramActionEnvelope(turnIntentEnvelope, {
@@ -9249,7 +9250,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const readOnlyStateQuestion = !earlyBuildIntent ? classifySparkReadOnlyStateQuestion(text) : null;
+  const readOnlyStateQuestion = !earlyBuildIntent && !memoryDirective ? classifySparkReadOnlyStateQuestion(text) : null;
   const readOnlyStateAuthorization = readOnlyStateQuestion
     ? telegramActionAuthorityDecision(
         telegramActionEnvelope(turnIntentEnvelope, {
@@ -10202,7 +10203,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-  const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   const memoryDirectiveAuthorization = memoryDirective
     ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'memory.write',
