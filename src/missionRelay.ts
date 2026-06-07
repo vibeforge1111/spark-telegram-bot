@@ -424,7 +424,7 @@ export async function markLatestMissionRelayCancelledForChat(chatId: string | nu
     .filter(({ createdMs }) => !createdMs || now - createdMs <= MISSION_STATE_CACHE_TTL_MS)
     .sort((a, b) => b.createdMs - a.createdMs);
 
-  const latest = candidates[0]?.entry;
+  const latest = (candidates && candidates.length > 0) ? candidates[0] : undefined?.entry;
   if (!latest?.missionId) return null;
   markMissionRelayCancelled(latest.missionId);
   return latest.missionId;
