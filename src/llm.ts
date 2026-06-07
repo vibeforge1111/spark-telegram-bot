@@ -81,8 +81,9 @@ export function isCodexProvider(value: string | undefined = process.env.LLM_PROV
 
 export function codexExecArgs(model: string, outputPath: string): string[] {
   const configArgs: string[] = [];
-  const reasoningEffort = process.env.CODEX_REASONING_EFFORT?.trim();
-  const serviceTier = process.env.CODEX_SERVICE_TIER?.trim();
+  const reasoningEffort = (process.env.CODEX_REASONING_EFFORT || process.env.SPARK_CODEX_REASONING_EFFORT || 'medium').trim();
+  const rawServiceTier = (process.env.CODEX_SERVICE_TIER || process.env.SPARK_CODEX_SERVICE_TIER || 'fast').trim().toLowerCase();
+  const serviceTier = rawServiceTier === 'flex' ? 'flex' : 'fast';
   if (reasoningEffort) configArgs.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
   if (serviceTier) configArgs.push('-c', `service_tier="${serviceTier}"`);
   return [
@@ -350,7 +351,7 @@ ${conversationHistory ? `## Where we left off\n${conversationHistory}` : ''}
 Keep responses brief (1-3 sentences) unless the user asks for detail. If you need more, keep paragraphs short and skimmable.`;
 }
 
-function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+export function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawnHidden(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -358,12 +359,13 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
     });
     let stdout = '';
     let stderr = '';
+    let stdinError = '';
     let finished = false;
     const timer = setTimeout(() => {
       if (finished) return;
       finished = true;
       child.kill('SIGTERM');
-      resolve({ ok: false, stdout, stderr: `${stderr}\ncommand timed out after ${timeoutMs}ms`.trim() });
+      resolve({ ok: false, stdout, stderr: `${stderr}\n${stdinError ? `stdin error: ${stdinError}\n` : ''}command timed out after ${timeoutMs}ms`.trim() });
     }, timeoutMs);
 
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -371,6 +373,9 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
     });
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
+    });
+    child.stdin?.on('error', (error) => {
+      stdinError = error.message || String(error);
     });
     child.on('error', (error) => {
       if (finished) return;
@@ -382,9 +387,17 @@ function runProcess(command: string, args: string[], input: string, timeoutMs: n
       if (finished) return;
       finished = true;
       clearTimeout(timer);
-      resolve({ ok: code === 0, stdout, stderr });
+      resolve({
+        ok: code === 0,
+        stdout,
+        stderr: [stderr.trim(), stdinError ? `stdin error: ${stdinError}` : ''].filter(Boolean).join('\n')
+      });
     });
-    child.stdin?.end(input);
+    try {
+      child.stdin?.end(input);
+    } catch (error) {
+      stdinError = error instanceof Error ? error.message : String(error);
+    }
   });
 }
 

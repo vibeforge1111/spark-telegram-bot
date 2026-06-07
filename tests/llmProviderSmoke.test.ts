@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import axios from 'axios';
-import { llm, pingChatProvider, resolveChatProviderConfig } from '../src/llm';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { llm, pingChatProvider, resolveChatProviderConfig, runProcess } from '../src/llm';
 
 type CapturedRequest = {
   method: 'get' | 'post';
@@ -36,6 +39,20 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  await test('contains early child exit while writing provider stdin', async () => {
+    const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-llm-stdin-exit-'));
+    const scriptPath = path.join(tmpDir, 'exit-now.cjs');
+    writeFileSync(scriptPath, 'process.exit(2);', 'utf8');
+
+    try {
+      const result = await runProcess(process.execPath, [scriptPath], 'x'.repeat(2_000_000), 5000);
+
+      assert.equal(result.ok, false);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   await test('smokes Z.AI GLM chat completion health through OpenAI-compatible API', async () => {
     const previousProvider = process.env.SPARK_CHAT_LLM_PROVIDER;
     const previousKey = process.env.ZAI_API_KEY;
