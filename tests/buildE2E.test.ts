@@ -30,6 +30,7 @@ import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { resolveDefaultPythonCommand } from '../src/pythonCommand';
 import type { SparkHarnessMutationClass } from '../src/harnessContract';
+import { spawnerPrdWriteAuthorityFailureReason } from '../src/spawnerPrdWriteAuthority';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -320,6 +321,14 @@ function fakeGovernorExecutionAuthority(
 	return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: toolName });
 }
 
+function assertSpawnerPrdWriteAuthority(authority: any, requestId: string): void {
+	assert.equal(authority?.schema_version, 'governor-decision-v1');
+	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'spawner.prd.write');
+	assert.equal(spawnerPrdWriteAuthorityFailureReason(authority), null);
+	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
+	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+}
+
 async function callHandleBuildIntent(opts: {
 	ctx: any;
 	prd: string;
@@ -436,8 +445,7 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.userId, '8319079055');
 		assert.equal(writeCall!.body.buildMode, 'direct');
 		assert.equal(writeCall!.body.capabilityProposalPacket, undefined);
-		assert.equal(writeCall!.body.executionAuthority?.schema_version, 'governor-decision-v1');
-		assert.equal(writeCall!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.ok(writeCall!.body.content.includes('SaaS Billing Test'), 'PRD content includes project name header');
 		assert.ok(writeCall!.body.telegramRelay, 'telegramRelay block present');
 		assert.equal(typeof writeCall!.body.options, 'object');
@@ -688,7 +696,8 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(replies.join('\n'), /Mission board/);
 		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
 		assert.ok(writeCall, 'expected build route to include PRD bridge call');
-		assert.equal(writeCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(writeCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.equal(writeCall!.body.buildLane, 'fast_direct');
 		assert.equal(writeCall!.body.options.fastLane, true);
 		const buildMissionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
@@ -1911,7 +1920,8 @@ async function run(): Promise<void> {
 		assert.ok(writeCall, 'expected domain chip creation to POST to /api/prd-bridge/write');
 		assert.equal(writeCall!.body.projectName, 'domain-chip-creates-weird-poster-prompts-from');
 		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
-		assert.equal(writeCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(writeCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
 		assert.match(writeCall!.body.content, /current Spark-compatible domain chip standards/);
 		assert.match(writeCall!.body.content, /CAPABILITY_PROPOSAL_STANDARD_V1/);
@@ -2548,7 +2558,7 @@ async function run(): Promise<void> {
 
 		const pendingChipWrite = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
 		assert.ok(pendingChipWrite, 'actual domain-chip direction should still dispatch pending chip');
-		assert.equal(pendingChipWrite!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(pendingChipWrite!.body.executionAuthority, pendingChipWrite!.body.requestId);
 		assert.match(replies.join('\n'), /use that direction and start domain-chip-/i);
 
 			restoreAxios();
@@ -2859,7 +2869,8 @@ async function run(): Promise<void> {
 
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected go to force-dispatch pending clarification');
-		assert.equal(dispatchCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(dispatchCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
 		const clarifiedMissionId = `mission-${String(dispatchCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(dispatchCall!.body.missionId, clarifiedMissionId);
 		assert.equal(dispatchCall!.body.traceRef, `trace:spawner-prd:${clarifiedMissionId}`);
@@ -5815,8 +5826,7 @@ async function run(): Promise<void> {
 
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected pronoun-heavy follow-up to answer the pending clarification');
-		assert.equal(dispatchCall!.body.executionAuthority?.schema_version, 'governor-decision-v1');
-		assert.equal(dispatchCall!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
 		assert.equal(dispatchCall!.body.projectName, 'Memory Quality Dashboard');
 		assert.match(dispatchCall!.body.content, /^# Memory Quality Dashboard/m);
 		assert.match(dispatchCall!.body.content, /Answers: yes let's do it create it after analyzing our systems deeply please/);

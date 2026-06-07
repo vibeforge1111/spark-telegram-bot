@@ -327,7 +327,10 @@ import {
   type ToolAuthorizationInput,
   type TurnIntentEnvelopeV1
 } from './harnessContract';
-import { harnessExecutionAuthorityFailureReason } from './harnessExecutionAuthority';
+import {
+  buildSpawnerPrdWriteExecutionAuthority,
+  telegramBuildAuthorityFailureReason
+} from './spawnerPrdWriteAuthority';
 import {
   authorizeTelegramActionFromEnvelope,
   type TelegramActionAuthorityInput,
@@ -5080,7 +5083,12 @@ export async function handleClarificationAnswers(
   const prdContent = pending.projectPath
     ? `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\nTarget workspace/project path: \`${pending.projectPath}\`\n\n${enrichedPrd}`
     : `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\n\n${enrichedPrd}`;
-  const executionAuthority = authorization.governorDecision;
+  const executionAuthority = buildSpawnerPrdWriteExecutionAuthority({
+    telegramExecutionAuthority: authorization.governorDecision,
+    requestId: newRequestId,
+    projectName,
+    traceRef
+  });
 
   try {
     const res = await postLocalServiceWithRetry(
@@ -6880,11 +6888,7 @@ interface TelegramAuthorityExecutionResult {
 const BUILD_DISPATCH_AUTHORITY_ERROR = 'Harness Core execution authority is required before PRD bridge build dispatch.';
 
 function buildDispatchAuthorityFailureReason(value: unknown): string | null {
-  const reason = harnessExecutionAuthorityFailureReason(value, {
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    actionType: 'launch_mission'
-  });
+  const reason = telegramBuildAuthorityFailureReason(value);
   return reason ? `${BUILD_DISPATCH_AUTHORITY_ERROR} (${reason})` : null;
 }
 
@@ -7046,6 +7050,12 @@ export async function handleBuildIntent(
     : `# ${polishedProjectName}\n\nBuild mode: ${buildMode}\nBuild mode reason: ${buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\n\n${prd}`;
 
   const tier = getTierForUser(ctx.from.id);
+  const prdWriteExecutionAuthority = buildSpawnerPrdWriteExecutionAuthority({
+    telegramExecutionAuthority: options.executionAuthority,
+    requestId,
+    projectName: polishedProjectName,
+    traceRef
+  });
   try {
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
@@ -7070,7 +7080,7 @@ export async function handleBuildIntent(
         telegramRelay: getTelegramRelayIdentity(),
         tier,
         ...(capabilityProposalPacket ? { capabilityProposalPacket } : {}),
-        ...(options.executionAuthority ? { executionAuthority: options.executionAuthority } : {}),
+        executionAuthority: prdWriteExecutionAuthority,
         options: prdBridgeOptionsForBuildLane(buildLane)
       },
       localServiceTimeoutMs('SPARK_SPAWNER_PRD_WRITE_TIMEOUT_MS')
