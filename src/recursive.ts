@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -920,16 +920,22 @@ export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactS
     workspaceId: config.workspaceId,
     accessToken: config.accessToken
   });
-  const { stdout } = await execFileAsync(
-    python,
-    bridgeArgs,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
-    }
-  );
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      python,
+      bridgeArgs,
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    ));
+  } finally {
+    // Clean the per-run scratch directory so /tmp does not grow unbounded over many syncs.
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 
   return {
     synced: true,
@@ -1311,7 +1317,12 @@ async function syncBuilderChipLoopViaBridge(
   const tempDir = await mkdtemp(path.join(tmpdir(), 'spark-builder-chip-'));
   const inputPath = path.join(tempDir, 'chip-loop-result.json');
   const payloadPath = path.join(tempDir, 'collective-sync.json');
-  await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+  try {
+    await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+  } catch (writeError) {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    throw writeError;
+  }
 
   const python = (
     process.env.SPARK_SWARM_BRIDGE_PYTHON ||
@@ -1348,16 +1359,22 @@ async function syncBuilderChipLoopViaBridge(
   if (config.apiUrl) args.push('--api-url', config.apiUrl);
   if (config.accessToken) args.push('--access-token', config.accessToken);
 
-  const { stdout } = await execFileAsync(
-    python,
-    args,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
-    }
-  );
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      python,
+      args,
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    ));
+  } finally {
+    // Clean the per-run scratch directory so /tmp does not grow unbounded over many syncs.
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 
   return {
     synced: true,
