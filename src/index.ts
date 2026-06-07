@@ -5349,7 +5349,8 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
         `Workspace: ${sparkWorkspaceRecursionsUrl()}`
       ].join('\n'));
     }
-    return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}`);
+    const swarmRepair = /workspace is not configured|SPARK_SWARM/i.test(detail) ? '\n\nRepair\n• Swarm credentials are required for this command.\n• Set SPARK_SWARM_WORKSPACE_ID and SPARK_SWARM_ACCESS_TOKEN in your Spark config or contact your admin.' : '';
+    return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}${swarmRepair}`);
   }
 }
 
