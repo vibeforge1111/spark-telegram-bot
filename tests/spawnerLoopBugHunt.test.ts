@@ -200,6 +200,7 @@ test('bug hunt: pending creator and cancel state live behind evidence adapters',
   assert.match(creatorAdapter, /export function parsePendingCreatorMissionAction/);
   assert.match(cancelAdapter, /const missionCancelConfirmations = new Map/);
   assert.match(cancelAdapter, /export function isMissionCancelConfirmationText/);
+  assert.doesNotMatch(cancelAdapter, /executionAuthority/);
 });
 
 test('bug hunt: branch promotion cannot mint mutating route authority', () => {

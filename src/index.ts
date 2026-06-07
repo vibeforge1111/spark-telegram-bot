@@ -401,7 +401,6 @@ export {
 export { isDomainChipPendingDirection } from './telegramPendingDomainChipEvidence';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
-const TELEGRAM_LOCAL_MEMORY_NOTE_TOOL_NAME = 'telegram.local_memory_note';
 const execFileAsync = promisify(execFile);
 
 installConsoleRedaction();
@@ -3885,12 +3884,6 @@ async function handlePlainChatMemoryDirective(
   });
 }
 
-async function saveSlashRememberLocally(user: any, text: string): Promise<boolean> {
-  void user;
-  void text;
-  return false;
-}
-
 async function buildLocalRecallReply(user: any, query: string): Promise<string | null> {
   void user;
   void query;
@@ -3970,25 +3963,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
       await ctx.reply(missionLessonReply);
       return;
     }
-    const localSaved = await saveSlashRememberLocally(ctx.from, text);
-    const builderRouted = await replyViaBuilder(ctx, `Please remember this: ${text}`);
-    recordTelegramHarnessCoreExecution(authorization, {
-      toolName: builderRouted
-        ? 'memory.write'
-        : localSaved
-          ? TELEGRAM_LOCAL_MEMORY_NOTE_TOOL_NAME
-          : 'memory.write',
-      status: builderRouted || localSaved ? 'success' : 'failure',
-      summary: builderRouted
-        ? 'Telegram /remember routed the memory write through Builder/domain-chip memory; Telegram local notes were not materialized.'
-        : localSaved
-          ? 'Telegram /remember stored only a Telegram-local note; durable Builder/domain-chip memory was not confirmed.'
-          : 'Telegram /remember could not persist because Builder/domain-chip memory was unavailable; Telegram local notes were not materialized.'
-    });
-    if (builderRouted) {
-      return;
-    }
-    await ctx.reply(buildMemoryBridgeUnavailableReply('remember'));
+    await handlePlainChatMemoryDirective(ctx, ctx.from, ctx.message.text, text, authorization);
   } catch (err) {
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'memory.write',
@@ -10643,7 +10618,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         rememberPendingMissionCancelConfirmation(telegramPendingMissionCancelKey(ctx.chat?.id, ctx.from?.id), {
           missionId: result.missionId,
           title: result.title,
-          executionAuthority: missionCancelAuthorization.governorDecision,
           timestamp: Date.now()
         });
       }
