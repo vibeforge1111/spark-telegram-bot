@@ -8878,6 +8878,46 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+  const earlyTurnSelectedRuntimeRead = turnEnvelopeSelectsRoute(turnIntentEnvelope, 'spark.read_only_state');
+  if (!earlyBuildIntent && earlyTurnSelectedRuntimeRead && !shouldAnswerRuntimeTruthPriority(text) && shouldAnswerAuthoritativeRuntimeStatus(text)) {
+    const runtimeStatusKind = isRepairNeededStatusQuestion(text.toLowerCase().replace(/\s+/g, ' ').trim())
+      ? 'repair_status'
+      : 'live_status';
+    const runtimeStatusAuthorization = telegramActionAuthorityDecision(turnIntentEnvelope, {
+      route: 'spark.read_only_state',
+      text,
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    if (!runtimeStatusAuthorization.allow) {
+      recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
+        toolName: 'spark.read_only_state',
+        status: 'not_started',
+        summary: `Natural runtime status read was blocked for ${runtimeStatusKind}.`
+      });
+      await ctx.reply('I did not read Spark live state because the fresh turn did not authorize that read-only check.');
+      return;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
+    recordNaturalRouteExecution(
+      ctx,
+      runtimeStatusNaturalRouteDecision(runtimeStatusKind),
+      `spark.read_only_state.${runtimeStatusKind}`,
+      'spark-telegram-bot',
+      'harness_core.read_only_state'
+    );
+    recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
+      toolName: 'spark.read_only_state',
+      status: 'success',
+      summary: `Natural runtime status read completed for ${runtimeStatusKind}.`
+    });
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
   if (!earlyBuildIntent && await handleTelegramIntentGateV2SafeRoute(ctx, user, text, naturalRouteShadow, telegramIntentGateV2, turnIntentEnvelope)) {
     return;
   }
