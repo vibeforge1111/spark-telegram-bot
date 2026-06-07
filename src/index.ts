@@ -3905,7 +3905,7 @@ function authorizeMemoryDeleteCommand(ctx: any, text: string): TelegramActionAut
 }
 
 export async function handleRememberCommand(ctx: any): Promise<void> {
-  const text = ctx.message.text.replace('/remember', '').trim();
+  const text = ctx.message.text.replace(/^\/remember(?:@\w+)?\s*/i, '').trim();
 
   if (!text) {
     return ctx.reply('Usage: /remember <something to remember>');
@@ -3959,7 +3959,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
 }
 
 export async function handleRecallCommand(ctx: any): Promise<void> {
-  const query = ctx.message.text.replace('/recall', '').trim();
+  const query = ctx.message.text.replace(/^\/recall(?:@\w+)?\s*/i, '').trim();
 
   if (!query) {
     return ctx.reply('Usage: /recall <topic to recall>');
