@@ -5133,7 +5133,8 @@ bot.command('loop', async (ctx) => {
     try {
       const result = await runChipLoop(chipKey, rounds, 3);
       if (!result.ok) {
-        await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop failed', result.error));
+        const loopRepair = '\n\nRepair\n• Make sure the chip key exists. Run /chip create to create a new chip.\n• Check available chips with your Spark admin.';
+        await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop failed', (result.error || '') + loopRepair));
         return;
       }
       const lines = [
