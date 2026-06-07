@@ -151,6 +151,9 @@ test('parses advanced PRD mode preface before build command', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
+  assert.equal(intent.requestedProjectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
+  assert.equal(intent.projectPathEvidenceOnly, false);
+  assert.equal(intent.projectPathRejectedReason, null);
   assert.equal(intent.buildMode, 'advanced_prd');
   assert.equal(intent.buildModeReason, 'User explicitly requested advanced PRD mode.');
   assert.equal(intent.projectName, 'Spark Galaxy Garden');
@@ -172,6 +175,9 @@ test('ignores paths outside the configured workspace root', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, null);
+  assert.equal(intent.requestedProjectPath, 'D:\\tmp\\outside');
+  assert.equal(intent.projectPathEvidenceOnly, true);
+  assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
 });
 
 test('parses Ubuntu target paths under configured project root', () => {
@@ -184,6 +190,8 @@ test('parses Ubuntu target paths under configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, '/root/spark-orbit-diner');
+    assert.equal(intent.requestedProjectPath, '/root/spark-orbit-diner');
+    assert.equal(intent.projectPathEvidenceOnly, false);
     assert.equal(intent.buildMode, 'advanced_prd');
     assert.equal(intent.projectName, 'Spark Orbit Diner');
     assert.match(intent.prd, /^a vanilla-JS single-page app called Spark Orbit Diner\./);
@@ -221,6 +229,9 @@ test('ignores POSIX paths outside configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, null);
+    assert.equal(intent.requestedProjectPath, '/etc/spark-danger');
+    assert.equal(intent.projectPathEvidenceOnly, true);
+    assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
   } finally {
     if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
     else process.env.SPARK_PROJECT_ROOT = originalRoot;

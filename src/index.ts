@@ -6911,7 +6911,12 @@ export async function handleRunCommand(
       undefined,
       buildIntent.buildLane,
       buildIntent.buildLaneReason,
-      { executionAuthority: options.executionAuthority }
+      {
+        executionAuthority: options.executionAuthority,
+        requestedProjectPath: buildIntent.requestedProjectPath,
+        projectPathEvidenceOnly: buildIntent.projectPathEvidenceOnly,
+        projectPathRejectedReason: buildIntent.projectPathRejectedReason
+      }
     );
     options.onBuildDispatchResult?.(dispatch);
     return null;
@@ -6997,6 +7002,9 @@ export async function handleBuildIntent(
   options: {
     confirmationState?: 'not_required' | 'confirmed' | 'missing';
     executionAuthority?: unknown;
+    requestedProjectPath?: string | null;
+    projectPathEvidenceOnly?: boolean;
+    projectPathRejectedReason?: string | null;
   } = {}
 ): Promise<BuildIntentDispatchResult> {
   await safeSendChatAction(ctx, 'typing');
@@ -7079,6 +7087,16 @@ export async function handleBuildIntent(
           : { runnerWritable: 'unknown' },
         telegramRelay: getTelegramRelayIdentity(),
         tier,
+        ...(options.requestedProjectPath || options.projectPathEvidenceOnly || options.projectPathRejectedReason
+          ? {
+              projectPathEvidence: {
+                requestedProjectPath: options.requestedProjectPath || null,
+                usedProjectPath: projectPath,
+                evidenceOnly: Boolean(options.projectPathEvidenceOnly),
+                rejectedReason: options.projectPathRejectedReason || null
+              }
+            }
+          : {}),
         ...(capabilityProposalPacket ? { capabilityProposalPacket } : {}),
         executionAuthority: prdWriteExecutionAuthority,
         options: prdBridgeOptionsForBuildLane(buildLane)
@@ -10256,7 +10274,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         undefined,
         buildIntent.buildLane,
         buildIntent.buildLaneReason,
-        { executionAuthority: buildAuthorization.governorDecision }
+        {
+          executionAuthority: buildAuthorization.governorDecision,
+          requestedProjectPath: buildIntent.requestedProjectPath,
+          projectPathEvidenceOnly: buildIntent.projectPathEvidenceOnly,
+          projectPathRejectedReason: buildIntent.projectPathRejectedReason
+        }
       );
       recordTelegramHarnessCoreExecution(buildAuthorization, {
         toolName: 'spawner.run',

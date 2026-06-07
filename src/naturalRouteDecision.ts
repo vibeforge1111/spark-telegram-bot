@@ -239,6 +239,9 @@ function buildIntentPayload(buildIntent: BuildIntent): Record<string, unknown> {
   return {
     projectName: buildIntent.projectName,
     hasProjectPath: Boolean(buildIntent.projectPath),
+    hasRequestedProjectPath: Boolean(buildIntent.requestedProjectPath),
+    projectPathEvidenceOnly: buildIntent.projectPathEvidenceOnly,
+    projectPathRejectedReason: buildIntent.projectPathRejectedReason,
     buildMode: buildIntent.buildMode,
     buildModeReason: buildIntent.buildModeReason,
     buildLane: buildIntent.buildLane,

@@ -3,6 +3,9 @@
 
 export interface BuildIntent {
   projectPath: string | null;
+  requestedProjectPath: string | null;
+  projectPathEvidenceOnly: boolean;
+  projectPathRejectedReason: string | null;
   prd: string;
   projectName: string;
   buildMode: BuildMode;
@@ -322,17 +325,42 @@ function cleanExtractedPath(value: string): string {
   );
 }
 
-function extractPath(text: string): string | null {
+function extractPathCandidate(text: string): string | null {
   const atMatch = text.match(
     /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
   );
-  if (atMatch) {
-    const candidate = cleanExtractedPath(atMatch[1]);
-    if (isInsideWorkspace(candidate)) {
-      return candidate;
-    }
+  return atMatch ? cleanExtractedPath(atMatch[1]) : null;
+}
+
+function extractPathEvidence(text: string): {
+  projectPath: string | null;
+  requestedProjectPath: string | null;
+  projectPathEvidenceOnly: boolean;
+  projectPathRejectedReason: string | null;
+} {
+  const requestedProjectPath = extractPathCandidate(text);
+  if (!requestedProjectPath) {
+    return {
+      projectPath: null,
+      requestedProjectPath: null,
+      projectPathEvidenceOnly: false,
+      projectPathRejectedReason: null
+    };
   }
-  return null;
+  if (isInsideWorkspace(requestedProjectPath)) {
+    return {
+      projectPath: requestedProjectPath,
+      requestedProjectPath,
+      projectPathEvidenceOnly: false,
+      projectPathRejectedReason: null
+    };
+  }
+  return {
+    projectPath: null,
+    requestedProjectPath,
+    projectPathEvidenceOnly: true,
+    projectPathRejectedReason: 'outside_configured_workspace_root'
+  };
 }
 
 function removeLeadingPathPrefix(text: string): string {
@@ -865,7 +893,8 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   // still filtering "x" / "ok" / "yo".
   if (stripped.length < 3) return null;
 
-  const projectPath = extractPath(original);
+  const pathEvidence = extractPathEvidence(original);
+  const projectPath = pathEvidence.projectPath;
   const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
@@ -878,6 +907,9 @@ export function parseBuildIntent(text: string): BuildIntent | null {
 
   return {
     projectPath,
+    requestedProjectPath: pathEvidence.requestedProjectPath,
+    projectPathEvidenceOnly: pathEvidence.projectPathEvidenceOnly,
+    projectPathRejectedReason: pathEvidence.projectPathRejectedReason,
     prd,
     projectName,
     buildMode: buildMode.mode,
