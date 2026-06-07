@@ -199,7 +199,20 @@ function isExplicitNaturalRun(normalized: string): boolean {
 function isExplicitMemoryWrite(normalized: string): boolean {
   return /^(?:memory\s+(?:update|note)|save\s+to\s+memory|please\s+)?(?:remember|save|store)\b/.test(normalized) ||
     /^(?:for\s+later|note\s+for\s+later)\s*[,:-]/.test(normalized) ||
-    /^memory\s+(?:update|note)\s*[:,-]/.test(normalized);
+    /^memory\s+(?:update|note)\s*[:,-]/.test(normalized) ||
+    /\b(?:owner\s+approves|approved|approve)\b.{0,80}\b(?:memory\s+write|kb\s+note|memory\s+note|save|store|remember)\b/.test(normalized) ||
+    /\bexactly\s+one\s+(?:memory\s+write|kb\s+note|memory\s+note)\b/.test(normalized) ||
+    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b/.test(normalized);
+}
+
+function isScopedExplicitMemoryWrite(normalized: string): boolean {
+  if (!isExplicitMemoryWrite(normalized)) return false;
+  const blocksMemoryWrite =
+    /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+(?:save|remember|store|write\s+memory|write\s+to\s+memory|memory|wiki|promote)\b/.test(normalized);
+  if (blocksMemoryWrite) return false;
+  const blocksOtherSideEffects =
+    /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+(?:start|run|launch|execute|create|change|publish|merge|ship|deploy|use|open|record|send)\b/.test(normalized);
+  return blocksOtherSideEffects;
 }
 
 function isExplicitScheduleDelete(normalized: string): boolean {
@@ -452,6 +465,9 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
   if (route === 'sparkqa.pause' && isExplicitSparkQaPause(normalized)) {
     return { allow: true, reason: 'explicit_sparkqa_pause', confidence: 'explicit' };
   }
+  if (route === 'memory.write' && isScopedExplicitMemoryWrite(normalized)) {
+    return { allow: true, reason: 'scoped_explicit_memory_write', confidence: 'explicit' };
+  }
   if (isNoExecutionBoundary(normalized) && INTERRUPTIVE_ROUTES.has(route)) {
     return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
   }
@@ -549,6 +565,7 @@ export function shouldUseRouteArbiter(
     'short_pending_confirmation',
     'explicit_provider_run',
     'explicit_memory_write',
+    'scoped_explicit_memory_write',
     'explicit_spark_self_improvement',
     'explicit_external_research',
     'bounded_operator_probe',

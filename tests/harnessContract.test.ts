@@ -236,6 +236,41 @@ test('keeps memory authority evidence-only in the envelope', () => {
   assert.equal(envelope.executionPolicy.canLaunchMission, false);
 });
 
+test('allows scoped owner-approved memory write while denying other negative side effects', () => {
+  const envelope = envelopeFor(
+    'Harness native QA memory/KB positive: owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.executionPolicy.canCreateChip, false);
+  assert.equal(envelope.executionPolicy.canPublish, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+
+  const memoryAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+  assert.deepEqual(memoryAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  for (const blocked of [
+    { toolName: 'spawner.run', ownerSystem: 'spawner-ui', mutationClass: 'launches_mission' as const },
+    { toolName: 'domain_chip.create', ownerSystem: 'spawner-ui', mutationClass: 'creates_chip' as const },
+    { toolName: 'browser.use', ownerSystem: 'spark-telegram-bot', mutationClass: 'external_network' as const, externalNetwork: true }
+  ]) {
+    const authorization = authorizeToolCallFromEnvelope(envelope, blocked);
+    assert.equal(authorization.verdict, 'blocked', blocked.toolName);
+    assert.ok(authorization.reasonCodes.includes('tool_not_allowed_by_policy'), blocked.toolName);
+    assert.ok(authorization.reasonCodes.includes('mutation_class_not_authorized'), blocked.toolName);
+  }
+});
+
 test('authorizes explicit Memory Doctor as read-only diagnostics', () => {
   const envelope = envelopeFor('run memory doctor for last request');
 

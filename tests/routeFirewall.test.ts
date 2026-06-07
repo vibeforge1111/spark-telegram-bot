@@ -64,6 +64,32 @@ test('allows explicit memory updates even when they mention plans', () => {
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('allows exact owner-approved memory notes while keeping other negative constraints scoped', () => {
+  const prompt = 'Owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.';
+  const memory = evaluateDeterministicRoute('memory.write', prompt);
+  const spawner = evaluateDeterministicRoute('spawner.build', prompt);
+  const chip = evaluateDeterministicRoute('domain_chip.create', prompt);
+
+  assert.equal(memory.allow, true);
+  assert.equal(memory.reason, 'scoped_explicit_memory_write');
+  assert.equal(memory.confidence, 'explicit');
+  assert.equal(spawner.allow, false);
+  assert.equal(spawner.reason, 'no_execution_boundary');
+  assert.equal(chip.allow, false);
+  assert.equal(chip.reason, 'no_execution_boundary');
+});
+
+test('blocks exact memory note wording when the fresh turn negates the memory write itself', () => {
+  const verdict = evaluateDeterministicRoute(
+    'memory.write',
+    'Save this exact KB note: "temporary scratch only", but do not save or remember anything.'
+  );
+
+  assert.equal(verdict.allow, false);
+  assert.equal(verdict.reason, 'no_execution_boundary');
+  assert.equal(verdict.confidence, 'blocked');
+});
+
 test('blocks build and mission routes from stealing bounded operator probes', () => {
   const prompt = 'Run a safe Level 5 smoke test: create a tiny file at C:\\Users\\USER\\AppData\\Local\\Temp\\spark-telegram-level5-smoke.txt, write "level5 ok", read it back, then delete it. Do not touch anything else. Tell me each step.';
   const competingRoutes: DeterministicRouteId[] = [

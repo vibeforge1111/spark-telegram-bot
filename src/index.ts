@@ -3811,8 +3811,9 @@ async function handlePlainChatMemoryDirective(
 
   await safeSendChatAction(ctx, 'typing');
   try {
+    const builderMemoryText = `Memory update: ${directive}`;
     const builderReply = await builderBridgeRunner(
-      buildUpdateWithText(ctx.update as unknown as Record<string, unknown>, text, authorization?.legacyEnvelope)
+      buildUpdateWithText(ctx.update as unknown as Record<string, unknown>, builderMemoryText, authorization?.legacyEnvelope)
     );
     console.log(`[Bridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (

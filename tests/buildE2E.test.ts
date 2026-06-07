@@ -913,6 +913,63 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('natural exact memory directive sends only extracted directive to Builder memory', async () => {
+		restoreAxios();
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-memory-exact-e2e-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let bridgedText = '';
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			bridgedText = String(((updatePayload as any).message || {}).text || '');
+			return {
+				used: true,
+				responseText: 'Saved exact memory note through Builder.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'memory.write'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			const replies: string[] = [];
+			const testUserId = 8319079777;
+			const ctx = makeFakeCtx(testUserId, testUserId, 5661, replies);
+			ctx.message.text = 'Owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.';
+			(ctx as any).update = { update_id: 5661, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			assert.equal(
+				bridgedText,
+				'Memory update: harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence'
+			);
+			assert.doesNotMatch(bridgedText, /Do not start missions|do not create chips|runtime or registry truth/i);
+			assert.match(replies.join('\n'), /Saved exact memory note/i);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'exact natural memory directive must record a successful governed memory.write'
+			);
+		} finally {
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('XContent token follow-up answers capability boundary before Builder fallback', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
