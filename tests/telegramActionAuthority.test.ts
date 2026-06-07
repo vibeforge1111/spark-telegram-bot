@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import {
   createHarnessCoreActionEnvelopeVNext,
   createHarnessCoreAuthorizedGovernorDecision
@@ -8,6 +9,10 @@ import {
   authorizeTelegramActionFromEnvelope,
   governorOutcomeAllowsTelegramAction
 } from '../src/telegramActionAuthority';
+import {
+  governorDecisionSignaturePayload,
+  type GovernorDecisionSignatureV1
+} from '../src/governorSignature';
 import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 
@@ -47,6 +52,21 @@ function envelopeForDecision(text: string, decision: ReturnType<typeof classifyT
   });
 }
 
+function withGovernorHmacEnv(fn: () => void): void {
+  const previousKey = process.env.SPARK_GOVERNOR_HMAC_KEY;
+  const previousKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+  try {
+    process.env.SPARK_GOVERNOR_HMAC_KEY = 'test-governor-secret';
+    process.env.SPARK_GOVERNOR_HMAC_KEY_ID = 'telegram-unit-test';
+    fn();
+  } finally {
+    if (previousKey === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY = previousKey;
+    if (previousKeyId === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY_ID = previousKeyId;
+  }
+}
+
 test('blocks action words when the fresh turn is meta or no-execution', () => {
   const text = 'I am mentioning build and mission, but do not start anything. Just explain the risk.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -84,6 +104,33 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.ledger_id, result.harnessCoreLedger?.ledger_id);
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
 });
+
+test('signs Telegram Governor decisions when an HMAC key is configured', () => withGovernorHmacEnv(() => {
+  const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(result.allow, true);
+  const signedDecision = result.governorDecision as typeof result.governorDecision & {
+    signature?: GovernorDecisionSignatureV1;
+  };
+  assert.equal(signedDecision?.signature?.schema_version, 'governor-decision-signature-v1');
+  assert.equal(signedDecision?.signature?.alg, 'hmac-sha256');
+  assert.equal(signedDecision?.signature?.key_id, 'telegram-unit-test');
+  assert.match(signedDecision?.signature?.nonce || '', /^[0-9a-f-]{36}$/);
+  assert.match(signedDecision?.signature?.signature || '', /^[0-9a-f]{64}$/);
+
+  const { signature, ...signaturePayloadFields } = signedDecision!.signature!;
+  const expected = createHmac('sha256', 'test-governor-secret')
+    .update(governorDecisionSignaturePayload(signedDecision as unknown as Record<string, unknown>, signaturePayloadFields), 'utf8')
+    .digest('hex');
+  assert.equal(signature, expected);
+}));
 
 test('fresh envelope selection is required before mutating route evidence can authorize', () => {
   const staleEnvelopeText = 'Build a private local-first dashboard for memory reports with stale context and source labels.';

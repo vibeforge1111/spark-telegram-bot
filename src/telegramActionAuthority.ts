@@ -18,6 +18,7 @@ import {
   type HarnessCoreGovernorConsumerVerification,
   verifyHarnessCoreGovernorExecutionAuthority
 } from '@spark/harness-core';
+import { signGovernorDecisionIfConfigured } from './governorSignature';
 import { recordHarnessCoreAuthorizationLedger } from './harnessCoreLedger';
 import type { DeterministicRouteId } from './routeTypes';
 
@@ -147,11 +148,11 @@ export function authorizeTelegramActionFromEnvelope(
       })
     : null;
   const governorDecision = harnessCore
-    ? createHarnessCoreGovernorDecision({
+    ? signGovernorDecisionIfConfigured(createHarnessCoreGovernorDecision({
         envelope: harnessCore.envelope,
         authorizations: [harnessCore.authorization],
         tool_ledgers: harnessCoreLedger ? [harnessCoreLedger] : []
-      })
+      }))
     : null;
   const consumerVerification = harnessCore?.action
     ? verifyHarnessCoreGovernorToolAuthority({
