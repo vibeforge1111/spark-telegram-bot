@@ -1123,8 +1123,7 @@ export function formatSelfImprovementPlanReply(payload: unknown): string {
     lines.push('', 'Wiki support');
     for (const source of sources) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      lines.push(`- ${title}`);
     }
   }
   const guardrail = stringValue(root.guardrail);
@@ -1285,12 +1284,8 @@ export function formatWikiQueryReply(payload: unknown): string {
     lines.push('', 'Relevant packets');
     for (const hit of hits) {
       const title = stringValue(hit.title) || stringValue(hit.source_path) || 'wiki packet';
-      const sourcePath = stringValue(hit.source_path);
       const text = truncateForPrompt(stringValue(hit.text), 360);
       lines.push(`- ${title}`);
-      if (sourcePath) {
-        lines.push(`  source: ${sourcePath}`);
-      }
       if (text) {
         lines.push(`  ${text}`);
       }
@@ -1342,8 +1337,7 @@ export function formatWikiAnswerReply(payload: unknown): string {
     lines.push('', 'Sources');
     for (const source of sources) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      lines.push(`- ${title}`);
     }
   }
   if (missing.length) {
@@ -1377,8 +1371,7 @@ export function formatWikiAnswerReply(payload: unknown): string {
     compactLines.push('', 'Sources');
     for (const source of sources.slice(0, 2)) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      compactLines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      compactLines.push(`- ${title}`);
     }
   }
   if (missing.length) {
