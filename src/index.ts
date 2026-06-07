@@ -34,6 +34,7 @@ import {
   runBuilderSelfImprovementPlan,
   runBuilderSelfAwarenessStatus,
   runBuilderTelegramBridge,
+  runBuilderTelegramMemoryWrite,
   runBuilderWikiAnswer,
   runBuilderWikiInventory,
   runBuilderWikiPromoteImprovement,
@@ -309,7 +310,6 @@ import {
   renderXPostReviewFromLinksBoundaryReply,
   builderReplySuppressionReason,
   shouldSuppressBuilderReplyForPlainChat,
-  shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import {
@@ -405,13 +405,23 @@ installConsoleRedaction();
 
 type BuilderBridgeRunner = typeof runBuilderTelegramBridge;
 let builderBridgeRunnerForTest: BuilderBridgeRunner | null = null;
+type BuilderMemoryWriteRunner = typeof runBuilderTelegramMemoryWrite;
+let builderMemoryWriteRunnerForTest: BuilderMemoryWriteRunner | null = null;
 
 export function __setBuilderBridgeRunnerForTest(runner: BuilderBridgeRunner | null): void {
   builderBridgeRunnerForTest = runner;
 }
 
+export function __setBuilderMemoryWriteRunnerForTest(runner: BuilderMemoryWriteRunner | null): void {
+  builderMemoryWriteRunnerForTest = runner;
+}
+
 function builderBridgeRunner(...args: Parameters<BuilderBridgeRunner>): ReturnType<BuilderBridgeRunner> {
   return (builderBridgeRunnerForTest || runBuilderTelegramBridge)(...args);
+}
+
+function builderMemoryWriteRunner(...args: Parameters<BuilderMemoryWriteRunner>): ReturnType<BuilderMemoryWriteRunner> {
+  return (builderMemoryWriteRunnerForTest || runBuilderTelegramMemoryWrite)(...args);
 }
 
 type EvidenceAnswerKind = 'public_release_blockers' | 'browser_use_availability';
@@ -3811,22 +3821,24 @@ async function handlePlainChatMemoryDirective(
 
   await safeSendChatAction(ctx, 'typing');
   try {
-    const builderMemoryText = `Memory update: ${directive}`;
-    const builderReply = await builderBridgeRunner(
-      buildUpdateWithText(ctx.update as unknown as Record<string, unknown>, builderMemoryText, authorization?.legacyEnvelope)
-    );
-    console.log(`[Bridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
-    if (
-      builderReply.used &&
-      builderReply.bridgeMode !== 'bridge_error' &&
-      shouldUseBuilderReplyForMemoryDirective(builderReply.responseText, builderReply.routingDecision)
-    ) {
-      await ctx.reply(builderReply.responseText);
-      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+    const updateId = (ctx.update as Record<string, unknown> | undefined)?.update_id;
+    const memoryWrite = await builderMemoryWriteRunner({
+      userId: ctx.from?.id,
+      chatId: ctx.chat?.id,
+      noteText: directive,
+      sessionId: ctx.chat?.id === undefined ? undefined : `telegram:${ctx.chat.id}`,
+      turnId: updateId === undefined ? undefined : `telegram-update:${String(updateId)}`,
+      governorDecision: authorization?.governorDecision as Record<string, unknown> | undefined,
+    });
+    console.log(`[BridgeMemory] user=${userRef(ctx.from?.id)} used=${memoryWrite.used} mode=${memoryWrite.bridgeMode} status=${memoryWrite.status} accepted=${memoryWrite.acceptedCount} rejected=${memoryWrite.rejectedCount} skipped=${memoryWrite.skippedCount}`);
+    if (memoryWrite.used && memoryWrite.acceptedCount > 0) {
+      const reply = memoryWrite.responseText || 'Saved exact memory note through Builder/domain-chip memory.';
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.write',
         status: 'success',
-        summary: 'Natural Telegram memory directive was acknowledged by the Builder memory route; Telegram local notes are auxiliary.'
+        summary: `Natural Telegram memory directive persisted through Builder/domain-chip memory; accepted=${memoryWrite.acceptedCount} rejected=${memoryWrite.rejectedCount} skipped=${memoryWrite.skippedCount}.`
       });
       return;
     }

@@ -114,6 +114,29 @@ export interface BuilderColdMemorySource {
   preview: string;
 }
 
+export interface BuilderTelegramMemoryWriteInput {
+  userId: number | string;
+  chatId?: number | string;
+  noteText: string;
+  sessionId?: string;
+  turnId?: string;
+  governorDecision?: Record<string, unknown>;
+}
+
+export interface BuilderTelegramMemoryWriteResult {
+  used: boolean;
+  status: string;
+  acceptedCount: number;
+  rejectedCount: number;
+  skippedCount: number;
+  abstained: boolean;
+  reason: string;
+  responseText: string;
+  bridgeMode: string;
+  payload?: Record<string, unknown>;
+  error?: string;
+}
+
 export interface BuilderSelfAwarenessInput {
   userId: number | string;
   chatId: number | string;
@@ -2550,6 +2573,136 @@ export async function runBuilderConversationColdContext(
       bridgeMode: config.mode,
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+}
+
+export async function runBuilderTelegramMemoryWrite(
+  input: BuilderTelegramMemoryWriteInput
+): Promise<BuilderTelegramMemoryWriteResult> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return {
+      used: false,
+      status: 'unavailable',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: 'Builder bridge is off.',
+      responseText: '',
+      bridgeMode: '',
+    };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    const message = `Builder memory writer is unavailable. repo=${config.builderRepo} home=${config.builderHome}`;
+    if (config.mode === 'required') {
+      throw new Error(message);
+    }
+    return {
+      used: false,
+      status: 'unavailable',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: message,
+      responseText: '',
+      bridgeMode: config.mode,
+    };
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-builder-memory-write-'));
+  try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const sessionId = input.sessionId || (
+      input.chatId === undefined
+        ? `telegram:${userId}`
+        : `telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}`
+    );
+    const turnId = input.turnId || `telegram-memory:${Date.now()}`;
+    const args = [
+      'memory',
+      'write-telegram-note',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--text',
+      input.noteText,
+      '--domain-pack',
+      'telegram_runtime',
+      '--evidence-kind',
+      'telegram_memory_note',
+      '--session-id',
+      sessionId,
+      '--turn-id',
+      turnId,
+      '--actor-id',
+      'telegram_memory_direct_adapter',
+      '--json',
+    ];
+
+    if (input.governorDecision) {
+      const governorPath = path.join(tempDir, 'governor-decision.json');
+      await writeFile(governorPath, JSON.stringify(input.governorDecision, null, 2), 'utf-8');
+      args.push('--governor-decision-file', governorPath);
+    }
+
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: config.timeoutMs,
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Builder memory writer returned empty stdout. stderr=${redactText(stderr.trim())}`);
+    }
+    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const acceptedCount = numericValue(payload.accepted_count);
+    const rejectedCount = numericValue(payload.rejected_count);
+    const skippedCount = numericValue(payload.skipped_count);
+    const status = stringValue(payload.status) || (acceptedCount > 0 ? 'succeeded' : 'failed');
+    const reason = stringValue(payload.reason);
+    return {
+      used: true,
+      status,
+      acceptedCount,
+      rejectedCount,
+      skippedCount,
+      abstained: Boolean(payload.abstained),
+      reason,
+      responseText: acceptedCount > 0
+        ? 'Saved exact memory note through Builder/domain-chip memory.'
+        : 'Memory is degraded: Builder/domain-chip memory did not accept the note.',
+      bridgeMode: config.mode,
+      payload,
+    };
+  } catch (error) {
+    if (config.mode === 'required') {
+      throw error;
+    }
+    console.warn('[BuilderBridge] Telegram memory writer unavailable:', error);
+    return {
+      used: false,
+      status: 'error',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: error instanceof Error ? error.message : String(error),
+      responseText: '',
+      bridgeMode: config.mode,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

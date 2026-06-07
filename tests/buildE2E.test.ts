@@ -924,22 +924,33 @@ async function run(): Promise<void> {
 		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
 		delete process.env.SPARK_HARNESS_CORE_LEDGER;
 
-		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
-		const originalBridge = builderBridge.runBuilderTelegramBridge;
-		let bridgedText = '';
-		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
-			bridgedText = String(((updatePayload as any).message || {}).text || '');
+		let writtenText = '';
+		let writtenGovernorDecision: Record<string, unknown> | undefined;
+		let writtenHumanId = '';
+		const indexModule: any = await import('../src/index');
+		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: {
+			userId: number | string;
+			noteText: string;
+			governorDecision?: Record<string, unknown>;
+		}) => {
+			writtenText = input.noteText;
+			writtenGovernorDecision = input.governorDecision;
+			writtenHumanId = `human:telegram:${input.userId}`;
 			return {
 				used: true,
-				responseText: 'Saved exact memory note through Builder.',
-				decision: 'test',
+				status: 'succeeded',
+				acceptedCount: 1,
+				rejectedCount: 0,
+				skippedCount: 0,
+				abstained: false,
+				reason: '',
+				responseText: 'Saved exact memory note through Builder/domain-chip memory.',
 				bridgeMode: 'test',
-				routingDecision: 'memory.write'
+				payload: { status: 'succeeded', accepted_count: 1 }
 			};
-		};
+		});
 
 		try {
-			const indexModule: any = await import('../src/index');
 			const replies: string[] = [];
 			const testUserId = 8319079777;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5661, replies);
@@ -948,10 +959,12 @@ async function run(): Promise<void> {
 			await indexModule.handleTextMessage(ctx);
 
 			assert.equal(
-				bridgedText,
-				'Memory update: harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence'
+				writtenText,
+				'harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence'
 			);
-			assert.doesNotMatch(bridgedText, /Do not start missions|do not create chips|runtime or registry truth/i);
+			assert.equal(writtenHumanId, `human:telegram:${testUserId}`);
+			assert.ok(writtenGovernorDecision, 'direct memory writer must receive the Harness Core Governor decision');
+			assert.doesNotMatch(writtenText, /Do not start missions|do not create chips|runtime or registry truth/i);
 			assert.match(replies.join('\n'), /Saved exact memory note/i);
 			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
 			assert.ok(
@@ -963,7 +976,7 @@ async function run(): Promise<void> {
 				'exact natural memory directive must record a successful governed memory.write'
 			);
 		} finally {
-			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			indexModule.__setBuilderMemoryWriteRunnerForTest(null);
 			rmSync(tempRoot, { recursive: true, force: true });
 			restoreAxios();
 			restoreEnv();
