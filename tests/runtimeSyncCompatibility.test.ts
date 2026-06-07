@@ -28,5 +28,7 @@ test('runtime sync includes capability upgrade/eval fixtures', () => {
   assert.match(script, /dir:\s*'vendor\/harness-core'/);
   assert.match(script, /dir:\s*'node_modules\/@spark\/harness-core'/);
   assert.match(script, /recursive:\s*true/);
+  assert.match(script, /TEXT_SYNC_EXTENSIONS/);
+  assert.match(script, /replace\(\/\\r\\n\?\/g,\s*'\\n'\)/);
   assert.match(script, /--check/);
 });
