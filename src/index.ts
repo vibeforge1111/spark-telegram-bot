@@ -11679,6 +11679,11 @@ async function start() {
 
   await ensurePollingReady();
   const launchPromise = bot.launch();
+  // bot.launch() has begun polling Telegram in the background, so any SIGINT
+  // arriving during the readiness grace period below must still trigger
+  // bot.stop(). Flip pollingActive before the race so the shutdown handlers
+  // do not silently skip the stop call.
+  pollingActive = true;
   const launchProbe = await Promise.race([
     launchPromise.then(
       () => ({ status: 'settled' as const }),
@@ -11687,12 +11692,13 @@ async function start() {
     wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
   ]);
   if (launchProbe.status === 'failed') {
+    pollingActive = false;
     throw launchProbe.error;
   }
   if (launchProbe.status === 'settled') {
+    pollingActive = false;
     throw new Error('Telegram polling stopped during startup.');
   }
-  pollingActive = true;
   setMissionRelayRuntimeStatus({
     telegramPolling: 'active',
     pollingStartedAt: new Date().toISOString()
