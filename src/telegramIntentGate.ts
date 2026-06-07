@@ -19,6 +19,7 @@ import {
   isUserMemoryRecallQuestion,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
 import type {
   TelegramIntentCandidateV2,
@@ -184,7 +185,8 @@ function isDomainChipCreateRequest(text: string): boolean {
 
 function isExplicitSpawnerBuildRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized || isDomainChipCreateRequest(normalized) || isScheduleDeleteRequest(normalized)) return false;
+  if (!normalized || isDomainChipCreateRequest(normalized) || isScheduleDeleteRequest(normalized) || isCreatorBenchmarkPackRequest(normalized)) return false;
+  if (parseBuildIntent(text)) return true;
   if (isExplicitSpawnerNoEditMissionRequest(normalized)) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
   const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform)\b/.test(normalized);
@@ -229,7 +231,7 @@ function isCreatorBenchmarkPackRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
     /\b(?:create|build|make|plan|stage|scaffold|generate)\b/.test(normalized) &&
-    /\b(?:benchmark pack|eval pack|evaluation pack|test suite)\b/.test(normalized) &&
+    /\b(?:benchmark pack|eval pack|evaluation pack|test suite|benchmarks?)\b/.test(normalized) &&
     /\b(?:spark\s+qa\s+operator|specialization|path|operator)\b/.test(normalized)
   );
 }
@@ -437,6 +439,10 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
   }
 
   if (naturalRoute && isFreshCreatorMissionNaturalSelection(normalized, naturalRoute)) {
+    return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
+  if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.harness_architecture') {
     return observedNaturalRouteDecision(constraints, naturalRoute);
   }
 

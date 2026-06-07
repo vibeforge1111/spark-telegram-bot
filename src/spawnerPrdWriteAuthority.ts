@@ -18,6 +18,12 @@ const SPAWNER_PRD_WRITE_AUTHORITY = {
   actionType: 'edit_file' as const
 };
 
+const SPAWNER_DISPATCH_AUTHORITY = {
+  toolName: 'spawner.dispatch',
+  ownerSystem: 'spawner-ui',
+  actionType: 'launch_mission' as const
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
@@ -55,6 +61,10 @@ export function telegramBuildAuthorityFailureReason(value: unknown): string | nu
 
 export function spawnerPrdWriteAuthorityFailureReason(value: unknown): string | null {
   return harnessExecutionAuthorityFailureReason(value, SPAWNER_PRD_WRITE_AUTHORITY);
+}
+
+export function spawnerDispatchAuthorityFailureReason(value: unknown): string | null {
+  return harnessExecutionAuthorityFailureReason(value, SPAWNER_DISPATCH_AUTHORITY);
 }
 
 export function buildSpawnerPrdWriteExecutionAuthority(input: {
@@ -104,6 +114,59 @@ export function buildSpawnerPrdWriteExecutionAuthority(input: {
   const downstreamReason = spawnerPrdWriteAuthorityFailureReason(decision);
   if (downstreamReason) {
     throw new Error(`Derived Spawner PRD write authority failed consumer verification: ${downstreamReason}`);
+  }
+  return decision;
+}
+
+export function buildSpawnerDispatchExecutionAuthority(input: {
+  telegramExecutionAuthority: unknown;
+  requestId: string;
+  missionId: string;
+  projectName?: string | null;
+  traceRef?: string | null;
+}): GovernorDecisionV1 {
+  const upstreamReason = telegramBuildAuthorityFailureReason(input.telegramExecutionAuthority);
+  if (upstreamReason) {
+    throw new Error(`Cannot derive Spawner dispatch authority from invalid Telegram build authority: ${upstreamReason}`);
+  }
+
+  const requestId = input.requestId.trim();
+  const missionId = input.missionId.trim();
+  const projectName = input.projectName?.trim();
+  const upstreamTraceId = traceIdFromGovernorDecision(input.telegramExecutionAuthority);
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.dispatch',
+    mutationClass: 'launches_mission',
+    source: 'spark-telegram-bot/prd-bridge-dispatch-consumer-binding',
+    reason: [
+      `Telegram build dispatch ${requestId} was authorized by fresh Harness Core user intent.`,
+      'This downstream authority is scoped only to launching the matching Spawner mission after PRD/canvas validation.',
+      projectName ? `Project: ${projectName}.` : '',
+      upstreamTraceId ? `Upstream Telegram Governor trace: ${upstreamTraceId}.` : ''
+    ].filter(Boolean).join(' '),
+    requestId,
+    actorKind: 'human',
+    actorIdRef: actorIdRefFromGovernorDecision(input.telegramExecutionAuthority),
+    target: missionId || requestId,
+    confidence: confidenceFromGovernorDecision(input.telegramExecutionAuthority),
+    riskTier: 'medium'
+  });
+
+  const decision = signGovernorDecisionIfConfigured(createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spawner.dispatch',
+    restrictions: {
+      network_allowed: true,
+      write_allowed: true,
+      publish_allowed: false
+    },
+    reply_instruction: 'Authorize only the matching local Spawner mission dispatch; do not grant publication, registry movement, installer changes, or memory writes.'
+  }));
+  const downstreamReason = spawnerDispatchAuthorityFailureReason(decision);
+  if (downstreamReason) {
+    throw new Error(`Derived Spawner dispatch authority failed consumer verification: ${downstreamReason}`);
   }
   return decision;
 }

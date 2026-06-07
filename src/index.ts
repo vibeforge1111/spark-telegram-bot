@@ -328,6 +328,7 @@ import {
   type TurnIntentEnvelopeV1
 } from './harnessContract';
 import {
+  buildSpawnerDispatchExecutionAuthority,
   buildSpawnerPrdWriteExecutionAuthority,
   telegramBuildAuthorityFailureReason
 } from './spawnerPrdWriteAuthority';
@@ -5089,6 +5090,13 @@ export async function handleClarificationAnswers(
     projectName,
     traceRef
   });
+  const dispatchExecutionAuthority = buildSpawnerDispatchExecutionAuthority({
+    telegramExecutionAuthority: authorization.governorDecision,
+    requestId: newRequestId,
+    missionId,
+    projectName,
+    traceRef
+  });
 
   try {
     const res = await postLocalServiceWithRetry(
@@ -5159,7 +5167,8 @@ export async function handleClarificationAnswers(
       canvasUrl,
       kanbanUrl,
       buildLane,
-      tier
+      tier,
+      dispatchExecutionAuthority
     });
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'spawner.run',
@@ -5187,7 +5196,8 @@ function startPrdCanvasReadyNotifier(args: {
 	canvasUrl: string;
 	kanbanUrl: string;
 	buildLane?: BuildLane;
-	tier?: SkillTier;
+  tier?: SkillTier;
+	dispatchExecutionAuthority?: unknown;
 }): void {
   void (async () => {
     const started = Date.now();
@@ -5222,12 +5232,11 @@ function startPrdCanvasReadyNotifier(args: {
             }
             const queue = await axios.post(
               `${args.spawnerUrl}/api/prd-bridge/load-to-canvas`,
-              {
+              buildPrdLoadToCanvasRequestBody({
                 requestId: args.requestId,
                 missionId: args.missionId,
-                autoRun: false,
-                telegramRelay: getTelegramRelayIdentity()
-              },
+                dispatchExecutionAuthority: args.dispatchExecutionAuthority
+              }),
               spawnerAxiosOptions(8000)
             );
             if (shouldSuppressMissionHandoff(args.missionId)) {
@@ -5275,6 +5284,20 @@ function startPrdCanvasReadyNotifier(args: {
       kanbanUrl: args.kanbanUrl
     }));
   })();
+}
+
+export function buildPrdLoadToCanvasRequestBody(args: {
+  requestId: string;
+  missionId: string;
+  dispatchExecutionAuthority?: unknown;
+}): Record<string, unknown> {
+  return {
+    requestId: args.requestId,
+    missionId: args.missionId,
+    autoRun: Boolean(args.dispatchExecutionAuthority),
+    telegramRelay: getTelegramRelayIdentity(),
+    ...(args.dispatchExecutionAuthority ? { executionAuthority: args.dispatchExecutionAuthority } : {})
+  };
 }
 
 bot.command('clarify', async (ctx) => {
@@ -7064,6 +7087,13 @@ export async function handleBuildIntent(
     projectName: polishedProjectName,
     traceRef
   });
+  const dispatchExecutionAuthority = buildSpawnerDispatchExecutionAuthority({
+    telegramExecutionAuthority: options.executionAuthority,
+    requestId,
+    missionId,
+    projectName: polishedProjectName,
+    traceRef
+  });
   try {
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
@@ -7190,7 +7220,8 @@ export async function handleBuildIntent(
       canvasUrl,
       kanbanUrl,
       buildLane,
-      tier
+      tier,
+      dispatchExecutionAuthority
     });
     return { status: 'success', summary: `Spawner accepted PRD bridge build for ${polishedProjectName}.`, missionId, requestId, traceRef };
   } catch (err: any) {

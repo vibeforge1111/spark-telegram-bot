@@ -30,7 +30,11 @@ import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { resolveDefaultPythonCommand } from '../src/pythonCommand';
 import type { SparkHarnessMutationClass } from '../src/harnessContract';
-import { spawnerPrdWriteAuthorityFailureReason } from '../src/spawnerPrdWriteAuthority';
+import {
+	buildSpawnerDispatchExecutionAuthority,
+	spawnerDispatchAuthorityFailureReason,
+	spawnerPrdWriteAuthorityFailureReason
+} from '../src/spawnerPrdWriteAuthority';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -276,11 +280,20 @@ async function readMissionRelayRegistry(): Promise<any[]> {
 }
 
 function makeFakeCtx(chatId: number, fromId: number, messageId: number, replies: string[], replyExtras: any[] = []) {
+	const chat = { id: chatId, type: 'private' };
+	const from = { id: fromId, username: 'cem', is_bot: false, first_name: 'Cem' };
+	const message = {
+		message_id: messageId,
+		text: 'build me a saas with auth and billing',
+		date: Math.floor(Date.now() / 1000),
+		chat,
+		from
+	};
 	return {
-		chat: { id: chatId },
-		from: { id: fromId, username: 'cem' },
-		message: { message_id: messageId, text: 'build me a saas with auth and billing' },
-		update: { update_id: messageId },
+		chat,
+		from,
+		message,
+		update: { update_id: messageId, message },
 		sendChatAction: async (_action: string) => {},
 		reply: async (text: string, extra?: any) => {
 			replies.push(text);
@@ -327,6 +340,15 @@ function assertSpawnerPrdWriteAuthority(authority: any, requestId: string): void
 	assert.equal(spawnerPrdWriteAuthorityFailureReason(authority), null);
 	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
 	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+}
+
+function assertSpawnerDispatchAuthority(authority: any, requestId: string, missionId: string): void {
+	assert.equal(authority?.schema_version, 'governor-decision-v1');
+	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'spawner.dispatch');
+	assert.equal(spawnerDispatchAuthorityFailureReason(authority), null);
+	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
+	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+	assert.match(JSON.stringify(authority), new RegExp(missionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
 async function callHandleBuildIntent(opts: {
@@ -387,6 +409,49 @@ async function run(): Promise<void> {
 		delete process.env.BOT_PRO_USER_IDS;
 		delete process.env.BOT_DEFAULT_TIER;
 		assert.equal(getTierForUser(99999), 'base');
+		restoreEnv();
+	});
+
+	await test('derives scoped Spawner dispatch authority from Telegram build authority', () => {
+		const requestId = 'tg-build-dispatch-authority-test-1780865000000';
+		const missionId = 'mission-1780865000000';
+		const authority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId,
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-1780865000000'
+		});
+
+		assertSpawnerDispatchAuthority(authority, requestId, missionId);
+		assert.match(spawnerPrdWriteAuthorityFailureReason(authority) || '', /governor_missing_matching_authorization/);
+		restoreEnv();
+	});
+
+	await test('PRD canvas handoff auto-runs only with Spawner dispatch authority', async () => {
+		const requestId = 'tg-build-dispatch-body-test-1780865000001';
+		const missionId = 'mission-1780865000001';
+		const authority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId,
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-1780865000001'
+		});
+		const indexModule: any = await import('../src/index');
+
+		const body = indexModule.buildPrdLoadToCanvasRequestBody({
+			requestId,
+			missionId,
+			dispatchExecutionAuthority: authority
+		});
+		assert.equal(body.autoRun, true);
+		assert.equal(body.executionAuthority, authority);
+		assert.equal(body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.dispatch');
+
+		const noAuthorityBody = indexModule.buildPrdLoadToCanvasRequestBody({ requestId, missionId });
+		assert.equal(noAuthorityBody.autoRun, false);
+		assert.equal(noAuthorityBody.executionAuthority, undefined);
 		restoreEnv();
 	});
 
@@ -834,6 +899,7 @@ async function run(): Promise<void> {
 			'Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a playful clock for terminal devs who cook.',
 			'Use advanced PRD planning first, then build and verify it.'
 		].join('\n');
+		(ctx as any).update = { update_id: 561, message: ctx.message };
 
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
