@@ -1465,7 +1465,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   );
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
-    throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+    throw new Error(`Diagnostics scan returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
   const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
   return {
