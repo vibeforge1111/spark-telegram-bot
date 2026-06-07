@@ -2269,11 +2269,26 @@ function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null>
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let settled = false;
+
+    const settle = (value: RelayWebhookPayload | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+
+    // 10-second timeout: a slow or malicious client that dribbles
+    // bytes indefinitely must not keep this promise open forever.
+    const timer = setTimeout(() => {
+      settle(null);
+      req.destroy();
+    }, 10_000);
 
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > 64 * 1024) {
-        resolve(null);
+        settle(null);
         req.destroy();
         return;
       }
@@ -2283,13 +2298,13 @@ function readJsonBody(req: IncomingMessage): Promise<RelayWebhookPayload | null>
     req.on('end', () => {
       try {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as RelayWebhookPayload;
-        resolve(parsed);
+        settle(parsed);
       } catch {
-        resolve(null);
+        settle(null);
       }
     });
 
-    req.on('error', () => resolve(null));
+    req.on('error', () => settle(null));
   });
 }
 
