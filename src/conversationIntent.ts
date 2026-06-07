@@ -2960,12 +2960,13 @@ export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: bo
 export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
   const cleanDirective = (value: string): string => value
-    .replace(/^["']|["']$/g, '')
+    .replace(/^[\"'“”‘’]|[\"'“”‘’]$/g, '')
     .replace(/[.!?]+$/g, '')
     .trim();
 
   const explicitSavePatterns = [
-    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:and\s+nothing\s+else\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["“](.+?)["”](?:\s+.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
     /^(?:.+?\b)?(?:save|store|remember)\s+(?:exactly\s+)?(?:one\s+)?(?:kb\s+)?(?:memory\s+)?(?:write|note)\s*[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
     /^(?:please\s+)?save\s+to\s+memory\s+that\s+(.+?)[.!?]?$/i,

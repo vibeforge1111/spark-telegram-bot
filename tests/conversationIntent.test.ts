@@ -1687,6 +1687,12 @@ test('extracts explicit plain-chat memory directives', () => {
     extractPlainChatMemoryDirective('Please save this as my current plan: Neon Harbor Telegram memory test.'),
     'Neon Harbor Telegram memory test'
   );
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request." This turn is only a memory update.'
+    ),
+    'harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request'
+  );
   assert.equal(extractPlainChatMemoryDirective('Actually, my current plan is run a fresh diagnostics scan.'), null);
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
