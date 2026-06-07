@@ -2892,6 +2892,55 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('pending clarification answer selects Harness route before dispatch', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write') && !body.forceDispatch) {
+				return {
+					data: {
+						success: true,
+						needsClarification: true,
+						requestId: body.requestId,
+						openQuestions: ['Which proof metric should decide whether Harness authority is trusted?'],
+						addedAssumptions: ['Assume this is a responsive dashboard unless another surface is specified.']
+					}
+				};
+			}
+			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		await callHandleBuildIntent({
+			ctx,
+			prd: 'build a compact Harness authority proof dashboard',
+			projectName: 'Harness Authority Proof',
+			buildMode: 'advanced_prd',
+			executionAuthority: fakeGovernorExecutionAuthority()
+		});
+
+		const indexModule: any = await import('../src/index');
+		const answerCtx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		answerCtx.message.text = 'go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress';
+		await indexModule.handleTextMessage(answerCtx);
+
+		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
+		assert.ok(dispatchCall, 'fresh clarification answer should dispatch through the selected Harness pending-clarification route');
+		assert.notEqual(dispatchCall!.body.executionAuthority?.capability_id, 'capability:spawner-ui:spawner.run');
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
+		assert.doesNotMatch(replies.join('\n'), /did not launch that build because this clarification did not carry fresh Harness Core authorization/);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('NFT strategy structure conversation does not start build preview', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

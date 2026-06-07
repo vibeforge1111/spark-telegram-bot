@@ -55,6 +55,17 @@ test('routes build clarification follow-ups from pending state', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes natural steering answers to active build clarification', () => {
+  const route = decideNaturalRoute('go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress', {
+    pendingBuildClarification: true
+  });
+
+  assert.equal(route.route, 'spawner.pending_clarification');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'pending_state');
+  assert.equal(route.action, 'spawner.clarification_reply');
+});
+
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 

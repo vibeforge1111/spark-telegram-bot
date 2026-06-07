@@ -52,6 +52,7 @@ import type {
 import type { DeterministicRouteId } from './routeTypes';
 import { parseSafeOperatorAction } from './operatorActions';
 import type { ShippedProjectContext } from './shippedProjectContext';
+import { isPendingClarificationFollowup as isPendingBuildClarificationFollowup } from './telegramPendingBuildEvidence';
 
 export type NaturalRouteOwnerSystem =
   | 'spark-telegram-bot'
@@ -195,18 +196,6 @@ function isGlobalDoctrineLikeRequest(text: string): boolean {
     /\b(?:all|every|each)\s+(?:spark\s+)?agents?\b|\bglobally\b|\bsystem-wide\b/i.test(text) &&
     /\b(?:conversational|direct|decisive|warm|casual|formal|brief|concise|detailed|curious|opinionated|proactive|style|tone|personality|persona|conversation|reply|response|talk|speak|doctrine|rule|preference|ask|clarify|clarifying|confirmation|missions?|tools?|start)\b/i.test(text)
   );
-}
-
-function isPendingBuildClarificationFollowup(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (!normalized) return false;
-  if (/^(?:go|run|start|ship|yes|yep|yeah|ok|okay|sure|perfect|do it|let'?s go|default|defaults|skip)$/i.test(normalized)) {
-    return true;
-  }
-  const startsWithConfirmation = /^(?:yes|yeah|yep|ok|okay|sure|perfect|sounds good|great|cool)\b/.test(normalized);
-  const contextualObject = /\b(?:it|this|that|the project|the dashboard|the app|the build)\b/.test(normalized);
-  const action = /\b(?:build|create|make|ship|start|run|do|use|analyz|analyse)\b/.test(normalized);
-  return contextualObject && action && (startsWithConfirmation || /\b(?:create|build|make|ship|start|run|do)\s+(?:it|this|that)\b/.test(normalized));
 }
 
 function hasRecentProductPlanningContext(recentMessages: string[]): boolean {
