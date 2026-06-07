@@ -102,6 +102,12 @@ Send the Mission board first and the canvas when planning is ready.`;
   assert.equal(parseNaturalAccessChangeIntent(accessPrompt), '4');
 });
 
+test('live Spawner product briefs do not route incidental health/open words', () => {
+  const prompt = "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.";
+
+  assertRoutesToBuild(prompt, 'Harness Release Ops Mission Board');
+});
+
 test('mission titles stay readable for simple game and path-derived builds', () => {
   assert.equal(parseBuildIntent("let's build a maze game")?.projectName, 'Maze Game');
   assert.equal(parseBuildIntent("let's build a game now for now Spark")?.projectName, 'Spark Game');

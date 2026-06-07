@@ -21,6 +21,7 @@ import {
 } from './conversationIntent';
 import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
+import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';
 import type {
   TelegramIntentCandidateV2,
   TelegramIntentConstraintsV2,
@@ -189,7 +190,7 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   if (parseBuildIntent(text)) return true;
   if (isExplicitSpawnerNoEditMissionRequest(normalized)) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
-  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform)\b/.test(normalized);
+  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
   return (
     (buildVerb && productNoun) ||
     /\b(?:let'?s|lets|please)\s+build\b/.test(normalized) ||
@@ -444,6 +445,25 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
 
   if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.harness_architecture') {
     return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
+  if (isLiveSparkHealthQuestion(normalized)) {
+    return makeDecision({
+      kind: 'runtime_truth_or_operator',
+      route: 'spark.read_only_state',
+      owner_system: 'spark-telegram-bot',
+      action: 'spark.read_only_state.live_status',
+      confidence: constraints.noExecution ? 'blocked' : 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['explicit_live_spark_health_question'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'spark.read_only_state'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit live Spark health request owns the turn over incidental routing signals.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
   }
 
   if (isCreatorBenchmarkPackRequest(normalized)) {

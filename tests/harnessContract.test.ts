@@ -171,6 +171,42 @@ test('keeps old mission route bug descriptions answer-only', () => {
   assert.ok(missionAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
+test('authorizes live Spawner build briefs without granting incidental health or local-service reads', () => {
+  const envelope = envelopeFor(
+    "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now."
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'build_or_spawner');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'));
+
+  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const healthAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spark.read_only_state',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'read_only'
+  });
+  assert.equal(healthAuthorization.verdict, 'blocked');
+  assert.ok(healthAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+
+  const localServiceAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.local_service',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'read_only'
+  });
+  assert.equal(localServiceAuthorization.verdict, 'blocked');
+  assert.ok(localServiceAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+});
+
 test('keeps quoted drafted high-agency examples answer-only', () => {
   const envelope = envelopeFor('In documentation, should we include "create a memory chip" as an example?');
 

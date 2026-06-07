@@ -391,6 +391,7 @@ import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
+import { isLiveSparkHealthQuestion as isExplicitLiveSparkHealthQuestion } from './runtimeRouteGuards';
 
 export {
   isPendingClarificationAlternativeRequest,
@@ -518,6 +519,53 @@ const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
+let pollingStartedAt: string | null = null;
+let pollingLastGetUpdatesAttemptAt: string | null = null;
+let pollingLastGetUpdatesOkAt: string | null = null;
+let pollingGetUpdatesCount = 0;
+let pollingLastUpdateCount = 0;
+let pollingLastError: string | null = null;
+
+function publishPollingRuntimeStatus(state: 'starting' | 'active' | 'disabled'): void {
+  setMissionRelayRuntimeStatus({
+    telegramPolling: state,
+    pollingStartedAt,
+    pollingLastGetUpdatesAttemptAt,
+    pollingLastGetUpdatesOkAt,
+    pollingGetUpdatesCount,
+    pollingLastUpdateCount,
+    pollingLastError
+  });
+}
+
+const originalTelegramCallApi = bot.telegram.callApi.bind(bot.telegram);
+(bot.telegram as unknown as {
+  callApi: (method: string, payload?: unknown, signal?: unknown) => Promise<unknown>;
+}).callApi = async (method: string, payload?: unknown, signal?: unknown): Promise<unknown> => {
+  const isGetUpdates = method === 'getUpdates';
+  if (isGetUpdates) {
+    pollingLastGetUpdatesAttemptAt = new Date().toISOString();
+    pollingLastError = null;
+    publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+  }
+  try {
+    const result = await originalTelegramCallApi(method as never, payload as never, signal as never);
+    if (isGetUpdates) {
+      pollingLastGetUpdatesOkAt = new Date().toISOString();
+      pollingGetUpdatesCount += 1;
+      const updates = Array.isArray(result) ? result as unknown[] : [];
+      pollingLastUpdateCount = updates.length;
+      publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+    }
+    return result;
+  } catch (error) {
+    if (isGetUpdates) {
+      pollingLastError = redactText(error instanceof Error ? error.message : String(error));
+      publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+    }
+    throw error;
+  }
+};
 
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
@@ -664,15 +712,7 @@ function runtimeTruthSourceEvidence(text: string): TelegramSourceUsedEvidence[] 
 }
 
 function isLiveSparkHealthQuestion(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return false;
-  return (
-    /\bspark live status\b/.test(normalized) ||
-    /\blive spark health\b/.test(normalized) ||
-    /\bsame source as spark live status\b/.test(normalized) ||
-    /\b(?:check|show|refresh|inspect|probe|verify)\b.*\bspark\b.*\b(?:health|healthy|status|state|ready|working)\b/.test(normalized) ||
-    (/\bspawner\b/.test(normalized) && /\btelegram\b/.test(normalized) && /\b(?:supervised|running|stopped|health|live)\b/.test(normalized))
-  );
+  return isExplicitLiveSparkHealthQuestion(text);
 }
 
 function isDirectSparkRuntimeStatusQuestion(text: string): boolean {
@@ -2697,6 +2737,16 @@ function telegramActionEnvelope(
     turnId: baseEnvelope.turnId,
     traceId: baseEnvelope.traceId
   });
+}
+
+function turnEnvelopeSelectsRoute(baseEnvelope: TurnIntentEnvelopeV1, route: string): boolean {
+  const selectedAction = baseEnvelope.selectedIntent.action || '';
+  const selectedRoute = baseEnvelope.candidates[0]?.route || '';
+  return selectedRoute === route || selectedAction === route || selectedAction.startsWith(`${route}.`);
+}
+
+function turnEnvelopeSelectsAnyRoute(baseEnvelope: TurnIntentEnvelopeV1, routes: string[]): boolean {
+  return routes.some((route) => turnEnvelopeSelectsRoute(baseEnvelope, route));
 }
 
 function telegramBranchActionAuthorityDecision(
@@ -9403,27 +9453,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAnswerAuthoritativeRuntimeStatus(text)) {
+  const turnSelectedRuntimeRead = turnEnvelopeSelectsRoute(turnIntentEnvelope, 'spark.read_only_state');
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && shouldAnswerAuthoritativeRuntimeStatus(text)) {
     const runtimeStatusKind = isRepairNeededStatusQuestion(text.toLowerCase().replace(/\s+/g, ' ').trim())
       ? 'repair_status'
       : 'live_status';
-    const runtimeStatusAuthorization = telegramActionAuthorityDecision(
-      telegramActionEnvelope(turnIntentEnvelope, {
-        route: 'spark.read_only_state',
-        ownerSystem: 'spark-telegram-bot',
-        action: `spark.read_only_state.${runtimeStatusKind}`,
-        kind: 'runtime_truth_or_operator',
-        confidence: 'explicit',
-        mutationClass: 'read_only'
-      }),
-      {
-        route: 'spark.read_only_state',
-        text,
-        toolName: 'spark.read_only_state',
-        ownerSystem: 'spark-telegram-bot',
-        mutationClass: 'read_only'
-      }
-    );
+    const runtimeStatusAuthorization = telegramActionAuthorityDecision(turnIntentEnvelope, {
+      route: 'spark.read_only_state',
+      text,
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
     if (!runtimeStatusAuthorization.allow) {
       recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
         toolName: 'spark.read_only_state',
@@ -9453,11 +9494,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAttachFreshRuntimeTruthContext(text) && !conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && shouldAttachFreshRuntimeTruthContext(text) && !conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
     await attachFreshRuntimeTruthContext();
   }
 
-  if (!earlyBuildIntent && isLiveSparkHealthQuestion(text)) {
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && isLiveSparkHealthQuestion(text)) {
     if (!conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
       await attachFreshRuntimeTruthContext();
     }
@@ -10680,7 +10721,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const localSparkServiceAuthorization = isLocalSparkServiceRequest(text, localServiceContext)
+    const turnSelectedLocalSparkService = turnEnvelopeSelectsAnyRoute(turnIntentEnvelope, [
+      'local_service.open',
+      'spawner.local_service'
+    ]);
+    const localSparkServiceAuthorization = turnSelectedLocalSparkService && isLocalSparkServiceRequest(text, localServiceContext)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
           route: 'spawner.local_service',
           text,
@@ -10705,7 +10750,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const ambiguousLocalSparkServiceAuthorization = isAmbiguousLocalSparkServiceRequest(text, localServiceContext)
+    const turnSelectedAmbiguousLocalSparkService = turnEnvelopeSelectsAnyRoute(turnIntentEnvelope, [
+      'local_service.clarify',
+      'spawner.local_service'
+    ]);
+    const ambiguousLocalSparkServiceAuthorization = turnSelectedAmbiguousLocalSparkService && isAmbiguousLocalSparkServiceRequest(text, localServiceContext)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
           route: 'spawner.local_service',
           text,
@@ -11423,10 +11472,8 @@ async function start() {
       mode: launchConfig.mode
     });
   }
-  setMissionRelayRuntimeStatus({
-    telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting',
-    pollingStartedAt: null
-  });
+  pollingStartedAt = null;
+  publishPollingRuntimeStatus(TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting');
   const relay = await startMissionRelay(bot);
 
   // Check launch-critical connections.
@@ -11448,6 +11495,7 @@ async function start() {
   }
 
   await ensurePollingReady();
+  pollingStartedAt = new Date().toISOString();
   const launchPromise = bot.launch();
   const launchProbe = await Promise.race([
     launchPromise.then(
@@ -11463,10 +11511,7 @@ async function start() {
     throw new Error('Telegram polling stopped during startup.');
   }
   pollingActive = true;
-  setMissionRelayRuntimeStatus({
-    telegramPolling: 'active',
-    pollingStartedAt: new Date().toISOString()
-  });
+  publishPollingRuntimeStatus('active');
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
   void launchPromise.catch((err) => {
     void releaseGatewayOwnership();
