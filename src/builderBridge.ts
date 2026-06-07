@@ -3,6 +3,7 @@ import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { constants as fsConstants, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { promisify } from 'node:util';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 import { resolvePythonCommand } from './pythonCommand';
@@ -13,7 +14,7 @@ import {
   selfAwarenessBridgeTimeoutMs,
   wikiBridgeTimeoutMs
 } from './timeoutConfig';
-import { withHiddenWindows } from './hiddenProcess';
+import { spawnHidden, withHiddenWindows } from './hiddenProcess';
 
 const execFileAsync = promisify(execFile);
 const CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT = 200;
@@ -37,13 +38,34 @@ function sourceLedgerLabel(value: unknown, fallback: string): string {
 }
 
 type BuilderBridgeMode = 'auto' | 'off' | 'required';
+type BuilderWarmBridgeMode = 'auto' | 'off' | 'required';
 
 interface BuilderBridgeConfig {
   mode: BuilderBridgeMode;
+  warmBridgeMode: BuilderWarmBridgeMode;
   pythonCommand: string;
   builderRepo: string;
   builderHome: string;
   timeoutMs: number;
+}
+
+interface BuilderBridgeParsedPayload {
+  decision?: unknown;
+  detail?: {
+    response_text?: unknown;
+    bridge_mode?: unknown;
+    routing_decision?: unknown;
+    request_id?: unknown;
+    trace_ref?: unknown;
+    voice_media?: unknown;
+    voice_timing?: unknown;
+  };
+}
+
+interface WarmBridgePendingRequest {
+  resolve: (payload: BuilderBridgeParsedPayload) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
 }
 
 export interface BuilderBridgeStatus {
@@ -268,11 +290,20 @@ function parseBridgeMode(): BuilderBridgeMode {
   throw new Error('SPARK_BUILDER_BRIDGE_MODE must be one of: auto, off, required');
 }
 
+function parseWarmBridgeMode(): BuilderWarmBridgeMode {
+  const raw = (process.env.SPARK_BUILDER_WARM_BRIDGE_MODE || 'auto').trim().toLowerCase();
+  if (raw === 'auto' || raw === 'off' || raw === 'required') {
+    return raw;
+  }
+  throw new Error('SPARK_BUILDER_WARM_BRIDGE_MODE must be one of: auto, off, required');
+}
+
 function resolveBridgeConfig(): BuilderBridgeConfig {
   const builderRepo = resolveBuilderRepoPath({ configuredRepo: process.env.SPARK_BUILDER_REPO });
 
   return {
     mode: parseBridgeMode(),
+    warmBridgeMode: parseWarmBridgeMode(),
     pythonCommand: resolvePythonCommand(process.env.SPARK_BUILDER_PYTHON),
     builderRepo,
     builderHome: path.resolve(
@@ -388,6 +419,253 @@ function pythonModuleInvocation(config: BuilderBridgeConfig, moduleName: string,
     sourcePath,
     ...args,
   ];
+}
+
+let warmBridgeRequestSequence = 0;
+let warmTelegramBridge: BuilderTelegramWarmBridge | null = null;
+
+function unrefHandle(value: unknown): void {
+  const maybeHandle = value as { unref?: () => void } | null | undefined;
+  if (typeof maybeHandle?.unref === 'function') {
+    maybeHandle.unref();
+  }
+}
+
+function refHandle(value: unknown): void {
+  const maybeHandle = value as { ref?: () => void } | null | undefined;
+  if (typeof maybeHandle?.ref === 'function') {
+    maybeHandle.ref();
+  }
+}
+
+function warmBridgeKey(config: BuilderBridgeConfig): string {
+  return [config.pythonCommand, config.builderRepo, config.builderHome].join('\u0000');
+}
+
+function warmBridgeInvocation(config: BuilderBridgeConfig): string[] {
+  return pythonModuleInvocation(config, 'spark_intelligence.cli', [
+    'gateway',
+    'serve-stdio',
+    '--home',
+    config.builderHome,
+    '--origin',
+    'telegram-runtime',
+  ]);
+}
+
+class BuilderTelegramWarmBridge {
+  readonly key: string;
+
+  private readonly child: ReturnType<typeof spawnHidden>;
+  private readonly lines: readline.Interface;
+  private readonly pending = new Map<string, WarmBridgePendingRequest>();
+  private readonly readyPromise: Promise<void>;
+  private resolveReady!: () => void;
+  private rejectReady!: (error: Error) => void;
+  private readySettled = false;
+  private stderrTail = '';
+  private closed = false;
+  private idleUnrefImmediate: NodeJS.Immediate | null = null;
+
+  constructor(private readonly config: BuilderBridgeConfig) {
+    this.key = warmBridgeKey(config);
+    this.readyPromise = new Promise<void>((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.rejectReady = reject;
+    });
+    this.child = spawnHidden(config.pythonCommand, warmBridgeInvocation(config), {
+      cwd: config.builderRepo,
+      env: pythonSourceEnv(config),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (!this.child.stdin || !this.child.stdout) {
+      throw new Error('Builder warm bridge did not expose stdio pipes.');
+    }
+    this.child.stdin.setDefaultEncoding('utf8');
+    this.lines = readline.createInterface({ input: this.child.stdout });
+    this.lines.on('line', (line) => this.handleLine(line));
+    this.child.stderr?.on('data', (chunk: Buffer | string) => this.captureStderr(chunk));
+    this.child.once('error', (error) => this.failAll(error instanceof Error ? error : new Error(String(error))));
+    this.child.once('exit', (code, signal) => {
+      this.failAll(this.withStderrDetail(`Builder warm bridge exited code=${code ?? 'null'} signal=${signal ?? 'null'}`));
+    });
+  }
+
+  get isClosed(): boolean {
+    return this.closed;
+  }
+
+  async send(updatePayload: Record<string, unknown>, timeoutMs: number): Promise<BuilderBridgeParsedPayload> {
+    await this.waitUntilReady(Math.min(5000, Math.max(1000, timeoutMs)));
+    if (this.closed || !this.child.stdin?.writable) {
+      throw this.withStderrDetail('Builder warm bridge is not writable.');
+    }
+    this.refHandles();
+    const requestId = `telegram-bridge:${Date.now()}:${++warmBridgeRequestSequence}`;
+    const request = {
+      command: 'simulate_telegram_update',
+      request_id: requestId,
+      simulation: false,
+      update_payload: updatePayload,
+    };
+    return new Promise<BuilderBridgeParsedPayload>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(requestId);
+        this.close();
+        reject(new Error(`Builder warm bridge timed out after ${timeoutMs}ms.`));
+      }, timeoutMs);
+      unrefHandle(timer);
+      this.pending.set(requestId, { resolve, reject, timer });
+      this.child.stdin!.write(`${JSON.stringify(request)}\n`, 'utf8', (error?: Error | null) => {
+        if (!error) return;
+        clearTimeout(timer);
+        this.pending.delete(requestId);
+        reject(error);
+        this.deferUnrefHandles();
+      });
+    });
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.idleUnrefImmediate) {
+      clearImmediate(this.idleUnrefImmediate);
+      this.idleUnrefImmediate = null;
+    }
+    try {
+      this.child.stdin?.write(`${JSON.stringify({ command: 'shutdown' })}\n`);
+    } catch {
+      // Best-effort shutdown; the process is killed below if stdio is already broken.
+    }
+    this.lines.close();
+    this.child.kill();
+  }
+
+  private waitUntilReady(timeoutMs: number): Promise<void> {
+    if (this.readySettled) {
+      return this.readyPromise;
+    }
+    let timer: NodeJS.Timeout;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Builder warm bridge was not ready after ${timeoutMs}ms.`)), timeoutMs);
+      unrefHandle(timer);
+    });
+    return Promise.race([this.readyPromise, timeout]).finally(() => clearTimeout(timer));
+  }
+
+  private handleLine(line: string): void {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      console.warn('[BuilderBridge] Warm bridge emitted non-JSON stdout:', redactText(trimmed).slice(0, 240));
+      return;
+    }
+    if (payload.protocol === 'spark.gateway.stdio.v1') {
+      this.setReady();
+      return;
+    }
+    const requestId = String(payload.request_id || '').trim();
+    if (!requestId) return;
+    const pending = this.pending.get(requestId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pending.delete(requestId);
+    const error = String(payload.error || '').trim();
+    if (error) {
+      pending.reject(new Error(error));
+      this.deferUnrefHandles();
+      return;
+    }
+    pending.resolve(payload as BuilderBridgeParsedPayload);
+    this.deferUnrefHandles();
+  }
+
+  private captureStderr(chunk: Buffer | string): void {
+    const next = `${this.stderrTail}${processOutputText(chunk)}`;
+    this.stderrTail = next.slice(-4000);
+  }
+
+  private setReady(): void {
+    if (this.readySettled) return;
+    this.readySettled = true;
+    this.resolveReady();
+  }
+
+  private failAll(error: Error): void {
+    this.closed = true;
+    if (this.idleUnrefImmediate) {
+      clearImmediate(this.idleUnrefImmediate);
+      this.idleUnrefImmediate = null;
+    }
+    this.lines.close();
+    if (!this.readySettled) {
+      this.readySettled = true;
+      this.rejectReady(error);
+    }
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  private withStderrDetail(message: string): Error {
+    const stderr = redactText(this.stderrTail.trim());
+    return new Error(stderr ? `${message}. stderr=${stderr}` : message);
+  }
+
+  private refHandles(): void {
+    if (this.idleUnrefImmediate) {
+      clearImmediate(this.idleUnrefImmediate);
+      this.idleUnrefImmediate = null;
+    }
+    refHandle(this.child);
+    refHandle(this.child.stdin);
+    refHandle(this.child.stdout);
+    refHandle(this.child.stderr);
+  }
+
+  private deferUnrefHandles(): void {
+    if (this.pending.size > 0 || this.idleUnrefImmediate || this.closed) {
+      return;
+    }
+    this.idleUnrefImmediate = setImmediate(() => {
+      this.idleUnrefImmediate = null;
+      if (this.pending.size > 0 || this.closed) return;
+      this.child.unref();
+      unrefHandle(this.child.stdin);
+      unrefHandle(this.child.stdout);
+      unrefHandle(this.child.stderr);
+    });
+  }
+}
+
+async function runBuilderTelegramBridgeWarm(
+  config: BuilderBridgeConfig,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeParsedPayload> {
+  if (config.warmBridgeMode === 'off') {
+    throw new Error('Builder warm bridge is off.');
+  }
+  const key = warmBridgeKey(config);
+  if (!warmTelegramBridge || warmTelegramBridge.isClosed || warmTelegramBridge.key !== key) {
+    warmTelegramBridge?.close();
+    warmTelegramBridge = new BuilderTelegramWarmBridge(config);
+  }
+  const worker = warmTelegramBridge;
+  try {
+    return await worker.send(updatePayload, config.timeoutMs);
+  } catch (error) {
+    if (warmTelegramBridge === worker) {
+      warmTelegramBridge.close();
+      warmTelegramBridge = null;
+    }
+    throw error;
+  }
 }
 
 function numericValue(value: unknown): number {
@@ -2706,34 +2984,10 @@ export async function runBuilderTelegramMemoryWrite(
   }
 }
 
-export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
-  const config = resolveBridgeConfig();
-  if (config.mode === 'off') {
-    return {
-      used: false,
-      responseText: '',
-      decision: '',
-      bridgeMode: '',
-      routingDecision: '',
-    };
-  }
-
-  const bridgeAvailable = await ensureBridgeAvailable(config);
-  if (!bridgeAvailable) {
-    if (config.mode === 'required') {
-      throw new Error(
-        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
-      );
-    }
-    return {
-      used: false,
-      responseText: '',
-      decision: '',
-      bridgeMode: '',
-      routingDecision: '',
-    };
-  }
-
+async function runBuilderTelegramBridgeOneShot(
+  config: BuilderBridgeConfig,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeParsedPayload> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-builder-telegram-'));
   const updatePath = path.join(tempDir, 'update.json');
   try {
@@ -2764,63 +3018,105 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       throw new Error(`Builder bridge returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
 
-    const parsed = JSON.parse(trimmedStdout) as {
-      decision?: unknown;
-      detail?: {
-        response_text?: unknown;
-        bridge_mode?: unknown;
-        routing_decision?: unknown;
-        request_id?: unknown;
-        trace_ref?: unknown;
-        voice_media?: unknown;
-        voice_timing?: unknown;
-      };
-    };
+    return JSON.parse(trimmedStdout) as BuilderBridgeParsedPayload;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
-    const detail = parsed.detail || {};
-    const bridgeMode = String(detail.bridge_mode || '').trim();
-    const routingDecision = String(detail.routing_decision || '').trim();
-    const requestId = String(detail.request_id || '').trim();
-    const traceRef = String(detail.trace_ref || '').trim();
-    let responseText = String(detail.response_text || '').trim();
-    const messageContext = telegramBridgeMessageContext(updatePayload);
-    if (bridgeMode === 'self_awareness_direct' && messageContext.userId && messageContext.chatId) {
-      try {
-        const selfAwareness = await runBuilderSelfAwarenessStatus({
-          userId: messageContext.userId,
-          chatId: messageContext.chatId,
-          currentMessage: messageContext.text,
-        });
-        responseText = selfAwareness.replyText;
-      } catch (error) {
-        console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
-        if (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) {
-          try {
-            const selfAwareness = await runBuilderSelfAwarenessStatus({
-              userId: messageContext.userId,
-              chatId: messageContext.chatId,
-              currentMessage: messageContext.text,
-              refreshWiki: false,
-            });
-            responseText = selfAwareness.replyText;
-          } catch (fallbackError) {
-            console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
-            responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
-          }
+async function shapeBuilderTelegramBridgeReply(
+  parsed: BuilderBridgeParsedPayload,
+  updatePayload: Record<string, unknown>
+): Promise<BuilderBridgeReply> {
+  const detail = parsed.detail || {};
+  const bridgeMode = String(detail.bridge_mode || '').trim();
+  const routingDecision = String(detail.routing_decision || '').trim();
+  const requestId = String(detail.request_id || '').trim();
+  const traceRef = String(detail.trace_ref || '').trim();
+  let responseText = String(detail.response_text || '').trim();
+  const messageContext = telegramBridgeMessageContext(updatePayload);
+  if (bridgeMode === 'self_awareness_direct' && messageContext.userId && messageContext.chatId) {
+    try {
+      const selfAwareness = await runBuilderSelfAwarenessStatus({
+        userId: messageContext.userId,
+        chatId: messageContext.chatId,
+        currentMessage: messageContext.text,
+      });
+      responseText = selfAwareness.replyText;
+    } catch (error) {
+      console.warn('[BuilderBridge] Self-awareness reformat unavailable:', error);
+      if (isMemoryLackSelfAwarenessQuestion(messageContext.text) || isSelfAwarenessImprovementQuestion(messageContext.text)) {
+        try {
+          const selfAwareness = await runBuilderSelfAwarenessStatus({
+            userId: messageContext.userId,
+            chatId: messageContext.chatId,
+            currentMessage: messageContext.text,
+            refreshWiki: false,
+          });
+          responseText = selfAwareness.replyText;
+        } catch (fallbackError) {
+          console.warn('[BuilderBridge] Self-awareness no-wiki fallback unavailable:', fallbackError);
+          responseText = formatSelfAwarenessReply({ current_message: messageContext.text });
         }
       }
     }
+  }
+  return {
+    used: true,
+    responseText,
+    decision: String(parsed.decision || '').trim(),
+    bridgeMode,
+    routingDecision,
+    requestId: requestId || undefined,
+    traceRef: traceRef || undefined,
+    voiceMedia: parseBuilderBridgeVoiceMedia(detail.voice_media),
+    voiceTiming: objectValue(detail.voice_timing),
+  };
+}
+
+export async function runBuilderTelegramBridge(updatePayload: Record<string, unknown>): Promise<BuilderBridgeReply> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
     return {
-      used: true,
-      responseText,
-      decision: String(parsed.decision || '').trim(),
-      bridgeMode,
-      routingDecision,
-      requestId: requestId || undefined,
-      traceRef: traceRef || undefined,
-      voiceMedia: parseBuilderBridgeVoiceMedia(detail.voice_media),
-      voiceTiming: objectValue(detail.voice_timing),
+      used: false,
+      responseText: '',
+      decision: '',
+      bridgeMode: '',
+      routingDecision: '',
     };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    if (config.mode === 'required') {
+      throw new Error(
+        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
+      );
+    }
+    return {
+      used: false,
+      responseText: '',
+      decision: '',
+      bridgeMode: '',
+      routingDecision: '',
+    };
+  }
+
+  if (config.warmBridgeMode !== 'off') {
+    try {
+      const parsed = await runBuilderTelegramBridgeWarm(config, updatePayload);
+      return await shapeBuilderTelegramBridgeReply(parsed, updatePayload);
+    } catch (error) {
+      if (config.warmBridgeMode === 'required') {
+        throw error;
+      }
+      console.warn('[BuilderBridge] Warm bridge unavailable; using one-shot CLI:', error);
+    }
+  }
+
+  try {
+    const parsed = await runBuilderTelegramBridgeOneShot(config, updatePayload);
+    return await shapeBuilderTelegramBridgeReply(parsed, updatePayload);
   } catch (error) {
     if (config.mode === 'required') {
       throw error;
@@ -2833,8 +3129,6 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       bridgeMode: '',
       routingDecision: '',
     };
-  } finally {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

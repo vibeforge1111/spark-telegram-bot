@@ -594,6 +594,17 @@ test('builder repo resolver preserves explicit operator override', () => {
   assert.equal(resolved, explicitRepo);
 });
 
+test('Telegram Builder bridge prefers warm stdio worker with one-shot CLI fallback', () => {
+  const source = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+
+  assert.match(source, /SPARK_BUILDER_WARM_BRIDGE_MODE/);
+  assert.match(source, /'serve-stdio'/);
+  assert.match(source, /runBuilderTelegramBridgeWarm/);
+  assert.match(source, /runBuilderTelegramBridgeOneShot/);
+  assert.match(source, /Warm bridge unavailable; using one-shot CLI/);
+  assert.match(source, /'simulate-telegram-update'/);
+});
+
 test('formats black-box payload as compact event evidence', () => {
   const reply = formatAgentBlackBoxReply({
     request_id: 'req-private-id',
