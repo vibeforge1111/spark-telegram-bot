@@ -408,7 +408,7 @@
       },
       {
         "id": "all-models",
-        "user": "all models: compare whether this route firewall should enforce or stay shadow",
+        "user": "all models: compare whether this authority hijack guard should enforce or stay evidence-only",
         "expectedRoute": "natural_run"
       },
       {

@@ -74,9 +74,9 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 
 ## Verification Menu
 
-- Focused tests for changed route/firewall/composition behavior.
+- Focused tests for changed route, Harness Core action authority, or composition behavior.
 - `npm run build`.
-- Relevant direct tests such as `tests/buildE2E.test.ts`, `tests/builderBridge.test.ts`, `tests/accessPolicy.test.ts`, `tests/conversationIntent.test.ts`, or route/firewall tests.
+- Relevant direct tests such as `tests/buildE2E.test.ts`, `tests/builderBridge.test.ts`, `tests/accessPolicy.test.ts`, `tests/conversationIntent.test.ts`, or Harness Core action authority tests.
 - Privacy scan for bridge serializers, audit rows, final-answer metadata, and docs.
 - Live Telegram proof only when explicitly requested and safe. Prefer native
   Telegram Desktop through CUA for app-behavior proof; use
