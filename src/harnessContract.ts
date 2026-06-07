@@ -56,7 +56,7 @@ export interface SparkHarnessIntentRef {
   action: string | null;
   confidence: SparkHarnessConfidence;
   requiresConfirmation: boolean;
-  source: 'slash' | 'explicit' | 'contextual' | 'pending' | 'memory' | 'arbiter';
+  source: 'slash' | 'explicit' | 'contextual' | 'pending' | 'memory' | 'shadow_route_evidence';
 }
 
 export interface SparkHarnessIntentCandidate {

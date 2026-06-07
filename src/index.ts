@@ -5098,7 +5098,7 @@ export async function handleClarificationAnswers(
   const executionAuthority = authorization.governorDecision;
 
   try {
-    const res = await axios.post(
+    const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
       {
         content: prdContent,
@@ -5126,7 +5126,7 @@ export async function handleClarificationAnswers(
         missionId,
         options: prdBridgeOptionsForBuildLane(buildLane)
       },
-      { timeout: 10000 }
+      localServiceTimeoutMs('SPARK_SPAWNER_PRD_WRITE_TIMEOUT_MS')
     );
 
     if (!res.data?.success) {
