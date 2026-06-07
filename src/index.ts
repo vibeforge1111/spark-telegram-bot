@@ -4912,6 +4912,17 @@ async function handleCapabilityGardenCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readCapabilityGardenSummary();
+    if (!summary || (Array.isArray(summary.capabilities) && summary.capabilities.length === 0)) {
+      await ctx.reply('Capability garden is empty. Running spark os compile...');
+      try {
+        await execFileAsync('spark', ['os', 'compile'], { timeout: 60000 });
+        const refreshed = await readCapabilityGardenSummary();
+        await ctx.reply(renderCapabilityGardenSummary(refreshed));
+      } catch {
+        await ctx.reply('Auto-compile failed. Run `spark os compile` in your terminal, then try /capabilities again.');
+      }
+      return;
+    }
     await ctx.reply(renderCapabilityGardenSummary(summary));
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
@@ -4945,6 +4956,17 @@ async function handleMemoryMovementCommand(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
   try {
     const summary = await readMemoryMovementSummary();
+    if (!summary || !summary.compiled) {
+      await ctx.reply('Memory movement index is not compiled yet. Running spark os compile...');
+      try {
+        await execFileAsync('spark', ['os', 'compile'], { timeout: 60000 });
+        const refreshed = await readMemoryMovementSummary();
+        await ctx.reply(renderMemoryMovementSummary(refreshed));
+      } catch {
+        await ctx.reply('Auto-compile failed. Run `spark os compile` in your terminal, then try /memory_movement again.');
+      }
+      return;
+    }
     await ctx.reply(renderMemoryMovementSummary(summary));
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
