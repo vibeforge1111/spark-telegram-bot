@@ -74,7 +74,11 @@ export function humanSummary(rec: ScheduleRecord): string {
   }
   const p = rec.payload as { chipKey?: string; rounds?: number };
   const n = p.rounds ?? 1;
-  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${p.chipKey}`;
+  // Match the mission-branch fallback shape so a record with a missing
+  // chipKey renders 'on (no chip)' instead of the literal string
+  // 'on undefined' in /schedules output.
+  const chip = p.chipKey ?? '(no chip)';
+  return `Run ${n} loop round${n === 1 ? '' : 's'} on ${chip}`;
 }
 
 export function formatScheduleList(schedules: ScheduleRecord[]): string {
