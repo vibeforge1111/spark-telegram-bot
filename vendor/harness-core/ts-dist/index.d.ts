@@ -2,6 +2,7 @@ export type HarnessCoreSchemaVersion = 'turn-intent-envelope-vnext';
 export type HarnessCoreAuthorizationSchemaVersion = 'authorization-decision-v1';
 export type HarnessCoreToolLedgerSchemaVersion = 'tool-call-ledger-v1';
 export type HarnessCoreGovernorSchemaVersion = 'governor-decision-v1';
+export type HarnessCoreGovernorConsumerVerificationSchemaVersion = 'governor-consumer-verification-v1';
 export type HarnessCoreSurface = 'telegram' | 'cli' | 'builder' | 'spawner' | 'memory' | 'startup_operator' | 'recursive_swarm' | 'voice' | 'domain_chip' | 'browser' | 'computer_use' | 'api' | 'test_harness' | 'future_surface';
 export type HarnessCoreMoveType = 'chat_explain' | 'chat_plan' | 'chat_compare' | 'chat_score' | 'chat_draft_text' | 'read_current_state' | 'prepare_action' | 'confirm_action' | 'execute_action';
 export type HarnessCoreRiskTier = 'none' | 'read' | 'low' | 'medium' | 'high' | 'critical';
@@ -140,6 +141,14 @@ export interface ToolCallLedgerV1 {
     trace: HarnessCoreTraceRef;
 }
 export type HarnessCoreGovernorOutcome = 'chat_only' | 'read_only' | 'prepare' | 'execute' | 'interrupt' | 'deny' | 'degrade';
+export interface GovernorDecisionSignatureV1 {
+    schema_version: 'governor-decision-signature-v1';
+    alg: 'hmac-sha256';
+    key_id: string;
+    nonce: string;
+    created_at: string;
+    signature: string;
+}
 export interface GovernorDecisionV1 {
     schema_version: HarnessCoreGovernorSchemaVersion;
     decision_id: string;
@@ -168,10 +177,26 @@ export interface GovernorDecisionV1 {
         should_interrupt: boolean;
     };
     evidence: HarnessCoreEvidenceRef[];
+    signature?: GovernorDecisionSignatureV1;
     trace: HarnessCoreTraceRef;
 }
+export declare function canonicalHarnessCoreJson(value: unknown): string;
+export declare function unsignedHarnessCoreGovernorDecision<T extends Record<string, unknown>>(decision: T): Omit<T, 'signature'>;
+export declare function harnessCoreGovernorDecisionSignaturePayload(decision: Record<string, unknown>, signature: Omit<GovernorDecisionSignatureV1, 'signature'>): string;
+export declare function signHarnessCoreGovernorDecision<T extends GovernorDecisionV1>(decision: T, input: {
+    key: string;
+    key_id?: string;
+    nonce?: string;
+    created_at?: string;
+}): T;
+export declare function harnessCoreGovernorDecisionSignatureReasonCodes(input: {
+    governor_decision?: GovernorDecisionV1 | null;
+    key?: string | null;
+    expected_key_id?: string | null;
+    require_signature?: boolean;
+}): string[];
 export interface HarnessCoreGovernorConsumerVerification {
-    schema_version: 'governor-consumer-verification-v1';
+    schema_version: HarnessCoreGovernorConsumerVerificationSchemaVersion;
     allowed: boolean;
     reason_codes: string[];
     source_kind: 'governor_decision' | 'missing_governor_decision';
@@ -185,6 +210,23 @@ export interface HarnessCoreGovernorConsumerVerification {
     capability_id: string | null;
     authorization_decision_id: string | null;
     ledger_id: string | null;
+}
+export interface HarnessCoreBoundLedgerRow {
+    turn_id: string | null;
+    action_id: string | null;
+    capability_id: string | null;
+    authorization_decision_id: string | null;
+    ledger_id: string | null;
+    tool_name: string | null;
+    owner_system: string | null;
+    mutation_class: string | null;
+    outcome: HarnessCoreGovernorOutcome | null;
+    status: ToolCallLedgerV1['result']['status'] | null;
+    surface: HarnessCoreSurface | string | null;
+    request_id: string | null;
+    trace_ref: string | null;
+    summary: string | null;
+    ledger_json: ToolCallLedgerV1;
 }
 export type HarnessCoreReadinessCategoryName = 'execution' | 'tools' | 'context' | 'lifecycle' | 'observability' | 'verification' | 'governance';
 export interface HarnessCoreCategoryScore {
@@ -549,6 +591,16 @@ export declare function createHarnessCoreGovernorDecision(input: {
     reply_style?: GovernorDecisionV1['reply_contract']['style'];
     reply_instruction?: string;
 }): GovernorDecisionV1;
+export declare function boundHarnessCoreLedgerRow(input: {
+    ledger: ToolCallLedgerV1;
+    verdict: HarnessCoreGovernorConsumerVerification;
+    owner_system?: string | null;
+    mutation_class?: string | null;
+    surface?: HarnessCoreSurface | string | null;
+    request_id?: string | null;
+    trace_ref?: string | null;
+}): HarnessCoreBoundLedgerRow;
+export declare const boundLedgerRow: typeof boundHarnessCoreLedgerRow;
 export declare function verifyHarnessCoreGovernorExecutionAuthority(input: {
     governor_decision?: GovernorDecisionV1 | null;
     expected_capability_id: string;
@@ -557,6 +609,9 @@ export declare function verifyHarnessCoreGovernorExecutionAuthority(input: {
     action_id?: string;
     allow_read_only?: boolean;
     require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
 }): HarnessCoreGovernorConsumerVerification;
 export declare function verifyHarnessCoreGovernorToolAuthority(input: {
     governor_decision?: GovernorDecisionV1 | null;
@@ -566,6 +621,9 @@ export declare function verifyHarnessCoreGovernorToolAuthority(input: {
     action_id?: string;
     allow_read_only?: boolean;
     require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
 }): HarnessCoreGovernorConsumerVerification;
 export declare function createHarnessCoreAuthorizedGovernorDecision(input: {
     envelope: TurnIntentEnvelopeVNext;
