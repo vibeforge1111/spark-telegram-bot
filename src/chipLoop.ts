@@ -74,6 +74,14 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
     };
   } catch (err: any) {
     const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
-    return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
+    let detail = 'loop exec failed';
+    if (err?.stdout) {
+      try {
+        const parsed = JSON.parse(err.stdout);
+        if (parsed?.error) detail = parsed.error;
+      } catch { /* ignore */ }
+    }
+    if (detail === 'loop exec failed' && stderr) detail = stderr.slice(-200);
+    return { ok: false, error: detail };
   }
 }
