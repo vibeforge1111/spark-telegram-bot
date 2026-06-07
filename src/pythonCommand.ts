@@ -1,4 +1,4 @@
-import { accessSync, statSync } from 'node:fs';
+import { accessSync, existsSync, statSync } from 'node:fs';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
 
@@ -13,6 +13,9 @@ function assertSafePythonExecutable(candidate: string): string {
   const extension = path.extname(resolved).toLowerCase();
   if (process.platform === 'win32' && WINDOWS_SHELL_EXTENSIONS.has(extension)) {
     throw new Error(`SPARK_BUILDER_PYTHON cannot point to a shell script: ${resolved}`);
+  }
+  if (!existsSync(resolved)) {
+    throw new Error(`SPARK_BUILDER_PYTHON does not exist: ${resolved}`);
   }
   const stat = statSync(resolved);
   if (!stat.isFile()) {
