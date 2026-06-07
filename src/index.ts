@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
