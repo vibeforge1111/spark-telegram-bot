@@ -1953,3 +1953,5 @@ export const spawner = {
     }
   }
 };
+
+// spark-compete: spawner JSON parse guard audit
