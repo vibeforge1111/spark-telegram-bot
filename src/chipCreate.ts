@@ -97,7 +97,10 @@ function resolveConfig(): ChipCreateConfig {
 export async function createChipFromPrompt(prompt: string): Promise<ChipCreateResult> {
   const clean = prompt.trim();
   if (!clean) {
-    return { ok: false, error: 'empty prompt' };
+    return {
+      ok: false,
+      error: 'No chip brief provided. Try /chip create <natural language description of the domain chip you want>.'
+    };
   }
   const reporter = new ChipCreateMissionReporter(buildChipCreateMissionContext(clean));
   await reporter.created();
