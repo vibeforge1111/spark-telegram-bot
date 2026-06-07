@@ -1758,7 +1758,11 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
 
   deliveryCache.set(signature, now);
   if (deliveryCache.size > 500) {
-    const cutoff = now - 30_000;
+    // Honor the longest dedup window the cache stores. task_started entries
+    // need 5 minutes (line above); generic signatures only need 30 seconds.
+    // Using the 30s cutoff during overflow pruning evicts in-window
+    // task_started entries and lets duplicate task_started deliveries through.
+    const cutoff = now - 5 * 60_000;
     for (const [key, timestamp] of deliveryCache.entries()) {
       if (timestamp < cutoff) {
         deliveryCache.delete(key);
