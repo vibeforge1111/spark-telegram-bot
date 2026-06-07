@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
+import { redactText } from './redaction';
 import { chatCommandTimeoutMs } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
@@ -504,7 +505,7 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
     chatCommandTimeoutMs()
   );
   if (!result.ok) {
-    throw new Error(result.stderr || result.stdout || 'Claude CLI failed');
+    throw new Error(redactText(result.stderr || result.stdout || 'Claude CLI failed'));
   }
   return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
 }
