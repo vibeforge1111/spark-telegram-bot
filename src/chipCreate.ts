@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -98,6 +99,13 @@ export async function createChipFromPrompt(prompt: string): Promise<ChipCreateRe
   const clean = prompt.trim();
   if (!clean) {
     return { ok: false, error: 'empty prompt' };
+  }
+  const preflightConfig = resolveConfig();
+  if (!existsSync(preflightConfig.chipLabsRoot)) {
+    return {
+      ok: false,
+      error: `chip-labs root not found: ${preflightConfig.chipLabsRoot}\n\nRepair\n• The spark-domain-chip-labs module is required for /chip create.\n• Ask your Spark admin to install it or check agent.sparkswarm.ai for setup instructions.`,
+    };
   }
   const reporter = new ChipCreateMissionReporter(buildChipCreateMissionContext(clean));
   await reporter.created();
