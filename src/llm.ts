@@ -951,3 +951,5 @@ export const llm = {
     }
   },
 };
+
+// spark-compete: LLM JSON parse guard audit
