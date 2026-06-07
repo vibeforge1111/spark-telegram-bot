@@ -5708,7 +5708,7 @@ function formatBuildMissionQueuedReply(input: {
   return telegramBlocks(
     input.lead,
     `🛠️ Setting up ${input.projectName} as a ${modeText}. Canvas next.`,
-    input.projectPath ? ['Workspace', `• ${input.projectPath}`].join('\n') : null,
+    null,
   );
 }
 
@@ -7808,7 +7808,7 @@ bot.command('chip', async (ctx) => {
   const lines = [
     'Chip created successfully.',
     `Key: ${result.chipKey}`,
-    `Path: ${result.chipPath}`,
+    `Path: (internal)`,
     `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
   ];
   if (result.warnings && result.warnings.length > 0) {
