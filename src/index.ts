@@ -3972,7 +3972,11 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(ctx.from, localRecall).catch(() => {});
       return;
     }
-    if (await replyViaBuilder(ctx, `What do you remember about ${query}?`)) {
+    const IDENTITY_PATTERNS = /^(who am i|what am i|who are you talking to|my name|my identity|about me)\??$/i;
+    const builderQuery = IDENTITY_PATTERNS.test(query.trim())
+      ? 'What do you remember about this user, including their name, identity, and background?'
+      : `What do you remember about ${query}?`;
+    if (await replyViaBuilder(ctx, builderQuery)) {
       return;
     }
     await ctx.reply(buildMemoryBridgeUnavailableReply('recall'));
@@ -5322,7 +5326,8 @@ bot.command('recall', handleRecallCommand);
 // /about command - what do I know about you
 bot.command('about', async (ctx) => {
   try {
-    if (await replyViaBuilder(ctx, 'What do you know about me?')) {
+    const userId = ctx.from?.username || ctx.from?.first_name || 'this user';
+    if (await replyViaBuilder(ctx, `What do you know about ${userId}, including their name, identity, background, and anything they have asked you to remember?`)) {
       return;
     }
     await ctx.reply(buildMemoryBridgeUnavailableReply('about'));
@@ -7114,15 +7119,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
 
 export function isRouteConfidenceGateUnsupportedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    /\broute-confidence-gate\b/i.test(message) &&
+  const isGateCommandError = /\broute-confidence-gate\b/i.test(message) &&
     (
       /\binvalid choice\b/i.test(message) ||
       /\bunrecognized arguments?\b/i.test(message) ||
       /\bNo such command\b/i.test(message) ||
       /\bunknown command\b/i.test(message)
-    )
-  );
+    );
+  const isLLMTimeout = /\btimeout\b/i.test(message) && /\bECONNABORTED\b|\bms exceeded\b/i.test(message);
+  return isGateCommandError || isLLMTimeout;
 }
 
 export function routeConfidenceGateCompatibilityAllows(input: {
