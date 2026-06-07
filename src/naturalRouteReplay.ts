@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import {
   decideNaturalRoute,
   type NaturalRouteContextSource,
@@ -84,7 +85,11 @@ export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayC
     .map((line) => line.trim())
     .map((line, index) => ({ line, lineNumber: index + 1 }))
     .filter(({ line }) => line && !line.startsWith('#'))
-    .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
+    .flatMap(({ line, lineNumber }) => {
+    const parsed = safeJsonParse<unknown>(line, null, 'natural-route-replay');
+    if (parsed === null) return [];
+    return [parseReplayCase(parsed, lineNumber)];
+  });
 }
 
 export function evaluateNaturalRouteReplayCase(testCase: NaturalRouteReplayCase): NaturalRouteReplayResult {
