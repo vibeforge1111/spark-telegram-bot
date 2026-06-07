@@ -84,7 +84,15 @@ export function parseNaturalRouteReplayCases(jsonl: string): NaturalRouteReplayC
     .map((line) => line.trim())
     .map((line, index) => ({ line, lineNumber: index + 1 }))
     .filter(({ line }) => line && !line.startsWith('#'))
-    .map(({ line, lineNumber }) => parseReplayCase(JSON.parse(line), lineNumber));
+    .map(({ line, lineNumber }) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        throw new Error(`Invalid JSON in natural route replay file at line ${lineNumber}`);
+      }
+      return parseReplayCase(parsed, lineNumber);
+    });
 }
 
 export function evaluateNaturalRouteReplayCase(testCase: NaturalRouteReplayCase): NaturalRouteReplayResult {
