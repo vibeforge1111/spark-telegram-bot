@@ -5362,7 +5362,7 @@ bot.command('schedule', async (ctx) => {
   // Expect: "<cron>" mission <goal>   OR   "<cron>" loop <chipKey> [rounds]
   const quoteMatch = raw.match(/^"([^"]+)"\s+(.*)$/);
   if (!quoteMatch) {
-    return ctx.reply('Usage: /schedule "<cron>" mission <goal>\n       /schedule "<cron>" loop <chipKey> [rounds]\nExample: /schedule "*/5 * * * *" loop startup-yc 2');
+    return ctx.reply('Usage: /schedule "<cron>" mission <goal>\n       /schedule "<cron>" loop <chipKey> [rounds]\nExample: /schedule "*/5 * * * *" loop startup-yc 2\n\nTo cancel a schedule: /schedules delete <id>\nTo list schedules: /schedules');
   }
   const cron = quoteMatch[1].trim();
   const rest = quoteMatch[2].trim().split(/\s+/);
