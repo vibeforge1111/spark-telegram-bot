@@ -5319,7 +5319,8 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
 
           const result = await runChipLoop(parsed.chipKey!, rounds, 3);
           if (!result.ok) {
-            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', result.error));
+            const recursiveRepair = '\n\nRepair\n• Make sure the path or chip key exists. Run /recursive paths to see available paths.\n• Run /chip create to create a new chip.';
+            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', (result.error || '') + recursiveRepair));
             return;
           }
           let sync = null;
