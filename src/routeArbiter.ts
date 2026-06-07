@@ -115,7 +115,7 @@ function safeRationaleTag(value: unknown): string {
 
 export function parseRouteArbiterResponse(raw: string): RouteArbiterParsedResponse {
   const match = raw.match(/\{[\s\S]*\}/);
-  const parsed = match ? JSON.parse(match[0]) as Record<string, unknown> : {};
+  const parsed = match ? match && match[0] ? JSON.parse(match[0]) : {} as Record<string, unknown> : {};
   const intent = normalizeIntent(parsed.intent);
   const explicitAllow = typeof parsed.allow === 'boolean' ? parsed.allow : null;
   return {
