@@ -35,10 +35,15 @@ export function replaceEmDashes(text: string, replacement: string = ' - '): stri
 
 export function stripMarkdownEmphasis(text: string): string {
   if (!text) return text;
+  // Inner content must be at least one character and must not contain the
+  // closing marker itself, otherwise:
+  //   - single-character spans like **a** or __x__ stay un-stripped, and
+  //   - adjacent spans like "**a** then **b**" cross-eat into one match,
+  // both of which produce broken text in Telegram replies.
   return text
-    .replace(/\*\*\*([^*\n][\s\S]*?[^*\n])\*\*\*/g, '$1')
-    .replace(/\*\*([^*\n][\s\S]*?[^*\n])\*\*/g, '$1')
-    .replace(/__([^_\n][\s\S]*?[^_\n])__/g, '$1');
+    .replace(/\*\*\*((?:(?!\*\*\*)[\s\S])+?)\*\*\*/g, '$1')
+    .replace(/\*\*((?:(?!\*\*)[\s\S])+?)\*\*/g, '$1')
+    .replace(/__((?:(?!__)[\s\S])+?)__/g, '$1');
 }
 
 export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
