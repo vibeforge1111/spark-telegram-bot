@@ -67,7 +67,13 @@ export async function writeJsonAtomic(filePath: string, value: unknown): Promise
 
 export function resolveStatePath(filename: string): string {
   const stateDir = process.env.SPARK_GATEWAY_STATE_DIR?.trim();
-  return path.join(stateDir || process.cwd(), filename);
+  const baseDir = stateDir || process.cwd();
+  // Validate filename doesn't contain path traversal
+  const normalized = path.normalize(filename);
+  if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+    throw new Error(`Invalid state filename: ${filename}`);
+  }
+  return path.join(baseDir, normalized);
 }
 
 export function resetJsonStateForTests(): void {
