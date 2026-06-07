@@ -45,7 +45,9 @@ function resolveConfig(): LoopConfig {
 }
 
 export async function runChipLoop(chipKey: string, rounds: number, suggestLimit = 3): Promise<LoopResult> {
-  if (!chipKey) return { ok: false, error: 'empty chip key' };
+  if (!chipKey) {
+    return { ok: false, error: 'No chip key provided. Try /loop <chip_key> [rounds] (e.g. /loop domain-chip-memory 3).' };
+  }
   const config = resolveConfig();
   const args = [
     '-m', 'spark_intelligence.cli', 'loops', 'run',
