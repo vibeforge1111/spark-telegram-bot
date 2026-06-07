@@ -81,7 +81,9 @@ function envelopeSelectedRoute(envelope: TurnIntentEnvelopeV1 | null | undefined
   if (!envelope) return false;
   const selectedAction = envelope.selectedIntent.action;
   if (selectedAction && routeMatchesCandidate(inputRoute, selectedAction)) return true;
-  return envelope.candidates.some((candidate) => routeMatchesCandidate(inputRoute, candidate.route));
+  const selectedRoute = envelope.candidates[0]?.route;
+  if (selectedRoute && routeMatchesCandidate(inputRoute, selectedRoute)) return true;
+  return false;
 }
 
 export function governorOutcomeAllowsTelegramAction(

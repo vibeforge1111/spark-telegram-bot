@@ -369,6 +369,16 @@ test('does not confuse mission-control ideation with opening the local UI', () =
   );
 });
 
+test('does not treat installer design talk as a local Spark service open request', () => {
+  assert.equal(
+    isLocalSparkServiceRequest(
+      'I think later we need an installer system where people go first step second step third step and Spark does the hard parts automatically.',
+      ''
+    ),
+    false
+  );
+});
+
 test('does not intercept build-quality review requests as local UI links', () => {
   assert.equal(
     isLocalSparkServiceRequest(

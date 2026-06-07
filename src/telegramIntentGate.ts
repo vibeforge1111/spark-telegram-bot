@@ -4,6 +4,7 @@ import {
   extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
   classifyStaleContextAuthorityBoundary,
+  isActionWordMetaDiscussion,
   isAccessHelpQuestion,
   isAccessStatusQuestion,
   isBrowserComputerUseAuthorizationBoundaryQuestion,
@@ -87,6 +88,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   }
 
   const hasMetaLanguageBoundary =
+    isActionWordMetaDiscussion(normalized) ||
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|example|quoted example|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|just quoted|only quoted|not a request|not an instruction|not a command|not asking for|does not mean|doesn't mean|not mean|talking about the (?:word|phrase)|discussing the (?:word|phrase))\b/.test(normalized);
   const hasExecutionKeyword =
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b/.test(normalized);
