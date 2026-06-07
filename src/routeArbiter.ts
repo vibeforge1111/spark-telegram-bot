@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import { createHash } from 'node:crypto';
 import { appendFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
@@ -115,7 +116,7 @@ function safeRationaleTag(value: unknown): string {
 
 export function parseRouteArbiterResponse(raw: string): RouteArbiterParsedResponse {
   const match = raw.match(/\{[\s\S]*\}/);
-  const parsed = match ? JSON.parse(match[0]) as Record<string, unknown> : {};
+  const parsed = match ? safeJsonParse<Record<string, unknown>>(match[0], {}, 'route-arbiter') : {};
   const intent = normalizeIntent(parsed.intent);
   const explicitAllow = typeof parsed.allow === 'boolean' ? parsed.allow : null;
   return {
