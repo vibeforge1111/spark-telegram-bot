@@ -417,8 +417,8 @@ function activeMissionClause(entries: BoardEntry[], status: 'running' | 'paused'
   const visibleTitles = entries
     .map(missionTitleForActiveSummary)
     .filter((title): title is string => Boolean(title));
-  if (entries.length === 1 && visibleTitles[0]) {
-    return `one ${status} mission: ${visibleTitles[0]}`;
+  if (entries.length === 1 && visibleTitles.length > 0 ? visibleTitles[0] : null) {
+    return `one ${status} mission: ${visibleTitles.length > 0 ? visibleTitles[0] : null}`;
   }
   if (visibleTitles.length > 0) {
     const shown = visibleTitles.slice(0, 3).join(', ');
