@@ -6,6 +6,7 @@ import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
+import { spawnerAuthHeaders } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl, resolveTelegramSpawnerSurfaceUrl } from './spawnerUrl';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
@@ -647,14 +648,17 @@ function findMissionInBoard(board: Record<string, unknown>, missionId: string): 
   return null;
 }
 
+function spawnerFetchOptions(signal: AbortSignal): RequestInit {
+  const headers = spawnerAuthHeaders();
+  return Object.keys(headers).length > 0 ? { signal, headers } : { signal };
+}
+
 async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEntry | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
-      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/board`, {
-        signal: controller.signal
-      });
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/board`, spawnerFetchOptions(controller.signal));
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       const board = asRecord(payload?.board);
@@ -671,9 +675,7 @@ async function fetchMissionBoardEntry(missionId: string): Promise<MissionBoardEn
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
-      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-        signal: controller.signal
-      });
+      const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, spawnerFetchOptions(controller.signal));
       if (!response.ok) return null;
       const payload = asRecord(await response.json());
       if (!payload) return null;
@@ -747,9 +749,7 @@ async function fetchMissionCompletionSummary(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
       try {
-        const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, {
-          signal: controller.signal
-        });
+        const response = await fetch(`${spawnerUiUrl()}/api/mission-control/trace?mission=${encodeURIComponent(missionId)}`, spawnerFetchOptions(controller.signal));
         if (!response.ok) continue;
         const payload = asRecord(await response.json());
         if (!payload) continue;
@@ -1893,6 +1893,10 @@ export async function sendFetchedCompletionSummaryForTests(
   completion: MissionCompletionSummary
 ): Promise<number> {
   return sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+}
+
+export function fetchMissionCompletionSummaryForTests(missionId: string): Promise<MissionCompletionSummary | null> {
+  return fetchMissionCompletionSummary(missionId);
 }
 
 export function formatCompletionSummaryDeliveryFailureLogForTests(missionId: string, error: unknown): string {

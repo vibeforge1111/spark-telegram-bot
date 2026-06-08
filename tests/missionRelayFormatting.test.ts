@@ -10,6 +10,7 @@ import {
   formatMissionHeartbeatForTelegram,
   formatProgressMessageForTelegram,
   getTelegramRelayIdentity,
+  fetchMissionCompletionSummaryForTests,
   formatProviderCompletionForTelegram,
   formatMissionRelayStateMessageForTelegram,
   isCompletionDeliveryCachedForTests,
@@ -1549,6 +1550,65 @@ void (async () => {
       resetJsonStateForTests();
       if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
       else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+    }
+  });
+
+  await asyncTest('fetches Spawner completion summaries with control auth headers', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalMcpKey = process.env.MCP_API_KEY;
+    const originalEventsKey = process.env.EVENTS_API_KEY;
+    const originalUiKey = process.env.SPARK_UI_API_KEY;
+    try {
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+      delete process.env.MCP_API_KEY;
+      delete process.env.EVENTS_API_KEY;
+      delete process.env.SPARK_UI_API_KEY;
+
+      let capturedUrl = '';
+      let capturedHeaders: RequestInit['headers'] | undefined;
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        capturedUrl = String(input);
+        capturedHeaders = init?.headers;
+        return new Response(JSON.stringify({
+          phase: 'completed',
+          providerSummary: 'Built via authenticated trace readback.',
+          providerResults: [
+            {
+              providerId: 'codex',
+              status: 'completed',
+              summary: 'Fallback provider result.'
+            }
+          ],
+          projectLineage: {}
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        });
+      }) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-auth-readback');
+      const headers = capturedHeaders as Record<string, string>;
+
+      assert.match(capturedUrl, /\/api\/mission-control\/trace\?mission=mission-auth-readback$/);
+      assert.equal(headers['x-api-key'], 'trace-read-secret');
+      assert.equal(headers['x-spawner-ui-key'], 'trace-read-secret');
+      assert.equal(completion?.providerLabel, 'codex');
+      assert.equal(completion?.response, 'Built via authenticated trace readback.');
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalMcpKey === undefined) delete process.env.MCP_API_KEY;
+      else process.env.MCP_API_KEY = originalMcpKey;
+      if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
+      else process.env.EVENTS_API_KEY = originalEventsKey;
+      if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
+      else process.env.SPARK_UI_API_KEY = originalUiKey;
     }
   });
 
