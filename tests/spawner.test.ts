@@ -50,12 +50,13 @@ function restoreEnv(): void {
 
 function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
   if (toolName === 'spawner.creator_mission.status') return 'read_only';
+  if (toolName === 'spawner.mission_control.command') return 'controls_mission';
   if (toolName === 'creator.mission.create' || toolName === 'spawner.creator_mission') return 'creates_chip';
   return 'launches_mission';
 }
 
 function fakeMissionControlAuthority(): unknown {
-  return fakeExecutionAuthority('spawner.mission_control');
+  return fakeExecutionAuthority('spawner.mission_control.command');
 }
 
 function fakeExecutionAuthority(

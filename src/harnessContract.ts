@@ -21,6 +21,7 @@ export type SparkHarnessMutationClass =
   | 'writes_memory'
   | 'writes_files'
   | 'launches_mission'
+  | 'controls_mission'
   | 'creates_schedule'
   | 'deletes_schedule'
   | 'creates_chip'
@@ -270,7 +271,7 @@ function mutationClassesForPolicy(policy: SparkHarnessExecutionPolicy): SparkHar
   const classes: SparkHarnessMutationClass[] = ['none', 'read_only'];
   if (policy.canWriteMemory) classes.push('writes_memory');
   if (policy.canMutateFiles) classes.push('writes_files');
-  if (policy.canLaunchMission) classes.push('launches_mission');
+  if (policy.canLaunchMission) classes.push('launches_mission', 'controls_mission');
   if (policy.canCreateSchedule) classes.push('creates_schedule');
   if (policy.canDeleteSchedule) classes.push('deletes_schedule');
   if (policy.canCreateChip) classes.push('creates_chip');

@@ -1362,11 +1362,25 @@ export const spawner = {
   },
 
   async missionCommand(action: MissionAction, missionId: string, options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string }> {
-    const authorityError = executionAuthorityError(options.executionAuthority, {
-      toolName: 'spawner.mission_control',
-      ownerSystem: 'spawner-ui',
-      actionType: 'launch_mission'
-    });
+    const missionControlAuthorityExpectation = action === 'status'
+      ? [
+          {
+            toolName: 'spawner.mission_control.command',
+            ownerSystem: 'spawner-ui',
+            actionType: 'read' as const
+          },
+          {
+            toolName: 'spawner.mission_control.command',
+            ownerSystem: 'spawner-ui',
+            actionType: 'run_command' as const
+          }
+        ]
+      : {
+          toolName: 'spawner.mission_control.command',
+          ownerSystem: 'spawner-ui',
+          actionType: 'run_command' as const
+        };
+    const authorityError = executionAuthorityError(options.executionAuthority, missionControlAuthorityExpectation);
     if (authorityError) {
       return { success: false, message: authorityError };
     }

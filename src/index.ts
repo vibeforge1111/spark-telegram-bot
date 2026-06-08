@@ -3346,9 +3346,9 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string, en
     ? telegramBranchActionAuthorityDecision(envelope, {
         route: 'spawner.mission_control',
         text,
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         ownerSystem: 'spawner-ui',
-        mutationClass: 'launches_mission',
+        mutationClass: 'controls_mission',
         action: 'spawner.mission_cancel_confirm',
         kind: 'build_or_spawner',
         confidence: 'contextual'
@@ -3369,7 +3369,7 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string, en
     markMissionRelayCancelled(pending.missionId);
   }
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     status: result.success ? 'success' : 'failure',
     summary: result.commandSent
       ? `Natural mission cancel confirmation sent kill for ${pending.missionId}.`
@@ -8774,9 +8774,9 @@ bot.command('mission', async (ctx) => {
     commandName: 'mission',
     route: 'spawner.mission_control',
     text: ctx.message.text,
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     ownerSystem: 'spawner-ui',
-    mutationClass: action === 'status' ? 'read_only' : 'launches_mission',
+    mutationClass: action === 'status' ? 'read_only' : 'controls_mission',
     action: `spawner.mission_${action}`,
     kind: 'build_or_spawner'
   });
@@ -8790,7 +8790,7 @@ bot.command('mission', async (ctx) => {
     executionAuthority: authorization.governorDecision
   });
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     status: result.success ? 'success' : 'failure',
     summary: result.success
       ? `Slash /mission ${action} completed for ${missionId}.`
@@ -10665,9 +10665,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_resume',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10684,7 +10684,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         markMissionRelayResumed(result.missionId);
       }
       recordTelegramHarnessCoreExecution(missionResumeAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.commandSent && result.missionId
           ? `Natural mission resume sent resume for ${result.missionId}.`
@@ -10698,9 +10698,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_pause',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10717,7 +10717,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         markMissionRelayPaused(result.missionId);
       }
       recordTelegramHarnessCoreExecution(missionPauseAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.commandSent && result.missionId
           ? `Natural mission pause sent pause for ${result.missionId}.`
@@ -10731,9 +10731,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_cancel_prepare',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10752,7 +10752,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         });
       }
       recordTelegramHarnessCoreExecution(missionCancelAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.needsConfirmation && result.missionId
           ? `Natural mission cancel prepared confirmation for ${result.missionId}.`
