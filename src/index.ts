@@ -108,7 +108,7 @@ import {
   type RecursiveCommand
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
-import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { resolveSpawnerUiUrl, resolveTelegramSpawnerSurfaceUrl } from './spawnerUrl';
 import { readNoEditProbeMission, storeNoEditProbeMission, type NoEditProbeMission } from './noEditProbeStore';
 import {
   isLocalWorkspaceInspectionOnlyRequest,
@@ -5253,9 +5253,9 @@ export async function handleClarificationAnswers(
       updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
     });
 
-    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
-    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
-    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+    const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
+    const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, newRequestId, missionId);
+    const kanbanUrl = missionBoardUrl(telegramSurfaceUrl);
     await ctx.reply(formatBuildMissionQueuedReply({
       lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.',
       projectName,
@@ -5271,7 +5271,7 @@ export async function handleClarificationAnswers(
       requestId: newRequestId,
       missionId,
       spawnerUrl,
-      publicSpawnerUrl,
+      telegramSurfaceUrl,
       canvasUrl,
       kanbanUrl,
       buildLane,
@@ -5298,9 +5298,9 @@ function startPrdCanvasReadyNotifier(args: {
   userId: number;
   projectName: string;
   requestId: string;
-  missionId: string;
-  spawnerUrl: string;
-	publicSpawnerUrl: string;
+	missionId: string;
+	spawnerUrl: string;
+	telegramSurfaceUrl: string;
 	canvasUrl: string;
 	kanbanUrl: string;
 	buildLane?: BuildLane;
@@ -5352,7 +5352,7 @@ function startPrdCanvasReadyNotifier(args: {
             }
             const taskCount = queue.data?.taskCount;
             const readyCanvasUrl = queue.data?.canvasUrl
-              ? `${args.publicSpawnerUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
+              ? `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
               : args.canvasUrl;
             const elapsed = Math.round((Date.now() - started) / 1000);
             rememberLatestCanvasPlan(args.chatId, args.userId, {
@@ -6894,9 +6894,9 @@ export function latestCanvasPlanFromLoadState(state: any, baseUrl: string): Late
 }
 
 async function readLatestCanvasPlanFromSpawnerState(): Promise<LatestCanvasPlan | null> {
-  const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
+  const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
   const state = await readJsonFile<any>(spawnerUiStatePath('last-canvas-load.json'));
-  return latestCanvasPlanFromLoadState(state, publicSpawnerUrl);
+  return latestCanvasPlanFromLoadState(state, telegramSurfaceUrl);
 }
 
 export function isLatestCanvasPlanQuestion(text: string): boolean {
@@ -7275,9 +7275,9 @@ export async function handleBuildIntent(
       return { status: 'partial', summary: `Spawner requested clarification before dispatching ${polishedProjectName}.`, requestId, traceRef };
     }
 
-    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
-    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
-    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+    const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
+    const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, requestId, missionId);
+    const kanbanUrl = missionBoardUrl(telegramSurfaceUrl);
 
     await registerMissionRelay({
       missionId,
@@ -7324,7 +7324,7 @@ export async function handleBuildIntent(
       requestId,
       missionId,
       spawnerUrl,
-      publicSpawnerUrl,
+      telegramSurfaceUrl,
       canvasUrl,
       kanbanUrl,
       buildLane,

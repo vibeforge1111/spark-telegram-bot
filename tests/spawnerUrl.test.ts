@@ -4,6 +4,7 @@ import {
   normalizeSpawnerUrlEnv,
   resolveProjectPreviewBaseUrl,
   resolveSpawnerPublicUrl,
+  resolveTelegramSpawnerSurfaceUrl,
   resolveSpawnerUiUrl
 } from '../src/spawnerUrl';
 
@@ -52,6 +53,25 @@ test('uses public URL for Telegram-facing links', () => {
 
   assert.equal(resolveSpawnerPublicUrl(env), 'https://spawner-demo.up.railway.app');
   assert.equal(resolveProjectPreviewBaseUrl(env), 'https://spawner-demo.up.railway.app');
+});
+
+test('uses local Spawner URL for native Telegram interaction surfaces by default', () => {
+  const env = {
+    SPAWNER_UI_URL: 'http://127.0.0.1:3333',
+    SPAWNER_UI_PUBLIC_URL: 'https://mission.sparkswarm.ai'
+  } as NodeJS.ProcessEnv;
+
+  assert.equal(resolveTelegramSpawnerSurfaceUrl(env), 'http://127.0.0.1:3333');
+});
+
+test('allows an explicit Telegram Spawner surface override', () => {
+  const env = {
+    SPAWNER_UI_URL: 'http://127.0.0.1:3333',
+    SPAWNER_UI_PUBLIC_URL: 'https://mission.sparkswarm.ai',
+    SPAWNER_TELEGRAM_SURFACE_URL: 'https://operator-access.example.test'
+  } as NodeJS.ProcessEnv;
+
+  assert.equal(resolveTelegramSpawnerSurfaceUrl(env), 'https://operator-access.example.test');
 });
 
 test('falls back to local Spawner URL', () => {

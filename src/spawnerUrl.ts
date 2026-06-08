@@ -23,4 +23,12 @@ export function resolveProjectPreviewBaseUrl(env: NodeJS.ProcessEnv = process.en
   return (env.SPARK_PROJECT_PREVIEW_URL || resolveSpawnerPublicUrl(env)).trim();
 }
 
+export function resolveTelegramSpawnerSurfaceUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.SPAWNER_TELEGRAM_SURFACE_URL ||
+    env.SPARK_TELEGRAM_SPAWNER_URL ||
+    resolveSpawnerUiUrl(env)
+  ).trim();
+}
+
 normalizeSpawnerUrlEnv();

@@ -6,7 +6,7 @@ import { relaySecretMatches, requireRelaySecret } from './launchMode';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { redactIdentifier, redactText } from './redaction';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
-import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
+import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl, resolveTelegramSpawnerSurfaceUrl } from './spawnerUrl';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 const MISSION_LESSON_APPROVAL_PATH = resolveStatePath('.spark-mission-lesson-approvals.json');
@@ -538,6 +538,10 @@ function spawnerPublicUrl(): string {
   return resolveSpawnerPublicUrl().replace(/\/+$/, '');
 }
 
+function spawnerTelegramSurfaceUrl(): string {
+  return resolveTelegramSpawnerSurfaceUrl().replace(/\/+$/, '');
+}
+
 export function buildMissionSurfaceLinks(
   missionId: string,
   preference: TelegramMissionLinkPreference,
@@ -574,7 +578,7 @@ function shouldIncludeRequestedMissionControlLinks(goal?: string): boolean {
 
 function requestedMissionControlLinkLines(missionId: string, goal?: string): string[] {
   if (!shouldIncludeRequestedMissionControlLinks(goal)) return [];
-  const baseUrl = spawnerPublicUrl();
+  const baseUrl = spawnerTelegramSurfaceUrl();
   const missionQuery = `mission=${encodeURIComponent(missionId)}`;
   return [
     `Canvas: ${baseUrl}/canvas?${missionQuery}`,

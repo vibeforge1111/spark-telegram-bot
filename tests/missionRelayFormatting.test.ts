@@ -188,6 +188,37 @@ test('no-edit probe completions include requested Mission Control inspect links'
   assert.doesNotMatch(message, /^Mission: spark-1778935217687$/m);
 });
 
+test('requested Mission Control inspect links stay on the native Telegram surface', () => {
+  const originalInternalUrl = process.env.SPAWNER_UI_URL;
+  const originalPublicUrl = process.env.SPAWNER_UI_PUBLIC_URL;
+  const originalSurfaceUrl = process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+  process.env.SPAWNER_UI_URL = 'http://127.0.0.1:3333';
+  process.env.SPAWNER_UI_PUBLIC_URL = 'https://mission.sparkswarm.ai';
+  delete process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+
+  try {
+    const message = formatProviderCompletionForTelegram({
+      providerLabel: 'codex',
+      missionId: 'mission-local-canvas',
+      verbosity: 'normal',
+      goal: 'Share Canvas/Kanban/View Execution for this Spawner run.',
+      response: 'Codex: SPARK_LINK_SURFACE_OK'
+    });
+
+    assert.match(message, /Canvas: http:\/\/127\.0\.0\.1:3333\/canvas\?mission=mission-local-canvas/);
+    assert.match(message, /Kanban: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-local-canvas/);
+    assert.doesNotMatch(message, /mission\.sparkswarm\.ai/);
+    assert.doesNotMatch(message, /spark-live\/login/);
+  } finally {
+    if (originalInternalUrl === undefined) delete process.env.SPAWNER_UI_URL;
+    else process.env.SPAWNER_UI_URL = originalInternalUrl;
+    if (originalPublicUrl === undefined) delete process.env.SPAWNER_UI_PUBLIC_URL;
+    else process.env.SPAWNER_UI_PUBLIC_URL = originalPublicUrl;
+    if (originalSurfaceUrl === undefined) delete process.env.SPAWNER_TELEGRAM_SURFACE_URL;
+    else process.env.SPAWNER_TELEGRAM_SURFACE_URL = originalSurfaceUrl;
+  }
+});
+
 test('formats structured provider failures without raw JSON noise', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',
