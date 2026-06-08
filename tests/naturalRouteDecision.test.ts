@@ -90,6 +90,20 @@ test('routes live Harness authority build briefs as Spawner builds, not architec
   assert.deepEqual(route.matched_signals, ['build_intent']);
 });
 
+test('routes concrete build briefs with incidental chip and QA nouns as Spawner builds', () => {
+  const route = decideNaturalRoute(
+    'Build a compact local Harness Authority Drift Lab app with Spawner. It should help tonight by tracking fresh-intent authority checks, Spawner mission progress, memory and KB QA notes, domain-chip QA notes, registry/runtime drift, rollback steps, and Telegram proof results. Include a concise README, one smoke test, and a simple local UI. Build it now.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [

@@ -434,6 +434,7 @@ export function decideNaturalRoute(
     /\b(?:benchmark\s+pack|benchmarks?|evals?|evaluation\s+pack|test\s+suite|speciali[sz]ation\s+path|autoloop(?:\s+policy)?|auto\s+loop|swarm\s+(?:review|contribution)\s+packet|shareable\s+insight\s+packet|insight\s+packet|review\s+packet|reusable\s+template|loop\s+template|specialization\s+template)\b/i.test(normalized);
   const harnessArchitectureQuestion = isHarnessArchitectureChatQuestion(normalized);
   const concreteBuildBrief = isConcreteBuildBrief(normalized, buildIntent);
+  const concreteStandaloneBuildBrief = concreteBuildBrief && !chipBrief;
   if (isGlobalDoctrineLikeRequest(normalized)) {
     return decision({
       route: 'agent_doctrine.global_blocked',
@@ -462,7 +463,12 @@ export function decideNaturalRoute(
     });
   }
 
-  if (buildIntent && !isNoExecutionBoundary(normalized) && (!harnessArchitectureQuestion || concreteBuildBrief) && !earlyCreatorMission && !conversationalIdeation) {
+  if (
+    buildIntent &&
+    !isNoExecutionBoundary(normalized) &&
+    (!harnessArchitectureQuestion || concreteBuildBrief) &&
+    ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
+  ) {
     return decision({
       route: 'spawner.build',
       owner_system: 'spawner-ui',

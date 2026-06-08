@@ -514,8 +514,11 @@ function isBuildContextRecallProbe(text: string): boolean {
 function isPreBuildShapingRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
-    /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
-    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    (
+      /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
+      /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    ) ||
+    /\b(?:before|prior\s+to)\b.{0,100}\b(?:can|should|could|would)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute)\b.{0,120}\b(?:what\s+(?:would|should|does)|how\s+(?:would|should|does)|harness|proof|evidence|checks?)\b/.test(normalized)
   );
 }
 

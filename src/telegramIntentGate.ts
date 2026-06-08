@@ -188,15 +188,19 @@ function isDomainChipCreateRequest(text: string): boolean {
 function isExplicitSpawnerBuildRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
+  const domainChipCreateRequest = isDomainChipCreateRequest(normalized);
+  const buildIntent = parseBuildIntent(text);
   if (
     !normalized ||
     (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
-    (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
-    isDomainChipCreateRequest(normalized) ||
     isScheduleDeleteRequest(normalized) ||
     isCreatorBenchmarkPackRequest(normalized)
   ) return false;
-  if (parseBuildIntent(text)) return true;
+  if (buildIntent && !domainChipCreateRequest) return true;
+  if (
+    (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
+    domainChipCreateRequest
+  ) return false;
   if (explicitNoEditMission) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
   const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
