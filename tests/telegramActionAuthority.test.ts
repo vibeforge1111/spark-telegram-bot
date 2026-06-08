@@ -155,6 +155,27 @@ test('allows concrete Spawner builds when chip and QA words are requirements, no
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('allows Spawner continuity board builds without stale chip-memory boundary drift', () => {
+  const text = 'Build a compact local Spawner Continuity Board with Spawner for tonight. It should track old Spawner features we must preserve, Harness Core authority gates, runtime health, memory and KB QA notes, domain-chip QA notes, Telegram proof, registry drift, rollback steps, and the next live QA queue. Include a simple README and one smoke test. Build it now.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
 test('signs Telegram Governor decisions when an HMAC key is configured', () => withGovernorHmacEnv(() => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

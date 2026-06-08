@@ -168,9 +168,10 @@ export function classifyStaleContextAuthorityBoundary(text: string): StaleContex
     return 'stale_memory_restart';
   }
 
+  const staleChipMemoryReference =
+    /\b(?:memory\s+(?:may\s+say|says?|said|from\s+(?:last\s+week|yesterday|earlier|before))|(?:old|stale|earlier|previous|yesterday'?s)\s+(?:chip\s+)?memory|(?:old|stale|earlier|previous|yesterday'?s)\s+memory\s+(?:about|for)\s+(?:a\s+)?(?:chip|domain[-\s]*chip))\b/.test(normalized);
   if (
-    /\bmemory\b/.test(normalized) &&
-    /\b(?:yesterday|old|stale|earlier|previous)\b/.test(normalized) &&
+    staleChipMemoryReference &&
     /\b(?:chip|domain[-\s]*chip)\b/.test(normalized) &&
     /\b(?:make|create|build|scaffold|generate)\b/.test(normalized) &&
     /\b(?:today|now|this\s+turn|should|can)\b/.test(normalized)

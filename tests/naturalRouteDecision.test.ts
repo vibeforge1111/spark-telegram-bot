@@ -104,6 +104,20 @@ test('routes concrete build briefs with incidental chip and QA nouns as Spawner 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes Spawner continuity board builds before stale chip-memory boundaries', () => {
+  const route = decideNaturalRoute(
+    'Build a compact local Spawner Continuity Board with Spawner for tonight. It should track old Spawner features we must preserve, Harness Core authority gates, runtime health, memory and KB QA notes, domain-chip QA notes, Telegram proof, registry drift, rollback steps, and the next live QA queue. Include a simple README and one smoke test. Build it now.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [
