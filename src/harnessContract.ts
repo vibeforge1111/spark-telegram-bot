@@ -285,7 +285,10 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'memory.delete') tools.push('memory.delete');
   if (decision.route === 'memory.recall') tools.push('memory.recall');
   if (decision.route === 'memory.doctor') tools.push('memory.diagnose', 'builder.telegram_bridge');
-  if (/spark_wiki/.test(decision.route)) tools.push('spark_wiki.query');
+  if (decision.route === 'spark_wiki.status') tools.push('spark_wiki.status');
+  if (decision.route === 'spark_wiki.inventory') tools.push('spark_wiki.inventory');
+  if (decision.route === 'spark_wiki.query') tools.push('spark_wiki.query');
+  if (decision.route === 'spark_wiki.answer') tools.push('spark_wiki.answer');
   if (decision.route === 'spark_wiki.promote' || decision.route === 'spark.wiki') tools.push('spark_wiki.promote');
   if (/access/.test(decision.route)) tools.push('access.status');
   if (decision.route === 'access.help') tools.push('access.help');

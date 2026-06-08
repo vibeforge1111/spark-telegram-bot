@@ -4255,7 +4255,7 @@ bot.command('self', async (ctx) => {
 function authorizeWikiPromoteCommand(ctx: any, text: string): TelegramActionAuthorityResult {
   return telegramCommandActionAuthorityDecision(ctx, {
     commandName: 'wiki',
-    route: 'spark.wiki',
+    route: 'spark_wiki.promote',
     text,
     toolName: 'spark_wiki.promote',
     ownerSystem: 'spark-intelligence-builder',
@@ -4265,9 +4265,59 @@ function authorizeWikiPromoteCommand(ctx: any, text: string): TelegramActionAuth
   });
 }
 
+type SparkWikiReadRoute = 'spark_wiki.status' | 'spark_wiki.inventory' | 'spark_wiki.query' | 'spark_wiki.answer';
+
+function authorizeWikiReadCommand(ctx: any, text: string, route: SparkWikiReadRoute): TelegramActionAuthorityResult {
+  return telegramCommandActionAuthorityDecision(ctx, {
+    commandName: 'wiki',
+    route,
+    text,
+    toolName: route,
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: route,
+    kind: 'wiki_or_knowledge'
+  });
+}
+
+function authorizeNaturalWikiRead(
+  turnIntentEnvelope: TurnIntentEnvelopeV1,
+  text: string,
+  route: SparkWikiReadRoute
+): TelegramActionAuthorityResult {
+  return telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+    route,
+    text,
+    toolName: route,
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: route,
+    kind: 'wiki_or_knowledge'
+  });
+}
+
+function recordWikiReadExecution(
+  authorization: TelegramActionAuthorityResult | null | undefined,
+  route: SparkWikiReadRoute,
+  status: 'not_started' | 'success' | 'failure',
+  summary: string
+): void {
+  recordTelegramHarnessCoreExecution(authorization, {
+    toolName: route,
+    status,
+    summary
+  });
+}
+
+async function replyWikiReadAuthorityBlocked(ctx: any): Promise<void> {
+  await ctx.reply('I did not read the wiki because the fresh turn did not authorize that read.');
+}
+
 bot.command('wiki', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   let promoteAuthorization: TelegramActionAuthorityResult | null = null;
+  let readAuthorization: TelegramActionAuthorityResult | null = null;
+  let readRoute: SparkWikiReadRoute | null = null;
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
     const promoteMatch = text.match(/^\/wiki(?:@\w+)?\s+promote(?:\s+(candidate|verified))?\s+(.+)$/i);
@@ -4275,9 +4325,26 @@ bot.command('wiki', async (ctx) => {
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
     promoteAuthorization = promoteMatch?.[2]?.trim() ? authorizeWikiPromoteCommand(ctx, text) : null;
+    readRoute = promoteAuthorization
+      ? null
+      : answerMatch?.[1]?.trim()
+      ? 'spark_wiki.answer'
+      : queryMatch?.[1]?.trim()
+      ? 'spark_wiki.query'
+      : wantsInventory
+      ? 'spark_wiki.inventory'
+      : 'spark_wiki.status';
+    readAuthorization = readRoute ? authorizeWikiReadCommand(ctx, text, readRoute) : null;
     if (promoteAuthorization && !promoteAuthorization.allow) {
       await replyTelegramCommandAuthorityBlocked(ctx);
       return;
+    }
+    if (readAuthorization && !readAuthorization.allow) {
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'not_started', `Telegram /wiki ${readRoute} read authorized before Builder wiki call.`);
     }
     const result = promoteMatch?.[2]?.trim()
       ? await runBuilderWikiPromoteImprovement({
@@ -4309,6 +4376,9 @@ bot.command('wiki', async (ctx) => {
         summary: 'Telegram /wiki promote routed a knowledge promotion through Builder.'
       });
     }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'success', `Telegram /wiki ${readRoute} read completed through Builder.`);
+    }
     await ctx.reply(result.replyText);
   } catch (err: any) {
     if (promoteAuthorization) {
@@ -4317,6 +4387,9 @@ bot.command('wiki', async (ctx) => {
         status: 'failure',
         summary: `Telegram /wiki promote failed: ${err instanceof Error ? err.message : String(err)}`
       });
+    }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'failure', `Telegram /wiki ${readRoute} read failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
@@ -10142,21 +10215,39 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.inventory');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'not_started', 'Natural Spark wiki inventory read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'success', 'Natural Spark wiki inventory read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'failure', `Natural Spark wiki inventory read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   const wikiAnswerQuestion = earlyBuildIntent ? null : extractSparkWikiAnswerQuestion(text);
   if (wikiAnswerQuestion) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.answer');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'not_started', 'Natural Spark wiki answer read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiAnswer({
         question: wikiAnswerQuestion,
@@ -10167,33 +10258,59 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         currentMessage: text,
       });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'success', 'Natural Spark wiki answer read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'failure', `Natural Spark wiki answer read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   const wikiQuery = earlyBuildIntent ? null : extractSparkWikiQuery(text);
   if (wikiQuery) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.query');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'not_started', 'Natural Spark wiki query read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'success', 'Natural Spark wiki query read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'failure', `Natural Spark wiki query read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   if (!earlyBuildIntent && isSparkWikiStatusQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.status');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'not_started', 'Natural Spark wiki status read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiStatus({ refresh: true });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'success', 'Natural Spark wiki status read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'failure', `Natural Spark wiki status read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;

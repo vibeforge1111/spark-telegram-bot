@@ -287,6 +287,29 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
   assert.ok(fileEditResult.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
+test('natural wiki reads require Harness read authority and tool ledgers', () => {
+  const text = 'search your wiki for Telegram route mistakes';
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spark_wiki.query',
+    text,
+    toolName: 'spark_wiki.query',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spark_wiki.query');
+  assert.equal(envelope.executionPolicy.canWriteMemory, false);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.harnessCore?.envelope.selected_move, 'read_current_state');
+  assert.equal(result.harnessCore?.authorization.verdict, 'allow');
+  assert.equal(result.harnessCoreLedger?.tool_name, 'spark_wiki.query');
+  assert.equal(result.governorDecision?.outcome, 'read_only');
+  assert.equal(result.consumerVerification?.allowed, true);
+});
+
 test('allows explicit no-edit Mission Control diagnostics through Spawner', () => {
   const text = 'Run a deliberately slow no-edit Mission Control diagnostic through Spawner. It should only prove live running-state UI and reply with SPARK_E2E_SLOW_NO_EDIT_OK after waiting about 30 seconds. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.';
   const envelope = envelopeFor(text);

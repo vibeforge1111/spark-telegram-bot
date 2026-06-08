@@ -322,7 +322,7 @@ test('memory and wiki mutation commands authorize through command envelopes', ()
   const wiki = commandAuth({
     text: '/wiki promote verified Harness Core owns action authority',
     commandName: 'wiki',
-    route: 'spark.wiki',
+    route: 'spark_wiki.promote',
     toolName: 'spark_wiki.promote',
     ownerSystem: 'spark-intelligence-builder',
     mutationClass: 'writes_memory',
@@ -333,6 +333,56 @@ test('memory and wiki mutation commands authorize through command envelopes', ()
   assert.equal(remember.allow, true);
   assert.equal(forget.allow, true);
   assert.equal(wiki.allow, true);
+});
+
+test('wiki read commands authorize read-only tools through command envelopes', () => {
+  const query = commandAuth({
+    text: '/wiki query Harness Core authority ledgers',
+    commandName: 'wiki',
+    route: 'spark_wiki.query',
+    toolName: 'spark_wiki.query',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: 'spark_wiki.query',
+    kind: 'wiki_or_knowledge'
+  });
+  const answer = commandAuth({
+    text: '/wiki answer how should route tracing work?',
+    commandName: 'wiki',
+    route: 'spark_wiki.answer',
+    toolName: 'spark_wiki.answer',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: 'spark_wiki.answer',
+    kind: 'wiki_or_knowledge'
+  });
+  const inventory = commandAuth({
+    text: '/wiki pages',
+    commandName: 'wiki',
+    route: 'spark_wiki.inventory',
+    toolName: 'spark_wiki.inventory',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: 'spark_wiki.inventory',
+    kind: 'wiki_or_knowledge'
+  });
+  const status = commandAuth({
+    text: '/wiki status',
+    commandName: 'wiki',
+    route: 'spark_wiki.status',
+    toolName: 'spark_wiki.status',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: 'spark_wiki.status',
+    kind: 'wiki_or_knowledge'
+  });
+
+  for (const result of [query, answer, inventory, status]) {
+    assert.equal(result.allow, true);
+    assert.equal(result.toolAuthorization.verdict, 'allowed');
+    assert.equal(result.harnessCore?.authorization.verdict, 'allow');
+    assert.equal(result.governorDecision?.outcome, 'read_only');
+  }
 });
 
 test('memory and wiki mutation commands block contradictory no-write language', () => {
@@ -349,7 +399,7 @@ test('memory and wiki mutation commands block contradictory no-write language', 
   const wiki = commandAuth({
     text: '/wiki promote Harness Core owns action authority but do not promote it',
     commandName: 'wiki',
-    route: 'spark.wiki',
+    route: 'spark_wiki.promote',
     toolName: 'spark_wiki.promote',
     ownerSystem: 'spark-intelligence-builder',
     mutationClass: 'writes_memory',
