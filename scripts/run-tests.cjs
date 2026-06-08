@@ -22,6 +22,7 @@ const tests = [
   'tests/harnessContract.test.ts',
   'tests/harnessCoreVNext.test.ts',
   'tests/harnessCoreLedger.test.ts',
+  'tests/harnessExecutionAuthority.test.ts',
   'tests/legacyAuthorityInventory.test.ts',
   'tests/telegramActionAuthority.test.ts',
   'tests/telegramCommandAuthority.test.ts',

@@ -3,6 +3,7 @@ import {
   type GovernorDecisionV1,
   type HarnessCoreActionType
 } from '@spark/harness-core';
+import { governorHmacKey, governorHmacKeyId } from './governorSignature';
 
 export interface HarnessExecutionAuthorityExpectation {
   toolName: string;
@@ -33,6 +34,7 @@ export function harnessExecutionAuthorityFailureReason(
   if (!governorDecision) return 'missing_or_malformed_governor_decision';
 
   const expectations = Array.isArray(expected) ? expected : [expected];
+  const hmacKey = governorHmacKey();
   const failures: string[] = [];
   for (const expectation of expectations) {
     const verification = verifyHarnessCoreGovernorToolAuthority({
@@ -42,7 +44,10 @@ export function harnessExecutionAuthorityFailureReason(
       action_type: expectation.actionType,
       action_id: expectation.actionId,
       allow_read_only: expectation.actionType === 'read',
-      require_pre_execution_ledger: true
+      require_pre_execution_ledger: true,
+      governor_hmac_key: hmacKey || null,
+      governor_hmac_key_id: hmacKey ? governorHmacKeyId() : null,
+      require_signature: Boolean(hmacKey)
     });
     if (verification.allowed) return null;
     failures.push(`${expectation.toolName}:${verification.reason_codes.join(',')}`);
