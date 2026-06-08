@@ -175,6 +175,7 @@ test('authorizes live Spawner build briefs without granting incidental health or
   const prompts = [
     "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.",
     'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.',
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.',
     'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.',
     'Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.'
   ];
@@ -212,6 +213,26 @@ test('authorizes live Spawner build briefs without granting incidental health or
     assert.equal(localServiceAuthorization.verdict, 'blocked', prompt);
     assert.ok(localServiceAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'), prompt);
   }
+});
+
+test('blocks read-only relay proof pad status wording from launching Spawner', () => {
+  const envelope = envelopeFor('Show the latest Harness Core authority gate, Spawner trace readback, and Telegram final handoff status for the relay proof pad. Do not build anything.');
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.notEqual(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+
+  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(spawnerAuthorization.verdict, 'blocked');
+  assert.ok(spawnerAuthorization.reasonCodes.includes('no_execution_boundary'));
+  assert.ok(spawnerAuthorization.reasonCodes.includes('tool_denied_by_policy'));
+  assert.ok(spawnerAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
 test('keeps quoted drafted high-agency examples answer-only', () => {

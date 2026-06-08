@@ -112,6 +112,10 @@ test('live Spawner product briefs do not route incidental health/open words', ()
   );
   assertRoutesToBuild('Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.', 'Spark Live Status Dashboard');
   assertRoutesToBuild('Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.', 'Spark Health Operations Board');
+  assertRoutesToBuild(
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.',
+    'Spawner Relay Readback Proof Pad'
+  );
 });
 
 test('mission titles stay readable for simple game and path-derived builds', () => {
@@ -141,6 +145,10 @@ test('non-build utility requests still route away from builder', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('show me the current Spawner/Kanban board'), 'board');
   assert.equal(parseBuildIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), null);
   assert.equal(parseSpawnerBoardNaturalIntent('what is currently running or paused in Mission Control? keep it short and do not start anything.'), 'active_missions');
+  assert.equal(
+    parseBuildIntent('Show the latest Harness Core authority gate, Spawner trace readback, and Telegram final handoff status for the relay proof pad. Do not build anything.'),
+    null
+  );
 
   assert.equal(parseBuildIntent('scan my desktop projects'), null);
   assert.equal(isLocalWorkspaceInspectionOnlyRequest('scan my desktop projects'), false);

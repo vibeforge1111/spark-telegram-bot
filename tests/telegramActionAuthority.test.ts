@@ -176,6 +176,27 @@ test('allows Spawner continuity board builds without stale chip-memory boundary 
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('allows Spawner relay proof pad builds without board/status route drift', () => {
+  const text = 'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
 test('signs Telegram Governor decisions when an HMAC key is configured', () => withGovernorHmacEnv(() => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

@@ -129,7 +129,7 @@ export function polishBuildProjectName(value: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system|board)\s+(?:for\s+)?spark$/i);
+  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system|board|pad)\s+(?:for\s+)?spark$/i);
   if (genericSparkMatch) {
     const noun = genericSparkMatch[1].toLowerCase() === 'something' || genericSparkMatch[1].toLowerCase() === 'anything'
       ? 'App'
@@ -146,7 +146,7 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
   const patterns = [
     new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
     new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
@@ -160,6 +160,9 @@ function inferProductPhraseProjectName(prd: string): string | null {
     'private',
     'local',
     'local-first',
+    'tiny',
+    'small',
+    'compact',
     'simple',
     'quick',
     'practical',

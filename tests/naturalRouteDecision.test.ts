@@ -118,6 +118,20 @@ test('routes Spawner continuity board builds before stale chip-memory boundaries
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes Spawner relay proof pad builds before board or release-status reads', () => {
+  const route = decideNaturalRoute(
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [
