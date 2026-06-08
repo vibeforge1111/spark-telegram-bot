@@ -543,6 +543,42 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('natural live-status product build reaches PRD bridge instead of health answer', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		ctx.message.text = 'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, `expected PRD bridge write; replies=${JSON.stringify(replies)}`);
+		assert.match(writeCall!.body.content, /Spark Live Status Dashboard/);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
+		assert.match(replies.join('\n'), /Setting up Spark Live Status Dashboard/);
+		assert.doesNotMatch(replies.join('\n'), /Spark is healthy|Live loop|No repair action needed/i);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('build intent fails closed before PRD bridge when authority is missing', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

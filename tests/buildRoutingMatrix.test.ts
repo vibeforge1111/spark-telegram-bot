@@ -106,6 +106,8 @@ test('live Spawner product briefs do not route incidental health/open words', ()
   const prompt = "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.";
 
   assertRoutesToBuild(prompt, 'Harness Release Ops Mission Board');
+  assertRoutesToBuild('Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.', 'Spark Live Status Dashboard');
+  assertRoutesToBuild('Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.', 'Spark Health Operations Board');
 });
 
 test('mission titles stay readable for simple game and path-derived builds', () => {

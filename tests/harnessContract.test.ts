@@ -172,39 +172,45 @@ test('keeps old mission route bug descriptions answer-only', () => {
 });
 
 test('authorizes live Spawner build briefs without granting incidental health or local-service reads', () => {
-  const envelope = envelopeFor(
-    "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now."
-  );
+  const prompts = [
+    "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.",
+    'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.',
+    'Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.'
+  ];
 
-  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
-  assert.equal(envelope.selectedIntent.kind, 'build_or_spawner');
-  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
-  assert.equal(envelope.selectedIntent.action, 'spawner.build');
-  assert.equal(envelope.executionPolicy.canLaunchMission, true);
-  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'));
+  for (const prompt of prompts) {
+    const envelope = envelopeFor(prompt);
 
-  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    mutationClass: 'launches_mission'
-  });
-  assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] });
+    assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+    assert.equal(envelope.selectedIntent.kind, 'build_or_spawner', prompt);
+    assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui', prompt);
+    assert.equal(envelope.selectedIntent.action, 'spawner.build', prompt);
+    assert.equal(envelope.executionPolicy.canLaunchMission, true, prompt);
+    assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'), prompt);
 
-  const healthAuthorization = authorizeToolCallFromEnvelope(envelope, {
-    toolName: 'spark.read_only_state',
-    ownerSystem: 'spark-telegram-bot',
-    mutationClass: 'read_only'
-  });
-  assert.equal(healthAuthorization.verdict, 'blocked');
-  assert.ok(healthAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+    const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+    assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] }, prompt);
 
-  const localServiceAuthorization = authorizeToolCallFromEnvelope(envelope, {
-    toolName: 'spawner.local_service',
-    ownerSystem: 'spark-telegram-bot',
-    mutationClass: 'read_only'
-  });
-  assert.equal(localServiceAuthorization.verdict, 'blocked');
-  assert.ok(localServiceAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+    const healthAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    assert.equal(healthAuthorization.verdict, 'blocked', prompt);
+    assert.ok(healthAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'), prompt);
+
+    const localServiceAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.local_service',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    assert.equal(localServiceAuthorization.verdict, 'blocked', prompt);
+    assert.ok(localServiceAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'), prompt);
+  }
 });
 
 test('keeps quoted drafted high-agency examples answer-only', () => {

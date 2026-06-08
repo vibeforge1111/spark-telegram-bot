@@ -678,7 +678,8 @@ function isSparkCapabilityMakeRequest(description: string): boolean {
   const normalized = description.replace(/\s+/g, ' ').trim();
   const lowered = normalized.toLowerCase();
   const productArtifact =
-    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
+    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized) ||
+    /^(?:a\s+|an\s+|the\s+)?spark\s+[a-z0-9 -]{0,50}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
   const explicitSparkOwner =
     /^(?:(?:my|our)\s+)?spark\b|^(?:you|your|yourself|the\s+agent|my\s+agent|our\s+agent|agents?)\b/i.test(normalized);
   const capabilitySurface =

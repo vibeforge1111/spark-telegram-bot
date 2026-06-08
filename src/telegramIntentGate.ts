@@ -447,6 +447,29 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     return observedNaturalRouteDecision(constraints, naturalRoute);
   }
 
+  const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
+  if (isExplicitSpawnerBuildRequest(normalized)) {
+    return makeDecision({
+      kind: 'build_or_spawner',
+      route: 'spawner.build',
+      owner_system: 'spawner-ui',
+      action: 'spawner.build',
+      confidence: constraints.noExecution ? 'blocked' : 'explicit',
+      constraints,
+      payload: {
+        ...basePayload(naturalRoute),
+        ...(explicitSpawnerNoEditMission ? { noFileMutation: true } : {})
+      },
+      matched_signals: [explicitSpawnerNoEditMission ? 'explicit_spawner_no_edit_mission' : 'explicit_spawner_build'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'spawner.build'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit project build request owns the turn over incidental routing signals.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
+  }
+
   if (isLiveSparkHealthQuestion(normalized)) {
     return makeDecision({
       kind: 'runtime_truth_or_operator',
@@ -478,29 +501,6 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       matched_signals: ['explicit_benchmark_pack_creator'],
       blocked_candidates: naturalRoute && naturalRoute.route !== 'creator.mission'
         ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit benchmark-pack creation owns the turn over advisory chat routing.')]
-        : [],
-      supporting_routes: supportingRoutes(naturalRoute),
-      enforcement: 'observe',
-      natural_route: naturalRoute
-    });
-  }
-
-  const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
-  if (isExplicitSpawnerBuildRequest(normalized)) {
-    return makeDecision({
-      kind: 'build_or_spawner',
-      route: 'spawner.build',
-      owner_system: 'spawner-ui',
-      action: 'spawner.build',
-      confidence: constraints.noExecution ? 'blocked' : 'explicit',
-      constraints,
-      payload: {
-        ...basePayload(naturalRoute),
-        ...(explicitSpawnerNoEditMission ? { noFileMutation: true } : {})
-      },
-      matched_signals: [explicitSpawnerNoEditMission ? 'explicit_spawner_no_edit_mission' : 'explicit_spawner_build'],
-      blocked_candidates: naturalRoute && naturalRoute.route !== 'spawner.build'
-        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit project build request owns the turn over incidental routing signals.')]
         : [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'observe',
