@@ -13,7 +13,11 @@ import {
   governorDecisionSignaturePayload,
   type GovernorDecisionSignatureV1
 } from '../src/governorSignature';
-import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
+import {
+  classifyTelegramIntentV2,
+  isTelegramIntentGateV2SafeRoute,
+  shouldEnforceTelegramIntentGateV2
+} from '../src/telegramIntentGate';
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 
 function test(name: string, fn: () => void): void {
@@ -369,6 +373,26 @@ test('allows explicit provider runs through provider policy', () => {
     externalNetwork: true
   });
 
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
+test('classifies memory directives without letting Intent Gate V2 execute them', () => {
+  const text = 'Remember that tonight I prefer concise Harness release updates.';
+  const decision = classifyTelegramIntentV2(text);
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'memory.write',
+    text,
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+
+  assert.equal(decision.route, 'memory.write');
+  assert.equal(decision.enforcement, 'enforce_safe');
+  assert.equal(isTelegramIntentGateV2SafeRoute(decision), false);
+  assert.equal(shouldEnforceTelegramIntentGateV2(decision), false);
   assert.equal(result.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });

@@ -899,7 +899,6 @@ export function isTelegramIntentGateV2SafeRoute(decision: TelegramIntentDecision
     'startup.answer_improvement_canary',
     'startup.proof_readout',
     'startup.founder_advice',
-    'memory.write',
     'access.status',
     'access.help',
     'conversation.quoted_drafted_example_boundary'

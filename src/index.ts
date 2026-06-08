@@ -2825,27 +2825,6 @@ async function handleTelegramIntentGateV2SafeRoute(
     `[IntentGateV2] selected=${decision.route} kind=${decision.kind} owner=${decision.owner_system} natural=${naturalRouteShadow?.route || 'none'} blocked=${blockedRoutes || 'none'}`
   );
 
-  if (decision.route === 'memory.write') {
-    const directive = typeof decision.payload.directive === 'string'
-      ? decision.payload.directive
-      : extractPlainChatMemoryDirective(text);
-    const memoryAuthorization = directive
-      ? telegramActionAuthorityDecision(envelope, {
-      route: 'memory.write',
-      text,
-      toolName: 'memory.write',
-      ownerSystem: 'domain-chip-memory',
-      mutationClass: 'writes_memory'
-    })
-      : null;
-    if (!directive || !memoryAuthorization?.allow) {
-      return false;
-    }
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    await handlePlainChatMemoryDirective(ctx, user, text, directive, memoryAuthorization);
-    return true;
-  }
-
   if (decision.route === 'access.status') {
     const accessStatusAuthorization = telegramAccessReadAuthorityDecision(envelope, 'access.status', text);
     if (!accessStatusAuthorization.allow) {
@@ -2944,13 +2923,6 @@ async function handleTelegramIntentGateV2SafeRoute(
 }
 
 function toolAuthorizationForTelegramIntent(decision: TelegramIntentDecisionV2): ToolAuthorizationInput | null {
-  if (decision.route === 'memory.write') {
-    return {
-      toolName: 'memory.write',
-      ownerSystem: 'domain-chip-memory',
-      mutationClass: 'writes_memory'
-    };
-  }
   if (decision.route === 'access.status') {
     return {
       toolName: 'access.status',
@@ -9917,6 +9889,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
     return;
   }
+  const memoryDirectiveAuthorization = memoryDirective
+    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'memory.write',
+        text,
+        toolName: 'memory.write',
+        ownerSystem: 'domain-chip-memory',
+        mutationClass: 'writes_memory'
+      })
+    : null;
+  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
+    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
+    return;
+  }
   if (!earlyBuildIntent && naturalRouteShadow?.route !== 'chat_plan' && shouldPreferConversationalIdeation(text)) {
     console.log(`[ConversationIntent] early ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
     const ideationAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
@@ -10011,20 +9996,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-  const memoryDirectiveAuthorization = memoryDirective
-    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
-        route: 'memory.write',
-        text,
-        toolName: 'memory.write',
-        ownerSystem: 'domain-chip-memory',
-        mutationClass: 'writes_memory'
-      })
-    : null;
-  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
-    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
-    return;
-  }
-
   if (!earlyBuildIntent && isStartupReleaseBoundaryQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
