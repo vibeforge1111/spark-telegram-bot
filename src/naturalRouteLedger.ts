@@ -1,3 +1,4 @@
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -68,7 +69,16 @@ export function naturalRouteLedgerPath(env: NodeJS.ProcessEnv = process.env): st
 }
 
 export function shouldWriteNaturalRouteLedger(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SPARK_NATURAL_ROUTE_LEDGER !== '0';
+  const mode = env.SPARK_NATURAL_ROUTE_LEDGER?.trim();
+  if (mode === '0') return false;
+  if (mode === '1') return true;
+  if (env.SPARK_BOT_TEST_MODE === '1' && !env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim()) return false;
+  return true;
+}
+
+export function shouldWriteNaturalRouteLedgerSynchronously(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.SPARK_NATURAL_ROUTE_LEDGER_STRICT === '1') return true;
+  return env.SPARK_BOT_TEST_MODE === '1' && Boolean(env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim());
 }
 
 export function createNaturalRouteExecutionRecord(input: NaturalRouteExecutionRecordInput): NaturalRouteExecutionRecord {
@@ -105,6 +115,14 @@ export async function appendNaturalRouteExecutionRecord(
 ): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await appendFile(filePath, `${serializeNaturalRouteExecutionRecord(record)}\n`, 'utf-8');
+}
+
+export function appendNaturalRouteExecutionRecordSync(
+  record: NaturalRouteExecutionRecord,
+  filePath = naturalRouteLedgerPath()
+): void {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  appendFileSync(filePath, `${serializeNaturalRouteExecutionRecord(record)}\n`, 'utf-8');
 }
 
 export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExecutionRecord[] {

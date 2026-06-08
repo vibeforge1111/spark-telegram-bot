@@ -347,9 +347,11 @@ import { recordHarnessCoreExecutionLedger } from './harnessCoreLedger';
 import { renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
 import {
   appendNaturalRouteExecutionRecord,
+  appendNaturalRouteExecutionRecordSync,
   createNaturalRouteExecutionRecord,
   type NaturalRouteExecutionDelivery,
-  shouldWriteNaturalRouteLedger
+  shouldWriteNaturalRouteLedger,
+  shouldWriteNaturalRouteLedgerSynchronously
 } from './naturalRouteLedger';
 import { getLatestShippedProjectContext } from './shippedProjectContext';
 import axios from 'axios';
@@ -2375,6 +2377,10 @@ function recordNaturalRouteExecution(
     executedAction,
     delivery
   });
+  if (shouldWriteNaturalRouteLedgerSynchronously()) {
+    appendNaturalRouteExecutionRecordSync(record);
+    return;
+  }
   void appendNaturalRouteExecutionRecord(record).catch((error) => {
     console.warn('[NaturalRoute] execution ledger write failed:', error);
   });

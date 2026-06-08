@@ -5497,6 +5497,7 @@ async function run(): Promise<void> {
 		const oldPath = process.env.PATH || '';
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
@@ -5599,6 +5600,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-help-ledger-'));
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
