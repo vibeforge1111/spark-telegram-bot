@@ -174,6 +174,7 @@ test('keeps old mission route bug descriptions answer-only', () => {
 test('authorizes live Spawner build briefs without granting incidental health or local-service reads', () => {
   const prompts = [
     "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.",
+    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.',
     'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.',
     'Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.'
   ];

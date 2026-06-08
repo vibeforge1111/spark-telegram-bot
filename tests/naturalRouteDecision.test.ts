@@ -77,6 +77,19 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes live Harness authority build briefs as Spawner builds, not architecture chat', () => {
+  const route = decideNaturalRoute(
+    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+});
+
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
   const route = decideNaturalRoute('where did we land?', {
     recentMessages: [

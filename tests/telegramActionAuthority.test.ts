@@ -56,6 +56,11 @@ function envelopeForDecision(text: string, decision: ReturnType<typeof classifyT
   });
 }
 
+function envelopeForNaturalRoute(text: string) {
+  const naturalRouteDecision = decideNaturalRoute(text);
+  return envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
+}
+
 function withGovernorHmacEnv(fn: () => void): void {
   const previousKey = process.env.SPARK_GOVERNOR_HMAC_KEY;
   const previousKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
@@ -106,6 +111,26 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.allowed, true);
   assert.equal(result.consumerVerification?.decision_id, result.governorDecision?.decision_id);
   assert.equal(result.consumerVerification?.ledger_id, result.harnessCoreLedger?.ledger_id);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+});
+
+test('allows live Harness authority build prompt through Spawner instead of architecture chat', () => {
+  const text = 'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
 });
 

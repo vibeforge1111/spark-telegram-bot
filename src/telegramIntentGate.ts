@@ -9,6 +9,7 @@ import {
   isAccessStatusQuestion,
   isBrowserComputerUseAuthorizationBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionBoundary,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isSparkWikiInventoryQuestion,
@@ -186,9 +187,17 @@ function isDomainChipCreateRequest(text: string): boolean {
 
 function isExplicitSpawnerBuildRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized || isDomainChipCreateRequest(normalized) || isScheduleDeleteRequest(normalized) || isCreatorBenchmarkPackRequest(normalized)) return false;
+  const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
+  if (
+    !normalized ||
+    (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
+    (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
+    isDomainChipCreateRequest(normalized) ||
+    isScheduleDeleteRequest(normalized) ||
+    isCreatorBenchmarkPackRequest(normalized)
+  ) return false;
   if (parseBuildIntent(text)) return true;
-  if (isExplicitSpawnerNoEditMissionRequest(normalized)) return true;
+  if (explicitNoEditMission) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
   const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
   return (
