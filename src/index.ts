@@ -2391,6 +2391,28 @@ function naturalRecursiveStatusTarget(rawCommand: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
+const NATURAL_RECURSIVE_READ_ACTIONS = new Set([
+  'sessions',
+  'paths',
+  'session',
+  'status',
+  'compare',
+  'evidence',
+  'report',
+  'trace',
+  'review'
+]);
+
+function renderNaturalRecursiveExplicitCommandReply(rawCommand: string, parsed: RecursiveCommand): string {
+  const command = `/recursive ${rawCommand}`;
+  const actionLabel = parsed.action === 'start'
+    ? 'starts recursive benchmark work'
+    : ['package', 'sync', 'promote', 'canvas', 'propose', 'approve', 'defer', 'reject', 'more-eval'].includes(parsed.action)
+      ? `can ${parsed.action} or mutate recursive evidence`
+      : 'is not a read-only recursive report';
+  return `I can answer recursive status and reports from natural chat, but \`${rawCommand}\` ${actionLabel}. Use \`${command}\` when you want that action to run.`;
+}
+
 function isNaturalSparkQaBenchmarkRunQuestion(text: string): boolean {
   const normalized = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || isNoExecutionBoundary(normalized)) return false;
@@ -2500,15 +2522,25 @@ async function handleNaturalRecursiveRoute(
   if (!conversation.isAdmin(ctx.from)) return false;
   const rawCommand = naturalRecursiveRawCommand(decision);
   if (!rawCommand) return false;
+  const parsed = parseRecursiveCommand(rawCommand);
+  if (!parsed) return false;
 
   await conversation.remember(user, text).catch(() => {});
 
-  if (/^start\b/i.test(rawCommand)) {
+  if (parsed.action === 'start') {
     recordNaturalRouteExecution(ctx, decision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
     const target = rawCommand.replace(/^start\s+/i, '').replace(/\s+rounds\s+\d+\s*$/i, '').trim();
     const reply = target
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
       : 'I can run that loop, but it starts benchmark work. Use the explicit `/recursive start <target> rounds <n>` command when you want it live.';
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  if (!NATURAL_RECURSIVE_READ_ACTIONS.has(parsed.action)) {
+    recordNaturalRouteExecution(ctx, decision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
+    const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, parsed);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
@@ -9975,7 +10007,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	  })) {
     await conversation.remember(user, text).catch(() => {});
     const submitArg = naturalRecursiveProposal.submit ? ' submit' : '';
-    await handleRecursiveCommand(ctx, `propose ${naturalRecursiveProposal.target}${submitArg}`);
+    const rawCommand = `propose ${naturalRecursiveProposal.target}${submitArg}`;
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
+    const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, { action: 'propose', id: naturalRecursiveProposal.target, proposeArgs: submitArg ? ['submit'] : [] });
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {

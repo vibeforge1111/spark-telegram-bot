@@ -2631,7 +2631,7 @@ async function run(): Promise<void> {
 			restoreEnv();
 		});
 
-		await test('creator loop template package route is not stolen by creator/schedule/chat fallbacks', async () => {
+		await test('creator loop template package route requires explicit recursive command', async () => {
 			restoreAxios();
 			const testUserId = 8319079055;
 			process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
@@ -2732,15 +2732,15 @@ async function run(): Promise<void> {
 					await indexModule.handleTextMessage(ctx);
 
 				const reply = replies.join('\n');
-					assert.equal(packageCalls, 1, reply);
+					assert.equal(packageCalls, 0, reply);
 				assert.equal(runCalls, 0);
 				assert.ok(!captured.some((c) => c.url.includes('/api/creator/mission')), 'template request should not stage a creator mission');
 				assert.ok(!captured.some((c) => c.url.includes('/api/scheduled')), 'template request should not be treated as schedule work');
 				assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'template request should not start a build');
-				assert.match(reply, /I packaged Startup YC's proof locally/);
-				assert.match(reply, /Nothing was published or shared/);
-				assert.match(reply, /ready for private template review/);
+				assert.match(reply, /Use `\/recursive package startup-yc`/);
+				assert.match(reply, /natural chat/i);
 				assert.doesNotMatch(reply, /No run or publishing yet/);
+				assert.doesNotMatch(reply, /I packaged Startup YC's proof locally/);
 				assert.doesNotMatch(reply, /Intent creator path/i);
 				assert.doesNotMatch(reply, /I caught 'schedule'|Show what's scheduled|Which\?/i);
 				} finally {
