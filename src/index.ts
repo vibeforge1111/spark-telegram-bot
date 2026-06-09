@@ -5255,7 +5255,7 @@ export async function handleClarificationAnswers(
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
     const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, newRequestId, missionId);
-    const kanbanUrl = missionBoardUrl(telegramSurfaceUrl);
+    const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
     await ctx.reply(formatBuildMissionQueuedReply({
       lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.',
       projectName,
@@ -5351,6 +5351,21 @@ function startPrdCanvasReadyNotifier(args: {
               return;
             }
             const taskCount = queue.data?.taskCount;
+            const canvasMaterialization = queue.data?.canvasMaterialization;
+            const materializedNodeCount = typeof canvasMaterialization?.nodeCount === 'number'
+              ? canvasMaterialization.nodeCount
+              : 0;
+            const pairedNodeCount = typeof canvasMaterialization?.pairedNodeCount === 'number'
+              ? canvasMaterialization.pairedNodeCount
+              : 0;
+            if (queue.data?.canvasMaterialized !== true || materializedNodeCount <= 0 || pairedNodeCount <= 0) {
+              await bot.telegram.sendMessage(args.chatId, telegramBlocks(
+                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
+                'I am not sending a canvas link yet because Spawner did not prove materialized nodes and skill pairings.',
+                `Board: ${args.kanbanUrl}`
+              ));
+              return;
+            }
             const readyCanvasUrl = queue.data?.canvasUrl
               ? `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
               : args.canvasUrl;
@@ -5369,7 +5384,8 @@ function startPrdCanvasReadyNotifier(args: {
               analysis: poll.data.result,
               tier: args.tier,
               readyCanvasUrl,
-              kanbanUrl: args.kanbanUrl
+              kanbanUrl: args.kanbanUrl,
+              canvasMaterialization
             }));
           } catch (queueErr: any) {
             await bot.telegram.sendMessage(
@@ -5820,8 +5836,10 @@ function formatBuildMissionQueuedReply(input: {
       : 'direct build';
   return telegramBlocks(
     input.lead,
-    `🛠️ Setting up ${input.projectName} as a ${modeText}. Canvas next.`,
-    input.projectPath ? ['Workspace', `• ${input.projectPath}`].join('\n') : null,
+    `Setting up ${input.projectName} as a ${modeText}.`,
+    `Board: ${input.kanbanUrl}`,
+    'I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized.',
+    input.projectPath ? ['Workspace', `- ${input.projectPath}`].join('\n') : null,
   );
 }
 
@@ -6614,17 +6632,31 @@ export function formatCanvasReadySummary(args: {
 	tier?: SkillTier;
   readyCanvasUrl: string;
   kanbanUrl: string;
+  canvasMaterialization?: {
+    nodeCount?: number;
+    pairedNodeCount?: number;
+    skillCount?: number;
+    pairingStatus?: string;
+  };
 }): string {
   const tasks = Array.isArray(args.analysis?.tasks) ? args.analysis.tasks : [];
   const rawTaskCount = typeof args.taskCount === 'number' ? args.taskCount : tasks.length;
   const taskCount = Number.isFinite(rawTaskCount) ? rawTaskCount : 0;
+  const pairedNodeCount = typeof args.canvasMaterialization?.pairedNodeCount === 'number'
+    ? args.canvasMaterialization.pairedNodeCount
+    : 0;
+  const skillCount = typeof args.canvasMaterialization?.skillCount === 'number'
+    ? args.canvasMaterialization.skillCount
+    : 0;
+  const skillClause = skillCount > 0 ? ` and ${skillCount} ${skillCount === 1 ? 'skill' : 'skills'}` : '';
   const buildStepLine = taskCount > 0
-    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} and is moving now.`
+    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} with ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}${skillClause}.`
     : 'Spark is moving into the build now.';
   return telegramBlocks(
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
-    ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
+    ['Canvas', `- ${args.readyCanvasUrl}`].join('\n'),
+    `Board: ${args.kanbanUrl}`
   );
 }
 
@@ -7277,7 +7309,7 @@ export async function handleBuildIntent(
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
     const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, requestId, missionId);
-    const kanbanUrl = missionBoardUrl(telegramSurfaceUrl);
+    const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
 
     await registerMissionRelay({
       missionId,
