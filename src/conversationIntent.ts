@@ -168,9 +168,10 @@ export function classifyStaleContextAuthorityBoundary(text: string): StaleContex
     return 'stale_memory_restart';
   }
 
+  const staleChipMemoryReference =
+    /\b(?:memory\s+(?:may\s+say|says?|said|from\s+(?:last\s+week|yesterday|earlier|before))|(?:old|stale|earlier|previous|yesterday'?s)\s+(?:chip\s+)?memory|(?:old|stale|earlier|previous|yesterday'?s)\s+memory\s+(?:about|for)\s+(?:a\s+)?(?:chip|domain[-\s]*chip))\b/.test(normalized);
   if (
-    /\bmemory\b/.test(normalized) &&
-    /\b(?:yesterday|old|stale|earlier|previous)\b/.test(normalized) &&
+    staleChipMemoryReference &&
     /\b(?:chip|domain[-\s]*chip)\b/.test(normalized) &&
     /\b(?:make|create|build|scaffold|generate)\b/.test(normalized) &&
     /\b(?:today|now|this\s+turn|should|can)\b/.test(normalized)
@@ -1189,6 +1190,7 @@ export function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
+    /\bignore\b.{0,60}\bpending\s+(?:build|mission|project|work)\b.{0,80}\b(?:answer|explain|tell\s+me|summari[sz]e|recap)\b/,
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|open\s+(?:a\s+)?pr|remember|draft|canvas)\b/,
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|open\s+(?:a\s+)?pr|remember|draft|canvas)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
     /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
@@ -1476,6 +1478,7 @@ export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
+  if (parseBuildIntent(normalized)) return null;
   if (/\b(?:summari[sz]e|recap|tell\s+me|what\s+did|what\s+have)\b.*\b(?:team|we|our)\b.*\b(?:already\s+)?(?:tried|done|tested|checked|attempted|know|guesses?|assumptions?|open\s+questions?)\b/.test(normalized) ||
       /\b(?:facts?|guesses?|assumptions?|open\s+questions?|next\s+(?:safest\s+)?action)\b.*\b(?:invent(?:ing)?\s+history|already\s+tried|team\s+history|our\s+history)\b/.test(normalized)) {
     return null;

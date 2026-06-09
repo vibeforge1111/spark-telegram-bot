@@ -22,13 +22,17 @@ export function parseTelegramUserIds(raw: string | undefined): number[] {
     .filter((id) => Number.isSafeInteger(id) && id > 0);
 }
 
-const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+function currentAdminIds(): number[] {
+  return parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+}
 
-const ALLOWED_IDS: number[] = (
-  parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS)
-);
+function currentAllowedIds(): number[] {
+  return parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS);
+}
 
-const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+function publicChatEnabled(): boolean {
+  return process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+}
 
 interface TelegramUser {
   id: number;
@@ -306,15 +310,15 @@ export class ConversationMemory {
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
-    return ADMIN_IDS.includes(user.id);
+    return currentAdminIds().includes(user.id);
   }
 
   isAllowed(user: TelegramUser): boolean {
-    return PUBLIC_CHAT_ENABLED || this.isAdmin(user) || ALLOWED_IDS.includes(user.id);
+    return publicChatEnabled() || this.isAdmin(user) || currentAllowedIds().includes(user.id);
   }
 
   hasAnyOperatorConfigured(): boolean {
-    return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
+    return currentAdminIds().length > 0 || currentAllowedIds().length > 0 || publicChatEnabled();
   }
 
   private userKey(user: TelegramUser): number {

@@ -108,7 +108,7 @@ import {
   type RecursiveCommand
 } from './recursive';
 import { spawnerAxiosOptions } from './spawnerAuth';
-import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { resolveSpawnerUiUrl, resolveTelegramSpawnerSurfaceUrl } from './spawnerUrl';
 import { readNoEditProbeMission, storeNoEditProbeMission, type NoEditProbeMission } from './noEditProbeStore';
 import {
   isLocalWorkspaceInspectionOnlyRequest,
@@ -328,7 +328,9 @@ import {
   type TurnIntentEnvelopeV1
 } from './harnessContract';
 import {
+  buildSpawnerDispatchExecutionAuthority,
   buildSpawnerPrdWriteExecutionAuthority,
+  spawnerDispatchAuthorityBindingFailureReason,
   telegramBuildAuthorityFailureReason
 } from './spawnerPrdWriteAuthority';
 import {
@@ -346,9 +348,11 @@ import { recordHarnessCoreExecutionLedger } from './harnessCoreLedger';
 import { renderNaturalRouteDecisionReply } from './naturalRouteTelemetry';
 import {
   appendNaturalRouteExecutionRecord,
+  appendNaturalRouteExecutionRecordSync,
   createNaturalRouteExecutionRecord,
   type NaturalRouteExecutionDelivery,
-  shouldWriteNaturalRouteLedger
+  shouldWriteNaturalRouteLedger,
+  shouldWriteNaturalRouteLedgerSynchronously
 } from './naturalRouteLedger';
 import { getLatestShippedProjectContext } from './shippedProjectContext';
 import axios from 'axios';
@@ -390,6 +394,7 @@ import { buildVoiceBridgeUpdate } from './telegramVoiceBridge';
 import { formatVoiceMediaCaption } from './voiceCaption';
 import { writeTelegramVoiceBridgeRuntimeState } from './voiceRuntimeState';
 import { extractStartSession, recordTelegramFirstMessage } from './onboardingBridge';
+import { isLiveSparkHealthQuestion as isExplicitLiveSparkHealthQuestion } from './runtimeRouteGuards';
 
 export {
   isPendingClarificationAlternativeRequest,
@@ -399,7 +404,6 @@ export {
 export { isDomainChipPendingDirection } from './telegramPendingDomainChipEvidence';
 
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
-const TELEGRAM_LOCAL_MEMORY_NOTE_TOOL_NAME = 'telegram.local_memory_note';
 const execFileAsync = promisify(execFile);
 
 installConsoleRedaction();
@@ -517,6 +521,53 @@ const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
 const bot = new Telegraf(botToken, {
   handlerTimeout: telegramHandlerTimeoutMs()
 });
+let pollingStartedAt: string | null = null;
+let pollingLastGetUpdatesAttemptAt: string | null = null;
+let pollingLastGetUpdatesOkAt: string | null = null;
+let pollingGetUpdatesCount = 0;
+let pollingLastUpdateCount = 0;
+let pollingLastError: string | null = null;
+
+function publishPollingRuntimeStatus(state: 'starting' | 'active' | 'disabled'): void {
+  setMissionRelayRuntimeStatus({
+    telegramPolling: state,
+    pollingStartedAt,
+    pollingLastGetUpdatesAttemptAt,
+    pollingLastGetUpdatesOkAt,
+    pollingGetUpdatesCount,
+    pollingLastUpdateCount,
+    pollingLastError
+  });
+}
+
+const originalTelegramCallApi = bot.telegram.callApi.bind(bot.telegram);
+(bot.telegram as unknown as {
+  callApi: (method: string, payload?: unknown, signal?: unknown) => Promise<unknown>;
+}).callApi = async (method: string, payload?: unknown, signal?: unknown): Promise<unknown> => {
+  const isGetUpdates = method === 'getUpdates';
+  if (isGetUpdates) {
+    pollingLastGetUpdatesAttemptAt = new Date().toISOString();
+    pollingLastError = null;
+    publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+  }
+  try {
+    const result = await originalTelegramCallApi(method as never, payload as never, signal as never);
+    if (isGetUpdates) {
+      pollingLastGetUpdatesOkAt = new Date().toISOString();
+      pollingGetUpdatesCount += 1;
+      const updates = Array.isArray(result) ? result as unknown[] : [];
+      pollingLastUpdateCount = updates.length;
+      publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+    }
+    return result;
+  } catch (error) {
+    if (isGetUpdates) {
+      pollingLastError = redactText(error instanceof Error ? error.message : String(error));
+      publishPollingRuntimeStatus(pollingActive ? 'active' : 'starting');
+    }
+    throw error;
+  }
+};
 
 async function safeSendChatAction(ctx: any, action: 'typing'): Promise<void> {
   try {
@@ -663,15 +714,7 @@ function runtimeTruthSourceEvidence(text: string): TelegramSourceUsedEvidence[] 
 }
 
 function isLiveSparkHealthQuestion(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return false;
-  return (
-    /\bspark live status\b/.test(normalized) ||
-    /\blive spark health\b/.test(normalized) ||
-    /\bsame source as spark live status\b/.test(normalized) ||
-    /\b(?:check|show|refresh|inspect|probe|verify)\b.*\bspark\b.*\b(?:health|healthy|status|state|ready|working)\b/.test(normalized) ||
-    (/\bspawner\b/.test(normalized) && /\btelegram\b/.test(normalized) && /\b(?:supervised|running|stopped|health|live)\b/.test(normalized))
-  );
+  return isExplicitLiveSparkHealthQuestion(text);
 }
 
 function isDirectSparkRuntimeStatusQuestion(text: string): boolean {
@@ -2335,6 +2378,10 @@ function recordNaturalRouteExecution(
     executedAction,
     delivery
   });
+  if (shouldWriteNaturalRouteLedgerSynchronously()) {
+    appendNaturalRouteExecutionRecordSync(record);
+    return;
+  }
   void appendNaturalRouteExecutionRecord(record).catch((error) => {
     console.warn('[NaturalRoute] execution ledger write failed:', error);
   });
@@ -2349,6 +2396,28 @@ function naturalRecursiveRawCommand(decision: NaturalRouteDecision | null): stri
 function naturalRecursiveStatusTarget(rawCommand: string): string | null {
   const match = rawCommand.trim().match(/^status\s+(.+)$/i);
   return match?.[1]?.trim() || null;
+}
+
+const NATURAL_RECURSIVE_READ_ACTIONS = new Set([
+  'sessions',
+  'paths',
+  'session',
+  'status',
+  'compare',
+  'evidence',
+  'report',
+  'trace',
+  'review'
+]);
+
+function renderNaturalRecursiveExplicitCommandReply(rawCommand: string, parsed: RecursiveCommand): string {
+  const command = `/recursive ${rawCommand}`;
+  const actionLabel = parsed.action === 'start'
+    ? 'starts recursive benchmark work'
+    : ['package', 'sync', 'promote', 'canvas', 'propose', 'approve', 'defer', 'reject', 'more-eval'].includes(parsed.action)
+      ? `can ${parsed.action} or mutate recursive evidence`
+      : 'is not a read-only recursive report';
+  return `I can answer recursive status and reports from natural chat, but \`${rawCommand}\` ${actionLabel}. Use \`${command}\` when you want that action to run.`;
 }
 
 function isNaturalSparkQaBenchmarkRunQuestion(text: string): boolean {
@@ -2460,15 +2529,25 @@ async function handleNaturalRecursiveRoute(
   if (!conversation.isAdmin(ctx.from)) return false;
   const rawCommand = naturalRecursiveRawCommand(decision);
   if (!rawCommand) return false;
+  const parsed = parseRecursiveCommand(rawCommand);
+  if (!parsed) return false;
 
   await conversation.remember(user, text).catch(() => {});
 
-  if (/^start\b/i.test(rawCommand)) {
+  if (parsed.action === 'start') {
     recordNaturalRouteExecution(ctx, decision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
     const target = rawCommand.replace(/^start\s+/i, '').replace(/\s+rounds\s+\d+\s*$/i, '').trim();
     const reply = target
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
       : 'I can run that loop, but it starts benchmark work. Use the explicit `/recursive start <target> rounds <n>` command when you want it live.';
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return true;
+  }
+
+  if (!NATURAL_RECURSIVE_READ_ACTIONS.has(parsed.action)) {
+    recordNaturalRouteExecution(ctx, decision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
+    const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, parsed);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
@@ -2698,6 +2777,16 @@ function telegramActionEnvelope(
   });
 }
 
+function turnEnvelopeSelectsRoute(baseEnvelope: TurnIntentEnvelopeV1, route: string): boolean {
+  const selectedAction = baseEnvelope.selectedIntent.action || '';
+  const selectedRoute = baseEnvelope.candidates[0]?.route || '';
+  return selectedRoute === route || selectedAction === route || selectedAction.startsWith(`${route}.`);
+}
+
+function turnEnvelopeSelectsAnyRoute(baseEnvelope: TurnIntentEnvelopeV1, routes: string[]): boolean {
+  return routes.some((route) => turnEnvelopeSelectsRoute(baseEnvelope, route));
+}
+
 function telegramBranchActionAuthorityDecision(
   baseEnvelope: TurnIntentEnvelopeV1,
   input: TelegramActionAuthorityInput & {
@@ -2774,27 +2863,6 @@ async function handleTelegramIntentGateV2SafeRoute(
   console.log(
     `[IntentGateV2] selected=${decision.route} kind=${decision.kind} owner=${decision.owner_system} natural=${naturalRouteShadow?.route || 'none'} blocked=${blockedRoutes || 'none'}`
   );
-
-  if (decision.route === 'memory.write') {
-    const directive = typeof decision.payload.directive === 'string'
-      ? decision.payload.directive
-      : extractPlainChatMemoryDirective(text);
-    const memoryAuthorization = directive
-      ? telegramActionAuthorityDecision(envelope, {
-      route: 'memory.write',
-      text,
-      toolName: 'memory.write',
-      ownerSystem: 'domain-chip-memory',
-      mutationClass: 'writes_memory'
-    })
-      : null;
-    if (!directive || !memoryAuthorization?.allow) {
-      return false;
-    }
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    await handlePlainChatMemoryDirective(ctx, user, text, directive, memoryAuthorization);
-    return true;
-  }
 
   if (decision.route === 'access.status') {
     const accessStatusAuthorization = telegramAccessReadAuthorityDecision(envelope, 'access.status', text);
@@ -2894,13 +2962,6 @@ async function handleTelegramIntentGateV2SafeRoute(
 }
 
 function toolAuthorizationForTelegramIntent(decision: TelegramIntentDecisionV2): ToolAuthorizationInput | null {
-  if (decision.route === 'memory.write') {
-    return {
-      toolName: 'memory.write',
-      ownerSystem: 'domain-chip-memory',
-      mutationClass: 'writes_memory'
-    };
-  }
   if (decision.route === 'access.status') {
     return {
       toolName: 'access.status',
@@ -3286,9 +3347,9 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string, en
     ? telegramBranchActionAuthorityDecision(envelope, {
         route: 'spawner.mission_control',
         text,
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         ownerSystem: 'spawner-ui',
-        mutationClass: 'launches_mission',
+        mutationClass: 'controls_mission',
         action: 'spawner.mission_cancel_confirm',
         kind: 'build_or_spawner',
         confidence: 'contextual'
@@ -3309,7 +3370,7 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string, en
     markMissionRelayCancelled(pending.missionId);
   }
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     status: result.success ? 'success' : 'failure',
     summary: result.commandSent
       ? `Natural mission cancel confirmation sent kill for ${pending.missionId}.`
@@ -3834,12 +3895,6 @@ async function handlePlainChatMemoryDirective(
   });
 }
 
-async function saveSlashRememberLocally(user: any, text: string): Promise<boolean> {
-  void user;
-  void text;
-  return false;
-}
-
 async function buildLocalRecallReply(user: any, query: string): Promise<string | null> {
   void user;
   void query;
@@ -3919,25 +3974,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
       await ctx.reply(missionLessonReply);
       return;
     }
-    const localSaved = await saveSlashRememberLocally(ctx.from, text);
-    const builderRouted = await replyViaBuilder(ctx, `Please remember this: ${text}`);
-    recordTelegramHarnessCoreExecution(authorization, {
-      toolName: builderRouted
-        ? 'memory.write'
-        : localSaved
-          ? TELEGRAM_LOCAL_MEMORY_NOTE_TOOL_NAME
-          : 'memory.write',
-      status: builderRouted || localSaved ? 'success' : 'failure',
-      summary: builderRouted
-        ? 'Telegram /remember routed the memory write through Builder/domain-chip memory; Telegram local notes were not materialized.'
-        : localSaved
-          ? 'Telegram /remember stored only a Telegram-local note; durable Builder/domain-chip memory was not confirmed.'
-          : 'Telegram /remember could not persist because Builder/domain-chip memory was unavailable; Telegram local notes were not materialized.'
-    });
-    if (builderRouted) {
-      return;
-    }
-    await ctx.reply(buildMemoryBridgeUnavailableReply('remember'));
+    await handlePlainChatMemoryDirective(ctx, ctx.from, ctx.message.text, text, authorization);
   } catch (err) {
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'memory.write',
@@ -4219,7 +4256,7 @@ bot.command('self', async (ctx) => {
 function authorizeWikiPromoteCommand(ctx: any, text: string): TelegramActionAuthorityResult {
   return telegramCommandActionAuthorityDecision(ctx, {
     commandName: 'wiki',
-    route: 'spark.wiki',
+    route: 'spark_wiki.promote',
     text,
     toolName: 'spark_wiki.promote',
     ownerSystem: 'spark-intelligence-builder',
@@ -4229,9 +4266,59 @@ function authorizeWikiPromoteCommand(ctx: any, text: string): TelegramActionAuth
   });
 }
 
+type SparkWikiReadRoute = 'spark_wiki.status' | 'spark_wiki.inventory' | 'spark_wiki.query' | 'spark_wiki.answer';
+
+function authorizeWikiReadCommand(ctx: any, text: string, route: SparkWikiReadRoute): TelegramActionAuthorityResult {
+  return telegramCommandActionAuthorityDecision(ctx, {
+    commandName: 'wiki',
+    route,
+    text,
+    toolName: route,
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: route,
+    kind: 'wiki_or_knowledge'
+  });
+}
+
+function authorizeNaturalWikiRead(
+  turnIntentEnvelope: TurnIntentEnvelopeV1,
+  text: string,
+  route: SparkWikiReadRoute
+): TelegramActionAuthorityResult {
+  return telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+    route,
+    text,
+    toolName: route,
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: route,
+    kind: 'wiki_or_knowledge'
+  });
+}
+
+function recordWikiReadExecution(
+  authorization: TelegramActionAuthorityResult | null | undefined,
+  route: SparkWikiReadRoute,
+  status: 'not_started' | 'success' | 'failure',
+  summary: string
+): void {
+  recordTelegramHarnessCoreExecution(authorization, {
+    toolName: route,
+    status,
+    summary
+  });
+}
+
+async function replyWikiReadAuthorityBlocked(ctx: any): Promise<void> {
+  await ctx.reply('I did not read the wiki because the fresh turn did not authorize that read.');
+}
+
 bot.command('wiki', async (ctx) => {
   await safeSendChatAction(ctx, 'typing');
   let promoteAuthorization: TelegramActionAuthorityResult | null = null;
+  let readAuthorization: TelegramActionAuthorityResult | null = null;
+  let readRoute: SparkWikiReadRoute | null = null;
   try {
     const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
     const promoteMatch = text.match(/^\/wiki(?:@\w+)?\s+promote(?:\s+(candidate|verified))?\s+(.+)$/i);
@@ -4239,9 +4326,26 @@ bot.command('wiki', async (ctx) => {
     const queryMatch = text.match(/^\/wiki(?:@\w+)?\s+(?:search|query|find)\s+(.+)$/i);
     const wantsInventory = /\b(?:pages?|files?|notes?|inventory|index|contents?|vault|list|map)\b/i.test(text);
     promoteAuthorization = promoteMatch?.[2]?.trim() ? authorizeWikiPromoteCommand(ctx, text) : null;
+    readRoute = promoteAuthorization
+      ? null
+      : answerMatch?.[1]?.trim()
+      ? 'spark_wiki.answer'
+      : queryMatch?.[1]?.trim()
+      ? 'spark_wiki.query'
+      : wantsInventory
+      ? 'spark_wiki.inventory'
+      : 'spark_wiki.status';
+    readAuthorization = readRoute ? authorizeWikiReadCommand(ctx, text, readRoute) : null;
     if (promoteAuthorization && !promoteAuthorization.allow) {
       await replyTelegramCommandAuthorityBlocked(ctx);
       return;
+    }
+    if (readAuthorization && !readAuthorization.allow) {
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'not_started', `Telegram /wiki ${readRoute} read authorized before Builder wiki call.`);
     }
     const result = promoteMatch?.[2]?.trim()
       ? await runBuilderWikiPromoteImprovement({
@@ -4273,6 +4377,9 @@ bot.command('wiki', async (ctx) => {
         summary: 'Telegram /wiki promote routed a knowledge promotion through Builder.'
       });
     }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'success', `Telegram /wiki ${readRoute} read completed through Builder.`);
+    }
     await ctx.reply(result.replyText);
   } catch (err: any) {
     if (promoteAuthorization) {
@@ -4281,6 +4388,9 @@ bot.command('wiki', async (ctx) => {
         status: 'failure',
         summary: `Telegram /wiki promote failed: ${err instanceof Error ? err.message : String(err)}`
       });
+    }
+    if (readRoute) {
+      recordWikiReadExecution(readAuthorization, readRoute, 'failure', `Telegram /wiki ${readRoute} read failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
   }
@@ -5089,6 +5199,13 @@ export async function handleClarificationAnswers(
     projectName,
     traceRef
   });
+  const dispatchExecutionAuthority = buildSpawnerDispatchExecutionAuthority({
+    telegramExecutionAuthority: authorization.governorDecision,
+    requestId: newRequestId,
+    missionId,
+    projectName,
+    traceRef
+  });
 
   try {
     const res = await postLocalServiceWithRetry(
@@ -5137,9 +5254,8 @@ export async function handleClarificationAnswers(
       updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
     });
 
-    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
-    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
-    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+    const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
+    const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
     await ctx.reply(formatBuildMissionQueuedReply({
       lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.',
       projectName,
@@ -5155,11 +5271,11 @@ export async function handleClarificationAnswers(
       requestId: newRequestId,
       missionId,
       spawnerUrl,
-      publicSpawnerUrl,
-      canvasUrl,
+      telegramSurfaceUrl,
       kanbanUrl,
       buildLane,
-      tier
+      tier,
+      dispatchExecutionAuthority
     });
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'spawner.run',
@@ -5181,13 +5297,13 @@ function startPrdCanvasReadyNotifier(args: {
   userId: number;
   projectName: string;
   requestId: string;
-  missionId: string;
-  spawnerUrl: string;
-	publicSpawnerUrl: string;
-	canvasUrl: string;
+	missionId: string;
+	spawnerUrl: string;
+	telegramSurfaceUrl: string;
 	kanbanUrl: string;
 	buildLane?: BuildLane;
-	tier?: SkillTier;
+  tier?: SkillTier;
+	dispatchExecutionAuthority?: unknown;
 }): void {
   void (async () => {
     const started = Date.now();
@@ -5198,6 +5314,7 @@ function startPrdCanvasReadyNotifier(args: {
     const verbosity = await getTelegramRelayVerbosity(args.chatId).catch(() => 'normal' as const);
     const heartbeatThresholds = verbosity === 'verbose' && args.buildLane !== 'fast_direct' ? [120_000] : [];
     let heartbeatIndex = 0;
+    let pollFailureLogged = false;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 4000));
       if (shouldSuppressMissionHandoff(args.missionId)) {
@@ -5222,21 +5339,40 @@ function startPrdCanvasReadyNotifier(args: {
             }
             const queue = await axios.post(
               `${args.spawnerUrl}/api/prd-bridge/load-to-canvas`,
-              {
+              buildPrdLoadToCanvasRequestBody({
                 requestId: args.requestId,
                 missionId: args.missionId,
-                autoRun: false,
-                telegramRelay: getTelegramRelayIdentity()
-              },
+                dispatchExecutionAuthority: args.dispatchExecutionAuthority
+              }),
               spawnerAxiosOptions(8000)
             );
             if (shouldSuppressMissionHandoff(args.missionId)) {
               return;
             }
             const taskCount = queue.data?.taskCount;
-            const readyCanvasUrl = queue.data?.canvasUrl
-              ? `${args.publicSpawnerUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
-              : args.canvasUrl;
+            const canvasMaterialization = queue.data?.canvasMaterialization;
+            const materializationGate = canvasMaterializationReadyForTelegramHandoff({
+              canvasMaterialized: queue.data?.canvasMaterialized,
+              canvasMaterialization,
+              workflowHandoff: queue.data?.workflowHandoff
+            });
+            if (!materializationGate.ready) {
+              await bot.telegram.sendMessage(args.chatId, telegramBlocks(
+                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
+                `I am not sending a canvas link yet because Spawner did not prove a complete materialized workflow: ${materializationGate.reason}.`,
+                `Board: ${args.kanbanUrl}`
+              ));
+              return;
+            }
+            if (typeof queue.data?.canvasUrl !== 'string' || !queue.data.canvasUrl.trim()) {
+              await bot.telegram.sendMessage(args.chatId, telegramBlocks(
+                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
+                'I am not sending a canvas link yet because Spawner did not return a materialized canvas handoff.',
+                `Board: ${args.kanbanUrl}`
+              ));
+              return;
+            }
+            const readyCanvasUrl = `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`;
             const elapsed = Math.round((Date.now() - started) / 1000);
             rememberLatestCanvasPlan(args.chatId, args.userId, {
               projectName: args.projectName,
@@ -5252,17 +5388,32 @@ function startPrdCanvasReadyNotifier(args: {
               analysis: poll.data.result,
               tier: args.tier,
               readyCanvasUrl,
-              kanbanUrl: args.kanbanUrl
+              kanbanUrl: args.kanbanUrl,
+              canvasMaterialization
             }));
           } catch (queueErr: any) {
+            const detail = summarizeSpawnerRequestError(queueErr);
+            console.warn(
+              `[PRDCanvasReadyNotifier] load-to-canvas failed requestId=${args.requestId} missionId=${args.missionId}: ${detail}`
+            );
             await bot.telegram.sendMessage(
               args.chatId,
-              `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+              telegramBlocks(
+                `Analysis finished for ${args.projectName}, but Spawner could not queue the canvas handoff.`,
+                detail,
+                `Board: ${args.kanbanUrl}`
+              )
             );
           }
           return;
         }
-      } catch {
+      } catch (pollErr) {
+        if (!pollFailureLogged) {
+          pollFailureLogged = true;
+          console.warn(
+            `[PRDCanvasReadyNotifier] result poll failed requestId=${args.requestId} missionId=${args.missionId}: ${summarizeSpawnerRequestError(pollErr)}`
+          );
+        }
         // keep polling
       }
     }
@@ -5275,6 +5426,62 @@ function startPrdCanvasReadyNotifier(args: {
       kanbanUrl: args.kanbanUrl
     }));
   })();
+}
+
+export function summarizeSpawnerRequestError(error: unknown): string {
+  const err = error as {
+    message?: unknown;
+    code?: unknown;
+    response?: {
+      status?: unknown;
+      data?: unknown;
+    };
+  };
+  const status = typeof err?.response?.status === 'number' ? err.response.status : null;
+  const data = err?.response?.data;
+  let detail = '';
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    detail = typeof record.error === 'string'
+      ? record.error
+      : typeof record.message === 'string'
+        ? record.message
+        : JSON.stringify(record);
+  } else if (typeof data === 'string') {
+    detail = data;
+  }
+  if (!detail && typeof err?.message === 'string' && err.message.trim()) {
+    detail = err.message.trim();
+  }
+  if (!detail && typeof err?.code === 'string' && err.code.trim()) {
+    detail = err.code.trim();
+  }
+  if (!detail) detail = 'unknown error';
+  const compact = detail.replace(/\s+/g, ' ').trim().slice(0, 360);
+  return status ? `HTTP ${status}: ${compact}` : compact;
+}
+
+export function buildPrdLoadToCanvasRequestBody(args: {
+  requestId: string;
+  missionId: string;
+  dispatchExecutionAuthority?: unknown;
+}): Record<string, unknown> {
+  const authorityFailure = args.dispatchExecutionAuthority
+    ? spawnerDispatchAuthorityBindingFailureReason({
+        authority: args.dispatchExecutionAuthority,
+        requestId: args.requestId,
+        missionId: args.missionId
+      })
+    : 'missing_dispatch_authority';
+  const canAutoRun = Boolean(args.dispatchExecutionAuthority && !authorityFailure);
+  return {
+    requestId: args.requestId,
+    missionId: args.missionId,
+    autoRun: canAutoRun,
+    telegramRelay: getTelegramRelayIdentity(),
+    ...(canAutoRun ? { executionAuthority: args.dispatchExecutionAuthority } : {}),
+    ...(!canAutoRun && authorityFailure ? { dispatchAuthorityWithheld: authorityFailure } : {})
+  };
 }
 
 bot.command('clarify', async (ctx) => {
@@ -5689,8 +5896,10 @@ function formatBuildMissionQueuedReply(input: {
       : 'direct build';
   return telegramBlocks(
     input.lead,
-    `🛠️ Setting up ${input.projectName} as a ${modeText}. Canvas next.`,
-    input.projectPath ? ['Workspace', `• ${input.projectPath}`].join('\n') : null,
+    `Setting up ${input.projectName} as a ${modeText}.`,
+    `Board: ${input.kanbanUrl}`,
+    'I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized.',
+    input.projectPath ? ['Workspace', `- ${input.projectPath}`].join('\n') : null,
   );
 }
 
@@ -6483,18 +6692,68 @@ export function formatCanvasReadySummary(args: {
 	tier?: SkillTier;
   readyCanvasUrl: string;
   kanbanUrl: string;
+  canvasMaterialization?: {
+    nodeCount?: number;
+    pairedNodeCount?: number;
+    skillCount?: number;
+    pairingStatus?: string;
+  };
 }): string {
   const tasks = Array.isArray(args.analysis?.tasks) ? args.analysis.tasks : [];
   const rawTaskCount = typeof args.taskCount === 'number' ? args.taskCount : tasks.length;
   const taskCount = Number.isFinite(rawTaskCount) ? rawTaskCount : 0;
+  const pairedNodeCount = typeof args.canvasMaterialization?.pairedNodeCount === 'number'
+    ? args.canvasMaterialization.pairedNodeCount
+    : 0;
+  const skillCount = typeof args.canvasMaterialization?.skillCount === 'number'
+    ? args.canvasMaterialization.skillCount
+    : 0;
+  const skillClause = skillCount > 0 ? ` and ${skillCount} ${skillCount === 1 ? 'skill' : 'skills'}` : '';
   const buildStepLine = taskCount > 0
-    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} and is moving now.`
+    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} with ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}${skillClause}.`
     : 'Spark is moving into the build now.';
   return telegramBlocks(
     `Canvas is ready for ${args.projectName}.`,
     buildStepLine,
-    ['Canvas', `• ${args.readyCanvasUrl}`].join('\n')
+    ['Canvas', `- ${args.readyCanvasUrl}`].join('\n'),
+    `Board: ${args.kanbanUrl}`
   );
+}
+
+export type CanvasMaterializationForTelegram = {
+  nodeCount?: number;
+  pairedNodeCount?: number;
+  skillCount?: number;
+  pairingStatus?: string;
+};
+
+export type WorkflowHandoffForTelegram = {
+  status?: string;
+  reason?: string;
+  canvasUrl?: string | null;
+};
+
+export function canvasMaterializationReadyForTelegramHandoff(args: {
+  canvasMaterialized: unknown;
+  canvasMaterialization?: CanvasMaterializationForTelegram | null;
+  workflowHandoff?: WorkflowHandoffForTelegram | null;
+}): { ready: true; reason: 'ready' } | { ready: false; reason: string } {
+  const materialization = args.canvasMaterialization;
+  const nodeCount = typeof materialization?.nodeCount === 'number' ? materialization.nodeCount : 0;
+  const pairedNodeCount = typeof materialization?.pairedNodeCount === 'number' ? materialization.pairedNodeCount : 0;
+  const skillCount = typeof materialization?.skillCount === 'number' ? materialization.skillCount : 0;
+  const pairingStatus = typeof materialization?.pairingStatus === 'string' ? materialization.pairingStatus : '';
+  const workflowHandoff = args.workflowHandoff;
+  const workflowHandoffStatus = typeof workflowHandoff?.status === 'string' ? workflowHandoff.status : '';
+  const workflowHandoffReason = typeof workflowHandoff?.reason === 'string' ? workflowHandoff.reason : 'workflow handoff was not proven';
+
+  if (args.canvasMaterialized !== true) return { ready: false, reason: 'canvas materialization flag is not true' };
+  if (nodeCount <= 0) return { ready: false, reason: 'no canvas nodes were materialized' };
+  if (pairedNodeCount <= 0) return { ready: false, reason: 'no paired workflow nodes were materialized' };
+  if (skillCount <= 0) return { ready: false, reason: 'no skills were attached to the workflow' };
+  if (pairingStatus !== 'complete') return { ready: false, reason: 'skill pairing is not complete' };
+  if (workflowHandoffStatus !== 'ready') return { ready: false, reason: workflowHandoffReason };
+  return { ready: true, reason: 'ready' };
 }
 
 function taskTitleFromAnalysisTask(task: any): string | null {
@@ -6763,9 +7022,9 @@ export function latestCanvasPlanFromLoadState(state: any, baseUrl: string): Late
 }
 
 async function readLatestCanvasPlanFromSpawnerState(): Promise<LatestCanvasPlan | null> {
-  const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
+  const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
   const state = await readJsonFile<any>(spawnerUiStatePath('last-canvas-load.json'));
-  return latestCanvasPlanFromLoadState(state, publicSpawnerUrl);
+  return latestCanvasPlanFromLoadState(state, telegramSurfaceUrl);
 }
 
 export function isLatestCanvasPlanQuestion(text: string): boolean {
@@ -7064,6 +7323,13 @@ export async function handleBuildIntent(
     projectName: polishedProjectName,
     traceRef
   });
+  const dispatchExecutionAuthority = buildSpawnerDispatchExecutionAuthority({
+    telegramExecutionAuthority: options.executionAuthority,
+    requestId,
+    missionId,
+    projectName: polishedProjectName,
+    traceRef
+  });
   try {
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
@@ -7137,9 +7403,8 @@ export async function handleBuildIntent(
       return { status: 'partial', summary: `Spawner requested clarification before dispatching ${polishedProjectName}.`, requestId, traceRef };
     }
 
-    const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
-    const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
-    const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+    const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
+    const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
 
     await registerMissionRelay({
       missionId,
@@ -7186,11 +7451,11 @@ export async function handleBuildIntent(
       requestId,
       missionId,
       spawnerUrl,
-      publicSpawnerUrl,
-      canvasUrl,
+      telegramSurfaceUrl,
       kanbanUrl,
       buildLane,
-      tier
+      tier,
+      dispatchExecutionAuthority
     });
     return { status: 'success', summary: `Spawner accepted PRD bridge build for ${polishedProjectName}.`, missionId, requestId, traceRef };
   } catch (err: any) {
@@ -8635,9 +8900,9 @@ bot.command('mission', async (ctx) => {
     commandName: 'mission',
     route: 'spawner.mission_control',
     text: ctx.message.text,
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     ownerSystem: 'spawner-ui',
-    mutationClass: action === 'status' ? 'read_only' : 'launches_mission',
+    mutationClass: action === 'status' ? 'read_only' : 'controls_mission',
     action: `spawner.mission_${action}`,
     kind: 'build_or_spawner'
   });
@@ -8651,7 +8916,7 @@ bot.command('mission', async (ctx) => {
     executionAuthority: authorization.governorDecision
   });
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'spawner.mission_control',
+    toolName: 'spawner.mission_control.command',
     status: result.success ? 'success' : 'failure',
     summary: result.success
       ? `Slash /mission ${action} completed for ${missionId}.`
@@ -8794,6 +9059,46 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.x_post_review_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
     await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  const earlyTurnSelectedRuntimeRead = turnEnvelopeSelectsRoute(turnIntentEnvelope, 'spark.read_only_state');
+  if (!earlyBuildIntent && earlyTurnSelectedRuntimeRead && !shouldAnswerRuntimeTruthPriority(text) && shouldAnswerAuthoritativeRuntimeStatus(text)) {
+    const runtimeStatusKind = isRepairNeededStatusQuestion(text.toLowerCase().replace(/\s+/g, ' ').trim())
+      ? 'repair_status'
+      : 'live_status';
+    const runtimeStatusAuthorization = telegramActionAuthorityDecision(turnIntentEnvelope, {
+      route: 'spark.read_only_state',
+      text,
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    if (!runtimeStatusAuthorization.allow) {
+      recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
+        toolName: 'spark.read_only_state',
+        status: 'not_started',
+        summary: `Natural runtime status read was blocked for ${runtimeStatusKind}.`
+      });
+      await ctx.reply('I did not read Spark live state because the fresh turn did not authorize that read-only check.');
+      return;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
+    recordNaturalRouteExecution(
+      ctx,
+      runtimeStatusNaturalRouteDecision(runtimeStatusKind),
+      `spark.read_only_state.${runtimeStatusKind}`,
+      'spark-telegram-bot',
+      'harness_core.read_only_state'
+    );
+    recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
+      toolName: 'spark.read_only_state',
+      status: 'success',
+      summary: `Natural runtime status read completed for ${runtimeStatusKind}.`
+    });
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -9372,27 +9677,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAnswerAuthoritativeRuntimeStatus(text)) {
+  const turnSelectedRuntimeRead = turnEnvelopeSelectsRoute(turnIntentEnvelope, 'spark.read_only_state');
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && shouldAnswerAuthoritativeRuntimeStatus(text)) {
     const runtimeStatusKind = isRepairNeededStatusQuestion(text.toLowerCase().replace(/\s+/g, ' ').trim())
       ? 'repair_status'
       : 'live_status';
-    const runtimeStatusAuthorization = telegramActionAuthorityDecision(
-      telegramActionEnvelope(turnIntentEnvelope, {
-        route: 'spark.read_only_state',
-        ownerSystem: 'spark-telegram-bot',
-        action: `spark.read_only_state.${runtimeStatusKind}`,
-        kind: 'runtime_truth_or_operator',
-        confidence: 'explicit',
-        mutationClass: 'read_only'
-      }),
-      {
-        route: 'spark.read_only_state',
-        text,
-        toolName: 'spark.read_only_state',
-        ownerSystem: 'spark-telegram-bot',
-        mutationClass: 'read_only'
-      }
-    );
+    const runtimeStatusAuthorization = telegramActionAuthorityDecision(turnIntentEnvelope, {
+      route: 'spark.read_only_state',
+      text,
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
     if (!runtimeStatusAuthorization.allow) {
       recordTelegramHarnessCoreExecution(runtimeStatusAuthorization, {
         toolName: 'spark.read_only_state',
@@ -9422,11 +9718,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAttachFreshRuntimeTruthContext(text) && !conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && shouldAttachFreshRuntimeTruthContext(text) && !conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
     await attachFreshRuntimeTruthContext();
   }
 
-  if (!earlyBuildIntent && isLiveSparkHealthQuestion(text)) {
+  if (!earlyBuildIntent && turnSelectedRuntimeRead && isLiveSparkHealthQuestion(text)) {
     if (!conversationFrameContext.includes('Fresh Spark runtime truth for this turn')) {
       await attachFreshRuntimeTruthContext();
     }
@@ -9830,6 +10126,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
     return;
   }
+  const memoryDirectiveAuthorization = memoryDirective
+    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'memory.write',
+        text,
+        toolName: 'memory.write',
+        ownerSystem: 'domain-chip-memory',
+        mutationClass: 'writes_memory'
+      })
+    : null;
+  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
+    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
+    return;
+  }
   if (!earlyBuildIntent && naturalRouteShadow?.route !== 'chat_plan' && shouldPreferConversationalIdeation(text)) {
     console.log(`[ConversationIntent] early ideation route user=${userRef(ctx.from?.id)} textLen=${text.length}`);
     const ideationAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
@@ -9903,7 +10212,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	  })) {
     await conversation.remember(user, text).catch(() => {});
     const submitArg = naturalRecursiveProposal.submit ? ' submit' : '';
-    await handleRecursiveCommand(ctx, `propose ${naturalRecursiveProposal.target}${submitArg}`);
+    const rawCommand = `propose ${naturalRecursiveProposal.target}${submitArg}`;
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
+    const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, { action: 'propose', id: naturalRecursiveProposal.target, proposeArgs: submitArg ? ['submit'] : [] });
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
   if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
@@ -9924,20 +10237,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-  const memoryDirectiveAuthorization = memoryDirective
-    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
-        route: 'memory.write',
-        text,
-        toolName: 'memory.write',
-        ownerSystem: 'domain-chip-memory',
-        mutationClass: 'writes_memory'
-      })
-    : null;
-  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
-    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
-    return;
-  }
-
   if (!earlyBuildIntent && isStartupReleaseBoundaryQuestion(text)) {
     await conversation.remember(user, text).catch(() => {});
     await safeSendChatAction(ctx, 'typing');
@@ -10042,21 +10341,39 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   if (!earlyBuildIntent && isSparkWikiInventoryQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.inventory');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'not_started', 'Natural Spark wiki inventory read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'success', 'Natural Spark wiki inventory read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'failure', `Natural Spark wiki inventory read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   const wikiAnswerQuestion = earlyBuildIntent ? null : extractSparkWikiAnswerQuestion(text);
   if (wikiAnswerQuestion) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.answer');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'not_started', 'Natural Spark wiki answer read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiAnswer({
         question: wikiAnswerQuestion,
@@ -10067,33 +10384,59 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         currentMessage: text,
       });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'success', 'Natural Spark wiki answer read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'failure', `Natural Spark wiki answer read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   const wikiQuery = earlyBuildIntent ? null : extractSparkWikiQuery(text);
   if (wikiQuery) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.query');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'not_started', 'Natural Spark wiki query read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'success', 'Natural Spark wiki query read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'failure', `Natural Spark wiki query read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
   }
   if (!earlyBuildIntent && isSparkWikiStatusQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    const wikiReadAuthorization = authorizeNaturalWikiRead(turnIntentEnvelope, text, 'spark_wiki.status');
+    if (!wikiReadAuthorization.allow) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'failed');
+      await replyWikiReadAuthorityBlocked(ctx);
+      return;
+    }
     await safeSendChatAction(ctx, 'typing');
+    await conversation.remember(user, text).catch(() => {});
+    recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'not_started', 'Natural Spark wiki status read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiStatus({ refresh: true });
       await ctx.reply(result.replyText);
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'success', 'Natural Spark wiki status read completed through Builder.');
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'delivered');
       await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
     } catch (err: any) {
+      recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'failure', `Natural Spark wiki status read failed: ${err?.message || String(err)}.`);
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'failed');
       await ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(ctx.from)));
     }
     return;
@@ -10448,9 +10791,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_resume',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10467,7 +10810,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         markMissionRelayResumed(result.missionId);
       }
       recordTelegramHarnessCoreExecution(missionResumeAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.commandSent && result.missionId
           ? `Natural mission resume sent resume for ${result.missionId}.`
@@ -10481,9 +10824,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_pause',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10500,7 +10843,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         markMissionRelayPaused(result.missionId);
       }
       recordTelegramHarnessCoreExecution(missionPauseAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.commandSent && result.missionId
           ? `Natural mission pause sent pause for ${result.missionId}.`
@@ -10514,9 +10857,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.mission_control',
 	          text,
-	          toolName: 'spawner.mission_control',
+	          toolName: 'spawner.mission_control.command',
 	          ownerSystem: 'spawner-ui',
-	          mutationClass: 'launches_mission',
+	          mutationClass: 'controls_mission',
 	          action: 'spawner.mission_cancel_prepare',
 	          kind: 'build_or_spawner',
 	          confidence: 'contextual'
@@ -10531,12 +10874,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         rememberPendingMissionCancelConfirmation(telegramPendingMissionCancelKey(ctx.chat?.id, ctx.from?.id), {
           missionId: result.missionId,
           title: result.title,
-          executionAuthority: missionCancelAuthorization.governorDecision,
           timestamp: Date.now()
         });
       }
       recordTelegramHarnessCoreExecution(missionCancelAuthorization, {
-        toolName: 'spawner.mission_control',
+        toolName: 'spawner.mission_control.command',
         status: result.success ? 'success' : 'failure',
         summary: result.needsConfirmation && result.missionId
           ? `Natural mission cancel prepared confirmation for ${result.missionId}.`
@@ -10649,7 +10991,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const localSparkServiceAuthorization = isLocalSparkServiceRequest(text, localServiceContext)
+    const turnSelectedLocalSparkService = turnEnvelopeSelectsAnyRoute(turnIntentEnvelope, [
+      'local_service.open',
+      'spawner.local_service'
+    ]);
+    const localSparkServiceAuthorization = turnSelectedLocalSparkService && isLocalSparkServiceRequest(text, localServiceContext)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
           route: 'spawner.local_service',
           text,
@@ -10674,7 +11020,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const ambiguousLocalSparkServiceAuthorization = isAmbiguousLocalSparkServiceRequest(text, localServiceContext)
+    const turnSelectedAmbiguousLocalSparkService = turnEnvelopeSelectsAnyRoute(turnIntentEnvelope, [
+      'local_service.clarify',
+      'spawner.local_service'
+    ]);
+    const ambiguousLocalSparkServiceAuthorization = turnSelectedAmbiguousLocalSparkService && isAmbiguousLocalSparkServiceRequest(text, localServiceContext)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
           route: 'spawner.local_service',
           text,
@@ -11392,10 +11742,8 @@ async function start() {
       mode: launchConfig.mode
     });
   }
-  setMissionRelayRuntimeStatus({
-    telegramPolling: TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting',
-    pollingStartedAt: null
-  });
+  pollingStartedAt = null;
+  publishPollingRuntimeStatus(TELEGRAM_SMOKE_MODE ? 'disabled' : 'starting');
   const relay = await startMissionRelay(bot);
 
   // Check launch-critical connections.
@@ -11417,6 +11765,7 @@ async function start() {
   }
 
   await ensurePollingReady();
+  pollingStartedAt = new Date().toISOString();
   const launchPromise = bot.launch();
   const launchProbe = await Promise.race([
     launchPromise.then(
@@ -11432,10 +11781,7 @@ async function start() {
     throw new Error('Telegram polling stopped during startup.');
   }
   pollingActive = true;
-  setMissionRelayRuntimeStatus({
-    telegramPolling: 'active',
-    pollingStartedAt: new Date().toISOString()
-  });
+  publishPollingRuntimeStatus('active');
   console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
   void launchPromise.catch((err) => {
     void releaseGatewayOwnership();

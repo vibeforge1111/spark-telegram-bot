@@ -27,6 +27,7 @@ import {
   isLocalSparkServiceRequest,
   isMemoryDoctorRequest,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionBoundary,
   isNoExecutionExplanationPrompt,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
@@ -299,7 +300,7 @@ function isConcreteBuildBrief(text: string, buildIntent: BuildIntent | null): bo
   if (!buildIntent) return false;
   if (buildIntent.projectPath) return true;
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return /\b(?:build|create|scaffold|ship)\b.{0,120}\b(?:app|dashboard|tool|project|prototype|game|site|website|system|interface|this)\b/.test(normalized);
+  return /\b(?:build|create|scaffold|ship)\b.{0,120}\b(?:app|dashboard|tool|project|prototype|game|site|website|system|interface|board)\b/.test(normalized);
 }
 
 export function decideNaturalRoute(
@@ -412,7 +413,76 @@ export function decideNaturalRoute(
     });
   }
 
-  if (isHarnessArchitectureChatQuestion(normalized)) {
+  const parsedBuildIntent = parseBuildIntent(normalized);
+  const buildIntent = parsedBuildIntent;
+  const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
+    allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
+  });
+  const chipBrief = parseNaturalChipCreateIntent(normalized);
+  const conversationalIdeation = shouldPreferConversationalIdeation(normalized);
+  const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
+    ? null
+    : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
+  const recentCreatorLoopContext = recentMessages.some((message) => (
+    /\b(?:creator\s+(?:mission|system|run)|speciali[sz]ation\s+path|benchmark\s+pack|autoloop|startup[-\s]+yc|domain[-\s]*chip.*(?:path|benchmark|autoloop)|recursive\s+loop)\b/i.test(message)
+  ));
+  const contextualDomainChipArtifact =
+    /\bdomain[-\s]*chip\b/i.test(normalized) &&
+    isCreatorLoopDomainChipPhrase(normalized, recentCreatorLoopContext);
+  const creatorArtifactBundle =
+    contextualDomainChipArtifact ||
+    /\b(?:benchmark\s+pack|benchmarks?|evals?|evaluation\s+pack|test\s+suite|speciali[sz]ation\s+path|autoloop(?:\s+policy)?|auto\s+loop|swarm\s+(?:review|contribution)\s+packet|shareable\s+insight\s+packet|insight\s+packet|review\s+packet|reusable\s+template|loop\s+template|specialization\s+template)\b/i.test(normalized);
+  const harnessArchitectureQuestion = isHarnessArchitectureChatQuestion(normalized);
+  const concreteBuildBrief = isConcreteBuildBrief(normalized, buildIntent);
+  const concreteStandaloneBuildBrief = concreteBuildBrief && !chipBrief;
+  if (isGlobalDoctrineLikeRequest(normalized)) {
+    return decision({
+      route: 'agent_doctrine.global_blocked',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'blocked',
+      action: 'clarify',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['global_agent_doctrine_request'],
+      blocked_by: ['chat_cannot_change_global_agent_doctrine'],
+      requires_confirmation: true
+    });
+  }
+
+  if (missionPreference && !concreteBuildBrief) {
+    return decision({
+      route: 'mission_updates.preference',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'mission_updates.preference',
+      payload: { ...missionPreference },
+      context_source: 'latest_message',
+      matched_signals: ['mission_update_preference'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (
+    buildIntent &&
+    !isNoExecutionBoundary(normalized) &&
+    (!harnessArchitectureQuestion || concreteBuildBrief) &&
+    ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
+  ) {
+    return decision({
+      route: 'spawner.build',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.build',
+      payload: buildIntentPayload(buildIntent),
+      context_source: buildIntent.projectPath ? 'visible_exact_artifact' : 'latest_message',
+      matched_signals: ['build_intent'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (harnessArchitectureQuestion) {
     return decision({
       route: 'plain_chat',
       owner_system: 'spark-telegram-bot',
@@ -454,38 +524,6 @@ export function decideNaturalRoute(
     });
   }
 
-  const parsedBuildIntent = parseBuildIntent(normalized);
-  const buildIntent = parsedBuildIntent;
-  const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
-    allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
-  });
-  const chipBrief = parseNaturalChipCreateIntent(normalized);
-  const conversationalIdeation = shouldPreferConversationalIdeation(normalized);
-  const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
-    ? null
-    : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
-  const recentCreatorLoopContext = recentMessages.some((message) => (
-    /\b(?:creator\s+(?:mission|system|run)|speciali[sz]ation\s+path|benchmark\s+pack|autoloop|startup[-\s]+yc|domain[-\s]*chip.*(?:path|benchmark|autoloop)|recursive\s+loop)\b/i.test(message)
-  ));
-  const contextualDomainChipArtifact =
-    /\bdomain[-\s]*chip\b/i.test(normalized) &&
-    isCreatorLoopDomainChipPhrase(normalized, recentCreatorLoopContext);
-  const creatorArtifactBundle =
-    contextualDomainChipArtifact ||
-    /\b(?:benchmark\s+pack|benchmarks?|evals?|evaluation\s+pack|test\s+suite|speciali[sz]ation\s+path|autoloop(?:\s+policy)?|auto\s+loop|swarm\s+(?:review|contribution)\s+packet|shareable\s+insight\s+packet|insight\s+packet|review\s+packet|reusable\s+template|loop\s+template|specialization\s+template)\b/i.test(normalized);
-  if (isGlobalDoctrineLikeRequest(normalized)) {
-    return decision({
-      route: 'agent_doctrine.global_blocked',
-      owner_system: 'spark-telegram-bot',
-      confidence: 'blocked',
-      action: 'clarify',
-      payload: {},
-      context_source: 'latest_message',
-      matched_signals: ['global_agent_doctrine_request'],
-      blocked_by: ['chat_cannot_change_global_agent_doctrine'],
-      requires_confirmation: true
-    });
-  }
   if (isProjectImprovementRequest(normalized, context.shippedProject)) {
     return decision({
       route: 'project.iteration',
@@ -517,19 +555,6 @@ export function decideNaturalRoute(
       requires_confirmation: false
     });
   }
-  if (missionPreference && !isConcreteBuildBrief(normalized, buildIntent)) {
-    return decision({
-      route: 'mission_updates.preference',
-      owner_system: 'spark-telegram-bot',
-      confidence: 'explicit',
-      action: 'mission_updates.preference',
-      payload: { ...missionPreference },
-      context_source: 'latest_message',
-      matched_signals: ['mission_update_preference'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
   if (chipBrief && (!earlyCreatorMission || !creatorArtifactBundle)) {
     return decision({
       route: 'domain_chip.create',
@@ -543,20 +568,6 @@ export function decideNaturalRoute(
       requires_confirmation: true
     });
   }
-  if (buildIntent && !earlyCreatorMission && !conversationalIdeation) {
-    return decision({
-      route: 'spawner.build',
-      owner_system: 'spawner-ui',
-      confidence: 'explicit',
-      action: 'spawner.build',
-      payload: buildIntentPayload(buildIntent),
-      context_source: buildIntent.projectPath ? 'visible_exact_artifact' : 'latest_message',
-      matched_signals: ['build_intent'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
   const explicitAccessLevel = parseNaturalAccessChangeIntent(normalized);
   if (explicitAccessLevel) {
     return decision({

@@ -129,7 +129,7 @@ export function polishBuildProjectName(value: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 
-  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system)\s+(?:for\s+)?spark$/i);
+  const genericSparkMatch = clean.match(/^(something|anything|app|tool|game|site|website|page|dashboard|system|board|pad)\s+(?:for\s+)?spark$/i);
   if (genericSparkMatch) {
     const noun = genericSparkMatch[1].toLowerCase() === 'something' || genericSparkMatch[1].toLowerCase() === 'anything'
       ? 'App'
@@ -146,7 +146,7 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
   const patterns = [
     new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
     new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
@@ -160,8 +160,12 @@ function inferProductPhraseProjectName(prd: string): string | null {
     'private',
     'local',
     'local-first',
+    'tiny',
+    'small',
+    'compact',
     'simple',
     'quick',
+    'practical',
     'polished',
     'real',
     'full',
@@ -201,7 +205,7 @@ function inferProductPhraseProjectName(prd: string): string | null {
 function inferForAudienceProductName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
   const match = normalized.match(
-    /^(?:a\s+|an\s+|the\s+)?(platform|system|dashboard|tool|app)\s+for\s+(?:managing\s+|tracking\s+|organizing\s+|running\s+)?([A-Za-z][A-Za-z0-9 -]{2,40}?)(?=\s+(?:with|that|which|where|using|and)\b|[.,:;?!]|$)/i
+    /^(?:a\s+|an\s+|the\s+)?(platform|system|dashboard|tool|app|board)\s+for\s+(?:managing\s+|tracking\s+|organizing\s+|running\s+)?([A-Za-z][A-Za-z0-9 -]{2,40}?)(?=\s+(?:with|that|which|where|using|and)\b|[.,:;?!]|$)/i
   );
   if (!match) return null;
 
@@ -281,7 +285,7 @@ function inferProjectName(prd: string, projectPath: string | null): string {
   if (nameMatch) return polishInferredProjectName(nameMatch[1].replace(/\s*[:;,-]\s*$/, ''));
   const shippedProjectMatch = prd.match(/\bexisting shipped project\s+["']([^"']{3,80})["']/i);
   if (shippedProjectMatch) return polishInferredProjectName(shippedProjectMatch[1]);
-  const quotedProjectMatch = prd.match(/\b(?:project|app|site|dashboard|tool)\s+["']([^"']{3,80})["']/i);
+  const quotedProjectMatch = prd.match(/\b(?:project|app|site|dashboard|tool|board)\s+["']([^"']{3,80})["']/i);
   if (quotedProjectMatch) return polishInferredProjectName(quotedProjectMatch[1]);
   if (projectPath) {
     const pathName = projectPath.split(/[\\/]/).filter(Boolean).pop();
@@ -513,8 +517,11 @@ function isBuildContextRecallProbe(text: string): boolean {
 function isPreBuildShapingRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
-    /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
-    /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    (
+      /\b(?:help\s+me\s+)?(?:shape|scope|brainstorm|think\s+through|plan|design)\b/.test(normalized) &&
+      /\b(?:before|prior\s+to)\s+(?:creating|building|making|scaffolding|generating|starting)\b/.test(normalized)
+    ) ||
+    /\b(?:before|prior\s+to)\b.{0,100}\b(?:can|should|could|would)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute)\b.{0,120}\b(?:what\s+(?:would|should|does)|how\s+(?:would|should|does)|harness|proof|evidence|checks?)\b/.test(normalized)
   );
 }
 
@@ -665,7 +672,7 @@ function isConversationFramingMakeRequest(description: string): boolean {
 function isVoiceTuningMakeRequest(description: string): boolean {
   const normalized = description.replace(/\s+/g, ' ').trim().toLowerCase();
   if (!normalized) return false;
-  const productArtifact = /\b(?:app|application|dashboard|website|site|page|game|tool|player|recorder|studio|interface)\b/.test(normalized);
+  const productArtifact = /\b(?:app|application|dashboard|website|site|page|game|tool|player|recorder|studio|interface|board)\b/.test(normalized);
   if (productArtifact) return false;
   return (
     /\b(?:voice|speech|audio|sound|tone|style|persona|reply|responses?)\b/.test(normalized) &&
@@ -677,7 +684,8 @@ function isSparkCapabilityMakeRequest(description: string): boolean {
   const normalized = description.replace(/\s+/g, ' ').trim();
   const lowered = normalized.toLowerCase();
   const productArtifact =
-    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
+    /^(?:a\s+|an\s+|the\s+)?(?:web\s+|mobile\s+|desktop\s+|local-first\s+|private\s+|static\s+|tiny\s+|simple\s+|internal\s+|spark\s+memory\s+|spark\s+)*(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized) ||
+    /^(?:a\s+|an\s+|the\s+)?spark\s+[a-z0-9 -]{0,50}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(normalized);
   const explicitSparkOwner =
     /^(?:(?:my|our)\s+)?spark\b|^(?:you|your|yourself|the\s+agent|my\s+agent|our\s+agent|agents?)\b/i.test(normalized);
   const capabilitySurface =
@@ -716,7 +724,8 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   const concreteStandaloneBrief =
     prd.length >= 80 &&
     /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
-  if (concreteStandaloneBrief) {
+  const namedProductPhrase = inferProductPhraseProjectName(prd) !== null;
+  if (concreteStandaloneBrief || namedProductPhrase) {
     return false;
   }
   if (/\b(?:called|named)\s+[A-Z0-9][A-Za-z0-9 '&.-]{2,80}\b/i.test(normalized)) {
@@ -734,7 +743,7 @@ function isConversationalStrategyStructureRequest(text: string, prd: string): bo
   const strategyDomain = /\b(?:nfts?|token|tokens|buybacks?|launch|hype|sales?|sell|selling|community|holders?|mint)\b/.test(normalized);
   const speculative = /\b(?:maybe|later|i think|if we|if we do|we can|we could|we should|not for now|for now|talk|discuss)\b/.test(normalized);
   const abstractStructure = /\b(?:nice|good|clear|better|clean)?\s*structure\b/.test(normalizedPrd);
-  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalizedPrd);
+  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board)\b/.test(normalizedPrd);
   return strategyDomain && speculative && abstractStructure && !concreteArtifact;
 }
 
@@ -747,9 +756,9 @@ function isAllocationStrategyQuestion(text: string): boolean {
   const asksStrategy =
     /\b(?:what\s+if|wondering|would\s+it\s+be|too\s+small|good\s+enough|how\s+would\s+you\s+organize|organize\s+the\s+rest|remaining|fixed|makes?\s+sense|should\s+we|could\s+we)\b/.test(normalized);
   const concreteArtifact =
-    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|repo|repository)\b/.test(normalized);
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board|file|repo|repository)\b/.test(normalized);
   const explicitArtifactBuild =
-    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock)\b/.test(normalized);
+    /\b(?:build|create|make|ship|scaffold|generate|develop)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|board)\b/.test(normalized);
   return allocationDomain && hasPercent && asksStrategy && !(concreteArtifact && explicitArtifactBuild);
 }
 
@@ -764,7 +773,7 @@ function isRecursiveInsightPacketRequest(text: string): boolean {
     /\b(?:do\s+not|don't|dont|without|no)\s+(?:publish|share|run|start|launch|post|broadcast)\b/.test(normalized) ||
     /\blocal(?:ly)?\b|\bprivate(?:ly)?\b/.test(normalized);
   const concreteBuildSurface =
-    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas)\b/.test(normalized);
+    /\b(?:app|application|dashboard|website|site|landing\s+page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board)\b/.test(normalized);
   return packetArtifact && recursiveDomain && nonPublishBoundary && !concreteBuildSurface;
 }
 
@@ -809,7 +818,7 @@ function isAbstractPlanningStructureRequest(prd: string): boolean {
   const normalizedPrd = prd.toLowerCase().replace(/\s+/g, ' ').trim();
   const startsAbstract =
     /^(?:a\s+|an\s+|the\s+)?(?:nice|good|clear|better|clean|reusable|simple|solid|strong)?\s*(?:structure|plan|strategy|framework)\b/.test(normalizedPrd);
-  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|file|files|folder|folders|repo|repository|component|components)\b/.test(normalizedPrd);
+  const concreteArtifact = /\b(?:app|application|dashboard|website|site|landing page|page|tool|game|system|tracker|planner|timer|clock|kanban|canvas|board|file|files|folder|folders|repo|repository|component|components)\b/.test(normalizedPrd);
   return startsAbstract && !concreteArtifact;
 }
 
