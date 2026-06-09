@@ -5254,7 +5254,6 @@ export async function handleClarificationAnswers(
     });
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
-    const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, newRequestId, missionId);
     const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
     await ctx.reply(formatBuildMissionQueuedReply({
       lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.',
@@ -5272,7 +5271,6 @@ export async function handleClarificationAnswers(
       missionId,
       spawnerUrl,
       telegramSurfaceUrl,
-      canvasUrl,
       kanbanUrl,
       buildLane,
       tier,
@@ -5301,7 +5299,6 @@ function startPrdCanvasReadyNotifier(args: {
 	missionId: string;
 	spawnerUrl: string;
 	telegramSurfaceUrl: string;
-	canvasUrl: string;
 	kanbanUrl: string;
 	buildLane?: BuildLane;
   tier?: SkillTier;
@@ -5366,9 +5363,15 @@ function startPrdCanvasReadyNotifier(args: {
               ));
               return;
             }
-            const readyCanvasUrl = queue.data?.canvasUrl
-              ? `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`
-              : args.canvasUrl;
+            if (typeof queue.data?.canvasUrl !== 'string' || !queue.data.canvasUrl.trim()) {
+              await bot.telegram.sendMessage(args.chatId, telegramBlocks(
+                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
+                'I am not sending a canvas link yet because Spawner did not return a materialized canvas handoff.',
+                `Board: ${args.kanbanUrl}`
+              ));
+              return;
+            }
+            const readyCanvasUrl = `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`;
             const elapsed = Math.round((Date.now() - started) / 1000);
             rememberLatestCanvasPlan(args.chatId, args.userId, {
               projectName: args.projectName,
@@ -7308,7 +7311,6 @@ export async function handleBuildIntent(
     }
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
-    const canvasUrl = projectCanvasUrl(telegramSurfaceUrl, requestId, missionId);
     const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
 
     await registerMissionRelay({
@@ -7357,7 +7359,6 @@ export async function handleBuildIntent(
       missionId,
       spawnerUrl,
       telegramSurfaceUrl,
-      canvasUrl,
       kanbanUrl,
       buildLane,
       tier,
