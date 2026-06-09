@@ -67,6 +67,56 @@ export function spawnerDispatchAuthorityFailureReason(value: unknown): string | 
   return harnessExecutionAuthorityFailureReason(value, SPAWNER_DISPATCH_AUTHORITY);
 }
 
+function requestIdBoundToAuthority(value: unknown, requestId: string): boolean {
+  if (!isRecord(value)) return false;
+  const envelope = isRecord(value.envelope) ? value.envelope : {};
+  const proposedActions = Array.isArray(envelope.proposed_actions) ? envelope.proposed_actions : [];
+  const expected = requestId.trim();
+  if (!expected) return false;
+  return proposedActions.some((action) => {
+    if (!isRecord(action)) return false;
+    const argsRef = isRecord(action.args_ref) ? action.args_ref : {};
+    const pathOrUri = stringField(argsRef.path_or_uri);
+    if (!pathOrUri) return false;
+    const last = pathOrUri.split(/[\\/]/).pop() || '';
+    try {
+      return decodeURIComponent(last) === expected;
+    } catch {
+      return last === expected;
+    }
+  });
+}
+
+function authorityMentionsTarget(value: unknown, target: string): boolean {
+  const expected = target.trim();
+  if (!expected) return false;
+  const seen = new Set<unknown>();
+  const visit = (current: unknown): boolean => {
+    if (typeof current === 'string') return current.includes(expected);
+    if (!current || typeof current !== 'object' || seen.has(current)) return false;
+    seen.add(current);
+    if (Array.isArray(current)) return current.some(visit);
+    return Object.values(current as Record<string, unknown>).some(visit);
+  };
+  return visit(value);
+}
+
+export function spawnerDispatchAuthorityBindingFailureReason(input: {
+  authority: unknown;
+  requestId: string;
+  missionId: string;
+}): string | null {
+  const authorityReason = spawnerDispatchAuthorityFailureReason(input.authority);
+  if (authorityReason) return authorityReason;
+  if (!requestIdBoundToAuthority(input.authority, input.requestId)) {
+    return 'dispatch_authority_request_id_mismatch';
+  }
+  if (!authorityMentionsTarget(input.authority, input.missionId)) {
+    return 'dispatch_authority_mission_id_mismatch';
+  }
+  return null;
+}
+
 export function buildSpawnerPrdWriteExecutionAuthority(input: {
   telegramExecutionAuthority: unknown;
   requestId: string;

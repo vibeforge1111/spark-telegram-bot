@@ -455,6 +455,30 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('PRD canvas handoff refuses stale dispatch authority for a different mission', async () => {
+		const requestId = 'tg-build-dispatch-body-test-1780865000002';
+		const missionId = 'mission-1780865000002';
+		const staleAuthority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId: 'mission-different-1780865000002',
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-different-1780865000002'
+		});
+		const indexModule: any = await import('../src/index');
+
+		const body = indexModule.buildPrdLoadToCanvasRequestBody({
+			requestId,
+			missionId,
+			dispatchExecutionAuthority: staleAuthority
+		});
+
+		assert.equal(body.autoRun, false);
+		assert.equal(body.executionAuthority, undefined);
+		assert.equal(body.dispatchAuthorityWithheld, 'dispatch_authority_mission_id_mismatch');
+		restoreEnv();
+	});
+
 	await test('describeTier: base copy matches canonical starter loadout', () => {
 		assert.equal(describeTier('base'), 'base tier (30-skill starter loadout)');
 		assert.doesNotMatch(describeTier('base'), /41/);

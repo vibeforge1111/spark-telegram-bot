@@ -330,6 +330,7 @@ import {
 import {
   buildSpawnerDispatchExecutionAuthority,
   buildSpawnerPrdWriteExecutionAuthority,
+  spawnerDispatchAuthorityBindingFailureReason,
   telegramBuildAuthorityFailureReason
 } from './spawnerPrdWriteAuthority';
 import {
@@ -5313,6 +5314,7 @@ function startPrdCanvasReadyNotifier(args: {
     const verbosity = await getTelegramRelayVerbosity(args.chatId).catch(() => 'normal' as const);
     const heartbeatThresholds = verbosity === 'verbose' && args.buildLane !== 'fast_direct' ? [120_000] : [];
     let heartbeatIndex = 0;
+    let pollFailureLogged = false;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 4000));
       if (shouldSuppressMissionHandoff(args.missionId)) {
@@ -5390,14 +5392,28 @@ function startPrdCanvasReadyNotifier(args: {
               canvasMaterialization
             }));
           } catch (queueErr: any) {
+            const detail = summarizeSpawnerRequestError(queueErr);
+            console.warn(
+              `[PRDCanvasReadyNotifier] load-to-canvas failed requestId=${args.requestId} missionId=${args.missionId}: ${detail}`
+            );
             await bot.telegram.sendMessage(
               args.chatId,
-              `Analysis finished but I couldn't queue the canvas: ${queueErr.message || 'unknown'}.`
+              telegramBlocks(
+                `Analysis finished for ${args.projectName}, but Spawner could not queue the canvas handoff.`,
+                detail,
+                `Board: ${args.kanbanUrl}`
+              )
             );
           }
           return;
         }
-      } catch {
+      } catch (pollErr) {
+        if (!pollFailureLogged) {
+          pollFailureLogged = true;
+          console.warn(
+            `[PRDCanvasReadyNotifier] result poll failed requestId=${args.requestId} missionId=${args.missionId}: ${summarizeSpawnerRequestError(pollErr)}`
+          );
+        }
         // keep polling
       }
     }
@@ -5412,17 +5428,59 @@ function startPrdCanvasReadyNotifier(args: {
   })();
 }
 
+export function summarizeSpawnerRequestError(error: unknown): string {
+  const err = error as {
+    message?: unknown;
+    code?: unknown;
+    response?: {
+      status?: unknown;
+      data?: unknown;
+    };
+  };
+  const status = typeof err?.response?.status === 'number' ? err.response.status : null;
+  const data = err?.response?.data;
+  let detail = '';
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    detail = typeof record.error === 'string'
+      ? record.error
+      : typeof record.message === 'string'
+        ? record.message
+        : JSON.stringify(record);
+  } else if (typeof data === 'string') {
+    detail = data;
+  }
+  if (!detail && typeof err?.message === 'string' && err.message.trim()) {
+    detail = err.message.trim();
+  }
+  if (!detail && typeof err?.code === 'string' && err.code.trim()) {
+    detail = err.code.trim();
+  }
+  if (!detail) detail = 'unknown error';
+  const compact = detail.replace(/\s+/g, ' ').trim().slice(0, 360);
+  return status ? `HTTP ${status}: ${compact}` : compact;
+}
+
 export function buildPrdLoadToCanvasRequestBody(args: {
   requestId: string;
   missionId: string;
   dispatchExecutionAuthority?: unknown;
 }): Record<string, unknown> {
+  const authorityFailure = args.dispatchExecutionAuthority
+    ? spawnerDispatchAuthorityBindingFailureReason({
+        authority: args.dispatchExecutionAuthority,
+        requestId: args.requestId,
+        missionId: args.missionId
+      })
+    : 'missing_dispatch_authority';
+  const canAutoRun = Boolean(args.dispatchExecutionAuthority && !authorityFailure);
   return {
     requestId: args.requestId,
     missionId: args.missionId,
-    autoRun: Boolean(args.dispatchExecutionAuthority),
+    autoRun: canAutoRun,
     telegramRelay: getTelegramRelayIdentity(),
-    ...(args.dispatchExecutionAuthority ? { executionAuthority: args.dispatchExecutionAuthority } : {})
+    ...(canAutoRun ? { executionAuthority: args.dispatchExecutionAuthority } : {}),
+    ...(!canAutoRun && authorityFailure ? { dispatchAuthorityWithheld: authorityFailure } : {})
   };
 }
 
