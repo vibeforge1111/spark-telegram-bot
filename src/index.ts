@@ -5349,16 +5349,14 @@ function startPrdCanvasReadyNotifier(args: {
             }
             const taskCount = queue.data?.taskCount;
             const canvasMaterialization = queue.data?.canvasMaterialization;
-            const materializedNodeCount = typeof canvasMaterialization?.nodeCount === 'number'
-              ? canvasMaterialization.nodeCount
-              : 0;
-            const pairedNodeCount = typeof canvasMaterialization?.pairedNodeCount === 'number'
-              ? canvasMaterialization.pairedNodeCount
-              : 0;
-            if (queue.data?.canvasMaterialized !== true || materializedNodeCount <= 0 || pairedNodeCount <= 0) {
+            const materializationGate = canvasMaterializationReadyForTelegramHandoff({
+              canvasMaterialized: queue.data?.canvasMaterialized,
+              canvasMaterialization
+            });
+            if (!materializationGate.ready) {
               await bot.telegram.sendMessage(args.chatId, telegramBlocks(
                 `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
-                'I am not sending a canvas link yet because Spawner did not prove materialized nodes and skill pairings.',
+                `I am not sending a canvas link yet because Spawner did not prove a complete materialized workflow: ${materializationGate.reason}.`,
                 `Board: ${args.kanbanUrl}`
               ));
               return;
@@ -6661,6 +6659,31 @@ export function formatCanvasReadySummary(args: {
     ['Canvas', `- ${args.readyCanvasUrl}`].join('\n'),
     `Board: ${args.kanbanUrl}`
   );
+}
+
+export type CanvasMaterializationForTelegram = {
+  nodeCount?: number;
+  pairedNodeCount?: number;
+  skillCount?: number;
+  pairingStatus?: string;
+};
+
+export function canvasMaterializationReadyForTelegramHandoff(args: {
+  canvasMaterialized: unknown;
+  canvasMaterialization?: CanvasMaterializationForTelegram | null;
+}): { ready: true; reason: 'ready' } | { ready: false; reason: string } {
+  const materialization = args.canvasMaterialization;
+  const nodeCount = typeof materialization?.nodeCount === 'number' ? materialization.nodeCount : 0;
+  const pairedNodeCount = typeof materialization?.pairedNodeCount === 'number' ? materialization.pairedNodeCount : 0;
+  const skillCount = typeof materialization?.skillCount === 'number' ? materialization.skillCount : 0;
+  const pairingStatus = typeof materialization?.pairingStatus === 'string' ? materialization.pairingStatus : '';
+
+  if (args.canvasMaterialized !== true) return { ready: false, reason: 'canvas materialization flag is not true' };
+  if (nodeCount <= 0) return { ready: false, reason: 'no canvas nodes were materialized' };
+  if (pairedNodeCount <= 0) return { ready: false, reason: 'no paired workflow nodes were materialized' };
+  if (skillCount <= 0) return { ready: false, reason: 'no skills were attached to the workflow' };
+  if (pairingStatus !== 'complete') return { ready: false, reason: 'skill pairing is not complete' };
+  return { ready: true, reason: 'ready' };
 }
 
 function taskTitleFromAnalysisTask(task: any): string | null {

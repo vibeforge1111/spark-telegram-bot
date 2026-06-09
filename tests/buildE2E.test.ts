@@ -2870,8 +2870,34 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /^Status$/m);
 			assert.doesNotMatch(reply, /^Move$/m);
 			assert.doesNotMatch(reply, /Still working on/);
-			assert.doesNotMatch(reply, /\(120s elapsed\)/);
-		});
+		assert.doesNotMatch(reply, /\(120s elapsed\)/);
+	});
+
+	await test('Telegram canvas handoff requires complete skill materialization', async () => {
+		const indexModule: any = await import('../src/index');
+
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 0, pairingStatus: 'complete' }
+			}),
+			{ ready: false, reason: 'no skills were attached to the workflow' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'partial' }
+			}),
+			{ ready: false, reason: 'skill pairing is not complete' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' }
+			}),
+			{ ready: true, reason: 'ready' }
+		);
+	});
 
 	await test('clarification replies are natural and project-specific', async () => {
 		restoreAxios();
