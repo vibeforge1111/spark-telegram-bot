@@ -4472,7 +4472,7 @@ export function formatAocQuestionAnswer(query: string): string {
 export function formatBrowserProofQuestionAnswer(query: string): string {
   const normalized = query.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
-  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?|pages?)\b/.test(normalized);
+  const asksAboutBrowser = /\b(browser|browse|browsing|web pages?)\b/.test(normalized);
   const asksAboutComputerUse = /\bcomputer[-\s]*use\b/.test(normalized);
   const asksAuthorization = /\b(?:authori[sz]e|authori[sz]ed|authorization|permission|approval|approve|tool approval|how should)\b/.test(normalized);
   const blocksUseNow = /\b(?:do\s+not|don't|dont|without|not)\s+(?:use|open|call|run)\b/.test(normalized);
@@ -4488,7 +4488,11 @@ export function formatBrowserProofQuestionAnswer(query: string): string {
       `A probe can supply evidence about what is available. ${boundaryReason}`
     ].join('\n');
   }
-  const asksForProof = /\b(capabilit(?:y|ies)|available|definitely|prove|proof|proven|right now|can you)\b/.test(normalized);
+  // prove/proof/proven must not match inside hyphenated identifiers like
+  // "harness-genesis-proof-20260609" (a project name is not a proof request).
+  const asksForProof =
+    /\b(capabilit(?:y|ies)|available|definitely|right now|can you)\b/.test(normalized) ||
+    /(?<![\w-])(?:prove|proof|proven)(?![\w-])/.test(normalized);
   if (!asksAboutBrowser || !asksForProof) return '';
 
   return [

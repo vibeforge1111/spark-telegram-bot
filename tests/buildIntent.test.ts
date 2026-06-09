@@ -434,3 +434,26 @@ Behavior:
   assert.equal(intent.projectName, 'Terminal Chef Clock');
   assert.match(intent.prd, /Countdown updates every second/);
 });
+
+test('UI feature words pause/stop/reset do not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build me a small focus timer web app called harness-genesis-timer-20260609. It needs a 25-minute countdown, start, pause, and reset buttons, and a session counter. Please start the build now.'
+  );
+
+  assert.ok(intent, 'feature enumeration with pause/reset buttons must still parse as a build');
+  assert.equal(intent.projectName, 'Harness Genesis Timer 20260609');
+});
+
+test('slash-separated start/pause/reset controls do not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build me a small focus timer web app called harness-genesis-timer-b with a single page: a 25-minute countdown, start/pause/reset buttons, and a simple session counter. Please start the build now.'
+  );
+
+  assert.ok(intent, 'start/pause/reset control listing must still parse as a build');
+});
+
+test('standalone decline verbs still veto build execution', () => {
+  assert.equal(parseBuildIntent('Build me a todo app. Actually, pause.'), null);
+  assert.equal(parseBuildIntent('Build me a todo app. Hold off and cancel that for now.'), null);
+  assert.equal(parseBuildIntent('Build me a todo app. Stop, lets discuss first.'), null);
+});
