@@ -2879,21 +2879,32 @@ async function run(): Promise<void> {
 		assert.deepEqual(
 			indexModule.canvasMaterializationReadyForTelegramHandoff({
 				canvasMaterialized: true,
-				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 0, pairingStatus: 'complete' }
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 0, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
 			}),
 			{ ready: false, reason: 'no skills were attached to the workflow' }
 		);
 		assert.deepEqual(
 			indexModule.canvasMaterializationReadyForTelegramHandoff({
 				canvasMaterialized: true,
-				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'partial' }
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'partial' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
 			}),
 			{ ready: false, reason: 'skill pairing is not complete' }
 		);
 		assert.deepEqual(
 			indexModule.canvasMaterializationReadyForTelegramHandoff({
 				canvasMaterialized: true,
-				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' }
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'withheld', reason: 'workflow execution was not created' }
+			}),
+			{ ready: false, reason: 'workflow execution was not created' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
 			}),
 			{ ready: true, reason: 'ready' }
 		);

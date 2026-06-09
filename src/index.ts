@@ -5351,7 +5351,8 @@ function startPrdCanvasReadyNotifier(args: {
             const canvasMaterialization = queue.data?.canvasMaterialization;
             const materializationGate = canvasMaterializationReadyForTelegramHandoff({
               canvasMaterialized: queue.data?.canvasMaterialized,
-              canvasMaterialization
+              canvasMaterialization,
+              workflowHandoff: queue.data?.workflowHandoff
             });
             if (!materializationGate.ready) {
               await bot.telegram.sendMessage(args.chatId, telegramBlocks(
@@ -6668,21 +6669,32 @@ export type CanvasMaterializationForTelegram = {
   pairingStatus?: string;
 };
 
+export type WorkflowHandoffForTelegram = {
+  status?: string;
+  reason?: string;
+  canvasUrl?: string | null;
+};
+
 export function canvasMaterializationReadyForTelegramHandoff(args: {
   canvasMaterialized: unknown;
   canvasMaterialization?: CanvasMaterializationForTelegram | null;
+  workflowHandoff?: WorkflowHandoffForTelegram | null;
 }): { ready: true; reason: 'ready' } | { ready: false; reason: string } {
   const materialization = args.canvasMaterialization;
   const nodeCount = typeof materialization?.nodeCount === 'number' ? materialization.nodeCount : 0;
   const pairedNodeCount = typeof materialization?.pairedNodeCount === 'number' ? materialization.pairedNodeCount : 0;
   const skillCount = typeof materialization?.skillCount === 'number' ? materialization.skillCount : 0;
   const pairingStatus = typeof materialization?.pairingStatus === 'string' ? materialization.pairingStatus : '';
+  const workflowHandoff = args.workflowHandoff;
+  const workflowHandoffStatus = typeof workflowHandoff?.status === 'string' ? workflowHandoff.status : '';
+  const workflowHandoffReason = typeof workflowHandoff?.reason === 'string' ? workflowHandoff.reason : 'workflow handoff was not proven';
 
   if (args.canvasMaterialized !== true) return { ready: false, reason: 'canvas materialization flag is not true' };
   if (nodeCount <= 0) return { ready: false, reason: 'no canvas nodes were materialized' };
   if (pairedNodeCount <= 0) return { ready: false, reason: 'no paired workflow nodes were materialized' };
   if (skillCount <= 0) return { ready: false, reason: 'no skills were attached to the workflow' };
   if (pairingStatus !== 'complete') return { ready: false, reason: 'skill pairing is not complete' };
+  if (workflowHandoffStatus !== 'ready') return { ready: false, reason: workflowHandoffReason };
   return { ready: true, reason: 'ready' };
 }
 
