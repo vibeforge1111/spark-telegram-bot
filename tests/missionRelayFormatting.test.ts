@@ -19,6 +19,7 @@ import {
   markMissionRelayCancelled,
   markMissionRelayPaused,
   markMissionRelayResumed,
+  missionRelayBindingRefusalReason,
   missionRelayCacheSizesForTests,
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
@@ -33,8 +34,11 @@ import {
   shouldAcceptRelayEventForThisBot,
   shouldSkipDuplicateForTests,
   shouldSuppressMissionHandoff,
-  shouldStopMissionHeartbeat
+  shouldStopMissionHeartbeat,
+  startMissionRelay,
+  stopMissionRelayForTests
 } from '../src/missionRelay';
+import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { resetJsonStateForTests } from '../src/jsonState';
 
 function test(name: string, fn: () => void): void {
@@ -1320,6 +1324,61 @@ test('requires relay events to match registered Telegram identity', () => {
   }, subscription), false);
 });
 
+test('binds machine-origin relay events to the governed mission registration', () => {
+  const subscription = {
+    missionId: 'spark-bound-1',
+    chatId: '12345',
+    userId: '67890',
+    requestId: 'req-bound-1',
+    traceRef: 'trace-bound-1',
+    goal: 'Bind machine-origin callbacks',
+    createdAt: new Date().toISOString(),
+    governorDecisionId: 'decision:bound-1',
+    governorTurnId: 'turn:bound-1'
+  };
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-bound-1', traceRef: 'trace-bound-1' }
+  }, subscription), null);
+
+  // Back-compat: events that omit requestId/traceRef still bind on missionId.
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1'
+  }, subscription), null);
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-other',
+    data: { requestId: 'req-bound-1' }
+  }, subscription), 'mission_id_mismatch');
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-forged' }
+  }, subscription), 'request_id_mismatch');
+
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-bound-1', traceRef: 'trace-forged' }
+  }, subscription), 'trace_ref_mismatch');
+
+  // Back-compat: registrations without requestId/traceRef bind on missionId alone.
+  assert.equal(missionRelayBindingRefusalReason({
+    type: 'progress',
+    missionId: 'spark-bound-1',
+    data: { requestId: 'req-anything', traceRef: 'trace-anything' }
+  }, {
+    ...subscription,
+    requestId: '',
+    traceRef: undefined
+  }), null);
+});
+
 test('suppresses hosted preview generation progress in Telegram', () => {
   const message = formatProgressMessageForTelegram(
     {
@@ -1986,5 +2045,126 @@ void (async () => {
     assert.doesNotMatch(reply || '', /Completed Spawner mission/);
     const secondReply = await approvePendingMissionLesson(subscription.userId, '1');
     assert.match(secondReply || '', /did not save that mission lesson into Telegram-local memory/i);
+  });
+
+  await asyncTest('mission relay webhook refuses unbound machine-origin events and ledgers bound deliveries', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const originalSecret = process.env.TELEGRAM_RELAY_SECRET;
+    const originalLedgerPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    const originalLedgerEnabled = process.env.SPARK_HARNESS_CORE_LEDGER;
+    const originalSmokeMode = process.env.TELEGRAM_SMOKE_MODE;
+    const relaySecret = 'relay-binding-test-secret-0123456789';
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      const stateDir = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-relay-binding-test-'));
+      const ledgerPath = path.join(stateDir, 'relay-machine-origin-ledger.jsonl');
+      process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+      process.env.TELEGRAM_RELAY_PORT = '18791';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      process.env.TELEGRAM_RELAY_SECRET = relaySecret;
+      process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+      delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      delete process.env.TELEGRAM_SMOKE_MODE;
+
+      const sent: Array<{ chatId: number; message: string }> = [];
+      const bot = {
+        telegram: {
+          sendMessage: async (chatId: number, message: string) => {
+            sent.push({ chatId, message });
+          }
+        }
+      };
+      const { port } = await startMissionRelay(bot as any);
+      const postEvent = async (event: Record<string, unknown>) => {
+        const response = await fetch(`http://127.0.0.1:${port}/spawner-events`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-spark-telegram-relay-secret': relaySecret
+          },
+          body: JSON.stringify({ type: 'mission_event', event })
+        });
+        return { status: response.status, body: await response.json() as Record<string, unknown> };
+      };
+
+      const unknown = await postEvent({ type: 'mission_started', missionId: 'mission-binding-unknown' });
+      assert.equal(unknown.status, 403);
+      assert.equal(unknown.body.error, 'machine_origin_event_not_bound');
+      assert.equal(unknown.body.reason, 'unregistered_mission');
+      assert.equal(sent.length, 0);
+
+      await registerMissionRelay({
+        missionId: 'mission-binding-bound',
+        chatId: '424242',
+        userId: '424242',
+        requestId: 'req-binding-bound',
+        traceRef: 'trace-binding-bound',
+        goal: 'Governed binding test mission.',
+        createdAt: new Date().toISOString(),
+        governorDecisionId: 'decision:governed-dispatch-test',
+        governorTurnId: 'turn:governed-dispatch-test'
+      });
+
+      const forgedRequest = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-forged' }
+      });
+      assert.equal(forgedRequest.status, 403);
+      assert.equal(forgedRequest.body.error, 'machine_origin_event_not_bound');
+      assert.equal(forgedRequest.body.reason, 'request_id_mismatch');
+      assert.equal(sent.length, 0);
+
+      const forgedTrace = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-bound', traceRef: 'trace-binding-forged' }
+      });
+      assert.equal(forgedTrace.status, 403);
+      assert.equal(forgedTrace.body.reason, 'trace_ref_mismatch');
+      assert.equal(sent.length, 0);
+
+      const bound = await postEvent({
+        type: 'mission_started',
+        missionId: 'mission-binding-bound',
+        data: { requestId: 'req-binding-bound', traceRef: 'trace-binding-bound' }
+      });
+      assert.equal(bound.status, 200);
+      assert.equal(bound.body.ok, true);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].chatId, 424242);
+
+      const ledger = readHarnessCoreToolLedger(ledgerPath);
+      const notification = ledger.find((record) => record.tool_name === 'mission_relay.notify');
+      assert.ok(notification, 'expected a mission_relay.notify ledger record after bound delivery');
+      assert.equal(notification!.result.status, 'success');
+      assert.match(notification!.result.summary, /machine-origin/i);
+      assert.match(notification!.result.summary, /decision:governed-dispatch-test/);
+      assert.match(notification!.result.summary, /turn:governed-dispatch-test/);
+      assert.match(notification!.result.summary, /mission-binding-bound/);
+    } finally {
+      await stopMissionRelayForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      if (originalSecret === undefined) delete process.env.TELEGRAM_RELAY_SECRET;
+      else process.env.TELEGRAM_RELAY_SECRET = originalSecret;
+      if (originalLedgerPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+      else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = originalLedgerPath;
+      if (originalLedgerEnabled === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      else process.env.SPARK_HARNESS_CORE_LEDGER = originalLedgerEnabled;
+      if (originalSmokeMode === undefined) delete process.env.TELEGRAM_SMOKE_MODE;
+      else process.env.TELEGRAM_SMOKE_MODE = originalSmokeMode;
+    }
   });
 })();

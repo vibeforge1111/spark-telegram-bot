@@ -162,6 +162,7 @@ import {
   normalizeTelegramRelayVerbosity,
   approvePendingMissionLesson,
   getTelegramRelayIdentity,
+  governorLinkageFromExecutionAuthority,
   markLatestMissionRelayCancelledForChat,
   markMissionRelayCancelled,
   markMissionRelayPaused,
@@ -5249,9 +5250,11 @@ export async function handleClarificationAnswers(
       chatId: String(ctx.chat.id),
       userId: String(ctx.from.id),
       requestId: newRequestId,
+      traceRef,
       goal: projectName || pending.prd,
       createdAt: new Date().toISOString(),
-      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
+      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
     });
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
@@ -7243,7 +7246,8 @@ export async function handleRunCommand(
     traceRef,
     goal: options.relayGoal || goal,
     createdAt: new Date().toISOString(),
-    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+    updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
+    ...governorLinkageFromExecutionAuthority(options.executionAuthority)
   });
   return result.missionId;
 }
@@ -7414,7 +7418,8 @@ export async function handleBuildIntent(
       traceRef,
       goal: polishedProjectName || prd,
       createdAt: new Date().toISOString(),
-      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
+      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
     });
 
     await ctx.reply(formatBuildMissionQueuedReply({

@@ -247,6 +247,17 @@ export function buildTelegramLegacyAuthorityPlanes(): LegacyAuthorityPlaneV1[] {
       }
     }),
     consumerPlane({
+      id: 'telegram-mission-relay-webhook',
+      plane_type: 'machine_origin_policy',
+      source_path: 'src/missionRelay.ts',
+      summary: 'The /spawner-events mission relay webhook accepts machine-origin Spawner callbacks only when they bind to a mission registered by a governed dispatch (missionId plus registered requestId/traceRef when present); unbound events are refused fail-closed and each accepted notification is recorded in the Harness Core tool ledger against the dispatch Governor decision.',
+      authority_risk: {
+        can_execute: true,
+        can_call_network: true
+      },
+      kind: 'policy'
+    }),
+    consumerPlane({
       id: 'telegram-pending-state-followups',
       plane_type: 'pending_state_helper',
       source_path: 'src/index.ts',
