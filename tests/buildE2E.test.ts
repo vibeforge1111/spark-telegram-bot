@@ -455,6 +455,39 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('PRD canvas ready notifier accepts metadata-only result summaries', async () => {
+		const indexModule: any = await import('../src/index');
+		const fullResult = {
+			found: true,
+			result: {
+				success: true,
+				projectName: 'Full Result'
+			}
+		};
+		const metadataOnlyResult = {
+			found: true,
+			summary: {
+				success: true,
+				projectName: 'Metadata Result',
+				taskCount: 3,
+				metadata: {
+					canonical: true,
+					resultAuthority: 'provider_result'
+				}
+			},
+			authorityBoundary: {
+				payload: 'metadata_only',
+				result: 'requires_control_auth'
+			}
+		};
+
+		assert.equal(indexModule.prdResultPollReadyAnalysis({ found: false }), null);
+		assert.equal(indexModule.prdResultPollReadyAnalysis({ found: true, summary: { success: false } }), null);
+		assert.deepEqual(indexModule.prdResultPollReadyAnalysis(fullResult), fullResult.result);
+		assert.deepEqual(indexModule.prdResultPollReadyAnalysis(metadataOnlyResult), metadataOnlyResult.summary);
+		restoreEnv();
+	});
+
 	await test('PRD canvas handoff refuses stale dispatch authority for a different mission', async () => {
 		const requestId = 'tg-build-dispatch-body-test-1780865000002';
 		const missionId = 'mission-1780865000002';

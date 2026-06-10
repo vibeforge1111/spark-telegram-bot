@@ -5344,7 +5344,8 @@ function startPrdCanvasReadyNotifier(args: {
         }
 
         const poll = await axios.get(resultUrl, spawnerAxiosOptions(3000));
-        if (poll.data?.found && poll.data?.result?.success) {
+        const readyResult = prdResultPollReadyAnalysis(poll.data);
+        if (readyResult) {
           try {
             if (shouldSuppressMissionHandoff(args.missionId)) {
               return;
@@ -5389,7 +5390,7 @@ function startPrdCanvasReadyNotifier(args: {
             rememberLatestCanvasPlan(args.chatId, args.userId, {
               projectName: args.projectName,
               taskCount: typeof taskCount === 'number' ? taskCount : null,
-              analysis: poll.data.result,
+              analysis: readyResult,
               tier: args.tier || 'base',
               readyCanvasUrl
             });
@@ -5397,7 +5398,7 @@ function startPrdCanvasReadyNotifier(args: {
               projectName: args.projectName,
               taskCount,
               elapsed,
-              analysis: poll.data.result,
+              analysis: readyResult,
               tier: args.tier,
               readyCanvasUrl,
               kanbanUrl: args.kanbanUrl,
@@ -5471,6 +5472,16 @@ export function summarizeSpawnerRequestError(error: unknown): string {
   if (!detail) detail = 'unknown error';
   const compact = detail.replace(/\s+/g, ' ').trim().slice(0, 360);
   return status ? `HTTP ${status}: ${compact}` : compact;
+}
+
+export function prdResultPollReadyAnalysis(data: unknown): Record<string, unknown> | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const record = data as Record<string, unknown>;
+  if (record.found !== true) return null;
+  const candidate = record.result ?? record.summary;
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
+  const analysis = candidate as Record<string, unknown>;
+  return analysis.success === true ? analysis : null;
 }
 
 export function buildPrdLoadToCanvasRequestBody(args: {
