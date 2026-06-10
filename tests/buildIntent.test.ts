@@ -444,6 +444,15 @@ test('UI feature words pause/stop/reset do not veto an explicit build request', 
   assert.equal(intent.projectName, 'Harness Genesis Timer 20260609');
 });
 
+test('display text containing pause does not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build a tiny single-file project named harness-pause-cua-20260610 that shows the text pause route proof passed. Token cua-20260610-build-pause-01. Please start the build now.'
+  );
+
+  assert.ok(intent, 'quoted/display copy containing pause must still parse as a build');
+  assert.equal(intent.projectName, 'Harness Pause CUA 20260610');
+});
+
 test('slash-separated start/pause/reset controls do not veto an explicit build request', () => {
   const intent = parseBuildIntent(
     'Build me a small focus timer web app called harness-genesis-timer-b with a single page: a 25-minute countdown, start/pause/reset buttons, and a simple session counter. Please start the build now.'

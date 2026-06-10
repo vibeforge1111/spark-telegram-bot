@@ -94,6 +94,7 @@ function titleCaseProjectName(value: string): string {
     qa: 'QA',
     saas: 'SaaS',
     tg: 'TG',
+    cua: 'CUA',
     ui: 'UI'
   };
   return value
@@ -258,6 +259,13 @@ function inferQuotedHeadingProjectName(prd: string): string | null {
 }
 
 function inferExplicitProjectName(prd: string): string | null {
+  const projectNamedMatch = prd.match(
+    /\b(?:project|app|site|dashboard|tool|board|page|game)\s+(?:called|named)\s+([A-Za-z0-9][A-Za-z0-9 _.-]{2,80}?)(?=[.,;?!]|\s+(?:that|which|where|with|for|using|and|to)\b|$)/i
+  );
+  if (projectNamedMatch?.[1]) {
+    return polishInferredProjectName(projectNamedMatch[1]);
+  }
+
   const quotedNameMatch = prd.match(
     /\b(?:called|named)\s+["']([^"']{3,80})["']/i
   );
@@ -655,9 +663,9 @@ function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|never mind|nevermind)\b/,
-    // pause/cancel/stop are decline verbs only when they are not UI feature words
-    // ("start, pause, and reset buttons", "pause/resume control" describe the product).
-    /\b(?:pause|cancel|stop)\b(?!\s*(?:[,/&]\s*)?(?:(?:and|or)\s+)?(?:reset|resume|restart|start|play|buttons?|controls?|keys?|toggles?|icons?|timers?)\b)/,
+    // pause/cancel/stop are decline verbs only when they appear as command-like
+    // clauses, not as product copy ("shows the text pause route proof passed").
+    /(?:^|[.!?]\s+|,\s+)(?:actually[, ]+|please[, ]+|just\s+)?(?:pause|cancel|stop)\b(?!\s*(?:[,/&]\s*)?(?:(?:and|or)\s+)?(?:reset|resume|restart|start|play|buttons?|controls?|keys?|toggles?|icons?|timers?)\b)/,
     /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
     /\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
     /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|make|create|ship|scaffold|generate|develop)\b/,
