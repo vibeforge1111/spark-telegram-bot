@@ -2760,6 +2760,7 @@ export type BuilderReplySuppressionReason =
   | 'route_menu'
   | 'project_event_residue'
   | 'memory_acknowledgement'
+  | 'memory_doctor_diagnostic'
   | 'low_information';
 
 export function builderReplySuppressionReason(reply: string, routingDecision: string = ''): BuilderReplySuppressionReason | null {
@@ -2779,6 +2780,9 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
     /^memory doctor\s*:/i.test(reply.trim())
   ) {
     return 'diagnostic_wall';
+  }
+  if (/^memory doctor:/i.test(normalized)) {
+    return 'memory_doctor_diagnostic';
   }
   if (
     (
