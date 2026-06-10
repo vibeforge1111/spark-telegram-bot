@@ -172,7 +172,8 @@ import {
   setMissionRelayRuntimeStatus,
   setTelegramMissionLinkPreference,
   setTelegramRelayVerbosity,
-  startMissionRelay
+  startMissionRelay,
+  unregisterMissionRelay
 } from './missionRelay';
 import { buildDiagnoseReport } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
@@ -5212,7 +5213,21 @@ export async function handleClarificationAnswers(
     traceRef
   });
 
+  let relayRegistered = false;
   try {
+    await registerMissionRelay({
+      missionId,
+      chatId: String(ctx.chat.id),
+      userId: String(ctx.from.id),
+      requestId: newRequestId,
+      traceRef,
+      goal: projectName || pending.prd,
+      createdAt: new Date().toISOString(),
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
+      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
+    });
+    relayRegistered = true;
+
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
       {
@@ -5245,21 +5260,10 @@ export async function handleClarificationAnswers(
     );
 
     if (!res.data?.success) {
+      if (relayRegistered) await unregisterMissionRelay(missionId);
       await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Clarification re-dispatch failed'), 'spawner', conversation.isAdmin(ctx.from)));
       return;
     }
-
-    await registerMissionRelay({
-      missionId,
-      chatId: String(ctx.chat.id),
-      userId: String(ctx.from.id),
-      requestId: newRequestId,
-      traceRef,
-      goal: projectName || pending.prd,
-      createdAt: new Date().toISOString(),
-      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
-      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
-    });
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
     const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
@@ -5290,6 +5294,7 @@ export async function handleClarificationAnswers(
       summary: `Clarified build ${missionId} was force-dispatched through the PRD bridge.`
     });
   } catch (err) {
+    if (relayRegistered) await unregisterMissionRelay(missionId);
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'spawner.run',
       status: 'failure',
@@ -7338,7 +7343,21 @@ export async function handleBuildIntent(
     projectName: polishedProjectName,
     traceRef
   });
+  let relayRegistered = false;
   try {
+    await registerMissionRelay({
+      missionId,
+      chatId: String(ctx.chat.id),
+      userId: String(ctx.from.id),
+      requestId,
+      traceRef,
+      goal: polishedProjectName || prd,
+      createdAt: new Date().toISOString(),
+      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
+      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
+    });
+    relayRegistered = true;
+
     const res = await postLocalServiceWithRetry(
       `${spawnerUrl}/api/prd-bridge/write`,
       {
@@ -7379,6 +7398,7 @@ export async function handleBuildIntent(
     );
 
     if (!res.data?.success) {
+      if (relayRegistered) await unregisterMissionRelay(missionId);
       await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Spawner PRD queue failed'), 'spawner', conversation.isAdmin(ctx.from)));
       return { status: 'failure', summary: `Spawner PRD queue failed: ${res.data?.error || 'unknown error'}.`, requestId, traceRef };
     }
@@ -7387,6 +7407,7 @@ export async function handleBuildIntent(
     // briefs. Surface the questions to the user and stash the original
     // request so /clarify can re-dispatch with forceDispatch.
     if (res.data?.needsClarification && Array.isArray(res.data.openQuestions)) {
+      if (relayRegistered) await unregisterMissionRelay(missionId);
       rememberPendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), {
         requestId,
         prd,
@@ -7413,18 +7434,6 @@ export async function handleBuildIntent(
 
     const telegramSurfaceUrl = resolveTelegramSpawnerSurfaceUrl();
     const kanbanUrl = projectKanbanUrl(telegramSurfaceUrl, missionId);
-
-    await registerMissionRelay({
-      missionId,
-      chatId: String(ctx.chat.id),
-      userId: String(ctx.from.id),
-      requestId,
-      traceRef,
-      goal: polishedProjectName || prd,
-      createdAt: new Date().toISOString(),
-      updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined,
-      ...governorLinkageFromExecutionAuthority(dispatchExecutionAuthority)
-    });
 
     await ctx.reply(formatBuildMissionQueuedReply({
       lead: 'Got it. Spark is on it.',
@@ -7468,6 +7477,7 @@ export async function handleBuildIntent(
     });
     return { status: 'success', summary: `Spawner accepted PRD bridge build for ${polishedProjectName}.`, missionId, requestId, traceRef };
   } catch (err: any) {
+    if (relayRegistered) await unregisterMissionRelay(missionId);
     await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
     return { status: 'failure', summary: `Build dispatch failed: ${err instanceof Error ? err.message : String(err)}` };
   }

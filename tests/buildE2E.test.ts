@@ -494,9 +494,11 @@ async function run(): Promise<void> {
 		process.env.SPARK_BOT_TEST_MODE = '1';
 
 		const captured: CapturedCall[] = [];
+		let registryDuringPost: any[] = [];
 		(axios as any).post = async (url: string, body: any) => {
 			captured.push({ url, body });
 			if (url.includes('/api/prd-bridge/write')) {
+				registryDuringPost = await readMissionRelayRegistry();
 				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'claude', started: true } } };
 			}
 			return { data: { success: true } };
@@ -557,6 +559,8 @@ async function run(): Promise<void> {
 		});
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === missionId);
+		const subscriptionDuringPost = registryDuringPost.find((entry) => entry.missionId === missionId);
+		assert.ok(subscriptionDuringPost, 'PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'PRD build mission should be registered for Telegram relay progress');
 		assert.equal(subscription.chatId, '8319079055');
 		assert.equal(subscription.userId, '8319079055');
@@ -2995,6 +2999,7 @@ async function run(): Promise<void> {
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 
 		const captured: CapturedCall[] = [];
+		let registryDuringClarifiedPost: any[] = [];
 		(axios as any).post = async (url: string, body: any) => {
 			captured.push({ url, body });
 			if (url.includes('/api/prd-bridge/write') && !body.forceDispatch) {
@@ -3007,6 +3012,9 @@ async function run(): Promise<void> {
 						addedAssumptions: ['Assume this is a browser-playable game unless another platform is specified.']
 					}
 				};
+			}
+			if (url.includes('/api/prd-bridge/write') && body.forceDispatch) {
+				registryDuringClarifiedPost = await readMissionRelayRegistry();
 			}
 			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
 		};
@@ -3047,6 +3055,8 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(replies.join('\n'), /Mission board/);
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === clarifiedMissionId);
+		const subscriptionDuringPost = registryDuringClarifiedPost.find((entry) => entry.missionId === clarifiedMissionId);
+		assert.ok(subscriptionDuringPost, 'clarified PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'clarified PRD build mission should be registered for Telegram relay progress');
 		assert.equal(subscription.chatId, '8319079055');
 		assert.equal(subscription.userId, '8319079055');

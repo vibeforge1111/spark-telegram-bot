@@ -399,6 +399,14 @@ export async function registerMissionRelay(input: MissionSubscription): Promise<
   await persistRegistry();
 }
 
+export async function unregisterMissionRelay(missionId: string): Promise<void> {
+  const cleanMissionId = missionId.trim();
+  if (!cleanMissionId) return;
+  await loadRegistry();
+  registry.delete(cleanMissionId);
+  await persistRegistry();
+}
+
 /**
  * Extracts the Governor decision/turn linkage from a governed dispatch
  * execution authority (GovernorDecisionV1-shaped), so mission registrations
