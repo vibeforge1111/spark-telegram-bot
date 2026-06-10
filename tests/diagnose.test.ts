@@ -3,6 +3,7 @@ import {
   describeAccessDiagnostics,
   describeBuilderBridgeHealth,
   describeChatProviderHealth,
+  describeRouteDivergence,
   describeRelayHealth,
   describeProviderStatus,
   describeSpawnerPublicLinkHealth,
@@ -14,6 +15,7 @@ import {
   type DiagnoseSubject,
   type ProviderStatus
 } from '../src/diagnose';
+import type { NaturalRouteExecutionRecord } from '../src/naturalRouteLedger';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -23,6 +25,34 @@ function test(name: string, fn: () => void): void {
     console.error(`not ok - ${name}`);
     throw error;
   }
+}
+
+function routeRecord(
+  shadowRoute: string,
+  executedRoute: string,
+  outcome: NaturalRouteExecutionRecord['outcome'] = shadowRoute === executedRoute ? 'matched' : 'mismatch'
+): NaturalRouteExecutionRecord {
+  return {
+    schema_version: 'spark.nlp.route_execution.v1',
+    recorded_at: '2026-06-10T00:00:00.000Z',
+    profile: 'test',
+    user_id: 'user_redacted',
+    chat_id: 'chat_redacted',
+    chat_type: 'private',
+    admin: true,
+    shadow_route: shadowRoute,
+    shadow_owner: shadowRoute === 'spawner.build' ? 'spawner-ui' : 'none',
+    shadow_confidence: 'explicit',
+    shadow_context_source: 'latest_message',
+    shadow_requires_confirmation: false,
+    shadow_signals: [],
+    shadow_blocked_by: [],
+    executed_route: executedRoute,
+    executed_owner: executedRoute === 'spawner.build' ? 'spawner-ui' : 'spark-telegram-bot',
+    executed_action: executedRoute,
+    outcome,
+    delivery: 'selected'
+  };
 }
 
 test('reports terminal CLI providers as ready without API keys', () => {
@@ -123,6 +153,24 @@ test('diagnostics keep OpenAI-compatible chat separate from Codex mission routin
   assert.equal(routes.chatProvider, 'openai');
   assert.equal(routes.telegramRunProvider, 'codex');
   assert.equal(routes.spawnerDefaultProvider, 'codex');
+});
+
+test('summarizes route divergence and build misroutes for diagnose', () => {
+  assert.deepEqual(describeRouteDivergence([]), ['Route divergence: no route ledger records yet']);
+  assert.deepEqual(
+    describeRouteDivergence([routeRecord('spawner.build', 'spawner.build')]),
+    ['Route divergence: ok (1 records, 0 mismatches)']
+  );
+
+  const lines = describeRouteDivergence([
+    routeRecord('spawner.build', 'plain_chat'),
+    routeRecord('spawner.build', 'spark.read_only_state.live_status'),
+    routeRecord('memory.write', 'plain_chat')
+  ]);
+
+  assert.equal(lines[0], 'Route divergence: 3/3 mismatched; build misroutes 2');
+  assert.match(lines[1], /spawner\.build->plain_chat x1/);
+  assert.match(lines[1], /spawner\.build->spark\.read_only_state\.live_status x1/);
 });
 
 test('uses the active Telegram relay profile and port for diagnostics', () => {
