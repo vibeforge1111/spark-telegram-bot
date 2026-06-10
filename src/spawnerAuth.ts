@@ -4,9 +4,8 @@ export function spawnerAuthHeaders(env: NodeJS.ProcessEnv = process.env): Record
   const controlKey =
     env.SPARK_BRIDGE_API_KEY?.trim() ||
     env.MCP_API_KEY?.trim() ||
-    env.EVENTS_API_KEY?.trim() ||
-    env.SPARK_UI_API_KEY?.trim();
-  const uiKey = env.SPARK_UI_API_KEY?.trim() || controlKey;
+    env.EVENTS_API_KEY?.trim();
+  const uiKey = env.SPARK_UI_API_KEY?.trim();
   const workspaceId = env.SPARK_WORKSPACE_ID?.trim();
 
   if (!controlKey && !uiKey) return {};
