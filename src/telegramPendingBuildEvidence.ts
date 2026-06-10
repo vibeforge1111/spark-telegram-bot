@@ -102,7 +102,8 @@ export function shouldUsePendingClarificationForMessage(
   now = Date.now()
 ): boolean {
   if (!entry) return false;
-  return !isPendingBuildClarificationExpired(entry, now) && isPendingClarificationFollowup(text);
+  if (isPendingBuildClarificationExpired(entry, now)) return false;
+  return true;
 }
 
 export function pendingBuildClarificationForMessage(key: string, text: string): PendingBuildClarification | null {
