@@ -1671,6 +1671,147 @@ void (async () => {
     }
   });
 
+  await asyncTest('delivers canonical PRD fallback completion when trace has no provider summary', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const originalPort = process.env.TELEGRAM_RELAY_PORT;
+    const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
+    const originalSecret = process.env.TELEGRAM_RELAY_SECRET;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalLedgerPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    const originalLedgerEnabled = process.env.SPARK_HARNESS_CORE_LEDGER;
+    const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
+    const relaySecret = 'canonical-prd-fallback-secret-0123456789';
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      const stateDir = await mkdtemp(path.join(os.tmpdir(), 'spark-canonical-prd-relay-test-'));
+      const ledgerPath = path.join(stateDir, 'canonical-prd-relay-ledger.jsonl');
+      process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+      process.env.TELEGRAM_RELAY_PORT = '18792';
+      process.env.SPARK_TELEGRAM_PROFILE = 'primary';
+      process.env.TELEGRAM_RELAY_SECRET = relaySecret;
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+      process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+      delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+
+      const sent: Array<{ chatId: number; message: string; extra?: Record<string, unknown> }> = [];
+      const bot = {
+        telegram: {
+          sendMessage: async (chatId: number, message: string, extra?: Record<string, unknown>) => {
+            sent.push({ chatId, message, extra });
+          }
+        }
+      };
+      const { port } = await startMissionRelay(bot as any);
+      let traceFetches = 0;
+      globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        const url = String(input);
+        if (url.startsWith(`http://127.0.0.1:${port}/`)) {
+          return originalFetch(input, init);
+        }
+        if (url.startsWith('http://stub-spawner.test/api/mission-control/trace')) {
+          traceFetches += 1;
+          return new Response(JSON.stringify({
+            phase: 'completed',
+            providerSummary: null,
+            providerResults: [],
+            projectLineage: {}
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }) as typeof fetch;
+
+      await registerMissionRelay({
+        missionId: 'mission-canonical-prd-fallback',
+        chatId: '424242',
+        userId: '424242',
+        requestId: 'tg-build-canonical-prd-fallback',
+        traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+        goal: 'Build a canonical PRD fallback proof.',
+        createdAt: new Date().toISOString(),
+        governorDecisionId: 'decision:canonical-prd-fallback',
+        governorTurnId: 'turn:canonical-prd-fallback'
+      });
+
+      const response = await fetch(`http://127.0.0.1:${port}/spawner-events`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-spark-telegram-relay-secret': relaySecret
+        },
+        body: JSON.stringify({
+          type: 'mission_event',
+          event: {
+            type: 'mission_completed',
+            missionId: 'mission-canonical-prd-fallback',
+            source: 'spawner-ui',
+            data: {
+              requestId: 'tg-build-canonical-prd-fallback',
+              traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+              provider: 'deterministic-fast-lane',
+              canonicalResultAvailable: true,
+              resultFileName: 'tg-build-canonical-prd-fallback.json'
+            }
+          }
+        })
+      });
+      const body = await response.json() as Record<string, unknown>;
+
+      assert.equal(response.status, 200);
+      assert.equal(body.ok, true);
+      assert.equal(body.canonicalPrdFallback, true);
+      assert.equal(body.completionFetched, false);
+      assert.equal(traceFetches, 1);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].chatId, 424242);
+      assert.match(sent[0].message, /canonical PRD result artifact/);
+      assert.doesNotMatch(sent[0].message, /chatId|424242|trace:spawner-prd/);
+      assert.deepEqual(sent[0].extra?.__sparkTraceContext, {
+        route: 'mission_relay',
+        command: 'mission_relay',
+        replyKind: 'mission_completion',
+        requestId: 'tg-build-canonical-prd-fallback',
+        traceRef: 'trace:spawner-prd:mission-canonical-prd-fallback',
+        missionId: 'mission-canonical-prd-fallback'
+      });
+
+      const ledger = readHarnessCoreToolLedger(ledgerPath);
+      assert.ok(ledger.some((record) => record.tool_name === 'mission_relay.notify' && record.result.status === 'success'));
+    } finally {
+      await stopMissionRelayForTests();
+      globalThis.fetch = originalFetch;
+      resetMissionRelayRegistryForTests();
+      resetMissionRelayDeliveryStateForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+      if (originalPort === undefined) delete process.env.TELEGRAM_RELAY_PORT;
+      else process.env.TELEGRAM_RELAY_PORT = originalPort;
+      if (originalProfile === undefined) delete process.env.SPARK_TELEGRAM_PROFILE;
+      else process.env.SPARK_TELEGRAM_PROFILE = originalProfile;
+      if (originalSecret === undefined) delete process.env.TELEGRAM_RELAY_SECRET;
+      else process.env.TELEGRAM_RELAY_SECRET = originalSecret;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalLedgerPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+      else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = originalLedgerPath;
+      if (originalLedgerEnabled === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER;
+      else process.env.SPARK_HARNESS_CORE_LEDGER = originalLedgerEnabled;
+      if (originalPromptEnv === undefined) delete process.env.SPARK_MISSION_LESSON_PROMPTS;
+      else process.env.SPARK_MISSION_LESSON_PROMPTS = originalPromptEnv;
+    }
+  });
+
   await asyncTest('does not cache fetched completion summaries until Telegram delivery succeeds', async () => {
     const originalPromptEnv = process.env.SPARK_MISSION_LESSON_PROMPTS;
     try {

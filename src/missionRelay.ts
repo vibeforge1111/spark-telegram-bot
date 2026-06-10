@@ -830,6 +830,32 @@ async function fetchMissionCompletionSummary(
   return null;
 }
 
+function canonicalPrdCompletionFromRelayEvent(
+  event: DeliverableRelayEvent,
+  subscription: MissionSubscription
+): MissionCompletionSummary | null {
+  const data = asRecord(event.data);
+  if (!data || data.canonicalResultAvailable !== true) return null;
+  const requestId = requestIdFromEvent(event) || subscription.requestId?.trim();
+  if (!requestId) return null;
+  const providerLabel =
+    relayStringField(event.data, 'provider') ||
+    relayStringField(event.data, 'providerLabel') ||
+    event.source ||
+    'spawner';
+  return {
+    providerLabel,
+    response: JSON.stringify({
+      status: 'completed',
+      summary: 'Spawner recorded the canonical PRD result artifact for this governed build.',
+      verification: [
+        'Governor-authorized Spawner request reached the canonical artifact handoff.',
+        'Telegram relay accepted only the registered mission/request/trace binding.'
+      ]
+    })
+  };
+}
+
 function isProviderLevelCompletionEvent(event: DeliverableRelayEvent): boolean {
   return event.type === 'task_completed' && !event.taskId && !event.taskName;
 }
@@ -914,8 +940,9 @@ function scheduleDelayedCompletionSummary(
     void (async () => {
       if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
       const completion = await fetchMissionCompletionSummary(event.missionId, { attempts: 12, delayMs: 5000 });
-      if (!completion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
-      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
+      const canonicalCompletion = completion || canonicalPrdCompletionFromRelayEvent(event, subscription);
+      if (!canonicalCompletion || completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
+      await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, canonicalCompletion);
     })().catch((error) => {
       console.warn(formatCompletionSummaryDeliveryFailureLog(event.missionId, error));
     });
@@ -2647,12 +2674,17 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
           cleanupMissionNarrationCounts(event.missionId);
+          const canonicalCompletion = canonicalPrdCompletionFromRelayEvent(event, subscription);
 	        const completion = completionDeliveryCache.has(event.missionId)
 	          ? null
-	          : await fetchMissionCompletionSummary(event.missionId);
-	        if (completion) {
-	          const chunks = await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
-	          writeJson(res, 200, { ok: true, chunks, completionFetched: true });
+	          : await fetchMissionCompletionSummary(
+                event.missionId,
+                canonicalCompletion ? { attempts: 1, delayMs: 250 } : {}
+              );
+          const completionToSend = completion || canonicalCompletion;
+	        if (completionToSend) {
+	          const chunks = await sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completionToSend);
+	          writeJson(res, 200, { ok: true, chunks, completionFetched: Boolean(completion), canonicalPrdFallback: !completion && Boolean(canonicalCompletion) });
 	          return;
 	        }
 	        scheduleDelayedCompletionSummary(bot, chatId, subscription, event, verbosity);
