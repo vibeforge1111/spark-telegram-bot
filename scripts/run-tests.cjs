@@ -1,72 +1,21 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
-const tests = [
-  'tests/launchMode.test.ts',
-  'tests/onboardingBridge.test.ts',
-  'tests/buildIntent.test.ts',
-  'tests/buildRoutingMatrix.test.ts',
-  'tests/buildE2E.test.ts',
-  'tests/conversationIntent.test.ts',
-  'tests/noExecutionBridgeBoundary.test.ts',
-  'tests/naturalRouteDecision.test.ts',
-  'tests/conversationSmoke.test.ts',
-  'tests/naturalRouteTelemetry.test.ts',
-  'tests/naturalRouteLedger.test.ts',
-  'tests/naturalRouteReplay.test.ts',
-  'tests/liveNlVerdict.test.ts',
-  'tests/routeBoundaryHandlerHarness.test.ts',
-  'tests/runtimeStatusNatural.test.ts',
-  'tests/harnessContract.test.ts',
-  'tests/harnessCoreVNext.test.ts',
-  'tests/harnessCoreLedger.test.ts',
-  'tests/legacyAuthorityInventory.test.ts',
-  'tests/telegramActionAuthority.test.ts',
-  'tests/telegramCommandAuthority.test.ts',
-  'tests/telegramMediaAuthority.test.ts',
-  'tests/runtimeFreshness.test.ts',
-  'tests/runtimeOutputTruncation.test.ts',
-  'tests/runtimeSyncCompatibility.test.ts',
-  'tests/turnIntent350Matrix.test.ts',
-  'tests/conversationMemory.test.ts',
-  'tests/commandTelemetry.test.ts',
-  'tests/accessPolicy.test.ts',
-  'tests/authorityStatus.test.ts',
-  'tests/operatorActions.test.ts',
-  'tests/providerRouting.test.ts',
-  'tests/modelSwitch.test.ts',
-  'tests/missionRelayFormatting.test.ts',
-  'tests/missionRelayHealth.test.ts',
-  'tests/outboundSanitize.test.ts',
-  'tests/redaction.test.ts',
-  'tests/errorExplain.test.ts',
-  'tests/schedule.test.ts',
-  'tests/spawner.test.ts',
-  'tests/spawnerUrl.test.ts',
-  'tests/timeoutConfig.test.ts',
-  'tests/shippedProjectSummaryTruncation.test.ts',
-  'tests/localWorkspace.test.ts',
-  'tests/llmProvider.test.ts',
-  'tests/llmStreaming.test.ts',
-  'tests/telegramDraft.test.ts',
-  'tests/telegramVoiceBridge.test.ts',
-  'tests/telegramSurface.test.ts',
-  'tests/llmProviderSmoke.test.ts',
-  'tests/profileEnv.test.ts',
-  'tests/healthPolling.test.ts',
-  'tests/diagnose.test.ts',
-  'tests/recursive.test.ts',
-  'tests/recursiveCommand.test.ts',
-  'tests/creatorMissionStatus.test.ts',
-  'tests/launchConversationQuality.test.ts',
-  'tests/builderBridge.test.ts',
-  'tests/telegramVoiceBridge.test.ts',
-  'tests/voiceCaption.test.ts',
-  'tests/pythonCommand.test.ts',
-  'tests/hiddenProcess.test.ts'
-];
+// Every entry here MUST carry a reason. Empty set is the goal state.
+const SKIP = new Map([
+  // ['tests/example.test.ts', 'reason + tracking note']
+]);
+
+const testsDir = path.join(__dirname, '..', 'tests');
+const tests = fs.readdirSync(testsDir)
+  .filter((fileName) => fileName.endsWith('.test.ts'))
+  .sort()
+  .map((fileName) => `tests/${fileName}`)
+  .filter((testFile) => !SKIP.has(testFile));
 
 const requireRealToken = process.argv.includes('--require-real-token');
 const token = process.env.BOT_TOKEN || '';
@@ -89,10 +38,17 @@ const env = {
 const tsNodeBin = path.join(__dirname, '..', 'node_modules', 'ts-node', 'dist', 'bin.js');
 
 for (const testFile of testsToRun) {
+  console.log(`[test] ${testFile}`);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spark-telegram-test-'));
+  const testEnv = {
+    ...env,
+    SPARK_TURN_TRACE_PATH: path.join(tempDir, 'turn-trace.jsonl')
+  };
   const result = spawnSync(process.execPath, [tsNodeBin, testFile], {
-    env,
+    env: testEnv,
     stdio: 'inherit'
   });
+  fs.rmSync(tempDir, { recursive: true, force: true });
 
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
