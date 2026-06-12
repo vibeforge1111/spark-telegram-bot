@@ -18,7 +18,7 @@ import {
   type HarnessCoreGovernorConsumerVerification,
   verifyHarnessCoreGovernorExecutionAuthority
 } from '@spark/harness-core';
-import { signGovernorDecisionIfConfigured } from './governorSignature';
+import { governorHmacKey, governorHmacKeyId, signGovernorDecisionIfConfigured } from './governorSignature';
 import { recordHarnessCoreAuthorizationLedger } from './harnessCoreLedger';
 import type { DeterministicRouteId } from './routeTypes';
 
@@ -87,6 +87,19 @@ function envelopeSelectedRoute(envelope: TurnIntentEnvelopeV1 | null | undefined
   return false;
 }
 
+function governorSignatureVerificationOptions(): {
+  governor_hmac_key: string | null;
+  governor_hmac_key_id: string | null;
+  require_signature: boolean;
+} {
+  const key = governorHmacKey();
+  return {
+    governor_hmac_key: key || null,
+    governor_hmac_key_id: key ? governorHmacKeyId() : null,
+    require_signature: Boolean(key)
+  };
+}
+
 export function governorOutcomeAllowsTelegramAction(
   governorDecision: GovernorDecisionV1 | null | undefined,
   action: HarnessCoreProposedAction | null | undefined,
@@ -99,7 +112,8 @@ export function governorOutcomeAllowsTelegramAction(
     expected_action_type: action.action_type,
     tool_name: toolName,
     action_id: action.action_id,
-    allow_read_only: action.action_type === 'read'
+    allow_read_only: action.action_type === 'read',
+    ...governorSignatureVerificationOptions()
   }).allowed;
 }
 
@@ -162,7 +176,8 @@ export function authorizeTelegramActionFromEnvelope(
         action_type: harnessCore.action.action_type,
         action_id: harnessCore.action.action_id,
         allow_read_only: harnessCore.action.action_type === 'read',
-        require_pre_execution_ledger: true
+        require_pre_execution_ledger: true,
+        ...governorSignatureVerificationOptions()
       })
     : null;
   const allow = consumerVerification?.allowed === true;

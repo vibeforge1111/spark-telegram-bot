@@ -330,6 +330,26 @@ test('final Telegram action boundary allows read-only Governor outcome only for 
   );
 });
 
+test('final Telegram action boundary rejects unsigned Governor decisions when HMAC is configured', () => withGovernorHmacEnv(() => {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spark-telegram-bot',
+    toolName: 'spark.status',
+    mutationClass: 'read_only',
+    source: 'telegram',
+    reason: 'Read Spark status from Telegram.',
+    requestId: 'turn:unsigned-governor',
+    actorIdRef: 'telegram-human'
+  });
+  const unsignedDecision = createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spark.status'
+  });
+  const readAction = unsignedDecision.envelope.proposed_actions[0];
+
+  assert.equal(governorOutcomeAllowsTelegramAction(unsignedDecision, readAction, 'spark.status'), false);
+}));
+
 test('allows explicit no-edit Spawner missions while preserving the file-edit constraint', () => {
   const text = 'Run a tiny mission through Spawner that only replies: SPARK_TURNINTENT_QA_OK_6. Do not edit files.';
   const envelope = envelopeFor(text);
