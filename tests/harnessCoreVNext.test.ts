@@ -111,6 +111,7 @@ test('Telegram action authority now requires Harness Core allow verdict', () => 
   assert.equal(result.allow, true);
   assert.ok(result.harnessCore);
   assert.equal(result.harnessCore?.envelope.schema_version, 'turn-intent-envelope-vnext');
+  assert.equal(result.harnessCore?.envelope.turn_id, 'turn:harness-core-vnext');
   assert.equal(result.harnessCore?.envelope.selected_move, 'execute_action');
   assert.equal(result.harnessCore?.envelope.action_authority.state, 'executable');
   assert.match(result.harnessCore?.envelope.action_authority.reason || '', /Governor consumer verification/);
@@ -119,6 +120,7 @@ test('Telegram action authority now requires Harness Core allow verdict', () => 
   assert.equal(result.harnessCore?.authorization.schema_version, 'authorization-decision-v1');
   assert.equal(result.harnessCore?.authorization.verdict, 'allow');
   assert.equal(result.governorDecision?.schema_version, 'governor-decision-v1');
+  assert.equal(result.governorDecision?.turn_id, 'turn:harness-core-vnext');
   assert.equal(result.governorDecision?.outcome, 'execute');
   assert.equal(result.governorDecision?.execution_boundary.action_authorized, true);
   assert.equal(result.governorDecision?.execution_boundary.legacy_authority_demoted, true);
@@ -242,6 +244,8 @@ test('records Harness Core tool ledger for authorized execution', () => {
 
   assert.equal(ledger.schema_version, 'tool-call-ledger-v1');
   assert.equal(ledger.turn_id, result.harnessCore?.envelope.turn_id);
+  assert.equal(ledger.turn_id, 'turn:harness-core-vnext');
+  assert.equal(result.governorDecision?.tool_ledgers[0].turn_id, 'turn:harness-core-vnext');
   assert.equal(ledger.authorization.verdict, 'allow');
   assert.equal(ledger.result.status, 'success');
   assert.ok(ledger.lifecycle.some((stage) => stage.stage === 'authorize' && stage.verdict === 'passed'));

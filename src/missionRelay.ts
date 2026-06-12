@@ -2496,6 +2496,7 @@ function recordMissionRelayMachineOriginNotification(
       mutationClass: 'none',
       source: 'spark-telegram-bot/mission-relay-machine-origin',
       reason: bindingSummary,
+      turnId,
       requestId: subscription.requestId,
       actorKind: 'human',
       actorIdRef: 'telegram-human',

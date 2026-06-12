@@ -55,6 +55,12 @@ function traceIdFromGovernorDecision(value: unknown): string {
   return stringField(trace.id) || stringField(rawTurnRef.id) || stringField(value.turn_id);
 }
 
+function turnIdFromGovernorDecision(value: unknown): string {
+  if (!isRecord(value)) return '';
+  const envelope = isRecord(value.envelope) ? value.envelope : {};
+  return stringField(value.turn_id) || stringField(envelope.turn_id);
+}
+
 export function telegramBuildAuthorityFailureReason(value: unknown): string | null {
   return harnessExecutionAuthorityFailureReason(value, TELEGRAM_BUILD_AUTHORITY);
 }
@@ -143,6 +149,7 @@ export function buildSpawnerPrdWriteExecutionAuthority(input: {
       projectName ? `Project: ${projectName}.` : '',
       upstreamTraceId ? `Upstream Telegram Governor trace: ${upstreamTraceId}.` : ''
     ].filter(Boolean).join(' '),
+    turnId: turnIdFromGovernorDecision(input.telegramExecutionAuthority) || undefined,
     requestId,
     actorKind: 'human',
     actorIdRef: actorIdRefFromGovernorDecision(input.telegramExecutionAuthority),
@@ -196,6 +203,7 @@ export function buildSpawnerDispatchExecutionAuthority(input: {
       projectName ? `Project: ${projectName}.` : '',
       upstreamTraceId ? `Upstream Telegram Governor trace: ${upstreamTraceId}.` : ''
     ].filter(Boolean).join(' '),
+    turnId: turnIdFromGovernorDecision(input.telegramExecutionAuthority) || undefined,
     requestId,
     actorKind: 'human',
     actorIdRef: actorIdRefFromGovernorDecision(input.telegramExecutionAuthority),
