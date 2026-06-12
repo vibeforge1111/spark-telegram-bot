@@ -14,6 +14,8 @@
  * Usage:
  *   node scripts/sync-runtime.cjs            # one-shot
  *   node scripts/sync-runtime.cjs --check    # exit 1 if drift detected
+ *   node scripts/sync-runtime.cjs --check --require-runtime
+ *                                             # also fail if runtime is missing
  */
 
 const fs = require('fs');
@@ -158,10 +160,10 @@ function syncOnce({ silent = false } = {}) {
 	if (!silent) console.log(synced > 0 ? `[sync] ${synced} path(s) updated.` : '[sync] nothing to do.');
 }
 
-function checkDrift() {
+function checkDrift({ requireRuntime = false } = {}) {
 	if (!exists(RUNTIME_ROOT)) {
 		console.error(`[check] runtime not present at ${RUNTIME_ROOT}`);
-		process.exit(0);
+		process.exit(requireRuntime ? 1 : 0);
 	}
 	const drift = [];
 	for (const rel of discoverSyncedPaths()) {
@@ -179,6 +181,6 @@ function checkDrift() {
 	process.exit(1);
 }
 
-const arg = process.argv[2];
-if (arg === '--check') checkDrift();
+const args = new Set(process.argv.slice(2));
+if (args.has('--check')) checkDrift({ requireRuntime: args.has('--require-runtime') });
 else syncOnce();

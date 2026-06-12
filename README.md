@@ -241,6 +241,22 @@ Then verify local launch config from the same package directory:
 npm run health:polling
 ```
 
+## Deploy To The Live Mirror
+
+For local Spark installs, deploy the Telegram gateway with one guarded command
+from the source checkout:
+
+```bash
+npm run restart:safe
+```
+
+The command rebuilds `dist/`, syncs the declared runtime files into the live
+mirror, runs the strict runtime drift check, and only then restarts the
+`spark-recursive` Telegram profile through `spark.cmd`. If the check prints
+`DRIFT`, do not restart from stale output. Read the listed paths, rerun
+`npm run build:sync`, and repeat `npm run sync:check:strict` until it prints
+`[check] runtime in sync.`
+
 ## Railway / Docker
 
 This repo includes a Dockerfile for the hosted Telegram gateway service. The
