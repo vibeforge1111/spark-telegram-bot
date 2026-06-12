@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { Telegraf } from 'telegraf';
 import {
   createHarnessCoreActionEnvelopeVNext,
@@ -128,13 +129,46 @@ const OPEN_TASK_CACHE_TTL_MS = 10 * 60_000;
 const completionDeliveryCache = new Map<string, number>();
 const COMPLETION_CACHE_TTL_MS = 24 * 60 * 60_000;
 const completionDeliveryInFlight = new Set<string>();
+const pendingCompletionRetries = new Map<string, number>();
+const PENDING_COMPLETION_RETRY_TTL_MS = 60 * 60_000;
 const verboseNarrationCounts = new Map<string, { count: number; updatedAt: number }>();
 const VERBOSE_NARRATION_CACHE_TTL_MS = 6 * 60 * 60_000;
+
+interface MissionRelayStateTransition {
+  entity_type: 'telegram.mission_subscription' | 'telegram.completion_retry';
+  entity_id: string;
+  from_state: string;
+  to_state: string;
+  reason: string;
+  turn_id: string | null;
+  ts: string;
+  request_id?: string;
+  trace_ref?: string;
+}
 
 function pruneCompletionDeliveryCache(now = Date.now()): void {
   for (const [key, ts] of completionDeliveryCache) {
     if (now - ts > COMPLETION_CACHE_TTL_MS) completionDeliveryCache.delete(key);
   }
+}
+
+function prunePendingCompletionRetries(now = Date.now(), persist = true): void {
+  let changed = false;
+  for (const [missionId, ts] of pendingCompletionRetries) {
+    if (now - ts <= PENDING_COMPLETION_RETRY_TTL_MS) continue;
+    pendingCompletionRetries.delete(missionId);
+    changed = true;
+    recordMissionRelayStateTransition({
+      entity_type: 'telegram.completion_retry',
+      entity_id: missionId,
+      from_state: 'pending',
+      to_state: 'expired',
+      reason: 'completion_retry_timeout',
+      turn_id: null,
+      ts: new Date(now).toISOString()
+    });
+  }
+  if (changed) void savePendingCompletionRetries();
 }
 
 function pruneOpenTaskStartCache(now = Date.now()): void {
@@ -180,6 +214,52 @@ function registryPathForCurrentRelay(): string {
 
 function completionDeliveryPathForCurrentRelay(): string {
   return resolveStatePath(`.spark-mission-completions-${stateFileSafeSegment(getRelayProfile())}-${getRelayPort()}.json`);
+}
+
+function pendingCompletionRetryPathForCurrentRelay(): string {
+  return resolveStatePath(`.spark-mission-completion-retries-${stateFileSafeSegment(getRelayProfile())}-${getRelayPort()}.json`);
+}
+
+function missionRelayTransitionLogPathForCurrentRelay(): string {
+  return resolveStatePath(`.spark-mission-state-transitions-${stateFileSafeSegment(getRelayProfile())}-${getRelayPort()}.jsonl`);
+}
+
+function recordMissionRelayStateTransition(entry: MissionRelayStateTransition): void {
+  const filePath = missionRelayTransitionLogPathForCurrentRelay();
+  mkdirSync(dirname(filePath), { recursive: true });
+  appendFileSync(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+}
+
+function recordMissionSubscriptionTransition(
+  subscription: MissionSubscription,
+  options: {
+    fromState: string;
+    toState: string;
+    reason: string;
+    ts?: string;
+  }
+): void {
+  const { fromState, toState, reason, ts = new Date().toISOString() } = options;
+  recordMissionRelayStateTransition({
+    entity_type: 'telegram.mission_subscription',
+    entity_id: subscription.missionId,
+    from_state: fromState,
+    to_state: toState,
+    reason,
+    turn_id: subscription.governorTurnId?.trim() || null,
+    ts,
+    request_id: subscription.requestId,
+    trace_ref: subscription.traceRef
+  });
+}
+
+export function readMissionRelayStateTransitionsForTests(): MissionRelayStateTransition[] {
+  const filePath = missionRelayTransitionLogPathForCurrentRelay();
+  if (!existsSync(filePath)) return [];
+  return readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line) as MissionRelayStateTransition);
 }
 
 function getRelayPort(): number {
@@ -369,6 +449,12 @@ function pruneRegistry(now = Date.now()): void {
     const createdMs = Date.parse(entry.createdAt || '');
     if (!Number.isFinite(createdMs) || createdMs < cutoff) {
       registry.delete(missionId);
+      recordMissionSubscriptionTransition(entry, {
+        fromState: 'registered',
+        toState: 'expired',
+        reason: 'mission_subscription_timeout',
+        ts: new Date(now).toISOString()
+      });
     }
   }
 }
@@ -404,6 +490,23 @@ export async function unregisterMissionRelay(missionId: string): Promise<void> {
   if (!cleanMissionId) return;
   await loadRegistry();
   registry.delete(cleanMissionId);
+  await persistRegistry();
+}
+
+async function transitionAndUnregisterMissionRelay(
+  subscription: MissionSubscription,
+  options: {
+    toState: 'completed' | 'failed' | 'cancelled';
+    reason: string;
+  }
+): Promise<void> {
+  const { toState, reason } = options;
+  recordMissionSubscriptionTransition(subscription, {
+    fromState: 'registered',
+    toState,
+    reason
+  });
+  registry.delete(subscription.missionId);
   await persistRegistry();
 }
 
@@ -923,6 +1026,12 @@ async function sendFetchedCompletionSummary(
     completionDeliveryCache.set(event.missionId, Date.now());
     await saveCompletionDeliveryCache();
     await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response);
+    pendingCompletionRetries.delete(event.missionId);
+    await savePendingCompletionRetries();
+    await transitionAndUnregisterMissionRelay(subscription, {
+      toState: 'completed',
+      reason: 'mission_completion_delivered'
+    });
     return chunks.length;
   } finally {
     completionDeliveryInFlight.delete(event.missionId);
@@ -936,6 +1045,8 @@ function scheduleDelayedCompletionSummary(
   event: DeliverableRelayEvent,
   verbosity: TelegramRelayVerbosity
 ): void {
+  pendingCompletionRetries.set(event.missionId, Date.now());
+  void savePendingCompletionRetries();
   setTimeout(() => {
     void (async () => {
       if (completionDeliveryCache.has(event.missionId) || shouldSuppressMissionHandoff(event.missionId)) return;
@@ -1887,6 +1998,11 @@ async function saveCompletionDeliveryCache(): Promise<void> {
   await writeJsonAtomic(completionDeliveryPathForCurrentRelay(), Array.from(completionDeliveryCache.keys()));
 }
 
+async function savePendingCompletionRetries(): Promise<void> {
+  prunePendingCompletionRetries(Date.now(), false);
+  await writeJsonAtomic(pendingCompletionRetryPathForCurrentRelay(), Array.from(pendingCompletionRetries.entries()));
+}
+
 export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
   const entries = (await readJsonFile<string[]>(completionDeliveryPathForCurrentRelay())) || [];
   for (const missionId of entries) {
@@ -1896,15 +2012,27 @@ export async function loadCompletionDeliveryCacheForTests(): Promise<void> {
   }
 }
 
+export async function loadPendingCompletionRetriesForTests(): Promise<void> {
+  const entries = (await readJsonFile<[string, number][]>(pendingCompletionRetryPathForCurrentRelay())) || [];
+  for (const entry of entries) {
+    if (!Array.isArray(entry) || typeof entry[0] !== 'string') continue;
+    const timestamp = typeof entry[1] === 'number' && Number.isFinite(entry[1]) ? entry[1] : Date.now();
+    pendingCompletionRetries.set(entry[0].trim(), timestamp);
+  }
+  prunePendingCompletionRetries();
+}
+
 export function resetMissionRelayRegistryForTests(): void {
   registry.clear();
   registryLoaded = false;
+  pendingCompletionRetries.clear();
 }
 
 export function missionRelayCacheSizesForTests(): {
   delivery: number;
   openTaskStart: number;
   completionDelivery: number;
+  pendingCompletionRetries: number;
   verboseNarration: number;
   registry: number;
 } {
@@ -1912,6 +2040,7 @@ export function missionRelayCacheSizesForTests(): {
     delivery: deliveryCache.size,
     openTaskStart: openTaskStartCache.size,
     completionDelivery: completionDeliveryCache.size,
+    pendingCompletionRetries: pendingCompletionRetries.size,
     verboseNarration: verboseNarrationCounts.size,
     registry: registry.size
   };
@@ -1921,6 +2050,15 @@ export function pruneMissionRelayCachesForTests(now = Date.now()): void {
   pruneOpenTaskStartCache(now);
   pruneVerboseNarrationCounts(now);
   pruneRegistry(now);
+  prunePendingCompletionRetries(now);
+}
+
+export function prunePendingCompletionRetriesForTests(now = Date.now()): void {
+  prunePendingCompletionRetries(now);
+}
+
+export function seedPendingCompletionRetryForTests(missionId: string, timestamp: number): void {
+  pendingCompletionRetries.set(missionId, timestamp);
 }
 
 function claimVerboseNarrationSlot(
@@ -2637,6 +2775,10 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           );
           recordMissionRelayMachineOriginNotification(subscription, event, 'mission_cancelled', 1);
         }
+        await transitionAndUnregisterMissionRelay(subscription, {
+          toState: 'cancelled',
+          reason: 'mission_cancelled'
+        });
         writeJson(res, 200, { ok: true, cancelled: true });
         return;
       }
@@ -2725,6 +2867,10 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           }
           recordMissionRelayMachineOriginNotification(subscription, event, 'mission_completion', chunks.length);
           await handleMissionCompletionMemory(bot, chatId, subscription, event, extracted.providerLabel, extracted.response);
+          await transitionAndUnregisterMissionRelay(subscription, {
+            toState: 'completed',
+            reason: 'task_completion_delivered'
+          });
           writeJson(res, 200, { ok: true, chunks: chunks.length });
           return;
         }
@@ -2744,6 +2890,10 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
           missionRelayTraceExtra(subscription, event, 'mission_failed')
         );
         recordMissionRelayMachineOriginNotification(subscription, event, 'mission_failed', 1);
+        await transitionAndUnregisterMissionRelay(subscription, {
+          toState: 'failed',
+          reason: event.type
+        });
         writeJson(res, 200, { ok: true });
         return;
       }
@@ -2751,6 +2901,10 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 	      if (event.type === 'mission_failed') {
         cleanupMissionNarrationCounts(event.missionId);
         clearHeartbeatForMission(event.missionId);
+        await transitionAndUnregisterMissionRelay(subscription, {
+          toState: 'failed',
+          reason: 'mission_failed'
+        });
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }

@@ -24,11 +24,14 @@ import {
   normalizeTelegramMissionLinkPreference,
   normalizeTelegramRelayVerbosity,
   pruneMissionRelayCachesForTests,
+  prunePendingCompletionRetriesForTests,
+  readMissionRelayStateTransitionsForTests,
   registerMissionRelay,
   relayEventMatchesSubscription,
   resetMissionRelayDeliveryStateForTests,
   resetMissionRelayRegistryForTests,
   resolveReadyProjectOpenLinkForTests,
+  seedPendingCompletionRetryForTests,
   sendFetchedCompletionSummaryForTests,
   shouldAcknowledgeRelayWithoutTelegramDelivery,
   shouldAcceptRelayEventForThisBot,
@@ -1604,6 +1607,41 @@ void (async () => {
       });
 
       assert.equal(missionRelayCacheSizesForTests().registry, 1);
+      const transitions = readMissionRelayStateTransitionsForTests();
+      assert.ok(transitions.some((entry) =>
+        entry.entity_type === 'telegram.mission_subscription' &&
+        entry.entity_id === 'mission-stale-registry' &&
+        entry.from_state === 'registered' &&
+        entry.to_state === 'expired' &&
+        entry.reason === 'mission_subscription_timeout'
+      ));
+    } finally {
+      resetMissionRelayRegistryForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+    }
+  });
+
+  await asyncTest('prunes stale completion retries with uniform transition events', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-retry-ttl-test-'));
+      const old = Date.now() - 2 * 60 * 60_000;
+      seedPendingCompletionRetryForTests('mission-stale-retry', old);
+      prunePendingCompletionRetriesForTests(Date.now());
+
+      assert.equal(missionRelayCacheSizesForTests().pendingCompletionRetries, 0);
+      const transitions = readMissionRelayStateTransitionsForTests();
+      assert.ok(transitions.some((entry) =>
+        entry.entity_type === 'telegram.completion_retry' &&
+        entry.entity_id === 'mission-stale-retry' &&
+        entry.from_state === 'pending' &&
+        entry.to_state === 'expired' &&
+        entry.reason === 'completion_retry_timeout'
+      ));
     } finally {
       resetMissionRelayRegistryForTests();
       resetJsonStateForTests();
