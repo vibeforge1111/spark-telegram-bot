@@ -14,6 +14,8 @@
  * Usage:
  *   node scripts/sync-runtime.cjs            # one-shot
  *   node scripts/sync-runtime.cjs --check    # exit 1 if drift detected
+ *   node scripts/sync-runtime.cjs --check --require-runtime
+ *                                             # also fail if runtime is missing
  */
 
 const fs = require('fs');
@@ -41,6 +43,16 @@ function installedRuntimeRoot() {
 }
 
 const RUNTIME_ROOT = installedRuntimeRoot();
+const TEXT_SYNC_EXTENSIONS = new Set([
+	'.cjs',
+	'.d.ts',
+	'.js',
+	'.json',
+	'.md',
+	'.mjs',
+	'.toml',
+	'.ts'
+]);
 
 // The runtime should mirror all first-party source, compiled entry files, and
 // prompt/eval knowledge used by the running gateway and its upgrade smoke.
@@ -99,9 +111,22 @@ function exists(p) {
 	try { fs.accessSync(p); return true; } catch { return false; }
 }
 
-function checksum(p) {
+function isTextSyncPath(rel) {
+	const normalized = rel.replace(/\\/g, '/');
+	if (normalized === 'spark.toml') return true;
+	return TEXT_SYNC_EXTENSIONS.has(path.extname(normalized));
+}
+
+function comparableBytes(rel, p) {
 	if (!exists(p)) return null;
 	const bytes = fs.readFileSync(p);
+	if (!isTextSyncPath(rel) || bytes.includes(0)) return bytes;
+	return Buffer.from(bytes.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8');
+}
+
+function checksum(rel, p) {
+	const bytes = comparableBytes(rel, p);
+	if (bytes === null) return null;
 	return require('crypto').createHash('md5').update(bytes).digest('hex');
 }
 
@@ -126,7 +151,7 @@ function syncOnce({ silent = false } = {}) {
 	for (const rel of discoverSyncedPaths()) {
 		const src = path.join(SOURCE_ROOT, rel);
 		const dst = path.join(RUNTIME_ROOT, rel);
-		if (checksum(src) === checksum(dst)) continue;
+		if (checksum(rel, src) === checksum(rel, dst)) continue;
 		if (copyOne(rel)) {
 			synced++;
 			if (!silent) console.log(`[sync] -> ${rel}`);
@@ -135,15 +160,15 @@ function syncOnce({ silent = false } = {}) {
 	if (!silent) console.log(synced > 0 ? `[sync] ${synced} path(s) updated.` : '[sync] nothing to do.');
 }
 
-function checkDrift() {
+function checkDrift({ requireRuntime = false } = {}) {
 	if (!exists(RUNTIME_ROOT)) {
 		console.error(`[check] runtime not present at ${RUNTIME_ROOT}`);
-		process.exit(0);
+		process.exit(requireRuntime ? 1 : 0);
 	}
 	const drift = [];
 	for (const rel of discoverSyncedPaths()) {
-		const a = checksum(path.join(SOURCE_ROOT, rel));
-		const b = checksum(path.join(RUNTIME_ROOT, rel));
+		const a = checksum(rel, path.join(SOURCE_ROOT, rel));
+		const b = checksum(rel, path.join(RUNTIME_ROOT, rel));
 		if (a !== b) drift.push(rel);
 	}
 	if (drift.length === 0) {
@@ -156,6 +181,6 @@ function checkDrift() {
 	process.exit(1);
 }
 
-const arg = process.argv[2];
-if (arg === '--check') checkDrift();
+const args = new Set(process.argv.slice(2));
+if (args.has('--check')) checkDrift({ requireRuntime: args.has('--require-runtime') });
 else syncOnce();

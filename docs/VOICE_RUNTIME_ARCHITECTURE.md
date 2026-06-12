@@ -23,7 +23,7 @@ The canonical live path is:
 | Active recursive Telegram checkout | Current feature owner | `C:/Users/USER/Desktop/spark-telegram-recursive-sync-commands` | Good voice bridge integrated here; allowed to sync during this feature path. |
 | Archived auth deploy checkout | Archived deploy worktree | `C:/Users/USER/Desktop/spark-telegram-bot-auth-deploy` | Sync blocked by default because it still has legacy `/voice`. |
 | Archived UX deploy checkout | Archived deploy worktree | `C:/Users/USER/Desktop/spark-telegram-bot-ux-deploy` | Sync blocked by default because it still has legacy `/voice`. |
-| Builder runtime | Spark Intelligence Builder | `C:/Users/USER/.spark/modules/spark-intelligence-builder-release/source` | Owns routing and voice command interpretation. |
+| Builder runtime | Spark Intelligence Builder | `C:/Users/USER/.spark/modules/spark-intelligence-builder/source` | Owns routing and voice command interpretation. |
 | Voice chip | Spark voice comms | `C:/Users/USER/Desktop/spark-voice-comms` | Owns STT/TTS provider adapters. |
 | Builder secrets/config | Local Spark state | `C:/Users/USER/.spark/state/spark-intelligence/.env` | Contains voice provider env refs and secrets; never paste keys in Telegram. |
 

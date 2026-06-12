@@ -18,8 +18,15 @@ import {
   type HarnessCoreGovernorConsumerVerification,
   verifyHarnessCoreGovernorExecutionAuthority
 } from '@spark/harness-core';
+import { governorHmacKey, governorHmacKeyId, signGovernorDecisionIfConfigured } from './governorSignature';
 import { recordHarnessCoreAuthorizationLedger } from './harnessCoreLedger';
-import { evaluateDeterministicRoute, type DeterministicRouteId, type RouteFirewallVerdict } from './routeFirewall';
+import type { DeterministicRouteId } from './routeTypes';
+
+export interface RouteEvidenceVerdict {
+  allow: boolean;
+  reason: 'envelope_selected_route' | 'route_not_selected_by_turn_envelope';
+  confidence: 'explicit' | 'blocked';
+}
 
 export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
   route: DeterministicRouteId;
@@ -29,7 +36,7 @@ export interface TelegramActionAuthorityInput extends ToolAuthorizationInput {
 export interface TelegramActionAuthorityResult {
   allow: boolean;
   legacyEnvelope?: TurnIntentEnvelopeV1;
-  routeVerdict: RouteFirewallVerdict;
+  routeVerdict: RouteEvidenceVerdict;
   toolAuthorization: ToolAuthorizationResult;
   harnessCore?: {
     envelope: TurnIntentEnvelopeVNext;
@@ -62,7 +69,7 @@ const ROUTE_ALIASES: Record<string, string[]> = {
   ],
   'spawner.local_service': ['local_service.clarify', 'local_service.open'],
   'spawner.external_research': ['external_research.inspect'],
-  'spark.wiki': ['spark_wiki.promote', 'spark_wiki.query', 'spark_wiki.answer'],
+  'spark.wiki': ['spark_wiki.promote', 'spark_wiki.status', 'spark_wiki.inventory', 'spark_wiki.query', 'spark_wiki.answer'],
 };
 
 function routeMatchesCandidate(inputRoute: string, candidateRoute: string): boolean {
@@ -75,7 +82,22 @@ function envelopeSelectedRoute(envelope: TurnIntentEnvelopeV1 | null | undefined
   if (!envelope) return false;
   const selectedAction = envelope.selectedIntent.action;
   if (selectedAction && routeMatchesCandidate(inputRoute, selectedAction)) return true;
-  return envelope.candidates.some((candidate) => routeMatchesCandidate(inputRoute, candidate.route));
+  const selectedRoute = envelope.candidates[0]?.route;
+  if (selectedRoute && routeMatchesCandidate(inputRoute, selectedRoute)) return true;
+  return false;
+}
+
+function governorSignatureVerificationOptions(): {
+  governor_hmac_key: string | null;
+  governor_hmac_key_id: string | null;
+  require_signature: boolean;
+} {
+  const key = governorHmacKey();
+  return {
+    governor_hmac_key: key || null,
+    governor_hmac_key_id: key ? governorHmacKeyId() : null,
+    require_signature: Boolean(key)
+  };
 }
 
 export function governorOutcomeAllowsTelegramAction(
@@ -90,7 +112,8 @@ export function governorOutcomeAllowsTelegramAction(
     expected_action_type: action.action_type,
     tool_name: toolName,
     action_id: action.action_id,
-    allow_read_only: action.action_type === 'read'
+    allow_read_only: action.action_type === 'read',
+    ...governorSignatureVerificationOptions()
   }).allowed;
 }
 
@@ -98,27 +121,36 @@ export function authorizeTelegramActionFromEnvelope(
   envelope: TurnIntentEnvelopeV1 | null | undefined,
   input: TelegramActionAuthorityInput
 ): TelegramActionAuthorityResult {
-  const routeVerdict = evaluateDeterministicRoute(input.route, input.text);
   const routeSelectedByEnvelope = envelopeSelectedRoute(envelope, input.route);
-  const explicitRouteEvidence = routeVerdict.confidence === 'explicit';
-  const routeAuthorizedByTurn = routeSelectedByEnvelope || (input.mutationClass === 'read_only' && explicitRouteEvidence);
-  const toolAuthorization = authorizeToolCallFromEnvelope(envelope, {
+  const routeVerdict: RouteEvidenceVerdict = routeSelectedByEnvelope
+    ? { allow: true, reason: 'envelope_selected_route', confidence: 'explicit' }
+    : { allow: false, reason: 'route_not_selected_by_turn_envelope', confidence: 'blocked' };
+  const routeAuthorizedByTurn = routeSelectedByEnvelope;
+  const rawToolAuthorization = authorizeToolCallFromEnvelope(envelope, {
     toolName: input.toolName,
     ownerSystem: input.ownerSystem,
     mutationClass: input.mutationClass,
     publishes: input.publishes,
     externalNetwork: input.externalNetwork
   });
+  const toolAuthorization: ToolAuthorizationResult = routeAuthorizedByTurn
+    ? rawToolAuthorization
+    : {
+        verdict: 'blocked',
+        reasonCodes: Array.from(new Set([
+          'route_not_selected_by_turn_envelope',
+          ...rawToolAuthorization.reasonCodes
+        ]))
+      };
   const harnessCore = envelope
     ? authorizeHarnessCoreTelegramAction(
         envelope,
         input,
         toolAuthorization,
-        routeVerdict.allow && routeAuthorizedByTurn
+        routeAuthorizedByTurn
       )
     : null;
   const preliminaryAllow =
-    routeVerdict.allow &&
     routeAuthorizedByTurn &&
     toolAuthorization.verdict === 'allowed' &&
     harnessCore?.authorization.verdict === 'allow';
@@ -130,11 +162,11 @@ export function authorizeTelegramActionFromEnvelope(
       })
     : null;
   const governorDecision = harnessCore
-    ? createHarnessCoreGovernorDecision({
+    ? signGovernorDecisionIfConfigured(createHarnessCoreGovernorDecision({
         envelope: harnessCore.envelope,
         authorizations: [harnessCore.authorization],
         tool_ledgers: harnessCoreLedger ? [harnessCoreLedger] : []
-      })
+      }))
     : null;
   const consumerVerification = harnessCore?.action
     ? verifyHarnessCoreGovernorToolAuthority({
@@ -144,12 +176,12 @@ export function authorizeTelegramActionFromEnvelope(
         action_type: harnessCore.action.action_type,
         action_id: harnessCore.action.action_id,
         allow_read_only: harnessCore.action.action_type === 'read',
-        require_pre_execution_ledger: true
+        require_pre_execution_ledger: true,
+        ...governorSignatureVerificationOptions()
       })
     : null;
   const allow = consumerVerification?.allowed === true;
   const reasonCodes = Array.from(new Set([
-    ...(routeVerdict.allow ? [] : [`route_firewall:${routeVerdict.reason}`]),
     ...(routeAuthorizedByTurn ? [] : ['route_not_selected_by_turn_envelope']),
     ...toolAuthorization.reasonCodes,
     ...(!allow && envelope?.directive.noExecution ? ['no_execution_boundary'] : []),

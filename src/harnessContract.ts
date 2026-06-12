@@ -21,6 +21,7 @@ export type SparkHarnessMutationClass =
   | 'writes_memory'
   | 'writes_files'
   | 'launches_mission'
+  | 'controls_mission'
   | 'creates_schedule'
   | 'deletes_schedule'
   | 'creates_chip'
@@ -56,7 +57,7 @@ export interface SparkHarnessIntentRef {
   action: string | null;
   confidence: SparkHarnessConfidence;
   requiresConfirmation: boolean;
-  source: 'slash' | 'explicit' | 'contextual' | 'pending' | 'memory' | 'arbiter';
+  source: 'slash' | 'explicit' | 'contextual' | 'pending' | 'memory' | 'shadow_route_evidence';
 }
 
 export interface SparkHarnessIntentCandidate {
@@ -246,7 +247,7 @@ function executionPolicyForDecision(
   options: { noExecutionBoundary?: boolean } = {}
 ): SparkHarnessExecutionPolicy {
   const noExecutionBoundary = options.noExecutionBoundary ?? false;
-  const noExecution = noExecutionBoundary || decision.constraints.noExecution || decision.enforcement === 'blocked';
+  const noExecution = (options.noExecutionBoundary ?? decision.constraints.noExecution) || decision.enforcement === 'blocked';
   const route = decision.route;
   const canPublish = !decision.constraints.noPublish && !decision.constraints.localOnly;
   const localMutationRoute = /(?:build|spawner|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
@@ -270,7 +271,7 @@ function mutationClassesForPolicy(policy: SparkHarnessExecutionPolicy): SparkHar
   const classes: SparkHarnessMutationClass[] = ['none', 'read_only'];
   if (policy.canWriteMemory) classes.push('writes_memory');
   if (policy.canMutateFiles) classes.push('writes_files');
-  if (policy.canLaunchMission) classes.push('launches_mission');
+  if (policy.canLaunchMission) classes.push('launches_mission', 'controls_mission');
   if (policy.canCreateSchedule) classes.push('creates_schedule');
   if (policy.canDeleteSchedule) classes.push('deletes_schedule');
   if (policy.canCreateChip) classes.push('creates_chip');
@@ -285,7 +286,10 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'memory.delete') tools.push('memory.delete');
   if (decision.route === 'memory.recall') tools.push('memory.recall');
   if (decision.route === 'memory.doctor') tools.push('memory.diagnose', 'builder.telegram_bridge');
-  if (/spark_wiki/.test(decision.route)) tools.push('spark_wiki.query');
+  if (decision.route === 'spark_wiki.status') tools.push('spark_wiki.status');
+  if (decision.route === 'spark_wiki.inventory') tools.push('spark_wiki.inventory');
+  if (decision.route === 'spark_wiki.query') tools.push('spark_wiki.query');
+  if (decision.route === 'spark_wiki.answer') tools.push('spark_wiki.answer');
   if (decision.route === 'spark_wiki.promote' || decision.route === 'spark.wiki') tools.push('spark_wiki.promote');
   if (/access/.test(decision.route)) tools.push('access.status');
   if (decision.route === 'access.help') tools.push('access.help');
@@ -361,9 +365,14 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   return Array.from(new Set(tools));
 }
 
-function deniedToolsForDecision(decision: TelegramIntentDecisionV2, policy: SparkHarnessExecutionPolicy): string[] {
+function deniedToolsForDecision(
+  decision: TelegramIntentDecisionV2,
+  policy: SparkHarnessExecutionPolicy,
+  options: { noExecutionBoundary?: boolean } = {}
+): string[] {
   const denied = new Set<string>();
-  if (decision.constraints.noExecution || decision.enforcement === 'blocked') {
+  const noExecutionBoundary = options.noExecutionBoundary ?? decision.constraints.noExecution;
+  if (noExecutionBoundary || decision.enforcement === 'blocked') {
     [
       'spawner.run',
       'spawner.files',
@@ -444,11 +453,16 @@ function defaultRuntimeOwnership(): RuntimeOwnershipV1 {
   };
 }
 
-function defaultThreatDefense(decision: TelegramIntentDecisionV2): ThreatDefenseV1 {
+function defaultThreatDefense(
+  decision: TelegramIntentDecisionV2,
+  options: { noExecutionBoundary?: boolean; scopedNoExecutionBoundary?: boolean; metaLanguageBoundary?: boolean } = {}
+): ThreatDefenseV1 {
   const reasonCodes = ['fresh_user_turn_is_authority'];
-  if (decision.constraints.noExecution) reasonCodes.push('no_execution_boundary');
+  const noExecutionBoundary = options.noExecutionBoundary ?? decision.constraints.noExecution;
+  if (noExecutionBoundary) reasonCodes.push('no_execution_boundary');
+  if (options.scopedNoExecutionBoundary) reasonCodes.push('scoped_no_execution_boundary');
   if (decision.constraints.localOnly) reasonCodes.push('local_only_boundary');
-  if (routeLooksMetaLanguage(decision)) reasonCodes.push('meta_language_boundary');
+  if (options.metaLanguageBoundary || routeLooksMetaLanguage(decision)) reasonCodes.push('meta_language_boundary');
   return {
     userText: 'trusted',
     recalledMemory: 'evidence_only',
@@ -460,10 +474,30 @@ function defaultThreatDefense(decision: TelegramIntentDecisionV2): ThreatDefense
   };
 }
 
+function isScopedMemoryWriteWithNegativeConstraints(decision: TelegramIntentDecisionV2, normalizedText: string): boolean {
+  if (decision.enforcement === 'blocked') return false;
+  if (decision.kind !== 'memory_write' && decision.route !== 'memory.write' && decision.route !== 'spark_wiki.promote' && decision.route !== 'spark.wiki') {
+    return false;
+  }
+  const lowerText = normalizedText.toLowerCase();
+  const hasExplicitWrite = /\b(?:owner\s+approves|approved|approve)\b.{0,80}\b(?:memory\s+write|kb\s+note|memory\s+note|save|store|remember)\b/.test(lowerText) ||
+    /\bexactly\s+one\s+(?:memory\s+write|kb\s+note|memory\s+note)\b/.test(lowerText) ||
+    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b/.test(lowerText) ||
+    /\b(?:save|store|remember)\s+this\s+(?:exact\s+)?(?:kb\s+)?(?:memory\s+)?note\s+exactly\b/.test(lowerText);
+  const hasDirectMemoryDenial = /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to|without)\s+(?:save|store|remember|write)\b/.test(lowerText);
+  const hasScopedNegative = /\b(?:do\s+not|don't|dont|no\s+need\s+to)\s+(?:start|run|launch|create|change|publish|merge|ship|deploy|use|open|record|send)\b/.test(lowerText);
+  const hasQuotedDirectiveContent =
+    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b[^"“”]{0,80}["“].+["”]/.test(lowerText) ||
+    /\b(?:save|store|remember)\s+this\s+(?:exact\s+)?(?:kb\s+)?(?:memory\s+)?note\s+exactly\b[^"“”]{0,80}["“].+["”]/.test(lowerText);
+  const hasNonOwningMetaLanguage = hasQuotedDirectiveContent && routeLooksMetaLanguage(decision, normalizedText);
+  return hasExplicitWrite && !hasDirectMemoryDenial && (hasScopedNegative || hasNonOwningMetaLanguage);
+}
+
 export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelopeInput): TurnIntentEnvelopeV1 {
   const normalized = normalizeText(input.text);
   const quotedOrMetaLanguage = routeLooksMetaLanguage(input.decision, normalized);
-  const noExecution = input.decision.constraints.noExecution || quotedOrMetaLanguage;
+  const scopedNoExecutionBoundary = isScopedMemoryWriteWithNegativeConstraints(input.decision, normalized);
+  const noExecution = (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) || (quotedOrMetaLanguage && !scopedNoExecutionBoundary);
   const executionPolicy = executionPolicyForDecision(input.decision, { noExecutionBoundary: noExecution });
   const mutationClassesAllowed = mutationClassesForPolicy(executionPolicy);
   const sessionKey = [
@@ -532,7 +566,7 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
     },
     toolPolicy: {
       allowedTools: allowedToolsForDecision(input.decision, executionPolicy),
-      deniedTools: deniedToolsForDecision(input.decision, executionPolicy),
+      deniedTools: deniedToolsForDecision(input.decision, executionPolicy, { noExecutionBoundary: noExecution }),
       enabledToolsets: ['telegram.reply', input.decision.owner_system].filter((value, index, arr) => value !== 'none' && arr.indexOf(value) === index),
       sandboxClass: 'local',
       networkPolicy: executionPolicy.canUseExternalNetwork ? 'external_allowed' : input.decision.constraints.localOnly ? 'local_only' : 'none',
@@ -553,7 +587,7 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
           stopRule: 'Stop on no-execution, local-only conflict, or failed promotion gate.'
         }
       : undefined,
-    threatDefense: defaultThreatDefense(input.decision),
+    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary, metaLanguageBoundary: quotedOrMetaLanguage }),
     executionPolicy,
     consumedBy: []
   };

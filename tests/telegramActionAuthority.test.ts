@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import {
   createHarnessCoreActionEnvelopeVNext,
   createHarnessCoreAuthorizedGovernorDecision
@@ -8,7 +9,15 @@ import {
   authorizeTelegramActionFromEnvelope,
   governorOutcomeAllowsTelegramAction
 } from '../src/telegramActionAuthority';
-import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
+import {
+  governorDecisionSignaturePayload,
+  type GovernorDecisionSignatureV1
+} from '../src/governorSignature';
+import {
+  classifyTelegramIntentV2,
+  isTelegramIntentGateV2SafeRoute,
+  shouldEnforceTelegramIntentGateV2
+} from '../src/telegramIntentGate';
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 
 function test(name: string, fn: () => void): void {
@@ -47,6 +56,26 @@ function envelopeForDecision(text: string, decision: ReturnType<typeof classifyT
   });
 }
 
+function envelopeForNaturalRoute(text: string) {
+  const naturalRouteDecision = decideNaturalRoute(text);
+  return envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
+}
+
+function withGovernorHmacEnv(fn: () => void): void {
+  const previousKey = process.env.SPARK_GOVERNOR_HMAC_KEY;
+  const previousKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+  try {
+    process.env.SPARK_GOVERNOR_HMAC_KEY = 'test-governor-secret';
+    process.env.SPARK_GOVERNOR_HMAC_KEY_ID = 'telegram-unit-test';
+    fn();
+  } finally {
+    if (previousKey === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY = previousKey;
+    if (previousKeyId === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY_ID = previousKeyId;
+  }
+}
+
 test('blocks action words when the fresh turn is meta or no-execution', () => {
   const text = 'I am mentioning build and mission, but do not start anything. Just explain the risk.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -59,8 +88,9 @@ test('blocks action words when the fresh turn is meta or no-execution', () => {
 
   assert.equal(result.allow, false);
   assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
   assert.equal(result.toolAuthorization.verdict, 'blocked');
-  assert.ok(result.reasonCodes.includes('route_firewall:no_execution_boundary'));
+  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
 
@@ -84,7 +114,117 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
 });
 
-test('explicit route evidence cannot substitute for envelope-selected mutating route', () => {
+test('allows live Harness authority build prompt through Spawner instead of architecture chat', () => {
+  const text = 'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+});
+
+test('allows concrete Spawner builds when chip and QA words are requirements, not route authority', () => {
+  const text = 'Build a compact local Harness Authority Drift Lab app with Spawner. It should help tonight by tracking fresh-intent authority checks, Spawner mission progress, memory and KB QA notes, domain-chip QA notes, registry/runtime drift, rollback steps, and Telegram proof results. Include a concise README, one smoke test, and a simple local UI. Build it now.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
+test('allows Spawner continuity board builds without stale chip-memory boundary drift', () => {
+  const text = 'Build a compact local Spawner Continuity Board with Spawner for tonight. It should track old Spawner features we must preserve, Harness Core authority gates, runtime health, memory and KB QA notes, domain-chip QA notes, Telegram proof, registry drift, rollback steps, and the next live QA queue. Include a simple README and one smoke test. Build it now.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
+test('allows Spawner relay proof pad builds without board/status route drift', () => {
+  const text = 'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.consumerVerification?.allowed, true);
+  assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
+test('signs Telegram Governor decisions when an HMAC key is configured', () => withGovernorHmacEnv(() => {
+  const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(result.allow, true);
+  const signedDecision = result.governorDecision as typeof result.governorDecision & {
+    signature?: GovernorDecisionSignatureV1;
+  };
+  assert.equal(signedDecision?.signature?.schema_version, 'governor-decision-signature-v1');
+  assert.equal(signedDecision?.signature?.alg, 'hmac-sha256');
+  assert.equal(signedDecision?.signature?.key_id, 'telegram-unit-test');
+  assert.match(signedDecision?.signature?.nonce || '', /^[0-9a-f-]{36}$/);
+  assert.match(signedDecision?.signature?.signature || '', /^[0-9a-f]{64}$/);
+
+  const { signature, ...signaturePayloadFields } = signedDecision!.signature!;
+  const expected = createHmac('sha256', 'test-governor-secret')
+    .update(governorDecisionSignaturePayload(signedDecision as unknown as Record<string, unknown>, signaturePayloadFields), 'utf8')
+    .digest('hex');
+  assert.equal(signature, expected);
+}));
+
+test('fresh envelope selection is required before mutating route evidence can authorize', () => {
   const staleEnvelopeText = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const freshText = 'Iterate on the current project by tightening the stale-context labels and report layout.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(staleEnvelopeText), {
@@ -95,9 +235,10 @@ test('explicit route evidence cannot substitute for envelope-selected mutating r
     mutationClass: 'launches_mission'
   });
 
-  assert.equal(result.routeVerdict.allow, true);
-  assert.equal(result.routeVerdict.confidence, 'explicit');
-  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
+  assert.equal(result.routeVerdict.confidence, 'blocked');
+  assert.equal(result.toolAuthorization.verdict, 'blocked');
   assert.equal(result.allow, false);
   assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.notEqual(result.governorDecision?.outcome, 'execute');
@@ -189,6 +330,26 @@ test('final Telegram action boundary allows read-only Governor outcome only for 
   );
 });
 
+test('final Telegram action boundary rejects unsigned Governor decisions when HMAC is configured', () => withGovernorHmacEnv(() => {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spark-telegram-bot',
+    toolName: 'spark.status',
+    mutationClass: 'read_only',
+    source: 'telegram',
+    reason: 'Read Spark status from Telegram.',
+    requestId: 'turn:unsigned-governor',
+    actorIdRef: 'telegram-human'
+  });
+  const unsignedDecision = createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spark.status'
+  });
+  const readAction = unsignedDecision.envelope.proposed_actions[0];
+
+  assert.equal(governorOutcomeAllowsTelegramAction(unsignedDecision, readAction, 'spark.status'), false);
+}));
+
 test('allows explicit no-edit Spawner missions while preserving the file-edit constraint', () => {
   const text = 'Run a tiny mission through Spawner that only replies: SPARK_TURNINTENT_QA_OK_6. Do not edit files.';
   const envelope = envelopeFor(text);
@@ -201,7 +362,7 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
   });
 
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(envelope.directive.noExecution, false);
   assert.equal(envelope.executionPolicy.canLaunchMission, true);
@@ -217,7 +378,7 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
     mutationClass: 'launches_mission'
   });
   assert.equal(probeResult.allow, true);
-  assert.equal(probeResult.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(probeResult.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(probeEnvelope.directive.noExecution, false);
   assert.equal(probeEnvelope.executionPolicy.canLaunchMission, true);
   assert.equal(probeEnvelope.executionPolicy.canMutateFiles, false);
@@ -234,6 +395,29 @@ test('allows explicit no-edit Spawner missions while preserving the file-edit co
   assert.ok(fileEditResult.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
+test('natural wiki reads require Harness read authority and tool ledgers', () => {
+  const text = 'search your wiki for Telegram route mistakes';
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spark_wiki.query',
+    text,
+    toolName: 'spark_wiki.query',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spark_wiki.query');
+  assert.equal(envelope.executionPolicy.canWriteMemory, false);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.harnessCore?.envelope.selected_move, 'read_current_state');
+  assert.equal(result.harnessCore?.authorization.verdict, 'allow');
+  assert.equal(result.harnessCoreLedger?.tool_name, 'spark_wiki.query');
+  assert.equal(result.governorDecision?.outcome, 'read_only');
+  assert.equal(result.consumerVerification?.allowed, true);
+});
+
 test('allows explicit no-edit Mission Control diagnostics through Spawner', () => {
   const text = 'Run a deliberately slow no-edit Mission Control diagnostic through Spawner. It should only prove live running-state UI and reply with SPARK_E2E_SLOW_NO_EDIT_OK after waiting about 30 seconds. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.';
   const envelope = envelopeFor(text);
@@ -246,7 +430,7 @@ test('allows explicit no-edit Mission Control diagnostics through Spawner', () =
   });
 
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_spawner_no_edit_mission');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
   assert.equal(envelope.directive.noExecution, false);
   assert.equal(envelope.executionPolicy.canLaunchMission, true);
@@ -266,7 +450,7 @@ test('lets benchmark-pack creation own stale score wording', () => {
 
   assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
   assert.equal(result.allow, true);
-  assert.equal(result.routeVerdict.reason, 'explicit_creator_artifact');
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
@@ -320,6 +504,26 @@ test('allows explicit provider runs through provider policy', () => {
     externalNetwork: true
   });
 
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
+test('classifies memory directives without letting Intent Gate V2 execute them', () => {
+  const text = 'Remember that tonight I prefer concise Harness release updates.';
+  const decision = classifyTelegramIntentV2(text);
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'memory.write',
+    text,
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+
+  assert.equal(decision.route, 'memory.write');
+  assert.equal(decision.enforcement, 'enforce_safe');
+  assert.equal(isTelegramIntentGateV2SafeRoute(decision), false);
+  assert.equal(shouldEnforceTelegramIntentGateV2(decision), false);
   assert.equal(result.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });

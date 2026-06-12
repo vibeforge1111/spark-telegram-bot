@@ -973,8 +973,8 @@ export function formatCreatorMissionSummary(result: CreatorMissionResult, baseUr
     'Capability gain needs baseline, candidate, held-out or trap evidence before Rec says the path made the agent better.',
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
     `Board: ${kanbanUrl}`,
+    'Canvas will follow after nodes, skill pairings, and workflow handoff are materialized.',
     '',
     'Next',
     ...(readOnly
@@ -1028,8 +1028,8 @@ export function formatCreatorMissionStatusSummary(
     '',
     'Workspace',
     `${artifactCount} artifact plan${artifactCount === 1 ? '' : 's'}`,
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -1060,8 +1060,8 @@ export function formatCreatorMissionExecutionSummary(
     ...(result.reason ? [`Note: ${result.reason}`] : []),
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].join('\n');
 }
 
@@ -1106,8 +1106,8 @@ export function formatCreatorMissionValidationSummary(
     ...(promotionBlocked && blockers.length > 0 ? ['', 'Promotion blocker', blockers[0]] : []),
     '',
     'Workspace',
-    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : []),
-    `Board: ${kanbanUrl}`
+    `Board: ${kanbanUrl}`,
+    ...(canvasUrl ? [`Canvas: ${canvasUrl}`] : [])
   ].join('\n');
 }
 
@@ -1362,11 +1362,25 @@ export const spawner = {
   },
 
   async missionCommand(action: MissionAction, missionId: string, options: MissionCommandOptions = {}): Promise<{ success: boolean; message: string }> {
-    const authorityError = executionAuthorityError(options.executionAuthority, {
-      toolName: 'spawner.mission_control',
-      ownerSystem: 'spawner-ui',
-      actionType: 'launch_mission'
-    });
+    const missionControlAuthorityExpectation = action === 'status'
+      ? [
+          {
+            toolName: 'spawner.mission_control.command',
+            ownerSystem: 'spawner-ui',
+            actionType: 'read' as const
+          },
+          {
+            toolName: 'spawner.mission_control.command',
+            ownerSystem: 'spawner-ui',
+            actionType: 'run_command' as const
+          }
+        ]
+      : {
+          toolName: 'spawner.mission_control.command',
+          ownerSystem: 'spawner-ui',
+          actionType: 'run_command' as const
+        };
+    const authorityError = executionAuthorityError(options.executionAuthority, missionControlAuthorityExpectation);
     if (authorityError) {
       return { success: false, message: authorityError };
     }

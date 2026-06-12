@@ -8,6 +8,7 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\bi\s+(?:do\s+not|don't|dont)\s+know\s+(?:exactly\s+)?(?:what|yet)\b/i,
   /\b(?:do\s+not|don't|dont)\s+build\s+yet\b/i,
   /\bbefore\s+(?:building|we\s+build|creating|we\s+create|making|we\s+make)\b/i,
+  /\bbefore\b.{0,80}\b(?:can|should)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|schedule|loop|chip)\b.{0,100}\b(?:what\s+(?:would|should)|how\s+(?:would|should)|harness|proof|evidence|checks?)\b/i,
   /\b(?:pin|define|tighten)\s+(?:the\s+)?scope\b/i,
   /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
   /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
@@ -76,16 +77,18 @@ const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start
 export function isActionWordMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || !HIGH_AGENCY_WORD_PATTERN.test(normalized)) return false;
+  if (/^(?:build|create|make|scaffold|generate)\b/.test(normalized) && /\b(?:called|named)\b/.test(normalized)) return false;
 
   const framesAsLanguage =
-    /\b(?:risky\s+(?:triggers?|words?)|trigger\s+words?|examples?|quoted|quotes?|quote|bug\s+report|meta[-\s]*language|word\s+alone|words\s+alone|keyword|keywords|people\s+say|customer\s+wrote|sentence\s+contains|surface\s+names?|transcript\s+example|labels?|taxonomy|auditing\s+the\s+word|docs?\s+mention|heading|phrase|phrases|term|terms|route\s+boundary|intent\s+taxonomy)\b/.test(normalized);
+    /\b(?:risky\s+(?:triggers?|words?)|trigger\s+words?|examples?|quoted|quotes?|quote|quoted\s+user\s+text|inside\s+a\s+report|bug\s+report|qa\s+fixture|test\s+fixture|fixture|sample\s+text|sample|meta[-\s]*language|word\s+alone|words\s+alone|keyword|keywords|people\s+say|customer\s+wrote|sentence\s+contains|surface\s+names?|transcript\s+example|labels?|taxonomy|auditing\s+the\s+word|docs?\s+mention|heading|phrase|phrases|term|terms|route\s+boundary|intent\s+taxonomy)\b/.test(normalized) ||
+    /\b(?:the\s+)?(?:word|phrase|term)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/.test(normalized);
   const asksBoundary =
-    /\b(?:what\s+should|how\s+should|should\s+spark|should\s+it|what\s+makes|what\s+is\s+the\s+safe\s+path|explain\s+the\s+boundary|classify|classification|route|fetch|operation\s+instead\s+of\s+a\s+topic)\b/.test(normalized);
+    /\b(?:what\s+should|how\s+should|should\s+spark|should\s+it|what\s+makes|what\s+is\s+the\s+safe\s+path|what\s+boundary|which\s+boundary|boundary\s+should|should\s+handle\s+it|explain\s+the\s+boundary|classify|classification|route|fetch|operation\s+instead\s+of\s+a\s+topic)\b/.test(normalized);
   const labelsOnly =
     /\b(?:are|is)\s+(?:just\s+|only\s+)?(?:labels?|examples?|headings?|terms?|phrases?)\b/.test(normalized) ||
     /\b(?:just\s+|only\s+)?(?:labels?|examples?|headings?|terms?|phrases?)\s+(?:in|inside|for)\s+(?:this\s+)?(?:taxonomy|docs?|bug\s+report|example|quote)\b/.test(normalized);
   const explicitBoundary =
-    /\b(?:not\s+a\s+command|not\s+an\s+instruction|not\s+a\s+request|not\s+asking\s+(?:you\s+)?to|do\s+not|don't|dont|no\s+need\s+to|stay\s+in\s+chat|chat\s+only)\b/.test(normalized);
+    /\b(?:not\s+a\s+command|not\s+an\s+instruction|not\s+a\s+request|not\s+as\s+(?:a\s+)?(?:fresh\s+)?(?:command|request|instruction)|not\s+asking\s+(?:you\s+)?to|do\s+not|don't|dont|no\s+need\s+to|stay\s+in\s+chat|chat\s+only|conversational)\b/.test(normalized);
 
   return framesAsLanguage && (asksBoundary || labelsOnly || explicitBoundary);
 }
@@ -96,11 +99,22 @@ export type StaleContextAuthorityBoundaryKind =
   | 'prior_mission_id'
   | 'pending_publish_negation'
   | 'old_chip_memory'
+  | 'stale_action_evidence'
   | 'evidence_priority';
 
 export function classifyStaleContextAuthorityBoundary(text: string): StaleContextAuthorityBoundaryKind | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) return null;
+  if (/\bharness(?:\s+core)?\b/.test(normalized) && /\b(?:architecture|authority\s+path|canonical\s+path|what\s+changed|changed|how\s+(?:does|should|is)|explain|difference)\b/.test(normalized)) {
+    return null;
+  }
+  if (
+    /\b(?:which|what)\s+source\s+wins\b/.test(normalized) ||
+    /\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized) ||
+    /\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized)
+  ) {
+    return null;
+  }
 
   if (
     /\bpending\s+state\b/.test(normalized) &&
@@ -113,9 +127,17 @@ export function classifyStaleContextAuthorityBoundary(text: string): StaleContex
 
   if (
     /\broute\s+history\b/.test(normalized) &&
-    /\bbuilder\b/.test(normalized) &&
-    /\b(?:active|was\s+active|build)\b/.test(normalized) &&
-    /\b(?:continue|resume|control|authorize|authority|can|should)\b/.test(normalized)
+    (
+      (
+        /\bbuilder\b/.test(normalized) &&
+        /\b(?:active|was\s+active|build)\b/.test(normalized) &&
+        /\b(?:continue|resume|control|authorize|authority|can|should)\b/.test(normalized)
+      ) ||
+      (
+        HIGH_AGENCY_WORD_PATTERN.test(normalized) &&
+        /\b(?:ignore|explain|boundary|current\s+boundary|continue|resume|control|authorize|authority|can|should)\b/.test(normalized)
+      )
+    )
   ) {
     return 'route_history_builder';
   }
@@ -125,6 +147,14 @@ export function classifyStaleContextAuthorityBoundary(text: string): StaleContex
     /\b(?:context|control|turn|resume|authority|authorize)\b/.test(normalized)
   ) {
     return 'prior_mission_id';
+  }
+
+  if (
+    /\b(?:memory\s+(?:may\s+say|says?|from\s+(?:last\s+week|yesterday|earlier|before))|old\s+memory|stale\s+memory|pending\s+state|pending\s+(?:build|mission|route|action)|route\s+history|previous\s+confirmation|prior\s+confirmation|old\s+mission\s+context|stale\s+context|previous\s+context|prior\s+context)\b/.test(normalized) &&
+    HIGH_AGENCY_WORD_PATTERN.test(normalized) &&
+    /\b(?:do\s+not|don't|dont|ignore|cannot|can't|should\s+not|must\s+not|evidence\s+only|fresh|wins?|trigger|execute|resume|control|authority|authorize|explain|boundary|only\s+asking|scoped)\b/.test(normalized)
+  ) {
+    return 'stale_action_evidence';
   }
 
   if (
@@ -138,9 +168,10 @@ export function classifyStaleContextAuthorityBoundary(text: string): StaleContex
     return 'stale_memory_restart';
   }
 
+  const staleChipMemoryReference =
+    /\b(?:memory\s+(?:may\s+say|says?|said|from\s+(?:last\s+week|yesterday|earlier|before))|(?:old|stale|earlier|previous|yesterday'?s)\s+(?:chip\s+)?memory|(?:old|stale|earlier|previous|yesterday'?s)\s+memory\s+(?:about|for)\s+(?:a\s+)?(?:chip|domain[-\s]*chip))\b/.test(normalized);
   if (
-    /\bmemory\b/.test(normalized) &&
-    /\b(?:yesterday|old|stale|earlier|previous)\b/.test(normalized) &&
+    staleChipMemoryReference &&
     /\b(?:chip|domain[-\s]*chip)\b/.test(normalized) &&
     /\b(?:make|create|build|scaffold|generate)\b/.test(normalized) &&
     /\b(?:today|now|this\s+turn|should|can)\b/.test(normalized)
@@ -179,6 +210,8 @@ export function renderStaleContextAuthorityBoundaryReply(
       return 'No. Old memory that Telegram was broken is not enough to restart it. A restart needs fresh live status, explicit user intent, Harness Core authorization, Governor approval, and a tool ledger.';
     case 'old_chip_memory':
       return 'No. Yesterday\'s chip memory can remind us of context, but it cannot create a chip today. Chip creation needs fresh explicit intent and governed Harness Core authority.';
+    case 'stale_action_evidence':
+      return 'Stale memory, pending state, route history, and old mission context are evidence only. They cannot trigger action unless the fresh turn grants Harness Core authority for that exact action.';
     case 'evidence_priority':
       return 'Fresh user intent comes first. For action decisions, live status or fresh probe evidence, the Harness Core envelope, Governor decision, tool ledger, and visible side-effect proof outrank old memory.';
     default:
@@ -1146,15 +1179,18 @@ export function isNoExecutionBoundary(text: string): boolean {
     /^(?:no|nah|nope)(?:[,\s.!]+|$)/,
     /\bno\s+(?:build|mission|execution|new\s+work)(?:\s+or\s+(?:build|mission|execution|new\s+work))*\s+for\s+now\b/,
     /\bno\s+(?:build|mission|execution|new\s+work)\s+for\s+now\b/,
-    /\b(?:no need|not needed|not now|not for now|maybe later|later|hold off|never mind|nevermind)\b/,
+    /\b(?:no need|not needed|not now|not for now|maybe\s+later|later\s+on|hold off|never mind|nevermind)\b/,
+    /\b(?:might|may|could|would)\s+ask\b.{0,100}\blater\b.{0,100}\bright\s+now\b.{0,80}\b(?:just|only|list|show|tell|explain|outline)\b/,
     /^(?:pause|cancel|stop)(?:[.!]+|\s*$)/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|publish|share|ship|deploy|open\s+(?:a\s+)?pr|kick\s+off)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+use\s+external\s+network\b.{0,100}\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate)(?:[.!?]+|\s|$)/,
     /\b(?:not|isn't|is not|wasn't|was not|aren't|are not)\s+(?:starting|running|launching|executing|publishing|sharing|shipping|deploying|scheduling|saving|building|creating|making)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:resume|unpause|continue|pause|hold|freeze|cancel|stop|kill)\s+(?:it|this|that|that\s+one|this\s+one|the\s+one|anything|something|missions?|work)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)(?:\s+new)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute)\s+(?:(?:a|another)\s+)?(?:mission|build|project)\b/,
+    /\bignore\b.{0,60}\bpending\s+(?:build|mission|project|work)\b.{0,80}\b(?:answer|explain|tell\s+me|summari[sz]e|recap)\b/,
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|open\s+(?:a\s+)?pr|remember|draft|canvas)\b/,
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|open\s+(?:a\s+)?pr|remember|draft|canvas)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
     /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
@@ -1400,7 +1436,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|where|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|diagnostic|spark)\b/.test(normalized)
+      /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark\s+(?:ui|dashboard|surface|service|local|status))\b/.test(normalized)
     ) ||
     (
       /\b(?:browser|open|show|link|where)\b/.test(normalized) &&
@@ -1442,6 +1478,7 @@ export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;
+  if (parseBuildIntent(normalized)) return null;
   if (/\b(?:summari[sz]e|recap|tell\s+me|what\s+did|what\s+have)\b.*\b(?:team|we|our)\b.*\b(?:already\s+)?(?:tried|done|tested|checked|attempted|know|guesses?|assumptions?|open\s+questions?)\b/.test(normalized) ||
       /\b(?:facts?|guesses?|assumptions?|open\s+questions?|next\s+(?:safest\s+)?action)\b.*\b(?:invent(?:ing)?\s+history|already\s+tried|team\s+history|our\s+history)\b/.test(normalized)) {
     return null;
@@ -2037,6 +2074,9 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 			'This should stay in chat unless the user explicitly asks for current access status or says to change this chat to a specific access level.'
 		].join('\n');
 	}
+	if (/\buse\s+the\s+word\s+chip\b/.test(normalized)) {
+		return buildNoExecutionIdeationReply(_text);
+	}
 	if (
 		/\bdomain[-\s]*chip\b/.test(normalized) &&
 		/\bproposal\b/.test(normalized) &&
@@ -2080,9 +2120,12 @@ export function renderMissionRoutingFailureClassReply(_text: string): string {
 
 export function isNoExecutionExplanationPrompt(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (!normalized || parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) {
+  if (!normalized) {
     return false;
   }
+  if (isActionWordMetaDiscussion(normalized)) return true;
+  if (/\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+use\s+external\s+network\b/.test(normalized) && /\b(?:explain|policy|required|requirement)\b/.test(normalized)) return true;
+  if (parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) return false;
 	return (
 		/\b(?:meta[-\s]*language|bug\s+report|qa\s+case|quoted|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|not a request|not an instruction|not a command)\b/.test(normalized) ||
 		/\b(?:stay in chat|just explain|explain the boundary|explain the failure class|product concept|documentation|plain definition|what should the ui show|next useful improvement|startup operator|startup self[-\s]*improvement|mission ids?)\b/.test(normalized) ||
@@ -2383,7 +2426,7 @@ export function renderAccessProductRuleReply(): string {
 function isExplicitMemoryWriteLikeRequest(normalized: string): boolean {
   return (
     /^memory\s+update\s*:/.test(normalized) ||
-    /\b(?:please\s+)?(?:remember|save)\s+(?:this|that)\b/.test(normalized) ||
+    /\b(?:please\s+)?(?:remember|save|store)\s+(?:this|that)\b/.test(normalized) ||
     /\b(?:my|our|the)\s+current\s+plan\s+is\b/.test(normalized)
   );
 }
@@ -2823,7 +2866,7 @@ export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDec
 }
 
 export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {
-  return /^memory(?:_|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
+  return /^memory(?:[._]|$)/i.test(routingDecision.trim()) && !isLowInformationLlmReply(reply);
 }
 
 export function isStartupFounderAdvisoryQuestion(text: string): boolean {
@@ -2960,11 +3003,15 @@ export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: bo
 export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
   const cleanDirective = (value: string): string => value
-    .replace(/^["']|["']$/g, '')
+    .replace(/^[\"'“”‘’]|[\"'“”‘’]$/g, '')
     .replace(/[.!?]+$/g, '')
     .trim();
 
   const explicitSavePatterns = [
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["“](.+?)["”](?:\s+.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+(?:exact\s+)?(?:kb\s+)?(?:memory\s+)?note\s+exactly\s*(?:for\s+me\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+(?:exactly\s+)?(?:one\s+)?(?:kb\s+)?(?:memory\s+)?(?:write|note)\s*[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
     /^(?:please\s+)?save\s+to\s+memory\s+that\s+(.+?)[.!?]?$/i,
     /^(?:for\s+later|note\s+for\s+later)\s*[,:-]\s*(.+?)[.!?]?$/i,

@@ -27,6 +27,7 @@ import {
   isLocalSparkServiceRequest,
   isMemoryDoctorRequest,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionBoundary,
   isNoExecutionExplanationPrompt,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
@@ -49,9 +50,10 @@ import {
 import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
-import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
+import type { DeterministicRouteId } from './routeTypes';
 import { parseSafeOperatorAction } from './operatorActions';
 import type { ShippedProjectContext } from './shippedProjectContext';
+import { isPendingClarificationFollowup as isPendingBuildClarificationFollowup } from './telegramPendingBuildEvidence';
 
 export type NaturalRouteOwnerSystem =
   | 'spark-telegram-bot'
@@ -197,18 +199,6 @@ function isGlobalDoctrineLikeRequest(text: string): boolean {
   );
 }
 
-function isPendingBuildClarificationFollowup(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
-  if (!normalized) return false;
-  if (/^(?:go|run|start|ship|yes|yep|yeah|ok|okay|sure|perfect|do it|let'?s go|default|defaults|skip)$/i.test(normalized)) {
-    return true;
-  }
-  const startsWithConfirmation = /^(?:yes|yeah|yep|ok|okay|sure|perfect|sounds good|great|cool)\b/.test(normalized);
-  const contextualObject = /\b(?:it|this|that|the project|the dashboard|the app|the build)\b/.test(normalized);
-  const action = /\b(?:build|create|make|ship|start|run|do|use|analyz|analyse)\b/.test(normalized);
-  return contextualObject && action && (startsWithConfirmation || /\b(?:create|build|make|ship|start|run|do)\s+(?:it|this|that)\b/.test(normalized));
-}
-
 function hasRecentProductPlanningContext(recentMessages: string[]): boolean {
   return recentMessages.some((message) => {
     const normalized = message.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -250,20 +240,14 @@ function buildIntentPayload(buildIntent: BuildIntent): Record<string, unknown> {
   return {
     projectName: buildIntent.projectName,
     hasProjectPath: Boolean(buildIntent.projectPath),
+    hasRequestedProjectPath: Boolean(buildIntent.requestedProjectPath),
+    projectPathEvidenceOnly: buildIntent.projectPathEvidenceOnly,
+    projectPathRejectedReason: buildIntent.projectPathRejectedReason,
     buildMode: buildIntent.buildMode,
     buildModeReason: buildIntent.buildModeReason,
     buildLane: buildIntent.buildLane,
     buildLaneReason: buildIntent.buildLaneReason
   };
-}
-
-function routeAllowed(route: DeterministicRouteId, text: string): boolean {
-  return evaluateDeterministicRoute(route, text).allow;
-}
-
-function routeBlockedByFirewall(text: string, route: DeterministicRouteId): NaturalRouteDecision {
-  const verdict = evaluateDeterministicRoute(route, text);
-  return noRoute(text, [`route_firewall:${verdict.reason}`]);
 }
 
 function parseNaturalProviderRun(text: string): { providers: string[]; goal: string } | null {
@@ -290,6 +274,33 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   }
 
   return null;
+}
+
+function isHarnessArchitectureChatQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const mentionsHarness =
+    /\bharness(?:\s+core)?\b/.test(normalized) ||
+    /\bgovernor\b/.test(normalized) && /\b(?:envelope|ledger|authority|authorization)\b/.test(normalized);
+  const asksAboutArchitecture =
+    /\b(?:architecture|authority\s+path|canonical\s+path|what\s+changed|changed|how\s+(?:does|should|is)|explain|difference)\b/.test(normalized);
+  return mentionsHarness && asksAboutArchitecture;
+}
+
+function isPreviousRouteNeutralSummaryChatQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /\b(?:do not|don't|dont|stop|avoid|cancel)\b.{0,80}\b(?:continue|resume|use|follow)\b.{0,80}\b(?:previous|prior|last|old)\s+(?:route|path|thread|mode)\b/.test(normalized) &&
+    (/\bneutral\s+summary\b/.test(normalized) || /\bsummary\b/.test(normalized))
+  );
+}
+
+function isConcreteBuildBrief(text: string, buildIntent: BuildIntent | null): boolean {
+  if (!buildIntent) return false;
+  if (buildIntent.projectPath) return true;
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return /\b(?:build|create|scaffold|ship)\b.{0,120}\b(?:app|dashboard|tool|project|prototype|game|site|website|system|interface|board)\b/.test(normalized);
 }
 
 export function decideNaturalRoute(
@@ -402,22 +413,11 @@ export function decideNaturalRoute(
     });
   }
 
-  if (context.pendingBuildClarification && isPendingBuildClarificationFollowup(normalized)) {
-    return decision({
-      route: 'spawner.pending_clarification',
-      owner_system: 'spawner-ui',
-      confidence: 'contextual',
-      action: 'spawner.clarification_reply',
-      payload: {},
-      context_source: 'pending_state',
-      matched_signals: ['pending_build_clarification', 'clarification_followup'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
   const parsedBuildIntent = parseBuildIntent(normalized);
-  const buildIntent = parsedBuildIntent && routeAllowed('spawner.build', normalized) ? parsedBuildIntent : null;
+  const buildIntent = parsedBuildIntent;
+  const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
+    allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
+  });
   const chipBrief = parseNaturalChipCreateIntent(normalized);
   const conversationalIdeation = shouldPreferConversationalIdeation(normalized);
   const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
@@ -432,6 +432,9 @@ export function decideNaturalRoute(
   const creatorArtifactBundle =
     contextualDomainChipArtifact ||
     /\b(?:benchmark\s+pack|benchmarks?|evals?|evaluation\s+pack|test\s+suite|speciali[sz]ation\s+path|autoloop(?:\s+policy)?|auto\s+loop|swarm\s+(?:review|contribution)\s+packet|shareable\s+insight\s+packet|insight\s+packet|review\s+packet|reusable\s+template|loop\s+template|specialization\s+template)\b/i.test(normalized);
+  const harnessArchitectureQuestion = isHarnessArchitectureChatQuestion(normalized);
+  const concreteBuildBrief = isConcreteBuildBrief(normalized, buildIntent);
+  const concreteStandaloneBuildBrief = concreteBuildBrief && !chipBrief;
   if (isGlobalDoctrineLikeRequest(normalized)) {
     return decision({
       route: 'agent_doctrine.global_blocked',
@@ -445,8 +448,83 @@ export function decideNaturalRoute(
       requires_confirmation: true
     });
   }
+
+  if (missionPreference && !concreteBuildBrief) {
+    return decision({
+      route: 'mission_updates.preference',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'mission_updates.preference',
+      payload: { ...missionPreference },
+      context_source: 'latest_message',
+      matched_signals: ['mission_update_preference'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (
+    buildIntent &&
+    !isNoExecutionBoundary(normalized) &&
+    (!harnessArchitectureQuestion || concreteBuildBrief) &&
+    ((!earlyCreatorMission && !conversationalIdeation) || concreteStandaloneBuildBrief)
+  ) {
+    return decision({
+      route: 'spawner.build',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.build',
+      payload: buildIntentPayload(buildIntent),
+      context_source: buildIntent.projectPath ? 'visible_exact_artifact' : 'latest_message',
+      matched_signals: ['build_intent'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (harnessArchitectureQuestion) {
+    return decision({
+      route: 'plain_chat',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.harness_architecture',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['harness_architecture_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isPreviousRouteNeutralSummaryChatQuestion(normalized)) {
+    return decision({
+      route: 'plain_chat',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.previous_route_neutral_summary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['previous_route_neutral_summary'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (context.pendingBuildClarification && isPendingBuildClarificationFollowup(normalized)) {
+    return decision({
+      route: 'spawner.pending_clarification',
+      owner_system: 'spawner-ui',
+      confidence: 'contextual',
+      action: 'spawner.clarification_reply',
+      payload: {},
+      context_source: 'pending_state',
+      matched_signals: ['pending_build_clarification', 'clarification_followup'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
   if (isProjectImprovementRequest(normalized, context.shippedProject)) {
-    if (!routeAllowed('spawner.project_iteration', normalized)) return routeBlockedByFirewall(normalized, 'spawner.project_iteration');
     return decision({
       route: 'project.iteration',
       owner_system: 'spawner-ui',
@@ -463,8 +541,21 @@ export function decideNaturalRoute(
       requires_confirmation: true
     });
   }
+  const memoryDirective = extractPlainChatMemoryDirective(normalized);
+  if (memoryDirective) {
+    return decision({
+      route: 'memory.write',
+      owner_system: 'spark-intelligence-builder',
+      confidence: 'explicit',
+      action: 'memory.write',
+      payload: { directive: memoryDirective },
+      context_source: 'latest_message',
+      matched_signals: ['plain_chat_memory_directive'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
   if (chipBrief && (!earlyCreatorMission || !creatorArtifactBundle)) {
-    if (!routeAllowed('domain_chip.create', normalized)) return routeBlockedByFirewall(normalized, 'domain_chip.create');
     return decision({
       route: 'domain_chip.create',
       owner_system: 'domain-chip',
@@ -477,23 +568,8 @@ export function decideNaturalRoute(
       requires_confirmation: true
     });
   }
-  if (buildIntent && !earlyCreatorMission && !conversationalIdeation) {
-    return decision({
-      route: 'spawner.build',
-      owner_system: 'spawner-ui',
-      confidence: 'explicit',
-      action: 'spawner.build',
-      payload: buildIntentPayload(buildIntent),
-      context_source: buildIntent.projectPath ? 'visible_exact_artifact' : 'latest_message',
-      matched_signals: ['build_intent'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
   const explicitAccessLevel = parseNaturalAccessChangeIntent(normalized);
   if (explicitAccessLevel) {
-    if (!routeAllowed('access.change', normalized)) return routeBlockedByFirewall(normalized, 'access.change');
     return decision({
       route: 'access.change',
       owner_system: 'spark-telegram-bot',
@@ -509,7 +585,6 @@ export function decideNaturalRoute(
 
   const contextualAccessLevel = parseContextualAccessChangeIntent(normalized, recentMessages);
   if (contextualAccessLevel) {
-    if (!routeAllowed('access.change', normalized)) return routeBlockedByFirewall(normalized, 'access.change');
     return decision({
       route: 'access.change',
       owner_system: 'spark-telegram-bot',
@@ -567,7 +642,6 @@ export function decideNaturalRoute(
 
   const safeOperatorAction = parseSafeOperatorAction(normalized);
   if (safeOperatorAction) {
-    if (!routeAllowed('operator.safe_action', normalized)) return routeBlockedByFirewall(normalized, 'operator.safe_action');
     return decision({
       route: 'operator.safe_action',
       owner_system: 'spark-telegram-bot',
@@ -605,22 +679,6 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'cold_memory',
       matched_signals: ['agent_doctrine_status_question'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
-  const memoryDirective = extractPlainChatMemoryDirective(normalized);
-  if (memoryDirective) {
-    if (!routeAllowed('memory.write', normalized)) return routeBlockedByFirewall(normalized, 'memory.write');
-    return decision({
-      route: 'memory.write',
-      owner_system: 'spark-intelligence-builder',
-      confidence: 'explicit',
-      action: 'memory.write',
-      payload: { directive: memoryDirective },
-      context_source: 'latest_message',
-      matched_signals: ['plain_chat_memory_directive'],
       blocked_by: [],
       requires_confirmation: false
     });
@@ -730,7 +788,6 @@ export function decideNaturalRoute(
 
   const selfImprovementGoal = extractSparkSelfImprovementGoal(normalized);
   if (selfImprovementGoal) {
-    if (!routeAllowed('spark.self_improvement', normalized)) return routeBlockedByFirewall(normalized, 'spark.self_improvement');
     return decision({
       route: 'spark.self_improvement',
       owner_system: 'spark-intelligence-builder',
@@ -793,7 +850,6 @@ export function decideNaturalRoute(
 
   const creatorMission = earlyCreatorMission;
   if (creatorMission) {
-    if (!routeAllowed('creator.mission', normalized)) return routeBlockedByFirewall(normalized, 'creator.mission');
     return decision({
       route: 'creator.mission',
       owner_system: 'spawner-ui',
@@ -807,11 +863,7 @@ export function decideNaturalRoute(
     });
   }
 
-  const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
-    allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
-  });
   if (missionPreference) {
-    if (!routeAllowed('mission_updates.preference', normalized)) return routeBlockedByFirewall(normalized, 'mission_updates.preference');
     return decision({
       route: 'mission_updates.preference',
       owner_system: 'spark-telegram-bot',
@@ -869,7 +921,6 @@ export function decideNaturalRoute(
   }
 
   if (isExternalResearchRequest(normalized)) {
-    if (!routeAllowed('spawner.external_research', normalized)) return routeBlockedByFirewall(normalized, 'spawner.external_research');
     return decision({
       route: 'external_research.inspect',
       owner_system: 'spark-intelligence-builder',
@@ -884,7 +935,6 @@ export function decideNaturalRoute(
   }
 
   if (isDiagnosticsScanRequest(normalized)) {
-    if (!routeAllowed('diagnostics.scan', normalized)) return routeBlockedByFirewall(normalized, 'diagnostics.scan');
     return decision({
       route: 'diagnostics.scan',
       owner_system: 'spark-cli',
@@ -900,7 +950,6 @@ export function decideNaturalRoute(
 
   const providerRun = parseNaturalProviderRun(normalized);
   if (providerRun) {
-    if (!routeAllowed('natural_run', normalized)) return routeBlockedByFirewall(normalized, 'natural_run');
     return decision({
       route: 'natural_run',
       owner_system: 'spawner-ui',
@@ -915,7 +964,6 @@ export function decideNaturalRoute(
   }
 
   if (isDiagnosticFollowupTestQuestion(normalized)) {
-    if (!routeAllowed('diagnostics.followup_test', normalized)) return routeBlockedByFirewall(normalized, 'diagnostics.followup_test');
     return decision({
       route: 'diagnostics.followup_test',
       owner_system: 'spark-intelligence-builder',
@@ -945,7 +993,6 @@ export function decideNaturalRoute(
 
   const inferredMission = inferMissionFromRecentContext(normalized, recentMessages);
   if (inferredMission) {
-    if (!routeAllowed('spawner.contextual_mission', normalized)) return routeBlockedByFirewall(normalized, 'spawner.contextual_mission');
     return decision({
       route: 'spawner.contextual_mission',
       owner_system: 'spawner-ui',
@@ -961,7 +1008,6 @@ export function decideNaturalRoute(
 
   const defaultBuild = inferDefaultBuildFromRecentScoping(normalized, recentMessages);
   if (defaultBuild) {
-    if (!routeAllowed('spawner.default_build', normalized)) return routeBlockedByFirewall(normalized, 'spawner.default_build');
     return decision({
       route: 'spawner.default_build',
       owner_system: 'spawner-ui',

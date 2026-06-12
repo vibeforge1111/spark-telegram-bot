@@ -133,9 +133,9 @@ Bridge env:
 - `SPARK_BUILDER_TIMEOUT_MS`
 - `SPARK_CONTEXT_BRIDGE_TIMEOUT_MS`
 
-Default behavior is `auto`, which looks for the release-installed Builder source first, then legacy installed and checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
+Default behavior is `auto`, which looks for the active installed Builder source first, then checkout fallbacks, plus the standard Spark home at `~/.spark/state/spark-intelligence`. If the Builder bridge is unavailable, the bot falls back to the local `conversation + llm` path unless you set `SPARK_BUILDER_BRIDGE_MODE=required`.
 
-Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder-release/source`.
+Spark CLI starter installs set `SPARK_BUILDER_REPO` explicitly so the bot can find Builder from `~/.spark/modules/spark-intelligence-builder/source`.
 
 ### Agent Environment Files
 
@@ -240,6 +240,22 @@ Then verify local launch config from the same package directory:
 # From ~/.spark/modules/spark-telegram-bot/source in an installed Spark module.
 npm run health:polling
 ```
+
+## Deploy To The Live Mirror
+
+For local Spark installs, deploy the Telegram gateway with one guarded command
+from the source checkout:
+
+```bash
+npm run restart:safe
+```
+
+The command rebuilds `dist/`, syncs the declared runtime files into the live
+mirror, runs the strict runtime drift check, and only then restarts the
+`spark-recursive` Telegram profile through `spark.cmd`. If the check prints
+`DRIFT`, do not restart from stale output. Read the listed paths, rerun
+`npm run build:sync`, and repeat `npm run sync:check:strict` until it prints
+`[check] runtime in sync.`
 
 ## Railway / Docker
 

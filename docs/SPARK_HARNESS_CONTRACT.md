@@ -1,54 +1,93 @@
-# Spark Harness Contract
+# Spark Harness Core Contract
 
-Status: Milestone 0.1 active
+Status: Harness Core VNext/Governor adoption active
 
 ## Role Of This Repo
 
-`spark-telegram-bot` is the primary ingress surface for Spark Harness.
+`spark-telegram-bot` is the primary natural-language ingress and final human
+reply surface for Spark Harness Core.
 
 Telegram should:
 
-- normalize the inbound turn
-- classify candidates
-- build `TurnIntentEnvelopeV1`
-- authorize safe route execution from that envelope
-- compose the human Telegram reply
+- normalize the inbound turn as evidence
+- preserve request, chat, user, route, and trace identifiers
+- adapt legacy Telegram turn data into `TurnIntentEnvelopeVNext`
+- consume `GovernorDecisionV1`, `AuthorizationDecisionV1`, and
+  `ToolCallLedgerV1`
+- forward high-agency work only to the owner route named by the Governor
+- compose concise human replies from owner-system results and trace evidence
 
 Telegram should not:
 
 - let raw keywords execute action
-- let memory authorize action
-- let stale pending state authorize action
-- let Builder or Spawner re-decide from raw text after Telegram already created a no-action envelope
+- let memory, pending state, route history, provider names, or health status
+  authorize action
+- mint execution authority from old `TurnIntentEnvelopeV1` compatibility data
+- let Builder or Spawner re-decide from raw text after a Governor refusal,
+  interruption, or no-action outcome
+- claim memory saves, mission execution, publication, or installer readiness
+  without owner proof
+
+## Current Contract
+
+The current canonical contract source is:
+
+`work/repos/spark-harness-core`
+
+The runtime package face is:
+
+`@spark/harness-core`
+
+Current authority chain:
+
+```text
+fresh turn evidence
+-> TurnIntentEnvelopeVNext
+-> GovernorDecisionV1
+-> AuthorizationDecisionV1
+-> owner consumer verification
+-> ToolCallLedgerV1
+-> side-effect proof
+-> Telegram reply
+```
+
+`TurnIntentEnvelopeV1` and `spark.turn_intent.v1` are historical
+compatibility/predecessor language. They are not installer-facing execution
+authority.
 
 ## Current Implementation
 
-- `src/harnessContract.ts` defines the first TypeScript contract slice.
-- `tests/harnessContract.test.ts` locks down no-action, startup canary, memory evidence, and missing-envelope behavior.
-- `src/index.ts` builds a turn envelope before Intent Gate V2 safe route execution.
-- Safe routes call `authorizeToolCallFromEnvelope(...)` before handling the route.
+- `src/harnessCoreVNext.ts` adapts Telegram turn evidence into VNext and emits
+  authorization/ledger records.
+- `src/telegramActionAuthority.ts` builds or verifies Governor authority for
+  Telegram action paths.
+- `src/harnessExecutionAuthority.ts` requires `GovernorDecisionV1` and calls
+  Harness Core verification helpers.
+- Tests under `tests/harnessCoreVNext.test.ts` and related authority suites
+  cover no-action, positive action, missing authority, stale/copy rejection,
+  and owner/tool binding.
 
-## Shared Source Of Truth
+## Human Surface Rule
 
-Spark-wide TurnIntent rules are documented locally in:
+Telegram replies should stay natural. Do not make canned deterministic reply
+templates the proof target.
 
-- `docs/TURNINTENT_HARNESS_RULESET.md`
-- `docs/TURNINTENT_AGENTS_ADOPTION.md`
+Release-risk Telegram QA should prove:
 
-The proposed shared private contract repo is:
+- selected route equals executed route
+- Governor outcome is visible in trace
+- authorization and tool ledger exist when a tool runs
+- refusal/no-op cases produce no side effect
+- build/memory/chip/browser/computer-use prompts cannot be hijacked by stale
+  context, health words, provider names, or keyword matches
 
-`/Users/alchemistab/Documents/Codex/2026-05-30/we-have-been-working-on-achieving/work/spark-harness-contracts`
+## Acceptance For Connected Work
 
-Remote:
-
-`https://github.com/vibeforge1111/spark-harness-contracts`
-
-Until that repo is promoted, Telegram owns the first runnable TypeScript implementation.
-
-## Acceptance For Next Slice
-
-- Telegram fixtures come from the shared contract repo.
-- Builder parses the same fixture envelope shape.
-- Spawner parses the same fixture envelope shape.
-- Route selected equals route executed.
-- No-action prompts block mission, file, publish, schedule, memory write, and chip creation unless explicitly selected by the envelope.
+- High-agency Telegram routes require Governor authority.
+- Owner routes reject bare VNext for execution.
+- Negative/no-action prompts block mission, file, publish, schedule, memory
+  write, chip creation, browser/computer-use, and provider dispatch.
+- Positive explicit actions still work without defensive phrasing from the
+  user when Harness Core authorizes the exact action.
+- Live proof uses native Telegram Desktop via CUA when the test is about the
+  Telegram app surface.

@@ -4,10 +4,12 @@ import {
   extractSparkWikiPromotionIntent,
   extractSparkWikiQuery,
   classifyStaleContextAuthorityBoundary,
+  isActionWordMetaDiscussion,
   isAccessHelpQuestion,
   isAccessStatusQuestion,
   isBrowserComputerUseAuthorizationBoundaryQuestion,
   isMissionRoutingFailureClassQuestion,
+  isNoExecutionBoundary,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isSparkWikiInventoryQuestion,
@@ -18,7 +20,9 @@ import {
   isUserMemoryRecallQuestion,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { parseBuildIntent } from './buildIntent';
 import { decideNaturalRoute, type NaturalRouteDecision, type NaturalRouteDecisionContext } from './naturalRouteDecision';
+import { isLiveSparkHealthQuestion } from './runtimeRouteGuards';
 import type {
   TelegramIntentCandidateV2,
   TelegramIntentConstraintsV2,
@@ -87,6 +91,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   }
 
   const hasMetaLanguageBoundary =
+    isActionWordMetaDiscussion(normalized) ||
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|example|quoted example|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|just quoted|only quoted|not a request|not an instruction|not a command|not asking for|does not mean|doesn't mean|not mean|talking about the (?:word|phrase)|discussing the (?:word|phrase))\b/.test(normalized);
   const hasExecutionKeyword =
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b/.test(normalized);
@@ -182,10 +187,23 @@ function isDomainChipCreateRequest(text: string): boolean {
 
 function isExplicitSpawnerBuildRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized || isDomainChipCreateRequest(normalized) || isScheduleDeleteRequest(normalized)) return false;
-  if (isExplicitSpawnerNoEditMissionRequest(normalized)) return true;
+  const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
+  const domainChipCreateRequest = isDomainChipCreateRequest(normalized);
+  const buildIntent = parseBuildIntent(text);
+  if (
+    !normalized ||
+    (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
+    isScheduleDeleteRequest(normalized) ||
+    isCreatorBenchmarkPackRequest(normalized)
+  ) return false;
+  if (buildIntent && !domainChipCreateRequest) return true;
+  if (
+    (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
+    domainChipCreateRequest
+  ) return false;
+  if (explicitNoEditMission) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
-  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform)\b/.test(normalized);
+  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
   return (
     (buildVerb && productNoun) ||
     /\b(?:let'?s|lets|please)\s+build\b/.test(normalized) ||
@@ -227,7 +245,7 @@ function isCreatorBenchmarkPackRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
     /\b(?:create|build|make|plan|stage|scaffold|generate)\b/.test(normalized) &&
-    /\b(?:benchmark pack|eval pack|evaluation pack|test suite)\b/.test(normalized) &&
+    /\b(?:benchmark pack|eval pack|evaluation pack|test suite|benchmarks?)\b/.test(normalized) &&
     /\b(?:spark\s+qa\s+operator|specialization|path|operator)\b/.test(normalized)
   );
 }
@@ -438,23 +456,8 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     return observedNaturalRouteDecision(constraints, naturalRoute);
   }
 
-  if (isCreatorBenchmarkPackRequest(normalized)) {
-    return makeDecision({
-      kind: 'creator_or_domain_chip',
-      route: 'creator.mission',
-      owner_system: 'spawner-ui',
-      action: 'creator.mission',
-      confidence: constraints.noExecution ? 'blocked' : 'explicit',
-      constraints,
-      payload: basePayload(naturalRoute),
-      matched_signals: ['explicit_benchmark_pack_creator'],
-      blocked_candidates: naturalRoute && naturalRoute.route !== 'creator.mission'
-        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit benchmark-pack creation owns the turn over advisory chat routing.')]
-        : [],
-      supporting_routes: supportingRoutes(naturalRoute),
-      enforcement: 'observe',
-      natural_route: naturalRoute
-    });
+  if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.harness_architecture') {
+    return observedNaturalRouteDecision(constraints, naturalRoute);
   }
 
   const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
@@ -473,6 +476,44 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       matched_signals: [explicitSpawnerNoEditMission ? 'explicit_spawner_no_edit_mission' : 'explicit_spawner_build'],
       blocked_candidates: naturalRoute && naturalRoute.route !== 'spawner.build'
         ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit project build request owns the turn over incidental routing signals.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
+  }
+
+  if (isLiveSparkHealthQuestion(normalized)) {
+    return makeDecision({
+      kind: 'runtime_truth_or_operator',
+      route: 'spark.read_only_state',
+      owner_system: 'spark-telegram-bot',
+      action: 'spark.read_only_state.live_status',
+      confidence: constraints.noExecution ? 'blocked' : 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['explicit_live_spark_health_question'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'spark.read_only_state'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit live Spark health request owns the turn over incidental routing signals.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
+  }
+
+  if (isCreatorBenchmarkPackRequest(normalized)) {
+    return makeDecision({
+      kind: 'creator_or_domain_chip',
+      route: 'creator.mission',
+      owner_system: 'spawner-ui',
+      action: 'creator.mission',
+      confidence: constraints.noExecution ? 'blocked' : 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['explicit_benchmark_pack_creator'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'creator.mission'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Explicit benchmark-pack creation owns the turn over advisory chat routing.')]
         : [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'observe',
@@ -871,7 +912,6 @@ export function isTelegramIntentGateV2SafeRoute(decision: TelegramIntentDecision
     'startup.answer_improvement_canary',
     'startup.proof_readout',
     'startup.founder_advice',
-    'memory.write',
     'access.status',
     'access.help',
     'conversation.quoted_drafted_example_boundary'

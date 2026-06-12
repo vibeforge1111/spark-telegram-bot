@@ -49,13 +49,54 @@ test('builds relay health URL from hosted relay callback URL', () => {
 
 test('validates relay runtime without exposing secrets', async () => {
   const fetchImpl = async () => new Response(
-    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+    JSON.stringify({
+      ok: true,
+      relay: { profile: 'spark-agi', port: 8789 },
+      pid: 123,
+      runtime: {
+        telegramPolling: 'active',
+        pollingLastGetUpdatesAttemptAt: new Date().toISOString()
+      }
+    }),
     { status: 200, headers: { 'content-type': 'application/json' } }
   );
 
   const detail = await validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv);
 
   assert.equal(detail, 'spark-agi@8789 pid=123 polling=active');
+});
+
+test('rejects relay runtime that claims active polling without Bot API proof', async () => {
+  const fetchImpl = async () => new Response(
+    JSON.stringify({ ok: true, relay: { profile: 'spark-agi', port: 8789 }, pid: 123, runtime: { telegramPolling: 'active' } }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+
+  await assert.rejects(
+    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    /no Bot API getUpdates attempt is recorded/
+  );
+});
+
+test('rejects relay runtime with stale Bot API polling proof', async () => {
+  const fetchImpl = async () => new Response(
+    JSON.stringify({
+      ok: true,
+      relay: { profile: 'spark-agi', port: 8789 },
+      pid: 123,
+      runtime: {
+        telegramPolling: 'active',
+        pollingLastGetUpdatesAttemptAt: '2026-05-08T09:30:00.000Z',
+        pollingLastError: 'Conflict: terminated by other getUpdates request'
+      }
+    }),
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
+
+  await assert.rejects(
+    () => validateRelayRuntime(fetchImpl as typeof fetch, { TELEGRAM_RELAY_PORT: '8789' } as NodeJS.ProcessEnv),
+    /Telegram polling getUpdates attempt is stale/
+  );
 });
 
 test('rejects relay runtime before Telegram polling is active', async () => {

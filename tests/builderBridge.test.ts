@@ -132,21 +132,24 @@ test('formats route confidence gate missing evidence as a proof refusal', () => 
   assert.match(reply, /Refresh Spawner evidence, then ask again\./);
 });
 
-test('Builder bridge exposes metadata-only RouteConfidenceGateV1 action preflight', () => {
+test('Builder route-confidence probe is advisory and cannot veto build dispatch', () => {
   const bridgeSource = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
   const indexSource = readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-  const gateBlock = indexSource.match(/async function buildDispatchRouteConfidenceAllows[\s\S]*?\r?\n}\r?\n\r?\ninterface RunCommandOptions/)?.[0] || '';
+  const buildDispatchBlock = indexSource.match(/export async function handleBuildIntent[\s\S]*?const polishedProjectName/)?.[0] || '';
+  const clarificationBlock = indexSource.match(/export async function handleClarificationAnswers[\s\S]*?const projectName/)?.[0] || '';
   const pendingDomainChipBlock = indexSource.match(/async function handlePendingDomainChipBuild[\s\S]*?\r?\n}\r?\n\r?\nasync function handleCreatorMissionPlan/)?.[0] || '';
 
   assert.match(bridgeSource, /routeContext\?: Record<string, unknown>/);
   assert.match(bridgeSource, /--route-context-json/);
-  assert.match(indexSource, /async function buildDispatchRouteConfidenceAllows/);
-  assert.match(indexSource, /candidateRoute: 'spawner\.build'/);
-  assert.match(indexSource, /builder_route_confidence_gate/);
-  assert.match(indexSource, /exports_raw_prompt: false/);
-  assert.match(indexSource, /exports_chat_id: false/);
-  assert.match(indexSource, /exports_memory_body: false/);
-  assert.doesNotMatch(gateBlock, /currentMessage|user_message|raw_provider_output|raw_memory_body/);
+  assert.doesNotMatch(indexSource, /buildDispatchRouteConfidenceAllows|recordRouteConfidenceDispatchOutcome|route-confidence-gate|RouteConfidenceGate/);
+  assert.match(buildDispatchBlock, /buildDispatchAuthorityFailureReason\(options\.executionAuthority\)/);
+  assert.ok(
+    buildDispatchBlock.indexOf('buildDispatchAuthorityFailureReason(options.executionAuthority)') <
+      buildDispatchBlock.indexOf('recordBuilderAocPreflightForRun'),
+    'Harness authority must be verified before Builder AOC evidence recording'
+  );
+  assert.doesNotMatch(buildDispatchBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
+  assert.doesNotMatch(clarificationBlock, /buildDispatchRouteConfidenceAllows|runBuilderRouteConfidenceGate|route-confidence-gate/);
   assert.match(pendingDomainChipBlock, /confirmationState: 'confirmed'/);
 });
 
@@ -558,9 +561,9 @@ test('agent operating context bridge uses the shared AOC panel route', () => {
   assert.doesNotMatch(source, /'self',\s*'context'/);
 });
 
-test('builder repo resolver prefers release-installed Builder when Telegram runs from installed source', () => {
+test('builder repo resolver prefers active installed Builder when Telegram runs from installed source', () => {
   const homeDir = path.resolve('C:/Users/USER');
-  const installedBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder-release', 'source');
+  const installedBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source');
   const resolved = resolveBuilderRepoPath({
     cwd: path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'source'),
     homeDir,
@@ -570,16 +573,16 @@ test('builder repo resolver prefers release-installed Builder when Telegram runs
   assert.equal(resolved, installedBuilderRepo);
 });
 
-test('builder repo resolver keeps legacy installed Builder as fallback', () => {
+test('builder repo resolver keeps checkout Builder as fallback', () => {
   const homeDir = path.resolve('C:/Users/USER');
-  const legacyBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-intelligence-builder', 'source');
+  const checkoutBuilderRepo = path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'spark-intelligence-builder');
   const resolved = resolveBuilderRepoPath({
     cwd: path.join(homeDir, '.spark', 'modules', 'spark-telegram-bot', 'source'),
     homeDir,
-    exists: (targetPath) => targetPath === path.join(legacyBuilderRepo, 'src', 'spark_intelligence', 'cli.py')
+    exists: (targetPath) => targetPath === path.join(checkoutBuilderRepo, 'src', 'spark_intelligence', 'cli.py')
   });
 
-  assert.equal(resolved, legacyBuilderRepo);
+  assert.equal(resolved, checkoutBuilderRepo);
 });
 
 test('builder repo resolver preserves explicit operator override', () => {
@@ -592,6 +595,17 @@ test('builder repo resolver preserves explicit operator override', () => {
   });
 
   assert.equal(resolved, explicitRepo);
+});
+
+test('Telegram Builder bridge prefers warm stdio worker with one-shot CLI fallback', () => {
+  const source = readFileSync(path.join(__dirname, '..', 'src', 'builderBridge.ts'), 'utf8');
+
+  assert.match(source, /SPARK_BUILDER_WARM_BRIDGE_MODE/);
+  assert.match(source, /'serve-stdio'/);
+  assert.match(source, /runBuilderTelegramBridgeWarm/);
+  assert.match(source, /runBuilderTelegramBridgeOneShot/);
+  assert.match(source, /Warm bridge unavailable; using one-shot CLI/);
+  assert.match(source, /'simulate-telegram-update'/);
 });
 
 test('formats black-box payload as compact event evidence', () => {

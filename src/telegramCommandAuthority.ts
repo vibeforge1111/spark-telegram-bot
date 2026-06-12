@@ -1,6 +1,6 @@
 import type { TelegramIntentDecisionV2, TelegramIntentKindV2 } from './intentContract';
 import type { NaturalRouteOwnerSystem } from './naturalRouteDecision';
-import type { DeterministicRouteId } from './routeFirewall';
+import type { DeterministicRouteId } from './routeTypes';
 import {
   buildTelegramTurnIntentEnvelope,
   type SparkHarnessConversationKind,

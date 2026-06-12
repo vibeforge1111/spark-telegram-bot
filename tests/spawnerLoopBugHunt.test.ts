@@ -27,9 +27,7 @@ import {
   isDomainChipPendingDirection,
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
-  isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
@@ -202,6 +200,7 @@ test('bug hunt: pending creator and cancel state live behind evidence adapters',
   assert.match(creatorAdapter, /export function parsePendingCreatorMissionAction/);
   assert.match(cancelAdapter, /const missionCancelConfirmations = new Map/);
   assert.match(cancelAdapter, /export function isMissionCancelConfirmationText/);
+  assert.doesNotMatch(cancelAdapter, /executionAuthority/);
 });
 
 test('bug hunt: branch promotion cannot mint mutating route authority', () => {
@@ -284,6 +283,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 145,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p1&mission=mission-123',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 5, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the app shell', skills: ['frontend-engineer', 'ui-design'] },
@@ -295,9 +295,9 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   });
   assert.match(canvasReady, /Canvas is ready for Proof Orchard\./);
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
-  assert.match(canvasReady, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
-  assert.doesNotMatch(canvasReady, /Mission board/);
-  assert.match(canvasReady, /Spark queued 4 build steps and is moving now\./);
+  assert.match(canvasReady, /Canvas\n- http:\/\/127\.0\.0\.1:3333\/canvas/);
+  assert.match(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
+  assert.match(canvasReady, /Spark queued 4 build steps with 4 paired nodes and 5 skills\./);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
@@ -314,13 +314,14 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 4,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-fast&mission=mission-fast',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-fast',
+    canvasMaterialization: { nodeCount: 1, pairedNodeCount: 1, skillCount: 3, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Build and check the single-file static page', skills: ['frontend-engineer', 'accessibility', 'qa-engineering'] }
       ]
     }
   });
-  assert.match(oneStepFastLane, /Spark queued 1 build step and is moving now/);
+  assert.match(oneStepFastLane, /Spark queued 1 build step with 1 paired node and 3 skills/);
   assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
@@ -355,6 +356,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p2&mission=mission-456',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-456',
+    canvasMaterialization: { nodeCount: 10, pairedNodeCount: 10, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 10 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -362,7 +364,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(tenStepReply, /Spark queued 10 build steps and is moving now\./);
+  assert.match(tenStepReply, /Spark queued 10 build steps with 10 paired nodes and 1 skill\./);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
@@ -373,6 +375,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p3&mission=mission-789',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-789',
+    canvasMaterialization: { nodeCount: 12, pairedNodeCount: 12, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 12 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -380,7 +383,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(twelveStepReply, /Spark queued 12 build steps and is moving now\./);
+  assert.match(twelveStepReply, /Spark queued 12 build steps with 12 paired nodes and 1 skill\./);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);
@@ -394,6 +397,7 @@ test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p4&mission=mission-pro',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-pro',
+    canvasMaterialization: { nodeCount: 2, pairedNodeCount: 2, skillCount: 4, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the playable game shell', skills: ['frontend-engineer', 'game-development'] },
@@ -416,6 +420,7 @@ test('bug hunt: automatic pro canvas ready summary hides the full skill stack', 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-h70&mission=mission-h70',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-h70',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 12, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         {
@@ -586,60 +591,6 @@ test('bug hunt: created mission handoff is not framed as finished work', () => {
   assert.match(message, /Created the focused Spawner mission v1/i);
   assert.doesNotMatch(message, /I got this one finished|got it done|came back clean|this one is finished/i);
   assert.doesNotMatch(message, /^✨/);
-});
-
-test('bug hunt: missing Builder route-confidence command degrades through local compatibility gate', () => {
-  assert.equal(
-    isRouteConfidenceGateUnsupportedError(
-      new Error("spark-intelligence self: error: argument self_command: invalid choice: 'route-confidence-gate'")
-    ),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'no_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'missing',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: false,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'no'
-    }),
-    false
-  );
 });
 
 test('bug hunt: pause, resume, and cancel relay state messages stay compact', () => {

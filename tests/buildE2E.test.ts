@@ -30,6 +30,11 @@ import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { resolveDefaultPythonCommand } from '../src/pythonCommand';
 import type { SparkHarnessMutationClass } from '../src/harnessContract';
+import {
+	buildSpawnerDispatchExecutionAuthority,
+	spawnerDispatchAuthorityFailureReason,
+	spawnerPrdWriteAuthorityFailureReason
+} from '../src/spawnerPrdWriteAuthority';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -275,11 +280,20 @@ async function readMissionRelayRegistry(): Promise<any[]> {
 }
 
 function makeFakeCtx(chatId: number, fromId: number, messageId: number, replies: string[], replyExtras: any[] = []) {
+	const chat = { id: chatId, type: 'private' };
+	const from = { id: fromId, username: 'cem', is_bot: false, first_name: 'Cem' };
+	const message = {
+		message_id: messageId,
+		text: 'build me a saas with auth and billing',
+		date: Math.floor(Date.now() / 1000),
+		chat,
+		from
+	};
 	return {
-		chat: { id: chatId },
-		from: { id: fromId, username: 'cem' },
-		message: { message_id: messageId, text: 'build me a saas with auth and billing' },
-		update: { update_id: messageId },
+		chat,
+		from,
+		message,
+		update: { update_id: messageId, message },
 		sendChatAction: async (_action: string) => {},
 		reply: async (text: string, extra?: any) => {
 			replies.push(text);
@@ -318,6 +332,23 @@ function fakeGovernorExecutionAuthority(
 		actorIdRef: 'telegram-human'
 	});
 	return createHarnessCoreAuthorizedGovernorDecision({ envelope, tool_name: toolName });
+}
+
+function assertSpawnerPrdWriteAuthority(authority: any, requestId: string): void {
+	assert.equal(authority?.schema_version, 'governor-decision-v1');
+	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'spawner.prd.write');
+	assert.equal(spawnerPrdWriteAuthorityFailureReason(authority), null);
+	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
+	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+}
+
+function assertSpawnerDispatchAuthority(authority: any, requestId: string, missionId: string): void {
+	assert.equal(authority?.schema_version, 'governor-decision-v1');
+	assert.equal(authority?.tool_ledgers?.[0]?.tool_name, 'spawner.dispatch');
+	assert.equal(spawnerDispatchAuthorityFailureReason(authority), null);
+	const pathOrUri = String(authority?.envelope?.proposed_actions?.[0]?.args_ref?.path_or_uri || '');
+	assert.equal(decodeURIComponent(pathOrUri.split('/').pop() || ''), requestId);
+	assert.match(JSON.stringify(authority), new RegExp(missionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 }
 
 async function callHandleBuildIntent(opts: {
@@ -381,6 +412,106 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('derives scoped Spawner dispatch authority from Telegram build authority', () => {
+		const requestId = 'tg-build-dispatch-authority-test-1780865000000';
+		const missionId = 'mission-1780865000000';
+		const authority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId,
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-1780865000000'
+		});
+
+		assertSpawnerDispatchAuthority(authority, requestId, missionId);
+		assert.match(spawnerPrdWriteAuthorityFailureReason(authority) || '', /governor_missing_matching_authorization/);
+		restoreEnv();
+	});
+
+	await test('PRD canvas handoff auto-runs only with Spawner dispatch authority', async () => {
+		const requestId = 'tg-build-dispatch-body-test-1780865000001';
+		const missionId = 'mission-1780865000001';
+		const authority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId,
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-1780865000001'
+		});
+		const indexModule: any = await import('../src/index');
+
+		const body = indexModule.buildPrdLoadToCanvasRequestBody({
+			requestId,
+			missionId,
+			dispatchExecutionAuthority: authority
+		});
+		assert.equal(body.autoRun, true);
+		assert.equal(body.executionAuthority, authority);
+		assert.equal(body.executionAuthority.tool_ledgers[0].tool_name, 'spawner.dispatch');
+
+		const noAuthorityBody = indexModule.buildPrdLoadToCanvasRequestBody({ requestId, missionId });
+		assert.equal(noAuthorityBody.autoRun, false);
+		assert.equal(noAuthorityBody.executionAuthority, undefined);
+		restoreEnv();
+	});
+
+	await test('PRD canvas ready notifier accepts metadata-only result summaries', async () => {
+		const indexModule: any = await import('../src/index');
+		const fullResult = {
+			found: true,
+			result: {
+				success: true,
+				projectName: 'Full Result'
+			}
+		};
+		const metadataOnlyResult = {
+			found: true,
+			summary: {
+				success: true,
+				projectName: 'Metadata Result',
+				taskCount: 3,
+				metadata: {
+					canonical: true,
+					resultAuthority: 'provider_result'
+				}
+			},
+			authorityBoundary: {
+				payload: 'metadata_only',
+				result: 'requires_control_auth'
+			}
+		};
+
+		assert.equal(indexModule.prdResultPollReadyAnalysis({ found: false }), null);
+		assert.equal(indexModule.prdResultPollReadyAnalysis({ found: true, summary: { success: false } }), null);
+		assert.deepEqual(indexModule.prdResultPollReadyAnalysis(fullResult), fullResult.result);
+		assert.deepEqual(indexModule.prdResultPollReadyAnalysis(metadataOnlyResult), metadataOnlyResult.summary);
+		restoreEnv();
+	});
+
+	await test('PRD canvas handoff refuses stale dispatch authority for a different mission', async () => {
+		const requestId = 'tg-build-dispatch-body-test-1780865000002';
+		const missionId = 'mission-1780865000002';
+		const staleAuthority = buildSpawnerDispatchExecutionAuthority({
+			telegramExecutionAuthority: fakeGovernorExecutionAuthority(),
+			requestId,
+			missionId: 'mission-different-1780865000002',
+			projectName: 'Release Ops Board',
+			traceRef: 'trace:spawner-prd:mission-different-1780865000002'
+		});
+		const indexModule: any = await import('../src/index');
+
+		const body = indexModule.buildPrdLoadToCanvasRequestBody({
+			requestId,
+			missionId,
+			dispatchExecutionAuthority: staleAuthority
+		});
+
+		assert.equal(body.autoRun, false);
+		assert.equal(body.executionAuthority, undefined);
+		assert.equal(body.dispatchAuthorityWithheld, 'dispatch_authority_mission_id_mismatch');
+		restoreEnv();
+	});
+
 	await test('describeTier: base copy matches canonical starter loadout', () => {
 		assert.equal(describeTier('base'), 'base tier (30-skill starter loadout)');
 		assert.doesNotMatch(describeTier('base'), /41/);
@@ -396,9 +527,11 @@ async function run(): Promise<void> {
 		process.env.SPARK_BOT_TEST_MODE = '1';
 
 		const captured: CapturedCall[] = [];
+		let registryDuringPost: any[] = [];
 		(axios as any).post = async (url: string, body: any) => {
 			captured.push({ url, body });
 			if (url.includes('/api/prd-bridge/write')) {
+				registryDuringPost = await readMissionRelayRegistry();
 				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'claude', started: true } } };
 			}
 			return { data: { success: true } };
@@ -436,20 +569,19 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.userId, '8319079055');
 		assert.equal(writeCall!.body.buildMode, 'direct');
 		assert.equal(writeCall!.body.capabilityProposalPacket, undefined);
-		assert.equal(writeCall!.body.executionAuthority?.schema_version, 'governor-decision-v1');
-		assert.equal(writeCall!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.ok(writeCall!.body.content.includes('SaaS Billing Test'), 'PRD content includes project name header');
 		assert.ok(writeCall!.body.telegramRelay, 'telegramRelay block present');
 		assert.equal(typeof writeCall!.body.options, 'object');
 		const missionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(writeCall!.body.traceRef, `trace:spawner-prd:${missionId}`);
 		assert.doesNotMatch(replies[0] || '', new RegExp(`Mission: ${missionId}`));
-		assert.match(replies[0] || '', /🛠️ Setting up SaaS Billing Test as a direct build\./);
-		assert.match(replies[0] || '', /Canvas next\./);
+		assert.match(replies[0] || '', /Setting up SaaS Billing Test as a direct build\./);
+		assert.match(replies[0] || '', new RegExp(`Board: http://stub-spawner\\.test/kanban\\?mission=${missionId}`));
+		assert.match(replies[0] || '', /I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized\./);
 		assert.doesNotMatch(replies[0] || '', /Spawned work/);
 		assert.doesNotMatch(replies[0] || '', /Paired surfaces/);
 		assert.doesNotMatch(replies[0] || '', /Canvas:/);
-		assert.doesNotMatch(replies[0] || '', /Mission board/);
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
@@ -460,11 +592,49 @@ async function run(): Promise<void> {
 		});
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === missionId);
+		const subscriptionDuringPost = registryDuringPost.find((entry) => entry.missionId === missionId);
+		assert.ok(subscriptionDuringPost, 'PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'PRD build mission should be registered for Telegram relay progress');
 		assert.equal(subscription.chatId, '8319079055');
 		assert.equal(subscription.userId, '8319079055');
 		assert.equal(subscription.requestId, writeCall!.body.requestId);
 		assert.equal(subscription.traceRef, writeCall!.body.traceRef);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('natural live-status product build reaches PRD bridge instead of health answer', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		ctx.message.text = 'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, `expected PRD bridge write; replies=${JSON.stringify(replies)}`);
+		assert.match(writeCall!.body.content, /Spark Live Status Dashboard/);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
+		assert.match(replies.join('\n'), /Setting up Spark Live Status Dashboard/);
+		assert.doesNotMatch(replies.join('\n'), /Spark is healthy|Live loop|No repair action needed/i);
 
 		restoreAxios();
 		restoreEnv();
@@ -683,12 +853,13 @@ async function run(): Promise<void> {
 			assert.equal(missionId, null, 'build-mode /run is handled by the PRD bridge notifier path');
 			assert.ok(captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'expected /run build request to POST to /api/prd-bridge/write');
 			assert.ok(!captured.some((c) => c.url.includes('/api/spark/run')), 'build request should not use the simple Spark run API');
-			assert.match(replies.join('\n'), /🛠️ Setting up Cafe Landing Page as a fast build\./);
+			assert.match(replies.join('\n'), /Setting up Cafe Landing Page as a fast build\./);
 			assert.doesNotMatch(replies.join('\n'), /Spawned work/);
 			assert.doesNotMatch(replies.join('\n'), /Mission board/);
 		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
 		assert.ok(writeCall, 'expected build route to include PRD bridge call');
-		assert.equal(writeCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(writeCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.equal(writeCall!.body.buildLane, 'fast_direct');
 		assert.equal(writeCall!.body.options.fastLane, true);
 		const buildMissionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
@@ -825,6 +996,7 @@ async function run(): Promise<void> {
 			'Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a playful clock for terminal devs who cook.',
 			'Use advanced PRD planning first, then build and verify it.'
 		].join('\n');
+		(ctx as any).update = { update_id: 561, message: ctx.message };
 
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -834,7 +1006,7 @@ async function run(): Promise<void> {
 			assert.match(writeCall!.body.content, /Target workspace\/project path: `C:\\Users\\USER\\Desktop\\terminal-chef-clock`/);
 			assert.equal(writeCall!.body.buildMode, 'advanced_prd');
 			assert.doesNotMatch(replies.join('\n'), /Saved your mission update preference/);
-			assert.match(replies[0] || '', /🛠️ Setting up Terminal Chef Clock as a planning canvas\./);
+			assert.match(replies[0] || '', /Setting up Terminal Chef Clock as a planning canvas\./);
 
 		restoreAxios();
 		restoreEnv();
@@ -911,6 +1083,166 @@ async function run(): Promise<void> {
 
 		restoreAxios();
 		restoreEnv();
+	});
+
+	await test('natural exact memory directive sends only extracted directive to Builder memory', async () => {
+		restoreAxios();
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-memory-exact-e2e-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		let writtenText = '';
+		let writtenGovernorDecision: Record<string, unknown> | undefined;
+		let writtenHumanId = '';
+		const indexModule: any = await import('../src/index');
+		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: {
+			userId: number | string;
+			noteText: string;
+			governorDecision?: Record<string, unknown>;
+		}) => {
+			writtenText = input.noteText;
+			writtenGovernorDecision = input.governorDecision;
+			writtenHumanId = `human:telegram:${input.userId}`;
+			return {
+				used: true,
+				status: 'succeeded',
+				acceptedCount: 1,
+				rejectedCount: 0,
+				skippedCount: 0,
+				abstained: false,
+				reason: '',
+				responseText: 'Saved exact memory note through Builder/domain-chip memory.',
+				bridgeMode: 'test',
+				payload: { status: 'succeeded', accepted_count: 1 }
+			};
+		});
+
+		try {
+			const replies: string[] = [];
+			const testUserId = 8319079777;
+			const ctx = makeFakeCtx(testUserId, testUserId, 5661, replies);
+			ctx.message.text = 'Owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.';
+			(ctx as any).update = { update_id: 5661, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			assert.equal(
+				writtenText,
+				'harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence'
+			);
+			assert.equal(writtenHumanId, `human:telegram:${testUserId}`);
+			assert.ok(writtenGovernorDecision, 'direct memory writer must receive the Harness Core Governor decision');
+			assert.doesNotMatch(writtenText, /Do not start missions|do not create chips|runtime or registry truth/i);
+			assert.match(replies.join('\n'), /Saved exact memory note/i);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'exact natural memory directive must record a successful governed memory.write'
+			);
+		} finally {
+			indexModule.__setBuilderMemoryWriteRunnerForTest(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('memory directive outranks quoted browser computer-use proof wording', async () => {
+		restoreAxios();
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-memory-browser-quote-e2e-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		let writtenText = '';
+		const indexModule: any = await import('../src/index');
+		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: { noteText: string }) => {
+			writtenText = input.noteText;
+			return {
+				used: true,
+				status: 'succeeded',
+				acceptedCount: 1,
+				rejectedCount: 0,
+				skippedCount: 0,
+				abstained: false,
+				reason: '',
+				responseText: 'Saved quoted tool-surface note through Builder/domain-chip memory.',
+				bridgeMode: 'test',
+				payload: { status: 'succeeded', accepted_count: 1 }
+			};
+		});
+
+		try {
+			const replies: string[] = [];
+			const testUserId = 8319079888;
+			const ctx = makeFakeCtx(testUserId, testUserId, 5662, replies);
+			ctx.message.text = 'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."';
+			(ctx as any).update = { update_id: 5662, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			assert.equal(
+				writtenText,
+				'harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn'
+			);
+			assert.match(replies.join('\n'), /Saved quoted tool-surface note/i);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'quoted browser/computer-use wording inside a memory note must still record governed memory.write success'
+			);
+			assert.equal(
+				ledgerRecords.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'quoted browser/computer-use wording inside a memory note must not trigger read-only browser status'
+			);
+
+			const replies2: string[] = [];
+			const ctx2 = makeFakeCtx(testUserId, testUserId, 5663, replies2);
+			ctx2.message.text = 'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."';
+			(ctx2 as any).update = { update_id: 5663, message: ctx2.message };
+			await indexModule.handleTextMessage(ctx2);
+
+			assert.equal(
+				writtenText,
+				'harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action'
+			);
+			assert.match(replies2.join('\n'), /Saved quoted tool-surface note/i);
+			const ledgerRecords2 = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords2.some((record) => (
+					record.tool_name === 'memory.write' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success'
+				)),
+				'note-exactly memory directive must record governed memory.write success'
+			);
+			assert.equal(
+				ledgerRecords2.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'note-exactly memory directive must not trigger read-only browser status'
+			);
+		} finally {
+			indexModule.__setBuilderMemoryWriteRunnerForTest(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
 	});
 
 	await test('XContent token follow-up answers capability boundary before Builder fallback', async () => {
@@ -1716,6 +2048,7 @@ async function run(): Promise<void> {
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 
 		const indexModule: any = await import('../src/index');
 		const prd = indexModule.buildDomainChipPrd('creates weird poster prompts from dream fragments');
@@ -1750,7 +2083,8 @@ async function run(): Promise<void> {
 		assert.ok(writeCall, 'expected domain chip creation to POST to /api/prd-bridge/write');
 		assert.equal(writeCall!.body.projectName, 'domain-chip-creates-weird-poster-prompts-from');
 		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
-		assert.equal(writeCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(writeCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 		assert.match(writeCall!.body.content, /Create a Spark domain chip named domain-chip-creates-weird-poster-prompts-from/);
 		assert.match(writeCall!.body.content, /current Spark-compatible domain chip standards/);
 		assert.match(writeCall!.body.content, /CAPABILITY_PROPOSAL_STANDARD_V1/);
@@ -1758,7 +2092,7 @@ async function run(): Promise<void> {
 			assert.equal(writeCall!.body.capabilityProposalPacket.implementation_route, 'domain_chip');
 			assert.equal(writeCall!.body.capabilityProposalPacket.capability_ledger_key, 'domain_chip:domain-chip-creates-weird-poster-prompts-from');
 			assert.match(writeCall!.body.capabilityProposalPacket.claim_boundary, /not proof/i);
-			assert.match(replies[0] || '', /🛠️ Setting up domain-chip-creates-weird-poster-prompts-from as a planning canvas\./);
+			assert.match(replies[0] || '', /Setting up domain-chip-creates-weird-poster-prompts-from as a planning canvas\./);
 			assert.doesNotMatch(replies[0] || '', /Canvas:/);
 			assert.doesNotMatch(replies[0] || '', /Mission board/);
 
@@ -1812,7 +2146,7 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.buildMode, 'advanced_prd');
 			assert.doesNotMatch(replies.join('\n'), /Got it\. I have these options on the table/);
 			assert.doesNotMatch(replies.join('\n'), /Tell me which number/);
-			assert.match(replies[0] || '', /🛠️ Setting up Founder Signal Room as a planning canvas\./);
+			assert.match(replies[0] || '', /Setting up Founder Signal Room as a planning canvas\./);
 			assert.doesNotMatch(replies[0] || '', /Mission board/);
 
 		restoreAxios();
@@ -2387,14 +2721,14 @@ async function run(): Promise<void> {
 
 		const pendingChipWrite = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
 		assert.ok(pendingChipWrite, 'actual domain-chip direction should still dispatch pending chip');
-		assert.equal(pendingChipWrite!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(pendingChipWrite!.body.executionAuthority, pendingChipWrite!.body.requestId);
 		assert.match(replies.join('\n'), /use that direction and start domain-chip-/i);
 
 			restoreAxios();
 			restoreEnv();
 		});
 
-		await test('creator loop template package route is not stolen by creator/schedule/chat fallbacks', async () => {
+		await test('creator loop template package route requires explicit recursive command', async () => {
 			restoreAxios();
 			const testUserId = 8319079055;
 			process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
@@ -2495,15 +2829,15 @@ async function run(): Promise<void> {
 					await indexModule.handleTextMessage(ctx);
 
 				const reply = replies.join('\n');
-					assert.equal(packageCalls, 1, reply);
+					assert.equal(packageCalls, 0, reply);
 				assert.equal(runCalls, 0);
 				assert.ok(!captured.some((c) => c.url.includes('/api/creator/mission')), 'template request should not stage a creator mission');
 				assert.ok(!captured.some((c) => c.url.includes('/api/scheduled')), 'template request should not be treated as schedule work');
 				assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'template request should not start a build');
-				assert.match(reply, /I packaged Startup YC's proof locally/);
-				assert.match(reply, /Nothing was published or shared/);
-				assert.match(reply, /ready for private template review/);
+				assert.match(reply, /Use `\/recursive package startup-yc`/);
+				assert.match(reply, /natural chat/i);
 				assert.doesNotMatch(reply, /No run or publishing yet/);
+				assert.doesNotMatch(reply, /I packaged Startup YC's proof locally/);
 				assert.doesNotMatch(reply, /Intent creator path/i);
 				assert.doesNotMatch(reply, /I caught 'schedule'|Show what's scheduled|Which\?/i);
 				} finally {
@@ -2525,6 +2859,7 @@ async function run(): Promise<void> {
 			elapsed: 195,
 			readyCanvasUrl: 'http://stub-spawner.test/canvas?pipeline=prd-test&mission=mission-test',
 			kanbanUrl: 'http://stub-spawner.test/kanban',
+			canvasMaterialization: { nodeCount: 2, pairedNodeCount: 2, skillCount: 1, pairingStatus: 'complete' },
 			analysis: {
 				projectType: 'domain-chip',
 				infrastructure: 'local Spark runtime',
@@ -2545,7 +2880,7 @@ async function run(): Promise<void> {
 		});
 
 			assert.match(reply, /Canvas is ready for domain-chip-posters/);
-			assert.match(reply, /Spark queued 2 build steps and is moving now\./);
+			assert.match(reply, /Spark queued 2 build steps with 2 paired nodes and 1 skill\./);
 			assert.doesNotMatch(reply, /Spawned tasks/);
 			assert.doesNotMatch(reply, /Plan/);
 			assert.doesNotMatch(reply, /Chip manifest/);
@@ -2556,8 +2891,8 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /195s/);
 			assert.doesNotMatch(reply, /Architecture:/);
 			assert.doesNotMatch(reply, /Tests\/checks/);
-			assert.match(reply, /Canvas\n• http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
-			assert.doesNotMatch(reply, /Mission board/);
+			assert.match(reply, /Canvas\n- http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
+			assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban/);
 			assert.doesNotMatch(reply, /Ask for tasks or skills if you want the full plan\./);
 			assert.doesNotMatch(reply, /I will send the final handoff when it is built/);
 	});
@@ -2596,8 +2931,45 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /^Status$/m);
 			assert.doesNotMatch(reply, /^Move$/m);
 			assert.doesNotMatch(reply, /Still working on/);
-			assert.doesNotMatch(reply, /\(120s elapsed\)/);
-		});
+		assert.doesNotMatch(reply, /\(120s elapsed\)/);
+	});
+
+	await test('Telegram canvas handoff requires complete skill materialization', async () => {
+		const indexModule: any = await import('../src/index');
+
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 0, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
+			}),
+			{ ready: false, reason: 'no skills were attached to the workflow' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'partial' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
+			}),
+			{ ready: false, reason: 'skill pairing is not complete' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'withheld', reason: 'workflow execution was not created' }
+			}),
+			{ ready: false, reason: 'workflow execution was not created' }
+		);
+		assert.deepEqual(
+			indexModule.canvasMaterializationReadyForTelegramHandoff({
+				canvasMaterialized: true,
+				canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 3, pairingStatus: 'complete' },
+				workflowHandoff: { status: 'ready', reason: 'canvas_nodes_skill_pairings_and_workflow_execution_created' }
+			}),
+			{ ready: true, reason: 'ready' }
+		);
+	});
 
 	await test('clarification replies are natural and project-specific', async () => {
 		restoreAxios();
@@ -2660,6 +3032,7 @@ async function run(): Promise<void> {
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
 
 		const captured: CapturedCall[] = [];
+		let registryDuringClarifiedPost: any[] = [];
 		(axios as any).post = async (url: string, body: any) => {
 			captured.push({ url, body });
 			if (url.includes('/api/prd-bridge/write') && !body.forceDispatch) {
@@ -2672,6 +3045,9 @@ async function run(): Promise<void> {
 						addedAssumptions: ['Assume this is a browser-playable game unless another platform is specified.']
 					}
 				};
+			}
+			if (url.includes('/api/prd-bridge/write') && body.forceDispatch) {
+				registryDuringClarifiedPost = await readMissionRelayRegistry();
 			}
 			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
 		};
@@ -2698,23 +3074,75 @@ async function run(): Promise<void> {
 
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected go to force-dispatch pending clarification');
-		assert.equal(dispatchCall!.body.executionAuthority, executionAuthority);
+		assert.notEqual(dispatchCall!.body.executionAuthority, executionAuthority);
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
 		const clarifiedMissionId = `mission-${String(dispatchCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(dispatchCall!.body.missionId, clarifiedMissionId);
 		assert.equal(dispatchCall!.body.traceRef, `trace:spawner-prd:${clarifiedMissionId}`);
 		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
 			assert.match(replies.join('\n'), /Perfect, I will use the default direction/);
 			assert.doesNotMatch(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
-			assert.match(replies.join('\n'), /🛠️ Setting up Maze Game as a planning canvas\./);
+			assert.match(replies.join('\n'), /Setting up Maze Game as a planning canvas\./);
 			assert.doesNotMatch(replies.join('\n'), /Spawned work/);
 			assert.doesNotMatch(replies.join('\n'), /Canvas:/);
 			assert.doesNotMatch(replies.join('\n'), /Mission board/);
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === clarifiedMissionId);
+		const subscriptionDuringPost = registryDuringClarifiedPost.find((entry) => entry.missionId === clarifiedMissionId);
+		assert.ok(subscriptionDuringPost, 'clarified PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'clarified PRD build mission should be registered for Telegram relay progress');
 		assert.equal(subscription.chatId, '8319079055');
 		assert.equal(subscription.userId, '8319079055');
 		assert.equal(subscription.requestId, dispatchCall!.body.requestId);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('pending clarification answer selects Harness route before dispatch', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write') && !body.forceDispatch) {
+				return {
+					data: {
+						success: true,
+						needsClarification: true,
+						requestId: body.requestId,
+						openQuestions: ['Which proof metric should decide whether Harness authority is trusted?'],
+						addedAssumptions: ['Assume this is a responsive dashboard unless another surface is specified.']
+					}
+				};
+			}
+			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		await callHandleBuildIntent({
+			ctx,
+			prd: 'build a compact Harness authority proof dashboard',
+			projectName: 'Harness Authority Proof',
+			buildMode: 'advanced_prd',
+			executionAuthority: fakeGovernorExecutionAuthority()
+		});
+
+		const indexModule: any = await import('../src/index');
+		const answerCtx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		answerCtx.message.text = 'go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress';
+		await indexModule.handleTextMessage(answerCtx);
+
+		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
+		assert.ok(dispatchCall, 'fresh clarification answer should dispatch through the selected Harness pending-clarification route');
+		assert.notEqual(dispatchCall!.body.executionAuthority?.capability_id, 'capability:spawner-ui:spawner.run');
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
+		assert.doesNotMatch(replies.join('\n'), /did not launch that build because this clarification did not carry fresh Harness Core authorization/);
 
 		restoreAxios();
 		restoreEnv();
@@ -4984,39 +5412,6 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
-	await test('confirmed pending build proceeds when route-confidence gate asks again', async () => {
-		restoreAxios();
-		restoreEnv();
-		delete process.env.SPARK_BOT_TEST_MODE;
-
-		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 625, replies);
-		const indexModule: any = await import('../src/index');
-		const allowed = await indexModule.buildDispatchRouteConfidenceAllows({
-			ctx,
-			accessRequirement: 'spawner_build',
-			prd: '# Domain Chip Startup Pricing Objections\n\nLocal-only domain chip package.',
-			requestId: 'req-confirmed-domain-chip',
-			traceRef: 'trace-confirmed-domain-chip',
-			runnerPreflight: { runnerWritable: 'yes' },
-			confirmationState: 'confirmed',
-			spawnerAvailableProbe: async () => true,
-			gateRunner: async () => ({
-				payload: {
-					decision: 'ask',
-					human_next_action: 'Ask one confirmation question before taking the side-effecting action.',
-					safe_reply_policy: 'ask'
-				}
-			})
-		});
-
-		assert.equal(allowed, true);
-		assert.equal(replies.length, 0, 'confirmed go should not leak meta confirmation copy');
-
-		restoreAxios();
-		restoreEnv();
-	});
-
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
@@ -5243,6 +5638,7 @@ async function run(): Promise<void> {
 		const oldPath = process.env.PATH || '';
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
@@ -5345,6 +5741,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-help-ledger-'));
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
 		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
@@ -5687,12 +6084,11 @@ async function run(): Promise<void> {
 
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected pronoun-heavy follow-up to answer the pending clarification');
-		assert.equal(dispatchCall!.body.executionAuthority?.schema_version, 'governor-decision-v1');
-		assert.equal(dispatchCall!.body.executionAuthority?.tool_ledgers?.[0]?.tool_name, 'spawner.run');
+		assertSpawnerPrdWriteAuthority(dispatchCall!.body.executionAuthority, dispatchCall!.body.requestId);
 		assert.equal(dispatchCall!.body.projectName, 'Memory Quality Dashboard');
 		assert.match(dispatchCall!.body.content, /^# Memory Quality Dashboard/m);
 		assert.match(dispatchCall!.body.content, /Answers: yes let's do it create it after analyzing our systems deeply please/);
-			assert.match(replies.join('\n'), /🛠️ Setting up Memory Quality Dashboard as a planning canvas\./);
+			assert.match(replies.join('\n'), /Setting up Memory Quality Dashboard as a planning canvas\./);
 			assert.doesNotMatch(replies.join('\n'), /• it after analyzing our systems deeply/);
 
 		restoreAxios();

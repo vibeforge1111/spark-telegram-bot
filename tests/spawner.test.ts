@@ -50,12 +50,13 @@ function restoreEnv(): void {
 
 function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
   if (toolName === 'spawner.creator_mission.status') return 'read_only';
+  if (toolName === 'spawner.mission_control.command') return 'controls_mission';
   if (toolName === 'creator.mission.create' || toolName === 'spawner.creator_mission') return 'creates_chip';
   return 'launches_mission';
 }
 
 function fakeMissionControlAuthority(): unknown {
-  return fakeExecutionAuthority('spawner.mission_control');
+  return fakeExecutionAuthority('spawner.mission_control.command');
 }
 
 function fakeExecutionAuthority(
@@ -433,13 +434,14 @@ async function run(): Promise<void> {
     assert.match(message, /Creator-run contract: creator intent, adapter map, artifact manifest, domain chip, benchmark pack, specialization path, autoloop policy, evidence ladder, creator mission status, swarm\/contribution_packet\.json/);
     assert.match(message, /baseline, candidate, held-out or trap evidence/);
     assert.match(message, /2 tasks queued/);
-    assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: run it/);
     assert.match(message, /say: status/);
     assert.match(message, /say: validate it/);
     assert.doesNotMatch(message, /^mission-creator-1$/m);
     assert.doesNotMatch(message, /\/creator run mission-creator-1/);
+    assert.doesNotMatch(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.doesNotMatch(message, /- Canvas:/);
   });
 
@@ -470,12 +472,13 @@ async function run(): Promise<void> {
     );
 
     assert.match(message, /2 tasks staged/);
-    assert.match(message, /^Canvas: http:\/\/spawner\.test\/canvas$/m);
     assert.match(message, /^Board: http:\/\/spawner\.test\/kanban$/m);
+    assert.match(message, /Canvas will follow after nodes, skill pairings, and workflow handoff are materialized\./);
     assert.match(message, /say: status/);
     assert.match(message, /say: revise the plan/);
     assert.doesNotMatch(message, /secret-chat/);
     assert.doesNotMatch(message, /mission-creator-stage-only/);
+    assert.doesNotMatch(message, /^Canvas:/m);
     assert.doesNotMatch(message, /say: run it/);
     assert.doesNotMatch(message, /say: validate it/);
   });
@@ -563,6 +566,7 @@ async function run(): Promise<void> {
     assert.doesNotMatch(message, /local workspace: C:\\Users\\USER\\Desktop/);
     assert.match(message, /Canvas: http:\/\/spawner\.test\/canvas\?pipeline=creator-tg-creator-1&mission=mission-creator-1/);
     assert.match(message, /Board: http:\/\/spawner\.test\/kanban\?mission=mission-creator-1/);
+    assert.ok(message.indexOf('Board:') < message.indexOf('Canvas:'), 'Board should appear before Canvas in execution handoff');
     assert.doesNotMatch(message, /- Board:/);
   });
 

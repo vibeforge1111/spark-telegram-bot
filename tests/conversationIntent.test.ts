@@ -369,6 +369,16 @@ test('does not confuse mission-control ideation with opening the local UI', () =
   );
 });
 
+test('does not treat installer design talk as a local Spark service open request', () => {
+  assert.equal(
+    isLocalSparkServiceRequest(
+      'I think later we need an installer system where people go first step second step third step and Spark does the hard parts automatically.',
+      ''
+    ),
+    false
+  );
+});
+
 test('does not intercept build-quality review requests as local UI links', () => {
   assert.equal(
     isLocalSparkServiceRequest(
@@ -1687,6 +1697,18 @@ test('extracts explicit plain-chat memory directives', () => {
     extractPlainChatMemoryDirective('Please save this as my current plan: Neon Harbor Telegram memory test.'),
     'Neon Harbor Telegram memory test'
   );
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request." This turn is only a memory update.'
+    ),
+    'harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request'
+  );
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."'
+    ),
+    'harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action'
+  );
   assert.equal(extractPlainChatMemoryDirective('Actually, my current plan is run a fresh diagnostics scan.'), null);
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
@@ -1809,6 +1831,10 @@ test('formats agent doctrine preferences for Builder persona sync', () => {
 test('memory directives only accept Builder memory-route confirmations', () => {
   assert.equal(
     shouldUseBuilderReplyForMemoryDirective('Memory saved: preferred mission updates are concise.', 'memory_open_save'),
+    true
+  );
+  assert.equal(
+    shouldUseBuilderReplyForMemoryDirective('Saved exact memory note through Builder.', 'memory.write'),
     true
   );
   assert.equal(

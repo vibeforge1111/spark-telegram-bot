@@ -55,6 +55,17 @@ test('routes build clarification follow-ups from pending state', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes natural steering answers to active build clarification', () => {
+  const route = decideNaturalRoute('go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress', {
+    pendingBuildClarification: true
+  });
+
+  assert.equal(route.route, 'spawner.pending_clarification');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'pending_state');
+  assert.equal(route.action, 'spawner.clarification_reply');
+});
+
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 
@@ -63,6 +74,61 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.confidence, 'explicit');
   assert.equal(route.context_source, 'visible_exact_artifact');
   assert.equal(route.payload.hasProjectPath, true);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes live Harness authority build briefs as Spawner builds, not architecture chat', () => {
+  const route = decideNaturalRoute(
+    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+});
+
+test('routes concrete build briefs with incidental chip and QA nouns as Spawner builds', () => {
+  const route = decideNaturalRoute(
+    'Build a compact local Harness Authority Drift Lab app with Spawner. It should help tonight by tracking fresh-intent authority checks, Spawner mission progress, memory and KB QA notes, domain-chip QA notes, registry/runtime drift, rollback steps, and Telegram proof results. Include a concise README, one smoke test, and a simple local UI. Build it now.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes Spawner continuity board builds before stale chip-memory boundaries', () => {
+  const route = decideNaturalRoute(
+    'Build a compact local Spawner Continuity Board with Spawner for tonight. It should track old Spawner features we must preserve, Harness Core authority gates, runtime health, memory and KB QA notes, domain-chip QA notes, Telegram proof, registry drift, rollback steps, and the next live QA queue. Include a simple README and one smoke test. Build it now.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes Spawner relay proof pad builds before board or release-status reads', () => {
+  const route = decideNaturalRoute(
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
   assert.equal(route.requires_confirmation, false);
 });
 
@@ -194,6 +260,18 @@ test('routes explicit domain-chip creation before creator or build routes', () =
   assert.equal(route.context_source, 'latest_message');
   assert.equal(route.payload.brief, 'Telegram memory routing');
   assert.equal(route.requires_confirmation, true);
+});
+
+test('routes note-exactly memory directives before chip and build words inside the note', () => {
+  const route = decideNaturalRoute(
+    'Spark, please save this KB note exactly: "build missions, spawner progress reports, domain chip creation, voice replies, browser checks, computer-use QA, registry pins, and installer shipping are only note content unless I explicitly authorize an action."'
+  );
+
+  assert.equal(route.route, 'memory.write');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['plain_chat_memory_directive']);
+  assert.equal(route.requires_confirmation, false);
 });
 
 test('routes domain-chip option proposals to chat_plan without chip creation', () => {
@@ -560,6 +638,13 @@ test('routes explicit current-plan saves to Builder memory write', () => {
   assert.equal(route.payload.directive, 'my current plan is Neon Harbor Telegram memory test');
 });
 
+test('routes pure mission update preferences before generic make/build parsing', () => {
+  const route = decideNaturalRoute('make mission updates verbose');
+
+  assert.equal(route.route, 'mission_updates.preference');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+});
+
 test('routes user memory recall questions away from build-context recall', () => {
   const route = decideNaturalRoute('what do you remember about how I like mission updates?');
 
@@ -583,6 +668,26 @@ test('keeps casual current-plan mentions conversational', () => {
 
   assert.equal(route.route, 'plain_chat');
   assert.equal(route.owner_system, 'none');
+});
+
+test('routes Harness architecture questions to chat even when stale build wording appears', () => {
+  const route = decideNaturalRoute(
+    'Ignore the pending build and answer this: what changed in the harness architecture?'
+  );
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.harness_architecture');
+  assert.deepEqual(route.matched_signals, ['harness_architecture_question']);
+});
+
+test('routes previous-route neutral summary requests to chat-only answer boundary', () => {
+  const route = decideNaturalRoute('Do not continue the previous route. Give me a neutral summary.');
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.previous_route_neutral_summary');
+  assert.deepEqual(route.matched_signals, ['previous_route_neutral_summary']);
 });
 
 test('blocks global agent doctrine changes from a chat turn', () => {

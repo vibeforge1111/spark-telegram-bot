@@ -1,6 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROTECTED_HARNESS_COMPONENT_TYPES = exports.HARNESS_CORE_RISK_ORDER = void 0;
+exports.PROTECTED_HARNESS_COMPONENT_TYPES = exports.boundLedgerRow = exports.HARNESS_CORE_RISK_ORDER = void 0;
+exports.canonicalHarnessCoreJson = canonicalHarnessCoreJson;
+exports.unsignedHarnessCoreGovernorDecision = unsignedHarnessCoreGovernorDecision;
+exports.harnessCoreGovernorDecisionSignaturePayload = harnessCoreGovernorDecisionSignaturePayload;
+exports.signHarnessCoreGovernorDecision = signHarnessCoreGovernorDecision;
+exports.harnessCoreGovernorDecisionSignatureReasonCodes = harnessCoreGovernorDecisionSignatureReasonCodes;
 exports.safeHarnessCoreId = safeHarnessCoreId;
 exports.createHarnessCoreTraceRef = createHarnessCoreTraceRef;
 exports.createHarnessCoreArtifactRef = createHarnessCoreArtifactRef;
@@ -9,6 +14,7 @@ exports.actionTypeForHarnessMutation = actionTypeForHarnessMutation;
 exports.riskTierForHarnessMutation = riskTierForHarnessMutation;
 exports.createHarnessCoreActionEnvelopeVNext = createHarnessCoreActionEnvelopeVNext;
 exports.createHarnessCoreGovernorDecision = createHarnessCoreGovernorDecision;
+exports.boundHarnessCoreLedgerRow = boundHarnessCoreLedgerRow;
 exports.verifyHarnessCoreGovernorExecutionAuthority = verifyHarnessCoreGovernorExecutionAuthority;
 exports.verifyHarnessCoreGovernorToolAuthority = verifyHarnessCoreGovernorToolAuthority;
 exports.createHarnessCoreAuthorizedGovernorDecision = createHarnessCoreAuthorizedGovernorDecision;
@@ -27,6 +33,108 @@ exports.createHarnessCoreChangeManifestRunner = createHarnessCoreChangeManifestR
 exports.evaluateHarnessCoreChangeManifestRunner = evaluateHarnessCoreChangeManifestRunner;
 exports.isHarnessCoreProtectedComponentType = isHarnessCoreProtectedComponentType;
 exports.assertHarnessCoreComponentEditablePolicy = assertHarnessCoreComponentEditablePolicy;
+const node_crypto_1 = require("node:crypto");
+function canonicalHarnessCoreJson(value) {
+    if (value === undefined)
+        return 'null';
+    if (value === null || typeof value !== 'object')
+        return JSON.stringify(value) ?? 'null';
+    if (Array.isArray(value))
+        return `[${value.map((item) => canonicalHarnessCoreJson(item)).join(',')}]`;
+    const entries = Object.entries(value)
+        .filter(([, entryValue]) => entryValue !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries
+        .map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalHarnessCoreJson(entryValue)}`)
+        .join(',')}}`;
+}
+function unsignedHarnessCoreGovernorDecision(decision) {
+    const { signature: _signature, ...unsigned } = decision;
+    return unsigned;
+}
+function harnessCoreGovernorDecisionSignaturePayload(decision, signature) {
+    return canonicalHarnessCoreJson({
+        decision: unsignedHarnessCoreGovernorDecision(decision),
+        signature
+    });
+}
+function signHarnessCoreGovernorDecision(decision, input) {
+    const key = (input.key || '').trim();
+    if (!key)
+        throw new Error('key is required');
+    const signature = {
+        schema_version: 'governor-decision-signature-v1',
+        alg: 'hmac-sha256',
+        key_id: (input.key_id || '').trim() || 'local',
+        nonce: input.nonce || (0, node_crypto_1.randomUUID)(),
+        created_at: input.created_at || new Date().toISOString()
+    };
+    return {
+        ...decision,
+        signature: {
+            ...signature,
+            signature: hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, signature), key)
+        }
+    };
+}
+function harnessCoreGovernorDecisionSignatureReasonCodes(input) {
+    const key = (input.key || '').trim();
+    const signatureRequired = Boolean(input.require_signature || key);
+    if (!signatureRequired)
+        return [];
+    if (!key)
+        return ['governor_signature_key_missing'];
+    const decision = input.governor_decision || null;
+    if (!decision)
+        return ['missing_governor_decision'];
+    const signature = decision.signature || null;
+    if (!signature)
+        return ['governor_signature_missing'];
+    const reasonCodes = [];
+    if (signature.schema_version !== 'governor-decision-signature-v1')
+        reasonCodes.push('governor_signature_schema_invalid');
+    if (signature.alg !== 'hmac-sha256')
+        reasonCodes.push('governor_signature_alg_invalid');
+    if (input.expected_key_id && signature.key_id !== input.expected_key_id)
+        reasonCodes.push('governor_signature_key_id_mismatch');
+    if (!/^[0-9a-f]{64}$/.test(signature.signature || ''))
+        reasonCodes.push('governor_signature_invalid');
+    if (reasonCodes.length > 0)
+        return dedupeStrings(reasonCodes);
+    const expected = hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, {
+        schema_version: signature.schema_version,
+        alg: signature.alg,
+        key_id: signature.key_id,
+        nonce: signature.nonce,
+        created_at: signature.created_at
+    }), key);
+    if (!constantTimeEqualHex(signature.signature, expected))
+        reasonCodes.push('governor_signature_invalid');
+    return dedupeStrings(reasonCodes);
+}
+function hmacSha256Hex(payload, key) {
+    return (0, node_crypto_1.createHmac)('sha256', key).update(payload, 'utf8').digest('hex');
+}
+function constantTimeEqualHex(left, right) {
+    if (left.length !== right.length)
+        return false;
+    let diff = 0;
+    for (let index = 0; index < left.length; index += 1) {
+        diff |= left.charCodeAt(index) ^ right.charCodeAt(index);
+    }
+    return diff === 0;
+}
+function dedupeStrings(values) {
+    const seen = new Set();
+    const deduped = [];
+    for (const value of values) {
+        if (seen.has(value))
+            continue;
+        seen.add(value);
+        deduped.push(value);
+    }
+    return deduped;
+}
 exports.HARNESS_CORE_RISK_ORDER = Object.freeze({
     none: 0,
     read: 1,
@@ -437,6 +545,49 @@ function createGovernorConsumerVerification(input) {
         ledger_id: input.ledger?.ledger_id || null
     };
 }
+function stringOrNull(value) {
+    if (value === null || value === undefined)
+        return null;
+    const text = String(value).trim();
+    return text.length > 0 ? text : null;
+}
+function authorizationExpiryReasonCode(authorization, now) {
+    if (authorization.approval.status === 'expired')
+        return 'authorization_approval_expired';
+    const expiresAt = stringOrNull(authorization.expires_at);
+    if (!expiresAt)
+        return null;
+    const expiresMs = Date.parse(expiresAt);
+    if (Number.isNaN(expiresMs))
+        return 'authorization_expiry_invalid';
+    const nowMs = now instanceof Date ? now.getTime() : now ? Date.parse(now) : Date.now();
+    if (Number.isNaN(nowMs))
+        return 'authorization_expiry_invalid';
+    if (expiresMs <= nowMs)
+        return 'authorization_expired';
+    return null;
+}
+function boundHarnessCoreLedgerRow(input) {
+    const summary = stringOrNull(input.ledger.result.summary) || stringOrNull(input.ledger.trace.summary);
+    return {
+        turn_id: stringOrNull(input.ledger.turn_id),
+        action_id: stringOrNull(input.ledger.action_id),
+        capability_id: stringOrNull(input.ledger.capability_id),
+        authorization_decision_id: stringOrNull(input.verdict.authorization_decision_id) || stringOrNull(input.ledger.authorization.decision_id),
+        ledger_id: stringOrNull(input.ledger.ledger_id),
+        tool_name: stringOrNull(input.ledger.tool_name),
+        owner_system: stringOrNull(input.owner_system),
+        mutation_class: stringOrNull(input.mutation_class),
+        outcome: input.verdict.outcome || null,
+        status: input.ledger.result.status || null,
+        surface: stringOrNull(input.surface),
+        request_id: stringOrNull(input.request_id),
+        trace_ref: stringOrNull(input.trace_ref) || stringOrNull(input.ledger.trace.id),
+        summary,
+        ledger_json: input.ledger
+    };
+}
+exports.boundLedgerRow = boundHarnessCoreLedgerRow;
 function verifyHarnessCoreGovernorExecutionAuthority(input) {
     const governorDecision = input.governor_decision || null;
     if (!governorDecision) {
@@ -450,6 +601,12 @@ function verifyHarnessCoreGovernorExecutionAuthority(input) {
         });
     }
     const reasonCodes = [];
+    reasonCodes.push(...harnessCoreGovernorDecisionSignatureReasonCodes({
+        governor_decision: governorDecision,
+        key: input.governor_hmac_key || null,
+        expected_key_id: input.governor_hmac_key_id || null,
+        require_signature: input.require_signature
+    }));
     const allowedOutcomes = new Set(['execute']);
     if (input.allow_read_only)
         allowedOutcomes.add('read_only');
@@ -473,6 +630,11 @@ function verifyHarnessCoreGovernorExecutionAuthority(input) {
     });
     if (!matchingAuthorization) {
         reasonCodes.push('governor_missing_matching_authorization');
+    }
+    else {
+        const expiryReason = authorizationExpiryReasonCode(matchingAuthorization, input.now);
+        if (expiryReason)
+            reasonCodes.push(expiryReason);
     }
     const hasMatchingProposedAction = matchingAuthorization
         ? governorDecision.envelope.proposed_actions.some((action) => {
@@ -536,7 +698,11 @@ function verifyHarnessCoreGovernorToolAuthority(input) {
         tool_name: input.tool_name,
         action_id: input.action_id,
         allow_read_only: input.allow_read_only,
-        require_pre_execution_ledger: input.require_pre_execution_ledger
+        require_pre_execution_ledger: input.require_pre_execution_ledger,
+        governor_hmac_key: input.governor_hmac_key || null,
+        governor_hmac_key_id: input.governor_hmac_key_id || null,
+        require_signature: input.require_signature,
+        now: input.now || null
     });
 }
 function createHarnessCoreAuthorizedGovernorDecision(input) {

@@ -29,7 +29,7 @@ test('Telegram legacy authority inventory is release-ready under the Harness Cor
   assert.equal(inventory.release_gate.ready_for_readiness_promotion, true);
   assert.equal(inventory.summary.release_blocker_count, 0);
   assert.deepEqual(inventory.release_gate.blockers, []);
-  assert.ok(inventory.summary.plane_count >= 18);
+  assert.ok(inventory.summary.plane_count >= 16);
   assert.equal(inventory.summary.plane_count, inventory.planes.length);
 });
 
@@ -38,7 +38,7 @@ test('old Telegram regex and parser planes are evidence only', () => {
     plane.disposition === 'evidence_adapter'
   ));
 
-  assert.ok(evidenceOnlyPlanes.length >= 6);
+  assert.ok(evidenceOnlyPlanes.length >= 4);
   for (const plane of evidenceOnlyPlanes) {
     assert.equal(hasHighAgencyRisk(plane.authority_risk), false, `${plane.plane_id} retained high-agency risk`);
     assert.equal(plane.harness_binding.evidence_only, true, `${plane.plane_id} must be evidence-only`);
@@ -69,13 +69,12 @@ test('high-agency Telegram planes are Harness Core consumers with Governor and l
   }
 });
 
-test('Telegram inventory names the known old patch planes that could fight routing', () => {
+test('Telegram inventory names the remaining evidence-only planes that could fight routing', () => {
   const planeIds = new Set(buildTelegramLegacyAuthorityPlanes().map((plane) => plane.source_ref.id));
 
   [
     'artifact:telegram-intent-gate-v2:source',
     'artifact:telegram-natural-route-decision:source',
-    'artifact:telegram-route-firewall:source',
     'artifact:telegram-build-intent-parser:source',
     'artifact:telegram-conversation-intent-extractors:source',
     'artifact:telegram-pending-state-followups:source',

@@ -171,6 +171,70 @@ test('keeps old mission route bug descriptions answer-only', () => {
   assert.ok(missionAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
+test('authorizes live Spawner build briefs without granting incidental health or local-service reads', () => {
+  const prompts = [
+    "Build a practical Harness Release Ops Mission Board for tonight's installer work. Use Spawner. Make it track authority gates, runtime health, Telegram proof, registry pin drift, rollback steps, open blockers, and the next QA queue. Include tests and a simple README. This is the live retest after polling repair; build it now.",
+    'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.',
+    'Build a tiny local Spawner Relay Readback Proof Pad. Use Spawner. Make it show the latest Harness Core authority gate, Spawner trace readback, Telegram final handoff status, and a small operator checklist. Keep it lightweight with a README and one smoke test. This is a live proof that old Spawner build and final completion relay still work under Harness Core authority after the relay auth fix.',
+    'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.',
+    'Generate a Spark health operations board that tracks runtime status, access status, wiki notes, and open blockers.'
+  ];
+
+  for (const prompt of prompts) {
+    const envelope = envelopeFor(prompt);
+
+    assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+    assert.equal(envelope.selectedIntent.kind, 'build_or_spawner', prompt);
+    assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui', prompt);
+    assert.equal(envelope.selectedIntent.action, 'spawner.build', prompt);
+    assert.equal(envelope.executionPolicy.canLaunchMission, true, prompt);
+    assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'), prompt);
+
+    const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+    assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] }, prompt);
+
+    const healthAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spark.read_only_state',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    assert.equal(healthAuthorization.verdict, 'blocked', prompt);
+    assert.ok(healthAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'), prompt);
+
+    const localServiceAuthorization = authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.local_service',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'read_only'
+    });
+    assert.equal(localServiceAuthorization.verdict, 'blocked', prompt);
+    assert.ok(localServiceAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'), prompt);
+  }
+});
+
+test('blocks read-only relay proof pad status wording from launching Spawner', () => {
+  const envelope = envelopeFor('Show the latest Harness Core authority gate, Spawner trace readback, and Telegram final handoff status for the relay proof pad. Do not build anything.');
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.notEqual(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+
+  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(spawnerAuthorization.verdict, 'blocked');
+  assert.ok(spawnerAuthorization.reasonCodes.includes('no_execution_boundary'));
+  assert.ok(spawnerAuthorization.reasonCodes.includes('tool_denied_by_policy'));
+  assert.ok(spawnerAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
 test('keeps quoted drafted high-agency examples answer-only', () => {
   const envelope = envelopeFor('In documentation, should we include "create a memory chip" as an example?');
 
@@ -234,6 +298,95 @@ test('keeps memory authority evidence-only in the envelope', () => {
   assert.equal(envelope.threatDefense.recalledMemory, 'evidence_only');
   assert.equal(envelope.sessionScope.memoryLoadPolicy, 'evidence_only');
   assert.equal(envelope.executionPolicy.canLaunchMission, false);
+});
+
+test('allows scoped owner-approved memory write while denying other negative side effects', () => {
+  const envelope = envelopeFor(
+    'Harness native QA memory/KB positive: owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.executionPolicy.canCreateChip, false);
+  assert.equal(envelope.executionPolicy.canPublish, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+
+  const memoryAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+  assert.deepEqual(memoryAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  for (const blocked of [
+    { toolName: 'spawner.run', ownerSystem: 'spawner-ui', mutationClass: 'launches_mission' as const },
+    { toolName: 'domain_chip.create', ownerSystem: 'spawner-ui', mutationClass: 'creates_chip' as const },
+    { toolName: 'browser.use', ownerSystem: 'spark-telegram-bot', mutationClass: 'external_network' as const, externalNetwork: true }
+  ]) {
+    const authorization = authorizeToolCallFromEnvelope(envelope, blocked);
+    assert.equal(authorization.verdict, 'blocked', blocked.toolName);
+    assert.ok(authorization.reasonCodes.includes('tool_not_allowed_by_policy'), blocked.toolName);
+    assert.ok(authorization.reasonCodes.includes('mutation_class_not_authorized'), blocked.toolName);
+  }
+});
+
+test('allows quoted tool-surface wording inside an explicit memory note', () => {
+  const envelope = envelopeFor(
+    'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.quotedOrMetaLanguage, true);
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('meta_language_boundary'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+
+  const memoryAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+  assert.deepEqual(memoryAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const browserAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'browser.use',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+  assert.equal(browserAuthorization.verdict, 'blocked');
+  assert.ok(browserAuthorization.reasonCodes.includes('external_network_not_authorized'));
+  assert.ok(browserAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+});
+
+test('allows note-exactly wording inside an explicit memory note', () => {
+  const envelope = envelopeFor(
+    'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+
+  const browserAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'browser.use',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+  assert.equal(browserAuthorization.verdict, 'blocked');
+  assert.ok(browserAuthorization.reasonCodes.includes('external_network_not_authorized'));
 });
 
 test('authorizes explicit Memory Doctor as read-only diagnostics', () => {

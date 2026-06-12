@@ -14,6 +14,11 @@ import {
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { relayHealthUrl } from './healthRuntime';
+import {
+  readNaturalRouteExecutionLedger,
+  summarizeNaturalRouteExecutionRecords,
+  type NaturalRouteExecutionRecord
+} from './naturalRouteLedger';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 
@@ -69,6 +74,35 @@ export interface DiagnoseSubject {
   chatId: string | number;
   isAdmin: boolean;
   isAllowed: boolean;
+}
+
+function isBuildRouteDivergence(record: NaturalRouteExecutionRecord): boolean {
+  return record.shadow_route === 'spawner.build' && (
+    record.executed_route === 'plain_chat' ||
+    record.executed_route === 'chat_plan' ||
+    record.executed_route === 'conversation.ideation' ||
+    record.executed_route.startsWith('spark.read_only_state')
+  );
+}
+
+export function describeRouteDivergence(records: NaturalRouteExecutionRecord[], limit = 3): string[] {
+  const summary = summarizeNaturalRouteExecutionRecords(records);
+  if (summary.total === 0) {
+    return ['Route divergence: no route ledger records yet'];
+  }
+  if (summary.mismatch === 0) {
+    return [`Route divergence: ok (${summary.total} records, 0 mismatches)`];
+  }
+
+  const buildMisroutes = records.filter(isBuildRouteDivergence).length;
+  const pairs = Object.entries(summary.mismatchesByPair)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([pair, count]) => `${pair} x${count}`);
+  return [
+    `Route divergence: ${summary.mismatch}/${summary.total} mismatched; build misroutes ${buildMisroutes}`,
+    `Top divergence: ${pairs.join(', ')}`
+  ];
 }
 
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
@@ -397,7 +431,15 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     isAllowed: subject?.isAllowed ?? true
   };
 
-  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderPing, accessProfile] = await Promise.all([
+  const [
+    botRelay,
+    spawnerProviders,
+    shimHealth,
+    builderBridge,
+    chatProviderPing,
+    accessProfile,
+    naturalRouteRecords
+  ] = await Promise.all([
     httpStatus(relayHealthUrl(), 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
@@ -411,7 +453,8 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
       ok: false,
       detail: error instanceof Error ? error.message : String(error)
     })),
-    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
+    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const),
+    readNaturalRouteExecutionLedger().catch(() => [])
   ]);
 
   const providers = spawnerProviders.payload?.providers || [];
@@ -482,6 +525,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     `Builds: ${providerLabel(telegramRunProvider, providers)}`,
     `Providers: ${providers.length > 0 ? `${readyProviderCount}/${providers.length} ready` : 'metadata unavailable'}`,
     `Ping: ${pingSummary}`,
+    ...describeRouteDivergence(naturalRouteRecords),
     '',
     'Workspace',
     `Board: ${boardSummary}`,
