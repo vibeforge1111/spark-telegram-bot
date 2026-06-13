@@ -32,6 +32,11 @@ export interface HarnessCoreEvidenceRef {
     confidence: number;
     trace_refs: HarnessCoreTraceRef[];
 }
+export interface HarnessCoreSimulationMarker {
+    dry_run: true;
+    execution_skipped: true;
+    reason: string;
+}
 export interface HarnessCoreProposedAction {
     action_id: string;
     capability_id: string;
@@ -109,6 +114,7 @@ export interface AuthorizationDecisionV1 {
         publish_allowed?: boolean;
     };
     expires_at?: string;
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
 export interface ToolCallLedgerV1 {
@@ -138,6 +144,7 @@ export interface ToolCallLedgerV1 {
         error_ref?: HarnessCoreArtifactRef;
         rollback_ref?: HarnessCoreArtifactRef;
     };
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
 export type HarnessCoreGovernorOutcome = 'chat_only' | 'read_only' | 'prepare' | 'execute' | 'interrupt' | 'deny' | 'degrade';
@@ -178,6 +185,7 @@ export interface GovernorDecisionV1 {
     };
     evidence: HarnessCoreEvidenceRef[];
     signature?: GovernorDecisionSignatureV1;
+    simulation?: HarnessCoreSimulationMarker;
     trace: HarnessCoreTraceRef;
 }
 export declare function canonicalHarnessCoreJson(value: unknown): string;
@@ -573,6 +581,7 @@ export declare function createHarnessCoreActionEnvelopeVNext(input: {
     mutationClass: HarnessCoreActionMutationClass;
     source: string;
     reason: string;
+    turnId?: string | null;
     requestId?: string | null;
     actorKind?: 'human' | 'agent' | 'system';
     actorIdRef?: string | null;
@@ -637,6 +646,10 @@ export declare function createHarnessCoreAuthorizedGovernorDecision(input: {
     reply_style?: GovernorDecisionV1['reply_contract']['style'];
     reply_instruction?: string;
     now?: string;
+    idempotency_key?: string;
+    ttl_seconds?: number | null;
+    dry_run?: boolean;
+    dry_run_reason?: string;
 }): GovernorDecisionV1;
 export declare function finalizeHarnessCoreToolCallLedger(input: {
     ledger: ToolCallLedgerV1;
@@ -647,7 +660,59 @@ export declare function finalizeHarnessCoreToolCallLedger(input: {
     error_ref?: HarnessCoreArtifactRef;
     rollback_ref?: HarnessCoreArtifactRef;
     now?: string;
+    idempotency_key?: string;
 }): ToolCallLedgerV1;
+export type HarnessCoreGovernedTurn = {
+    governor_decision: GovernorDecisionV1;
+    verification: HarnessCoreGovernorConsumerVerification;
+    ledger: ToolCallLedgerV1;
+    finalized_ledger: ToolCallLedgerV1 | null;
+    finalize: (input: {
+        status: ToolCallLedgerV1['result']['status'];
+        summary: string;
+        output_ref?: HarnessCoreArtifactRef;
+        output_path_or_uri?: string;
+        error_ref?: HarnessCoreArtifactRef;
+        rollback_ref?: HarnessCoreArtifactRef;
+        now?: string;
+        idempotency_key?: string;
+    }) => ToolCallLedgerV1;
+};
+export declare function withGovernedTurn<T>(input: {
+    governor_decision?: GovernorDecisionV1 | null;
+    tool_name: string;
+    action_type: HarnessCoreActionType;
+    owner_system?: string;
+    expected_capability_id?: string;
+    action_id?: string;
+    allow_read_only?: boolean;
+    require_pre_execution_ledger?: boolean;
+    governor_hmac_key?: string | null;
+    governor_hmac_key_id?: string | null;
+    require_signature?: boolean;
+    now?: string | Date | null;
+    success_summary?: string;
+    failure_summary?: string;
+    success_output_path_or_uri?: string;
+    failure_output_path_or_uri?: string;
+    failure_error_ref?: HarnessCoreArtifactRef;
+    dry_run?: boolean;
+    dry_run_summary?: string;
+    dry_run_output_path_or_uri?: string;
+    on_finalize?: (ledger: ToolCallLedgerV1) => void;
+}, execute: (turn: HarnessCoreGovernedTurn) => T | Promise<T>): Promise<T>;
+export declare function repairHarnessCoreStrandedToolCallLedger(input: {
+    ledger: ToolCallLedgerV1;
+    now?: string;
+    stranded_after_seconds?: number;
+    output_path_or_uri?: string;
+    summary?: string;
+}): ToolCallLedgerV1 | null;
+export declare function repairHarnessCoreStrandedToolCallLedgers(input: {
+    ledgers: ToolCallLedgerV1[];
+    now?: string;
+    stranded_after_seconds?: number;
+}): ToolCallLedgerV1[];
 export declare function createHarnessCoreReadinessScore(input: {
     id: string;
     target_kind: ReadinessScoreV1['target']['kind'];
