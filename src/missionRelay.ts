@@ -55,6 +55,8 @@ export interface MissionSubscription {
    */
   governorDecisionId?: string;
   governorTurnId?: string;
+  terminalStatus?: 'completed' | 'failed' | 'cancelled';
+  terminalAt?: string;
 }
 
 export type TelegramRelayVerbosity = 'minimal' | 'normal' | 'verbose';
@@ -163,6 +165,7 @@ const heartbeatLastMessages = new Map<string, string>();
 const registry = new Map<string, MissionSubscription>();
 const MISSION_STATE_CACHE_TTL_MS = 6 * 60 * 60_000;
 const REGISTRY_TTL_MS = 7 * 24 * 60 * 60_000;
+const TERMINAL_REGISTRY_TTL_MS = 24 * 60 * 60_000;
 let registryLoaded = false;
 let relayServer: Server | null = null;
 const RELAY_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -365,9 +368,15 @@ async function loadRegistry(): Promise<void> {
 
 function pruneRegistry(now = Date.now()): void {
   const cutoff = now - REGISTRY_TTL_MS;
+  const terminalCutoff = now - TERMINAL_REGISTRY_TTL_MS;
   for (const [missionId, entry] of registry) {
     const createdMs = Date.parse(entry.createdAt || '');
-    if (!Number.isFinite(createdMs) || createdMs < cutoff) {
+    const terminalMs = Date.parse(entry.terminalAt || '');
+    if (
+      (Number.isFinite(terminalMs) && terminalMs < terminalCutoff) ||
+      !Number.isFinite(createdMs) ||
+      createdMs < cutoff
+    ) {
       registry.delete(missionId);
     }
   }
@@ -404,6 +413,22 @@ export async function unregisterMissionRelay(missionId: string): Promise<void> {
   if (!cleanMissionId) return;
   await loadRegistry();
   registry.delete(cleanMissionId);
+  await persistRegistry();
+}
+
+async function markMissionRelayTerminal(
+  subscription: MissionSubscription,
+  status: NonNullable<MissionSubscription['terminalStatus']>,
+  timestamp: string | undefined
+): Promise<void> {
+  await loadRegistry();
+  const terminalAt = timestamp || new Date().toISOString();
+  registry.set(subscription.missionId, {
+    ...subscription,
+    terminalStatus: status,
+    terminalAt
+  });
+  pruneRegistry();
   await persistRegistry();
 }
 
@@ -2627,6 +2652,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'mission_cancelled') {
         const alreadySuppressed = shouldSuppressMissionHandoff(event.missionId);
         markMissionRelayCancelled(event.missionId);
+        await markMissionRelayTerminal(subscription, 'cancelled', event.timestamp);
         if (!alreadySuppressed) {
           const links = buildMissionSurfaceLinks(event.missionId, linkPreference, undefined, requestIdFromEvent(event));
           await bot.telegram.sendMessage(
@@ -2674,6 +2700,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 
 	      if (event.type === 'mission_completed' || isProviderLevelCompletionEvent(event)) {
           cleanupMissionNarrationCounts(event.missionId);
+          await markMissionRelayTerminal(subscription, 'completed', event.timestamp);
           const canonicalCompletion = canonicalPrdCompletionFromRelayEvent(event, subscription);
 	        const completion = completionDeliveryCache.has(event.missionId)
 	          ? null
@@ -2695,6 +2722,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
       if (event.type === 'task_completed') {
         const extracted = extractProviderResponse(event);
         if (extracted) {
+          await markMissionRelayTerminal(subscription, 'completed', event.timestamp);
           if (shouldSuppressMissionHandoff(event.missionId)) {
             writeJson(res, 200, { ok: true, suppressed: true });
             return;
@@ -2750,6 +2778,7 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
 	      if (event.type === 'mission_failed') {
         cleanupMissionNarrationCounts(event.missionId);
         clearHeartbeatForMission(event.missionId);
+        await markMissionRelayTerminal(subscription, 'failed', event.timestamp);
       } else {
         scheduleHeartbeat(bot, chatId, event, subscription, verbosity);
       }

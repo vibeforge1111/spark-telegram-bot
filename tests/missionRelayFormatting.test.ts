@@ -1612,6 +1612,45 @@ void (async () => {
     }
   });
 
+  await asyncTest('prunes completed mission registry entries after terminal retention window', async () => {
+    const originalStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+    const now = Date.now();
+    try {
+      resetJsonStateForTests();
+      resetMissionRelayRegistryForTests();
+      process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-terminal-ttl-test-'));
+      await registerMissionRelay({
+        missionId: 'mission-terminal-old',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-terminal-old',
+        goal: 'Old completed mission.',
+        createdAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+        terminalStatus: 'completed',
+        terminalAt: new Date(now - 25 * 60 * 60_000).toISOString()
+      });
+      await registerMissionRelay({
+        missionId: 'mission-terminal-fresh',
+        chatId: '12345',
+        userId: '67890',
+        requestId: 'req-terminal-fresh',
+        goal: 'Fresh completed mission.',
+        createdAt: new Date(now - 2 * 24 * 60 * 60_000).toISOString(),
+        terminalStatus: 'completed',
+        terminalAt: new Date(now - 2 * 60 * 60_000).toISOString()
+      });
+
+      pruneMissionRelayCachesForTests(now);
+
+      assert.equal(missionRelayCacheSizesForTests().registry, 1);
+    } finally {
+      resetMissionRelayRegistryForTests();
+      resetJsonStateForTests();
+      if (originalStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = originalStateDir;
+    }
+  });
+
   await asyncTest('fetches Spawner completion summaries with control auth headers', async () => {
     const originalFetch = globalThis.fetch;
     const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
