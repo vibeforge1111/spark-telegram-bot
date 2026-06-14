@@ -1,0 +1,29 @@
+name: Spark shared CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+      - "reconcile/**"
+      - "release/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  conformance:
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-conformance.yml@main
+    with:
+      python-version: ""
+      node-version: "22"
+      install-command: "npm ci"
+      test-command: "npm test"
+      conformance-command: "npm run build"
+
+  scanners:
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-scanners.yml@main
