@@ -18,13 +18,13 @@ permissions:
 
 jobs:
   conformance:
-    uses: vibeforge1111/spark-cli/.github/workflows/reusable-conformance.yml@ap-01-reusable-ci-v2
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-conformance.yml@ap-01-reusable-ci-v3
     with:
       python-version: ""
       node-version: "22"
       install-command: "npm ci"
-      test-command: "npm test"
-      conformance-command: "npm run build"
+      test-command: "npm run build && npm test"
+      conformance-command: ""
 
   scanners:
-    uses: vibeforge1111/spark-cli/.github/workflows/reusable-scanners.yml@ap-01-reusable-ci-v2
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-scanners.yml@ap-01-reusable-ci-v3
