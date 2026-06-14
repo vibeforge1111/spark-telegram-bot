@@ -14,6 +14,7 @@ Current installer rule:
 Launch v1 uses Telegram long polling only. Webhook ingress is intentionally disabled until the hosted gateway path is hardened and reintroduced behind a deliberate migration.
 Gateway startup acquires a durable same-host ownership lease for the bot token, with heartbeat and stale-lock recovery, so a second local gateway instance refuses to start against the same token.
 Gateway state location is now configurable with `SPARK_GATEWAY_STATE_DIR`, so a hosted deployment can mount persistent state outside the repo working tree.
+The local `.spark-gateway-state.db` is a short-lived cold-start fallback only. By default the gateway ignores rows older than 24 hours and logs a warning instead of restoring stale conversation or mission snapshots. Set `SPARK_GATEWAY_STATE_DB_ALLOW_STALE_FALLBACK=1` only for an intentional recovery, and use `SPARK_GATEWAY_STATE_DB_MAX_AGE_HOURS` to tune the freshness window.
 
 ## What It Does
 
