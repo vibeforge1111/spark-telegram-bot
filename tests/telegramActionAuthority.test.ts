@@ -114,6 +114,37 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
 });
 
+test('allows static app build briefs that specify no build step', () => {
+  const text = 'Build a quick vanilla JS page at ./spark-ap07-authority-proof-test: Files: index.html, app.js. No build step. Shows AP07 signed authority proof foreground.';
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision: decideNaturalRoute(text) });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'envelope_selected_route');
+
+  const stopText = 'No build or mission for now, just help me think through the plan.';
+  const stopResult = authorizeTelegramActionFromEnvelope(envelopeFor(stopText), {
+    route: 'spawner.build',
+    text: stopText,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(stopResult.allow, false);
+  assert.ok(stopResult.reasonCodes.includes('no_execution_boundary'));
+});
+
 test('allows live Harness authority build prompt through Spawner instead of architecture chat', () => {
   const text = 'Build a practical Harness Release Ops Mission Board with Spawner. Make it a local web app that helps us tonight: authority gates, runtime health, Telegram proof, registry drift, rollback checklist, open blockers, and next QA queue. Include tests and a concise README. Build it now and use the current Harness authority path.';
   const envelope = envelopeForNaturalRoute(text);

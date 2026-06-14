@@ -103,7 +103,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:do|act\s+on|execute)\s+(?:it|this|that|the\s+example)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:cancel|pause|resume|stop|kill)\b/,
     /\b(?:do not|don't|dont|please don't|please dont)\s+(?:start|run|launch|execute|kick\s+off)\s+(?:anything|something|new\s+work|work|tasks?|missions?|builds?)\b/,
-    /\b(?:no|without)\s+(?:execution|running|launching|mission|build)\b/,
+    /\b(?:no|without)\s+(?:execution|running|launching|mission|build(?!\s+(?:step|steps|system|tool(?:ing)?|pipeline|script|scripts|command|commands)\b))\b/,
     /\b(?:hold off|not now|not for now|later)\s+on\s+(?:running|launching|executing|starting|building|creating|making|build|create|make)\b/,
     /\bno\s+tool\s+call\b/,
     /\bnot\s+a?\s*tool\s+call\b/,
