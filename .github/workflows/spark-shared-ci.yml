@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   conformance:
-    uses: vibeforge1111/spark-cli/.github/workflows/reusable-conformance.yml@ap-01-reusable-ci-v4
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-conformance.yml@ap-01-reusable-ci-v5
     with:
       python-version: ""
       node-version: "22"
@@ -27,4 +27,4 @@ jobs:
       conformance-command: ""
 
   scanners:
-    uses: vibeforge1111/spark-cli/.github/workflows/reusable-scanners.yml@ap-01-reusable-ci-v4
+    uses: vibeforge1111/spark-cli/.github/workflows/reusable-scanners.yml@ap-01-reusable-ci-v5
