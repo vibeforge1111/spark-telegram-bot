@@ -1497,7 +1497,7 @@ export async function runBuilderSelfAwarenessStatus(
     '--channel-kind',
     'telegram',
     '--user-message',
-    input.currentMessage || 'Show Spark self-awareness status and improvement options.',
+    (input.currentMessage || 'Show Spark self-awareness status and improvement options.').slice(0, 4000).replace(/\0/g, ''),
   ];
   if (input.refreshWiki !== false) {
     args.push('--refresh-wiki');
