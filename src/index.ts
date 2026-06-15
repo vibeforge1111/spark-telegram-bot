@@ -5334,7 +5334,7 @@ bot.command('about', async (ctx) => {
 
 // /forget command - prefer Builder deletion flow
 bot.command('forget', async (ctx) => {
-  const target = ctx.message.text.replace('/forget', '').trim();
+  const target = ctx.message.text.replace(/^\/forget\b/, '').trim();
   if (target) {
     const authorization = authorizeMemoryDeleteCommand(ctx, ctx.message.text);
     if (!authorization.allow) {
@@ -5353,6 +5353,7 @@ bot.command('forget', async (ctx) => {
       if (routed) {
         return;
       }
+      return;
     } catch (err) {
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.delete',
