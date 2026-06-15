@@ -23,7 +23,7 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md`, `docs/SPARK_HARNESS_CONTRACT.md`, and the relevant command, route, or adapter doc before edits. Treat `docs/TURNINTENT_HARNESS_RULESET.md` as historical context only.
+2. Read this file plus `docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md`, `docs/SPARK_HARNESS_CONTRACT.md`, and the relevant command, route, or adapter doc before edits. For Telegram rendering, rich-message, or streaming work, also read `docs/TELEGRAM_COMPOSITION_STANDARD.md`, `docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md`, and `docs/LIVE_CHAT_STREAMING_DESIGN.md`. Treat `docs/TURNINTENT_HARNESS_RULESET.md` as historical context only.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.
@@ -82,6 +82,8 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - Global Spark behavior changes become proposals, not silent mutations.
 - Repair, memory mutation, publishing, deletion, credential, and external side-effect routes require source-owned authority evidence.
 - Composition should be concise, warm, and specific; do not bury the action, blocker, or next move.
+- Rich Telegram formatting is presentation, not truth. Do not let `sendRichMessage`, `sendRichMessageDraft`, HTML, Markdown, link previews, or inline buttons alter owner evidence, route authority, completion claims, or failure claims.
+- For dense status cards, visible spacing in Telegram Desktop is a release requirement. Do not rely only on semantic rich blocks or blank lines if live clients render them flat.
 
 ## Memory Rules
 

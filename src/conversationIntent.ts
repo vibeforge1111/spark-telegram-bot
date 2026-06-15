@@ -1686,10 +1686,25 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   if (isAccessSandboxRouteDesignDiscussion(normalized)) {
     return false;
   }
+  if (isProjectEvidenceReadoutQuestion(normalized)) {
+    return false;
+  }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
     /\b(?:it|this|that|diagnostic|bug recognition|domain chip|agent)\b/.test(normalized)
   );
+}
+
+function isProjectEvidenceReadoutQuestion(normalized: string): boolean {
+  const asksForEvidence = /\b(?:evidence|proof|receipt|preview|canvas|board|blocker)s?\b/.test(normalized);
+  const pointsAtProject =
+    /\b(?:project|mission|build|app|tool|artifact|preview|canvas|board)\b/.test(normalized) ||
+    /\b(?:for|on|about)\s+[a-z0-9][a-z0-9 '&.-]{1,80}\b/.test(normalized);
+  const asksForReadout =
+    /\b(?:check|verify|show|separate|summari[sz]e|readout|status|what\s+changed|where\s+did\s+(?:we|it)\s+land)\b/.test(normalized) ||
+    /\b(?:preview|canvas|board|blocker)s?\s+evidence\b/.test(normalized);
+  const asksForDiagnosticWork = /\b(?:diagnostic|diagnostics|domain\s+chip|bug\s+recognition|agent)\b/.test(normalized);
+  return asksForEvidence && pointsAtProject && asksForReadout && !asksForDiagnosticWork;
 }
 
 function isPersistentMemoryQualityEvaluationRequest(normalized: string): boolean {

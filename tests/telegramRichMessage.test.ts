@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildReadableTelegramHtmlMessageFromText,
   buildInputRichMessageFromText,
   sendTelegramRichMessage,
   stripRichUnsupportedExtra,
@@ -31,8 +32,103 @@ async function run(): Promise<void> {
     assert.ok(rich);
     assert.match(rich.html, /<h4>Build ready<\/h4>/);
     assert.match(rich.html, /<ul><li>Score: 100\/100<\/li><li>Review: clear<\/li><\/ul>/);
-    assert.match(rich.html, /<p>Board: http:\/\/127\.0\.0\.1:3333\/kanban<\/p>/);
+    assert.match(rich.html, /<p>Board: <a href="http:\/\/127\.0\.0\.1:3333\/kanban">Open board<\/a><\/p>/);
     assert.equal(rich.skip_entity_detection, false);
+  });
+
+  await test('renders long local Spark links as readable rich links', () => {
+    const rich = buildInputRichMessageFromText([
+      'Day Triage Button has a matching preview',
+      '',
+      'Evidence',
+      '• Preview: http://127.0.0.1:3333/preview/QzpcVXNlcnNcVVNFUlwuc3Bhcmtcd29ya3NwYWNlcw/index.html',
+      '• Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-demo&mission=mission-demo',
+      '• Board: http://127.0.0.1:3333/kanban?mission=mission-demo'
+    ].join('\n'));
+
+    assert.ok(rich);
+    assert.match(rich.html, /<h4>Day Triage Button has a matching preview<\/h4>\n<blockquote>\n<p><b>Evidence<\/b><\/p>/);
+    assert.match(rich.html, /<p><b>Evidence<\/b><\/p>\n<ul><li>Preview:/);
+    assert.doesNotMatch(rich.html, /<p>Evidence<br>/);
+    assert.match(rich.html, /<blockquote>/);
+    assert.match(rich.html, /<a href="http:\/\/127\.0\.0\.1:3333\/preview\/QzpcVXNlcnNcVVNFUlwuc3Bhcmtcd29ya3NwYWNlcw\/index\.html">Open preview<\/a>/);
+    assert.match(rich.html, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=prd-demo&amp;mission=mission-demo">Open canvas<\/a>/);
+    assert.match(rich.html, /<a href="http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-demo">Open board<\/a>/);
+    assert.doesNotMatch(rich.html, />http:\/\/127\.0\.0\.1:3333\/preview/);
+  });
+
+  await test('renders compact Spark card sections as spaced rich blocks', () => {
+    const rich = buildInputRichMessageFromText([
+      'Day Triage Button has a current Spawner result',
+      '',
+      'What changed',
+      '• It moved from idea to a concrete tiny local app plan with 5 build steps.',
+      '• Scope: local-only app; no auth, database, or API in the artifact.',
+      '',
+      'Blockers',
+      '• No current blocker is visible in the Spawner result artifact.',
+      '• Still worth proving next: open/click flow, refresh behavior, and saved state.'
+    ].join('\n'));
+
+    assert.ok(rich);
+    assert.match(rich.html, /<blockquote>\n<p><b>What changed<\/b><\/p>\n<ul><li>It moved from idea/);
+    assert.match(rich.html, /<\/blockquote>\n<blockquote>\n<p><b>Blockers<\/b><\/p>\n<ul><li>No current blocker/);
+    assert.doesNotMatch(rich.html, /What changed<br>/);
+    assert.doesNotMatch(rich.html, /Blockers<br>/);
+  });
+
+  await test('builds readable Telegram HTML cards with preserved section spacing', () => {
+    const html = buildReadableTelegramHtmlMessageFromText([
+      'Day Triage Button has a current Spawner result',
+      '',
+      'Evidence',
+      '• Preview: http://127.0.0.1:3333/preview/QzpcVXNlcnNcVVNFUlwuc3Bhcmtcd29ya3NwYWNlcw/index.html',
+      '• Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-demo&mission=mission-demo',
+      '',
+      'Blockers',
+      '• No current blocker is visible.'
+    ].join('\n'));
+
+    assert.ok(html);
+    assert.match(html, /^<b>Day Triage Button has a current Spawner result<\/b>\n\n---\n\n<b>Evidence<\/b>/);
+    assert.match(html, /\n\n---\n\n<b>Blockers<\/b>\n• No current blocker is visible\./);
+    assert.match(html, /Preview: <a href="http:\/\/127\.0\.0\.1:3333\/preview\/QzpcVXNlcnNcVVNFUlwuc3Bhcmtcd29ya3NwYWNlcw\/index\.html">Open preview<\/a>/);
+    assert.match(html, /Canvas: <a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=prd-demo&amp;mission=mission-demo">Open canvas<\/a>/);
+    assert.doesNotMatch(html, />http:\/\/127\.0\.0\.1:3333\/preview/);
+  });
+
+  await test('recovers visible spacing when governed compact cards lose blank lines', () => {
+    const html = buildReadableTelegramHtmlMessageFromText([
+      'Day Triage Button has a current Spawner result',
+      'What changed',
+      '\u2022 It moved from idea to a concrete tiny local app plan with 5 build steps.',
+      '\u2022 Scope: local-only app; no auth, database, or API in the artifact.',
+      'Evidence',
+      '\u2022 Preview: http://127.0.0.1:3333/preview/QzpcVXNlcnNcVVNFUlwuc3Bhcmtcd29ya3NwYWNlcw/index.html',
+      '\u2022 Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-demo&mission=mission-demo',
+      'Blockers',
+      '\u2022 No current blocker is visible.'
+    ].join('\n'));
+
+    assert.ok(html);
+    assert.match(html, /^<b>Day Triage Button has a current Spawner result<\/b>\n\n---\n\n<b>What changed<\/b>/);
+    assert.match(html, /\n\n---\n\n<b>Evidence<\/b>\n/);
+    assert.match(html, /\n\n---\n\n<b>Blockers<\/b>\n/);
+    assert.doesNotMatch(html, /What changed\n\u2022[\s\S]*Evidence\n\u2022/);
+  });
+
+  await test('recognizes legacy mojibake bullets as list markers', () => {
+    const html = buildReadableTelegramHtmlMessageFromText([
+      'Card title',
+      'Evidence',
+      '\u00e2\u20ac\u00a2 Preview: http://127.0.0.1:3333/preview/Q/index.html',
+      'Blockers',
+      '\u00e2\u20ac\u00a2 No current blocker.'
+    ].join('\n'));
+
+    assert.ok(html);
+    assert.match(html, /<b>Evidence<\/b>\n\u2022 Preview:/);
+    assert.match(html, /\n\n---\n\n<b>Blockers<\/b>\n\u2022 No current blocker\./);
   });
 
   await test('escapes html and strips markdown-style emphasis before rendering', () => {

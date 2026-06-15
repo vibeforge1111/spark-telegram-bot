@@ -14,12 +14,18 @@ The guiding rule: Telegram drafts are presentation only. Spark truth lives in Bu
 
 ## Current State
 
-Telegram now supports `sendMessageDraft`, which streams a partial message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate. Telegram currently documents this as private-chat scoped.
+Telegram now supports `sendRichMessageDraft`, which streams a partial rich
+message to a target private chat while a bot is generating. The Bot API requires
+a non-zero `draft_id`; changes using the same `draft_id` animate. Drafts are
+ephemeral 30-second previews and must be followed by a final persistent message.
+Telegram currently documents this as private-chat scoped.
 
 Sources:
 
-- https://core.telegram.org/bots/api#sendmessagedraft
+- https://core.telegram.org/bots/api#sendrichmessagedraft
+- https://core.telegram.org/bots/api#sendrichmessage
 - https://telegram.org/blog/ai-bot-revolution-11-new-features
+- https://telegram.org/blog/watch-apps-and-more
 
 Spark currently has two answer paths:
 
@@ -147,18 +153,18 @@ sequenceDiagram
     U->>Bot: "hi Spark"
     Bot->>Builder: "stream telegram turn"
     Builder-->>Bot: "route_started"
-    Bot->>TG: "sendMessageDraft: Checking context..."
+    Bot->>TG: "sendRichMessageDraft: Checking context..."
     Builder->>Memory: "retrieve context"
     Memory-->>Builder: "memory_context_ready"
     Builder-->>Bot: "memory_context_ready"
-    Bot->>TG: "sendMessageDraft: Checking memory..."
+    Bot->>TG: "sendRichMessageDraft: Checking memory..."
     Builder->>Model: "stream chat completion"
     Model-->>Builder: "delta: Hey Cem."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem."
     Model-->>Builder: "delta: Still tracking..."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem... Still tracking..."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem... Still tracking..."
     Builder-->>Bot: "final_text"
     Bot->>TG: "sendMessage final"
     Bot->>Bot: "audit and remember final only"
@@ -313,7 +319,8 @@ Rules:
 
 ### Client Compatibility
 
-`sendMessageDraft` is private-chat scoped in the Bot API. The consumer should treat private chat as the supported target.
+`sendRichMessageDraft` is private-chat scoped in the Bot API. The consumer
+should treat private chat as the supported target.
 
 Policy:
 
@@ -477,7 +484,7 @@ Exit criteria:
 - `/streaming` reports full-reply preview off
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
-- direct `sendMessageDraft` smoke passes for the active profile
+- direct `sendRichMessageDraft` smoke passes for the active profile
 
 ### Phase 1: Builder Status Events
 

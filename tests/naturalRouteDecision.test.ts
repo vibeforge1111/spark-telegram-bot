@@ -724,6 +724,35 @@ test('routes active Spawner build status questions as read-only artifact readout
   }
 });
 
+test('routes project evidence readout prompts before diagnostics follow-up checks', () => {
+  const route = decideNaturalRoute(
+    'Can you check that again now for Day Triage Button and the planning-my-day mission? Separate preview evidence, canvas evidence, and blocker evidence.',
+    {
+      recentMessages: [
+        'Assistant: diagnostics follow-up test is available.',
+        'User: lets test it'
+      ],
+      spawnerArtifact: {
+        ...spawnerArtifact(),
+        projectName: 'Day Triage Button',
+        requestId: 'tg-build-f92e5de5f239-1781530332866',
+        missionId: 'mission-1781530332866',
+        canvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-f92e5de5f239-1781530332866&mission=mission-1781530332866',
+        boardUrl: 'http://127.0.0.1:3333/kanban?mission=mission-1781530332866',
+        resultAvailable: true
+      }
+    }
+  );
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, false);
+  assert.equal(route.payload.artifactKind, 'spawner_artifact');
+  assert.equal(route.payload.projectName, 'Day Triage Button');
+  assert.notEqual(route.route, 'diagnostics.followup_test');
+});
+
 test('extracts named readout targets without treating generic current-build phrasing as named', () => {
   assert.deepEqual(readoutTargetWords('How is that Habit Button build going right now?'), ['habit', 'button']);
   assert.equal(readoutTargetMatchesName('How is that Habit Button build going right now?', 'Habit Button'), true);

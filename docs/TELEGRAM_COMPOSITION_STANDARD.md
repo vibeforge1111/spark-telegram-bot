@@ -21,6 +21,39 @@ Telegram should answer only four things:
 
 Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, or linked reports.
 
+## Telegram Transport Rules
+
+Read this together with `docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md` before
+changing Telegram formatting or streaming.
+
+Telegram has separate transport surfaces:
+
+- `sendMessage` for basic text and compatibility HTML.
+- `sendRichMessage` for rich final messages with documented rich blocks.
+- `sendRichMessageDraft` for private-chat ephemeral draft previews while an
+  answer is being generated.
+
+The product rule is simple: the message must be understandable as plain text
+before rich formatting is added. Rich formatting can improve scanning, but it
+must not carry the only copy of the truth.
+
+For compact Spark cards:
+
+- Use a clear title, short section headings, dotted bullets, labeled links, and
+  visible section separation.
+- Do not rely only on blank lines or semantic block tags for spacing. Telegram
+  Desktop can make correctly structured cards look cramped.
+- If a governed answer returns a dense card with section labels but no blank
+  lines, the renderer must recover those sections before delivery.
+- Hide long local URLs behind labels such as `Open preview`, `Open canvas`, and
+  `Open board`.
+- Keep link previews disabled unless the preview is the content being inspected.
+- If live CUA screenshots show the reply is hard to scan, the composition failed
+  even if the Bot API accepted the payload.
+
+Draft streaming is never completion evidence. Drafts are temporary presentation
+only; final replies, owner evidence, and ledgers remain authoritative.
+
 ## Core Rules
 
 - Keep Spark deterministic underneath, not at the surface. The route, state, access

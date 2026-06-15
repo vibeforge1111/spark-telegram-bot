@@ -541,6 +541,16 @@ test('does not treat route hijack audit wording as diagnostic follow-up tests', 
   );
 });
 
+test('does not treat project artifact evidence readouts as diagnostic follow-up tests', () => {
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Can you check that again now for Day Triage Button and the planning-my-day mission? Separate preview evidence, canvas evidence, and blocker evidence.'
+    ),
+    false
+  );
+  assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
+});
+
 test('does not turn product-memory mission boundary questions into workflow bug hunt cards', () => {
   assert.equal(
     isSparkWorkflowBugHuntRequest(

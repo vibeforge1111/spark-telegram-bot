@@ -48,7 +48,7 @@ import {
   replayTelegramDraftPreview,
   renderTelegramStreamingConfigStatus
 } from './telegramDraft';
-import { sendTelegramRichMessage, telegramRichMessagesEnabled } from './telegramRichMessage';
+import { buildReadableTelegramHtmlMessageFromText, sendTelegramRichMessage, telegramRichMessagesEnabled } from './telegramRichMessage';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
@@ -3326,6 +3326,17 @@ async function sendRichOrPlainTelegramMessage(
   extra: any,
   plainSend: (chatId: any, text: string, extra?: any) => Promise<unknown>
 ): Promise<unknown> {
+  const readableHtmlCard = buildReadableTelegramHtmlMessageFromText(text);
+  if (readableHtmlCard) {
+    const htmlExtra = {
+      ...extra,
+      parse_mode: 'HTML',
+      link_preview_options: extra?.link_preview_options || { is_disabled: true }
+    };
+    delete htmlExtra.entities;
+    return plainSend(chatId, readableHtmlCard, htmlExtra);
+  }
+
   if (!telegramRichMessagesDisabledForRuntime && telegramRichMessagesEnabled(process.env)) {
     try {
       const richDelivery = await sendTelegramRichMessage(
@@ -7539,6 +7550,54 @@ function spawnerArtifactPolishSuggestion(result: any): string {
   return 'keep the next pass narrow: validate the first repeated user loop from the artifact, then polish only the friction found there.';
 }
 
+function readableSpawnerProjectType(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return 'project';
+  return value.trim().replace(/[_-]+/g, ' ');
+}
+
+function spawnerArtifactScopeLine(result: any): string | null {
+  if (!result?.infrastructure) return null;
+  const needed = [
+    result.infrastructure.needsAuth ? 'auth' : null,
+    result.infrastructure.needsDatabase ? 'database' : null,
+    result.infrastructure.needsAPI ? 'API' : null
+  ].filter(Boolean);
+  return needed.length > 0
+    ? `Scope: needs ${needed.join(', ')}.`
+    : 'Scope: local-only app; no auth, database, or API in the artifact.';
+}
+
+function spawnerArtifactQualityLine(result: any, taskCount: number | string): string | null {
+  if (!result?.taskQuality) {
+    return taskCount ? `Result: ${taskCount} planned build steps.` : null;
+  }
+
+  const quality = result.taskQuality;
+  const weakTaskCount = typeof quality.weakTaskCount === 'number'
+    ? quality.weakTaskCount
+    : Array.isArray(quality.weakTaskIds)
+      ? quality.weakTaskIds.length
+      : null;
+  const findingCount = typeof quality.findingCount === 'number'
+    ? quality.findingCount
+    : Array.isArray(quality.findings)
+      ? quality.findings.length
+      : null;
+  const parts = [`${taskCount || quality.taskCount || 'planned'} build steps`];
+  if (typeof quality.score === 'number') parts.push(`${quality.score}/100 quality`);
+  if (weakTaskCount !== null) parts.push(`${weakTaskCount} weak tasks`);
+  if (findingCount !== null) parts.push(`${findingCount} findings`);
+  return `Result: ${parts.join(', ')}.`;
+}
+
+function spawnerArtifactChangeLine(result: any, taskCount: number | string): string {
+  const type = readableSpawnerProjectType(result?.projectType);
+  if (taskCount) {
+    return `It moved from idea to a concrete ${type} plan with ${taskCount} build steps.`;
+  }
+  return `It has a named ${type} mission/canvas handoff, but no task rows were available to summarize.`;
+}
+
 async function buildSpawnerArtifactReadoutEvidence(
   artifact: SpawnerArtifactContext,
   shippedProject: ShippedProjectContext | null | undefined
@@ -7584,35 +7643,38 @@ function fallbackSpawnerArtifactReadoutReply(artifact: SpawnerArtifactContext, e
   const taskDetails = Array.isArray(result?.taskDetails) ? result.taskDetails : [];
   const taskTitles = taskDetails.map((task: { title?: string }) => task.title).filter(Boolean);
   const taskCount = result?.taskQuality?.taskCount || taskTitles.length;
-  const currentState = result
-    ? `I can verify the current Spawner result artifact for ${artifact.projectName}. It is ${artifact.status || 'recorded'} with ${taskCount || 'the'} planned build steps.`
-    : `I can verify the current Spawner artifact for ${artifact.projectName}, but I do not see a canonical provider result file yet.`;
-  const changed = taskTitles.length
-    ? `What changed: the idea is now a concrete ${result?.projectType || 'project'} plan: ${taskTitles.slice(0, 4).join('; ')}.`
-    : 'What changed: the current artifact has a named mission/canvas handoff, but no task rows were available to summarize.';
-  const boundary = shipped?.previewUrl
-    ? `A matching shipped preview exists: ${shipped.previewUrl}`
-    : 'I do not see a matching shipped preview for this request yet, so I am treating this as canvas/result evidence rather than a finished app.';
-  const infrastructure = result?.infrastructure
-    ? [
-        result.infrastructure.needsAuth ? 'auth' : null,
-        result.infrastructure.needsDatabase ? 'database' : null,
-        result.infrastructure.needsAPI ? 'API' : null
-      ].filter(Boolean)
-    : [];
-  const scope = result?.infrastructure
-    ? infrastructure.length > 0
-      ? `Scope: needs ${infrastructure.join(', ')}.`
-      : 'Scope: local-only app shape with no auth, database, or API requirement in the artifact.'
-    : null;
+  const title = result
+    ? `${artifact.projectName} has a current Spawner result`
+    : `${artifact.projectName} has a Spawner artifact, but no provider result yet`;
+  const previewLine = shipped?.previewUrl
+    ? `Preview: ${shipped.previewUrl}`
+    : 'Preview: no matching shipped preview in owner evidence yet.';
+  const canvasLine = artifact.canvasUrl ? `Canvas: ${artifact.canvasUrl}` : null;
+  const boardLine = artifact.boardUrl ? `Board: ${artifact.boardUrl}` : null;
+  const scopeLine = spawnerArtifactScopeLine(result);
+  const qualityLine = result ? spawnerArtifactQualityLine(result, taskCount) : null;
+  const blockerLine = result
+    ? 'No current blocker is visible in the Spawner result artifact.'
+    : 'Provider result evidence is still missing for this artifact.';
   return [
-    currentState,
+    title,
     '',
-    changed,
-    scope,
-    boundary,
+    'What changed',
+    `• ${spawnerArtifactChangeLine(result, taskCount)}`,
+    scopeLine ? `• ${scopeLine}` : null,
     '',
-    `Next polish I would choose: ${spawnerArtifactPolishSuggestion(result)}`
+    'Evidence',
+    `• ${previewLine}`,
+    canvasLine ? `• ${canvasLine}` : null,
+    boardLine ? `• ${boardLine}` : null,
+    qualityLine ? `• ${qualityLine}` : null,
+    '',
+    'Blockers',
+    `• ${blockerLine}`,
+    '• Still worth proving next: open/click flow, refresh behavior, and saved state.',
+    '',
+    'Next',
+    `• ${spawnerArtifactPolishSuggestion(result)}`
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
@@ -7625,6 +7687,7 @@ function spawnerArtifactReadoutReplyLooksValid(
   if (!reply.trim()) return false;
   if (/\b(?:do not have|don't have|no verified change log|no saved project memory trace|no saved.*trace)\b/i.test(reply)) return false;
   if (/\b(?:success|resultAvailable|taskQuality|weakTaskIds|findings|taskCount|result\s+available|build\s+result|task\s+quality\s+passed|weak\s+tasks?)\s*[:=]?\s*(?:true|false|\d+)\b/i.test(reply)) return false;
+  if (/\n\s*\.\s+/.test(reply)) return false;
   if (spawnerArtifactReplyContradictsEvidence(reply, evidence)) return false;
   const artifactWords = artifact.projectName
     .toLowerCase()
