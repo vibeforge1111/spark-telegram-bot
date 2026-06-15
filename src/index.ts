@@ -3,7 +3,7 @@ import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -3017,6 +3017,8 @@ function previewAuditText(text: string, limit = 240): string {
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 
 type NodeOutboundTraceContext = {
+  turnId?: string;
+  telegramUpdateId?: number | string;
   route?: string;
   command?: string;
   replyKind?: string;
@@ -3055,11 +3057,124 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+function turnTracePath(): string {
+  return (
+    process.env.SPARK_TURN_TRACE_PATH ||
+    path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot', 'turn-trace.jsonl')
+  );
+}
+
+function saltedChatRef(chatId: unknown): string {
+  const text = String(chatId ?? '').trim();
+  if (!text || text === 'unknown') return 'unknown';
+  const salt = process.env.SPARK_CHAT_REF_SALT?.trim() || os.hostname() || 'spark-telegram-bot';
+  const digest = createHash('sha256').update(`${salt}:${text}`, 'utf8').digest('hex').slice(0, 16);
+  return `chat_${digest}`;
+}
+
+function telegramUpdateIdFromValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
+function telegramUpdateIdFromUpdate(update: unknown): number | null {
+  if (!update || typeof update !== 'object') return null;
+  return telegramUpdateIdFromValue((update as Record<string, unknown>).update_id);
+}
+
+function telegramTurnIdFromUpdate(update: unknown): string | undefined {
+  const updateId = telegramUpdateIdFromUpdate(update);
+  return updateId === null ? undefined : `telegram-update:${updateId}`;
+}
+
+function turnTraceHops(traceContext?: NodeOutboundTraceContext | null): string[] {
+  const hops = ['telegram-bot'];
+  if (traceContext?.requestId || traceContext?.traceRef) hops.push('sib-gateway');
+  if (traceContext?.missionId) hops.push('spawner');
+  return hops;
+}
+
+export function buildTurnTraceLineRecord(input: {
+  chatId: unknown;
+  update?: unknown;
+  telegramUpdateId?: number | string | null;
+  traceContext?: NodeOutboundTraceContext | null;
+  status?: 'delivered' | 'failed' | 'suppressed';
+  now?: Date;
+}): Record<string, unknown> | null {
+  const telegramUpdateId = telegramUpdateIdFromValue(input.telegramUpdateId) ??
+    telegramUpdateIdFromValue(input.traceContext?.telegramUpdateId) ??
+    telegramUpdateIdFromUpdate(input.update);
+  const turnId = String(input.traceContext?.turnId || '').trim() ||
+    (telegramUpdateId === null ? '' : `telegram-update:${telegramUpdateId}`);
+  if (telegramUpdateId === null || !turnId) return null;
+
+  const requestId = typeof input.traceContext?.requestId === 'string' && input.traceContext.requestId.trim()
+    ? input.traceContext.requestId.trim()
+    : null;
+  const traceRef = typeof input.traceContext?.traceRef === 'string' && input.traceContext.traceRef.trim()
+    ? input.traceContext.traceRef.trim()
+    : null;
+  const missionId = typeof input.traceContext?.missionId === 'string' && input.traceContext.missionId.trim()
+    ? input.traceContext.missionId.trim()
+    : null;
+  const route = typeof input.traceContext?.route === 'string' && input.traceContext.route.trim()
+    ? input.traceContext.route.trim()
+    : null;
+  const replyKind = typeof input.traceContext?.replyKind === 'string' && input.traceContext.replyKind.trim()
+    ? input.traceContext.replyKind.trim()
+    : null;
+  return {
+    schema: 'spark.turn_trace.v1',
+    ts: (input.now || new Date()).toISOString(),
+    turn_id: turnId,
+    telegram_update_id: telegramUpdateId,
+    chat_ref: saltedChatRef(input.chatId),
+    status: input.status || 'delivered',
+    hops: turnTraceHops(input.traceContext),
+    sib_request_id: requestId,
+    sib_trace_ref: traceRef,
+    mission_id: missionId,
+    build_request_id: requestId?.startsWith('tg-build') ? requestId : null,
+    route,
+    reply_kind: replyKind,
+    'gen_ai.usage.input_tokens': null,
+    'gen_ai.usage.output_tokens': null,
+    'gen_ai.request.model': null,
+    duration_ms: null
+  };
+}
+
+const recordedTurnTraceKeys = new Set<string>();
+
+function recordTurnTraceDelivery(input: {
+  chatId: unknown;
+  update?: unknown;
+  telegramUpdateId?: number | string | null;
+  traceContext?: NodeOutboundTraceContext | null;
+  status?: 'delivered' | 'failed' | 'suppressed';
+}): void {
+  const record = buildTurnTraceLineRecord(input);
+  if (!record) return;
+  const key = `${record.turn_id}:${record.status}`;
+  if (recordedTurnTraceKeys.has(key)) return;
+  recordedTurnTraceKeys.add(key);
+  const filePath = turnTracePath();
+  mkdir(path.dirname(filePath), { recursive: true })
+    .then(() => appendFile(filePath, `${JSON.stringify(record)}\n`, 'utf-8'))
+    .catch((error) => {
+      recordedTurnTraceKeys.delete(key);
+      console.warn('[TurnTrace] failed to write turn trace line:', error);
+    });
+}
+
 export function buildNodeOutboundAuditRecord(
   chatId: unknown,
   deliveredText: unknown,
   now = new Date(),
-  traceContext?: NodeOutboundTraceContext | null
+  traceContext?: NodeOutboundTraceContext | null,
+  update?: unknown
 ): Record<string, unknown> {
   const text = typeof deliveredText === 'string' ? deliveredText : String(deliveredText ?? '');
   const requestId = typeof traceContext?.requestId === 'string' && traceContext.requestId.trim()
@@ -3071,6 +3186,9 @@ export function buildNodeOutboundAuditRecord(
   const missionId = typeof traceContext?.missionId === 'string' && traceContext.missionId.trim()
     ? traceContext.missionId.trim()
     : null;
+  const telegramUpdateId = telegramUpdateIdFromValue(traceContext?.telegramUpdateId) ?? telegramUpdateIdFromUpdate(update);
+  const turnId = String(traceContext?.turnId || '').trim() ||
+    (telegramUpdateId === null ? '' : `telegram-update:${telegramUpdateId}`);
   return {
     ts: now.toISOString(),
     event: 'telegram_node_delivered',
@@ -3080,6 +3198,8 @@ export function buildNodeOutboundAuditRecord(
     text_length: text.length,
     trace_context_present: Boolean(requestId || traceRef || missionId),
     mission_id_present: Boolean(missionId),
+    ...(turnId ? { turn_id: turnId } : {}),
+    ...(telegramUpdateId !== null ? { telegram_update_id: telegramUpdateId } : {}),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
@@ -3088,14 +3208,20 @@ export function buildNodeOutboundAuditRecord(
   };
 }
 
-function recordNodeOutboundDelivery(chatId: unknown, deliveredText: unknown, traceContext?: NodeOutboundTraceContext | null): void {
+function recordNodeOutboundDelivery(
+  chatId: unknown,
+  deliveredText: unknown,
+  traceContext?: NodeOutboundTraceContext | null,
+  update?: unknown
+): void {
   const auditPath = nodeOutboundAuditPath();
-  const record = buildNodeOutboundAuditRecord(chatId, deliveredText, new Date(), traceContext);
+  const record = buildNodeOutboundAuditRecord(chatId, deliveredText, new Date(), traceContext, update);
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
     .catch((error) => {
       console.warn('[OutboundAudit] failed to write node delivery audit:', error);
     });
+  recordTurnTraceDelivery({ chatId, update, traceContext });
 }
 
 function finalAnswerGateAuditPath(): string {
@@ -3108,6 +3234,9 @@ function finalAnswerGateAuditPath(): string {
 type FinalAnswerGateSuppressionInput = {
   chatId: unknown;
   userId: unknown;
+  update?: unknown;
+  turnId?: string;
+  telegramUpdateId?: number | string;
   suppressionReason: string;
   builderRoutingDecision: string;
   builderBridgeMode: string;
@@ -3123,6 +3252,9 @@ export function buildFinalAnswerGateSuppressionRecord(
 ): Record<string, unknown> {
   const requestId = String(input.requestId || '').trim();
   const traceRef = String(input.traceRef || '').trim();
+  const telegramUpdateId = telegramUpdateIdFromValue(input.telegramUpdateId) ?? telegramUpdateIdFromUpdate(input.update);
+  const turnId = String(input.turnId || '').trim() ||
+    (telegramUpdateId === null ? '' : `telegram-update:${telegramUpdateId}`);
   return {
     ts: now.toISOString(),
     event: 'final_answer_checked',
@@ -3136,6 +3268,8 @@ export function buildFinalAnswerGateSuppressionRecord(
     builder_bridge_mode: input.builderBridgeMode || '',
     builder_reply_length: input.builderReply.length,
     builder_reply_preview: previewAuditText(input.builderReply, 180),
+    ...(turnId ? { turn_id: turnId } : {}),
+    ...(telegramUpdateId !== null ? { telegram_update_id: telegramUpdateId } : {}),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
     fallback_route: input.fallbackRoute,
@@ -3210,7 +3344,7 @@ bot.use(async (ctx, next) => {
     const cleanExtra = stripOutboundTraceContext(extra);
     if (typeof text !== 'string') {
       const delivery = await originalReply(text, cleanExtra);
-      recordNodeOutboundDelivery(ctx.chat?.id, text, traceContext);
+      recordNodeOutboundDelivery(ctx.chat?.id, text, traceContext, ctx.update);
       return delivery;
     }
 
@@ -3218,7 +3352,7 @@ bot.use(async (ctx, next) => {
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
       lastReply = await originalReply(chunk, cleanExtra);
-      recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext);
+      recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext, ctx.update);
     }
     return lastReply!;
   }) as typeof ctx.reply;
@@ -3666,7 +3800,12 @@ export async function deliverBuilderReply(
     return;
   }
   if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+    await replyWithSanitizedTelegramText(ctx, builderReply.responseText, outboundTraceExtra({
+      route: builderReply.routingDecision || builderReply.decision || 'builder_bridge',
+      replyKind: 'builder_reply',
+      requestId: builderReply.requestId,
+      traceRef: builderReply.traceRef
+    }));
   }
 }
 
@@ -8988,7 +9127,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     userRef: userRef(ctx.from?.id),
     chatRef: chatRef(ctx.chat?.id),
     accessProfile: conversation.isAdmin(ctx.from) ? 'admin' : 'standard',
-    conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group'
+    conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group',
+    turnId: telegramTurnIdFromUpdate(ctx.update)
   });
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
     route: 'spawner.build',
@@ -11468,6 +11608,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       recordFinalAnswerGateSuppression({
         chatId: ctx.chat?.id,
         userId: ctx.from?.id,
+        update: ctx.update,
         suppressionReason: suppressionReason || 'plain_chat_suppression',
         builderRoutingDecision: builderReply.routingDecision,
         builderBridgeMode: builderReply.bridgeMode,

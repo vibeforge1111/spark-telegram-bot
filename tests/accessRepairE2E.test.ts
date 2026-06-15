@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import axios from 'axios';
@@ -23,6 +23,7 @@ const originalEnv = {
   BOT_DEFAULT_TIER: process.env.BOT_DEFAULT_TIER,
   SPARK_AGENT_ACCESS_PROFILE: process.env.SPARK_AGENT_ACCESS_PROFILE,
   SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
+  SPARK_CLI_COMMAND: process.env.SPARK_CLI_COMMAND,
   SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
   PATH: process.env.PATH
 };
@@ -177,6 +178,9 @@ async function runAccessRepairScenario(input: {
   process.env.BOT_DEFAULT_TIER = 'base';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_CLI_COMMAND = process.platform === 'win32'
+    ? path.join(binDir, 'spark.ps1')
+    : path.join(binDir, 'spark');
   process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
   process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;
 
@@ -194,7 +198,7 @@ async function runAccessRepairScenario(input: {
     if (input.includeDidYou) {
       await indexModule.handleTextMessage(fakeCtx(8319079055, 8319079055, 701, 'did you', replies));
     }
-    const sparkCalls = readFileSync(callsPath, 'utf-8');
+    const sparkCalls = existsSync(callsPath) ? readFileSync(callsPath, 'utf-8') : '';
     return { replies, sparkCalls, spawnerCalls };
   } finally {
     restoreAxios();

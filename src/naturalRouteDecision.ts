@@ -463,6 +463,24 @@ export function decideNaturalRoute(
     });
   }
 
+  if (isProjectImprovementRequest(normalized, context.shippedProject)) {
+    return decision({
+      route: 'project.iteration',
+      owner_system: 'spawner-ui',
+      confidence: 'contextual',
+      action: 'project.iteration',
+      payload: {
+        projectName: context.shippedProject?.projectName,
+        projectPath: context.shippedProject?.projectPath,
+        goal: buildProjectImprovementGoal(normalized, context.shippedProject, recentMessages)
+      },
+      context_source: 'visible_exact_artifact',
+      matched_signals: ['shipped_project_context', 'project_improvement_request'],
+      blocked_by: [],
+      requires_confirmation: true
+    });
+  }
+
   if (
     buildIntent &&
     !isNoExecutionBoundary(normalized) &&
@@ -521,24 +539,6 @@ export function decideNaturalRoute(
       matched_signals: ['pending_build_clarification', 'clarification_followup'],
       blocked_by: [],
       requires_confirmation: false
-    });
-  }
-
-  if (isProjectImprovementRequest(normalized, context.shippedProject)) {
-    return decision({
-      route: 'project.iteration',
-      owner_system: 'spawner-ui',
-      confidence: 'contextual',
-      action: 'project.iteration',
-      payload: {
-        projectName: context.shippedProject?.projectName,
-        projectPath: context.shippedProject?.projectPath,
-        goal: buildProjectImprovementGoal(normalized, context.shippedProject, recentMessages)
-      },
-      context_source: 'visible_exact_artifact',
-      matched_signals: ['shipped_project_context', 'project_improvement_request'],
-      blocked_by: [],
-      requires_confirmation: true
     });
   }
   const memoryDirective = extractPlainChatMemoryDirective(normalized);

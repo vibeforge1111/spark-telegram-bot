@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   quoteWindowsArg,
@@ -38,8 +39,15 @@ test('Windows cmd shims preserve spaced paths without shell interpolation', () =
 
 test('Windows command resolver finds cmd shims from PATH', () => {
   if (process.platform !== 'win32') return;
-  const resolved = resolveWindowsCommand('claude');
-  assert.match(resolved, /claude\.(ps1|cmd|exe)$/i);
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'spark-hidden-process-'));
+  try {
+    const shimPath = path.join(tempDir, 'claude.cmd');
+    writeFileSync(shimPath, '@echo off\r\n');
+    const resolved = resolveWindowsCommand('claude', { PATH: tempDir, PATHEXT: '.COM;.EXE;.BAT;.CMD' });
+    assert.equal(resolved.toLowerCase(), shimPath.toLowerCase());
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('PowerShell shim args run scripts without shell interpolation', () => {

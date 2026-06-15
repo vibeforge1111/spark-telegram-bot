@@ -21,11 +21,15 @@ test('runtime sync includes capability upgrade/eval fixtures', () => {
   assert.match(script, /spark\.toml/);
   assert.match(script, /\.spark['"],\s*['"]state['"],\s*['"]installed\.json/);
   assert.match(script, /SPARK_TELEGRAM_RUNTIME_ROOT/);
-  assert.match(testRunner, /tests\/telegramVoiceBridge\.test\.ts/);
+  assert.match(testRunner, /testsDir/);
+  assert.match(testRunner, /endsWith\('\.test\.ts'\)/);
+  assert.match(testRunner, /SKIP\.has\(testFile\)/);
+  assert.match(testRunner, /SPARK_NODE_OUTBOUND_AUDIT_PATH/);
+  assert.match(testRunner, /SPARK_FINAL_ANSWER_GATE_AUDIT_PATH/);
+  assert.match(testRunner, /SPARK_HARNESS_CORE_LEDGER_PATH/);
   assert.match(script, /dir:\s*'src'/);
   assert.match(script, /dir:\s*'dist'/);
   assert.match(script, /dir:\s*'ops'/);
-  assert.match(script, /dir:\s*'vendor\/harness-core'/);
   assert.match(script, /dir:\s*'node_modules\/@spark\/harness-core'/);
   assert.match(script, /recursive:\s*true/);
   assert.match(script, /TEXT_SYNC_EXTENSIONS/);

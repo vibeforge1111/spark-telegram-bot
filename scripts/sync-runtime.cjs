@@ -65,7 +65,6 @@ function discoverSyncedPaths() {
 		{ dir: 'ops', ext: '.ts' },
 		{ dir: 'ops', ext: '.json' },
 		{ dir: 'agent-knowledge', ext: '.md' },
-		{ dir: 'vendor/harness-core', ext: null, recursive: true },
 		{ dir: 'node_modules/@spark/harness-core', ext: null, recursive: true }
 	];
 	const singletonPaths = [
@@ -105,6 +104,15 @@ function discoverFiles(relDir, ext) {
 		}
 	}
 	return discovered;
+}
+
+function discoverDistJs(root) {
+	const dir = path.join(root, 'dist');
+	if (!exists(dir)) return [];
+	return fs.readdirSync(dir, { withFileTypes: true })
+		.filter((entry) => entry.isFile() && entry.name.endsWith('.js'))
+		.map((entry) => path.join('dist', entry.name).replace(/\\/g, '/'))
+		.sort();
 }
 
 function exists(p) {
@@ -170,6 +178,10 @@ function checkDrift({ requireRuntime = false } = {}) {
 		const a = checksum(rel, path.join(SOURCE_ROOT, rel));
 		const b = checksum(rel, path.join(RUNTIME_ROOT, rel));
 		if (a !== b) drift.push(rel);
+	}
+	const canonicalDist = new Set(discoverDistJs(SOURCE_ROOT));
+	for (const rel of discoverDistJs(RUNTIME_ROOT)) {
+		if (!canonicalDist.has(rel)) drift.push(rel);
 	}
 	if (drift.length === 0) {
 		console.log('[check] runtime in sync.');

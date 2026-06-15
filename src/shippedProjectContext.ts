@@ -30,6 +30,8 @@ export interface ShippedProjectMissionInput {
   goal: string;
   providerLabel?: string;
   response: string;
+  projectPath?: string;
+  previewUrl?: string;
 }
 
 const STATE_PATH = resolveStatePath('.spark-shipped-project-context.json');
@@ -87,6 +89,15 @@ function projectPathFromPreviewUrl(previewUrl: string): string | null {
   }
 }
 
+function projectPathFromLinkedFileTarget(target: string): string | null {
+  const normalized = normalizeLocalProjectPath(target);
+  if (!/^[A-Za-z]:\//.test(normalized)) return null;
+  const extension = path.posix.extname(normalized);
+  return extension
+    ? normalizeLocalProjectPath(path.posix.dirname(normalized))
+    : normalized;
+}
+
 export function extractProjectPathFromMissionText(text: string): string | null {
   const parsed = parseJsonObject(text);
   const jsonPath = parsed
@@ -98,6 +109,11 @@ export function extractProjectPathFromMissionText(text: string): string | null {
   if (previewUrl) {
     const decoded = projectPathFromPreviewUrl(previewUrl);
     if (decoded) return decoded;
+  }
+
+  for (const match of text.matchAll(/\]\(([^)\r\n]+)\)/g)) {
+    const linkedProjectPath = projectPathFromLinkedFileTarget(match[1]);
+    if (linkedProjectPath) return linkedProjectPath;
   }
 
   const patterns = [
@@ -160,7 +176,7 @@ function summaryFromResponse(response: string): string | undefined {
 export async function recordShippedProjectFromMission(
   input: ShippedProjectMissionInput
 ): Promise<ShippedProjectContext | null> {
-  const projectPath = extractProjectPathFromMissionText(input.response);
+  const projectPath = stringField(input.projectPath) || extractProjectPathFromMissionText(input.response);
   if (!projectPath) return null;
 
   const chatId = String(input.chatId);
@@ -174,7 +190,7 @@ export async function recordShippedProjectFromMission(
     userId: String(input.userId),
     projectName: projectNameFromGoal(input.goal, projectPath),
     projectPath,
-    previewUrl: extractPreviewUrlFromMissionText(input.response) || projectPreviewUrlForPath(projectPath),
+    previewUrl: stringField(input.previewUrl) || extractPreviewUrlFromMissionText(input.response) || projectPreviewUrlForPath(projectPath),
     missionId: input.missionId,
     iteration: sameProject ? previous.iteration + 1 : 1,
     shippedAt: previous?.shippedAt && sameProject ? previous.shippedAt : now,
