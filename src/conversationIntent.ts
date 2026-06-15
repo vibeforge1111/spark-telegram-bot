@@ -1191,9 +1191,16 @@ export function isMissionExecutionConfirmation(text: string): boolean {
   ].some((pattern) => pattern.test(trimmed));
 }
 
+function isExplicitNamedProductBuildRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!/^(?:build|create|make|scaffold|generate)\b/.test(normalized)) return false;
+  return /\b(?:app|application|tool|dashboard|page|site|website|game|planner|tracker|timer|console|viewer|board|room|lab)\b.{0,100}\b(?:called|named)\b/.test(normalized);
+}
+
 export function isNoExecutionBoundary(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return false;
+  if (isExplicitNamedProductBuildRequest(normalized)) return false;
   if (isActionWordMetaDiscussion(normalized)) return true;
   return [
     /^(?:no|nah|nope)(?:[,\s.!]+|$)/,
@@ -1216,7 +1223,8 @@ export function isNoExecutionBoundary(text: string): boolean {
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|open\s+(?:a\s+)?pr|remember|draft|canvas)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
     /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/,
-    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/
+    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/,
+    /\b(?:policy|routing|route|authority)\s+(?:chat|discussion|review|boundary)\b/
   ].some((pattern) => pattern.test(normalized));
 }
 
@@ -1240,7 +1248,12 @@ export function inferMissionFromRecentContext(currentText: string, recentMessage
 
   const usefulTurns = recentMessages
     .map((message) => message.trim())
-    .filter((message) => message && !isLowSignalPlanningTurn(message));
+    .filter((message) => (
+      message &&
+      !isLowSignalPlanningTurn(message) &&
+      !isActionWordMetaDiscussion(message) &&
+      !isNoExecutionBoundary(message)
+    ));
   if (usefulTurns.length === 0) return null;
 
   const context = usefulTurns.join('\n');
@@ -2704,12 +2717,20 @@ function hasProjectIterationAdviceSignal(normalized: string): boolean {
   return (
     /\b(?:polish next|next polish|what would you polish|thoughtful next polish|one thoughtful next polish|next direction|next improvement)\b/.test(normalized) ||
     /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path)\b/.test(normalized) &&
-      /\b(?:polish|improve|tighten|add|fix|update|adjust|tweak|refine|rework|redesign|clean)\b/.test(normalized)
+      /\b(?:polish|improve|tighten|add|fix|update|adjust|tweak|refine|rework|redesign|clean)\b/.test(normalized) ||
+    /\b(?:i(?:['\u2019]d| would)|my call is to|i would)\s+(?:cut|remove|add|make|change|tighten|simplify|turn|move|swap|use|drop)\b(?=.{0,140}\b(?:screen|page|flow|button|state|block|version|v1|preview|layout|empty|mobile|action|outcome|workflow|copy|text|reset|column|card)\b)/.test(normalized) ||
+    /\b(?:make|keep)\s+(?:it|this|that)\s+(?:(?:a|the)\s+)?(?:(?:one|single)(?:[-\s]+(?:screen|page|flow|outcome))?|simple|smaller|simpler|cleaner|tighter|focused)\b/.test(normalized) ||
+    /\b(?:simplest|smallest|first|v1)\s+(?:version|pass)\b/.test(normalized)
   );
 }
 
 function hasProjectIterationAdviceSourceMarker(normalized: string): boolean {
   return /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path|shipped at|current shipped app)\b/.test(normalized);
+}
+
+function hasCompetingProjectAdviceTarget(project: ShippedProjectContext, normalized: string): boolean {
+  if (hasProjectIdentityInText(project, normalized)) return false;
+  return /\b(?:for|on|in)\s+(?:the\s+)?(?!(?:this|that|it|same|current|existing|latest|shipped|one|single|simple|next)\b)(?:[a-z0-9]+[-\s]+){0,5}(?:app|site|page|screen|project|build|dashboard|tool|prototype|button|picker|planner|tracker|timer|board|surface)\b/.test(normalized);
 }
 
 type RecentProjectIterationMessage = {
@@ -2718,6 +2739,7 @@ type RecentProjectIterationMessage = {
   hasProjectIdentity: boolean;
   hasAdviceSignal: boolean;
   hasAdviceSourceMarker: boolean;
+  hasCompetingAdviceTarget: boolean;
 };
 
 function recentProjectIterationRole(rawLine: string): RecentProjectIterationMessage['role'] {
@@ -2729,22 +2751,38 @@ function recentProjectIterationRole(rawLine: string): RecentProjectIterationMess
 function normalizeRecentProjectIterationLines(recentMessages: string[]): string[] {
   return recentMessages
     .flatMap((message) => message.split(/\r?\n+/))
-    .map((line) => line.trim().replace(/^[-*]\s+/, '').trim())
+    .map((line) => line.trim().replace(/^[-*•]\s+/, '').trim())
     .filter(Boolean)
-    .slice(-16);
+    .slice(-40);
+}
+
+function normalizeRecentProjectIterationMessages(recentMessages: string[]): string[] {
+  return recentMessages
+    .map((message) => message
+      .split(/\r?\n+/)
+      .map((line) => line.trim().replace(/^[-*•]\s+/, '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .toLowerCase()
+      .replace(/\\/g, '/'))
+    .filter(Boolean)
+    .slice(-8);
 }
 
 function hasRecentProjectIdentityContext(project: ShippedProjectContext, recentMessages: string[]): boolean {
-  const recentText = normalizeRecentProjectIterationLines(recentMessages)
+  const recentLineText = normalizeRecentProjectIterationLines(recentMessages)
     .map((line) => line.toLowerCase().replace(/\\/g, '/'))
-    .slice(-8)
     .join('\n');
+  const recentMessageText = normalizeRecentProjectIterationMessages(recentMessages).join('\n');
+  const recentText = [recentMessageText, recentLineText].filter(Boolean).join('\n');
   if (!recentText || !hasProjectIdentityInText(project, recentText)) return false;
   return /\b(?:current preview|preview:|ready|shipped|built|existing shipped project|project_path|project path|canvas|kanban|board|workspace)\b/.test(recentText);
 }
 
 function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentMessages: string[]): boolean {
-  const messages: RecentProjectIterationMessage[] = normalizeRecentProjectIterationLines(recentMessages)
+  const lines = normalizeRecentProjectIterationLines(recentMessages);
+  const recentProjectIdentityContext = hasRecentProjectIdentityContext(project, recentMessages);
+  const messages: RecentProjectIterationMessage[] = lines
     .map((line) => {
       const normalized = line.toLowerCase().replace(/\\/g, '/');
       return {
@@ -2752,7 +2790,8 @@ function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentM
         role: recentProjectIterationRole(line),
         hasProjectIdentity: hasProjectIdentityInText(project, normalized),
         hasAdviceSignal: hasProjectIterationAdviceSignal(normalized),
-        hasAdviceSourceMarker: hasProjectIterationAdviceSourceMarker(normalized)
+        hasAdviceSourceMarker: hasProjectIterationAdviceSourceMarker(normalized),
+        hasCompetingAdviceTarget: hasCompetingProjectAdviceTarget(project, normalized)
       };
     });
 
@@ -2768,9 +2807,20 @@ function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentM
     const previous = messages[index - 1];
     if (
       assistantOrEvidenceAdvice &&
+      !message.hasCompetingAdviceTarget &&
       previous?.role === 'user' &&
       previous.hasProjectIdentity &&
       previous.hasAdviceSignal
+    ) {
+      return true;
+    }
+
+    if (
+      assistantOrEvidenceAdvice &&
+      !message.hasProjectIdentity &&
+      !message.hasCompetingAdviceTarget &&
+      !previous?.hasCompetingAdviceTarget &&
+      (hasRecentProjectIdentityContext(project, lines.slice(0, index)) || recentProjectIdentityContext)
     ) {
       return true;
     }
@@ -2814,9 +2864,15 @@ function isProjectReadoutOrAdvisoryQuestion(normalized: string): boolean {
     /\b(?:what|which|where|how|why|should|would|could|can|tell\s+me|summari[sz]e|status|readout|progress)\b/.test(normalized);
   if (!asksQuestion) return false;
 
+  const asksAdvisoryMutationQuestion =
+    /\b(?:what|which)\b.{0,120}\b(?:would|should|could|can)\s+(?:you|we|i)\b.{0,80}\b(?:polish|improve|change|update|fix|add|remove|cut|drop|simplify|tighten|tweak|refine|rework|redesign|clean|adjust)\b/.test(normalized) ||
+    /\bhow\b.{0,120}\b(?:would|should|could)\s+(?:you|we|i)\b.{0,80}\b(?:polish|improve|change|update|fix|add|remove|cut|drop|simplify|tighten|tweak|refine|rework|redesign|clean|adjust)\b/.test(normalized) ||
+    /\bwhat\b.{0,80}\b(?:one|next|concrete|specific|small|smallest|simple|simpler|thoughtful)\b.{0,80}\b(?:polish|improvement|change|fix|move|step|direction)\b/.test(normalized);
+
   return (
     /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|status|progress|summary)\b/.test(normalized) ||
-    /\b(?:what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|thoughtful\s+next\s+polish|what'?s\s+next)\b/.test(normalized)
+    /\b(?:what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|thoughtful\s+next\s+polish|what'?s\s+next)\b/.test(normalized) ||
+    asksAdvisoryMutationQuestion
   );
 }
 

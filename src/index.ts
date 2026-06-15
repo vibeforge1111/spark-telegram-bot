@@ -1765,8 +1765,11 @@ function renderAccessCapabilityMismatchAnswer(): string {
 function shouldAnswerAuthoritativeAccessCapability(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
+  if (/^(?:if|when)\b/.test(normalized) || /\bif\s+access\s+says\b/.test(normalized)) return false;
   return (
     /\b(?:are|is)\s+(?:you|recursive|runner|telegram\s+runner|this\s+runner)\s+(?:writable|read[-\s]*only)\b/.test(normalized) ||
+    /\bwhy\s+(?:is|was)\b.{0,60}\b(?:codex|spark|runner|telegram\s+runner|this\s+(?:lane|runner))\b.{0,60}\bread[-\s]*only\b/.test(normalized) ||
+    /\b(?:codex|spark|runner|telegram\s+runner|this\s+(?:lane|runner))\b.{0,60}\bread[-\s]*only\b.{0,60}\b(?:here|right\s+now|currently|current)\b/.test(normalized) ||
     /\bcan\s+you\s+(?:edit|write|modify|touch)\b.*\b(?:files?|outside|workspace|computer|machine)\b/.test(normalized) ||
     /\b(?:edit|write|modify|touch)\s+files?\s+outside\s+(?:the\s+)?spark\s+workspace\b/.test(normalized) ||
     /\boutside[-\s]*workspace\s+(?:edits?|writes?|access)\b/.test(normalized) ||
@@ -1788,10 +1791,13 @@ async function renderAuthoritativeSparkEditCapabilityAnswer(chatId: string | num
     const accessState = await readSparkAccessState();
     const chatLevel = sparkAccessLevel(chatProfile);
     const runnerWritable = runnerPreflight.runnerWritable === 'yes';
+    const workspaceWritable = accessState.workspaceWritable === true;
     const canOperateOutsideWorkspace = accessState.serviceEnabled && chatProfile === 'operator' && runnerWritable;
     return [
       canOperateOutsideWorkspace
         ? 'Yes. This Telegram runner is writable and Level 5 operator mode is active.'
+        : runnerWritable && workspaceWritable
+          ? 'Codex is not read-only here for Spark workspace work. Whole-computer file work is not active from this Telegram lane.'
         : 'No. Whole-computer file work is not fully available from this Telegram runner right now.',
       '',
       'Fresh access evidence:',
@@ -10426,6 +10432,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
 	  if (
 	    !earlyBuildIntent &&
+	    !shouldAnswerAuthoritativeAccessCapability(text) &&
 	    (isAccessCapabilityMismatchQuestion(text) || isContextualAccessCapabilityMismatchQuestion(text, recentAccessMessages))
 	  ) {
 	    await replyWithGovernedReadOnlyState(ctx, user, text, turnIntentEnvelope, {
@@ -11464,7 +11471,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const projectIterationAuthorization = isProjectImprovementRequest(text, latestShippedProject, contextualTurns)
+    const naturalProjectIterationGoal = (
+      naturalRouteShadow?.route === 'project.iteration' &&
+      naturalRouteShadow.owner_system === 'spawner-ui' &&
+      naturalRouteShadow.context_source === 'visible_exact_artifact' &&
+      typeof naturalRouteShadow.payload?.goal === 'string'
+    )
+      ? naturalRouteShadow.payload.goal.trim()
+      : '';
+    const projectIterationAuthorization = (
+      isProjectImprovementRequest(text, latestShippedProject, contextualTurns) ||
+      Boolean(naturalProjectIterationGoal)
+    )
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.project_iteration',
         text,
@@ -11474,7 +11492,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
       : null;
     if (projectIterationAuthorization?.allow) {
-      const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
+      const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns) || naturalProjectIterationGoal;
       if (improvementGoal && latestShippedProject) {
         await conversation.remember(user, text).catch(() => {});
         await ctx.reply([
@@ -11500,6 +11518,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           status: buildDispatch.status,
           summary: buildDispatch.summary
         });
+        recordNaturalRouteExecution(
+          ctx,
+          naturalRouteShadow,
+          'project.iteration',
+          'spawner-ui',
+          'spawner.run',
+          buildDispatch.status === 'success' ? 'selected' : 'failed'
+        );
         return;
       }
     }

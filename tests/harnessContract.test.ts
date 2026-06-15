@@ -120,6 +120,32 @@ test('keeps publication approval-list boundaries answer-only', () => {
   assert.ok(networkAuthorization.reasonCodes.includes('tool_denied_by_policy'));
 });
 
+test('keeps publication policy questions safe without defensive no-execution', () => {
+  const envelope = envelopeFor('Before using publish in Telegram, what evidence should the harness require?');
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spark-telegram-bot');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.noPublish, true);
+  assert.equal(envelope.directive.localOnly, true);
+  assert.equal(envelope.executionPolicy.canPublish, false);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('publish.run'), false);
+  assert.ok(envelope.toolPolicy.deniedTools.includes('publish.run'));
+
+  const publishAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'publish.run',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'publishes',
+    publishes: true
+  });
+  assert.equal(publishAuthorization.verdict, 'blocked');
+  assert.equal(publishAuthorization.reasonCodes.includes('no_execution_boundary'), false);
+  assert.ok(publishAuthorization.reasonCodes.includes('no_publish_boundary'));
+  assert.ok(publishAuthorization.reasonCodes.includes('tool_denied_by_policy'));
+  assert.ok(publishAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
 test('keeps browser/computer-use authorization boundaries answer-only', () => {
   const envelope = envelopeFor('Do not use computer use. Tell me when computer use would be allowed.');
 

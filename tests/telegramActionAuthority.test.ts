@@ -227,6 +227,146 @@ test('allows contextual shipped-project polish follow-through to authorize the w
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('allows live-style contextual acceptance after bounded project advice to authorize Spawner iteration', () => {
+  const text = 'ok do it';
+  const recentMessages = [
+    'Assistant: JS Sprint Picker is the current shipped app at C:/Users/USER/.spark/workspaces/mission-test-js-sprint-picker. Current preview: http://127.0.0.1:3333/preview/js-sprint-picker/index.html',
+    'User: same thing but simpler - what would you change?',
+    'Assistant: Make it one screen with one outcome: choose the next block. I would cut it to: pick today state, type what is pulling at you, choose one next block, and press Start. I would remove park what can wait from V1.'
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject, recentMessages });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.iteration');
+  assert.equal(decision.route, 'project.iteration');
+  assert.equal(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), true);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
+test('blocks shipped-project advisory mutation questions from authorizing Spawner iteration', () => {
+  const text = 'For JS Sprint Picker, same thing but simpler - what would you change?';
+  const recentMessages = [
+    'Spark: JS Sprint Picker has a current Spawner result. Current preview: http://127.0.0.1:3333/preview/js-sprint-picker/index.html'
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject, recentMessages });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.readout');
+  assert.equal(decision.route, 'project.readout');
+  assert.notEqual(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.equal(result.allow, false);
+  assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+});
+
+test('allows rich Telegram readout plus simplification advice to authorize Spawner iteration', () => {
+  const text = 'ok do it';
+  const recentMessages = [
+    [
+      'Spark: JS Sprint Picker has a current Spawner result',
+      'What changed',
+      '- It moved from idea to a concrete local app plan.',
+      '- Scope stayed local-only.',
+      'Evidence',
+      '- Preview endpoint returns 200.',
+      '- Canvas page returns 200.',
+      '- Board page returns 200.',
+      '- Result says success true.',
+      '- Plan quality is 100/100.',
+      '- No weak tasks.',
+      '- No findings.',
+      'Blockers',
+      '- No current blocker is visible.',
+      '- Click smoke still needs replay.',
+      'Next',
+      '- Keep the next pass narrow: validate the first repeated user loop, then polish only the friction found there.'
+    ].join('\n'),
+    'User: same thing but simpler - what would you change?',
+    [
+      'Spark: Make it one screen, one tap, one sentence.',
+      '',
+      'I would change it to:',
+      '',
+      '1. Pick state: focused, scattered, tired, overloaded.',
+      '2. Tap one button: Give me the next block.',
+      '3. Show one output: For 25 minutes, do: ___.',
+      '4. Tiny edit field if the suggestion is wrong.',
+      '',
+      'Remove the 3 pulls, remove duration choices, remove parking. Those are useful later, but V1 should prove one thing: can it get you from foggy to started in under 20 seconds?'
+    ].join('\n')
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject, recentMessages });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.iteration');
+  assert.equal(decision.route, 'project.iteration');
+  assert.equal(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), true);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
+test('blocks low-information acceptance after route-policy advice from authorizing Spawner iteration', () => {
+  const text = 'ok do it';
+  const recentMessages = [
+    'Assistant: JS Sprint Picker is the current shipped app at C:/Users/USER/.spark/workspaces/mission-test-js-sprint-picker. Current preview: http://127.0.0.1:3333/preview/js-sprint-picker/index.html',
+    'User: We are talking about the word build as a routing bug, not asking you to build.',
+    'Assistant: I would keep this as policy chat and require fresh owner authority before any mission starts.'
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject, recentMessages });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.notEqual(naturalRouteDecision.route, 'project.iteration');
+  assert.notEqual(naturalRouteDecision.route, 'spawner.build');
+  assert.notEqual(naturalRouteDecision.route, 'spawner.contextual_mission');
+  assert.notEqual(decision.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.equal(result.allow, false);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+});
+
 test('blocks low-information follow-through from authorizing Spawner when recent advice targets another artifact', () => {
   const text = 'Nice, do that.';
   const goingProject = {

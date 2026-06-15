@@ -862,6 +862,144 @@ test('routes contextual shipped-project polish follow-through to project iterati
   assert.notEqual(route.payload.projectName, ', And What Would You Polish');
 });
 
+test('routes live-style contextual acceptance after bounded project simplification advice', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Existing Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781530332866-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781530332866',
+    requestId: 'tg-build-f92e5de5f239-1781530332866',
+    iteration: 1
+  };
+  const route = decideNaturalRoute('ok do it', {
+    shippedProject: project,
+    recentMessages: [
+      'Assistant: Existing Day Triage Button is the current shipped app at C:/Users/USER/.spark/workspaces/mission-1781530332866-day-triage-button. Current preview: http://127.0.0.1:3333/preview/day-triage-button/index.html',
+      'User: same thing but simpler - what would you change?',
+      'Assistant: Make it one screen with one outcome: choose the next block. I would cut it to: pick today state, type what is pulling at you, choose one next block, and press Start. I would remove park what can wait from V1.'
+    ]
+  });
+
+  assert.equal(route.route, 'project.iteration');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, true);
+  assert.equal(route.payload.projectName, 'Existing Day Triage Button');
+  assert.match(String(route.payload.goal), /one screen with one outcome/);
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('routes shipped-project advisory mutation questions as readouts without iteration authority', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Mission 1781548537593 Existing Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781548537593-existing-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781548537593',
+    requestId: 'tg-build-a7ba1a0e5325-1781548537593',
+    iteration: 1
+  };
+  const route = decideNaturalRoute(
+    'For Existing Day Triage Button, same thing but simpler - what would you change?',
+    {
+      shippedProject: project,
+      recentMessages: [
+        'Spark: Existing Day Triage Button has a current Spawner result. Current preview: http://127.0.0.1:3333/preview/day-triage-button/index.html'
+      ]
+    }
+  );
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, false);
+  assert.equal(route.payload.projectName, 'Mission 1781548537593 Existing Day Triage Button');
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('routes rich Telegram readout plus simplification advice as project iteration approval', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Mission 1781548537593 Existing Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781548537593-existing-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781548537593',
+    requestId: 'tg-build-a7ba1a0e5325-1781548537593',
+    iteration: 1
+  };
+  const route = decideNaturalRoute('ok do it', {
+    shippedProject: project,
+    recentMessages: [
+      [
+        'Spark: Existing Day Triage Button has a current Spawner result',
+        'What changed',
+        '- It moved from idea to a concrete local app plan.',
+        '- Scope stayed local-only.',
+        'Evidence',
+        '- Preview endpoint returns 200.',
+        '- Canvas page returns 200.',
+        '- Board page returns 200.',
+        '- Result says success true.',
+        '- Plan quality is 100/100.',
+        '- No weak tasks.',
+        '- No findings.',
+        'Blockers',
+        '- No current blocker is visible.',
+        '- Click smoke still needs replay.',
+        'Next',
+        '- Keep the next pass narrow: validate the first repeated user loop, then polish only the friction found there.'
+      ].join('\n'),
+      'User: same thing but simpler - what would you change?',
+      [
+        'Spark: Make it one screen, one tap, one sentence.',
+        '',
+        'I would change it to:',
+        '',
+        '1. Pick state: focused, scattered, tired, overloaded.',
+        '2. Tap one button: Give me the next block.',
+        '3. Show one output: For 25 minutes, do: ___.',
+        '4. Tiny edit field if the suggestion is wrong.',
+        '',
+        'Remove the 3 pulls, remove duration choices, remove parking. Those are useful later, but V1 should prove one thing: can it get you from foggy to started in under 20 seconds?'
+      ].join('\n')
+    ]
+  });
+
+  assert.equal(route.route, 'project.iteration');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, true);
+  assert.equal(route.payload.projectName, 'Mission 1781548537593 Existing Day Triage Button');
+  assert.match(String(route.payload.goal), /Remove the 3 pulls, remove duration choices, remove parking/);
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('keeps low-information follow-through conversational after route-policy advice', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Existing Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781530332866-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781530332866',
+    requestId: 'tg-build-f92e5de5f239-1781530332866',
+    iteration: 1
+  };
+  const route = decideNaturalRoute('ok do it', {
+    shippedProject: project,
+    recentMessages: [
+      'Assistant: Existing Day Triage Button is the current shipped app at C:/Users/USER/.spark/workspaces/mission-1781530332866-day-triage-button. Current preview: http://127.0.0.1:3333/preview/day-triage-button/index.html',
+      'User: We are talking about the word build as a routing bug, not asking you to build.',
+      'Assistant: I would keep this as policy chat and require fresh owner authority before any mission starts.'
+    ]
+  });
+
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+  assert.notEqual(route.route, 'spawner.contextual_mission');
+});
+
 test('does not route low-information follow-through when shipped project and Spawner advice targets differ', () => {
   const project = {
     ...shippedProject(),

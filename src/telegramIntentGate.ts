@@ -53,7 +53,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   if (!normalized) return constraints;
 
   if (isPublicationApprovalBoundaryQuestion(normalized)) {
-    constraints.noExecution = true;
+    constraints.noExecution = isPublicationApprovalConstraintBoundary(normalized);
     constraints.noPublish = true;
     constraints.noMerge = true;
     constraints.noPublicClaim = true;
@@ -147,6 +147,15 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\bprivate(?:ly)?\s+(?:first|only)\b/.test(normalized);
 
   return constraints;
+}
+
+function isPublicationApprovalConstraintBoundary(normalized: string): boolean {
+  return (
+    isNoExecutionBoundary(normalized) ||
+    /\b(?:right\s+now|for\s+now|currently|here)\b.{0,50}\b(?:just|only|list|show|tell|explain|outline)\b/.test(normalized) ||
+    /\b(?:just|only)\b.{0,40}\b(?:list|show|tell|explain|outline)\b/.test(normalized) ||
+    /\b(?:do\s+not|don't|dont|no|not|without)\b.{0,50}\b(?:publish|deploy|release|ship|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized)
+  );
 }
 
 function candidate(

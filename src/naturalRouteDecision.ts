@@ -204,8 +204,17 @@ function recursiveConfidence(
 
 const BUILD_NOUN_STATUS_WORDS = 'going|coming\\s+along|progressing|doing|running|working|queued|done|finished|complete|completed|status|progress|state';
 
+function isAdvisoryMutationQuestion(normalized: string): boolean {
+  return (
+    /\b(?:what|which)\b.{0,120}\b(?:would|should|could|can)\s+(?:you|we|i)\b.{0,80}\b(?:polish|improve|change|update|fix|add|remove|cut|drop|simplify|tighten|tweak|refine|rework|redesign|clean|adjust)\b/.test(normalized) ||
+    /\bhow\b.{0,120}\b(?:would|should|could)\s+(?:you|we|i)\b.{0,80}\b(?:polish|improve|change|update|fix|add|remove|cut|drop|simplify|tighten|tweak|refine|rework|redesign|clean|adjust)\b/.test(normalized) ||
+    /\bwhat\b.{0,80}\b(?:one|next|concrete|specific|small|smallest|simple|simpler|thoughtful)\b.{0,80}\b(?:polish|improvement|change|fix|move|step|direction)\b/.test(normalized)
+  );
+}
+
 function isReadoutStatusOrPolishQuestion(normalized: string): boolean {
   return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|status|progress|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized) ||
+    isAdvisoryMutationQuestion(normalized) ||
     /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{2,80})\s+(?:going|coming\s+along|progressing|doing|running|working|queued|done|finished|complete|completed)\b/.test(normalized) ||
     /\b(?:check|verify|show|separate|give\s+me|what(?:'s|\s+is)?)\b.{0,120}\b(?:preview|canvas|board|blocker|evidence|proof|receipt)s?\b/.test(normalized) ||
     /\b(?:preview|canvas|board|blocker|evidence|proof|receipt)s?\b.{0,120}\b(?:evidence|proof|receipt|status|readout|state|summary|blocker)s?\b/.test(normalized) ||

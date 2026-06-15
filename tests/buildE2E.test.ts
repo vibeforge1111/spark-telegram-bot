@@ -154,7 +154,7 @@ function writeSparkAccessShim(input: {
 				`$callsPath = ${psSingleQuoted(input.callsPath)}`,
 				`$statusPath = ${psSingleQuoted(input.statusPath)}`,
 				'Add-Content -LiteralPath $callsPath -Value ($SparkArgs -join " ")',
-				'if ($SparkArgs.Count -ge 3 -and $SparkArgs[0] -eq "access" -and $SparkArgs[1] -eq "status" -and $SparkArgs[2] -eq "--json") {',
+				'if ($SparkArgs.Count -ge 3 -and $SparkArgs[0] -eq "access" -and $SparkArgs[1] -eq "status" -and $SparkArgs[$SparkArgs.Count - 1] -eq "--json") {',
 				'  Get-Content -Raw -LiteralPath $statusPath',
 				'  exit 0',
 				'}',
@@ -176,7 +176,9 @@ function writeSparkAccessShim(input: {
 	const lines = [
 		'#!/bin/sh',
 		`echo "$*" >> "${input.callsPath.replace(/"/g, '\\"')}"`,
-		'if [ "$1" = "access" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then',
+		'last_arg=""',
+		'for arg in "$@"; do last_arg="$arg"; done',
+		'if [ "$1" = "access" ] && [ "$2" = "status" ] && [ "$last_arg" = "--json" ]; then',
 		`  cat "${input.statusPath.replace(/"/g, '\\"')}"`,
 		'  exit 0',
 		'fi',
@@ -1699,7 +1701,8 @@ async function run(): Promise<void> {
 
 	await test('final-answer gate suppresses unsupported edit claims before Telegram delivery', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		const testUserId = 8319079055;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -3574,6 +3577,64 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('current Codex read-only question reports fresh writable workspace evidence', async () => {
+		restoreAxios();
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-readonly-current-'));
+		const binDir = path.join(tempRoot, 'bin');
+		const oldPath = process.env.PATH || '';
+		const statusPath = path.join(tempRoot, 'spark-access-status.json');
+		const callsPath = path.join(tempRoot, 'spark-calls.log');
+		const testUserId = 8319079144;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		mkdirSync(binDir, { recursive: true });
+		writeFileSync(
+			statusPath,
+			JSON.stringify({
+				access_level: 4,
+				effective_access_level: 4,
+				workspace_path: path.join(tempRoot, 'workspace'),
+				workspace_preflight: { writable: true, detail: 'Workspace write/delete preflight passed.' },
+				level5: { activation_state: 'active_for_services', service_enabled: true },
+				state_machine: { requested_access_level: 4, effective_access_level: 4 }
+			})
+		);
+		writeSparkAccessShim({ binDir, callsPath, statusPath });
+		process.env.SPARK_CLI_PATH = path.join(binDir, process.platform === 'win32' ? 'spark.ps1' : 'spark');
+		process.env.PATH = `${binDir}${path.delimiter}${oldPath}`;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		try {
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 6071, replies);
+			ctx.message.text = 'why is the Codex runner read-only here?';
+			const indexModule: any = await import('../src/index');
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /Codex is not read-only here for Spark workspace work/i);
+			assert.match(reply, /Fresh access evidence/i);
+			assert.match(reply, /Runner writable: yes/i);
+			assert.match(reply, /Spark workspace writable: yes/i);
+			assert.doesNotMatch(reply, /Allowed, blocked here/i);
+			assert.doesNotMatch(reply, /Use a writable Spark\/Codex\/Spawner runner/i);
+			assert.equal(captured.length, 0, 'current capability answer must not call Spawner or PRD bridge');
+		} finally {
+			process.env.PATH = oldPath;
+			restoreAxios();
+			restoreEnv();
+			removeTempRoot(tempRoot);
+		}
+	});
+
 	await test('read-only repair follow-up stays in access lane and does not create a mission', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-readonly-repair-route-'));
@@ -4014,6 +4075,138 @@ async function run(): Promise<void> {
 			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, readoutRoute);
 			assert.ok(naturalRouteRecords.some(readoutRoute), 'artifact readout must preserve selected route execution evidence');
 		} finally {
+			indexModule?.__setEvidenceAnswerComposerForTest?.(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('project advisory stays read-only, then natural approval executes the selected iteration route', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079133';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-project-iteration-live-flow-'));
+		process.env.SPARK_HOME = tempRoot;
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const testUserId = 8319079133;
+		const requestId = 'tg-build-live-day-triage-1781560000000';
+		const missionId = 'mission-live-day-triage';
+		const projectDir = path.join(tempRoot, 'workspaces', 'mission-live-day-triage-existing-day-triage-button');
+		const previewUrl = 'http://127.0.0.1:3333/preview/day-triage-button/index.html';
+		mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+		writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'existing-day-triage-button' }, null, 2));
+		writeFileSync(path.join(projectDir, 'README.md'), 'A one-screen local day triage app for choosing the next work block.\n');
+		writeFileSync(path.join(projectDir, 'src', 'main.js'), "const actions = [{ id: 'start', solved: 'Start next block' }];\n");
+
+		const spawnerStateDir = path.join(tempRoot, 'state', 'spawner-ui');
+		mkdirSync(path.join(spawnerStateDir, 'results'), { recursive: true });
+		writeFileSync(path.join(spawnerStateDir, 'pending-request.json'), JSON.stringify({
+			projectName: 'Existing Day Triage Button',
+			requestId,
+			missionId,
+			status: 'processed',
+			buildMode: 'advanced_prd',
+			buildLane: 'advanced_prd',
+			canvasUrl: `/canvas?pipeline=${requestId}&mission=${missionId}`,
+			boardUrl: `/kanban?mission=${missionId}`,
+			updatedAt: '2026-06-15T22:00:00.000Z',
+			relay: { chatId: testUserId, userId: testUserId }
+		}, null, 2));
+		writeFileSync(path.join(spawnerStateDir, 'results', `${requestId}.json`), JSON.stringify({
+			projectName: 'Existing Day Triage Button',
+			projectType: 'tiny local app',
+			tasks: [
+				{ title: 'Keep one screen', description: 'Make the first loop fit one visible screen.' },
+				{ title: 'Choose one next block', description: 'Reduce the output to one suggested block.' }
+			],
+			metadata: {
+				taskQuality: { taskCount: 5, score: 100, weakTaskCount: 0, findingCount: 0 }
+			},
+			success: true
+		}, null, 2));
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+		};
+
+		let indexModule: any;
+		let shippedProjectModule: any;
+		try {
+			const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+			shippedProjectModule = await import('../src/shippedProjectContext');
+			await shippedProjectModule.recordShippedProjectFromMission({
+				chatId: testUserId,
+				userId: testUserId,
+				missionId,
+				requestId,
+				goal: 'Build a tiny local app called Existing Day Triage Button',
+				response: JSON.stringify({
+					project_path: projectDir,
+					preview_url: previewUrl,
+					summary: 'Shipped a one-screen day triage button prototype.'
+				}),
+				projectPath: projectDir,
+				previewUrl
+			});
+
+			indexModule = await import('../src/index');
+			const advisoryReplies: string[] = [];
+			const advisoryCtx = makeFakeCtx(testUserId, testUserId, 91330, advisoryReplies);
+			advisoryCtx.message.text = 'For Existing Day Triage Button, same thing but simpler - what would you change?';
+			await indexModule.handleTextMessage(advisoryCtx);
+
+			assert.equal(captured.length, 0, 'advisory question must not call Spawner or PRD bridge');
+			assert.match(advisoryReplies.join('\n'), /Existing Day Triage Button/i);
+
+			await conversationModule.conversation.rememberAssistantReply(
+				{ id: testUserId, username: 'live-flow-test' },
+				[
+					'Make it one screen with one outcome: choose the next block.',
+					'I would cut it to pick today state, type what is pulling at you, choose one next block, and press Start.',
+					'Remove parking and duration choices until the first loop proves useful.'
+				].join('\n')
+			);
+
+			const followupReplies: string[] = [];
+			const followupCtx = makeFakeCtx(testUserId, testUserId, 91331, followupReplies);
+			followupCtx.message.text = 'ok do it';
+			await indexModule.handleTextMessage(followupCtx);
+
+			const writeCall = captured.find((call) => call.url.includes('/api/prd-bridge/write'));
+			assert.ok(writeCall, 'natural approval after bounded project advice must POST to /api/prd-bridge/write');
+			assert.match(writeCall!.body.projectName, /Existing Day Triage Button polish 2/i);
+			assert.match(writeCall!.body.content, /one screen with one outcome/i);
+			assert.match(writeCall!.body.content, /Target workspace\/project path/i);
+			assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
+			assert.match(followupReplies.join('\n'), /Got it\. I will improve Existing Day Triage Button/i);
+
+			const projectIterationRoute = (record: any) => (
+				record.shadow_route === 'project.iteration' &&
+				record.executed_route === 'project.iteration' &&
+				record.executed_owner === 'spawner-ui' &&
+				record.executed_action === 'spawner.run' &&
+				record.outcome === 'matched'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, projectIterationRoute);
+			const iterationRecord = naturalRouteRecords.find(projectIterationRoute);
+			assert.ok(iterationRecord, 'contextual approval must preserve selected project.iteration execution evidence');
+			assert.equal(iterationRecord?.shadow_context_source, 'visible_exact_artifact');
+		} finally {
+			await shippedProjectModule?.clearShippedProjectContextForTests?.();
 			indexModule?.__setEvidenceAnswerComposerForTest?.(null);
 			rmSync(tempRoot, { recursive: true, force: true });
 			restoreAxios();

@@ -200,6 +200,7 @@ test('detects no-execution boundaries before pending builds can launch', () => {
   assert.equal(isNoExecutionBoundary('not now, maybe later'), true);
   assert.equal(isNoExecutionBoundary('we can discuss here for now'), true);
   assert.equal(isNoExecutionBoundary('go ahead and build it'), false);
+  assert.equal(isNoExecutionBoundary('Make a one-screen tool called Route Boundary Viewer with sample cases and verdict badges.'), false);
 });
 
 test('treats quoted drafted high-agency text as evidence only', () => {
@@ -293,6 +294,23 @@ test('infers Spark bug-recognition mission from recent planning context', () => 
 test('does not infer mission from low-context agreement', () => {
   assert.equal(inferMissionGoalFromRecentContext('yes sounds good', ['nice', 'cool']), null);
   assert.equal(inferMissionGoalFromRecentContext('what happened?', ['new domain chip']), null);
+});
+
+test('does not infer contextual mission from route-policy no-execution context', () => {
+  const mission = inferMissionFromRecentContext('ok do it', [
+    'Assistant: JS Sprint Picker is the current shipped app at C:/Users/USER/.spark/workspaces/mission-test-js-sprint-picker. Current preview: http://127.0.0.1:3333/preview/js-sprint-picker/index.html',
+    'User: We are talking about the word build as a routing bug, not asking you to build.',
+    'Assistant: I would keep this as policy chat and require fresh owner authority before any mission starts.'
+  ]);
+
+  assert.equal(mission, null);
+  assert.equal(
+    inferMissionGoalFromRecentContext('ok do it', [
+      'User: We are talking about the word build as a routing bug, not asking you to build.',
+      'Assistant: I would keep this as policy chat and require fresh owner authority before any mission starts.'
+    ]),
+    null
+  );
 });
 
 test('does not launch a mission from bare agreement after memory dashboard scoping', () => {
@@ -610,6 +628,9 @@ test('turns natural shipped project feedback into an iteration mission', () => {
   assert.equal(isProjectImprovementRequest('make this more Spark colored', project), true);
   assert.equal(isProjectImprovementRequest('what would you polish next in this app?', project), false);
   assert.equal(isProjectImprovementRequest('what changed in Founder Signal Room, and what would you polish next?', project), false);
+  assert.equal(isProjectImprovementRequest('For Founder Signal Room, same thing but simpler - what would you change?', project), false);
+  assert.equal(isProjectImprovementRequest('For Founder Signal Room, how would you simplify it?', project), false);
+  assert.equal(isProjectImprovementRequest('For Founder Signal Room, can you change it to calmer copy?', project), true);
   assert.equal(isExplicitContextualBuildRequest('make this more Spark colored'), false);
 
   const goal = buildProjectImprovementGoal('make this more Spark colored', project, [
@@ -657,6 +678,66 @@ test('turns contextual shipped-project polish follow-through into an iteration m
   assert.match(goal, /User feedback:\nLet's do that\./);
   assert.match(goal, /Polish next: tighten the empty states/);
   assert.match(goal, /Current preview: http:\/\/127\.0\.0\.1:3333\/preview\/evening-reset-board\/index\.html/);
+});
+
+test('keeps rich Telegram readout context available for low-information polish approval', () => {
+  const project = {
+    chatId: '1278511160',
+    userId: '1278511160',
+    projectName: 'Mission 1781548537593 Existing Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781548537593-existing-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781548537593',
+    requestId: 'tg-build-a7ba1a0e5325-1781548537593',
+    iteration: 1,
+    summary: 'Built the Day Triage Button.',
+    shippedAt: '2026-06-15T00:00:00Z',
+    updatedAt: '2026-06-15T00:00:00Z'
+  };
+  const recentContext = [
+    [
+      'Spark: Existing Day Triage Button has a current Spawner result',
+      'What changed',
+      '- It moved from idea to a concrete local app plan.',
+      '- Scope stayed local-only.',
+      'Evidence',
+      '- Preview endpoint returns 200.',
+      '- Canvas page returns 200.',
+      '- Board page returns 200.',
+      '- Result says success true.',
+      '- Plan quality is 100/100.',
+      '- No weak tasks.',
+      '- No findings.',
+      'Blockers',
+      '- No current blocker is visible.',
+      '- Click smoke still needs replay.',
+      'Next',
+      '- Keep the next pass narrow: validate the first repeated user loop, then polish only the friction found there.'
+    ].join('\n'),
+    'User: same thing but simpler - what would you change?',
+    [
+      'Spark: Make it one screen, one tap, one sentence.',
+      '',
+      'I would change it to:',
+      '',
+      '1. Pick state: focused, scattered, tired, overloaded.',
+      '2. Tap one button: Give me the next block.',
+      '3. Show one output: For 25 minutes, do: ___.',
+      '4. Tiny edit field if the suggestion is wrong.',
+      '',
+      'Remove the 3 pulls, remove duration choices, remove parking. Those are useful later, but V1 should prove one thing: can it get you from foggy to started in under 20 seconds?'
+    ].join('\n')
+  ];
+  const advisoryPrompt = 'For Existing Day Triage Button, same thing but simpler - what would you change?';
+
+  assert.equal(isProjectImprovementRequest(advisoryPrompt, project, [recentContext[0]]), false);
+  assert.equal(buildProjectImprovementGoal(advisoryPrompt, project, [recentContext[0]]), null);
+
+  assert.equal(isProjectImprovementRequest('ok do it', project, recentContext), true);
+  const goal = buildProjectImprovementGoal('ok do it', project, recentContext);
+  assert.ok(goal);
+  assert.match(goal, /Improve the existing shipped project "Mission 1781548537593 Existing Day Triage Button"/);
+  assert.match(goal, /Remove the 3 pulls, remove duration choices, remove parking/);
 });
 
 test('keeps low-information follow-through from mixing shipped project identity with another artifact advice', () => {
