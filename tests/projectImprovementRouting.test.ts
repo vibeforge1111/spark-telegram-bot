@@ -49,3 +49,23 @@ test('named polish pass stays attached to the shipped project despite build-inte
   assert.equal(route.payload.projectName, 'Mission Control Reliability Desk');
   assert.equal(route.payload.projectPath, reliabilityDesk.projectPath);
 });
+
+test('fresh product-shaped pronoun request is not stolen by shipped project context', () => {
+  const text = 'Actually make it a tiny calm focus picker: three moods, a short list of suggested tasks, and a 20 minute timer. Keep it local.';
+
+  const buildIntent = parseBuildIntent(text);
+  assert.ok(buildIntent, 'fresh focus picker should still be parseable as a build');
+  assert.equal(buildIntent.projectName, 'Calm Focus Picker');
+  assert.equal(isProjectImprovementRequest(text, reliabilityDesk), false);
+
+  const route = decideNaturalRoute(text, {
+    recentMessages: [
+      "I want to make something for planning my day but I don't really know what it should be yet."
+    ],
+    shippedProject: reliabilityDesk
+  });
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.payload.projectName, 'Calm Focus Picker');
+});

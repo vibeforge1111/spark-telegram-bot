@@ -2487,6 +2487,7 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
   if (isSparkSelfMemoryDiagnosticQuestion(text)) return false;
   const explicitBuild = parseBuildIntent(text);
   if (explicitBuild?.projectPath) return false;
+  if (explicitBuild && isFreshProductTransformationRequest(normalized)) return false;
   if (/^(?:where|what|which|show|send|give)\b.*\b(?:link|localhost|preview|url|board|canvas|kanban)\b/.test(normalized)) {
     return false;
   }
@@ -2499,6 +2500,10 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
 
   const pointsAtCurrentProject = /\b(?:this|that|it|app|site|page|screen|project|build|product|dashboard|tool|prototype|design|layout|colors?|colours?|palette|theme|spacing|copy|text|button|flow|workflow|mobile|responsive|spark)\b/.test(normalized);
   return pointsAtCurrentProject;
+}
+
+function isFreshProductTransformationRequest(normalized: string): boolean {
+  return /\b(?:make|turn|change)\s+(?:it|this|that)\s+(?:into|as|to\s+be|become)?\s*(?:a|an|the)\s+(?:tiny|small|simple|calm|quick|local|private|polished|new|fresh|minimal|single[-\s]*page|local[-\s]*first|\w+[-\s]+){0,10}(?:app|application|dashboard|tool|game|planner|picker|tracker|timer|clock|site|website|page|board)\b/.test(normalized);
 }
 
 export function buildProjectImprovementGoal(

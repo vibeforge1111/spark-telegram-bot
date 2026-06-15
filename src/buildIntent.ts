@@ -148,7 +148,7 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|timer|clock|site|website|page|board|pad)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|picker|timer|clock|site|website|page|board|pad)';
   const patterns = [
     new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
     new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
@@ -748,7 +748,7 @@ function isAmbiguousContextualBuildRequest(text: string, projectPath: string | n
   }
   const concreteStandaloneBrief =
     prd.length >= 80 &&
-    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|manager|workspace|board)\b/i.test(prd.trim());
+    /^(?:a\s+|an\s+|the\s+)?(?:narrow\s+|private\s+|local-first\s+|tiny\s+|simple\s+|internal\s+|real\s+|polished\s+|full\s+)*(?:tool|app|application|dashboard|website|site|landing\s+page|page|game|panel|portal|viewer|tracker|planner|picker|manager|workspace|board)\b/i.test(prd.trim());
   const namedProductPhrase = inferProductPhraseProjectName(prd) !== null;
   if (concreteStandaloneBrief || namedProductPhrase) {
     return false;
@@ -933,7 +933,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
 
   const pathEvidence = extractPathEvidence(original);
   const projectPath = pathEvidence.projectPath;
-  const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(stripped.trim()));
+  const strippedDescription = stripped
+    .trim()
+    .replace(/^(?:it|this|that)\s+(?=(?:a|an|the)\s+)/i, '');
+  const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(strippedDescription));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;
   if (isAllocationStrategyQuestion(`${trimmed} ${prd}`)) return null;
