@@ -334,6 +334,9 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
   assert.equal(parseBuildIntent('Before the startup operator can build, what would a reliable agent harness check?'), null);
+  assert.equal(parseBuildIntent("I want to make something for planning my day but I don't really know what it should be yet."), null);
+  assert.equal(parseBuildIntent("Let's build something for my evenings, but I'm not sure what it should be yet."), null);
+  assert.equal(parseBuildIntent("Can we create something for studying, but I'm not sure what exactly yet?"), null);
   assert.equal(
     parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null
@@ -351,6 +354,7 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.ok(parseBuildIntent('Build a Spark memory dashboard.'));
   assert.ok(parseBuildIntent('Build a tool for Spark users to manage reminders.'));
   assert.ok(parseBuildIntent('Build an NFT launch planner app with sections for hype ideas and token sale timing.'));
+  assert.ok(parseBuildIntent('Build something simple: a 20 minute timer with start, pause, and reset.'));
 });
 
 test('does not treat philosophical questions with modal verbs as build intent', () => {

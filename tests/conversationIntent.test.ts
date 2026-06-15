@@ -125,6 +125,14 @@ test('routes collaborative mission wording to conversation instead of command he
     shouldPreferConversationalIdeation('how do we make setup automatic without making the bot run a command instantly?'),
     true
   );
+  assert.equal(
+    shouldPreferConversationalIdeation("I want to make something for planning my day but I don't really know what it should be yet."),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation("Can we create something for studying, but I'm not sure what exactly yet?"),
+    true
+  );
 });
 
 test('keeps explicit build specs on the build path', () => {

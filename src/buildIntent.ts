@@ -542,6 +542,19 @@ function isPreBuildShapingRequest(text: string): boolean {
   );
 }
 
+function isOpenEndedBuildExplorationRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const wantsSomeArtifact =
+    /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized) ||
+    /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized);
+  if (!wantsSomeArtifact) return false;
+  return (
+    /\b(?:do\s+not|don't|dont)\s+(?:really\s+)?know\s+(?:exactly\s+)?(?:what|which|how)\b.{0,100}\b(?:it|this|that|thing|project|app|tool)?\s*(?:should\s+be|to\s+(?:build|make|create)|yet)\b/.test(normalized) ||
+    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|exactly|yet|should\s+be|to\s+(?:build|make|create))\b/.test(normalized)
+  );
+}
+
 function isBuildRouteMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (
@@ -919,6 +932,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
+  if (isOpenEndedBuildExplorationRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;
   if (isAllocationStrategyQuestion(trimmed)) return null;
   if (isRecursiveInsightPacketRequest(trimmed)) return null;

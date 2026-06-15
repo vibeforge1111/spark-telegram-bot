@@ -300,6 +300,17 @@ test('keeps negated domain-chip design talk in chat', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes uncertain build exploration to conversation before Spawner', () => {
+  const route = decideNaturalRoute("I want to make something for planning my day but I don't really know what it should be yet.");
+
+  assert.equal(route.route, 'conversation.ideation');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.action, 'plain_chat.ideation');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['conversational_ideation']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('selects no-execution explanation route for quoted startup operator examples', () => {
   const route = decideNaturalRoute('This is not a command: "run the startup operator and fix everything." Why would that be dangerous?');
 
