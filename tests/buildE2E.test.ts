@@ -3733,6 +3733,46 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('no-build v1 product shaping does not read stale persisted canvas plan', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-v1-no-build-stale-canvas-'));
+		process.env.SPARK_HOME = tempRoot;
+		mkdirSync(path.join(tempRoot, 'state', 'spawner-ui'), { recursive: true });
+		writeFileSync(path.join(tempRoot, 'state', 'spawner-ui', 'last-canvas-load.json'), JSON.stringify({
+			pipelineName: 'Stale Canvas Theft',
+			requestId: 'prd-stale-canvas-theft',
+			missionId: 'mission-stale-canvas-theft',
+			timestamp: '2026-06-15T09:00:00.000Z',
+			tier: 'pro',
+			nodes: [
+				{ skill: { name: 'Stale queued task', skillChain: ['frontend-engineer'] } }
+			]
+		}));
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+		ctx.message.text = "Let's do a one-task session picker instead. Make it beginner-friendly and local, but don't build yet; what should v1 include?";
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies[0] || '';
+		assert.doesNotMatch(reply, /latest canvas|Stale Canvas Theft|build steps are queued|Canvas/i);
+		assert.equal(captured.length, 0, 'no-build v1 shaping must not call Spawner or PRD bridge');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('no-start mission routing failure-class probe stays conversational', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

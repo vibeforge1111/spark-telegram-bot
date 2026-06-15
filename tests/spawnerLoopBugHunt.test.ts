@@ -487,6 +487,10 @@ test('bug hunt: casual next-step questions do not recall stale canvas plans', ()
     true
   );
   assert.equal(
+    isLatestCanvasPlanQuestion("Let's do a one-task session picker instead. Make it beginner-friendly and local, but don't build yet; what should v1 include?"),
+    false
+  );
+  assert.equal(
     isLatestCanvasPlanQuestion('Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.'),
     false
   );

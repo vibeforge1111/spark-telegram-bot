@@ -7202,9 +7202,14 @@ export function isLatestCanvasPlanQuestion(text: string): boolean {
   const asksPlanDetails = /\b(?:what|which|show|list|tell me|give me)\b/.test(normalized)
     || /\bfull plan\b/.test(normalized);
   const asksTasksOrSkills = /\b(?:tasks?|steps?|skills?|paired skills?|queued|plan)\b/.test(normalized);
-  const anchoredToRecentCanvas = /\b(?:canvas|mission|build|project|latest|last|queued|full plan)\b/.test(normalized)
-    || /\b(?:that|it)\s+(?:canvas|mission|build|project|plan|queue|queued)\b/.test(normalized);
-  return asksPlanDetails && asksTasksOrSkills && anchoredToRecentCanvas;
+  const explicitCanvasReadback =
+    /\b(?:latest|last|recent|current)\b.{0,80}\b(?:canvas|mission|build|project|plan|tasks?|steps?|skills?|queue|queued)\b/.test(normalized) ||
+    /\b(?:canvas|mission)\b.{0,80}\b(?:plan|tasks?|steps?|skills?|queue|queued)\b/.test(normalized) ||
+    /\b(?:show|list|tell me|give me)\b.{0,80}\b(?:canvas|mission|build|project)\b.{0,80}\b(?:plan|tasks?|steps?|skills?|queue|queued)\b/.test(normalized) ||
+    /\b(?:tasks?|steps?|skills?)\b.{0,80}\b(?:for|in|on)\s+(?:the\s+)?(?:latest|last|recent|current|canvas|mission|build|project)\b/.test(normalized) ||
+    /\b(?:that|it)\s+(?:canvas|mission|build|project|plan|queue|queued)\b/.test(normalized) ||
+    /\bfull plan\b/.test(normalized);
+  return asksPlanDetails && asksTasksOrSkills && explicitCanvasReadback;
 }
 
 export function formatLatestCanvasPlanReply(plan: LatestCanvasPlan): string {
