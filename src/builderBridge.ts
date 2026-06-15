@@ -4,6 +4,7 @@ import { constants as fsConstants, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { sanitizeBuilderChildProcessEnv } from './builderChildProcessEnv';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 import { resolvePythonCommand } from './pythonCommand';
 import { redactText } from './redaction';
@@ -309,18 +310,15 @@ async function resolveDiagnosticsBridgeConfig(config: BuilderBridgeConfig): Prom
 function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   const sourcePath = path.join(config.builderRepo, 'src');
   const existingPythonPath = process.env.PYTHONPATH || '';
-  const env: NodeJS.ProcessEnv = {
+  const env = sanitizeBuilderChildProcessEnv({
     ...process.env,
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
-  };
+  });
   mergeEnvFile(env, path.join(config.builderHome, '.env'));
-  const profileBotToken = process.env.BOT_TOKEN?.trim();
-  if (profileBotToken) {
-    // Telegram file IDs are bot-scoped, so Builder must use the active runner profile token.
-    env.TELEGRAM_BOT_TOKEN = profileBotToken;
-  }
-  return env;
+  return sanitizeBuilderChildProcessEnv(env);
 }
+
+export { sanitizeBuilderChildProcessEnv } from './builderChildProcessEnv';
 
 function mergeEnvFile(env: NodeJS.ProcessEnv, envPath: string): void {
   let text = '';
