@@ -37,8 +37,9 @@ function normalizePathForPlatform(value: string): string {
 
 function workspaceRootsFor(candidate: string): string[] {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
-  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
-  return [defaultWorkspaceRoot()];
+  if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop', 'C:\\Users\\USER\\.spark\\workspaces'];
+  const home = process.env.HOME || '/root';
+  return [defaultWorkspaceRoot(), `${home.replace(/[\\/]$/, '')}/.spark/workspaces`];
 }
 
 function isInsideWorkspace(candidate: string): boolean {
@@ -326,7 +327,7 @@ function projectNameFromPathSegment(pathName: string): string {
 
 function cleanExtractedPath(value: string): string {
   const sentenceBoundary = value.search(
-    /\.(?:\s+)(?=(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b)/i
+    /\.(?:\s+)(?=(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also|Keep|Add|Preserve)\b)/i
   );
   const bounded = sentenceBoundary >= 0 ? value.slice(0, sentenceBoundary) : value;
   return normalizePathForPlatform(
@@ -339,7 +340,7 @@ function cleanExtractedPath(value: string): string {
 
 function extractPathCandidate(text: string): string | null {
   const atMatch = text.match(
-    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also)\b|\s+Files?\b)/i
+    /(?:at|in|into)\s+((?:[A-Z]:[\\/]|\/).+?)(?=$|\r?\n|:\s|[,;]\s|\.\s+(?:Create|Include|Do|Only|Files?|Use|No|Make|Build|Then|Also|Keep|Add|Preserve)\b|\s+Files?\b)/i
   );
   return atMatch ? cleanExtractedPath(atMatch[1]) : null;
 }
@@ -377,6 +378,7 @@ function extractPathEvidence(text: string): {
 
 function removeLeadingPathPrefix(text: string): string {
   return text
+    .replace(/^(?:existing\s+)?(?:local\s+)?(?:spawner\s+)?project\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/).+?\.\s+/i, '')
     .replace(/^(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, '')
     .replace(/\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)[^\n]*?:\s*/i, ' ')
     .trim();
@@ -522,6 +524,13 @@ function isBuildContextRecallProbe(text: string): boolean {
   );
 }
 
+function isExplicitMemoryDirectiveText(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return /^(?:spark,\s*)?(?:please\s+)?(?:memory\s+update|memory\s*:|remember\s+that|save\s+this|save\s+this\s+exact|save\s+this\s+kb\s+note|save\s+this\s+exact\s+kb\s+note|note\s+this)\b/.test(normalized) ||
+    /\bplease\s+save\s+this\b/.test(normalized) ||
+    /\bsave\s+this\s+as\s+my\s+current\s+plan\b/.test(normalized);
+}
+
 function isPreBuildShapingRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return (
@@ -535,6 +544,11 @@ function isPreBuildShapingRequest(text: string): boolean {
 
 function isBuildRouteMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (
+    /\b(?:improve|polish|update|fix|adjust|tweak|refine|rework|redesign)\b.{0,80}\b(?:existing\s+)?(?:local\s+)?(?:spawner\s+)?project\b.{0,80}\b(?:at|in|into)\s+(?:[a-z]:[\\/]|\/)/i.test(normalized)
+  ) {
+    return false;
+  }
   if (
     /\b(?:what|which|anything|something|thing|else|other|first\s+major\s+focus)\b.*\b(?:healthy|useful|good|better|worth|nice)?\s*(?:to\s+)?build(?:ing)?\b/.test(normalized) &&
     /\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized)
@@ -666,9 +680,9 @@ function isNoExecutionBoundary(text: string): boolean {
     // pause/cancel/stop are decline verbs only when they appear as command-like
     // clauses, not as product copy ("shows the text pause route proof passed").
     /(?:^|[.!?]\s+|,\s+)(?:actually[, ]+|please[, ]+|just\s+)?(?:pause|cancel|stop)\b(?!\s*(?:[,/&]\s*)?(?:(?:and|or)\s+)?(?:reset|resume|restart|start|play|buttons?|controls?|keys?|toggles?|icons?|timers?)\b)/,
-    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
-    /\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
-    /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|make|create|ship|scaffold|generate|develop)\b/,
+    /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop|improve|polish|update|fix|adjust|tweak|refine|rework|redesign|start|run|launch|execute)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
+    /\b(?:build|make|create|ship|scaffold|generate|develop|improve|polish|update|fix|adjust|tweak|refine|rework|redesign|start|run|launch|execute)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
+    /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|make|create|ship|scaffold|generate|develop|improve|polish|update|fix|adjust|tweak|refine|rework|redesign|start|run|launch|execute)\b/,
     /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));
@@ -833,9 +847,11 @@ function isAbstractPlanningStructureRequest(prd: string): boolean {
   return startsAbstract && !concreteArtifact;
 }
 
+const BUILD_MUTATION_VERBS = 'build|make|create|ship|scaffold|generate|develop|improve|polish|update|fix|adjust|tweak|refine|rework|redesign';
+
 function extractBuildDescription(text: string): string | null {
   const command = text.match(
-    /^\s*(?:(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+|can\s+(?:you|we)\s+|could\s+(?:you|we)\s+|let'?s\s+|let\s+us\s+|please\s+)?\/?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+    new RegExp(`^\\s*(?:(?:i|we)\\s+(?:want|need|would\\s+like|would\\s+love)\\s+to\\s+|can\\s+(?:you|we)\\s+|could\\s+(?:you|we)\\s+|let'?s\\s+|let\\s+us\\s+|please\\s+)?\\/?(?:${BUILD_MUTATION_VERBS})\\b\\s*(?:(?:right\\s+now|now)\\s+)?(?:me\\s+|us\\s+)?(?:(?:a|an|the|this|existing)\\s+|new\\s+project\\s+)?`, 'i')
   );
   if (command) {
     const description = text.slice(command[0].length);
@@ -852,12 +868,13 @@ function extractBuildDescription(text: string): string | null {
   }
 
   const inlineCommand = text.match(
-    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+    new RegExp(`\\b(?:and\\s+|then\\s+|also\\s+)?(?:${BUILD_MUTATION_VERBS})\\b\\s*(?:(?:right\\s+now|now)\\s+)?(?:me\\s+|us\\s+)?(?:(?:a|an|the|this|existing)\\s+|new\\s+project\\s+)?`, 'i')
   );
   if (inlineCommand?.index !== undefined) {
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
     if (
       /\b(?:whether|should\s+we|think\s+through|help\s+me\s+think|before\s+we)\b/.test(prefix) ||
+      (/\bwhat\s+(?:do|does|would|should|could|can)\s+(?:you|we|spark|agent)\b/.test(prefix) && /\b(?:improve|polish|update|fix|adjust|tweak|refine|rework|redesign)\b/i.test(inlineCommand[0])) ||
       /\bhow\s+(?:should|would|could|can)\b/.test(prefix) ||
       /\b(?:words?|keywords?|terms?|phrases?)\s+(?:like|such\s+as)\b/.test(prefix) ||
       /\b(?:mentioning|saying|using|writing|typing)\b/.test(prefix) ||
@@ -881,10 +898,10 @@ function extractBuildDescription(text: string): string | null {
   }
 
   const lineCommand = text.match(
-    /(?:^|\n)\s*(?:build|make|create|ship|scaffold|generate|develop)\s+(?:this|it)\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i
+    new RegExp(`(?:^|\\n)\\s*(?:${BUILD_MUTATION_VERBS})\\s+(?:this|it|the\\s+existing\\s+project|existing\\s+project)\\s+(?:at|in|into)\\s+(?:[A-Z]:[\\\\/]|\\/)`, 'i')
   );
   if (lineCommand?.index !== undefined) {
-    return text.slice(lineCommand.index).replace(/^\s*(?:build|make|create|ship|scaffold|generate|develop)\s+/i, '');
+    return text.slice(lineCommand.index).replace(new RegExp(`^\\s*(?:${BUILD_MUTATION_VERBS})\\s+`, 'i'), '');
   }
 
   return null;
@@ -894,6 +911,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const original = text.trim().replace(/[‘’]/g, "'");
   if (isExactReplyNoFileProbe(original)) return null;
   if (isFilesystemOperationProbe(original)) return null;
+  if (isExplicitMemoryDirectiveText(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
   if (isBuildRouteMetaDiscussion(original)) return null;
   const trimmed = normalizeBuildCommandText(original);

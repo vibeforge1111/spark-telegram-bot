@@ -215,6 +215,74 @@ test('authorizes live Spawner build briefs without granting incidental health or
   }
 });
 
+test('allows Telegram Spawner build with scoped publish ban while blocking publish tools', () => {
+  const prompt = 'Use direct build mode. Build a tiny static local-only Spawner Telegram QA card called Telegram Spawner Smoke 0615. Create index.html, styles.css, app.js, and README.md. The page should have a button that toggles proof details. Do not publish, deploy, call external services, delete files, or modify anything outside the Spawner project workspace. This is an explicit requested Spawner build.';
+  const envelope = envelopeFor(prompt);
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'build_or_spawner');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.noPublish, true);
+  assert.equal(envelope.directive.localOnly, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.executionPolicy.canPublish, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'));
+  assert.ok(envelope.toolPolicy.deniedTools.includes('publish.run'));
+
+  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const publishAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'publish.run',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'publishes',
+    publishes: true
+  });
+  assert.equal(publishAuthorization.verdict, 'blocked');
+  assert.ok(publishAuthorization.reasonCodes.includes('no_publish_boundary'));
+  assert.ok(publishAuthorization.reasonCodes.includes('tool_denied_by_policy'));
+  assert.ok(publishAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
+test('allows existing Spark workspace improvement while preserving scoped no-publish and no-network bans', () => {
+  const prompt = 'Improve the existing local Spawner project at C:\\Users\\USER\\.spark\\workspaces\\mission-1781509664295-telegram-spawner-star-catch-0615e. Keep it local-only. Add a difficulty selector with Easy, Normal, and Hard modes; add a high score saved in localStorage; add a visible combo streak indicator; and add simple on-screen left/right controls so the game works better in browser automation and on touch devices. Preserve the existing Star Catch game, README, and QA proof panel. Do not publish, deploy, call external services, delete files, or modify anything outside that project workspace. This is an explicit requested improvement to the existing Spawner build.';
+  const envelope = envelopeFor(prompt);
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'build_or_spawner');
+  assert.equal(envelope.selectedIntent.ownerSystem, 'spawner-ui');
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.directive.noPublish, true);
+  assert.equal(envelope.directive.localOnly, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.executionPolicy.canPublish, false);
+  assert.equal(envelope.executionPolicy.canUseExternalNetwork, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.run'));
+
+  const spawnerAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.deepEqual(spawnerAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const externalAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'external.fetch',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+  assert.equal(externalAuthorization.verdict, 'blocked');
+  assert.ok(externalAuthorization.reasonCodes.includes('external_network_not_authorized'));
+});
+
 test('blocks read-only relay proof pad status wording from launching Spawner', () => {
   const envelope = envelopeFor('Show the latest Harness Core authority gate, Spawner trace readback, and Telegram final handoff status for the relay proof pad. Do not build anything.');
 

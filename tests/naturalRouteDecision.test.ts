@@ -357,6 +357,31 @@ test('selects publication approval boundary route for future publish approval li
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes explicit local Spawner builds with publish ban as builds, not approval chat', () => {
+  const route = decideNaturalRoute('Use direct build mode. Build a tiny static local-only Spawner Telegram QA card called Telegram Spawner Smoke 0615. Create index.html, styles.css, app.js, and README.md. The page should have a button that toggles proof details. Do not publish, deploy, call external services, delete files, or modify anything outside the Spawner project workspace. This is an explicit requested Spawner build.');
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.action, 'spawner.build');
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('routes explicit existing Spark workspace improvements through Spawner', () => {
+  const route = decideNaturalRoute(
+    'Improve the existing local Spawner project at C:\\Users\\USER\\.spark\\workspaces\\mission-1781509664295-telegram-spawner-star-catch-0615e. Keep it local-only. Add a difficulty selector with Easy, Normal, and Hard modes; add a high score saved in localStorage; add a visible combo streak indicator; and add simple on-screen left/right controls so the game works better in browser automation and on touch devices. Preserve the existing Star Catch game, README, and QA proof panel. Do not publish, deploy, call external services, delete files, or modify anything outside that project workspace. This is an explicit requested improvement to the existing Spawner build.'
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.action, 'spawner.build');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.payload.hasProjectPath, true);
+  assert.equal(route.payload.projectPathEvidenceOnly, false);
+  assert.deepEqual(route.matched_signals, ['build_intent']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('selects browser/computer-use authorization boundary before doctrine preference', () => {
   const route = decideNaturalRoute('Do not use computer use. Tell me when computer use would be allowed.');
 

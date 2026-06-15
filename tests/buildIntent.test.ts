@@ -180,6 +180,24 @@ test('ignores paths outside the configured workspace root', () => {
   assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
 });
 
+test('parses existing Spark workspace improvement requests as local project mutations', () => {
+  const intent = parseBuildIntent(
+    'Improve the existing local Spawner project at C:\\Users\\USER\\.spark\\workspaces\\mission-1781509664295-telegram-spawner-star-catch-0615e. Keep it local-only. Add a difficulty selector with Easy, Normal, and Hard modes; add a high score saved in localStorage; add a visible combo streak indicator; and add simple on-screen left/right controls so the game works better in browser automation and on touch devices. Preserve the existing Star Catch game, README, and QA proof panel. Do not publish, deploy, call external services, delete files, or modify anything outside that project workspace. This is an explicit requested improvement to the existing Spawner build.'
+  );
+
+  assert.ok(intent);
+  assert.equal(
+    intent.projectPath,
+    'C:\\Users\\USER\\.spark\\workspaces\\mission-1781509664295-telegram-spawner-star-catch-0615e'
+  );
+  assert.equal(intent.requestedProjectPath, intent.projectPath);
+  assert.equal(intent.projectPathEvidenceOnly, false);
+  assert.equal(intent.projectPathRejectedReason, null);
+  assert.equal(intent.projectName, 'Telegram Spawner Star Catch 0615e');
+  assert.match(intent.prd, /difficulty selector/);
+  assert.doesNotMatch(intent.prd, /^at C:\\Users\\USER\\.spark\\workspaces/);
+});
+
 test('parses Ubuntu target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
   process.env.SPARK_PROJECT_ROOT = '/root';
@@ -283,6 +301,10 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('make my Spark read my emails as a new capability'), null);
   assert.equal(parseBuildIntent('make your brain handle my workflow differently'), null);
   assert.equal(parseBuildIntent('make daily reports of my memories work differently'), null);
+  assert.equal(
+    parseBuildIntent('Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'),
+    null
+  );
   assert.equal(parseBuildIntent("Okay let's build this for you, Spark: a way to read my emails and summarize them."), null);
   assert.equal(parseBuildIntent("Let's build you an email reader so you can summarize my inbox."), null);
   assert.equal(parseBuildIntent('Create a capability for Spark to read my calendar.'), null);
