@@ -4021,6 +4021,118 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('Spawner failure-provider readout ignores stale current artifact context', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-spawner-failed-provider-readout-'));
+		process.env.SPARK_HOME = tempRoot;
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+		delete process.env.SPARK_NATURAL_ROUTE_LEDGER;
+
+		const spawnerStateDir = path.join(tempRoot, 'state', 'spawner-ui');
+		const requestId = 'prd-stale-artifact-1781549000001';
+		const missionId = 'mission-stale-artifact';
+		mkdirSync(path.join(spawnerStateDir, 'results'), { recursive: true });
+		writeFileSync(path.join(spawnerStateDir, 'pending-request.json'), JSON.stringify({
+			projectName: 'Day Triage Button',
+			requestId,
+			missionId,
+			status: 'processed',
+			buildMode: 'advanced_prd',
+			buildLane: 'advanced_prd',
+			canvasUrl: `/canvas?pipeline=${requestId}&mission=${missionId}`,
+			boardUrl: `/kanban?mission=${missionId}`,
+			updatedAt: '2026-06-15T18:30:00.000Z',
+			relay: { chatId: 8319079055, userId: 8319079055 }
+		}, null, 2));
+		writeFileSync(path.join(spawnerStateDir, 'results', `${requestId}.json`), JSON.stringify({
+			projectName: 'Day Triage Button',
+			tasks: [{ title: 'Old artifact task' }],
+			success: true
+		}, null, 2));
+
+		const capturedGets: string[] = [];
+		const capturedPosts: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			capturedPosts.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async (url: string) => {
+			capturedGets.push(url);
+			if (url.includes('/api/mission-control/board')) {
+				return {
+					data: {
+						board: {
+							running: [],
+							paused: [],
+							completed: [],
+							failed: [
+								{
+									missionId: 'mission-recent-provider-failure',
+									missionName: 'Recent Provider Failure',
+									status: 'failed',
+									lastUpdated: '2026-06-15T19:05:00.000Z',
+									providerSummary: 'codex: failed',
+									providerResults: [{ providerId: 'codex', summary: 'Codex reported an unknown error.' }]
+								}
+							],
+							cancelled: [],
+							created: []
+						}
+					}
+				};
+			}
+			return { data: { providers: [{ id: 'codex' }] } };
+		};
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 6092, replies);
+		ctx.message.text = 'What failed recently in Spawner, which provider handled it, and what should I retry or ignore?';
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleTextMessage(ctx);
+
+		const reply = replies.join('\n');
+		assert.ok(capturedGets.some((url) => url.includes('/api/mission-control/board')), 'failure-provider readout must call the Spawner board endpoint');
+		assert.equal(capturedPosts.length, 0, 'failure-provider readout must not launch or write through Spawner');
+		assert.match(reply, /latest failed Spawner job reached Codex, then failed/i);
+		assert.match(reply, /Next: inspect the board trace before retrying/i);
+		assert.match(reply, /mission-recent-provider-failure/i);
+		assert.doesNotMatch(reply, /Day Triage Button has a current Spawner result/i);
+		assert.doesNotMatch(reply, /What changed/i);
+
+		const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+		assert.ok(
+			ledgerRecords.some((record) => (
+				record.tool_name === 'spawner.board' &&
+				record.authorization.verdict === 'allow' &&
+				record.result.status === 'success' &&
+				/Natural Spawner board latest_failed_provider read completed/.test(record.result.summary)
+			)),
+			'failure-provider readout must record a successful Harness Core board read'
+		);
+		const failedProviderRoute = (record: any) => (
+			record.shadow_route === 'spawner.board/latest_failed_provider' &&
+			record.executed_route === 'spawner.board/latest_failed_provider' &&
+			record.executed_action === 'spawner.board_read' &&
+			record.outcome === 'matched' &&
+			record.delivery === 'selected'
+		);
+		const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, failedProviderRoute);
+		assert.ok(naturalRouteRecords.some(failedProviderRoute), 'failure-provider readout must preserve selected route execution evidence');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('no-start mission routing failure-class probe stays conversational', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

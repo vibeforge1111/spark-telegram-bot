@@ -794,6 +794,20 @@ test('does not let current Spawner artifact hijack a differently named shipped-p
   assert.equal(route.payload.artifactKind, undefined);
 });
 
+test('routes Spawner failure-provider readouts ahead of current artifact residue', () => {
+  const route = decideNaturalRoute(
+    'What failed recently in Spawner, which provider handled it, and what should I retry or ignore?',
+    { spawnerArtifact: spawnerArtifact() }
+  );
+
+  assert.equal(route.route, 'spawner.board/latest_failed_provider');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.action, 'spawner.board_read');
+  assert.deepEqual(route.payload, { intent: 'latest_failed_provider' });
+  assert.equal(route.context_source, 'latest_message');
+  assert.notEqual(route.route, 'project.readout');
+});
+
 test('ignores conversational residue words in current Spawner artifact titles', () => {
   const route = decideNaturalRoute('What changed in Evening Reset Board, and what would you polish next?', {
     shippedProject: {

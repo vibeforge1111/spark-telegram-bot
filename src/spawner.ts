@@ -606,6 +606,13 @@ function providerSummarySentence(provider: string | null, status: string, subjec
   return `${provider} is attached to the ${subject}.`;
 }
 
+function failedProviderReadoutNextStep(provider: string | null): string {
+  if (provider) {
+    return 'Next: inspect the board trace before retrying; ignore cached success or artifact readouts until this failure is resolved.';
+  }
+  return 'Next: inspect the board trace before retrying; ignore cached artifact readouts because no provider handoff is visible yet.';
+}
+
 function formatLatestProviderTelegramSummary(entry: BoardEntry, opts: { subject?: string; boardOnly?: boolean } = {}): string {
   const provider = providerNames(entry);
   const status = statusWord(entry.status);
@@ -618,6 +625,9 @@ function formatLatestProviderTelegramSummary(entry: BoardEntry, opts: { subject?
     ];
 
     if (needsInspectionLink) {
+      if (entry.status === 'failed') {
+        lines.push('', failedProviderReadoutNextStep(null));
+      }
       lines.push('', opts.boardOnly ? `Board: ${missionScopedBoardUrl(entry.missionId)}` : missionInspectionLines(entry.missionId).join('\n'));
     }
 
@@ -631,7 +641,7 @@ function formatLatestProviderTelegramSummary(entry: BoardEntry, opts: { subject?
   if (entry.status === 'failed') {
     lines.push(
       '',
-      'The board has the failure details if you want the trace.'
+      failedProviderReadoutNextStep(provider)
     );
   }
 

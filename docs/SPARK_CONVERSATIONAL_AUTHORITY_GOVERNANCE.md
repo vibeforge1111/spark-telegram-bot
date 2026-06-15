@@ -113,6 +113,7 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 - Contextual follow-through can act only when hot recent turns or visible exact artifacts make the target unambiguous.
 - Bare agreement cannot create mutation authority from stale or mismatched context.
 - Current Spawner artifacts cannot steal named readouts for a different shipped project.
+- Current Spawner artifacts cannot steal explicit Spawner board, failure, provider, mission, or Kanban readouts; those routes are read-only `spawner-ui` owner evidence.
 - Shipped-project readouts and advisory polish questions are answer/readout routes until the user explicitly says to apply, build, run, or change.
 
 ## Ban List

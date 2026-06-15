@@ -139,6 +139,22 @@ function noRoute(text: string, blockedBy: string[] = ['no_matching_route']): Nat
   });
 }
 
+function spawnerBoardNaturalRouteDecision(
+  spawnerBoard: NonNullable<ReturnType<typeof parseSpawnerBoardNaturalIntent>>
+): NaturalRouteDecision {
+  return decision({
+    route: spawnerBoard === 'board' ? 'spawner.board' : `spawner.board/${spawnerBoard}`,
+    owner_system: 'spawner-ui',
+    confidence: spawnerBoard === 'latest_project_preview' ? 'contextual' : 'explicit',
+    action: 'spawner.board_read',
+    payload: { intent: spawnerBoard },
+    context_source: spawnerBoard === 'latest_project_preview' ? 'visible_exact_artifact' : 'latest_message',
+    matched_signals: ['spawner_board_natural_intent'],
+    blocked_by: [],
+    requires_confirmation: false
+  });
+}
+
 function hasRecentContext(context: NaturalRouteDecisionContext): boolean {
   return Boolean(context.recentMessages?.some((message) => message.trim()));
 }
@@ -690,6 +706,11 @@ export function decideNaturalRoute(
     });
   }
 
+  const spawnerBoard = parseSpawnerBoardNaturalIntent(normalized);
+  if (spawnerBoard && spawnerBoard !== 'latest_project_preview') {
+    return spawnerBoardNaturalRouteDecision(spawnerBoard);
+  }
+
   if (isCurrentSpawnerArtifactReadoutQuestion(normalized, context.spawnerArtifact)) {
     return decision({
       route: 'project.readout',
@@ -1136,19 +1157,8 @@ export function decideNaturalRoute(
     });
   }
 
-  const spawnerBoard = parseSpawnerBoardNaturalIntent(normalized);
   if (spawnerBoard) {
-    return decision({
-      route: spawnerBoard === 'board' ? 'spawner.board' : `spawner.board/${spawnerBoard}`,
-      owner_system: 'spawner-ui',
-      confidence: spawnerBoard === 'latest_project_preview' ? 'contextual' : 'explicit',
-      action: 'spawner.board_read',
-      payload: { intent: spawnerBoard },
-      context_source: spawnerBoard === 'latest_project_preview' ? 'visible_exact_artifact' : 'latest_message',
-      matched_signals: ['spawner_board_natural_intent'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
+    return spawnerBoardNaturalRouteDecision(spawnerBoard);
   }
 
   if (isAmbiguousLocalSparkServiceRequest(normalized, context.localSparkContext || '')) {

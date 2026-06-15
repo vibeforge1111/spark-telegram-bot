@@ -79,6 +79,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - The action gate can be deterministic; the user-facing sentence should stay natural and context-aware.
 - Explicit no-execution constraints beat action keywords.
 - Readout, status, "what changed?", and advisory polish questions are answer/readout routes unless the fresh user turn explicitly asks to apply, build, run, or change something.
+- Explicit Spawner board, failure, provider, mission, or Kanban readouts are owned by `spawner-ui` board evidence and must outrank stale current-artifact readout residue.
 - Readout validators must reject title-only, repeated-heading, raw-schema, or evidence-light generated answers and fall back to owner-evidence summaries rather than delivering low-information text.
 - Bare `go` only applies to an active pending action and must not resurrect stale clarifications.
 - Global Spark behavior changes become proposals, not silent mutations.
