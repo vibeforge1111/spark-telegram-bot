@@ -4,7 +4,7 @@ import path from 'node:path';
 
 export function quoteWindowsArg(value: string): string {
   if (/^[A-Za-z0-9._:/\\@+=,-]+$/.test(value)) return value;
-  return `"${value.replace(/"/g, '\\"')}"`;
+  return `"${value.replace(/"/g, '^"')}"`;
 }
 
 export function withHiddenWindows<T extends object>(options: T): T & { windowsHide: true } {
