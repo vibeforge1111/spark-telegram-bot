@@ -374,6 +374,10 @@ import {
   shouldWriteNaturalRouteLedgerSynchronously
 } from './naturalRouteLedger';
 import { getLatestShippedProjectContext, type ShippedProjectContext } from './shippedProjectContext';
+import {
+  matchingShippedProjectForSpawnerArtifact,
+  spawnerArtifactReplyContradictsEvidence
+} from './spawnerArtifactReadoutGuard';
 import axios from 'axios';
 import { describeTier, getTierForUser, type SkillTier } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -7540,7 +7544,7 @@ async function buildSpawnerArtifactReadoutEvidence(
   shippedProject: ShippedProjectContext | null | undefined
 ): Promise<Record<string, unknown>> {
   const result = await readSpawnerResultByRequestId(artifact.requestId);
-  const matchingShippedProject = shippedProject?.requestId === artifact.requestId ? shippedProject : null;
+  const matchingShippedProject = matchingShippedProjectForSpawnerArtifact(artifact, shippedProject);
   return {
     artifact: {
       kind: 'spawner_artifact',
@@ -7612,11 +7616,16 @@ function fallbackSpawnerArtifactReadoutReply(artifact: SpawnerArtifactContext, e
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
-function spawnerArtifactReadoutReplyLooksValid(reply: string, artifact: SpawnerArtifactContext): boolean {
+function spawnerArtifactReadoutReplyLooksValid(
+  reply: string,
+  artifact: SpawnerArtifactContext,
+  evidence: Record<string, unknown>
+): boolean {
   const normalized = reply.toLowerCase();
   if (!reply.trim()) return false;
   if (/\b(?:do not have|don't have|no verified change log|no saved project memory trace|no saved.*trace)\b/i.test(reply)) return false;
   if (/\b(?:success|resultAvailable|taskQuality|weakTaskIds|findings|taskCount|result\s+available|build\s+result|task\s+quality\s+passed|weak\s+tasks?)\s*[:=]?\s*(?:true|false|\d+)\b/i.test(reply)) return false;
+  if (spawnerArtifactReplyContradictsEvidence(reply, evidence)) return false;
   const artifactWords = artifact.projectName
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -7641,7 +7650,7 @@ async function composeSpawnerArtifactReadoutReply(
       claimBoundary: 'Answer only from the current Spawner artifact, provider result, canvas/board links, and a matching shipped-project context when request IDs match. If no matching shipped preview exists, call it canvas/result evidence, not a finished app. Do not infer from older shipped projects or memory.'
     },
     fallback,
-    (candidate) => spawnerArtifactReadoutReplyLooksValid(candidate, artifact)
+    (candidate) => spawnerArtifactReadoutReplyLooksValid(candidate, artifact, evidence)
   );
   return { reply, evidence };
 }
