@@ -2733,7 +2733,8 @@ export function isLowInformationLlmReply(reply: string): boolean {
         normalized.includes('source: project event ledger rollup')
       ) &&
       normalized.includes('raw_turn:')
-    )
+    ) ||
+    normalized.includes('produced an empty reply')
   );
 }
 
@@ -2766,6 +2767,15 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   if (/^memory(?:[_.]|$)/i.test(routingDecision.trim())) {
     return null;
   }
+
+  // Never suppress replies to user-initiated slash commands.
+  // Slash commands use bot.command() handlers which call ctx.reply() directly
+  // -- they never reach this function. The carve-out here is for the edge case
+  // where a command's replyViaBuilder() response gets evaluated.
+  if (/^runtime_command/i.test(routingDecision.trim())) {
+    return null;
+  }
+
   const normalized = reply.trim().toLowerCase();
   if (
     /browser_unavailable/i.test(routingDecision.trim()) &&
