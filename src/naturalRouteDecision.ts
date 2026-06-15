@@ -183,10 +183,20 @@ function recursiveConfidence(
   return source === 'workspace_sessions' ? 'contextual' : 'explicit';
 }
 
+const BUILD_NOUN_STATUS_WORDS = 'going|coming\\s+along|progressing|doing|running|working|queued|done|finished|complete|completed|status|progress|state';
+
+function isReadoutStatusOrPolishQuestion(normalized: string): boolean {
+  return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|status|progress|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized) ||
+    /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:going|coming\s+along|progressing|doing)\b/.test(normalized) ||
+    /\b(?:is|are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:still\s+)?(?:running|progressing|working|queued|done|finished|complete|completed)\b/.test(normalized);
+}
+
 function isReadoutOnlyFollowup(text: string): boolean {
   const normalized = text.toLowerCase();
-  const asksForReadout = /\b(?:where\s+did\s+we\s+land|where\s+are\s+we|readout|status|report|summary|what\s+changed|how\s+did\s+(?:it|that)\s+go)\b/.test(normalized);
-  const asksForAction = /\b(?:make|build|create|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand|turn|run|start)\b/.test(normalized);
+  const asksForReadout = /\b(?:where\s+did\s+we\s+land|where\s+are\s+we|report)\b/.test(normalized) || isReadoutStatusOrPolishQuestion(normalized);
+  const asksForAction =
+    /\b(?:make|create|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand|turn|run|start)\b/.test(normalized) ||
+    new RegExp(`\\bbuild\\s+(?!(?:steps?|plan|artifact|context|evidence|${BUILD_NOUN_STATUS_WORDS})\\b)(?:it|this|that|a|an|the|[a-z0-9])`, 'i').test(normalized);
   return asksForReadout && !asksForAction;
 }
 
@@ -196,8 +206,11 @@ function isCurrentProjectReadoutQuestion(text: string, project: ShippedProjectCo
   if (!normalized) return false;
   const asksForMutation =
     /\b(?:make|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized) ||
-    /\bbuild\s+(?!(?:steps?|plan|artifact|context|evidence)\b)(?:it|this|that|a|an|the|[a-z0-9])/i.test(normalized);
+    new RegExp(`\\bbuild\\s+(?!(?:steps?|plan|artifact|context|evidence|${BUILD_NOUN_STATUS_WORDS})\\b)(?:it|this|that|a|an|the|[a-z0-9])`, 'i').test(normalized);
   if (asksForMutation) {
+    return false;
+  }
+  if (!readoutTargetMatchesName(normalized, project.projectName)) {
     return false;
   }
   const projectNameWords = significantNameWords(project.projectName);
@@ -205,7 +218,7 @@ function isCurrentProjectReadoutQuestion(text: string, project: ShippedProjectCo
     /\b(?:this|that|it|current|latest|app|site|page|screen|project|build|product|tool|preview)\b/.test(normalized) ||
     projectNameWords.some((word) => normalized.includes(word));
   if (!pointsAtProject) return false;
-  return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+  return isReadoutStatusOrPolishQuestion(normalized);
 }
 
 function significantNameWords(name: string): string[] {
@@ -216,8 +229,30 @@ function significantNameWords(name: string): string[] {
     .filter((word) => word.length >= 3 && !/^(?:the|and|you|your|what|when|where|why|how|would|should|could|next|changed|change|polish|readout|summary|current|latest|recent|this|that|shipped|app|project|mission|build|canvas|board|tool|site|page|screen)$/.test(word));
 }
 
+export function readoutTargetWords(text: string): string[] {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return [];
+  const statusTarget = normalized.match(
+    /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?!(?:current|latest|recent|build|mission|project|app|tool|board|canvas|artifact|preview)\b)([a-z0-9][a-z0-9 '&.-]{1,80}?)\s+(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:going|coming\s+along|progressing|doing)\b/
+  )?.[1];
+  const stateTarget = normalized.match(
+    /\b(?:is|are)\s+(?:(?:it|that|this|the)\s+)?(?!(?:current|latest|recent|build|mission|project|app|tool|board|canvas|artifact|preview)\b)([a-z0-9][a-z0-9 '&.-]{1,80}?)\s+(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:still\s+)?(?:running|progressing|working|queued|done|finished|complete|completed)\b/
+  )?.[1];
+  const prepositionTarget = normalized.match(
+    /\b(?:what\s+changed|readout|status|progress|summary|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish)\b.{0,80}\b(?:in|for|on|of)\s+(?!(?:this|that|current|latest|recent)\b)([a-z0-9][a-z0-9 '&.-]{1,80}?)(?=[.,;?!]|\s+(?:build|project|app|tool|board|canvas|mission|artifact|preview|and|right\s+now|now)\b|$)/
+  )?.[1];
+  return significantNameWords(statusTarget || stateTarget || prepositionTarget || '');
+}
+
+export function readoutTargetMatchesName(text: string, name: string): boolean {
+  const targetWords = readoutTargetWords(text);
+  if (targetWords.length === 0) return true;
+  const nameWords = significantNameWords(name);
+  return targetWords.some((word) => nameWords.includes(word));
+}
+
 function isReadoutOrPolishQuestion(normalized: string): boolean {
-  return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+  return isReadoutStatusOrPolishQuestion(normalized);
 }
 
 function isCurrentSpawnerArtifactReadoutQuestion(
@@ -229,11 +264,14 @@ function isCurrentSpawnerArtifactReadoutQuestion(
   if (!normalized) return false;
   const asksForMutation =
     /\b(?:make|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized) ||
-    /\bbuild\s+(?!(?:steps?|plan|artifact|context|evidence)\b)(?:it|this|that|a|an|the|[a-z0-9])/i.test(normalized);
+    new RegExp(`\\bbuild\\s+(?!(?:steps?|plan|artifact|context|evidence|${BUILD_NOUN_STATUS_WORDS})\\b)(?:it|this|that|a|an|the|[a-z0-9])`, 'i').test(normalized);
   if (asksForMutation) {
     return false;
   }
   if (!isReadoutOrPolishQuestion(normalized)) return false;
+  if (!readoutTargetMatchesName(normalized, artifact.projectName)) {
+    return false;
+  }
 
   const artifactWords = significantNameWords(artifact.projectName);
   const namesArtifact = artifactWords.some((word) => normalized.includes(word));

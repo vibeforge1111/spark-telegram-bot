@@ -411,6 +411,11 @@ test('does not treat existing-build readouts as build intent', () => {
   assert.equal(parseBuildIntent('What changed in this build, and what would you polish next?'), null);
   assert.equal(parseBuildIntent('What changed in Evening Reset Board, and what would you polish next?'), null);
   assert.equal(parseBuildIntent('What would you polish next in this app?'), null);
+  assert.equal(parseBuildIntent('How is that Habit Button build going right now?'), null);
+  assert.equal(parseBuildIntent("How's the current build coming along?"), null);
+  assert.equal(parseBuildIntent('Is the latest mission still progressing?'), null);
+
+  assert.ok(parseBuildIntent('Build a progress dashboard for mission status.'));
 });
 
 test('infers a compact product name for long conceptual build briefs', () => {

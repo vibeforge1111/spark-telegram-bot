@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { decideNaturalRoute, type SpawnerArtifactContext } from '../src/naturalRouteDecision';
+import {
+  decideNaturalRoute,
+  readoutTargetMatchesName,
+  readoutTargetWords,
+  type SpawnerArtifactContext
+} from '../src/naturalRouteDecision';
 import type { ShippedProjectContext } from '../src/shippedProjectContext';
 
 function test(name: string, fn: () => void): void {
@@ -638,6 +643,62 @@ test('routes generic current build readouts to the current Spawner artifact', ()
   assert.equal(route.route, 'project.readout');
   assert.equal(route.payload.artifactKind, 'spawner_artifact');
   assert.equal(route.payload.projectName, 'Evening Reset Board');
+});
+
+test('routes active Spawner build status questions as read-only artifact readouts', () => {
+  const artifact = {
+    ...spawnerArtifact(),
+    projectName: 'Habit Button',
+    requestId: 'tg-build-0ee3f3c61cc5-1781524520548',
+    missionId: 'mission-1781524520548',
+    status: 'running',
+    resultAvailable: false
+  };
+  const named = decideNaturalRoute('How is that Habit Button build going right now?', {
+    shippedProject: shippedProject(),
+    spawnerArtifact: artifact
+  });
+  const generic = decideNaturalRoute("How's the current build coming along?", {
+    spawnerArtifact: artifact
+  });
+  const missionStatus = decideNaturalRoute('Is the latest mission still progressing?', {
+    spawnerArtifact: artifact
+  });
+
+  for (const route of [named, generic, missionStatus]) {
+    assert.equal(route.route, 'project.readout');
+    assert.equal(route.owner_system, 'spark-telegram-bot');
+    assert.equal(route.context_source, 'visible_exact_artifact');
+    assert.equal(route.requires_confirmation, false);
+    assert.equal(route.payload.artifactKind, 'spawner_artifact');
+    assert.equal(route.payload.projectName, 'Habit Button');
+    assert.notEqual(route.route, 'spawner.build');
+  }
+});
+
+test('extracts named readout targets without treating generic current-build phrasing as named', () => {
+  assert.deepEqual(readoutTargetWords('How is that Habit Button build going right now?'), ['habit', 'button']);
+  assert.equal(readoutTargetMatchesName('How is that Habit Button build going right now?', 'Habit Button'), true);
+  assert.equal(readoutTargetMatchesName('How is that Habit Button build going right now?', 'Going'), false);
+  assert.deepEqual(readoutTargetWords("How's the current build coming along?"), []);
+});
+
+test('does not bind named build status questions to a different latest artifact', () => {
+  const route = decideNaturalRoute('How is that Habit Button build going right now?', {
+    shippedProject: {
+      ...shippedProject(),
+      projectName: 'Evening Reset Board'
+    },
+    spawnerArtifact: {
+      ...spawnerArtifact(),
+      projectName: 'Going',
+      requestId: 'tg-build-40ba96166254-1781524790278',
+      missionId: 'mission-1781524790278'
+    }
+  });
+
+  assert.notEqual(route.route, 'project.readout');
+  assert.notEqual(route.route, 'spawner.build');
 });
 
 test('does not let current Spawner artifact hijack a differently named shipped-project readout', () => {

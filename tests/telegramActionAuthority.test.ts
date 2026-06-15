@@ -73,6 +73,18 @@ const shippedProject = {
   updatedAt: '2026-06-15T00:00:00.000Z'
 };
 
+const activeSpawnerArtifact = {
+  projectName: 'Habit Button',
+  requestId: 'tg-build-0ee3f3c61cc5-1781524520548',
+  missionId: 'mission-1781524520548',
+  status: 'running',
+  buildMode: 'direct',
+  buildLane: 'fast_direct',
+  canvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-0ee3f3c61cc5-1781524520548&mission=mission-1781524520548',
+  boardUrl: 'http://127.0.0.1:3333/kanban?mission=mission-1781524520548',
+  resultAvailable: false
+};
+
 function envelopeForShippedProjectTurn(text: string) {
   const naturalRouteDecision = decideNaturalRoute(text, { shippedProject });
   return envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject }));
@@ -206,6 +218,36 @@ test('blocks uncertain product exploration from authorizing a Spawner build', ()
     assert.equal(result.routeVerdict.allow, false);
     assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
   }
+});
+
+test('blocks active build status questions from authorizing a new Spawner build', () => {
+  const text = 'How is that Habit Button build going right now?';
+  const naturalRouteDecision = decideNaturalRoute(text, {
+    shippedProject,
+    spawnerArtifact: activeSpawnerArtifact
+  });
+  const decision = classifyTelegramIntentV2(text, {
+    naturalRouteDecision,
+    shippedProject,
+    spawnerArtifact: activeSpawnerArtifact
+  });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.readout');
+  assert.equal(decision.route, 'project.readout');
+  assert.notEqual(decision.route, 'spawner.build');
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.equal(result.allow, false);
+  assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
 });
 
 test('allows static app build briefs that specify no build step', () => {

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -315,6 +315,8 @@ import {
 } from './conversationIntent';
 import {
   decideNaturalRoute,
+  readoutTargetMatchesName,
+  readoutTargetWords,
   type NaturalRouteDecision,
   type NaturalRouteDecisionContext,
   type NaturalRouteOwnerSystem,
@@ -7196,11 +7198,11 @@ async function readSpawnerResultByRequestId(requestId: string): Promise<any | nu
   return readSpawnerUiStateJson<any>(path.join('results', `${requestId}.json`));
 }
 
-async function readLatestSpawnerArtifactContext(
+async function spawnerArtifactContextFromPending(
+  pending: any,
   chatId: string | number | undefined,
   userId: string | number | undefined
 ): Promise<SpawnerArtifactContext | null> {
-  const pending = await readSpawnerUiStateJson<any>('pending-request.json');
   if (!pending || typeof pending !== 'object') return null;
   const relay = pending.relay && typeof pending.relay === 'object' ? pending.relay : null;
   if (relay) {
@@ -7225,6 +7227,60 @@ async function readLatestSpawnerArtifactContext(
     updatedAt: nonEmptyString(pending.updatedAt) || nonEmptyString(pending.canvasLoadedAt) || nonEmptyString(pending.timestamp),
     resultAvailable: Boolean(result)
   };
+}
+
+async function readLatestSpawnerArtifactContext(
+  chatId: string | number | undefined,
+  userId: string | number | undefined
+): Promise<SpawnerArtifactContext | null> {
+  const pending = await readSpawnerUiStateJson<any>('pending-request.json');
+  return spawnerArtifactContextFromPending(pending, chatId, userId);
+}
+
+async function readRecentSpawnerArtifactContexts(
+  chatId: string | number | undefined,
+  userId: string | number | undefined,
+  limit = 30
+): Promise<SpawnerArtifactContext[]> {
+  let files: Array<{ name: string; mtimeMs: number }> = [];
+  try {
+    const entries = await readdir(spawnerUiStatePath('pending-requests'), { withFileTypes: true });
+    files = (await Promise.all(entries
+      .filter((entry) => entry.isFile() && /^[A-Za-z0-9_.-]+\.json$/.test(entry.name))
+      .map(async (entry) => {
+        try {
+          const info = await stat(spawnerUiStatePath(path.join('pending-requests', entry.name)));
+          return { name: entry.name, mtimeMs: info.mtimeMs };
+        } catch {
+          return null;
+        }
+      })))
+      .filter((entry): entry is { name: string; mtimeMs: number } => Boolean(entry))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+
+  const artifacts: SpawnerArtifactContext[] = [];
+  for (const file of files) {
+    const pending = await readSpawnerUiStateJson<any>(path.join('pending-requests', file.name));
+    const artifact = await spawnerArtifactContextFromPending(pending, chatId, userId);
+    if (artifact) artifacts.push(artifact);
+  }
+  return artifacts;
+}
+
+async function readSpawnerArtifactContextForText(
+  chatId: string | number | undefined,
+  userId: string | number | undefined,
+  text: string
+): Promise<SpawnerArtifactContext | null> {
+  const latest = await readLatestSpawnerArtifactContext(chatId, userId);
+  if (readoutTargetWords(text).length === 0) return latest;
+  if (latest && readoutTargetMatchesName(text, latest.projectName)) return latest;
+  const recentArtifacts = await readRecentSpawnerArtifactContexts(chatId, userId);
+  return recentArtifacts.find((artifact) => readoutTargetMatchesName(text, artifact.projectName)) || null;
 }
 
 function safeTextSnippet(value: string, maxLength = 900): string {
@@ -9507,7 +9563,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
-  const latestSpawnerArtifact = await readLatestSpawnerArtifactContext(ctx.chat?.id, ctx.from?.id);
+  const latestSpawnerArtifact = await readSpawnerArtifactContextForText(ctx.chat?.id, ctx.from?.id, text);
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text, {
     shippedProject: latestShippedProject,
     spawnerArtifact: latestSpawnerArtifact

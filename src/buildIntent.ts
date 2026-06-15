@@ -532,13 +532,21 @@ function isBuildContextRecallProbe(text: string): boolean {
 function isExistingBuildReadoutQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
+  const buildNounStatusWords = 'going|coming\\s+along|progressing|doing|running|working|queued|done|finished|complete|completed|status|progress|state';
+  const asksForMutation =
+    /\b(?:make|create|ship|scaffold|generate|develop|start|run|launch|execute|dispatch|deploy)\b/.test(normalized) ||
+    new RegExp(`\\bbuild\\s+(?!(?:steps?|plan|artifact|context|evidence|${buildNounStatusWords})\\b)(?:it|this|that|a|an|the|[a-z0-9])`, 'i').test(normalized);
+  if (asksForMutation) return false;
   const asksReadout =
-    /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+    /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|status|progress|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized) ||
+    /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:going|coming\s+along|progressing|doing)\b/.test(normalized) ||
+    /\b(?:is|are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:still\s+)?(?:running|progressing|working|queued|done|finished|complete|completed)\b/.test(normalized);
   if (!asksReadout) return false;
   const pointsAtExistingWork =
     /\b(?:this|that|it|current|latest|recent)\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b/.test(normalized) ||
     /\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized) ||
-    /\b(?:what\s+changed|readout|polish)\b.{0,80}\b(?:in|for|on)\s+[A-Z][A-Za-z0-9 '&.-]{2,80}\b/.test(text);
+    /\b(?:what\s+changed|readout|status|progress|polish)\b.{0,80}\b(?:in|for|on|of)\s+[A-Z][A-Za-z0-9 '&.-]{2,80}\b/.test(text) ||
+    /\b[A-Z][A-Za-z0-9 '&.-]{2,80}\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|artifact|preview)\b/.test(text);
   if (!pointsAtExistingWork) return false;
   return !/\b(?:build|make|create|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|system|tracker|planner|timer|clock|board)\b/.test(normalized);
 }
