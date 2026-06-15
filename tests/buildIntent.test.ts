@@ -345,6 +345,11 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
   assert.equal(parseBuildIntent('Before the startup operator can build, what would a reliable agent harness check?'), null);
   assert.equal(parseBuildIntent("I want to make something for planning my day but I don't really know what it should be yet."), null);
+  assert.equal(parseBuildIntent("I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take."), null);
+  assert.equal(parseBuildIntent("I've got too much to juggle this week and I want to make something around that, but I don't know what form it should take."), null);
+  assert.equal(parseBuildIntent("My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take."), null);
+  assert.equal(parseBuildIntent("I want to make something for my mornings, but I'm not sure what it should look like."), null);
+  assert.equal(parseBuildIntent("We need to create a small tool for meetings, but we haven't figured out what form it should take."), null);
   assert.equal(parseBuildIntent("Let's build something for my evenings, but I'm not sure what it should be yet."), null);
   assert.equal(parseBuildIntent("Can we create something for studying, but I'm not sure what exactly yet?"), null);
   assert.equal(parseBuildIntent("I want to make a tiny tool for practicing JavaScript, but I'm not sure what kind of tool yet."), null);

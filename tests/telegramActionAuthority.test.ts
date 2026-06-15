@@ -179,6 +179,35 @@ test('allows contextual shipped-project polish follow-through to authorize the w
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('blocks uncertain product exploration from authorizing a Spawner build', () => {
+  const texts = [
+    "I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take.",
+    "My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take."
+  ];
+
+  for (const text of texts) {
+    const naturalRouteDecision = decideNaturalRoute(text, { shippedProject });
+    const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+    const envelope = envelopeForDecision(text, decision);
+    const result = authorizeTelegramActionFromEnvelope(envelope, {
+      route: 'spawner.build',
+      text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+
+    assert.ok(['conversation.ideation', 'chat_plan'].includes(naturalRouteDecision.route));
+    assert.notEqual(naturalRouteDecision.route, 'spawner.build');
+    assert.notEqual(decision.route, 'spawner.build');
+    assert.equal(envelope.executionPolicy.canLaunchMission, false);
+    assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+    assert.equal(result.allow, false);
+    assert.equal(result.routeVerdict.allow, false);
+    assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+  }
+});
+
 test('allows static app build briefs that specify no build step', () => {
   const text = 'Build a quick vanilla JS page at ./spark-ap07-authority-proof-test: Files: index.html, app.js. No build step. Shows AP07 signed authority proof foreground.';
   const decision = classifyTelegramIntentV2(text, { naturalRouteDecision: decideNaturalRoute(text) });

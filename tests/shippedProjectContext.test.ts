@@ -157,6 +157,53 @@ async function main(): Promise<void> {
     assert.equal(latest.requestId, 'tg-build-evening-reset-board');
   });
 
+  await test('does not let uncertain exploration residue overwrite the current shipped project', async () => {
+    const projectPath = 'C:/Users/USER/.spark/workspaces/mission-current-evening-reset-board';
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'uncertain-residue-chat',
+      userId: '1278511160',
+      missionId: 'mission-current-evening-reset-board',
+      requestId: 'tg-build-current-evening-reset-board',
+      goal: 'Build a local app called Evening Reset Board.',
+      providerLabel: 'provider',
+      response: JSON.stringify({
+        summary: 'Built Evening Reset Board.',
+        project_path: projectPath,
+        preview_url: 'http://127.0.0.1:3333/preview/current-evening/index.html'
+      })
+    });
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'uncertain-residue-chat',
+      userId: '1278511160',
+      missionId: 'mission-uncertain-residue',
+      requestId: 'tg-build-uncertain-residue',
+      goal: "# something for that, but I'm not\n\nsomething for that, but I'm not sure what shape it should take.",
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl: shippedProjectContext.projectPreviewUrlForPath('C:/Users/USER/.spark/workspaces/mission-uncertain-residue-something-for-that/.next/server/app')
+    });
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'uncertain-residue-chat',
+      userId: '1278511160',
+      missionId: 'mission-little-tool-residue',
+      requestId: 'tg-build-little-tool-residue',
+      goal: "# little tool around that, but I\n\nlittle tool around that, but I haven't figured out what shape it should take.",
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl: shippedProjectContext.projectPreviewUrlForPath('C:/Users/USER/.spark/workspaces/mission-little-tool-around-that/.next/server/app')
+    });
+
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('uncertain-residue-chat');
+    assert.ok(latest);
+    assert.equal(latest.projectName, 'Evening Reset Board');
+    assert.equal(latest.projectPath, projectPath);
+    assert.equal(latest.missionId, 'mission-current-evening-reset-board');
+    assert.equal(latest.requestId, 'tg-build-current-evening-reset-board');
+  });
+
   await test('preserves shipped project names across same-project polish iterations', async () => {
     const projectPath = 'C:/Users/USER/.spark/workspaces/mission-same-project-evening-reset-board';
 

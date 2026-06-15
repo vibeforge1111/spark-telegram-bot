@@ -131,6 +131,26 @@ test('routes collaborative mission wording to conversation instead of command he
     true
   );
   assert.equal(
+    shouldPreferConversationalIdeation("I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take."),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation("I've got too much to juggle this week and I want to make something around that, but I don't know what form it should take."),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation("My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take."),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation("I want to make something for my mornings, but I'm not sure what it should look like."),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation("We need to create a small tool for meetings, but we haven't figured out what form it should take."),
+    true
+  );
+  assert.equal(
     shouldPreferConversationalIdeation("Can we create something for studying, but I'm not sure what exactly yet?"),
     true
   );

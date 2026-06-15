@@ -323,6 +323,47 @@ test('routes uncertain build exploration to conversation before Spawner', () => 
   assert.equal(route.context_source, 'latest_message');
   assert.deepEqual(route.matched_signals, ['conversational_ideation']);
   assert.equal(route.requires_confirmation, false);
+
+  const liveRoute = decideNaturalRoute(
+    "I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take.",
+    {
+      shippedProject: {
+        ...shippedProject(),
+        projectName: 'Evening Reset Board',
+        projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board'
+      }
+    }
+  );
+
+  assert.equal(liveRoute.route, 'conversation.ideation');
+  assert.equal(liveRoute.owner_system, 'spark-intelligence-builder');
+  assert.equal(liveRoute.action, 'plain_chat.ideation');
+  assert.equal(liveRoute.requires_confirmation, false);
+  assert.notEqual(liveRoute.route, 'spawner.build');
+  assert.notEqual(liveRoute.route, 'project.iteration');
+
+  const heldOutRoute = decideNaturalRoute(
+    "I've got too much to juggle this week and I want to make something around that, but I don't know what form it should take.",
+    { shippedProject: shippedProject() }
+  );
+
+  assert.equal(heldOutRoute.route, 'conversation.ideation');
+  assert.equal(heldOutRoute.owner_system, 'spark-intelligence-builder');
+  assert.equal(heldOutRoute.action, 'plain_chat.ideation');
+  assert.equal(heldOutRoute.requires_confirmation, false);
+  assert.notEqual(heldOutRoute.route, 'spawner.build');
+  assert.notEqual(heldOutRoute.route, 'project.iteration');
+
+  const naturalModifierRoute = decideNaturalRoute(
+    "My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take.",
+    { shippedProject: shippedProject() }
+  );
+
+  assert.ok(['conversation.ideation', 'chat_plan'].includes(naturalModifierRoute.route));
+  assert.equal(naturalModifierRoute.owner_system, 'spark-intelligence-builder');
+  assert.equal(naturalModifierRoute.requires_confirmation, false);
+  assert.notEqual(naturalModifierRoute.route, 'spawner.build');
+  assert.notEqual(naturalModifierRoute.route, 'project.iteration');
 });
 
 test('routes artifact-shaped uncertainty to conversation before Spawner', () => {

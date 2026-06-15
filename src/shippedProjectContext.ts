@@ -184,15 +184,32 @@ const GENERIC_PROJECT_TITLES = new Set([
   'website',
   'page',
   'prototype',
-  'demo'
+  'demo',
+  'tool'
 ]);
 
 const RESIDUE_PROJECT_TITLE_WORDS = new Set([
   'a',
   'an',
   'and',
+  'anything',
+  'around',
+  'but',
+  'for',
+  'form',
+  'i',
+  'im',
+  'like',
+  'little',
+  'm',
+  'not',
   'or',
+  'shape',
+  'something',
+  'sure',
+  'take',
   'the',
+  'thing',
   'this',
   'that',
   'these',

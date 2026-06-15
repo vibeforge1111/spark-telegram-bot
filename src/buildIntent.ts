@@ -564,15 +564,18 @@ function isOpenEndedBuildExplorationRequest(text: string): boolean {
   if (!normalized) return false;
   const wantsSomeArtifact =
     /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized) ||
+    /\b(?:i|we)\b.{0,140}\b(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized) ||
     /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized);
   const wantsUnderspecifiedArtifact =
-    /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
-    /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized);
+    /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
+    /\b(?:i|we)\b.{0,140}\b(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
+    /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized);
   if (!wantsSomeArtifact && !wantsUnderspecifiedArtifact) return false;
   return (
-    /\b(?:do\s+not|don't|dont)\s+(?:really\s+)?know\s+(?:exactly\s+)?(?:what|which|how)\b.{0,100}\b(?:it|this|that|thing|project|app|tool)?\s*(?:should\s+be|to\s+(?:build|make|create)|yet)\b/.test(normalized) ||
-    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|kind|type|form|shape|direction|exactly|yet|should\s+be|to\s+(?:build|make|create))\b/.test(normalized) ||
-    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|exactly|yet|should\s+be|to\s+(?:build|make|create))\b/.test(normalized)
+    /\b(?:do\s+not|don't|dont)\s+(?:really\s+)?know\s+(?:exactly\s+)?(?:what|which|how)\b.{0,100}\b(?:it|this|that|thing|project|app|tool)?\s*(?:should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create)|yet)\b/.test(normalized) ||
+    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|kind|type|form|shape|direction|exactly|yet|should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create))\b/.test(normalized) ||
+    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,140}\b(?:what\s+(?:shape|form|direction)\s+(?:it|this|that|the\s+(?:app|tool|project|thing))?\s*should\s+take|what\s+(?:it|this|that|the\s+(?:app|tool|project|thing))\s+should\s+(?:look|feel)\s+like)\b/.test(normalized) ||
+    /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|exactly|yet|should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create))\b/.test(normalized)
   );
 }
 
@@ -948,6 +951,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (isExplicitMemoryDirectiveText(original)) return null;
   if (isNoExecutionBoundary(original)) return null;
   if (isBuildRouteMetaDiscussion(original)) return null;
+  if (isOpenEndedBuildExplorationRequest(original)) return null;
   const trimmed = normalizeBuildCommandText(original);
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
