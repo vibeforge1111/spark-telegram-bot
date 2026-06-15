@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { sanitizeUserInput } from './inputSanitization';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -790,20 +791,24 @@ export const llm = {
     conversationHistory: string = '',
     memories: string = ''
   ): Promise<string> {
+    const { sanitized: safeInput, injectionSignals } = sanitizeUserInput(userMessage);
+    if (injectionSignals.length > 0) {
+      console.warn(`[inputSanitization] Potential injection detected: ${injectionSignals.join(', ')}`);
+    }
     const systemPrompt = buildSparkChatSystemPrompt(conversationHistory, memories);
 
     try {
       const config = resolveChatProviderConfig();
       if (config.kind === 'codex') {
-        return await codexChat(`${systemPrompt}\n\nUser message:\n${userMessage}`);
+        return await codexChat(`${systemPrompt}\n\nUser message:\n${safeInput}`);
       }
       if (config.kind === 'claude') {
-        return await claudeChat(`${systemPrompt}\n\nUser message:\n${userMessage}`, config.model);
+        return await claudeChat(`${systemPrompt}\n\nUser message:\n${safeInput}`, config.model);
       }
       if (config.kind === 'anthropic_api') {
         const content = await anthropicMessage(config, {
           system: systemPrompt,
-          user: userMessage,
+          user: safeInput,
           temperature: 0.7,
           maxTokens: 384,
           timeoutMs: 60000
@@ -818,7 +823,7 @@ export const llm = {
             model: config.model,
             messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage }
+              { role: 'user', content: safeInput }
             ],
             temperature: 0.7,
             max_tokens: 384,
@@ -849,7 +854,7 @@ export const llm = {
         `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
         {
           model: config.model,
-          prompt: userMessage,
+          prompt: safeInput,
           system: systemPrompt,
           stream: false,
           options: {
