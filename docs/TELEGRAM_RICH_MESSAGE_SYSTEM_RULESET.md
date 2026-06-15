@@ -170,6 +170,9 @@ Live Telegram Desktop proof beats renderer assumptions.
 - Do not promote every short status into a spaced card. If the message has only
   one status line, one progress/count line, and inspect links, keep it compact
   instead of inserting repeated dividers.
+- Do not send title-only readouts. If generated text merely names an artifact or
+  says a result exists without grounded proof, blocker, or next-move signal, the
+  composition gate must fall back to an owner-evidence summary.
 - Never rely only on `\n\n` between sections for important status cards.
 - The renderer must recover section boundaries from dense governed replies such
   as `Title / Section / bullet / Section / bullet`, because model-shaped answers

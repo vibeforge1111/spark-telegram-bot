@@ -52,6 +52,7 @@ Before patching natural-language behavior:
 - Conversation-frame summaries are local context support, not durable memory truth.
 - If Builder, CLI, or Spawner proof is unavailable, fail closed or say what proof is missing.
 - Task completion, preview links, Telegram delivery, dashboards, or cached summaries are evidence, not final truth, unless the owner route also shows terminal success and verification.
+- A readout that only names an artifact or says a result exists is not useful owner evidence. Status/readout replies must carry enough grounded signal for the user to see what changed, what proof exists, whether anything is blocked, and the next safe move.
 - Do not turn route keywords like build, mission, access, setup, or go into global permission.
 
 ## Privacy Red Lines
@@ -78,6 +79,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - The action gate can be deterministic; the user-facing sentence should stay natural and context-aware.
 - Explicit no-execution constraints beat action keywords.
 - Readout, status, "what changed?", and advisory polish questions are answer/readout routes unless the fresh user turn explicitly asks to apply, build, run, or change something.
+- Readout validators must reject title-only, repeated-heading, raw-schema, or evidence-light generated answers and fall back to owner-evidence summaries rather than delivering low-information text.
 - Bare `go` only applies to an active pending action and must not resurrect stale clarifications.
 - Global Spark behavior changes become proposals, not silent mutations.
 - Repair, memory mutation, publishing, deletion, credential, and external side-effect routes require source-owned authority evidence.

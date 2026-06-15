@@ -55,6 +55,10 @@ For compact Spark cards:
 - Tiny lifecycle updates should stay tiny. A canvas-ready or board-ready notice
   should not use repeated section dividers when a title, one status/count line,
   and labeled inspect links carry the full message.
+- Evidence readouts must be more than a title. If a generated answer only says
+  the artifact has a result, repeats headings, dumps raw schema fields, or omits
+  useful proof/blocked/next-move signal, reject it and use the owner-evidence
+  fallback.
 - If live CUA screenshots show the reply is hard to scan, the composition failed
   even if the Bot API accepted the payload.
 
@@ -97,6 +101,9 @@ only; final replies, owner evidence, and ledgers remain authoritative.
 - Avoid database voice. Convert system nouns into human nouns unless the technical noun is the useful thing.
 - Prefer `ready`, `needs review`, `blocked`, `running`, `held steady`, `improved`, and `regressed` over internal lifecycle names.
 - Do not show normal internal state like `open`, `review clear`, `ready canvas`, or evidence counts unless they change what the user should think or do.
+- For build/artifact readouts, include enough grounded signal for the user to
+  understand what changed, what proof exists, whether anything is blocked, and
+  the next safe move. Do not send heading-only or title-only status text.
 - Let the absence of a warning mean clear.
 - Preserve Spark's voice through small, plain sentences. Do not make every reply a rigid report card.
 

@@ -170,6 +170,35 @@ test('allows fresh shipped-project iteration to authorize the writable Spawner l
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('artifact-bound improvement wording beats generic build parsing', () => {
+  const text = 'Go ahead and improve the existing Day Triage Button now. Keep it tiny: make the first choice clearer, keep the existing local-app scope, and share the board/canvas when it starts.';
+  const dayTriageProject = {
+    ...shippedProject,
+    projectName: 'Day Triage Button',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781530332866-day-triage-button',
+    previewUrl: 'http://127.0.0.1:3333/preview/day-triage-button/index.html',
+    missionId: 'mission-1781530332866'
+  };
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject: dayTriageProject });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject: dayTriageProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.iteration');
+  assert.equal(decision.route, 'project.iteration');
+  assert.equal(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), true);
+  assert.equal(result.allow, true);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
 test('allows contextual shipped-project polish follow-through to authorize the writable Spawner lane', () => {
   const text = "Let's do that.";
   const recentMessages = [

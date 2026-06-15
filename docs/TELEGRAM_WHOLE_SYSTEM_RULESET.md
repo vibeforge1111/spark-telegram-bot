@@ -189,6 +189,10 @@ Spark must adopt those features in tiers:
   status, proof boundary, what matters now, inspect link.
 - Compact means compact. Rich blocks and visible dividers are for dense cards,
   not tiny lifecycle notices where they add more whitespace than meaning.
+- Artifact/status readouts must carry useful owner-evidence signal, not just a
+  title such as "has a current result." A valid readout should show what changed,
+  proof/inspection links or owner evidence, blockers if any, and the next safe
+  move.
 - Long reports go to Workspace/Canvas/Board/logs with a rich summary in Telegram.
 - Use inline buttons for clear actions, not for disguised confirmations.
 - Use reply keyboards only when the user benefits from constrained choices.
@@ -243,7 +247,8 @@ reply. Classify the failure first:
 4. Wrong evidence: a final readout claimed completion/failure without owner
    proof or missed a newer failure.
 5. Wrong composition: the answer was true but unreadable, cramped, duplicated,
-   raw, or missing the next useful move.
+   raw, title-only, repeated-heading, evidence-light, or missing the next useful
+   move.
 6. Wrong transport: the message should have been plain, rich, draft, Web App,
    callback, media, poll, checklist, or link-based.
 

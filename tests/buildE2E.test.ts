@@ -3921,6 +3921,106 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('current Spawner artifact readout rejects weak generated answers and falls back to owner evidence', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-spawner-readout-weak-answer-'));
+		process.env.SPARK_HOME = tempRoot;
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const spawnerStateDir = path.join(tempRoot, 'state', 'spawner-ui');
+		const requestId = 'prd-readout-weak-1781549000000';
+		const missionId = 'mission-readout-weak';
+		mkdirSync(path.join(spawnerStateDir, 'results'), { recursive: true });
+		writeFileSync(path.join(spawnerStateDir, 'pending-request.json'), JSON.stringify({
+			projectName: 'Day Triage Button',
+			requestId,
+			missionId,
+			status: 'processed',
+			buildMode: 'advanced_prd',
+			buildLane: 'advanced_prd',
+			canvasUrl: `/canvas?pipeline=${requestId}&mission=${missionId}`,
+			boardUrl: `/kanban?mission=${missionId}`,
+			updatedAt: '2026-06-15T18:30:00.000Z',
+			relay: { chatId: 8319079055, userId: 8319079055 }
+		}, null, 2));
+		writeFileSync(path.join(spawnerStateDir, 'results', `${requestId}.json`), JSON.stringify({
+			projectName: 'Day Triage Button',
+			projectType: 'tiny local app',
+			infrastructure: { needsAuth: false, needsDatabase: false, needsAPI: false },
+			tasks: [
+				{ title: 'Clarify the first choice', description: 'Make the opening action unambiguous.' },
+				{ title: 'Keep state local', description: 'Persist the tiny triage state in the browser.' },
+				{ title: 'Add smoke checks', description: 'Verify the first loop without backend scope.' }
+			],
+			metadata: {
+				taskQuality: { taskCount: 5, score: 100, weakTaskCount: 0, findingCount: 0 }
+			},
+			success: true
+		}, null, 2));
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		let indexModule: any;
+		try {
+			indexModule = await import('../src/index');
+			indexModule.__setEvidenceAnswerComposerForTest(async (input: any) => {
+				if (input.kind !== 'spawner_artifact_readout') return '';
+				return 'Day Triage Button has a current Spawner result';
+			});
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079055, 8319079055, 6091, replies);
+			ctx.message.text = 'Nice. What changed in Day Triage Button, and what is one thoughtful next polish direction?';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies[0] || '';
+			assert.match(reply, /Day Triage Button has a current Spawner result/i);
+			assert.match(reply, /What changed/i);
+			assert.match(reply, /Evidence/i);
+			assert.match(reply, /Canvas: http:\/\/127\.0\.0\.1:3333\/canvas/i);
+			assert.match(reply, /Board: http:\/\/127\.0\.0\.1:3333\/kanban/i);
+			assert.match(reply, /No current blocker is visible/i);
+			assert.match(reply, /Next/i);
+			assert.notEqual(reply.trim(), 'Day Triage Button has a current Spawner result');
+			assert.equal(captured.length, 0, 'artifact readout must not call Spawner or PRD bridge');
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success' &&
+					/Current Spawner artifact readout completed/i.test(record.result.summary)
+				)),
+				'artifact readout must record Harness Core answer.compose success'
+			);
+			const readoutRoute = (record: any) => (
+				record.shadow_route === 'project.readout' &&
+				record.executed_route === 'project.readout' &&
+				record.executed_action === 'harness_core.answer_boundary'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, readoutRoute);
+			assert.ok(naturalRouteRecords.some(readoutRoute), 'artifact readout must preserve selected route execution evidence');
+		} finally {
+			indexModule?.__setEvidenceAnswerComposerForTest?.(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('no-start mission routing failure-class probe stays conversational', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

@@ -492,6 +492,10 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
   }
 
   const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
+  if (naturalRoute?.route === 'project.iteration' && naturalRoute.context_source === 'visible_exact_artifact') {
+    return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
   if (isExplicitSpawnerBuildRequest(normalized)) {
     return makeDecision({
       kind: 'build_or_spawner',

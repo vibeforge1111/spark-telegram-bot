@@ -7495,6 +7495,47 @@ function fallbackProjectReadoutReply(project: ShippedProjectContext, evidence: R
   ].filter((line): line is string => Boolean(line)).join('\n');
 }
 
+function readoutLineText(line: string): string {
+  return line
+    .replace(/^\s*(?:[-*]|\d+[.)]|[^\p{L}\p{N}\s])\s+/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isReadoutSectionLabel(line: string): boolean {
+  return /^(?:what changed|evidence|blockers?|next|status|result|preview evidence|canvas evidence|board evidence)$/i.test(readoutLineText(line));
+}
+
+function hasRepeatedSparseReadoutLine(reply: string): boolean {
+  const counts = new Map<string, number>();
+  for (const rawLine of reply.split(/\r?\n/)) {
+    const line = readoutLineText(rawLine).toLowerCase();
+    if (!line || line.length > 72) continue;
+    counts.set(line, (counts.get(line) || 0) + 1);
+    if ((counts.get(line) || 0) >= 2) return true;
+  }
+  return false;
+}
+
+function readoutReplyCarriesUsefulEvidence(reply: string): boolean {
+  const normalized = reply.toLowerCase();
+  const contentLines = reply
+    .split(/\r?\n/)
+    .map(readoutLineText)
+    .filter((line) => line && !isReadoutSectionLabel(line));
+  if (contentLines.length < 2 && reply.trim().length < 140) return false;
+  if (hasRepeatedSparseReadoutLine(reply)) return false;
+
+  const signalCount = [
+    /\b(?:preview|canvas|board)\b/.test(normalized),
+    /\b(?:task|tasks|step|steps|quality|weak tasks?|findings?|scope|local-only|auth|database|api)\b/.test(normalized),
+    /\b(?:blocker|blocked|missing|provider result|owner evidence|result evidence|finished app|shipped preview)\b/.test(normalized),
+    /\b(?:next|polish|prove|test|validate|refresh|open\/click|click flow|saved state)\b/.test(normalized),
+    /\b(?:changed|moved|current controls|verification signal|iteration)\b/.test(normalized)
+  ].filter(Boolean).length;
+  return signalCount >= 3;
+}
+
 function projectReadoutReplyLooksValid(reply: string, project: ShippedProjectContext): boolean {
   const normalized = reply.toLowerCase();
   if (!reply.trim()) return false;
@@ -7503,7 +7544,7 @@ function projectReadoutReplyLooksValid(reply: string, project: ShippedProjectCon
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((word) => word.length >= 4);
-  return projectWords.some((word) => normalized.includes(word));
+  return projectWords.some((word) => normalized.includes(word)) && readoutReplyCarriesUsefulEvidence(reply);
 }
 
 async function composeProjectReadoutReply(project: ShippedProjectContext, userText: string): Promise<{ reply: string; evidence: Record<string, unknown> }> {
@@ -7692,6 +7733,7 @@ function spawnerArtifactReadoutReplyLooksValid(
   if (/\b(?:success|resultAvailable|taskQuality|weakTaskIds|findings|taskCount|result\s+available|build\s+result|task\s+quality\s+passed|weak\s+tasks?)\s*[:=]?\s*(?:true|false|\d+)\b/i.test(reply)) return false;
   if (/\n\s*\.\s+/.test(reply)) return false;
   if (spawnerArtifactReplyContradictsEvidence(reply, evidence)) return false;
+  if (!readoutReplyCarriesUsefulEvidence(reply)) return false;
   const artifactWords = artifact.projectName
     .toLowerCase()
     .split(/[^a-z0-9]+/)
@@ -9744,6 +9786,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const activePendingClarificationAuthority = activePendingClarification && isPendingClarificationFollowup(text)
     ? telegramPendingBuildClarificationAuthorityDecision(turnIntentEnvelope, text, naturalRouteShadow)
     : null;
+  const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   if (activePendingClarificationAuthority?.authorization.allow) {
     recordNaturalRouteExecution(
       ctx,
@@ -9755,8 +9798,22 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await handleClarificationAnswers(ctx, text, activePendingClarificationAuthority.authorization);
     return;
   }
+  const memoryDirectiveAuthorization = memoryDirective
+    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'memory.write',
+        text,
+        toolName: 'memory.write',
+        ownerSystem: 'domain-chip-memory',
+        mutationClass: 'writes_memory'
+      })
+    : null;
+  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
+    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
+    return;
+  }
   if (
     telegramIntentGateV2.route !== 'conversation.quoted_drafted_example_boundary' &&
+    !memoryDirective &&
     isMetaNoActionTriggerDiscussion(text)
   ) {
     const reply = renderMissionRoutingFailureClassReply(text);
@@ -10040,7 +10097,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const staleContextAuthorityKind = !earlyBuildIntent ? classifyStaleContextAuthorityBoundary(text) : null;
+  const staleContextAuthorityKind = !earlyBuildIntent && !memoryDirective ? classifyStaleContextAuthorityBoundary(text) : null;
   if (staleContextAuthorityKind) {
     const staleContextAuthorityAuthorization = telegramActionAuthorityDecision(
       telegramActionEnvelope(turnIntentEnvelope, {
@@ -10105,7 +10162,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
   const browserProofAnswer = !earlyBuildIntent && !memoryDirective ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     const browserProofAuthorization = telegramActionAuthorityDecision(
@@ -10991,19 +11047,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       summary: 'Natural domain-chip request staged a pending build preview without launching execution.'
     });
     await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
-    return;
-  }
-  const memoryDirectiveAuthorization = memoryDirective
-    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
-        route: 'memory.write',
-        text,
-        toolName: 'memory.write',
-        ownerSystem: 'domain-chip-memory',
-        mutationClass: 'writes_memory'
-      })
-    : null;
-  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
-    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
     return;
   }
   if (!earlyBuildIntent && naturalRouteShadow?.route !== 'chat_plan' && shouldPreferConversationalIdeation(text)) {
