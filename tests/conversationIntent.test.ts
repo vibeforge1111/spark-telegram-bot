@@ -586,6 +586,40 @@ test('turns natural shipped project feedback into an iteration mission', () => {
   assert.match(goal, /Parent mission: mission-founder/);
 });
 
+test('turns contextual shipped-project polish follow-through into an iteration mission', () => {
+  const project = {
+    chatId: '1278511160',
+    userId: '1278511160',
+    projectName: 'Mission 1781519873204 Evening Reset Board',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board',
+    previewUrl: 'http://127.0.0.1:3333/preview/evening-reset-board/index.html',
+    missionId: 'mission-1781519873204',
+    iteration: 1,
+    summary: 'Built a three-column evening planning board.',
+    shippedAt: '2026-06-15T00:00:00Z',
+    updatedAt: '2026-06-15T00:00:00Z'
+  };
+  const recentContext = [
+    'User: What changed in Evening Reset Board, and what would you polish next?',
+    'Assistant: Evening Reset Board shipped at C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board.',
+    'Assistant: Polish next: tighten the empty states and mobile drag/move flow, then add a small reset for tonight action. Current preview: http://127.0.0.1:3333/preview/evening-reset-board/index.html'
+  ];
+
+  assert.equal(isProjectImprovementRequest("Let's do that.", project, recentContext), true);
+  assert.equal(isProjectImprovementRequest("Let's do that.", project), false);
+  assert.equal(isProjectImprovementRequest('Can we do that?', project, recentContext), false);
+  assert.equal(isProjectImprovementRequest("Let's do that.", project, [
+    'Assistant: My call: build a Day Triage Picker with Now, Later, and Parked columns.'
+  ]), false);
+
+  const goal = buildProjectImprovementGoal("Let's do that.", project, recentContext);
+  assert.ok(goal);
+  assert.match(goal, /Improve the existing shipped project "Mission 1781519873204 Evening Reset Board"/);
+  assert.match(goal, /User feedback:\nLet's do that\./);
+  assert.match(goal, /Polish next: tighten the empty states/);
+  assert.match(goal, /Current preview: http:\/\/127\.0\.0\.1:3333\/preview\/evening-reset-board\/index\.html/);
+});
+
 test('keeps open-ended new product exploration out of shipped project iteration', () => {
   const project = {
     chatId: '8319079055',

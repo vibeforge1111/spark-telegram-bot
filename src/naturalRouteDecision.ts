@@ -555,7 +555,7 @@ export function decideNaturalRoute(
     });
   }
 
-  if (isProjectImprovementRequest(normalized, context.shippedProject)) {
+  if (isProjectImprovementRequest(normalized, context.shippedProject, recentMessages)) {
     return decision({
       route: 'project.iteration',
       owner_system: 'spawner-ui',

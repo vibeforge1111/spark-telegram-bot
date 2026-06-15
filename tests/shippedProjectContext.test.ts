@@ -100,6 +100,100 @@ async function main(): Promise<void> {
     assert.equal(latest.previewUrl, previewUrl);
     assert.equal(isProjectImprovementRequest('add one tiny feedback note to this app', latest), true);
   });
+
+  await test('normalizes framework output previews back to the project root', async () => {
+    const projectPath = 'C:/Users/USER/.spark/workspaces/mission-next-dashboard';
+    const previewUrl = shippedProjectContext.projectPreviewUrlForPath(`${projectPath}/.next/server/app`);
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'next-output-chat',
+      userId: '1278511160',
+      missionId: 'mission-next-dashboard',
+      requestId: 'tg-build-next-dashboard',
+      goal: 'Build a local app called Next Dashboard.',
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl
+    });
+
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('next-output-chat');
+    assert.ok(latest);
+    assert.equal(latest.projectName, 'Next Dashboard');
+    assert.equal(latest.projectPath, projectPath);
+    assert.equal(latest.previewUrl, previewUrl);
+  });
+
+  await test('does not let question-residue builds overwrite the current shipped project', async () => {
+    const projectPath = 'C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board';
+    const previewUrl = shippedProjectContext.projectPreviewUrlForPath(`${projectPath}/dist`);
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'residue-chat',
+      userId: '1278511160',
+      missionId: 'mission-1781519873204',
+      requestId: 'tg-build-evening-reset-board',
+      goal: 'Build a local app called Evening Reset Board.',
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl
+    });
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'residue-chat',
+      userId: '1278511160',
+      missionId: 'mission-1781520796421',
+      requestId: 'tg-build-residue',
+      goal: '# , And What Would You Polish\n\n, and what would you polish next?',
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl: shippedProjectContext.projectPreviewUrlForPath('C:/Users/USER/.spark/workspaces/mission-1781520796421-and-what-would-you-polish/.next/server/app')
+    });
+
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('residue-chat');
+    assert.ok(latest);
+    assert.equal(latest.projectName, 'Evening Reset Board');
+    assert.equal(latest.projectPath, projectPath);
+    assert.equal(latest.missionId, 'mission-1781519873204');
+    assert.equal(latest.requestId, 'tg-build-evening-reset-board');
+  });
+
+  await test('preserves shipped project names across same-project polish iterations', async () => {
+    const projectPath = 'C:/Users/USER/.spark/workspaces/mission-same-project-evening-reset-board';
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'same-project-chat',
+      userId: '1278511160',
+      missionId: 'mission-same-project-1',
+      requestId: 'tg-build-same-project-1',
+      goal: 'Build a local app called Evening Reset Board.',
+      providerLabel: 'provider',
+      response: JSON.stringify({
+        summary: 'Built Evening Reset Board.',
+        project_path: projectPath,
+        preview_url: 'http://127.0.0.1:3333/preview/same-project/index.html'
+      })
+    });
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: 'same-project-chat',
+      userId: '1278511160',
+      missionId: 'mission-same-project-2',
+      requestId: 'tg-build-same-project-2',
+      goal: '# Evening Reset Board polish 2\n\nAdd a reset action.',
+      providerLabel: 'provider',
+      response: JSON.stringify({
+        summary: 'Improved Evening Reset Board.',
+        project_path: projectPath,
+        preview_url: 'http://127.0.0.1:3333/preview/same-project/index.html'
+      })
+    });
+
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('same-project-chat');
+    assert.ok(latest);
+    assert.equal(latest.projectName, 'Evening Reset Board');
+    assert.equal(latest.iteration, 2);
+    assert.equal(latest.missionId, 'mission-same-project-2');
+  });
 }
 
 main().catch((error) => {

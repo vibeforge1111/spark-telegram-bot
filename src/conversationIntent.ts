@@ -2487,7 +2487,87 @@ export function buildContextualImprovementGoal(currentText: string, recentMessag
   return null;
 }
 
-export function isProjectImprovementRequest(text: string, project: ShippedProjectContext | null | undefined): boolean {
+const PROJECT_CONTEXT_GENERIC_WORDS = new Set([
+  'mission',
+  'project',
+  'build',
+  'built',
+  'shipped',
+  'app',
+  'site',
+  'tool',
+  'dashboard',
+  'board',
+  'prototype',
+  'polish',
+  'current',
+  'latest'
+]);
+
+function normalizedProjectContextNeedles(project: ShippedProjectContext): string[] {
+  const rawValues = [
+    project.projectName,
+    project.projectPath,
+    project.previewUrl,
+    project.missionId,
+    project.requestId || ''
+  ];
+  const exactNeedles = rawValues
+    .map((value) => value.trim().toLowerCase().replace(/\\/g, '/'))
+    .filter((value) => value.length >= 8);
+  const wordNeedles = project.projectName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4 && !PROJECT_CONTEXT_GENERIC_WORDS.has(word));
+
+  return Array.from(new Set([...exactNeedles, ...wordNeedles]));
+}
+
+function isLowInformationProjectIterationFollowup(normalized: string): boolean {
+  if (!normalized || normalized.includes('?')) return false;
+  const cleaned = normalized.replace(/[.!]+$/g, '').replace(/\s+/g, ' ').trim();
+  return (
+    /^(?:(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good|right)[,.\s]*)?(?:(?:let'?s|lets|please)\s+)?(?:do|apply|make|ship|start|run|go ahead with|continue with|implement|add|use)\s+(?:that|this|it|those|them|that polish|the polish|the changes|those changes|the update|the updates|the next step|the next polish)(?:\s+(?:now|please))?$/.test(cleaned) ||
+    /^(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good)[,.\s]*(?:go ahead|do it|apply it|ship it|start it|run it|implement it)(?:\s+(?:now|please))?$/.test(cleaned)
+  );
+}
+
+function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentMessages: string[]): boolean {
+  const recentContext = recentMessages
+    .map((message) => message.trim().toLowerCase().replace(/\\/g, '/'))
+    .filter(Boolean)
+    .slice(-8)
+    .join('\n');
+  if (!recentContext) return false;
+
+  const hasProjectIdentity = normalizedProjectContextNeedles(project).some((needle) => recentContext.includes(needle));
+  if (!hasProjectIdentity) return false;
+
+  return (
+    /\b(?:polish next|next polish|what would you polish|thoughtful next polish|one thoughtful next polish|next direction|next improvement)\b/.test(recentContext) ||
+    /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path)\b/.test(recentContext) &&
+      /\b(?:polish|improve|tighten|add|fix|update|adjust|tweak|refine|rework|redesign|clean)\b/.test(recentContext)
+  );
+}
+
+function isContextualProjectImprovementFollowup(
+  normalized: string,
+  project: ShippedProjectContext,
+  recentMessages: string[]
+): boolean {
+  if (isNoExecutionBoundary(normalized)) return false;
+  return (
+    isLowInformationProjectIterationFollowup(normalized) &&
+    hasRecentProjectIterationAdvice(project, recentMessages)
+  );
+}
+
+export function isProjectImprovementRequest(
+  text: string,
+  project: ShippedProjectContext | null | undefined,
+  recentMessages: string[] = []
+): boolean {
   if (!project) return false;
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
@@ -2506,11 +2586,12 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
     return false;
   }
 
+  const contextualFollowup = isContextualProjectImprovementFollowup(normalized, project, recentMessages);
   const asksToChange = /\b(?:make|turn|change|improve|polish|update|add|remove|fix|adjust|tweak|refine|rework|redesign|clean|tighten|soften|brighten|darken)\b/.test(normalized);
-  if (!asksToChange) return false;
+  if (!asksToChange && !contextualFollowup) return false;
 
   const pointsAtCurrentProject = /\b(?:this|that|it|app|site|page|screen|project|build|product|dashboard|tool|prototype|design|layout|colors?|colours?|palette|theme|spacing|copy|text|button|flow|workflow|mobile|responsive|spark)\b/.test(normalized);
-  return pointsAtCurrentProject;
+  return contextualFollowup || pointsAtCurrentProject;
 }
 
 function isFreshProductTransformationRequest(normalized: string): boolean {
@@ -2522,7 +2603,7 @@ export function buildProjectImprovementGoal(
   project: ShippedProjectContext | null | undefined,
   recentMessages: string[] = []
 ): string | null {
-  if (!isProjectImprovementRequest(currentText, project) || !project) return null;
+  if (!isProjectImprovementRequest(currentText, project, recentMessages) || !project) return null;
 
   const recentContext = recentMessages
     .map((message) => message.trim())

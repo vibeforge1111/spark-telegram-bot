@@ -635,6 +635,50 @@ test('ignores conversational residue words in current Spawner artifact titles', 
   assert.equal(route.payload.artifactKind, undefined);
 });
 
+test('routes contextual shipped-project polish follow-through to project iteration despite stale Spawner residue', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Mission 1781519873204 Evening Reset Board',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board',
+    previewUrl: 'http://127.0.0.1:3333/preview/evening-reset-board/index.html',
+    missionId: 'mission-1781519873204',
+    requestId: 'tg-build-5cf0540d34cb-1781519873204',
+    iteration: 1
+  };
+  const route = decideNaturalRoute("Let's do that.", {
+    shippedProject: project,
+    spawnerArtifact: {
+      ...spawnerArtifact(),
+      projectName: ', And What Would You Polish',
+      requestId: 'tg-build-3a6b2e9aca2e-1781520796421',
+      missionId: 'mission-1781520796421'
+    },
+    recentMessages: [
+      'User: What changed in Evening Reset Board, and what would you polish next?',
+      'Assistant: Evening Reset Board is the current shipped app at C:/Users/USER/.spark/workspaces/mission-1781519873204-evening-reset-board.',
+      'Assistant: Polish next: tighten the empty states and mobile drag/move flow, then add a small reset for tonight action. Current preview: http://127.0.0.1:3333/preview/evening-reset-board/index.html'
+    ]
+  });
+
+  assert.equal(route.route, 'project.iteration');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, true);
+  assert.equal(route.payload.projectName, 'Mission 1781519873204 Evening Reset Board');
+  assert.match(String(route.payload.goal), /reset for tonight action/);
+  assert.notEqual(route.payload.projectName, ', And What Would You Polish');
+});
+
+test('keeps context-free shipped-project follow-through conversational', () => {
+  const route = decideNaturalRoute("Let's do that.", {
+    shippedProject: shippedProject()
+  });
+
+  assert.equal(route.route, 'plain_chat');
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
 test('keeps open-ended new product exploration from binding to latest shipped project', () => {
   const route = decideNaturalRoute(
     "I'm trying to plan my day better and keep getting scattered. What kind of small thing should we make for that?",

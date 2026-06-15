@@ -84,9 +84,7 @@ function projectPathFromPreviewUrl(previewUrl: string): string | null {
   if (!match?.[1]) return null;
   try {
     const decoded = normalizeLocalProjectPath(Buffer.from(match[1], 'base64url').toString('utf8'));
-    return path.posix.basename(decoded).toLowerCase() === 'dist'
-      ? normalizeLocalProjectPath(path.posix.dirname(decoded))
-      : decoded;
+    return normalizeProjectRootFromArtifactPath(decoded);
   } catch {
     return null;
   }
@@ -96,9 +94,28 @@ function projectPathFromLinkedFileTarget(target: string): string | null {
   const normalized = normalizeLocalProjectPath(target);
   if (!/^[A-Za-z]:\//.test(normalized)) return null;
   const extension = path.posix.extname(normalized);
-  return extension
+  const projectPath = extension
     ? normalizeLocalProjectPath(path.posix.dirname(normalized))
     : normalized;
+  return normalizeProjectRootFromArtifactPath(projectPath);
+}
+
+function normalizeProjectRootFromArtifactPath(projectPath: string): string {
+  const normalized = normalizeLocalProjectPath(projectPath);
+  const segments = normalized.split('/');
+  const nextIndex = segments.findIndex((segment) => segment.toLowerCase() === '.next');
+  if (nextIndex > 1) {
+    return normalizeLocalProjectPath(segments.slice(0, nextIndex).join('/'));
+  }
+  const outputIndex = segments.findIndex((segment) => segment.toLowerCase() === '.output');
+  if (outputIndex > 1) {
+    return normalizeLocalProjectPath(segments.slice(0, outputIndex).join('/'));
+  }
+  const basename = path.posix.basename(normalized).toLowerCase();
+  if (['dist', 'build', 'out'].includes(basename)) {
+    return normalizeLocalProjectPath(path.posix.dirname(normalized));
+  }
+  return normalized;
 }
 
 export function extractProjectPathFromMissionText(text: string): string | null {
@@ -106,7 +123,7 @@ export function extractProjectPathFromMissionText(text: string): string | null {
   const jsonPath = parsed
     ? stringField(parsed.project_path) || stringField(parsed.projectPath)
     : null;
-  if (jsonPath) return normalizeLocalProjectPath(jsonPath);
+  if (jsonPath) return normalizeProjectRootFromArtifactPath(jsonPath);
 
   const previewUrl = extractPreviewUrlFromMissionText(text);
   if (previewUrl) {
@@ -158,6 +175,73 @@ function projectNameFromGoal(goal: string, projectPath: string): string {
   return titleFromFolder(projectPath);
 }
 
+const GENERIC_PROJECT_TITLES = new Set([
+  'app',
+  'application',
+  'project',
+  'build',
+  'site',
+  'website',
+  'page',
+  'prototype',
+  'demo'
+]);
+
+const RESIDUE_PROJECT_TITLE_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'or',
+  'the',
+  'this',
+  'that',
+  'these',
+  'those',
+  'you',
+  'your',
+  'me',
+  'my',
+  'we',
+  'our',
+  'mission',
+  'what',
+  'which',
+  'where',
+  'when',
+  'why',
+  'how',
+  'would',
+  'should',
+  'could',
+  'next',
+  'polish',
+  'changed',
+  'change',
+  'update',
+  'improve'
+]);
+
+function isPromotableProjectTitle(projectName: string): boolean {
+  const trimmed = projectName.trim();
+  if (!trimmed || /^[^\w]+/.test(trimmed)) return false;
+  const normalized = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (!normalized || GENERIC_PROJECT_TITLES.has(normalized)) return false;
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const concreteWords = words.filter((word) =>
+    !/^\d+$/.test(word) &&
+    !GENERIC_PROJECT_TITLES.has(word) &&
+    !RESIDUE_PROJECT_TITLE_WORDS.has(word)
+  );
+  const residueQuestionWords = words.filter((word) =>
+    ['what', 'which', 'where', 'when', 'why', 'how', 'would', 'should', 'could', 'polish', 'next'].includes(word)
+  );
+
+  if (concreteWords.length === 0) return false;
+  if (residueQuestionWords.length >= 2 && concreteWords.length <= 1) return false;
+  return true;
+}
+
 function truncateSummary(value: string): string {
   const maxLength = 500;
   const clean = value.trim();
@@ -180,11 +264,12 @@ export async function recordShippedProjectFromMission(
   input: ShippedProjectMissionInput
 ): Promise<ShippedProjectContext | null> {
   const inputPreviewUrl = stringField(input.previewUrl);
-  const projectPath =
+  const rawProjectPath =
     stringField(input.projectPath) ||
     extractProjectPathFromMissionText(input.response) ||
     (inputPreviewUrl ? projectPathFromPreviewUrl(inputPreviewUrl) : null);
-  if (!projectPath) return null;
+  if (!rawProjectPath) return null;
+  const projectPath = normalizeProjectRootFromArtifactPath(rawProjectPath);
 
   const chatId = String(input.chatId);
   const state = await readState();
@@ -192,10 +277,17 @@ export async function recordShippedProjectFromMission(
   const sameProject = previous?.projectPath === projectPath;
   const now = new Date().toISOString();
   const summary = summaryFromResponse(input.response);
+  const projectName = sameProject && previous?.projectName
+    ? previous.projectName
+    : projectNameFromGoal(input.goal, projectPath);
+  if (!isPromotableProjectTitle(projectName)) {
+    return previous || null;
+  }
+
   const context: ShippedProjectContext = {
     chatId,
     userId: String(input.userId),
-    projectName: projectNameFromGoal(input.goal, projectPath),
+    projectName,
     projectPath,
     previewUrl: inputPreviewUrl || extractPreviewUrlFromMissionText(input.response) || projectPreviewUrlForPath(projectPath),
     missionId: input.missionId,

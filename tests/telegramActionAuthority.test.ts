@@ -151,6 +151,34 @@ test('allows fresh shipped-project iteration to authorize the writable Spawner l
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('allows contextual shipped-project polish follow-through to authorize the writable Spawner lane', () => {
+  const text = "Let's do that.";
+  const recentMessages = [
+    'Assistant: JS Sprint Picker is the current shipped app at C:/Users/USER/.spark/workspaces/mission-test-js-sprint-picker.',
+    'Assistant: Polish next: tighten the empty states and mobile move flow, then add a reset for tonight action. Current preview: http://127.0.0.1:3333/preview/js-sprint-picker/index.html'
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject, recentMessages });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(naturalRouteDecision.route, 'project.iteration');
+  assert.equal(decision.route, 'project.iteration');
+  assert.equal(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), true);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
+});
+
 test('allows static app build briefs that specify no build step', () => {
   const text = 'Build a quick vanilla JS page at ./spark-ap07-authority-proof-test: Files: index.html, app.js. No build step. Shows AP07 signed authority proof foreground.';
   const decision = classifyTelegramIntentV2(text, { naturalRouteDecision: decideNaturalRoute(text) });

@@ -2353,8 +2353,15 @@ async function recordNaturalRouteShadow(
   context: Partial<Pick<NaturalRouteDecisionContext, 'shippedProject' | 'spawnerArtifact'>> = {}
 ): Promise<NaturalRouteDecision | null> {
   try {
+    const recentMessages = await conversation.getRecentMessages(ctx.from, 15).catch(() => []);
+    const recentTurns = await conversation.getRecentTurns(ctx.from, 16).catch(() => []);
+    const routeRecentMessages = Array.from(new Set([
+      ...recentMessages,
+      ...recentTurns.map((turn) => `${turn.role === 'assistant' ? 'Assistant' : 'User'}: ${turn.text}`)
+    ])).slice(-24);
+
     return decideNaturalRoute(text, {
-      recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      recentMessages: routeRecentMessages,
       shippedProject: context.shippedProject,
       spawnerArtifact: context.spawnerArtifact,
       pendingBuildClarification: Boolean(
@@ -11197,7 +11204,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const projectIterationAuthorization = isProjectImprovementRequest(text, latestShippedProject)
+    const projectIterationAuthorization = isProjectImprovementRequest(text, latestShippedProject, contextualTurns)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.project_iteration',
         text,
