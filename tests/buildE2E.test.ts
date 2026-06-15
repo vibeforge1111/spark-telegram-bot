@@ -4214,6 +4214,122 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('artifact-only polish approval executes selected project iteration route', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '1278511160';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-artifact-only-polish-'));
+		process.env.SPARK_HOME = tempRoot;
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const testUserId = 1278511160;
+		const requestId = 'tg-build-artifact-day-triage-1781561000000';
+		const missionId = 'mission-artifact-day-triage';
+		const spawnerStateDir = path.join(tempRoot, 'state', 'spawner-ui');
+		mkdirSync(path.join(spawnerStateDir, 'results'), { recursive: true });
+		writeFileSync(path.join(spawnerStateDir, 'pending-request.json'), JSON.stringify({
+			projectName: 'Mission 1781548537593 Existing Day Triage Button polish 2',
+			requestId,
+			missionId,
+			status: 'processed',
+			buildMode: 'advanced_prd',
+			buildLane: 'advanced_prd',
+			canvasUrl: `/canvas?pipeline=${requestId}&mission=${missionId}`,
+			boardUrl: `/kanban?mission=${missionId}`,
+			updatedAt: '2026-06-15T23:28:00.000Z',
+			relay: { chatId: testUserId, userId: testUserId }
+		}, null, 2));
+		writeFileSync(path.join(spawnerStateDir, 'results', `${requestId}.json`), JSON.stringify({
+			projectName: 'Mission 1781548537593 Existing Day Triage Button polish 2',
+			projectType: 'tiny local app',
+			tasks: [
+				{ title: 'One screen', description: 'Reduce to one visible decision screen.' },
+				{ title: 'One tap', description: 'Make one action produce the next recommendation.' },
+				{ title: 'Persistence proof', description: 'Keep day state persisted.' }
+			],
+			metadata: {
+				taskQuality: { taskCount: 3, score: 100, weakTaskCount: 0, findingCount: 0 }
+			},
+			success: true
+		}, null, 2));
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true, requestId: body.requestId, autoAnalysis: { provider: 'codex', started: true } } };
+		};
+
+		let indexModule: any;
+		try {
+			const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+			const shippedProjectModule = await import('../src/shippedProjectContext');
+			await shippedProjectModule.clearShippedProjectContextForTests?.();
+
+			await conversationModule.conversation.rememberAssistantReply(
+				{ id: testUserId, username: 'artifact-polish-test' },
+				[
+					'Mission 1781548537593 Existing Day Triage Button polish 2 has a current Spawner result',
+					'What changed',
+					'• It moved from idea to a concrete existing local react app iteration plan with 3 build steps.',
+					'Evidence',
+					'• Result: 3 build steps, 100/100 quality, 0 weak tasks, 0 findings.',
+					'Next',
+					'• keep the next pass narrow: validate the first repeated user loop from the artifact, then polish only the friction found there.'
+				].join('\n')
+			);
+			await conversationModule.conversation.remember(
+				{ id: testUserId, username: 'artifact-polish-test' },
+				'For Existing Day Triage Button, same thing but simpler - what would you change now?'
+			);
+			await conversationModule.conversation.rememberAssistantReply(
+				{ id: testUserId, username: 'artifact-polish-test' },
+				'Change it to one screen, one tap, one sentence, then keep only the proof that matters: it still persists the day state and carries mission context.'
+			);
+
+			indexModule = await import('../src/index');
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 91340, replies);
+			ctx.message.text = 'ok do it';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			const writeCall = captured.find((call) => call.url.includes('/api/prd-bridge/write'));
+			assert.ok(writeCall, 'artifact-only polish approval must POST to /api/prd-bridge/write');
+			assert.match(writeCall!.body.projectName, /Existing Day Triage Button polish/i);
+			assert.match(writeCall!.body.content, /one screen, one tap, one sentence/i);
+			assert.match(writeCall!.body.content, /Current artifact evidence/i);
+			assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
+			assert.match(reply, /Got it\. I will improve Mission 1781548537593 Existing Day Triage Button polish 2/i);
+			assert.doesNotMatch(reply, /No files were changed and no mission was started/i);
+			assert.doesNotMatch(reply, /read-only/i);
+
+			const projectIterationRoute = (record: any) => (
+				record.shadow_route === 'project.iteration' &&
+				record.executed_route === 'project.iteration' &&
+				record.executed_owner === 'spawner-ui' &&
+				record.executed_action === 'spawner.run' &&
+				record.outcome === 'matched'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, projectIterationRoute);
+			assert.ok(naturalRouteRecords.some(projectIterationRoute), 'artifact-only approval must preserve selected project.iteration execution evidence');
+		} finally {
+			indexModule?.__setEvidenceAnswerComposerForTest?.(null);
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('Spawner failure-provider readout ignores stale current artifact context', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

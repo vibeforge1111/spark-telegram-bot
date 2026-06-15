@@ -976,6 +976,42 @@ test('routes rich Telegram readout plus simplification advice as project iterati
   assert.notEqual(route.route, 'spawner.build');
 });
 
+test('routes artifact-only polish approval to project iteration instead of contextual mission', () => {
+  const route = decideNaturalRoute('ok do it', {
+    spawnerArtifact: {
+      projectName: 'Mission 1781548537593 Existing Day Triage Button polish 2',
+      requestId: 'tg-build-5068ce358338-1781558666201',
+      missionId: 'mission-1781558666201',
+      status: 'processed',
+      buildMode: 'advanced_prd',
+      buildLane: 'advanced_prd',
+      canvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-5068ce358338-1781558666201&mission=mission-1781558666201',
+      boardUrl: 'http://127.0.0.1:3333/kanban?mission=mission-1781558666201',
+      resultAvailable: true
+    },
+    recentMessages: [
+      [
+        'Spark: Mission 1781548537593 Existing Day Triage Button polish 2 has a current Spawner result',
+        'What changed',
+        '• It moved from idea to a concrete existing local react app iteration plan with 3 build steps.',
+        'Evidence',
+        '• Result: 3 build steps, 100/100 quality, 0 weak tasks, 0 findings.',
+        'Next',
+        '• keep the next pass narrow: validate the first repeated user loop from the artifact, then polish only the friction found there.'
+      ].join('\n'),
+      'User: For Existing Day Triage Button, same thing but simpler - what would you change now?',
+      'Spark: Change it to one screen, one tap, one sentence, then keep only the proof that matters: it still persists the day state and carries mission context.'
+    ]
+  });
+
+  assert.equal(route.route, 'project.iteration');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.payload.artifactKind, 'spawner_artifact');
+  assert.match(String(route.payload.goal), /one screen, one tap, one sentence/);
+  assert.notEqual(route.route, 'spawner.contextual_mission');
+});
+
 test('keeps low-information follow-through conversational after route-policy advice', () => {
   const project = {
     ...shippedProject(),

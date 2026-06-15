@@ -11493,21 +11493,34 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       : null;
     if (projectIterationAuthorization?.allow) {
       const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns) || naturalProjectIterationGoal;
-      if (improvementGoal && latestShippedProject) {
+      const iterationProjectName = latestShippedProject?.projectName ||
+        (typeof naturalRouteShadow?.payload?.projectName === 'string' ? naturalRouteShadow.payload.projectName.trim() : '') ||
+        latestSpawnerArtifact?.projectName ||
+        'current Spark project';
+      const iterationProjectPath = latestShippedProject?.projectPath || null;
+      const iterationNumber = latestShippedProject ? latestShippedProject.iteration + 1 : 1;
+      if (improvementGoal && iterationProjectName) {
         await conversation.remember(user, text).catch(() => {});
         await ctx.reply([
-          `Got it. I will improve ${latestShippedProject.projectName}.`,
+          `Got it. I will improve ${iterationProjectName}.`,
           '',
-          'I will keep the existing project intact and ship this as the next polish pass.',
-          latestShippedProject.previewUrl ? `Current preview: ${latestShippedProject.previewUrl}` : null
+          latestShippedProject
+            ? 'I will keep the existing project intact and ship this as the next polish pass.'
+            : 'I will use the current Spawner artifact and recent advice as the scope for this polish pass.',
+          latestShippedProject?.previewUrl ? `Current preview: ${latestShippedProject.previewUrl}` : null,
+          !latestShippedProject && latestSpawnerArtifact?.canvasUrl
+            ? `Current canvas: ${new URL(latestSpawnerArtifact.canvasUrl, resolveTelegramSpawnerSurfaceUrl()).toString()}`
+            : null
         ].filter(Boolean).join('\n'));
         const buildDispatch = await handleBuildIntent(
           ctx,
           improvementGoal,
-          `${latestShippedProject.projectName} polish ${latestShippedProject.iteration + 1}`,
-          latestShippedProject.projectPath,
+          `${iterationProjectName} polish ${iterationNumber}`,
+          iterationProjectPath,
           'advanced_prd',
-          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.',
+          latestShippedProject
+            ? 'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.'
+            : 'User approved a polish pass from the current Spawner artifact and recent Telegram advice.',
           undefined,
           undefined,
           undefined,

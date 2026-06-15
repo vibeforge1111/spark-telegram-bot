@@ -313,6 +313,69 @@ function isCurrentSpawnerArtifactReadoutQuestion(
   return namesArtifact || pointsAtCurrentArtifact;
 }
 
+function hasRecentSpawnerArtifactAdvice(artifact: SpawnerArtifactContext, recentMessages: string[]): boolean {
+  const artifactWords = significantNameWords(artifact.projectName);
+  const recentText = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .slice(-12)
+    .join('\n')
+    .toLowerCase()
+    .replace(/\\/g, '/');
+  if (!recentText) return false;
+  const namesArtifact = artifactWords.some((word) => recentText.includes(word));
+  const hasArtifactEvidence = namesArtifact || /\b(?:current spawner result|canvas|kanban|board|preview|result evidence|build steps?|quality)\b/.test(recentText);
+  const hasAdviceSignal =
+    /\b(?:i(?:['\u2019]d| would)|my call is to|i would)\s+(?:cut|remove|add|make|change|tighten|simplify|turn|move|swap|use|drop)\b/.test(recentText) ||
+    /\b(?:make|keep|change|turn)\s+(?:it|this|that|the\s+(?:app|button|screen|flow))\b.{0,120}\b(?:one|single|simple|simpler|cleaner|tighter|focused|screen|tap|sentence|outcome|recommendation)\b/.test(recentText) ||
+    /\b(?:one\s+screen|one\s+tap|one\s+sentence|next\s+polish|polish\s+direction|remove\s+(?:the\s+)?(?:extra|duration|parking|choices)|prove\s+one\s+thing)\b/.test(recentText);
+  return hasArtifactEvidence && hasAdviceSignal;
+}
+
+function buildSpawnerArtifactImprovementGoal(
+  currentText: string,
+  artifact: SpawnerArtifactContext,
+  recentMessages: string[]
+): string | null {
+  if (!hasRecentSpawnerArtifactAdvice(artifact, recentMessages)) return null;
+  const recentContext = recentMessages
+    .map((message) => message.trim())
+    .filter(Boolean)
+    .slice(-8)
+    .join('\n');
+  return [
+    `Create the next polish pass for the current Spawner artifact "${artifact.projectName}".`,
+    '',
+    'This is a continuation of the visible Spawner artifact and recent Telegram advice, not a new unrelated scaffold.',
+    '',
+    `User approval:\n${currentText.trim()}`,
+    '',
+    `Current artifact evidence:\n- requestId: ${artifact.requestId}\n- missionId: ${artifact.missionId}\n- status: ${artifact.status || 'unknown'}\n- canvas: ${artifact.canvasUrl || 'unknown'}\n- board: ${artifact.boardUrl || 'unknown'}`,
+    '',
+    `Recent Telegram context:\n${recentContext}`,
+    '',
+    'Rules:',
+    '- Preserve the existing artifact scope unless the user explicitly changes it.',
+    '- Implement the approved polish direction from the recent assistant advice.',
+    '- Keep the pass narrow and verify the core user loop.',
+    '- Do not claim a local file edit until the owner system returns completion evidence.'
+  ].join('\n');
+}
+
+function isContextualSpawnerArtifactImprovementFollowup(
+  normalized: string,
+  artifact: SpawnerArtifactContext | null | undefined,
+  recentMessages: string[]
+): boolean {
+  if (!artifact) return false;
+  if (isNoExecutionBoundary(normalized)) return false;
+  const cleaned = normalized.replace(/[.!]+$/g, '').replace(/\s+/g, ' ').trim();
+  const lowInformationApproval =
+    /^(?:(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good|right)[,.\s]*)?(?:(?:let'?s|lets|please)\s+)?(?:do|apply|make|ship|start|run|go ahead with|continue with|implement|add|use)\s+(?:that|this|it|those|them|that polish|the polish|the changes|those changes|the update|the updates|the next step|the next polish)(?:\s+(?:now|please))?$/.test(cleaned) ||
+    /^(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good)[,.\s]*(?:go ahead(?:\s+and\s+(?:do|apply|ship|start|run|implement)\s+it)?|do it|apply it|ship it|start it|run it|implement it)(?:\s+(?:now|please))?$/.test(cleaned);
+  return lowInformationApproval && hasRecentSpawnerArtifactAdvice(artifact, recentMessages);
+}
+
 function isCreatorLoopDomainChipPhrase(text: string, recentCreatorLoopContext: boolean): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\bdomain[-\s]*chip\b/.test(normalized)) return false;
@@ -1266,6 +1329,27 @@ export function decideNaturalRoute(
       matched_signals: ['build_context_recall_question'],
       blocked_by: [],
       requires_confirmation: false
+    });
+  }
+
+  if (isContextualSpawnerArtifactImprovementFollowup(normalized, context.spawnerArtifact, recentMessages)) {
+    const artifact = context.spawnerArtifact!;
+    return decision({
+      route: 'project.iteration',
+      owner_system: 'spawner-ui',
+      confidence: 'contextual',
+      action: 'project.iteration',
+      payload: {
+        artifactKind: 'spawner_artifact',
+        projectName: artifact.projectName,
+        requestId: artifact.requestId,
+        missionId: artifact.missionId,
+        goal: buildSpawnerArtifactImprovementGoal(text, artifact, recentMessages)
+      },
+      context_source: 'visible_exact_artifact',
+      matched_signals: ['spawner_artifact_context', 'project_improvement_followup'],
+      blocked_by: [],
+      requires_confirmation: true
     });
   }
 
