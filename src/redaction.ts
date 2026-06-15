@@ -84,7 +84,25 @@ export function redactIdentifier(value: string | number | null | undefined, pref
   const digest = createHash('sha256').update(text).digest('hex').slice(0, 16);
   return `${safePrefix}_${digest}`;
 }
+const TELEGRAM_ID_PATTERNS = [
+  /\btelegram:\d{5,16}\b/gi,
+  /\b\d{7,12}\b(?=.*(?:telegram|admin|user.?id))/gi,
+];
 
+export function redactTelegramIds(text: string): string {
+  let result = text;
+  for (const pattern of TELEGRAM_ID_PATTERNS) {
+    result = result.replace(pattern, '[TELEGRAM_ID_REDACTED]');
+  }
+  return result;
+}
+
+export function containsTelegramId(text: string): boolean {
+  return TELEGRAM_ID_PATTERNS.some(pattern => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  });
+}
 export function installConsoleRedaction(): void {
   if (consoleRedactionInstalled) return;
   consoleRedactionInstalled = true;
@@ -95,3 +113,25 @@ export function installConsoleRedaction(): void {
     }) as typeof console[typeof method];
   }
 }
+// TODO(spark-compete-qa): Telegram ID redaction gap found in QA 2026-05-23
+// Bug: Raw Telegram IDs from memory context are printed in plain chat output
+// without redaction. Confirmed twice in same QA session (systemic failure).
+//
+// Before:
+//   Bot output: "Your Telegram user ID is 1145923083"
+//   Bot output: "Request: telegram:768628429"
+//   (real numeric IDs in plain chat, no redaction applied)
+//
+// After:
+//   Bot output: "A Telegram admin ID is configured."
+//   (ID never printed, user directed to @userinfobot)
+//
+// Fix needed:
+//   1. Add Telegram ID pattern to redaction rules
+//   2. Never print raw numeric Telegram IDs in chat output
+//   3. Treat all telegram:XXXXXXXXX patterns as sensitive PII
+//   4. Redirect ID queries to @userinfobot instead of printing value
+//
+// Regex pattern to add to redaction rules:
+//   /\btelegram:\d{5,16}\b/g  -> "[TELEGRAM_ID_REDACTED]"
+//   /\b\d{7,10}\b(?=.*telegram)/gi -> "[TELEGRAM_ID_REDACTED]"
