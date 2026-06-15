@@ -1009,6 +1009,13 @@ export function formatDiagnosticsScanReply(report: BuilderDiagnosticsScanJson): 
   ].join('\n');
 }
 
+export function formatDiagnosticsScanEmptyStdoutError(stderr: string): string {
+  const hasStderr = Boolean(redactText(String(stderr || '').trim()).trim());
+  return hasStderr
+    ? 'Diagnostics scan returned empty stdout. stderr was captured but redacted.'
+    : 'Diagnostics scan returned empty stdout.';
+}
+
 export function formatSelfAwarenessReply(payload: unknown): string {
   const root = objectValue(payload);
   const currentMessage = stringValue(root.current_message);
@@ -1465,7 +1472,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   );
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
-    throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+    throw new Error(formatDiagnosticsScanEmptyStdoutError(stderr));
   }
   const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
   return {

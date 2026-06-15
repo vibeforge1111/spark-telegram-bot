@@ -6,6 +6,7 @@ import {
   compactColdMemoryQuery,
   formatAgentBlackBoxReply,
   formatConversationColdMemoryContext,
+  formatDiagnosticsScanEmptyStdoutError,
   formatDiagnosticsScanReply,
   formatMemoryInPlaySummary,
   formatRouteConfidenceGateReply,
@@ -66,6 +67,23 @@ test('formats diagnostics scan replies without emojis while preserving sections'
     ].join('\n')
   );
   assert.doesNotMatch(reply, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+});
+
+test('redacts diagnostics scan stderr before Telegram failure replies', () => {
+  const stderr = [
+    'scan failed while reading /Users/example/.spark/private/diagnostics.log',
+    `OPENAI_API_KEY=sk-${'a'.repeat(32)}`,
+    'Authorization: Bearer github_pat_1234567890abcdefghijklmnopqrstuvwxyz'
+  ].join('\n');
+
+  const message = formatDiagnosticsScanEmptyStdoutError(stderr);
+
+  assert.match(message, /Diagnostics scan returned empty stdout/);
+  assert.match(message, /stderr was captured but redacted/);
+  assert.doesNotMatch(message, /\/Users\/example|diagnostics\.log/);
+  assert.doesNotMatch(message, /sk-a{32}/);
+  assert.doesNotMatch(message, /github_pat_1234567890abcdefghijklmnopqrstuvwxyz/);
+  assert.doesNotMatch(message, /OPENAI_API_KEY=sk-/);
 });
 
 test('compacts large cold memory queries before invoking Builder memory', () => {
