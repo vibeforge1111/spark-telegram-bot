@@ -572,6 +572,21 @@ test('bug hunt: provider completion does not make failures look shipped', () => 
   assert.doesNotMatch(noText, /Mission: mission-empty/);
 });
 
+test('bug hunt: control-auth provider redaction is not shown as final prose', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'provider',
+    missionId: 'mission-redacted-summary',
+    verbosity: 'normal',
+    response: 'Provider summary requires control auth.',
+    openLink: 'http://127.0.0.1:3333/preview/example/index.html'
+  });
+
+  assert.match(message, /Open it here:/);
+  assert.match(message, /http:\/\/127\.0\.0\.1:3333\/preview\/example\/index\.html/);
+  assert.doesNotMatch(message, /Provider summary requires control auth/i);
+  assert.doesNotMatch(message, /provider says/i);
+});
+
 test('bug hunt: created mission handoff is not framed as finished work', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'codex',

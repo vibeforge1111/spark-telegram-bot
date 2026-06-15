@@ -882,6 +882,10 @@ function firstString(record: Record<string, unknown> | null, keys: string[]): st
   return null;
 }
 
+function isControlAuthRedactionText(text: string): boolean {
+  return /^provider summary requires control auth\.?$/i.test(text.trim());
+}
+
 async function fetchMissionCompletionSummary(
   missionId: string,
   options: MissionCompletionFetchOptions = {}
@@ -899,7 +903,10 @@ async function fetchMissionCompletionSummary(
         const payload = asRecord(await response.json());
         if (!payload) continue;
         const phase = typeof payload.phase === 'string' ? payload.phase.toLowerCase() : '';
-        const providerSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
+        const rawProviderSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
+        const providerSummary = rawProviderSummary && !isControlAuthRedactionText(rawProviderSummary)
+          ? rawProviderSummary
+          : '';
         const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
         const completedProvider =
           providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
@@ -907,13 +914,13 @@ async function fetchMissionCompletionSummary(
         const resultSummary = completedProvider && typeof completedProvider.summary === 'string'
           ? completedProvider.summary.trim()
           : '';
-        const responseText = providerSummary || resultSummary;
-        if (phase !== 'completed' || !responseText) continue;
 
         const projectLineage = asRecord(payload.projectLineage);
         const projectPath = firstString(projectLineage, ['projectPath', 'project_path']);
         const previewUrl = firstString(projectLineage, ['previewUrl', 'preview_url']);
         const openLink = await readyProjectOpenLink(previewUrl, projectPath);
+        const responseText = providerSummary || resultSummary || (openLink ? 'completed without final notes' : '');
+        if (phase !== 'completed' || !responseText) continue;
         const providerLabel = completedProvider && typeof completedProvider.providerId === 'string'
           ? completedProvider.providerId
           : 'provider';
@@ -1651,6 +1658,23 @@ export function formatProviderCompletionForTelegram(input: {
   if (!parsed) {
     const clean = stripVisibleMissionReferences(stripMarkdownFileLinks(stripThinkingAndMeta(input.response)));
     const cleanWithoutProvider = clean.replace(/^(?:Z\.AI|ZAI|Claude|Codex|MiniMax|GLM)(?:\s+GLM)?\s*:\s*/i, '').trim();
+    if (isControlAuthRedactionText(cleanWithoutProvider)) {
+      const openLink = input.openLink ? normalizePreviewLink(input.openLink, null) : null;
+      if (openLink) {
+        return [
+          voiceLine('completed', `${input.missionId}:${provider}:redacted-with-link`),
+          '',
+          ...openProjectLines(openLink),
+          '',
+          nextPolishLine(input.missionId)
+        ].join('\n');
+      }
+      return [
+        '⚪ The run finished, but it did not send useful final notes back.',
+        '',
+        'Open the preview or board if you want to inspect what changed.'
+      ].join('\n');
+    }
     if (!clean) {
       const openLink = input.openLink ? normalizePreviewLink(input.openLink, null) : null;
       if (openLink) {
