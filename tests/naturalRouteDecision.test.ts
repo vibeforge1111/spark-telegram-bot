@@ -576,6 +576,29 @@ test('keeps open-ended new product exploration from binding to latest shipped pr
   assert.notEqual(route.route, 'spawner.build');
 });
 
+test('routes natural ideation follow-through as a fresh build with a clean target name', () => {
+  const route = decideNaturalRoute(
+    "That sounds right. Let's build the Day Triage Picker idea you suggested: a tiny local app with Now, Later, and Parked columns.",
+    {
+      shippedProject: {
+        ...shippedProject(),
+        projectName: 'Shipped JS Sprint Picker',
+        projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781516167809-shipped-js-sprint-picker'
+      },
+      recentMessages: [
+        'My call: build a "Day Triage Picker" with three columns: Now, Later, Parked.'
+      ]
+    }
+  );
+
+  assert.equal(route.route, 'spawner.build');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.payload.projectName, 'Day Triage Picker');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.requires_confirmation, false);
+  assert.notEqual(route.route, 'project.iteration');
+});
+
 test('keeps collaborative build shaping conversational', () => {
   const route = decideNaturalRoute(
     'Maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?'

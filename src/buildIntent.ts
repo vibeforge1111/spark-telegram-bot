@@ -128,6 +128,9 @@ export function polishBuildProjectName(value: string): string {
     .replace(/[.!?]+$/, '')
     .replace(/\bfor\s+now\b/gi, ' ')
     .replace(/\b(?:right\s+)?now\b/gi, ' ')
+    .replace(/\s+(?:idea|concept|direction|option|version)\s+(?:you|we)\s+(?:suggested|described|discussed|mentioned|outlined|sketched|picked|chose)\s*:?\s*$/i, '')
+    .replace(/\s+(?:you|we)\s+(?:suggested|described|discussed|mentioned|outlined|sketched|picked|chose)\s*:?\s*$/i, '')
+    .replace(/\s*[:;,-]\s*$/, '')
     .replace(/\s+/g, ' ')
     .trim();
 

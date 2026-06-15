@@ -81,6 +81,16 @@ test('infers clean landing-page names from compact build prompts', () => {
   assert.equal(intent.buildLane, 'fast_direct');
 });
 
+test('strips conversational follow-through residue from inferred project names', () => {
+  const intent = parseBuildIntent(
+    "That sounds right. Let's build the Day Triage Picker idea you suggested: a tiny local app with Now, Later, and Parked columns."
+  );
+
+  assert.ok(intent);
+  assert.equal(intent.projectName, 'Day Triage Picker');
+  assert.match(intent.prd, /Now, Later, and Parked columns/);
+});
+
 test('routes tiny one-screen smoke pages through the fast direct lane', () => {
   const intent = parseBuildIntent('Build a one-screen paragraph spacing smoke page with a save button and responsive checks.');
 
