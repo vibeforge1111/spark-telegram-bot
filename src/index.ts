@@ -43,6 +43,12 @@ import {
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
+import {
+  parseTelegramStreamingConfigText,
+  replayTelegramDraftPreview,
+  renderTelegramStreamingConfigStatus
+} from './telegramDraft';
+import { sendTelegramRichMessage, telegramRichMessagesEnabled } from './telegramRichMessage';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
@@ -3308,6 +3314,38 @@ function recordCommandReplyDelivery(input: {
 // forbids em dashes; production telemetry showed ~50% leak rate before
 // this shim. Mirrors spark_character.output_sanitizer (Python).
 const _origSendMessage = bot.telegram.sendMessage.bind(bot.telegram);
+let telegramRichMessagesDisabledForRuntime = false;
+
+async function sendRichOrPlainTelegramMessage(
+  chatId: any,
+  text: string,
+  extra: any,
+  plainSend: (chatId: any, text: string, extra?: any) => Promise<unknown>
+): Promise<unknown> {
+  if (!telegramRichMessagesDisabledForRuntime && telegramRichMessagesEnabled(process.env)) {
+    try {
+      const richDelivery = await sendTelegramRichMessage(
+        {
+          callApi: originalTelegramCallApi as unknown as (
+            method: string,
+            payload: Record<string, unknown>
+          ) => Promise<unknown>
+        },
+        chatId,
+        text,
+        extra
+      );
+      if (richDelivery) return richDelivery;
+    } catch (error) {
+      telegramRichMessagesDisabledForRuntime = true;
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`[TelegramRich] disabled for this runtime after sendRichMessage failure: ${redactText(detail)}`);
+    }
+  }
+
+  return plainSend(chatId, text, extra);
+}
+
 bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
   const traceContext = extractOutboundTraceContext(extra);
   const cleanExtra = stripOutboundTraceContext(extra);
@@ -3320,7 +3358,12 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
   const chunks = sanitizeAndSplitTelegramText(text);
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
-    lastDelivery = await _origSendMessage(chatId, chunk, cleanExtra);
+    lastDelivery = await sendRichOrPlainTelegramMessage(
+      chatId,
+      chunk,
+      cleanExtra,
+      _origSendMessage
+    ) as Awaited<ReturnType<typeof _origSendMessage>>;
     recordNodeOutboundDelivery(chatId, chunk, traceContext);
   }
   return lastDelivery!;
@@ -3338,9 +3381,30 @@ bot.use(async (ctx, next) => {
     }
 
     const chunks = sanitizeAndSplitTelegramText(text);
+    await replayTelegramDraftPreview(
+      ctx,
+      {
+        callApi: originalTelegramCallApi as unknown as (
+          method: string,
+          payload: Record<string, unknown>
+        ) => Promise<unknown>
+      },
+      chunks.join('\n\n'),
+      process.env
+    );
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
-      lastReply = await originalReply(chunk, cleanExtra);
+      const chatId = ctx.chat?.id;
+      if (chatId !== undefined && chatId !== null) {
+        lastReply = await sendRichOrPlainTelegramMessage(
+          chatId,
+          chunk,
+          cleanExtra,
+          async (_chatId, plainText, plainExtra) => originalReply(plainText, plainExtra)
+        ) as Awaited<ReturnType<typeof originalReply>>;
+      } else {
+        lastReply = await originalReply(chunk, cleanExtra);
+      }
       recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext, ctx.update);
     }
     return lastReply!;
@@ -4317,6 +4381,21 @@ bot.command('status', async (ctx) => {
 
   await ctx.reply(lines.join('\n').replace(/\n{3,}/g, '\n\n').trim());
 });
+
+async function handleTelegramStreamingConfigCommand(ctx: any): Promise<void> {
+  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '/streaming';
+  const action = parseTelegramStreamingConfigText(text);
+  await safeSendChatAction(ctx, 'typing');
+
+  if (action?.kind === 'set') {
+    process.env[action.key] = action.value;
+  }
+
+  await ctx.reply(renderTelegramStreamingConfigStatus(process.env));
+}
+
+bot.command('streaming', handleTelegramStreamingConfigCommand);
+bot.command('drafts', handleTelegramStreamingConfigCommand);
 
 // /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {

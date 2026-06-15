@@ -97,13 +97,13 @@ async function run(): Promise<void> {
     );
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].method, 'sendMessageDraft');
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
     assert.equal(calls[0].payload.chat_id, 42);
     assert.equal(calls[1].payload.draft_id, calls[0].payload.draft_id);
-    assert.match(String(calls[1].payload.text), /full Builder reply/);
+    assert.match(JSON.stringify(calls[1].payload.rich_message), /full Builder reply/);
   });
 
-  await test('streamer sends stable draft id updates through sendMessageDraft', async () => {
+  await test('streamer sends stable draft id updates through sendRichMessageDraft', async () => {
     const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
     const streamer = createTelegramDraftStreamer(
       { chat: { id: 42, type: 'private' } },
@@ -120,10 +120,10 @@ async function run(): Promise<void> {
     await streamer.push('Hello **Spark**');
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].method, 'sendMessageDraft');
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
     assert.equal(calls[0].payload.chat_id, 42);
-    assert.equal(calls[0].payload.text, 'Hel');
-    assert.equal(calls[1].payload.text, 'Hello Spark');
+    assert.match(JSON.stringify(calls[0].payload.rich_message), /Hel/);
+    assert.match(JSON.stringify(calls[1].payload.rich_message), /Hello Spark/);
     assert.equal(calls[1].payload.draft_id, calls[0].payload.draft_id);
   });
 
@@ -144,7 +144,7 @@ async function run(): Promise<void> {
     await streamer.push('Second');
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].text, 'First');
+    assert.match(JSON.stringify(calls[0].rich_message), /First/);
   });
 }
 

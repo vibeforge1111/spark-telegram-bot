@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { sanitizeOutbound } from './outboundSanitize';
+import { buildInputRichMessageFromText } from './telegramRichMessage';
 
 export interface TelegramDraftApi {
   callApi(method: string, payload: Record<string, unknown>): Promise<unknown>;
@@ -84,10 +85,12 @@ export async function replayTelegramDraftPreview(
   const intervalMs = Math.min(telegramDraftIntervalMs(env), 1200);
   try {
     for (let index = 0; index < previews.length; index += 1) {
-      await api.callApi('sendMessageDraft', {
+      const richMessage = buildInputRichMessageFromText(previews[index]);
+      if (!richMessage) continue;
+      await api.callApi('sendRichMessageDraft', {
         chat_id: chatId,
         draft_id: draftId,
-        text: previews[index],
+        rich_message: richMessage,
       });
       if (index < previews.length - 1 && intervalMs > 0) {
         await delay(intervalMs);
@@ -133,7 +136,7 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
     `Status: ${enabled ? 'on' : 'off'}`,
     `Draft interval: ${interval}ms`,
     '',
-    'Private chats only. Builder-routed replies may still return as full messages.'
+    'Private chats only. Uses Telegram rich drafts before the final reply when available.'
   ].join('\n');
 }
 
@@ -161,17 +164,19 @@ export function createTelegramDraftStreamer(
       if (lastSentAt && now - lastSentAt < intervalMs) return;
 
       try {
-        await api.callApi('sendMessageDraft', {
+        const richMessage = buildInputRichMessageFromText(draftText);
+        if (!richMessage) return;
+        await api.callApi('sendRichMessageDraft', {
           chat_id: chatId,
           draft_id: draftId,
-          text: draftText,
+          rich_message: richMessage,
         });
         lastSentAt = now;
         lastText = draftText;
       } catch (error) {
         disabled = true;
         const detail = error instanceof Error ? error.message : String(error);
-        console.warn(`[TelegramDraft] disabled after sendMessageDraft failure: ${detail}`);
+        console.warn(`[TelegramDraft] disabled after sendRichMessageDraft failure: ${detail}`);
       }
     },
   };

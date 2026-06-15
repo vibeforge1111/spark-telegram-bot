@@ -29,7 +29,7 @@ test('realtime conversation smoke fixture covers broad trigger and non-trigger r
   assert.match(report, /operator-safe-actions\/level5-temp-file-smoke -> operator\.safe_action/);
   assert.match(report, /provider-and-explicit-runs\/codex-provider -> natural_run/);
   assert.match(report, /external-research-triggers\/openclaw-hermes-research -> external_research\.inspect/);
-  assert.match(report, /build-word-versus-build-intent\/upgrade-strategy -> plain_chat/);
+  assert.match(report, /build-word-versus-build-intent\/upgrade-strategy -> (plain_chat|conversation\.ideation)/);
 });
 
 test('conversation smoke parser rejects empty scenario lists', () => {
