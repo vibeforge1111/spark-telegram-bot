@@ -10670,7 +10670,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // Build intent gets first refusal inside the admin lane. Utility helpers can
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
-    if (isNoExecutionBoundary(text)) {
+    if (isNoExecutionBoundary(text) && !shouldUseDynamicNoExecutionIdeationReply(text)) {
       const clearedPendingExecution = clearPendingExecutionState(pendingExecutionKey);
       const suppressedMissionId = !clearedPendingExecution && isNaturalMissionRelayCancellation(text)
         ? await markLatestMissionRelayCancelledForChat(ctx.chat.id, ctx.from.id)
