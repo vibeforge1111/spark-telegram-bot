@@ -2009,18 +2009,22 @@ export async function readLatestCapabilityProbeReceipt(
     String(CAPABILITY_PROBE_RECEIPT_BLACK_BOX_LIMIT),
     '--json',
   ];
-  const { stdout } = await execFileAsync(
-    config.pythonCommand,
-    pythonModuleInvocation(config, 'spark_intelligence.cli', args),
-    withHiddenWindows({
-      cwd: config.builderRepo,
-      env: pythonSourceEnv(config),
-      timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
-      maxBuffer: 1024 * 1024,
-    })
-  );
-  const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
-  return extractLatestCapabilityProbeReceiptFromBlackBoxPayload(payload, routeKey);
+  try {
+    const { stdout } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
+    return extractLatestCapabilityProbeReceiptFromBlackBoxPayload(payload, routeKey);
+  } catch {
+    return null;
+  }
 }
 
 export function extractLatestCapabilityProbeReceiptFromBlackBoxPayload(
