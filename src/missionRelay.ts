@@ -1234,7 +1234,34 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function isPrivateHostname(hostname: string): boolean {
+  // IPv4 private / loopback / link-local ranges
+  if (/^(127\.\d+\.\d+\.\d+)$/.test(hostname)) return true;          // 127.0.0.0/8
+  if (/^(10\.\d+\.\d+\.\d+)$/.test(hostname)) return true;            // 10.0.0.0/8
+  if (/^(172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(hostname)) return true; // 172.16.0.0/12
+  if (/^(192\.168\.\d+\.\d+)$/.test(hostname)) return true;           // 192.168.0.0/16
+  if (/^(169\.254\.\d+\.\d+)$/.test(hostname)) return true;           // 169.254.0.0/16 link-local
+  if (/^(0\.0\.0\.0)$/.test(hostname)) return true;                    // 0.0.0.0
+  // IPv6 loopback and link-local
+  if (/^(::1|::ffff:127\.)$/i.test(hostname)) return true;
+  if (/^fe80:/i.test(hostname)) return true;
+  // Cloud metadata endpoints
+  if (hostname === '169.254.169.254') return true;
+  if (hostname === 'metadata.google.internal') return true;
+  if (hostname === 'metadata.azure.com') return true;
+  return false;
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  if (isPrivateHostname(parsed.hostname)) return false;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
