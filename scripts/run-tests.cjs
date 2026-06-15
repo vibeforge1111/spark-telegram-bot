@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const tests = [
+  'tests/test_telegram_message_sanitization.test.ts',
   'tests/launchMode.test.ts',
   'tests/onboardingBridge.test.ts',
   'tests/buildIntent.test.ts',
