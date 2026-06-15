@@ -112,8 +112,18 @@ function requireDifferentSecrets(first, second) {
   }
 }
 
+function parseHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function isPrivateRailwayUrl(value) {
-  return /\.railway\.internal(?::\d+)?(?:\/|$)/.test(value);
+  const parsed = parseHttpUrl(value);
+  return Boolean(parsed?.hostname.endsWith(".railway.internal"));
 }
 
 function hasExplicitPort(value) {
@@ -132,6 +142,10 @@ function checkInternalUrl(name) {
   }
   if (looksPlaceholder(value)) {
     fail(name, "replace placeholder value");
+    return;
+  }
+  if (!parseHttpUrl(value)) {
+    fail(name, "must be a valid http/https URL");
     return;
   }
   if (isPrivateRailwayUrl(value) && !hasExplicitPort(value)) {
@@ -212,7 +226,10 @@ function checkSpawner() {
   requireEnv("MISSION_CONTROL_WEBHOOK_URLS", "bot relay callback URL");
 
   const webhook = env("MISSION_CONTROL_WEBHOOK_URLS");
-  if (webhook && !webhook.includes("/spawner-events")) {
+  const webhookUrl = webhook ? parseHttpUrl(webhook) : null;
+  if (webhook && !webhookUrl) {
+    fail("MISSION_CONTROL_WEBHOOK_URLS", "must be a valid http/https URL");
+  } else if (webhook && !webhookUrl?.pathname.includes("/spawner-events")) {
     fail("MISSION_CONTROL_WEBHOOK_URLS", "must point to the bot /spawner-events endpoint");
   } else if (webhook && isPrivateRailwayUrl(webhook) && !hasExplicitPort(webhook)) {
     fail("MISSION_CONTROL_WEBHOOK_URLS", "Railway private DNS needs an explicit bot port");
