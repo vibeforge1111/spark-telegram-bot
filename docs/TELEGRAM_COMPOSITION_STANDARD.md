@@ -80,6 +80,9 @@ only; final replies, owner evidence, and ledgers remain authoritative.
   answer came from a deterministic state machine.
 - Prefer one or two plain sentences plus one inspect link for ordinary follow-ups.
   Section headings are optional, not the default.
+- When separate sentence-level thoughts do different jobs, separate them with a
+  blank line. A result/status sentence, proof or boundary sentence, and inspect
+  link should scan as three small paragraphs, not one cramped block.
 - Do not let rich formatting make a short update bigger. If the visual structure
   takes more space than the information, choose the smaller shape.
 - Use one status icon at the start of major outcome rows.

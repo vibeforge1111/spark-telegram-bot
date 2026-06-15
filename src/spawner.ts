@@ -468,7 +468,10 @@ function contextualMissionCommandPicker(entries: BoardEntry[], statusLabel: stri
 
 function formatActiveMissionsTelegramSummary(board: BoardSnapshot): string {
   if (board.running.length === 0 && board.paused.length === 0) {
-    return 'Mission Control has nothing running or paused right now.';
+    return [
+      'Mission Control has nothing running or paused right now.',
+      'Watch next: a new running row before treating work as active; use latest board or failure readouts for finished or blocked work.'
+    ].join('\n\n');
   }
 
   if (board.running.length === 0) {
@@ -523,13 +526,13 @@ function missionInspectionLines(missionId: string, baseUrl = spawnerPublicUrl())
 
 function formatLatestKanbanTelegramSummary(entry: BoardEntry): string {
   const title = missionTitle(entry);
-  const provider = providerNames(entry);
-  const lines = [`The newest thing on the board is ${title}. It ${statusPhrase(statusWord(entry.status))}.`];
-
-  if (provider) lines.push(`${provider} is attached to it.`);
-
-  lines.push('', ...missionInspectionLines(entry.missionId));
-  return lines.join('\n');
+  return [
+    `Yes - ${title} is on Kanban. It ${statusPhrase(statusWord(entry.status))}.`,
+    '',
+    'Proof: board sync exists. Preview review and shipping are separate.',
+    '',
+    `Board: ${missionScopedBoardUrl(entry.missionId)}`
+  ].join('\n');
 }
 
 function formatLatestMissionTelegramSummary(entry: BoardEntry): string {

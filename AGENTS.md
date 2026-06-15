@@ -85,6 +85,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - Global Spark behavior changes become proposals, not silent mutations.
 - Repair, memory mutation, publishing, deletion, credential, and external side-effect routes require source-owned authority evidence.
 - Composition should be concise, warm, and specific; do not bury the action, blocker, or next move.
+- When a Telegram reply has separate sentence-level thoughts, use paragraph spacing between them. A status sentence, proof/boundary sentence, and inspect link should not run together as one dense block.
 - Rich Telegram formatting is presentation, not truth. Do not let `sendRichMessage`, `sendRichMessageDraft`, HTML, Markdown, link previews, or inline buttons alter owner evidence, route authority, completion claims, or failure claims.
 - For dense status cards, visible spacing in Telegram Desktop is a release requirement. Do not rely only on semantic rich blocks or blank lines if live clients render them flat.
 

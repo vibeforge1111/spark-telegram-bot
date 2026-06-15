@@ -1203,6 +1203,38 @@ async function run(): Promise<void> {
     assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-command-orphan-pause/);
   });
 
+  await test('activeMissionSummary gives a watch-next boundary when no mission is active', async () => {
+    restoreAxios();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-completed',
+              missionName: 'Completed proof',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date().toISOString()
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.activeMissionSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /nothing running or paused right now/);
+    assert.match(result.message, /Watch next:/);
+    assert.match(result.message, /new running row before treating work as active/);
+    assert.match(result.message, /latest board or failure readouts/);
+    assert.doesNotMatch(result.message, /Completed proof|mission-completed|trace\?|\/missions\//i);
+  });
+
   await test('activeMissionSummary answers running and paused questions without terminal-count drift or raw ids', async () => {
     restoreAxios();
     const now = Date.now();
@@ -1290,12 +1322,13 @@ async function run(): Promise<void> {
     const result = await spawner.latestKanbanSummary();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /newest thing on the board is Fresh canvas mission\. It finished\./);
-    assert.doesNotMatch(result.message, /^Yes,/);
-    assert.match(result.message, /Codex is attached to it\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-newer/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-newer/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-newer/);
+    assert.match(result.message, /^Yes - Fresh canvas mission is on Kanban\. It finished\./);
+    assert.match(result.message, /^Yes - Fresh canvas mission is on Kanban\. It finished\.\n\nProof:/);
+    assert.match(result.message, /Proof: board sync exists\. Preview review and shipping are separate\./);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-newer/);
+    assert.doesNotMatch(result.message, /Codex is attached to it\./);
+    assert.doesNotMatch(result.message, /Inspect\n/);
+    assert.doesNotMatch(result.message, /\/missions\/mission-newer|trace\?missionId=mission-newer/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /^Mission:\s*mission-newer/im);
@@ -1464,7 +1497,7 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /From the current Spawner board/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /Token Launch Dashboard/);
-    assert.match(result.message, /The board has the failure details if you want the trace\./);
+    assert.match(result.message, /Next: inspect the board trace before retrying; ignore cached success or artifact readouts until this failure is resolved\./);
     assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-failed/);
     assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-failed/);
     assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-failed/);
@@ -1503,11 +1536,13 @@ async function run(): Promise<void> {
     const result = await spawner.latestKanbanSummary();
 
     assert.equal(result.success, true);
-    assert.match(result.message, /newest thing on the board is Recursive Sage Reasoning Game\. It is still running\./);
-    assert.match(result.message, /Codex is attached to it\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-kanban-latest/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-kanban-latest/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-kanban-latest/);
+    assert.match(result.message, /^Yes - Recursive Sage Reasoning Game is on Kanban\. It is still running\./);
+    assert.match(result.message, /^Yes - Recursive Sage Reasoning Game is on Kanban\. It is still running\.\n\nProof:/);
+    assert.match(result.message, /Proof: board sync exists\. Preview review and shipping are separate\./);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-kanban-latest/);
+    assert.doesNotMatch(result.message, /Codex is attached to it\./);
+    assert.doesNotMatch(result.message, /Inspect\n/);
+    assert.doesNotMatch(result.message, /\/missions\/mission-kanban-latest|trace\?missionId=mission-kanban-latest/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /^Mission:\s*mission-kanban-latest/im);
