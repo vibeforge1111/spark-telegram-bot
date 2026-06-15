@@ -2775,16 +2775,34 @@ function isContextualProjectImprovementFollowup(
   );
 }
 
+function isProjectReadoutOrAdvisoryQuestion(normalized: string): boolean {
+  const explicitMutation =
+    /^(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good)?[,.\s]*(?:(?:let'?s|lets|please)\s+)?(?:do|apply|make|ship|start|run|implement|add|use|change|update|fix|polish)\b/.test(normalized) ||
+    /\b(?:do|apply|make|ship|start|run|implement|add|use|change|update|fix|polish)\s+(?:that|this|it|those|them|the\s+(?:polish|change|update|fix|improvement))\b/.test(normalized);
+  if (explicitMutation) return false;
+
+  const asksQuestion =
+    normalized.includes('?') ||
+    /\b(?:what|which|where|how|why|should|would|could|can|tell\s+me|summari[sz]e|status|readout|progress)\b/.test(normalized);
+  if (!asksQuestion) return false;
+
+  return (
+    /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|status|progress|summary)\b/.test(normalized) ||
+    /\b(?:what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|thoughtful\s+next\s+polish|what'?s\s+next)\b/.test(normalized)
+  );
+}
+
 export function isProjectImprovementRequest(
   text: string,
   project: ShippedProjectContext | null | undefined,
   recentMessages: string[] = []
 ): boolean {
   if (!project) return false;
-  const normalized = text.trim().toLowerCase();
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
   if (isSparkSelfMemoryDiagnosticQuestion(text)) return false;
   if (shouldPreferConversationalIdeation(text)) return false;
+  if (isProjectReadoutOrAdvisoryQuestion(normalized)) return false;
   if (/^(?:what|which|where|how)\b.{0,100}\b(?:polish|improve|change|update|fix|add|remove|tweak|refine|redesign|clean|tighten)\b/.test(normalized)) {
     return false;
   }

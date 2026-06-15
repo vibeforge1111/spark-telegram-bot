@@ -635,6 +635,22 @@ test('routes current shipped project readout questions without starting an itera
   assert.equal(route.payload.projectName, 'Shipped JS Sprint Picker');
   assert.notEqual(route.route, 'project.iteration');
   assert.notEqual(route.route, 'spawner.build');
+
+  const prefixed = decideNaturalRoute(
+    'Nice. Before touching code again, what changed in JS Sprint Picker, and what is one thoughtful next polish direction?',
+    {
+      shippedProject: project,
+      recentMessages: [
+        'Assistant: Next polish I would choose for JS Sprint Picker: add keyboard shortcuts.'
+      ]
+    }
+  );
+
+  assert.equal(prefixed.route, 'project.readout');
+  assert.equal(prefixed.owner_system, 'spark-telegram-bot');
+  assert.equal(prefixed.requires_confirmation, false);
+  assert.notEqual(prefixed.route, 'project.iteration');
+  assert.notEqual(prefixed.route, 'spawner.build');
 });
 
 test('keeps advisory polish questions read-only for the current shipped project', () => {

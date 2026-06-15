@@ -269,33 +269,44 @@ test('blocks uncertain product exploration from authorizing a Spawner build', ()
 });
 
 test('blocks active build status questions from authorizing a new Spawner build', () => {
-  const text = 'How is that Habit Button build going right now?';
-  const naturalRouteDecision = decideNaturalRoute(text, {
-    shippedProject,
-    spawnerArtifact: activeSpawnerArtifact
-  });
-  const decision = classifyTelegramIntentV2(text, {
-    naturalRouteDecision,
-    shippedProject,
-    spawnerArtifact: activeSpawnerArtifact
-  });
-  const envelope = envelopeForDecision(text, decision);
-  const result = authorizeTelegramActionFromEnvelope(envelope, {
-    route: 'spawner.build',
-    text,
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    mutationClass: 'launches_mission'
-  });
+  const cases = [
+    {
+      text: 'How is that Habit Button build going right now?',
+      expectedRoute: 'project.readout'
+    },
+    {
+      text: 'How is that Budget Dashboard build going right now?',
+      expectedRoute: 'plain_chat'
+    }
+  ];
 
-  assert.equal(naturalRouteDecision.route, 'project.readout');
-  assert.equal(decision.route, 'project.readout');
-  assert.notEqual(decision.route, 'spawner.build');
-  assert.equal(envelope.executionPolicy.canLaunchMission, false);
-  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
-  assert.equal(result.allow, false);
-  assert.equal(result.routeVerdict.allow, false);
-  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+  for (const item of cases) {
+    const naturalRouteDecision = decideNaturalRoute(item.text, {
+      shippedProject,
+      spawnerArtifact: activeSpawnerArtifact
+    });
+    const decision = classifyTelegramIntentV2(item.text, {
+      naturalRouteDecision,
+      shippedProject,
+      spawnerArtifact: activeSpawnerArtifact
+    });
+    const envelope = envelopeForDecision(item.text, decision);
+    const result = authorizeTelegramActionFromEnvelope(envelope, {
+      route: 'spawner.build',
+      text: item.text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+
+    assert.equal(naturalRouteDecision.route, item.expectedRoute);
+    assert.notEqual(decision.route, 'spawner.build');
+    assert.equal(envelope.executionPolicy.canLaunchMission, false);
+    assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+    assert.equal(result.allow, false);
+    assert.equal(result.routeVerdict.allow, false);
+    assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+  }
 });
 
 test('allows static app build briefs that specify no build step', () => {

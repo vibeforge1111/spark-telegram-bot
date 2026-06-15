@@ -545,8 +545,8 @@ function isExistingBuildReadoutQuestion(text: string): boolean {
   const pointsAtExistingWork =
     /\b(?:this|that|it|current|latest|recent)\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b/.test(normalized) ||
     /\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized) ||
-    /\b(?:what\s+changed|readout|status|progress|polish)\b.{0,80}\b(?:in|for|on|of)\s+[A-Z][A-Za-z0-9 '&.-]{2,80}\b/.test(text) ||
-    /\b[A-Z][A-Za-z0-9 '&.-]{2,80}\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|artifact|preview)\b/.test(text);
+    /\b(?:what\s+changed|readout|status|progress|polish|polish\s+direction|next\s+polish)\b.{0,80}\b(?:in|for|on|of)\s+(?!this|that|current|latest|recent\b)[a-z0-9][a-z0-9 '&.-]{2,80}\b/.test(normalized) ||
+    /\b[a-z0-9][a-z0-9 '&.-]{2,80}\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|artifact|preview)\b/.test(normalized);
   if (!pointsAtExistingWork) return false;
   return !/\b(?:build|make|create|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|system|tracker|planner|timer|clock|board)\b/.test(normalized);
 }

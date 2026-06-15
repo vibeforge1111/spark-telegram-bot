@@ -185,6 +185,19 @@ function isDomainChipCreateRequest(text: string): boolean {
     /^(?:please\s+)?(?:domain[-\s]*chip|chip)\s+(?:for|that|which|to)\b/.test(normalized);
 }
 
+function isBuildReadoutOrStatusQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const asksForMutation =
+    /\b(?:make|create|ship|scaffold|generate|develop|start|run|launch|execute|dispatch|deploy)\b/.test(normalized) ||
+    /\bbuild\s+(?!(?:steps?|plan|artifact|context|evidence|status|progress|state|going|coming\s+along|running|working|queued|done|finished|complete|completed)\b)(?:it|this|that|a|an|the|[a-z0-9])/.test(normalized);
+  if (asksForMutation) return false;
+  return (
+    /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|status|progress|summary|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized) ||
+    /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:going|coming\s+along|progressing|doing)\b/.test(normalized) ||
+    /\b(?:is|are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:still\s+)?(?:running|progressing|working|queued|done|finished|complete|completed)\b/.test(normalized)
+  );
+}
+
 function isExplicitSpawnerBuildRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const explicitNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
@@ -194,7 +207,8 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
     !normalized ||
     (isNoExecutionBoundary(normalized) && !explicitNoEditMission) ||
     isScheduleDeleteRequest(normalized) ||
-    isCreatorBenchmarkPackRequest(normalized)
+    isCreatorBenchmarkPackRequest(normalized) ||
+    isBuildReadoutOrStatusQuestion(normalized)
   ) return false;
   if (
     (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
