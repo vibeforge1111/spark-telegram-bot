@@ -554,6 +554,28 @@ test('keeps advisory polish questions read-only for the current shipped project'
   assert.equal(route.requires_confirmation, false);
 });
 
+test('keeps open-ended new product exploration from binding to latest shipped project', () => {
+  const route = decideNaturalRoute(
+    "I'm trying to plan my day better and keep getting scattered. What kind of small thing should we make for that?",
+    {
+      shippedProject: {
+        ...shippedProject(),
+        projectName: 'Shipped JS Sprint Picker',
+        projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781516167809-shipped-js-sprint-picker'
+      }
+    }
+  );
+
+  assert.equal(route.route, 'conversation.ideation');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.action, 'plain_chat.ideation');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['conversational_ideation']);
+  assert.equal(route.requires_confirmation, false);
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
 test('keeps collaborative build shaping conversational', () => {
   const route = decideNaturalRoute(
     'Maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?'

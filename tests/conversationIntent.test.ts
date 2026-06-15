@@ -586,6 +586,30 @@ test('turns natural shipped project feedback into an iteration mission', () => {
   assert.match(goal, /Parent mission: mission-founder/);
 });
 
+test('keeps open-ended new product exploration out of shipped project iteration', () => {
+  const project = {
+    chatId: '8319079055',
+    userId: '1278511160',
+    projectName: 'Shipped JS Sprint Picker',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781516167809-shipped-js-sprint-picker',
+    previewUrl: 'http://127.0.0.1:3333/preview/js-sprint-picker/index.html',
+    missionId: 'mission-1781516167809',
+    iteration: 4,
+    shippedAt: '2026-06-15T00:00:00Z',
+    updatedAt: '2026-06-15T00:00:00Z'
+  };
+
+  const livePrompt = "I'm trying to plan my day better and keep getting scattered. What kind of small thing should we make for that?";
+  assert.equal(shouldPreferConversationalIdeation(livePrompt), true);
+  assert.equal(isProjectImprovementRequest(livePrompt, project), false);
+  assert.equal(buildProjectImprovementGoal(livePrompt, project), null);
+
+  const adjacentPrompt = 'What should we make for this problem if the goal is a calmer morning routine?';
+  assert.equal(shouldPreferConversationalIdeation(adjacentPrompt), true);
+  assert.equal(isProjectImprovementRequest(adjacentPrompt, project), false);
+  assert.equal(buildProjectImprovementGoal(adjacentPrompt, project), null);
+});
+
 test('does not treat preview link questions as project improvement requests', () => {
   const project = {
     chatId: '8319079055',

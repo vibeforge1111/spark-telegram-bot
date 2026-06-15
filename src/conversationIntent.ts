@@ -16,6 +16,8 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\b(?:pin|define|tighten)\s+(?:the\s+)?scope\b/i,
   /\bmaybe\s+we\s+should\s+(?:build|make|create)\b/i,
   /\b(?:should|could)\s+we\s+(?:build|make|create)\b.*\b(?:first\s+version|mvp|v1)\b/i,
+  /\bwhat\s+(?:kind|type|form|shape)\s+of\b.{0,80}\b(?:thing|tool|app|project|product|planner|tracker|timer|picker)\b.{0,80}\b(?:should|could|would)\s+(?:we|i)\s+(?:build|make|create|try)\b/i,
+  /\bwhat\s+(?:should|could|would)\s+(?:we|i)\s+(?:build|make|create|try)\b.{0,120}\b(?:for|around|from)\s+(?:that|this|it|the\s+(?:problem|need|workflow|routine|habit|idea))\b/i,
   /\bwhat\s+would\s+you\s+(?:build|make|create|suggest)\b/i,
   /\bwhat\s+else\s+(?:would\s+you\s+)?(?:recommend|suggest|try|build|make|create)\b/i,
   /\b(?:something|anything)\s+(?:different|else)\b.*\b(?:recommend|suggest|try|build|make|create)\b/i,
@@ -2490,6 +2492,7 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
   if (isSparkSelfMemoryDiagnosticQuestion(text)) return false;
+  if (shouldPreferConversationalIdeation(text)) return false;
   if (/^(?:what|which|where|how)\b.{0,100}\b(?:polish|improve|change|update|fix|add|remove|tweak|refine|redesign|clean|tighten)\b/.test(normalized)) {
     return false;
   }
