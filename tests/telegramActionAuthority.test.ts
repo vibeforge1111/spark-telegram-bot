@@ -61,6 +61,23 @@ function envelopeForNaturalRoute(text: string) {
   return envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
 }
 
+const shippedProject = {
+  chatId: 'chat:qa',
+  userId: 'user:qa',
+  projectName: 'JS Sprint Picker',
+  projectPath: 'C:/Users/USER/.spark/workspaces/mission-test-js-sprint-picker',
+  previewUrl: 'http://127.0.0.1:3333/preview/js-sprint-picker/index.html',
+  missionId: 'mission-test',
+  iteration: 1,
+  shippedAt: '2026-06-15T00:00:00.000Z',
+  updatedAt: '2026-06-15T00:00:00.000Z'
+};
+
+function envelopeForShippedProjectTurn(text: string) {
+  const naturalRouteDecision = decideNaturalRoute(text, { shippedProject });
+  return envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject }));
+}
+
 function withGovernorHmacEnv(fn: () => void): void {
   const previousKey = process.env.SPARK_GOVERNOR_HMAC_KEY;
   const previousKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
@@ -112,6 +129,26 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.consumerVerification?.decision_id, result.governorDecision?.decision_id);
   assert.equal(result.consumerVerification?.ledger_id, result.harnessCoreLedger?.ledger_id);
   assert.equal(result.consumerVerification?.tool_name, 'spawner.run');
+});
+
+test('allows fresh shipped-project iteration to authorize the writable Spawner lane', () => {
+  const text = "Yes, apply that button rename to the shipped JS Sprint Picker now. Update the existing project only; do not create a new app.";
+  const envelope = envelopeForShippedProjectTurn(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(envelope.candidates[0]?.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, true);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(result.allow, true);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
 test('allows static app build briefs that specify no build step', () => {

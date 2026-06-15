@@ -51,6 +51,7 @@ export interface TelegramActionAuthorityResult {
 
 const ROUTE_ALIASES: Record<string, string[]> = {
   'recursive.proposal': ['recursive.propose'],
+  'spawner.project_iteration': ['project.iteration'],
   'spawner.board': [
     'spawner.board/active_missions',
     'spawner.board/latest_failure',

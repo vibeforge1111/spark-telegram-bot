@@ -50,6 +50,22 @@ test('named polish pass stays attached to the shipped project despite build-inte
   assert.equal(route.payload.projectPath, reliabilityDesk.projectPath);
 });
 
+test('explicit shipped-project apply request routes to project iteration', () => {
+  const text = "Yes, apply that button rename to the shipped Mission Control Reliability Desk now. Update the existing project only; do not create a new app.";
+
+  assert.equal(isProjectImprovementRequest(text, reliabilityDesk), true);
+
+  const route = decideNaturalRoute(text, {
+    recentMessages: [],
+    shippedProject: reliabilityDesk
+  });
+
+  assert.equal(route.route, 'project.iteration');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.payload.projectName, 'Mission Control Reliability Desk');
+  assert.equal(route.payload.projectPath, reliabilityDesk.projectPath);
+});
+
 test('fresh product-shaped pronoun request is not stolen by shipped project context', () => {
   const text = 'Actually make it a tiny calm focus picker: three moods, a short list of suggested tasks, and a 20 minute timer. Keep it local.';
 

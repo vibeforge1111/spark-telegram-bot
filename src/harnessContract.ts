@@ -250,14 +250,14 @@ function executionPolicyForDecision(
   const noExecution = (options.noExecutionBoundary ?? decision.constraints.noExecution) || decision.enforcement === 'blocked';
   const route = decision.route;
   const canPublish = !decision.constraints.noPublish && !decision.constraints.localOnly;
-  const localMutationRoute = /(?:build|spawner|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
+  const localMutationRoute = /(?:build|spawner|project\.iteration|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
   const fileMutationBlocked = decision.payload?.noFileMutation === true ||
     decision.matched_signals.includes('explicit_spawner_no_edit_mission');
   const routeProbeExternalNetwork = route === 'route.probe' && decision.payload?.externalNetwork === true;
 
   return {
     canMutateFiles: !noExecution && !fileMutationBlocked && localMutationRoute,
-    canLaunchMission: !noExecution && /(?:spawner|mission|creator|domain_chip|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
+    canLaunchMission: !noExecution && /(?:spawner|project\.iteration|mission|creator|domain_chip|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
     canWriteMemory: !noExecution && (route === 'memory.write' || route === 'memory.delete' || route === 'spark_wiki.promote' || route === 'spark.wiki' || route === 'spark.process' || route === 'spark.reflect' || route === 'route.probe'),
     canCreateSchedule: !noExecution && /schedule\.create/.test(route),
     canDeleteSchedule: !noExecution && /schedule\.delete/.test(route),
@@ -493,11 +493,28 @@ function isScopedMemoryWriteWithNegativeConstraints(decision: TelegramIntentDeci
   return hasExplicitWrite && !hasDirectMemoryDenial && (hasScopedNegative || hasNonOwningMetaLanguage);
 }
 
+function isScopedProjectIterationNoNewAppBoundary(decision: TelegramIntentDecisionV2, normalizedText: string): boolean {
+  if (decision.enforcement === 'blocked' || decision.route !== 'project.iteration') return false;
+  const lowerText = normalizedText.toLowerCase();
+  const hasExplicitExistingProjectUpdate =
+    /\b(?:apply|update|change|rename|improve|polish|iterate|modify|adjust|make|tighten)\b/.test(lowerText) &&
+    /\b(?:existing|shipped|current)\s+(?:project|app|build|workspace)\b/.test(lowerText);
+  const hasNoNewProjectBoundary =
+    /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+(?:create|build|make|start|scaffold|generate)\s+(?:a\s+)?(?:new|another|fresh)\s+(?:app|project|build|scaffold|workspace)\b/.test(lowerText) ||
+    /\b(?:update|change|modify|edit|patch)\s+the\s+existing\s+(?:project|app|build|workspace)\s+only\b/.test(lowerText);
+  const hasDirectNoEditBoundary =
+    /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|without)\s+(?:change|edit|modify|update|apply|patch|touch|write)\b/.test(lowerText) ||
+    /\bbefore\s+changing\s+anything\b/.test(lowerText);
+  return hasExplicitExistingProjectUpdate && hasNoNewProjectBoundary && !hasDirectNoEditBoundary;
+}
+
 export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelopeInput): TurnIntentEnvelopeV1 {
   const normalized = normalizeText(input.text);
   const quotedOrMetaLanguage = routeLooksMetaLanguage(input.decision, normalized);
   const scopedNoExecutionBoundary = isScopedMemoryWriteWithNegativeConstraints(input.decision, normalized);
-  const noExecution = (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) || (quotedOrMetaLanguage && !scopedNoExecutionBoundary);
+  const scopedProjectIterationNoNewAppBoundary = isScopedProjectIterationNoNewAppBoundary(input.decision, normalized);
+  const hasScopedNoExecutionBoundary = scopedNoExecutionBoundary || scopedProjectIterationNoNewAppBoundary;
+  const noExecution = (input.decision.constraints.noExecution && !hasScopedNoExecutionBoundary) || (quotedOrMetaLanguage && !hasScopedNoExecutionBoundary);
   const executionPolicy = executionPolicyForDecision(input.decision, { noExecutionBoundary: noExecution });
   const mutationClassesAllowed = mutationClassesForPolicy(executionPolicy);
   const sessionKey = [
@@ -587,7 +604,7 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
           stopRule: 'Stop on no-execution, local-only conflict, or failed promotion gate.'
         }
       : undefined,
-    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary, metaLanguageBoundary: quotedOrMetaLanguage }),
+    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary: hasScopedNoExecutionBoundary, metaLanguageBoundary: quotedOrMetaLanguage }),
     executionPolicy,
     consumedBy: []
   };

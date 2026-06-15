@@ -107,7 +107,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\b(?:hold off|not now|not for now|later)\s+on\s+(?:running|launching|executing|starting|building|creating|making|build|create|make)\b/,
     /\bno\s+tool\s+call\b/,
     /\bnot\s+a?\s*tool\s+call\b/,
-    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/,
+    /\b(?:keep|stay)\s+(?:this|it)?\s*(?:(?:local|private)\s+and\s+)?(?:in\s+)?(?:chat|conversation|conversational)\b/,
     /\b(?:just explain|explain only|only explain|we can talk here|talk here|stay in chat)\b/
   ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword);
 
