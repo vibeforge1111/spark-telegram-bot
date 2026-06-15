@@ -151,16 +151,18 @@ export function polishBuildProjectName(value: string): string {
 
 function inferProductPhraseProjectName(prd: string): string | null {
   const normalized = prd.replace(/\s+/g, ' ').trim();
-  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|picker|timer|clock|site|website|page|board|pad)';
+  const productType = '(?:domain[-\\s]*chip|landing\\s+page|dashboard|workbench|agent|tool|app|game|system|tracker|planner|picker|timer|clock|site|website|page|board|pad|button)';
   const patterns = [
-    new RegExp(`^(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:this\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
-    new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
+    new RegExp(`^(?:(?:this|that)\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|as|now|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
+    new RegExp(`\\b(?:build|create|make|scaffold|ship|implement|design)\\s+(?:(?:this|that)\\s+)?(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|as|now|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i'),
+    new RegExp(`\\bi\\s+(?:want|need|could\\s+use|would\\s+like)\\s+(?:(?:a|an|the|new)\\s+)?([A-Za-z0-9][A-Za-z0-9' -]{2,90}?\\b${productType})\\b(?=[.,:;?!]|\\s+(?:that|which|where|with|for|to|using|and|as|now|plan|prototype|build|only|minimal|playable)\\b|$)`, 'i')
   ];
   const genericLeadingWords = new Set([
     'a',
     'an',
     'the',
+    'that',
+    'this',
     'new',
     'private',
     'local',
@@ -975,7 +977,10 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   const projectPath = pathEvidence.projectPath;
   const strippedDescription = stripped
     .trim()
-    .replace(/^(?:it|this|that)\s+(?=(?:a|an|the)\s+)/i, '');
+    .replace(/^(?:it|this|that)\s+(?=(?:a|an|the)\s+|["']|[A-Z][A-Za-z0-9' -]{1,80}\b)/, '')
+    .replace(/\b(?:right\s+)?now\b(?=\s+(?:as|with|using|for|to)\b)/i, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
   const prd = normalizeAgentChosenGameBrief(original, removeLeadingPathPrefix(strippedDescription));
   if (isAbstractPlanningStructureRequest(prd)) return null;
   if (isConversationalStrategyStructureRequest(trimmed, prd)) return null;

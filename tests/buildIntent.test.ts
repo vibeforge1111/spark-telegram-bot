@@ -91,6 +91,27 @@ test('strips conversational follow-through residue from inferred project names',
   assert.match(intent.prd, /Now, Later, and Parked columns/);
 });
 
+test('keeps natural ideation-to-build handoff titles focused on the product target', () => {
+  const titleCasedIntent = parseBuildIntent(
+    "Mostly distraction. Let's build that Morning Start Button now as a tiny local app."
+  );
+
+  assert.ok(titleCasedIntent);
+  assert.equal(titleCasedIntent.projectName, 'Morning Start Button');
+  assert.equal(titleCasedIntent.buildLane, 'fast_direct');
+  assert.doesNotMatch(titleCasedIntent.prd, /^that\b/i);
+  assert.doesNotMatch(titleCasedIntent.prd, /\bnow\s+as\b/i);
+
+  const lowerCaseIntent = parseBuildIntent(
+    "Great, let's build that focus button now as a tiny local app."
+  );
+
+  assert.ok(lowerCaseIntent);
+  assert.equal(lowerCaseIntent.projectName, 'Focus Button');
+  assert.equal(lowerCaseIntent.buildLane, 'fast_direct');
+  assert.doesNotMatch(lowerCaseIntent.prd, /\bnow\s+as\b/i);
+});
+
 test('routes tiny one-screen smoke pages through the fast direct lane', () => {
   const intent = parseBuildIntent('Build a one-screen paragraph spacing smoke page with a save button and responsive checks.');
 

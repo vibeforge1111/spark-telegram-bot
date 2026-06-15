@@ -220,7 +220,8 @@ test('non-build utility requests still route away from builder', () => {
 
 test('text handler checks latest-project iteration before generic build intent', () => {
   const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-  const projectIterationIndex = indexSource.indexOf('isProjectImprovementRequest(text, latestShippedProject)');
+  const projectIterationMatch = /isProjectImprovementRequest\(text,\s*latestShippedProject\b/.exec(indexSource);
+  const projectIterationIndex = projectIterationMatch?.index ?? -1;
   const genericBuildIndex = indexSource.indexOf('if (buildIntent) {', projectIterationIndex);
 
   assert.ok(projectIterationIndex > 0, 'expected latest-project iteration guard in text handler');
