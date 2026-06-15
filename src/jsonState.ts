@@ -4,9 +4,41 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 
 let db: DatabaseSync | null = null;
+let shutdownHandlerRegistered = false;
 
 function dbPath(): string {
   return resolveStatePath('.spark-gateway-state.db');
+}
+
+/**
+ * Close the database singleton and run WAL checkpoint for safe shutdown.
+ */
+export function closeDbGracefully(): void {
+  if (!db) return;
+  try {
+    // Checkpoint WAL into the main database file before closing
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  } catch {
+    // Best-effort checkpoint; proceed to close regardless
+  }
+  try {
+    db.close();
+  } finally {
+    db = null;
+  }
+}
+
+function registerShutdownHandler(): void {
+  if (shutdownHandlerRegistered) return;
+  shutdownHandlerRegistered = true;
+
+  const shutdown = (signal: string) => {
+    closeDbGracefully();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 async function ensureDb(): Promise<DatabaseSync> {
@@ -25,6 +57,7 @@ async function ensureDb(): Promise<DatabaseSync> {
       updated_at TEXT NOT NULL
     );
   `);
+  registerShutdownHandler();
   return db;
 }
 
