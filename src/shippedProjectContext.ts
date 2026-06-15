@@ -83,7 +83,10 @@ function projectPathFromPreviewUrl(previewUrl: string): string | null {
   const match = previewUrl.match(/\/preview\/([A-Za-z0-9_-]+)\/index\.html/i);
   if (!match?.[1]) return null;
   try {
-    return normalizeLocalProjectPath(Buffer.from(match[1], 'base64url').toString('utf8'));
+    const decoded = normalizeLocalProjectPath(Buffer.from(match[1], 'base64url').toString('utf8'));
+    return path.posix.basename(decoded).toLowerCase() === 'dist'
+      ? normalizeLocalProjectPath(path.posix.dirname(decoded))
+      : decoded;
   } catch {
     return null;
   }

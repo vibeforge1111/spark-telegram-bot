@@ -80,7 +80,7 @@ async function main(): Promise<void> {
 
   await test('records shipped project context from preview link when provider text is redacted', async () => {
     const projectPath = 'C:/Users/USER/.spark/workspaces/mission-redacted-js-sprint-picker';
-    const previewUrl = shippedProjectContext.projectPreviewUrlForPath(projectPath);
+    const previewUrl = shippedProjectContext.projectPreviewUrlForPath(`${projectPath}/dist`);
 
     await shippedProjectContext.recordShippedProjectFromMission({
       chatId: '1278511160',
