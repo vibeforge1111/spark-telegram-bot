@@ -280,6 +280,47 @@ test('treats blocked freeform provider completions as mission failures', () => {
   assert.doesNotMatch(message, /shipped|result ready|wrapped this one/i);
 });
 
+test('failed provider completions with previews do not invite polish', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-failed-preview',
+    requestId: 'tg-build-failed-preview',
+    verbosity: 'normal',
+    openLink: 'http://127.0.0.1:3333/preview/failed-example/index.html',
+    response: 'unknown error'
+  });
+
+  assert.match(message, /(?:hit a blocker|got blocked|could not finish that one|quick look)/i);
+  assert.match(message, /Open it here:\nhttp:\/\/127\.0\.0\.1:3333\/preview\/failed-example\/index\.html/);
+  assert.doesNotMatch(message, /polish anything|tweak next|tune anything|adjusted/i);
+});
+
+test('mission failures name the affected mission and include the board', () => {
+  const message = formatProgressMessageForTelegram(
+    {
+      type: 'mission_failed',
+      missionId: 'mission-planning-failed',
+      missionName: 'Something For Planning My Day',
+      message: 'Mission failed.',
+      data: { requestId: 'tg-build-planning-failed' }
+    },
+    {
+      missionId: 'mission-planning-failed',
+      chatId: '8319079055',
+      userId: '8319079055',
+      requestId: 'tg-build-planning-failed',
+      goal: 'Build something for planning my day.',
+      createdAt: '2026-06-15T13:24:17.405Z'
+    },
+    'normal',
+    'none'
+  );
+
+  assert.match(message || '', /Mission: Something For Planning My Day/);
+  assert.match(message || '', /Mission board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-planning-failed/);
+  assert.doesNotMatch(message || '', /I got this one finished|got it done|came back clean|this one is finished/i);
+});
+
 test('warns cleanly when structured provider output is malformed', () => {
   const message = formatProviderCompletionForTelegram({
     providerLabel: 'claude',

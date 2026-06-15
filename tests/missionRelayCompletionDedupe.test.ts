@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {
   formatCompletionSummaryDeliveryFailureLogForTests,
   resetMissionRelayDeliveryStateForTests,
-  sendFetchedCompletionSummaryForTests
+  sendFetchedCompletionSummaryForTests,
+  shouldSkipDuplicateForTests
 } from '../src/missionRelay';
 
 async function test(name: string, fn: () => Promise<void>): Promise<void> {
@@ -104,6 +105,28 @@ async function main(): Promise<void> {
     assert.equal(second, 0);
     assert.equal(sent.length, 1);
     assert.match(sent[0], /DEDUPE_LATER_OK/);
+  });
+
+  await test('suppresses mission_failed after task_failed for the same terminal failure', async () => {
+    resetMissionRelayDeliveryStateForTests();
+
+    const taskFailed = shouldSkipDuplicateForTests({
+      type: 'task_failed',
+      missionId: 'mission-terminal-failure',
+      source: 'codex',
+      message: 'unknown error',
+      data: { provider: 'codex', missionName: 'Planning Button' }
+    });
+    const missionFailed = shouldSkipDuplicateForTests({
+      type: 'mission_failed',
+      missionId: 'mission-terminal-failure',
+      source: 'prd-auto-dispatch',
+      message: 'Mission failed.',
+      data: { missionName: 'Planning Button' }
+    });
+
+    assert.equal(taskFailed, false);
+    assert.equal(missionFailed, true);
   });
 }
 

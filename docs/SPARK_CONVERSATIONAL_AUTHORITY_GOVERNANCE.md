@@ -1,8 +1,8 @@
 # Spark Conversational Authority Governance
 
-Status: Current operating rules for Telegram, Spawner, Harness Core, and sibling natural-language routes.
+Status: Current operating rules for all Spark conversational routes, owner-evidence claims, Telegram, Spawner, Harness Core, and sibling natural-language routes.
 
-Use this document before changing conversational routing, `IntentGate`, `naturalRouteDecision`, `buildIntent`, `conversationIntent`, Telegram answer composition, Spawner launch/readout behavior, or route QA tests.
+Use this document before changing conversational routing, `IntentGate`, `naturalRouteDecision`, `buildIntent`, `conversationIntent`, Telegram answer composition, completion/failure claims, Spawner launch/readout behavior, or route QA tests for any Spark system.
 
 ## Purpose
 
@@ -11,7 +11,9 @@ Spark natural language must avoid two equal failures:
 - False-positive hijack: a word, quote, bug report, readout, stale artifact, pending state, memory, or route history starts work the user did not ask for.
 - False-negative miss: a fresh explicit action fails because a boundary rule became too broad.
 
-The goal is not more deterministic reply text. The goal is a stable authority contract: evidence proposes, Harness Core/Governor authorizes, owner systems execute or refuse.
+The goal is not more deterministic reply text. The goal is a stable authority contract: evidence proposes, Harness Core/Governor authorizes, owner systems execute or refuse, and every human-facing claim stays bounded by owner proof.
+
+These rules are Spark-wide. They apply to Builder, Spawner, memory, wiki, access, provider, domain-chip, recursive, schedule, publish, browser/computer-use, installer, Cockpit, Labs, Swarm, Telegram, and future Spark owner routes.
 
 ## Authority Spine
 
@@ -37,6 +39,7 @@ Rules:
 - Memory, pending state, route history, prior mission ids, health state, provider names, old artifacts, and local summaries are evidence only.
 - Reply text is never an execution boundary.
 - Owner adapters must fail closed before network, file, memory, schedule, publish, provider, chip, mission, or recursive side effects when authority is missing, stale, wrong-tool, read-only, or unsigned when signatures are required.
+- Done/ready/fixed/shipped claims require terminal owner success, verification proof, and no newer owner failure for the same artifact. Task completion, preview URLs, delivery success, dashboards, and cached summaries are evidence only until the owner route confirms the final state.
 
 ## Ownership
 
@@ -73,6 +76,8 @@ Spawner owns:
 - PRD/write/dispatch consumption
 - Canvas/Kanban/execution panel truth
 
+Every Spark owner owns its own terminal truth. Telegram may render that truth, but it must not promote partial task completion, visible links, stale summaries, or delivery success into final success for any owner system.
+
 Builder, memory, wiki, access, provider, domain-chip, recursive, schedule, publish, browser/computer-use, and installer routes each keep their own owner boundaries.
 
 ## Patch Decision Tree
@@ -101,6 +106,7 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 ## Non-Negotiable Invariants
 
 - Every high-agency action requires selected route, owner, tool, action type, action id, pre-execution ledger, Governor decision, and owner-side verification.
+- Every completion or readiness claim requires selected owner evidence, terminal success, verification proof, and no conflicting newer failure for the same artifact.
 - Read-only authority never authorizes writes, launches, publishing, scheduling, memory writes, chip creation, mission control, or provider dispatch.
 - No-execution, quoted examples, meta-language, stale-context questions, "explain only", and explicit no-run language block mutations.
 - Local-only/no-publish/no-deploy language blocks publishing and deployment, not explicit local builds.
@@ -123,6 +129,7 @@ Do not ship:
 - TurnIntent V1 documents as current execution authority
 - delivery success as answer success
 - output reports as stronger truth than repo contracts, source manifests, live ledgers, and owner-system evidence
+- done/ready/shipped wording based only on task completion, preview links, Telegram delivery, dashboard presence, or stale cached state
 
 ## Required Route-Family Test Contract
 
@@ -198,6 +205,7 @@ Before finalizing:
 - Are all denied high-agency probes side-effect-free?
 - Are all allowed high-agency actions backed by envelope, tool policy, ledger, Governor decision, and consumer verification?
 - Are reply claims bounded by owner evidence?
+- If a reply says done, ready, fixed, shipped, saved, published, installed, or launched, which owner proof makes that true?
 - Is unrelated user work left untouched?
 
 ## Launch Gates
@@ -213,4 +221,3 @@ Do not call the touched surface launch-ready unless:
 - build, sync check, focused route pack, and broad matrix pass
 
 Runtime-ready does not imply public-installer-ready. Installer readiness also needs committed source, current manifests, CI, sync, secrets scan, registry truth, and release docs alignment.
-

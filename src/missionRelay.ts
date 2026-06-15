@@ -94,6 +94,7 @@ interface RelayWebhookPayload {
     missionId?: string;
     taskId?: string;
     taskName?: string;
+    missionName?: string;
     message?: string;
     timestamp?: string;
     source?: string;
@@ -106,6 +107,7 @@ export interface DeliverableRelayEvent {
   missionId: string;
   taskId?: string;
   taskName?: string;
+  missionName?: string;
   message?: string;
   timestamp?: string;
   source?: string;
@@ -766,6 +768,19 @@ function requestIdFromEvent(event: DeliverableRelayEvent): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function missionNameFromEvent(event: DeliverableRelayEvent): string | null {
+  const data = asRecord(event.data);
+  const value =
+    event.missionName ||
+    firstString(data, ['missionName', 'mission_name', 'pipelineName', 'projectName', 'title']);
+  return value ? clipText(value, 140) : null;
+}
+
+function missionTitleLine(event: DeliverableRelayEvent): string | null {
+  const name = missionNameFromEvent(event);
+  return name ? `Mission: ${name}` : null;
+}
+
 function missionStartLinkPreference(preference: TelegramMissionLinkPreference): TelegramMissionLinkPreference {
   if (preference === 'none') return 'none';
   return 'board';
@@ -1176,10 +1191,10 @@ const VOICE_LINES = {
     'still shaping this.'
   ],
   completed: [
-    '✨ I got this one finished for you.',
-    '✨ I got it done for you.',
-    '✨ done, this one came back clean.',
-    '✨ nice, this one is finished.'
+    '✨ The preview is ready to inspect.',
+    '✨ The handoff is ready to inspect.',
+    '✨ The result is ready to review.',
+    '✨ This one is ready to check.'
   ],
   failed: [
     '⚠️ That run hit a blocker.',
@@ -1766,7 +1781,7 @@ export function formatProviderCompletionForTelegram(input: {
         lines.push('', staged ? summarizeStagedVerificationChecks(checks) : summarizeVerificationChecks(checks));
       }
     }
-    if (openLink) lines.push('', nextPolishLine(input.missionId));
+    if (openLink && completionKind === 'completed') lines.push('', nextPolishLine(input.missionId));
     if (lines.length > 1) return lines.join('\n');
     return [
       `${provider} says:`,
@@ -1885,6 +1900,8 @@ export function formatProgressMessageForTelegram(
   const message = event.message || summary || '';
   const effectiveLinkPreference = event.type === 'mission_started'
     ? missionStartLinkPreference(linkPreference)
+    : event.type === 'mission_failed' && linkPreference === 'none'
+      ? 'board'
     : linkPreference;
   const links = buildMissionSurfaceLinks(
     event.missionId,
@@ -1933,6 +1950,7 @@ export function formatProgressMessageForTelegram(
     case 'mission_failed':
       return compactTelegramBlocks(
         voiceLine('failed', `${event.missionId}:failed`),
+        missionTitleLine(event),
         message ? clipText(stripMissionControlBoilerplate(message), 500) : null,
         missionReferenceLines(event.missionId, links).join('\n')
       );
@@ -1950,6 +1968,15 @@ function shouldSkipDuplicate(event: DeliverableRelayEvent): boolean {
   const eventIdentity = event.taskId || event.taskName || event.message || 'mission';
   const signature = `${event.missionId}:${event.type}:${eventIdentity}:${providerKey}`;
   const openTaskKey = `${event.missionId}:${providerKey}`;
+  if (event.type === 'task_failed' || event.type === 'task_cancelled' || event.type === 'mission_failed') {
+    const terminalKind = event.type === 'task_cancelled' ? 'cancelled' : 'failed';
+    const terminalKey = `${event.missionId}:terminal:${terminalKind}`;
+    const previousTerminal = deliveryCache.get(terminalKey);
+    if (typeof previousTerminal === 'number' && now - previousTerminal < 10 * 60_000) {
+      return true;
+    }
+    deliveryCache.set(terminalKey, now);
+  }
   if (event.type === 'task_completed' || event.type === 'task_failed' || event.type === 'task_cancelled') {
     openTaskStartCache.delete(openTaskKey);
   }
@@ -2910,12 +2937,16 @@ export async function startMissionRelay(bot: Telegraf): Promise<{ port: number }
         clearHeartbeatForMission(event.missionId);
         const failure = extractProviderFailure(event);
         const label = humanizeProviderLabel(failure.providerLabel);
+        const failureLinkPreference = linkPreference === 'none' ? 'board' : linkPreference;
+        const links = buildMissionSurfaceLinks(event.missionId, failureLinkPreference, undefined, requestIdFromEvent(event));
         await bot.telegram.sendMessage(
           chatId,
           compactTelegramBlocks(
             voiceLine('failed', `${event.missionId}:${label}:task-failed`),
+            missionTitleLine(event),
             `${label} could not finish this step.`,
-            clipText(stripMissionControlBoilerplate(failure.error), 500)
+            clipText(stripMissionControlBoilerplate(failure.error), 500),
+            missionReferenceLines(event.missionId, links).join('\n')
           ),
           missionRelayTraceExtra(subscription, event, 'mission_failed')
         );

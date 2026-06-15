@@ -32,7 +32,7 @@ This repo does not own:
 
 ## Conversational Authority Protocol
 
-Use the local Codex skill `spark-conversational-authority` for conversational-intent, Spawner, Telegram route, Harness Core, or QA-matrix changes.
+Use the local Codex skill `spark-conversational-authority` for any Spark conversational-intent, route, owner-evidence, completion-claim, failure-claim, Harness Core, or QA-matrix change. This is Spark-wide, not Spawner-only.
 
 Before patching natural-language behavior:
 
@@ -42,13 +42,16 @@ Before patching natural-language behavior:
 - add one negative trap that must not execute
 - add one positive explicit action that must still execute
 - prove the selected route, allowed tools, Governor decision, and owner verification agree for high-agency actions
+- do not claim done/ready/fixed/shipped for any Spark system unless the owning system has terminal success proof, verification proof, and no newer owner failure for the same artifact
 
 ## One Truth Rules
 
 - Telegram is a field console, not the global brain.
 - Telegram may render Builder route verdicts, memory proof cards, CLI status, Spawner mission evidence, and voice status; it must not fork those owners' logic.
+- These rules apply to all Spark systems: Builder, Spawner, memory, wiki, access, provider, domain-chip, recursive, schedule, publish, browser/computer-use, installer, Cockpit, Labs, Swarm, and Telegram.
 - Conversation-frame summaries are local context support, not durable memory truth.
 - If Builder, CLI, or Spawner proof is unavailable, fail closed or say what proof is missing.
+- Task completion, preview links, Telegram delivery, dashboards, or cached summaries are evidence, not final truth, unless the owner route also shows terminal success and verification.
 - Do not turn route keywords like build, mission, access, setup, or go into global permission.
 
 ## Privacy Red Lines
