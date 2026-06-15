@@ -1032,7 +1032,9 @@ async function sendFetchedCompletionSummary(
     recordMissionRelayMachineOriginNotification(subscription, event, 'mission_completion', chunks.length);
     completionDeliveryCache.set(event.missionId, Date.now());
     await saveCompletionDeliveryCache();
-    await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response);
+    await handleMissionCompletionMemory(bot, chatId, subscription, event, completion.providerLabel, completion.response, {
+      previewUrl: completion.openLink
+    });
     pendingCompletionRetries.delete(event.missionId);
     await savePendingCompletionRetries();
     await transitionAndUnregisterMissionRelay(subscription, {
@@ -2330,7 +2332,10 @@ async function handleMissionCompletionMemory(
   subscription: MissionSubscription,
   event: DeliverableRelayEvent,
   providerLabel: string,
-  response: string
+  response: string,
+  artifact?: {
+    previewUrl?: string | null;
+  }
 ): Promise<void> {
   await stageMissionLessonCandidate(subscription, event, providerLabel, response)
     .then((approval) => {
@@ -2348,7 +2353,8 @@ async function handleMissionCompletionMemory(
     requestId: subscription.requestId,
     goal: subscription.goal,
     providerLabel,
-    response
+    response,
+    previewUrl: artifact?.previewUrl || undefined
   }).catch((error) => {
     console.warn('[MissionRelay] Failed to record shipped project context:', error);
   });

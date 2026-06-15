@@ -77,6 +77,29 @@ async function main(): Promise<void> {
     assert.match(improvementGoal, /mission-1778354076476-mission-control-reliability-desk/);
     assert.doesNotMatch(improvementGoal, /Loop Lantern/);
   });
+
+  await test('records shipped project context from preview link when provider text is redacted', async () => {
+    const projectPath = 'C:/Users/USER/.spark/workspaces/mission-redacted-js-sprint-picker';
+    const previewUrl = shippedProjectContext.projectPreviewUrlForPath(projectPath);
+
+    await shippedProjectContext.recordShippedProjectFromMission({
+      chatId: '1278511160',
+      userId: '1278511160',
+      missionId: 'mission-redacted-js-sprint-picker',
+      requestId: 'tg-build-redacted-js-sprint-picker',
+      goal: 'Build a tiny local app called JS Sprint Picker.',
+      providerLabel: 'provider',
+      response: 'completed without final notes',
+      previewUrl
+    });
+
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('1278511160');
+    assert.ok(latest);
+    assert.equal(latest.projectName, 'JS Sprint Picker');
+    assert.equal(latest.projectPath, projectPath);
+    assert.equal(latest.previewUrl, previewUrl);
+    assert.equal(isProjectImprovementRequest('add one tiny feedback note to this app', latest), true);
+  });
 }
 
 main().catch((error) => {

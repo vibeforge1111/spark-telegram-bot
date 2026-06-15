@@ -176,7 +176,11 @@ function summaryFromResponse(response: string): string | undefined {
 export async function recordShippedProjectFromMission(
   input: ShippedProjectMissionInput
 ): Promise<ShippedProjectContext | null> {
-  const projectPath = stringField(input.projectPath) || extractProjectPathFromMissionText(input.response);
+  const inputPreviewUrl = stringField(input.previewUrl);
+  const projectPath =
+    stringField(input.projectPath) ||
+    extractProjectPathFromMissionText(input.response) ||
+    (inputPreviewUrl ? projectPathFromPreviewUrl(inputPreviewUrl) : null);
   if (!projectPath) return null;
 
   const chatId = String(input.chatId);
@@ -190,7 +194,7 @@ export async function recordShippedProjectFromMission(
     userId: String(input.userId),
     projectName: projectNameFromGoal(input.goal, projectPath),
     projectPath,
-    previewUrl: stringField(input.previewUrl) || extractPreviewUrlFromMissionText(input.response) || projectPreviewUrlForPath(projectPath),
+    previewUrl: inputPreviewUrl || extractPreviewUrlFromMissionText(input.response) || projectPreviewUrlForPath(projectPath),
     missionId: input.missionId,
     iteration: sameProject ? previous.iteration + 1 : 1,
     shippedAt: previous?.shippedAt && sameProject ? previous.shippedAt : now,
