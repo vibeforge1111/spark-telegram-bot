@@ -365,6 +365,8 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
   assert.equal(parseBuildIntent('Before the startup operator can build, what would a reliable agent harness check?'), null);
+  assert.equal(parseBuildIntent('I want to make something for planning my day.'), null);
+  assert.equal(parseBuildIntent('I want to make something to help me plan my day.'), null);
   assert.equal(parseBuildIntent("I want to make something for planning my day but I don't really know what it should be yet."), null);
   assert.equal(parseBuildIntent("I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take."), null);
   assert.equal(parseBuildIntent("I've got too much to juggle this week and I want to make something around that, but I don't know what form it should take."), null);

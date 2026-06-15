@@ -569,6 +569,29 @@ function isPreBuildShapingRequest(text: string): boolean {
   );
 }
 
+function hasConcreteBuildExecutionAnchor(text: string, normalized: string): boolean {
+  return (
+    /^\s*\/(?:run|build|mission)\b/i.test(text) ||
+    /\b(?:build|create|make|ship|scaffold|generate)\s+(?:this\s+)?(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i.test(text) ||
+    /\b(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i.test(text) ||
+    /\buse\s+(?:advanced\s+prd|direct\s+build)\s+mode\b/.test(normalized) ||
+    /\bfiles:\s*[\w.-]+\./i.test(text) ||
+    /\b(?:called|named)\s+["']?[A-Za-z0-9][A-Za-z0-9 _.'-]{2,80}/i.test(text) ||
+    /\b(?:with|through|via|using)\s+(?:spawner(?:\s+ui)?|mission\s+control|spawner\/mission\s+control)\b/.test(normalized) ||
+    /\b(?:build|make|create|develop|scaffold|generate|ship|start|queue|run|launch)\s+(?:it|this|that|the\s+(?:app|tool|project|build|mission))\s+(?:now|right\s+now|please|for\s+me)\b/.test(normalized)
+  );
+}
+
+export function isLowSpecificityProductDesire(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const firstPersonGenericArtifact =
+    /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love|am\s+thinking|are\s+thinking|have\s+been\s+thinking|keep\s+thinking)\s+(?:to\s+)?(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized) ||
+    /\b(?:i|we)\b.{0,140}\b(?:want|need|would\s+like|would\s+love|am\s+thinking|are\s+thinking|have\s+been\s+thinking|keep\s+thinking)\s+(?:to\s+)?(?:build|make|create|develop)\s+(?:something|anything)\b/.test(normalized);
+  if (!firstPersonGenericArtifact) return false;
+  return !hasConcreteBuildExecutionAnchor(text, normalized);
+}
+
 function isOpenEndedBuildExplorationRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
@@ -581,6 +604,7 @@ function isOpenEndedBuildExplorationRequest(text: string): boolean {
     /\b(?:i|we)\b.{0,140}\b(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
     /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized);
   if (!wantsSomeArtifact && !wantsUnderspecifiedArtifact) return false;
+  if (isLowSpecificityProductDesire(text)) return true;
   return (
     /\b(?:do\s+not|don't|dont)\s+(?:really\s+)?know\s+(?:exactly\s+)?(?:what|which|how)\b.{0,100}\b(?:it|this|that|thing|project|app|tool)?\s*(?:should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create)|yet)\b/.test(normalized) ||
     /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|kind|type|form|shape|direction|exactly|yet|should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create))\b/.test(normalized) ||

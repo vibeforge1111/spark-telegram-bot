@@ -127,6 +127,14 @@ test('routes collaborative mission wording to conversation instead of command he
     true
   );
   assert.equal(
+    shouldPreferConversationalIdeation('I want to make something for planning my day.'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('I want to make something to help me plan my day.'),
+    true
+  );
+  assert.equal(
     shouldPreferConversationalIdeation("I want to make something for planning my day but I don't really know what it should be yet."),
     true
   );
@@ -638,6 +646,54 @@ test('turns contextual shipped-project polish follow-through into an iteration m
   assert.match(goal, /User feedback:\nLet's do that\./);
   assert.match(goal, /Polish next: tighten the empty states/);
   assert.match(goal, /Current preview: http:\/\/127\.0\.0\.1:3333\/preview\/evening-reset-board\/index\.html/);
+});
+
+test('keeps low-information follow-through from mixing shipped project identity with another artifact advice', () => {
+  const project = {
+    chatId: '1278511160',
+    userId: '1278511160',
+    projectName: 'Mission 1781524790278 Going',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781524790278-going',
+    previewUrl: 'http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+    missionId: 'mission-1781524790278',
+    requestId: 'tg-build-40ba96166254-1781524790278',
+    iteration: 1,
+    summary: 'completed without final notes',
+    shippedAt: '2026-06-15T00:00:00Z',
+    updatedAt: '2026-06-15T00:00:00Z'
+  };
+  const recentContext = [
+    'Assistant: Mission 1781524790278 Going is ready. Current preview: http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+    'User: What would you polish next for Habit Button?',
+    'Assistant: I would polish the Habit Button surface next by making the streak feedback clearer. Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-0ee3f3c61cc5-1781524520548'
+  ];
+
+  assert.equal(isProjectImprovementRequest('Nice, do that.', project, recentContext), false);
+  assert.equal(buildProjectImprovementGoal('Nice, do that.', project, recentContext), null);
+});
+
+test('keeps unrelated strategy questions from mutating the latest shipped project', () => {
+  const project = {
+    chatId: '8319079055',
+    userId: '8319079055',
+    projectName: 'Mission 1778354076476 Mission Control Reliability Desk',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
+    previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html',
+    missionId: 'mission-1778354076476',
+    iteration: 3,
+    summary: 'Shipped the reliability command center.',
+    shippedAt: '2026-06-15T00:00:00Z',
+    updatedAt: '2026-06-15T00:00:00Z'
+  };
+  const recentContext = [
+    'Assistant: Mission 1778354076476 Mission Control Reliability Desk is ready. Current preview: http://127.0.0.1:3333/preview/reliability/index.html',
+    "User: yeah buybacks not for now. let's create a nice structure before deciding anything.",
+    'Assistant: Makes sense. I would keep this in strategy mode and shape the allocation logic before building.'
+  ];
+  const allocationQuestion = 'we already have a big community airdrop that we promised so it needs to be around 20% imo.\n\nand team 10% makes sense\n\nwondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.';
+
+  assert.equal(isProjectImprovementRequest(allocationQuestion, project, recentContext), false);
+  assert.equal(buildProjectImprovementGoal(allocationQuestion, project, recentContext), null);
 });
 
 test('keeps open-ended new product exploration out of shipped project iteration', () => {
@@ -1599,6 +1655,28 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
   assert.equal(
     builderReplySuppressionReason('Spark Researcher returned no concrete guidance for this message.', 'plain_chat'),
     'low_information'
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      [
+        'Allowed, blocked here.',
+        '',
+        'I resolved "that" as polishing Habit Button.',
+        'I found the app and attempted the patch, but this runner is read-only, so no files changed.',
+        '',
+        'Patch scope was:',
+        '- src/App.tsx: change the main label'
+      ].join('\n'),
+      'provider_fallback_chat'
+    ),
+    'unsupported_action_claim'
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'I found the app and attempted the patch, but this runner is read-only, so no files changed.',
+      'plain_chat'
+    ),
+    true
   );
   assert.equal(
     builderReplySuppressionReason('Saved memory about your preferred tone.', 'memory_generic_observation'),

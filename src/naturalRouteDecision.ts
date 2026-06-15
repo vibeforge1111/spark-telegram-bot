@@ -5,6 +5,7 @@ import {
 import {
   buildExternalResearchGoal,
   buildProjectImprovementGoal,
+  classifySparkReadOnlyStateQuestion,
   extractAgentDoctrinePreference,
   extractPlainChatMemoryDirective,
   extractSparkSelfImprovementGoal,
@@ -45,6 +46,8 @@ import {
   parseNaturalCreatorMissionIntent,
   parseNaturalRecursiveCommandIntent,
   parseSpawnerBoardNaturalIntent,
+  shouldAnswerRuntimeTruthPriority,
+  shouldAnswerWorkspaceWikiFreshnessBoundary,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import type {
@@ -568,6 +571,72 @@ export function decideNaturalRoute(
     });
   }
 
+  if (context.pendingBuildClarification && isPendingBuildClarificationFollowup(normalized)) {
+    return decision({
+      route: 'spawner.pending_clarification',
+      owner_system: 'spawner-ui',
+      confidence: 'contextual',
+      action: 'spawner.clarification_reply',
+      payload: {},
+      context_source: 'pending_state',
+      matched_signals: ['pending_build_clarification', 'clarification_followup'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (shouldAnswerRuntimeTruthPriority(normalized)) {
+    return decision({
+      route: 'spark.read_only_state.runtime_truth_priority',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'harness_core.read_only_state',
+      payload: {
+        question: 'runtime_truth_priority',
+        mutation_class: 'read_only'
+      },
+      context_source: 'latest_message',
+      matched_signals: ['fresh_user_intent', 'stale_memory_context', 'current_state_priority'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (shouldAnswerWorkspaceWikiFreshnessBoundary(normalized)) {
+    return decision({
+      route: 'spark.read_only_state.workspace_wiki_freshness_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'harness_core.read_only_state',
+      payload: {
+        question: 'workspace_wiki_freshness_boundary',
+        mutation_class: 'read_only'
+      },
+      context_source: 'latest_message',
+      matched_signals: ['fresh_user_intent', 'workspace_wiki_context', 'current_state_priority'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const readOnlyStateQuestion = classifySparkReadOnlyStateQuestion(normalized);
+  if (readOnlyStateQuestion) {
+    return decision({
+      route: `spark.read_only_state.${readOnlyStateQuestion}`,
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'harness_core.read_only_state',
+      payload: {
+        question: readOnlyStateQuestion,
+        mutation_class: 'read_only'
+      },
+      context_source: 'latest_message',
+      matched_signals: ['fresh_user_intent', 'read_only_state_question', `read_only_state:${readOnlyStateQuestion}`],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
   if (isCurrentSpawnerArtifactReadoutQuestion(normalized, context.spawnerArtifact)) {
     return decision({
       route: 'project.readout',
@@ -678,19 +747,6 @@ export function decideNaturalRoute(
     });
   }
 
-  if (context.pendingBuildClarification && isPendingBuildClarificationFollowup(normalized)) {
-    return decision({
-      route: 'spawner.pending_clarification',
-      owner_system: 'spawner-ui',
-      confidence: 'contextual',
-      action: 'spawner.clarification_reply',
-      payload: {},
-      context_source: 'pending_state',
-      matched_signals: ['pending_build_clarification', 'clarification_followup'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
   const memoryDirective = extractPlainChatMemoryDirective(normalized);
   if (memoryDirective) {
     return decision({

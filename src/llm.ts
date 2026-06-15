@@ -89,6 +89,7 @@ export function codexExecArgs(model: string, outputPath: string): string[] {
   if (serviceTier) configArgs.push('-c', `service_tier="${serviceTier}"`);
   return [
     'exec',
+    '--ignore-user-config',
     '--skip-git-repo-check',
     ...configArgs,
     '--model',
@@ -296,7 +297,8 @@ Useful commands the user can try:
 
 When the user asks what Spark knows or can do, explain these capabilities plainly and briefly. Do not pretend a tool succeeded unless it actually did.
 Spark does have a Telegram chat access-level system. Never say there is no access level, tier, permission system, or permission surface when the user is asking about Spark access. If they ask to see it, say they can ask "what is my access level?" If they ask to change it, say they can ask "change my access level to 3" or use /access 3. If a task is blocked, name the minimum access level that would unlock it.
-Access level is permission; runner capability is what this exact process can do right now. If Level 4 or 5 is allowed but the runner is read-only, say "allowed, blocked here" and direct the user to /access_setup, Spark restart, or a writable Spawner/Codex route rather than claiming full access.
+Access level is permission; runner capability is what this exact process can do right now. If the latest user is asking about access, local edit capability, runner capability, or why Spark cannot write, and Level 4 or 5 is allowed but the runner is read-only, say "allowed, blocked here" and direct the user to /access_setup, Spark restart, or a writable Spawner/Codex route rather than claiming full access.
+Do not use access-runner language for ordinary product discussion, Spawner artifact readouts, or low-information follow-ups like "do that". If no mission id, gateway acknowledgement, or fresh tool ledger is present, do not say you patched, attempted a patch, changed files, queued work, or ran a task. Offer to shape the request or ask for the missing confirmation instead.
 When the user asks you to inspect a public GitHub repo, URL, or local Spark surface, do not claim you have no access as a blanket statement. Explain the truthful boundary: plain chat cannot browse by itself, but Spark can use Spawner/Codex missions for public repo/web inspection when this chat is at Access Level 3, 4, or 5. If access is not enabled, tell the user to run /access 3 or /access 4; reserve /access 5 for trusted whole-computer operator work.
 When the user asks whether browser or web access is available right now, separate public web fetch/search from full browser automation. Do not answer with "yes" or "definitely" unless the current prompt includes a fresh route receipt or tool result. Never say "I just fetched", "I opened", or "I browsed" unless that action actually happened in the current turn and the evidence is visible. If no fresh proof is attached, say "registered or possible, unproven right now" and name the probe to run.
 The Telegram gateway can start missions from explicit natural-language requests or /run. Never say you started, launched, kicked off, created, queued, or are running a Spawner mission unless the gateway returns a mission id or explicit acknowledgement. If no mission id or gateway acknowledgement is present, offer to shape the request or ask the user to confirm the mission goal.`;
@@ -379,17 +381,35 @@ export function runProcess(command: string, args: string[], input: string, timeo
   });
 }
 
-async function codexAvailable(): Promise<boolean> {
-  const result = await runProcess(CODEX_PATH, ['--version'], '', 5000);
-  return result.ok;
+export function isChatHealthCompletion(text: string): boolean {
+  return /\bCHAT_OK\b/i.test(stripReasoningPreamble(text));
 }
 
-export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatProviderPing> {
+async function codexCompletion(prompt: string, timeoutMs: number): Promise<string> {
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-chat-'));
+  const outputPath = path.join(tmpDir, 'last-message.txt');
+  try {
+    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, timeoutMs);
+    if (!result.ok) {
+      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
+    }
+    return readFileSync(outputPath, 'utf-8').trim();
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+export async function pingChatProvider(timeoutMs: number = 45000): Promise<ChatProviderPing> {
   const config = resolveChatProviderConfig();
   if (config.kind === 'codex') {
-    return (await codexAvailable())
-      ? { ok: true, detail: 'codex cli available' }
-      : { ok: false, detail: 'codex cli unavailable' };
+    try {
+      const output = await codexCompletion('Health check. Reply with exactly: CHAT_OK', timeoutMs);
+      return isChatHealthCompletion(output)
+        ? { ok: true, detail: 'completion ok' }
+        : { ok: false, detail: 'unexpected completion' };
+    } catch (err: any) {
+      return { ok: false, detail: err?.message || String(err) || 'request failed' };
+    }
   }
   if (config.kind === 'claude') {
     const result = await runProcess(CLAUDE_PATH, ['--version'], '', 5000);
@@ -479,18 +499,8 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
 }
 
 async function codexChat(prompt: string): Promise<string> {
-  const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-chat-'));
-  const outputPath = path.join(tmpDir, 'last-message.txt');
-  try {
-    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, chatCommandTimeoutMs());
-    if (!result.ok) {
-      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
-    }
-    const output = readFileSync(outputPath, 'utf-8').trim();
-    return output || "I'm here, but I couldn't generate a response right now.";
-  } finally {
-    rmSync(tmpDir, { recursive: true, force: true });
-  }
+  const output = await codexCompletion(prompt, chatCommandTimeoutMs());
+  return output || "I'm here, but I couldn't generate a response right now.";
 }
 
 async function claudeChat(prompt: string, model: string): Promise<string> {
@@ -737,7 +747,7 @@ export const llm = {
   async isAvailable(): Promise<boolean> {
     const config = resolveChatProviderConfig();
     if (config.kind === 'codex') {
-      return await codexAvailable();
+      return (await pingChatProvider()).ok;
     }
     if (config.kind === 'claude') {
       const result = await runProcess(CLAUDE_PATH, ['--version'], '', 5000);

@@ -1697,6 +1697,92 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('final-answer gate suppresses unsupported edit claims before Telegram delivery', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-final-answer-unsupported-claim-'));
+		const auditPath = path.join(tempRoot, 'final-answer-gate-audit.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = auditPath;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const unsafeReply = [
+			'Allowed, blocked here.',
+			'I found the app and attempted the patch, but this runner is read-only, so no files changed.',
+			'Patch scope was: src/App.tsx.'
+		].join('\n');
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const llmModule = require('../src/llm') as typeof import('../src/llm');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const originalChat = llmModule.llm.chat;
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: unsafeReply,
+			decision: 'chat',
+			bridgeMode: 'test',
+			routingDecision: 'plain_chat',
+			requestId: 'req-unsafe-builder-claim',
+			traceRef: 'trace:req-unsafe-builder-claim'
+		});
+		(llmModule.llm as any).chat = async () => unsafeReply;
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079088, 8319079055, 639, replies);
+			ctx.message.text = 'Nice, do that.';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /I should not claim an edit/i);
+			assert.match(reply, /No files were changed and no mission was started/i);
+			assert.doesNotMatch(reply, /attempted the patch/i);
+			assert.doesNotMatch(reply, /Patch scope/i);
+			assert.doesNotMatch(reply, /Allowed, blocked here/i);
+			assert.equal(captured.length, 0, 'unsupported edit-claim fallback must not call Spawner or PRD bridge');
+
+			const auditRecords = await waitForJsonlRecord(
+				auditPath,
+				(record) => record.suppression_reason === 'unsupported_action_claim',
+				50
+			);
+			assert.ok(
+				auditRecords.some((record) => (
+					record.suppression_reason === 'unsupported_action_claim' &&
+					record.builder_routing_decision === 'plain_chat' &&
+					record.request_id === 'req-unsafe-builder-claim' &&
+					record.trace_ref === 'trace:req-unsafe-builder-claim'
+				)),
+				'Builder unsupported action claims must be audited with trace ids'
+			);
+			assert.ok(
+				auditRecords.some((record) => (
+					record.suppression_reason === 'unsupported_action_claim' &&
+					record.builder_routing_decision === 'plain_chat.local_llm'
+				)),
+				'Local fallback unsupported action claims must be audited before fallback delivery'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			(llmModule.llm as any).chat = originalChat;
+			restoreAxios();
+			restoreEnv();
+			removeTempRoot(tempRoot);
+		}
+	});
+
 	await test('chip status overclaim probe does not fall through to provider fallback', async () => {
 		restoreAxios();
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
@@ -2663,6 +2749,68 @@ async function run(): Promise<void> {
 				'ideation answer must record natural route execution through Harness Core'
 			);
 		} finally {
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreEnv();
+		}
+	});
+
+	await test('vague product desire stays conversational before Spawner', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-vague-product-desire-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true, requestId: body?.requestId } };
+		};
+
+		try {
+			const replies: string[] = [];
+			const indexModule: any = await import('../src/index');
+			const ctx = makeFakeCtx(8319079055, 8319079055, 632, replies);
+			ctx.message.text = 'I want to make something for planning my day.';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.equal(captured.length, 0, 'vague product desire must not call Spawner or PRD bridge');
+			assert.ok(reply.trim(), 'vague product desire should still produce a user-visible reply');
+			assert.doesNotMatch(reply, /Spark is on it/i);
+			assert.doesNotMatch(reply, /\bBoard:\s*http/i);
+
+			const ideationRoute = (record: any) => (
+				record.executed_route === 'conversation.ideation' &&
+				record.executed_action === 'harness_core.answer_boundary'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, ideationRoute);
+			assert.ok(
+				naturalRouteRecords.some(ideationRoute),
+				'vague product desire must record conversational ideation route execution'
+			);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.authorization.restrictions.write_allowed === false &&
+					record.result.status === 'success'
+				)),
+				'vague product desire must stay on read-only answer.compose authority'
+			);
+		} finally {
+			restoreAxios();
 			rmSync(tempRoot, { recursive: true, force: true });
 			restoreEnv();
 		}

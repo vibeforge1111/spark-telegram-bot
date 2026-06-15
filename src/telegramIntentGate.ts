@@ -196,11 +196,11 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
     isScheduleDeleteRequest(normalized) ||
     isCreatorBenchmarkPackRequest(normalized)
   ) return false;
-  if (buildIntent && !domainChipCreateRequest) return true;
   if (
     (shouldPreferConversationalIdeation(normalized) && !explicitNoEditMission) ||
     domainChipCreateRequest
   ) return false;
+  if (buildIntent && !domainChipCreateRequest) return true;
   if (explicitNoEditMission) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
   const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board)\b/.test(normalized);
@@ -458,6 +458,23 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
 
   if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.harness_architecture') {
     return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
+  if (naturalRoute?.route.startsWith('spark.read_only_state.')) {
+    return makeDecision({
+      kind: 'runtime_truth_or_operator',
+      route: 'spark.read_only_state',
+      owner_system: 'spark-telegram-bot',
+      action: naturalRoute.route,
+      confidence: naturalRoute.confidence === 'blocked' ? 'blocked' : 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['natural_read_only_state_question', ...naturalRoute.matched_signals],
+      blocked_candidates: [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
+      natural_route: naturalRoute
+    });
   }
 
   const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);

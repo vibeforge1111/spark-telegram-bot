@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
+import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isChatHealthCompletion, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -147,6 +147,7 @@ test('uses Gemma 4 as the Hugging Face default chat model', () => {
 test('builds Codex exec args for non-git Spark workspaces', () => {
   assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt'), [
     'exec',
+    '--ignore-user-config',
     '--skip-git-repo-check',
     '-c',
     'model_reasoning_effort="medium"',
@@ -171,6 +172,7 @@ test('passes supported explicit Codex reasoning effort and service tier', () => 
   try {
     assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt'), [
       'exec',
+      '--ignore-user-config',
       '--skip-git-repo-check',
       '-c',
       'model_reasoning_effort="high"',
@@ -203,8 +205,9 @@ test('normalizes unsupported Codex service tier to fast', () => {
   process.env.CODEX_SERVICE_TIER = 'priority';
 
   try {
-    assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt').slice(0, 6), [
+    assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt').slice(0, 7), [
       'exec',
+      '--ignore-user-config',
       '--skip-git-repo-check',
       '-c',
       'model_reasoning_effort="medium"',
@@ -220,6 +223,13 @@ test('normalizes unsupported Codex service tier to fast', () => {
   }
 });
 
+test('recognizes real chat health completion responses', () => {
+  assert.equal(isChatHealthCompletion('CHAT_OK'), true);
+  assert.equal(isChatHealthCompletion('<think>checking</think>\nCHAT_OK'), true);
+  assert.equal(isChatHealthCompletion('codex-cli 0.124.0'), false);
+  assert.equal(isChatHealthCompletion("I'm here, but I couldn't generate a response right now."), false);
+});
+
 test('system prompt teaches fresh Spark installs their ecosystem', () => {
   const prompt = buildSparkChatSystemPrompt('', '');
 
@@ -233,6 +243,8 @@ test('system prompt teaches fresh Spark installs their ecosystem', () => {
   assert.match(prompt, /Spark does have a Telegram chat access-level system/);
   assert.match(prompt, /change my access level to 3/);
   assert.match(prompt, /minimum access level/);
+  assert.match(prompt, /Do not use access-runner language for ordinary product discussion/);
+  assert.match(prompt, /do not say you patched, attempted a patch, changed files, queued work, or ran a task/);
   assert.match(prompt, /Not a generic assistant/);
 });
 

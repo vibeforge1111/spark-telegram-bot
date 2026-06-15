@@ -466,6 +466,8 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessRuntimeHint('developer'), /check runner writability/);
     assert.match(renderSparkAccessRuntimeHint('developer'), /\/access_setup/);
     assert.match(renderSparkAccessRuntimeHint('developer'), /Spawner\/Codex/);
+    assert.match(renderSparkAccessRuntimeHint('developer'), /Do not use access-runner wording/);
+    assert.match(renderSparkAccessRuntimeHint('developer'), /Never say a patch was attempted unless a fresh tool ledger proves it/);
     assert.match(renderSparkAccessRuntimeHint('operator'), /Current Spark access: Access level 5/);
     assert.match(renderSparkAccessRuntimeHint('operator'), /Whole-computer operator mode/);
     assert.match(renderSparkAccessRuntimeHint('agent'), /Current Spark access: Access level 3/);

@@ -452,10 +452,11 @@ export function renderSparkAccessRuntimeHint(profile: SparkAccessProfile): strin
   if (profile === 'developer') {
     return [
       `Current Spark access: ${sparkAccessLabel(profile)}.`,
-      'For sandboxed local workspace, repo, debugging, or project-inspection requests, check runner writability before claiming the work is possible here.',
+      'For explicit access, runner-capability, sandboxed workspace, repo, debugging, or project-inspection questions, check runner writability before claiming the work is possible here.',
       'Access level 4 means authorized inside approved Spark sandboxes, not automatically writable in every runner.',
       'If the Level 4 workspace is missing, use `/access_setup` instead of dumping Docker, SSH, or filesystem commands into chat.',
-      'If this runner is read-only, say "allowed, blocked here" and route through a writable Spawner/Codex mission or a writable chat runner.'
+      'If the latest user is asking about access/capability and this runner is read-only, say "allowed, blocked here" and route through a writable Spawner/Codex mission or a writable chat runner.',
+      'Do not use access-runner wording for ordinary product discussion, Spawner artifact readouts, or low-information follow-ups. Never say a patch was attempted unless a fresh tool ledger proves it.'
     ].join('\n');
   }
 

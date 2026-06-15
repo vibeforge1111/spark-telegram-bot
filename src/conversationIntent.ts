@@ -1,4 +1,4 @@
-import { parseBuildIntent } from './buildIntent';
+import { isLowSpecificityProductDesire, parseBuildIntent } from './buildIntent';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
@@ -76,6 +76,7 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
     mentionsDomainChipArtifact ||
     designOnlyNoExecution ||
     isAccessSandboxRouteDesignDiscussion(trimmed) ||
+    isLowSpecificityProductDesire(trimmed) ||
     shouldUseDynamicNoExecutionIdeationReply(trimmed) ||
     COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed))
   );
@@ -1886,6 +1887,106 @@ export function renderBrowserComputerUseAuthorizationBoundaryReply(text: string)
 	].join('\n');
 }
 
+export function shouldAnswerRuntimeTruthPriority(text: string): boolean {
+	const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+	if (!normalized) return false;
+	return (
+		/\b(?:which|what)\s+source\s+wins\b/.test(normalized) ||
+		/\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized) ||
+		/\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized)
+	);
+}
+
+export function shouldAnswerWorkspaceWikiFreshnessBoundary(text: string): boolean {
+	const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+	return (
+		/\b(?:workspace|repo|files?)\b/.test(normalized) &&
+		/\bwiki\b/.test(normalized) &&
+		/\b(?:old\s+notes?|memory|notes?)\b.*\b(?:current\s+truth|fresh\s+truth|live\s+truth)\b/.test(normalized)
+	);
+}
+
+export type SparkReadOnlyStateQuestion =
+	| 'harness_core_installed'
+	| 'telegram_primary_polling'
+	| 'contract_coverage_blockers'
+	| 'public_release_blockers'
+	| 'registry_drift'
+	| 'mission_update_preference'
+	| 'pending_action'
+	| 'risk_profile';
+
+function isPublicReleaseBlockerQuestion(normalized: string): boolean {
+	const asksBlocked =
+		/\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?|release\s+gates?)\b/.test(normalized) ||
+		/\b(?:what|which|show|tell|read|status|current|remaining|remains|still)\b.{0,80}\b(?:blocked|blockers?|red\s+lanes?|gates?)\b/.test(normalized);
+	const releaseContext =
+		/\b(?:public\s+release|release|installer|shipping|ship|publication|publish|prs?|pull\s+requests?|registry\s+pins?|duplicate\s+truth|red\s+lanes?|final\s+packet|gates?)\b/.test(normalized);
+	const suppressesMutation =
+		/\b(?:no|not|don't|do\s+not|dont|changed\s+my\s+mind|pause|cancel|without)\b.{0,80}\b(?:prs?|pull\s+requests?|merge|publish|ship|release|run|start|execute|write|create|update|move)\b/.test(normalized) ||
+		/\bno\s+(?:prs?|pull\s+requests?)\b/.test(normalized);
+	const directBlockerRead =
+		/\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?)\b/.test(normalized);
+	const mutationRequest =
+		/\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set|create|update|merge|publish|ship|move)\b/.test(normalized);
+	return asksBlocked && releaseContext && (!mutationRequest || suppressesMutation || directBlockerRead);
+}
+
+export function shouldAnswerSparkRiskProfile(text: string): boolean {
+	const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+	return /\bspark\b/.test(normalized) && /\brisk\s+profile\b/.test(normalized);
+}
+
+export function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQuestion | null {
+	const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+	if (!normalized) return null;
+	const asksRead =
+		/\b(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
+		/\b(?:any|if)\b.{0,40}\b(?:blockers?|drift|pending|waiting)\b/.test(normalized);
+	if (!asksRead) return null;
+	const readOnlyQuestionShape =
+		/^(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
+		/\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?)\b/.test(normalized);
+	const explicitBuildAction = /\b(?:build|create|make|scaffold|generate|ship|implement|design)\b/.test(normalized);
+	const suppressesExecution =
+		/\b(?:do\s+not|don't|dont|no|without)\b.{0,100}\b(?:start|run|launch|execute|build|create|make|write|save|change|set|ship|publish|merge)\b/.test(normalized) ||
+		/\b(?:no|not)\s+(?:prs?|pull\s+requests?)\b/.test(normalized);
+	if (explicitBuildAction && !readOnlyQuestionShape && !suppressesExecution) return null;
+	if (shouldAnswerSparkRiskProfile(text)) {
+		return 'risk_profile';
+	}
+	if (isPublicReleaseBlockerQuestion(normalized)) {
+		return 'public_release_blockers';
+	}
+	if (/\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set)\b/.test(normalized) &&
+			!/\b(?:installed|install\s+state|last\s+install|running|run\s+compile|read-only|read\s+only)\b/.test(normalized)) {
+		return null;
+	}
+	if (/\b(?:harness\s+core|spark[-\s]*harness[-\s]*core)\b/.test(normalized) &&
+			/\b(?:installed|install\s+state|available|healthy|module)\b/.test(normalized)) {
+		return 'harness_core_installed';
+	}
+	if (/\btelegram\b/.test(normalized) && /\bprimary\b/.test(normalized) && /\bpolling\b/.test(normalized)) {
+		return 'telegram_primary_polling';
+	}
+	if (/\bcontract\s+coverage\b/.test(normalized) && /\b(?:blockers?|release\s+blockers?|legacy|coverage)\b/.test(normalized)) {
+		return 'contract_coverage_blockers';
+	}
+	if (/\b(?:registry\s+drift|registry\s+pin\s+drift|release\s+pin\s+drift|duplicate\s+truths?|truth\s+drift)\b/.test(normalized) ||
+			(/\bregistry\b/.test(normalized) && /\bdrift\b/.test(normalized))) {
+		return 'registry_drift';
+	}
+	if (/\bmemory\s+preference\b/.test(normalized) &&
+			/\b(?:mission\s+update|mission\s+updates|update\s+style|style|available)\b/.test(normalized)) {
+		return 'mission_update_preference';
+	}
+	if (/\bpending\b/.test(normalized) &&
+			/\b(?:action|confirmation|waiting|resume|mission|clarification)\b/.test(normalized)) {
+		return 'pending_action';
+	}
+	return null;
+}
+
 function renderContextualHarnessBoundaryReply(_text: string, normalized: string): string {
 	if (
 		/\bvoice\s+transcript\s+example\b/.test(normalized) ||
@@ -2503,10 +2604,25 @@ const PROJECT_CONTEXT_GENERIC_WORDS = new Set([
   'prototype',
   'polish',
   'current',
-  'latest'
+  'latest',
+  'going',
+  'right',
+  'what',
+  'would',
+  'next',
+  'status',
+  'running',
+  'completed',
+  'failed',
+  'stuck',
+  'today',
+  'tomorrow'
 ]);
 
-function normalizedProjectContextNeedles(project: ShippedProjectContext): string[] {
+function normalizedProjectContextNeedles(project: ShippedProjectContext): {
+  exactNeedles: string[];
+  wordNeedles: string[];
+} {
   const rawValues = [
     project.projectName,
     project.projectPath,
@@ -2523,7 +2639,19 @@ function normalizedProjectContextNeedles(project: ShippedProjectContext): string
     .map((word) => word.trim())
     .filter((word) => word.length >= 4 && !PROJECT_CONTEXT_GENERIC_WORDS.has(word));
 
-  return Array.from(new Set([...exactNeedles, ...wordNeedles]));
+  return {
+    exactNeedles: Array.from(new Set(exactNeedles)),
+    wordNeedles: Array.from(new Set(wordNeedles))
+  };
+}
+
+function hasProjectIdentityInText(project: ShippedProjectContext, normalizedText: string): boolean {
+  const { exactNeedles, wordNeedles } = normalizedProjectContextNeedles(project);
+  if (exactNeedles.some((needle) => normalizedText.includes(needle))) return true;
+
+  const textWords = new Set(normalizedText.split(/[^a-z0-9]+/).filter(Boolean));
+  const matchingProjectWords = wordNeedles.filter((word) => textWords.has(word));
+  return matchingProjectWords.length >= 2;
 }
 
 function isLowInformationProjectIterationFollowup(normalized: string): boolean {
@@ -2535,22 +2663,95 @@ function isLowInformationProjectIterationFollowup(normalized: string): boolean {
   );
 }
 
-function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentMessages: string[]): boolean {
-  const recentContext = recentMessages
-    .map((message) => message.trim().toLowerCase().replace(/\\/g, '/'))
+function hasProjectIterationAdviceSignal(normalized: string): boolean {
+  return (
+    /\b(?:polish next|next polish|what would you polish|thoughtful next polish|one thoughtful next polish|next direction|next improvement)\b/.test(normalized) ||
+    /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path)\b/.test(normalized) &&
+      /\b(?:polish|improve|tighten|add|fix|update|adjust|tweak|refine|rework|redesign|clean)\b/.test(normalized)
+  );
+}
+
+function hasProjectIterationAdviceSourceMarker(normalized: string): boolean {
+  return /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path|shipped at|current shipped app)\b/.test(normalized);
+}
+
+type RecentProjectIterationMessage = {
+  normalized: string;
+  role: 'assistant' | 'user' | 'unknown';
+  hasProjectIdentity: boolean;
+  hasAdviceSignal: boolean;
+  hasAdviceSourceMarker: boolean;
+};
+
+function recentProjectIterationRole(rawLine: string): RecentProjectIterationMessage['role'] {
+  if (/^(?:assistant|spark):/i.test(rawLine)) return 'assistant';
+  if (/^user:/i.test(rawLine)) return 'user';
+  return 'unknown';
+}
+
+function normalizeRecentProjectIterationLines(recentMessages: string[]): string[] {
+  return recentMessages
+    .flatMap((message) => message.split(/\r?\n+/))
+    .map((line) => line.trim().replace(/^[-*]\s+/, '').trim())
     .filter(Boolean)
+    .slice(-16);
+}
+
+function hasRecentProjectIdentityContext(project: ShippedProjectContext, recentMessages: string[]): boolean {
+  const recentText = normalizeRecentProjectIterationLines(recentMessages)
+    .map((line) => line.toLowerCase().replace(/\\/g, '/'))
     .slice(-8)
     .join('\n');
-  if (!recentContext) return false;
+  if (!recentText || !hasProjectIdentityInText(project, recentText)) return false;
+  return /\b(?:current preview|preview:|ready|shipped|built|existing shipped project|project_path|project path|canvas|kanban|board|workspace)\b/.test(recentText);
+}
 
-  const hasProjectIdentity = normalizedProjectContextNeedles(project).some((needle) => recentContext.includes(needle));
-  if (!hasProjectIdentity) return false;
+function hasRecentProjectIterationAdvice(project: ShippedProjectContext, recentMessages: string[]): boolean {
+  const messages: RecentProjectIterationMessage[] = normalizeRecentProjectIterationLines(recentMessages)
+    .map((line) => {
+      const normalized = line.toLowerCase().replace(/\\/g, '/');
+      return {
+        normalized,
+        role: recentProjectIterationRole(line),
+        hasProjectIdentity: hasProjectIdentityInText(project, normalized),
+        hasAdviceSignal: hasProjectIterationAdviceSignal(normalized),
+        hasAdviceSourceMarker: hasProjectIterationAdviceSourceMarker(normalized)
+      };
+    });
 
-  return (
-    /\b(?:polish next|next polish|what would you polish|thoughtful next polish|one thoughtful next polish|next direction|next improvement)\b/.test(recentContext) ||
-    /\b(?:current preview|existing shipped project|already shipped|shipped app|preview:|project_path|project path)\b/.test(recentContext) &&
-      /\b(?:polish|improve|tighten|add|fix|update|adjust|tweak|refine|rework|redesign|clean)\b/.test(recentContext)
-  );
+  for (const [index, message] of messages.entries()) {
+    const assistantOrEvidenceAdvice =
+      message.hasAdviceSignal &&
+      (
+        message.role === 'assistant' ||
+        (message.role === 'unknown' && message.hasAdviceSourceMarker)
+      );
+    if (assistantOrEvidenceAdvice && message.hasProjectIdentity) return true;
+
+    const previous = messages[index - 1];
+    if (
+      assistantOrEvidenceAdvice &&
+      previous?.role === 'user' &&
+      previous.hasProjectIdentity &&
+      previous.hasAdviceSignal
+    ) {
+      return true;
+    }
+
+    const twoBack = messages[index - 2];
+    if (
+      assistantOrEvidenceAdvice &&
+      previous?.role === 'assistant' &&
+      previous.hasProjectIdentity &&
+      twoBack?.role === 'user' &&
+      twoBack.hasProjectIdentity &&
+      twoBack.hasAdviceSignal
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isContextualProjectImprovementFollowup(
@@ -2592,8 +2793,15 @@ export function isProjectImprovementRequest(
   const asksToChange = /\b(?:make|turn|change|improve|polish|update|add|remove|fix|adjust|tweak|refine|rework|redesign|clean|tighten|soften|brighten|darken)\b/.test(normalized);
   if (!asksToChange && !contextualFollowup) return false;
 
-  const pointsAtCurrentProject = /\b(?:this|that|it|app|site|page|screen|project|build|product|dashboard|tool|prototype|design|layout|colors?|colours?|palette|theme|spacing|copy|text|button|flow|workflow|mobile|responsive|spark)\b/.test(normalized);
-  return contextualFollowup || pointsAtCurrentProject;
+  const pointsAtNamedProject = hasProjectIdentityInText(project, normalized);
+  const pointsAtProjectSurface = /\b(?:app|site|page|screen|project|build|dashboard|tool|prototype|design|layout|colors?|colours?|palette|theme|spacing|copy|text|button|flow|workflow|mobile|responsive|spark)\b/.test(normalized);
+  const pointsAtProjectPronoun =
+    /\b(?:make|turn|change|improve|polish|update|fix|adjust|tweak|refine|rework|redesign|clean|tighten|soften|brighten|darken)\s+(?:this|that|it)\b/.test(normalized) ||
+    /\b(?:this|that|it)\s+(?:needs?|should|could)\s+(?:be\s+)?(?:more|less|a|an|the)?\s*(?:polished|improved|brighter|darker|cleaner|tighter|softer|clearer|better)\b/.test(normalized);
+  const pronounOnlyProjectReference =
+    pointsAtProjectPronoun &&
+    hasRecentProjectIdentityContext(project, recentMessages);
+  return contextualFollowup || pointsAtNamedProject || pointsAtProjectSurface || pronounOnlyProjectReference;
 }
 
 function isFreshProductTransformationRequest(normalized: string): boolean {
@@ -2903,7 +3111,21 @@ export type BuilderReplySuppressionReason =
   | 'route_menu'
   | 'project_event_residue'
   | 'memory_acknowledgement'
-  | 'low_information';
+  | 'low_information'
+  | 'unsupported_action_claim';
+
+function isUnsupportedActionClaimReply(normalized: string): boolean {
+  const actionClaim =
+    /\b(?:i|we|spark)\s+(?:found|resolved|attempted|patched|changed|updated|edited|wrote|created|queued|started|ran|launched|applied)\b/.test(normalized) &&
+    /\b(?:patch|files?|workspace|mission|build|task|queue|project|app|code|readme|tests?)\b/.test(normalized);
+  return (
+    /\bpatch scope\b/.test(normalized) ||
+    /\battempted\s+(?:the\s+)?patch\b/.test(normalized) ||
+    /\b(?:runner|lane)\s+is\s+read[-\s]*only\b/.test(normalized) && /\b(?:no files changed|patch|files?)\b/.test(normalized) ||
+    /\buse\s+a\s+writable\s+(?:spawner|codex|runner|lane)\b/.test(normalized) && /\b(?:apply|patch|edit|files?)\b/.test(normalized) ||
+    actionClaim
+  );
+}
 
 export function builderReplySuppressionReason(reply: string, routingDecision: string = ''): BuilderReplySuppressionReason | null {
   if (/^memory(?:[_.]|$)/i.test(routingDecision.trim())) {
@@ -2954,6 +3176,9 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   }
   if (isMemoryAcknowledgementReply(reply)) {
     return 'memory_acknowledgement';
+  }
+  if (isUnsupportedActionClaimReply(normalized)) {
+    return 'unsupported_action_claim';
   }
   if (isLowInformationLlmReply(reply)) {
     return 'low_information';

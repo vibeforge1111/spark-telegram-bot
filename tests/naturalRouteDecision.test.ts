@@ -85,6 +85,20 @@ test('routes natural steering answers to active build clarification', () => {
   assert.equal(route.action, 'spawner.clarification_reply');
 });
 
+test('routes active build clarification before current artifact readouts', () => {
+  const route = decideNaturalRoute('go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress', {
+    pendingBuildClarification: true,
+    spawnerArtifact: {
+      ...spawnerArtifact(),
+      projectName: 'Harness Authority Proof'
+    }
+  });
+
+  assert.equal(route.route, 'spawner.pending_clarification');
+  assert.notEqual(route.route, 'project.readout');
+  assert.equal(route.context_source, 'pending_state');
+});
+
 test('gives explicit project builds first refusal before utility routes', () => {
   const route = decideNaturalRoute('Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a tiny timer app with tests');
 
@@ -320,6 +334,15 @@ test('keeps negated domain-chip design talk in chat', () => {
 });
 
 test('routes uncertain build exploration to conversation before Spawner', () => {
+  const softDesireRoute = decideNaturalRoute('I want to make something for planning my day.');
+
+  assert.equal(softDesireRoute.route, 'conversation.ideation');
+  assert.equal(softDesireRoute.owner_system, 'spark-intelligence-builder');
+  assert.equal(softDesireRoute.action, 'plain_chat.ideation');
+  assert.equal(softDesireRoute.context_source, 'latest_message');
+  assert.deepEqual(softDesireRoute.matched_signals, ['conversational_ideation']);
+  assert.equal(softDesireRoute.requires_confirmation, false);
+
   const route = decideNaturalRoute("I want to make something for planning my day but I don't really know what it should be yet.");
 
   assert.equal(route.route, 'conversation.ideation');
@@ -769,6 +792,113 @@ test('routes contextual shipped-project polish follow-through to project iterati
   assert.equal(route.payload.projectName, 'Mission 1781519873204 Evening Reset Board');
   assert.match(String(route.payload.goal), /reset for tonight action/);
   assert.notEqual(route.payload.projectName, ', And What Would You Polish');
+});
+
+test('does not route low-information follow-through when shipped project and Spawner advice targets differ', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Mission 1781524790278 Going',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781524790278-going',
+    previewUrl: 'http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+    missionId: 'mission-1781524790278',
+    requestId: 'tg-build-40ba96166254-1781524790278',
+    iteration: 1
+  };
+  const route = decideNaturalRoute('Nice, do that.', {
+    shippedProject: project,
+    spawnerArtifact: {
+      ...spawnerArtifact(),
+      projectName: 'Habit Button',
+      requestId: 'tg-build-0ee3f3c61cc5-1781524520548',
+      missionId: 'mission-1781524520548',
+      canvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-0ee3f3c61cc5-1781524520548&mission=mission-1781524520548'
+    },
+    recentMessages: [
+      'Assistant: Mission 1781524790278 Going is ready. Current preview: http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+      'User: What would you polish next for Habit Button?',
+      'Assistant: I would polish the Habit Button surface next by making the streak feedback clearer. Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-0ee3f3c61cc5-1781524520548'
+    ]
+  });
+
+  assert.equal(route.route, 'plain_chat');
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('keeps unrelated strategy questions conversational despite stale shipped project context', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Mission 1778354076476 Mission Control Reliability Desk',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
+    previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html',
+    missionId: 'mission-1778354076476',
+    requestId: 'tg-build-reliability',
+    iteration: 3
+  };
+  const route = decideNaturalRoute(
+    'we already have a big community airdrop that we promised so it needs to be around 20% imo.\n\nand team 10% makes sense\n\nwondering what if we make liquidity dex 5% would it be too small or good enough, and then we could have some more stuff for ecosystem rewards.',
+    {
+      shippedProject: project,
+      recentMessages: [
+        'Assistant: Mission 1778354076476 Mission Control Reliability Desk is ready. Current preview: http://127.0.0.1:3333/preview/reliability/index.html',
+        "User: yeah buybacks not for now. let's create a nice structure before deciding anything.",
+        'Assistant: Makes sense. I would keep this in strategy mode and shape the allocation logic before building.'
+      ]
+    }
+  );
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.action, 'plain_chat');
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('routes runtime truth priority questions before shipped project readouts', () => {
+  const route = decideNaturalRoute(
+    'If memory says Spawner is down but spark live status says it is up, which source wins? Keep it natural and short.',
+    {
+      shippedProject: {
+        ...shippedProject(),
+        projectName: 'Mission 1778354076476 Mission Control Reliability Desk',
+        projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
+        previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html'
+      }
+    }
+  );
+
+  assert.equal(route.route, 'spark.read_only_state.runtime_truth_priority');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'harness_core.read_only_state');
+  assert.notEqual(route.route, 'project.readout');
+});
+
+test('routes workspace wiki freshness boundaries before shipped project readouts', () => {
+  const route = decideNaturalRoute(
+    'Use Workspace and Wiki to tell me what changed, but do not treat old notes as current truth.',
+    {
+      shippedProject: {
+        ...shippedProject(),
+        projectName: 'Mission 1778354076476 Mission Control Reliability Desk',
+        projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
+        previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html'
+      }
+    }
+  );
+
+  assert.equal(route.route, 'spark.read_only_state.workspace_wiki_freshness_boundary');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'harness_core.read_only_state');
+  assert.notEqual(route.route, 'project.readout');
+});
+
+test('routes read-only Spark state questions before generic build parsing', () => {
+  const route = decideNaturalRoute('Read memory preference for mission update style if available.');
+
+  assert.equal(route.route, 'spark.read_only_state.mission_update_preference');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'harness_core.read_only_state');
+  assert.notEqual(route.route, 'spawner.build');
+  assert.notEqual(route.payload.projectName, 'Style If Available');
 });
 
 test('keeps context-free shipped-project follow-through conversational', () => {

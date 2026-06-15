@@ -239,6 +239,7 @@ import {
   buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
+  classifySparkReadOnlyStateQuestion,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
   extractSparkWikiPromotionIntent,
@@ -292,6 +293,7 @@ import {
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
+  parseNaturalRecursiveCommandIntent,
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
@@ -309,9 +311,13 @@ import {
   renderXContentCredentialBoundaryReply,
   renderXPostReviewFromLinksBoundaryReply,
   builderReplySuppressionReason,
+  shouldAnswerRuntimeTruthPriority,
+  shouldAnswerSparkRiskProfile,
+  shouldAnswerWorkspaceWikiFreshnessBoundary,
   shouldSuppressBuilderReplyForPlainChat,
   shouldUseDynamicNoExecutionIdeationReply,
-  shouldPreferConversationalIdeation
+  shouldPreferConversationalIdeation,
+  type SparkReadOnlyStateQuestion
 } from './conversationIntent';
 import {
   decideNaturalRoute,
@@ -807,16 +813,6 @@ type SparkLiveSummary = {
   supervisionText: string;
 };
 
-type SparkReadOnlyStateQuestion =
-  | 'harness_core_installed'
-  | 'telegram_primary_polling'
-  | 'contract_coverage_blockers'
-  | 'public_release_blockers'
-  | 'registry_drift'
-  | 'mission_update_preference'
-  | 'pending_action'
-  | 'risk_profile';
-
 function cleanSparkStatusLine(line: string, label: string): string {
   return line
     .replace(new RegExp(`^\\[OK\\]\\s+${label}:\\s*`, 'i'), '')
@@ -1031,64 +1027,6 @@ function gateValue(value: unknown): string {
   if (value === false) return 'false';
   if (value === null || value === undefined || value === '') return 'unknown';
   return String(value);
-}
-
-function isPublicReleaseBlockerQuestion(normalized: string): boolean {
-  const asksBlocked =
-    /\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?|release\s+gates?)\b/.test(normalized) ||
-    /\b(?:what|which|show|tell|read|status|current|remaining|remains|still)\b.{0,80}\b(?:blocked|blockers?|red\s+lanes?|gates?)\b/.test(normalized);
-  const releaseContext =
-    /\b(?:public\s+release|release|installer|shipping|ship|publication|publish|prs?|pull\s+requests?|registry\s+pins?|duplicate\s+truth|red\s+lanes?|final\s+packet|gates?)\b/.test(normalized);
-  const suppressesMutation =
-    /\b(?:no|not|don't|do\s+not|dont|changed\s+my\s+mind|pause|cancel|without)\b.{0,80}\b(?:prs?|pull\s+requests?|merge|publish|ship|release|run|start|execute|write|create|update|move)\b/.test(normalized) ||
-    /\bno\s+(?:prs?|pull\s+requests?)\b/.test(normalized);
-  const directBlockerRead =
-    /\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?)\b/.test(normalized);
-  const mutationRequest =
-    /\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set|create|update|merge|publish|ship|move)\b/.test(normalized);
-  return asksBlocked && releaseContext && (!mutationRequest || suppressesMutation || directBlockerRead);
-}
-
-function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQuestion | null {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return null;
-  const asksRead =
-    /\b(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
-    /\b(?:any|if)\b.{0,40}\b(?:blockers?|drift|pending|waiting)\b/.test(normalized);
-  if (!asksRead) return null;
-  if (shouldAnswerSparkRiskProfile(text)) {
-    return 'risk_profile';
-  }
-  if (isPublicReleaseBlockerQuestion(normalized)) {
-    return 'public_release_blockers';
-  }
-  if (/\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set)\b/.test(normalized) &&
-      !/\b(?:installed|install\s+state|last\s+install|running|run\s+compile|read-only|read\s+only)\b/.test(normalized)) {
-    return null;
-  }
-  if (/\b(?:harness\s+core|spark[-\s]*harness[-\s]*core)\b/.test(normalized) &&
-      /\b(?:installed|install\s+state|available|healthy|module)\b/.test(normalized)) {
-    return 'harness_core_installed';
-  }
-  if (/\btelegram\b/.test(normalized) && /\bprimary\b/.test(normalized) && /\bpolling\b/.test(normalized)) {
-    return 'telegram_primary_polling';
-  }
-  if (/\bcontract\s+coverage\b/.test(normalized) && /\b(?:blockers?|release\s+blockers?|legacy|coverage)\b/.test(normalized)) {
-    return 'contract_coverage_blockers';
-  }
-  if (/\b(?:registry\s+drift|registry\s+pin\s+drift|release\s+pin\s+drift|duplicate\s+truths?|truth\s+drift)\b/.test(normalized) ||
-      (/\bregistry\b/.test(normalized) && /\bdrift\b/.test(normalized))) {
-    return 'registry_drift';
-  }
-  if (/\bmemory\s+preference\b/.test(normalized) &&
-      /\b(?:mission\s+update|mission\s+updates|update\s+style|style|available)\b/.test(normalized)) {
-    return 'mission_update_preference';
-  }
-  if (/\bpending\b/.test(normalized) &&
-      /\b(?:action|confirmation|waiting|resume|mission|clarification)\b/.test(normalized)) {
-    return 'pending_action';
-  }
-  return null;
 }
 
 function readOnlyStateNaturalRouteDecision(kind: SparkReadOnlyStateQuestion | 'browser_use_availability' | string): NaturalRouteDecision {
@@ -1826,11 +1764,6 @@ function shouldAnswerAuthoritativeAccessCapability(text: string): boolean {
   );
 }
 
-function shouldAnswerSparkRiskProfile(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return /\bspark\b/.test(normalized) && /\brisk\s+profile\b/.test(normalized);
-}
-
 function shouldAnswerMemoryRuntimeSeparation(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return /\bdid\b.*\bremember(?:ing)?\b.*\bchange\b.*\b(?:live\s+)?spark\s+health\b/.test(normalized);
@@ -1929,31 +1862,12 @@ async function renderLevel5ActivationAnswer(chatId: string | number): Promise<st
   }
 }
 
-function shouldAnswerRuntimeTruthPriority(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized) return false;
-  return (
-    /\b(?:which|what)\s+source\s+wins\b/.test(normalized) ||
-    /\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized) ||
-    /\b(?:spark\s+live\s+status|fresh\s+(?:state|runtime)|current\s+(?:state|truth))\b.*\b(?:memory|old\s+memory|stale\s+memory)\b.*\b(?:wins?|trust|believe|use)\b/.test(normalized)
-  );
-}
-
 function renderRuntimeTruthPriorityAnswer(): string {
   return [
     'Fresh runtime state wins.',
     '',
     'If fresh `spark live status` says Spawner is up, Spawner is up right now. Memory becomes stale context, not current truth.'
   ].join('\n');
-}
-
-function shouldAnswerWorkspaceWikiFreshnessBoundary(text: string): boolean {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  return (
-    /\b(?:workspace|repo|files?)\b/.test(normalized) &&
-    /\bwiki\b/.test(normalized) &&
-    /\b(?:old\s+notes?|memory|notes?)\b.*\b(?:current\s+truth|fresh\s+truth|live\s+truth)\b/.test(normalized)
-  );
 }
 
 function renderWorkspaceWikiFreshnessBoundaryAnswer(): string {
@@ -2548,7 +2462,21 @@ async function handleNaturalRecursiveRoute(
   decision: NaturalRouteDecision | null
 ): Promise<boolean> {
   if (!conversation.isAdmin(ctx.from)) return false;
-  const rawCommand = naturalRecursiveRawCommand(decision);
+  let effectiveDecision = decision;
+  let rawCommand = naturalRecursiveRawCommand(effectiveDecision);
+  if (!rawCommand) {
+    const recentMessages = await conversation.getRecentMessages(user, 15).catch(() => []);
+    const recentTurns = await conversation.getRecentTurns(user, 16).catch(() => []);
+    const routeRecentMessages = Array.from(new Set([
+      ...recentMessages,
+      ...recentTurns.map((turn) => `${turn.role === 'assistant' ? 'Assistant' : 'User'}: ${turn.text}`)
+    ])).slice(-24);
+    const contextualIntent = parseNaturalRecursiveCommandIntent(text, { recentMessages: routeRecentMessages });
+    if (contextualIntent) {
+      effectiveDecision = decideNaturalRoute(text, { recentMessages: routeRecentMessages });
+      rawCommand = naturalRecursiveRawCommand(effectiveDecision) || contextualIntent.rawCommand;
+    }
+  }
   if (!rawCommand) return false;
   const parsed = parseRecursiveCommand(rawCommand);
   if (!parsed) return false;
@@ -2556,7 +2484,7 @@ async function handleNaturalRecursiveRoute(
   await conversation.remember(user, text).catch(() => {});
 
   if (parsed.action === 'start') {
-    recordNaturalRouteExecution(ctx, decision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
+    recordNaturalRouteExecution(ctx, effectiveDecision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
     const target = rawCommand.replace(/^start\s+/i, '').replace(/\s+rounds\s+\d+\s*$/i, '').trim();
     const reply = target
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
@@ -2567,14 +2495,14 @@ async function handleNaturalRecursiveRoute(
   }
 
   if (!NATURAL_RECURSIVE_READ_ACTIONS.has(parsed.action)) {
-    recordNaturalRouteExecution(ctx, decision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
+    recordNaturalRouteExecution(ctx, effectiveDecision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
     const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, parsed);
     await ctx.reply(reply);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
   }
 
-  recordNaturalRouteExecution(ctx, decision, decision?.route || 'recursive.command', 'spark-telegram-bot', 'recursive.command');
+  recordNaturalRouteExecution(ctx, effectiveDecision, effectiveDecision?.route || 'recursive.command', 'spark-telegram-bot', 'recursive.command');
 
   const statusTarget = naturalRecursiveStatusTarget(rawCommand);
   if (statusTarget) {
@@ -2857,6 +2785,48 @@ function telegramBranchActionAuthorityAllowed(
   }
 ): boolean {
   return telegramBranchActionAuthorityDecision(baseEnvelope, input).allow;
+}
+
+function telegramPendingBuildClarificationAuthorityDecision(
+  baseEnvelope: TurnIntentEnvelopeV1,
+  text: string,
+  naturalRouteShadow: NaturalRouteDecision | null
+): {
+  routeDecision: NaturalRouteDecision;
+  authorization: TelegramActionAuthorityResult;
+} {
+  const routeDecision = naturalRouteShadow?.route === 'spawner.pending_clarification'
+    ? naturalRouteShadow
+    : decideNaturalRoute(text, { pendingBuildClarification: true });
+  const pendingIntentDecision = classifyTelegramIntentV2(text, {
+    naturalRouteDecision: routeDecision
+  });
+  const pendingEnvelope = buildTelegramTurnIntentEnvelope({
+    text: baseEnvelope.text.raw,
+    decision: pendingIntentDecision,
+    userRef: baseEnvelope.user.userRef,
+    chatRef: baseEnvelope.user.chatRef,
+    accessProfile: baseEnvelope.user.accessProfile,
+    conversationKind: baseEnvelope.sessionScope.conversationKind,
+    recentTurns: baseEnvelope.contextRefs.recentTurns,
+    pendingState: 'spawner.pending_clarification',
+    memoryRefs: baseEnvelope.contextRefs.memoryRefs,
+    runtimeTruthRefs: baseEnvelope.contextRefs.runtimeTruthRefs,
+    startupOperatorRefs: baseEnvelope.contextRefs.startupOperatorRefs,
+    turnId: baseEnvelope.turnId,
+    traceId: baseEnvelope.traceId
+  });
+
+  return {
+    routeDecision,
+    authorization: telegramActionAuthorityDecision(pendingEnvelope, {
+      route: 'spawner.pending_clarification',
+      text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    })
+  };
 }
 
 async function handleTelegramIntentGateV2SafeRoute(
@@ -3757,6 +3727,14 @@ function recordLocalChatReplyExecution(ctx: any, naturalRouteShadow: NaturalRout
     'harness_core.answer_boundary',
     'delivered'
   );
+}
+
+function renderUnsupportedActionClaimFallback(): string {
+  return [
+    'I should not claim an edit from that message.',
+    '',
+    'No files were changed and no mission was started. I can keep shaping the polish in chat, or you can make a fresh explicit build/iteration request with the target project and change.'
+  ].join('\n');
 }
 
 async function renderGovernedQuotedExampleBoundaryReply(
@@ -5433,6 +5411,14 @@ export async function handleClarificationAnswers(
       missionId,
       kanbanUrl
     }));
+    recordTelegramHarnessCoreExecution(authorization, {
+      toolName: 'spawner.run',
+      status: 'success',
+      summary: `Clarified build ${missionId} was force-dispatched through the PRD bridge.`
+    });
+    if (process.env.SPARK_BOT_TEST_MODE === '1') {
+      return;
+    }
     startPrdCanvasReadyNotifier({
       chatId: Number(ctx.chat.id),
       userId: Number(ctx.from.id),
@@ -5445,11 +5431,6 @@ export async function handleClarificationAnswers(
       buildLane,
       tier,
       dispatchExecutionAuthority
-    });
-    recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'spawner.run',
-      status: 'success',
-      summary: `Clarified build ${missionId} was force-dispatched through the PRD bridge.`
     });
   } catch (err) {
     if (relayRegistered) await unregisterMissionRelay(missionId);
@@ -7705,6 +7686,16 @@ function isNaturalMissionRelayCancellation(text: string): boolean {
   return cancellationWord && (targetsMission || talkHere);
 }
 
+function isPendingExecutionCancellation(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!isNoExecutionBoundary(normalized)) return false;
+  if (isNaturalMissionRelayCancellation(normalized)) return true;
+  return (
+    /^(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no|nah|nope|no\s+need|not\s+now|hold\s+off|cancel|stop)\b/.test(normalized) &&
+    /\b(?:run|start|build|launch|create|dispatch|continue|mission|pending|that|this|it|work|talk\s+here|chat\s+here)\b/.test(normalized)
+  );
+}
+
 async function recordBuilderAocPreflightForRun(input: {
   ctx: any;
   requestId: string;
@@ -9593,6 +9584,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   })
     ? parsedEarlyBuildIntent
     : null;
+  const activePendingClarification = conversation.isAdmin(ctx.from)
+    ? pendingBuildClarificationForMessage(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), text)
+    : null;
+  const activePendingClarificationAuthority = activePendingClarification && isPendingClarificationFollowup(text)
+    ? telegramPendingBuildClarificationAuthorityDecision(turnIntentEnvelope, text, naturalRouteShadow)
+    : null;
+  if (activePendingClarificationAuthority?.authorization.allow) {
+    recordNaturalRouteExecution(
+      ctx,
+      activePendingClarificationAuthority.routeDecision,
+      'spawner.pending_clarification',
+      'spawner-ui',
+      'spawner.clarification_reply'
+    );
+    await handleClarificationAnswers(ctx, text, activePendingClarificationAuthority.authorization);
+    return;
+  }
   if (
     telegramIntentGateV2.route !== 'conversation.quoted_drafted_example_boundary' &&
     isMetaNoActionTriggerDiscussion(text)
@@ -10767,26 +10775,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    return;
 	  }
 
-  const activePendingClarification = conversation.isAdmin(ctx.from)
-    ? pendingBuildClarificationForMessage(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), text)
-    : null;
-  const activePendingClarificationAuthorization = activePendingClarification && isPendingClarificationFollowup(text)
-    ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
-        route: 'spawner.pending_clarification',
-        text,
-        toolName: 'spawner.run',
-        ownerSystem: 'spawner-ui',
-        mutationClass: 'launches_mission',
-        action: 'spawner.clarification_reply',
-        kind: 'build_or_spawner',
-        confidence: 'contextual'
-      })
-    : null;
-  if (activePendingClarificationAuthorization?.allow) {
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.pending_clarification', 'spawner-ui', 'spawner.clarification_reply');
-    await handleClarificationAnswers(ctx, text, activePendingClarificationAuthorization);
-    return;
-  }
 	  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && await handlePendingCreatorMissionControl(ctx, text, turnIntentEnvelope)) {
     return;
   }
@@ -11225,8 +11213,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     // still extract preferences from the same prompt, but they must not stop a
     // detailed project brief from becoming a mission.
     if (isNoExecutionBoundary(text) && !shouldUseDynamicNoExecutionIdeationReply(text)) {
-      const clearedPendingExecution = clearPendingExecutionState(pendingExecutionKey);
-      const suppressedMissionId = !clearedPendingExecution && isNaturalMissionRelayCancellation(text)
+      const cancelsPendingExecution = isPendingExecutionCancellation(text);
+      const clearedPendingExecution = cancelsPendingExecution ? clearPendingExecutionState(pendingExecutionKey) : false;
+      const suppressedMissionId = cancelsPendingExecution && !clearedPendingExecution && isNaturalMissionRelayCancellation(text)
         ? await markLatestMissionRelayCancelledForChat(ctx.chat.id, ctx.from.id)
         : null;
       if (clearedPendingExecution || suppressedMissionId) {
@@ -12225,6 +12214,21 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: `Local chat answer composition failed after Harness Core authorization: ${redactText(error instanceof Error ? error.message : String(error))}.`
       });
       throw error;
+    }
+
+    const localSuppressionReason = builderReplySuppressionReason(response, 'plain_chat');
+    if (localSuppressionReason === 'unsupported_action_claim') {
+      recordFinalAnswerGateSuppression({
+        chatId: ctx.chat?.id,
+        userId: ctx.from?.id,
+        update: ctx.update,
+        suppressionReason: localSuppressionReason,
+        builderRoutingDecision: 'plain_chat.local_llm',
+        builderBridgeMode: 'local_chat',
+        builderReply: response,
+        fallbackRoute: 'local_chat'
+      });
+      response = renderUnsupportedActionClaimFallback();
     }
 
     if (isLowInformationLlmReply(response)) {

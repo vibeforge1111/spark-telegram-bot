@@ -191,8 +191,48 @@ test('allows contextual shipped-project polish follow-through to authorize the w
   assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), false);
 });
 
+test('blocks low-information follow-through from authorizing Spawner when recent advice targets another artifact', () => {
+  const text = 'Nice, do that.';
+  const goingProject = {
+    ...shippedProject,
+    projectName: 'Mission 1781524790278 Going',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781524790278-going',
+    previewUrl: 'http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+    missionId: 'mission-1781524790278'
+  };
+  const recentMessages = [
+    'Assistant: Mission 1781524790278 Going is ready. Current preview: http://127.0.0.1:3333/preview/mission-1781524790278-going/dist/index.html',
+    'User: What would you polish next for Habit Button?',
+    'Assistant: I would polish the Habit Button surface next by making the streak feedback clearer. Canvas: http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-0ee3f3c61cc5-1781524520548'
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, {
+    shippedProject: goingProject,
+    spawnerArtifact: activeSpawnerArtifact,
+    recentMessages
+  });
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision, shippedProject: goingProject });
+  const envelope = envelopeForDecision(text, decision);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.project_iteration',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.notEqual(naturalRouteDecision.route, 'project.iteration');
+  assert.notEqual(naturalRouteDecision.route, 'spawner.build');
+  assert.notEqual(decision.route, 'project.iteration');
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.equal(result.allow, false);
+  assert.equal(result.routeVerdict.allow, false);
+  assert.equal(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), true);
+});
+
 test('blocks uncertain product exploration from authorizing a Spawner build', () => {
   const texts = [
+    'I want to make something for planning my day.',
     "I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take.",
     "My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take."
   ];
