@@ -3014,6 +3014,7 @@ function previewAuditText(text: string, limit = 240): string {
 }
 
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
+const NODE_OUTBOUND_AUDIT_SCHEMA_VERSION = 'spark.node_outbound_audit.v1';
 
 type NodeOutboundTraceContext = {
   turnId?: string;
@@ -3054,6 +3055,18 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   return {
     [OUTBOUND_TRACE_CONTEXT_KEY]: traceContext
   };
+}
+
+function legacyNodeOutboundAuditRef(input: {
+  chatId: unknown;
+  textLength: number;
+  ts: string;
+}): string {
+  const digest = createHash('sha256')
+    .update(`${chatRef(input.chatId)}:${input.textLength}:${input.ts}`, 'utf8')
+    .digest('hex')
+    .slice(0, 16);
+  return `node-outbound:${digest}`;
 }
 
 function turnTracePath(): string {
@@ -3188,8 +3201,11 @@ export function buildNodeOutboundAuditRecord(
   const telegramUpdateId = telegramUpdateIdFromValue(traceContext?.telegramUpdateId) ?? telegramUpdateIdFromUpdate(update);
   const turnId = String(traceContext?.turnId || '').trim() ||
     (telegramUpdateId === null ? '' : `telegram-update:${telegramUpdateId}`);
+  const ts = now.toISOString();
+  const hasJoinId = Boolean(turnId || telegramUpdateId !== null || requestId || traceRef || missionId);
   return {
-    ts: now.toISOString(),
+    schema_version: NODE_OUTBOUND_AUDIT_SCHEMA_VERSION,
+    ts,
     event: 'telegram_node_delivered',
     privacy: 'metadata_only',
     chat_id_present: String(chatId ?? '').trim().length > 0,
@@ -3201,6 +3217,8 @@ export function buildNodeOutboundAuditRecord(
     ...(telegramUpdateId !== null ? { telegram_update_id: telegramUpdateId } : {}),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...(missionId ? { mission_id: missionId } : {}),
+    ...(!hasJoinId ? { legacy_audit_ref: legacyNodeOutboundAuditRef({ chatId, textLength: text.length, ts }) } : {}),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
     ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
     ...(typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim() ? { reply_kind: traceContext.replyKind.trim() } : {})

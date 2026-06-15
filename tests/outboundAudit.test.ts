@@ -27,6 +27,41 @@ test('outbound audit records include Telegram turn identifiers from update metad
   assert.equal(record.turn_id, 'telegram-update:749543999');
   assert.equal(record.telegram_update_id, 749543999);
   assert.equal(record.event, 'telegram_node_delivered');
+  assert.equal(record.schema_version, 'spark.node_outbound_audit.v1');
+});
+
+test('outbound audit records include mission ids from trace context', () => {
+  const record = buildNodeOutboundAuditRecord(
+    12345,
+    'mission complete',
+    new Date('2026-06-15T00:00:00.000Z'),
+    {
+      route: 'mission_relay',
+      command: 'mission_relay',
+      replyKind: 'mission_completion',
+      requestId: 'tg-build-audit-proof',
+      traceRef: 'trace:spawner-prd:mission-audit-proof',
+      missionId: 'mission-audit-proof'
+    }
+  );
+
+  assert.equal(record.mission_id, 'mission-audit-proof');
+  assert.equal(record.request_id, 'tg-build-audit-proof');
+  assert.equal(record.trace_ref, 'trace:spawner-prd:mission-audit-proof');
+  assert.equal(record.legacy_audit_ref, undefined);
+});
+
+test('outbound audit records add redacted legacy refs for machine-origin deliveries without turn ids', () => {
+  const record = buildNodeOutboundAuditRecord(
+    12345,
+    'machine-origin delivery without a Telegram update',
+    new Date('2026-06-15T00:00:00.000Z')
+  );
+
+  assert.match(String(record.legacy_audit_ref), /^node-outbound:[a-f0-9]{16}$/);
+  assert.equal(record.turn_id, undefined);
+  assert.equal(record.telegram_update_id, undefined);
+  assert.equal(JSON.stringify(record).includes('machine-origin delivery'), false);
 });
 
 test('turn trace records keep chat ids redacted and joinable by update id', () => {
