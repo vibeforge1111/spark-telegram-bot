@@ -10,6 +10,13 @@ import { redactText } from './redaction';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
+// Safe JSON parse helper
+function safeJsonParse<T>(raw: string, fallback: T): T {
+  try { return safeJsonParse(raw, null) as T; } catch (e) { console.error('[pathLoop safeJsonParse] failed:', e); return fallback; }
+}
+
+
+
 const execFileAsync = promisify(execFile);
 const DEFAULT_PATH_LOOP_TIMEOUT_MS = 900000;
 
@@ -289,7 +296,7 @@ async function loadBuilderAttachmentSnapshot(config: PathLoopConfig): Promise<an
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
     maxBuffer: 10 * 1024 * 1024,
   }));
-  return JSON.parse(stdout);
+  return safeJsonParse(stdout, null);
 }
 
 export async function resolveRecursiveStartTarget(targetKey: string): Promise<RecursiveStartTarget> {
@@ -396,7 +403,7 @@ function parseLabeledLine(stdout: string, label: string): string | null {
 
 async function readJsonObject(filePath: string | null): Promise<Record<string, any> | null> {
   if (!filePath || !existsSync(filePath)) return null;
-  const parsed = JSON.parse(await readFile(filePath, 'utf-8'));
+  const parsed = safeJsonParse(await readFile(filePath, 'utf-8', 'utf8') as string, null);
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
 }
 
@@ -726,7 +733,7 @@ export async function readSpecializationPathLoopStatus(
       env,
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    const parsed = safeJsonParse(stdout, null);
     return {
       ok: true,
       ...(parsed && typeof parsed === 'object' ? parsed : {}),
@@ -739,7 +746,7 @@ export async function readSpecializationPathLoopStatus(
     const stderr = redactText(typeof err?.stderr === 'string' ? err.stderr : '');
     const message = redactText(err?.message ? String(err.message) : '');
     try {
-      const parsed = JSON.parse(stdout);
+      const parsed = safeJsonParse(stdout, null);
       if (parsed && typeof parsed === 'object') {
         return {
           ok: true,
@@ -797,7 +804,7 @@ export async function packageSpecializationPathLoop(
       env,
       maxBuffer: 10 * 1024 * 1024,
     }));
-    const parsed = JSON.parse(stdout);
+    const parsed = safeJsonParse(stdout, null);
     return {
       ok: Boolean(parsed?.ok),
       ...(parsed && typeof parsed === 'object' ? parsed : {}),
@@ -810,7 +817,7 @@ export async function packageSpecializationPathLoop(
     const stderr = redactText(typeof err?.stderr === 'string' ? err.stderr : '');
     const message = redactText(err?.message ? String(err.message) : '');
     try {
-      const parsed = JSON.parse(stdout);
+      const parsed = safeJsonParse(stdout, null);
       if (parsed && typeof parsed === 'object') {
         return {
           ok: Boolean(parsed.ok),
