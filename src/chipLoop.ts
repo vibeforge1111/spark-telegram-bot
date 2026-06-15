@@ -6,6 +6,7 @@ import { resolvePythonCommand } from './pythonCommand';
 import { withHiddenWindows } from './hiddenProcess';
 import { resolveBuilderRepoPath } from './builderRepoPath';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
+import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_CHIP_LOOP_TIMEOUT_MS = 900000;
@@ -44,6 +45,12 @@ function resolveConfig(): LoopConfig {
   };
 }
 
+export function formatChipLoopExecError(err: any): string {
+  const message = redactText(err?.message ? String(err.message) : '');
+  const stderr = redactText(typeof err?.stderr === 'string' ? err.stderr : '').slice(-400);
+  return message ? `${message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed';
+}
+
 export async function runChipLoop(chipKey: string, rounds: number, suggestLimit = 3): Promise<LoopResult> {
   if (!chipKey) return { ok: false, error: 'empty chip key' };
   const config = resolveConfig();
@@ -70,10 +77,9 @@ export async function runChipLoop(chipKey: string, rounds: number, suggestLimit 
       totalRounds: parsed.total_rounds,
       history: parsed.history,
       statusPath: parsed.status_path,
-      error: parsed.error ?? undefined,
+      error: parsed.error ? redactText(String(parsed.error)) : undefined,
     };
   } catch (err: any) {
-    const stderr = typeof err?.stderr === 'string' ? err.stderr.slice(-400) : '';
-    return { ok: false, error: err?.message ? `${err.message}${stderr ? ': ' + stderr : ''}` : 'loop exec failed' };
+    return { ok: false, error: formatChipLoopExecError(err) };
   }
 }
