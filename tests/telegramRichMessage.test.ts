@@ -57,6 +57,17 @@ async function run(): Promise<void> {
     assert.doesNotMatch(rich.html, />http:\/\/127\.0\.0\.1:3333\/preview/);
   });
 
+  await test('collapses markdown link echoes into one readable rich link', () => {
+    const rich = buildInputRichMessageFromText(
+      'Canvas: [Open canvas](http://127.0.0.1:3333/canvas?pipeline=prd-demo&mission=mission-demo) (http://127.0.0.1:3333/canvas?pipeline=prd-demo&mission=mission-demo)'
+    );
+
+    assert.ok(rich);
+    assert.match(rich.html, /Canvas: <a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=prd-demo&amp;mission=mission-demo">Open canvas<\/a>/);
+    assert.doesNotMatch(rich.html, /\]\(/);
+    assert.doesNotMatch(rich.html, /\)<\/p>/);
+  });
+
   await test('renders compact Spark card sections as spaced rich blocks', () => {
     const rich = buildInputRichMessageFromText([
       'Day Triage Button has a current Spawner result',

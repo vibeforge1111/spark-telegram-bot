@@ -293,11 +293,11 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(canvasReady, /Canvas is ready for Proof Orchard\./);
+  assert.match(canvasReady, /Canvas ready for Proof Orchard\./);
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
-  assert.match(canvasReady, /Canvas\n- http:\/\/127\.0\.0\.1:3333\/canvas/);
-  assert.match(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
-  assert.match(canvasReady, /Spark queued 4 build steps with 4 paired nodes and 5 skills\./);
+  assert.match(canvasReady, /Open canvas: http:\/\/127\.0\.0\.1:3333\/canvas/);
+  assert.match(canvasReady, /Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
+  assert.match(canvasReady, /Queued: 4 build steps, 4 paired nodes, 5 skills\./);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
@@ -321,7 +321,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(oneStepFastLane, /Spark queued 1 build step with 1 paired node and 3 skills/);
+  assert.match(oneStepFastLane, /Queued: 1 build step, 1 paired node, 3 skills/);
   assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
@@ -364,7 +364,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(tenStepReply, /Spark queued 10 build steps with 10 paired nodes and 1 skill\./);
+  assert.match(tenStepReply, /Queued: 10 build steps, 10 paired nodes, 1 skill\./);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
@@ -383,7 +383,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(twelveStepReply, /Spark queued 12 build steps with 12 paired nodes and 1 skill\./);
+  assert.match(twelveStepReply, /Queued: 12 build steps, 12 paired nodes, 1 skill\./);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);

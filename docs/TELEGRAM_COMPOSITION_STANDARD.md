@@ -48,7 +48,13 @@ For compact Spark cards:
   lines, the renderer must recover those sections before delivery.
 - Hide long local URLs behind labels such as `Open preview`, `Open canvas`, and
   `Open board`.
+- Collapse duplicated link echoes before delivery. If upstream text arrives as
+  `[Open canvas](url) (url)`, the user should see one labeled link, not a link
+  label plus the same raw URL.
 - Keep link previews disabled unless the preview is the content being inspected.
+- Tiny lifecycle updates should stay tiny. A canvas-ready or board-ready notice
+  should not use repeated section dividers when a title, one status/count line,
+  and labeled inspect links carry the full message.
 - If live CUA screenshots show the reply is hard to scan, the composition failed
   even if the Bot API accepted the payload.
 
@@ -70,6 +76,8 @@ only; final replies, owner evidence, and ledgers remain authoritative.
   answer came from a deterministic state machine.
 - Prefer one or two plain sentences plus one inspect link for ordinary follow-ups.
   Section headings are optional, not the default.
+- Do not let rich formatting make a short update bigger. If the visual structure
+  takes more space than the information, choose the smaller shape.
 - Use one status icon at the start of major outcome rows.
 - Do not combine icons with bullets, numbering, or extra markers on the same row.
 - Use dotted bullets (`•`) for grouped facts under section headings such as Score, Review, Workspace, Sharing, Why, and Move.

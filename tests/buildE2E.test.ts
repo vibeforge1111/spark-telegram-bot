@@ -3027,8 +3027,8 @@ async function run(): Promise<void> {
 			}
 		});
 
-			assert.match(reply, /Canvas is ready for domain-chip-posters/);
-			assert.match(reply, /Spark queued 2 build steps with 2 paired nodes and 1 skill\./);
+			assert.match(reply, /Canvas ready for domain-chip-posters/);
+			assert.match(reply, /Queued: 2 build steps, 2 paired nodes, 1 skill\./);
 			assert.doesNotMatch(reply, /Spawned tasks/);
 			assert.doesNotMatch(reply, /Plan/);
 			assert.doesNotMatch(reply, /Chip manifest/);
@@ -3039,8 +3039,8 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /195s/);
 			assert.doesNotMatch(reply, /Architecture:/);
 			assert.doesNotMatch(reply, /Tests\/checks/);
-			assert.match(reply, /Canvas\n- http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
-			assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban/);
+			assert.match(reply, /Open canvas: http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
+			assert.match(reply, /Open board: http:\/\/stub-spawner\.test\/kanban/);
 			assert.doesNotMatch(reply, /Ask for tasks or skills if you want the full plan\./);
 			assert.doesNotMatch(reply, /I will send the final handoff when it is built/);
 	});

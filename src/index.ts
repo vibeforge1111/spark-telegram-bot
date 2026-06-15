@@ -6964,15 +6964,18 @@ export function formatCanvasReadySummary(args: {
   const skillCount = typeof args.canvasMaterialization?.skillCount === 'number'
     ? args.canvasMaterialization.skillCount
     : 0;
-  const skillClause = skillCount > 0 ? ` and ${skillCount} ${skillCount === 1 ? 'skill' : 'skills'}` : '';
+  const pairingClause = pairedNodeCount > 0
+    ? `, ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}`
+    : '';
+  const skillClause = skillCount > 0 ? `, ${skillCount} ${skillCount === 1 ? 'skill' : 'skills'}` : '';
   const buildStepLine = taskCount > 0
-    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} with ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}${skillClause}.`
+    ? `Queued: ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'}${pairingClause}${skillClause}.`
     : 'Spark is moving into the build now.';
   return telegramBlocks(
-    `Canvas is ready for ${args.projectName}.`,
+    `Canvas ready for ${args.projectName}.`,
     buildStepLine,
-    ['Canvas', `- ${args.readyCanvasUrl}`].join('\n'),
-    `Board: ${args.kanbanUrl}`
+    `Open canvas: ${args.readyCanvasUrl}`,
+    `Open board: ${args.kanbanUrl}`
   );
 }
 

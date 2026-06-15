@@ -61,9 +61,32 @@ function linkLabelForUrl(url: string): string {
 }
 
 function inlineHtml(text: string): string {
-  const urlPattern = /https?:\/\/[^\s<>"']+/gi;
+  const markdownLinkPattern = /\[([^\]\n]{1,80})\]\((https?:\/\/[^\s<>"')]+)\)(?:\s+\(\2\))?/gi;
+  const markdownParts: Array<{ start: number; end: number; html: string }> = [];
+  for (const match of text.matchAll(markdownLinkPattern)) {
+    const start = match.index ?? 0;
+    const label = match[1].trim() || linkLabelForUrl(match[2]);
+    const url = match[2];
+    markdownParts.push({
+      start,
+      end: start + match[0].length,
+      html: `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`
+    });
+  }
+
   let html = '';
   let lastIndex = 0;
+  if (markdownParts.length > 0) {
+    for (const part of markdownParts) {
+      html += escapeHtml(text.slice(lastIndex, part.start));
+      html += part.html;
+      lastIndex = part.end;
+    }
+    html += escapeHtml(text.slice(lastIndex));
+    return html;
+  }
+
+  const urlPattern = /https?:\/\/[^\s<>"']+/gi;
   for (const match of text.matchAll(urlPattern)) {
     const rawUrl = match[0];
     const start = match.index ?? 0;

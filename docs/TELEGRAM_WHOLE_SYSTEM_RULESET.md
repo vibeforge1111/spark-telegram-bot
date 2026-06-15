@@ -187,6 +187,8 @@ Spark must adopt those features in tiers:
   blocks too flat, the outgoing text or fallback must include visible separators.
 - A compact Spark card should fit this order:
   status, proof boundary, what matters now, inspect link.
+- Compact means compact. Rich blocks and visible dividers are for dense cards,
+  not tiny lifecycle notices where they add more whitespace than meaning.
 - Long reports go to Workspace/Canvas/Board/logs with a rich summary in Telegram.
 - Use inline buttons for clear actions, not for disguised confirmations.
 - Use reply keyboards only when the user benefits from constrained choices.
@@ -203,6 +205,8 @@ Spark must adopt those features in tiers:
   permits it.
 - Local operational links should be labeled by destination: `Open preview`,
   `Open canvas`, `Open board`, `Open report`.
+- Labeled links must not be followed by the same raw URL. Collapse duplicated
+  Markdown/link-preview echoes at the renderer boundary.
 - Assume links may open in Telegram Browser or an external browser. The label
   must carry the safety context without relying on a preview.
 - Buttons, link previews, rich cards, media, and drafts are not confirmation
@@ -281,4 +285,3 @@ A Telegram feature is launch-ready only when:
   changed
 - the rollback path is an env flag, route policy, feature tier, or transport
   fallback
-

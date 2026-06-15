@@ -92,6 +92,8 @@ Required renderer behavior:
   username linking.
 - Render all links with human labels. Local operational links should say what
   opens: `Open preview`, `Open canvas`, `Open board`, `Open report`, or similar.
+- Normalize Markdown-style link echoes before rendering. Text like
+  `[Open canvas](url) (url)` is one link, not a label plus a visible raw URL.
 
 Feature tiers:
 
@@ -165,6 +167,9 @@ Live Telegram Desktop proof beats renderer assumptions.
 - For compact Spark cards, section boundaries must survive as plain text:
   `title`, visible divider, `section heading`, bullets, visible divider, next
   section.
+- Do not promote every short status into a spaced card. If the message has only
+  one status line, one progress/count line, and inspect links, keep it compact
+  instead of inserting repeated dividers.
 - Never rely only on `\n\n` between sections for important status cards.
 - The renderer must recover section boundaries from dense governed replies such
   as `Title / Section / bullet / Section / bullet`, because model-shaped answers
