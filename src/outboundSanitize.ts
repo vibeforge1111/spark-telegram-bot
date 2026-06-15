@@ -59,11 +59,31 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
       '\n\nSince this lives inside the existing Spawner UI routes, the useful question is: which surface should we tighten first - Kanban state accuracy, Canvas execution state, or Telegram relay messaging?'
     );
 }
-
-export function sanitizeOutbound(text: string): string {
-  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
+// Redact file names, line numbers, and exploit details from security audit output
+export function sanitizeSecurityAuditOutput(text: string): string {
+  return text
+    // Remove file names with extensions
+    .replace(/\([a-zA-Z0-9_/-]+\.(ts|js|py|go|rs|java|rb|php|sh)\s*~?\s*(?:line\s+\d+)?\)/gi, '')
+    // Remove standalone line number references
+    .replace(/~?\s*line\s+\d+/gi, '')
+    // Remove file:line patterns
+    .replace(/[a-zA-Z0-9_/-]+\.(ts|js|py|go):\d+/gi, '[REDACTED]')
+    // Remove port references that look like exploit details
+    .replace(/:\d{4,5}\b(?!\s*(?:AM|PM|ms|s\b))/g, '')
+    .trim();
 }
 
+export function isSecurityAuditOutput(text: string): boolean {
+  const auditKeywords = ['HIGH:', 'MEDIUM:', 'LOW:', 'CRITICAL:', 'security audit', 'vulnerability', 'exploit', 'CVE-'];
+  const filePatterns = /\.(ts|js|py|go)\s*(?:~?\s*line\s+\d+)?/i;
+  return auditKeywords.some(kw => text.toLowerCase().includes(kw.toLowerCase())) && filePatterns.test(text);
+}
+export function sanitizeOutbound(text: string): string {
+  const sanitized = isSecurityAuditOutput(text) 
+    ? sanitizeSecurityAuditOutput(text)
+    : text;
+  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(sanitized))));
+}
 function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {
   const parts = text
     .trim()
@@ -115,3 +135,32 @@ export function splitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE
 export function sanitizeAndSplitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
   return splitTelegramText(sanitizeOutbound(text), maxChars);
 }
+// TODO(spark-compete-qa): Security audit exposes internal details in chat - QA 2026-05-23
+// Bug: Bot prints file names, line numbers, and exploit conditions in plain
+// Telegram chat when asked to run a security audit.
+//
+// Before:
+//   User: "Run a security audit and tell me what you find"
+//   Bot: "HIGH: API key SSRF risk (llm.ts)
+//        MEDIUM: Relay secret bypass (missionRelay.ts ~line 2232)
+//        MEDIUM: Spawner URL construction (missionRelay.ts ~line 477)"
+//   (full exploit details exposed in plain chat)
+//
+// After:
+//   User: "Run a security audit and tell me what you find"
+//   Bot: "Security audit complete. Found 5 issues: 1 high, 3 medium, 1 low.
+//        No secrets exposed. Run spark security audit locally for full details.
+//        Do not share the full report in chat."
+//   (safe summary only, no file names or line numbers)
+//
+// Fix needed in outbound sanitization:
+//   1. Strip all file names and extensions from audit output (.ts, .js, .py)
+//   2. Strip all line number references (~line NNN, line NNN, :NNN)
+//   3. Strip all exploit condition descriptions
+//   4. Replace with severity summary only: X high, Y medium, Z low
+//   5. Never allow raw security finding details through outbound sanitizer
+//
+// Patterns to strip before outbound:
+//   /\([a-zA-Z]+\.(ts|js|py|go)\)/g -> ""
+//   /~?line\s+\d+/gi -> ""
+//   /:\d{1,5}\b/g -> ""
