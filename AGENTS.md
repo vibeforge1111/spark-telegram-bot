@@ -23,12 +23,25 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/TURNINTENT_HARNESS_RULESET.md` and the relevant command, route, or adapter doc before edits.
+2. Read this file plus `docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md`, `docs/SPARK_HARNESS_CONTRACT.md`, and the relevant command, route, or adapter doc before edits. Treat `docs/TURNINTENT_HARNESS_RULESET.md` as historical context only.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.
 6. Keep adapters thin and metadata-only.
 7. Commit one logical checkpoint and record verification.
+
+## Conversational Authority Protocol
+
+Use the local Codex skill `spark-conversational-authority` for conversational-intent, Spawner, Telegram route, Harness Core, or QA-matrix changes.
+
+Before patching natural-language behavior:
+
+- classify the failure as false-positive hijack, false-negative miss, reply-quality issue, delivery-truth issue, or authority gap
+- identify the route family, owner system, mutation class, and earliest owning layer
+- patch the owner layer, not a downstream reply
+- add one negative trap that must not execute
+- add one positive explicit action that must still execute
+- prove the selected route, allowed tools, Governor decision, and owner verification agree for high-agency actions
 
 ## One Truth Rules
 
@@ -55,11 +68,13 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 ## Route and Composition Rules
 
 - Raw words may propose candidates; fresh user intent authorizes action.
+- Evidence parsing, natural routing, regexes, memory, route history, prior mission ids, and pending state are not execution authority.
 - Every high-agency Telegram route must be `envelope_verified` or explicit `machine_origin_policy`; any high-agency `legacy_local_gate` is a release blocker.
 - Quoted examples, bug reports, meta-language, no-action turns, and "just explain" boundaries block interruptive routes.
 - Builder owns RouteConfidenceGateV1. Telegram asks Builder whether to `act`, `ask`, `explain`, or `refuse`.
 - The action gate can be deterministic; the user-facing sentence should stay natural and context-aware.
 - Explicit no-execution constraints beat action keywords.
+- Readout, status, "what changed?", and advisory polish questions are answer/readout routes unless the fresh user turn explicitly asks to apply, build, run, or change something.
 - Bare `go` only applies to an active pending action and must not resurrect stale clarifications.
 - Global Spark behavior changes become proposals, not silent mutations.
 - Repair, memory mutation, publishing, deletion, credential, and external side-effect routes require source-owned authority evidence.
@@ -75,6 +90,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 ## Verification Menu
 
 - Focused tests for changed route, Harness Core action authority, or composition behavior.
+- For conversational-intent changes, pair one must-not-execute trap with one must-execute positive case for the same route family.
 - `npm run build`.
 - Relevant direct tests such as `tests/buildE2E.test.ts`, `tests/builderBridge.test.ts`, `tests/accessPolicy.test.ts`, `tests/conversationIntent.test.ts`, or Harness Core action authority tests.
 - Privacy scan for bridge serializers, audit rows, final-answer metadata, and docs.

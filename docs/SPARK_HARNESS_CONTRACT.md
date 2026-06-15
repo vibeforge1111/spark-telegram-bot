@@ -81,6 +81,12 @@ Release-risk Telegram QA should prove:
 - build/memory/chip/browser/computer-use prompts cannot be hijacked by stale
   context, health words, provider names, or keyword matches
 
+For conversational-intent patches, use
+`docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md` as the current operating
+ruleset. It defines the patch decision tree, route-family test contract,
+ban list, and launch gates for avoiding both false-positive action hijacks and
+false-negative missed actions.
+
 ## Acceptance For Connected Work
 
 - High-agency Telegram routes require Governor authority.
