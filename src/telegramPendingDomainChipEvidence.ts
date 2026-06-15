@@ -62,7 +62,8 @@ export function isDomainChipPendingCancel(text: string): boolean {
 export function isDomainChipPendingDirection(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized || normalized.length > 260) return false;
-  if (isDomainChipPendingStart(normalized) || isDomainChipPendingCancel(normalized)) return true;
+  if (isDomainChipPendingStart(normalized)) return true;
+  if (isDomainChipPendingCancel(normalized)) return false;
   if (/^(?:what|which|how|why|can|could|should|would|do|does|did|is|are|will)\b/.test(normalized)) return false;
   if (/\b(?:test|tests|testing|unit\s+test|qa|bug\s+hunter|bug\s+hunt|edge\s+cases?|spawner|mission\s+control|workflow|prs?|publish|merge|ship)\b/.test(normalized)) {
     return false;

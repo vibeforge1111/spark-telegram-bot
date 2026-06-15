@@ -1,4 +1,10 @@
-import { isLowSpecificityProductDesire, parseBuildIntent } from './buildIntent';
+import {
+  isBuildRouteMetaDiscussion,
+  isLowSpecificityProductDesire,
+  isNegatedBuildRouteMetaDiscussion,
+  isOpenEndedBuildExplorationRequest,
+  parseBuildIntent
+} from './buildIntent';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
@@ -76,7 +82,9 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
     mentionsDomainChipArtifact ||
     designOnlyNoExecution ||
     isAccessSandboxRouteDesignDiscussion(trimmed) ||
+    isBuildRouteMetaDiscussion(trimmed) ||
     isLowSpecificityProductDesire(trimmed) ||
+    isOpenEndedBuildExplorationRequest(trimmed) ||
     shouldUseDynamicNoExecutionIdeationReply(trimmed) ||
     COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed))
   );
@@ -87,6 +95,7 @@ const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start
 export function isActionWordMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || !HIGH_AGENCY_WORD_PATTERN.test(normalized)) return false;
+  if (isNegatedBuildRouteMetaDiscussion(text)) return true;
   if (/^(?:build|create|make|scaffold|generate)\b/.test(normalized) && /\b(?:called|named)\b/.test(normalized)) return false;
 
   const framesAsLanguage =

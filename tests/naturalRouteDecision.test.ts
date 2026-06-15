@@ -343,6 +343,15 @@ test('routes uncertain build exploration to conversation before Spawner', () => 
   assert.deepEqual(softDesireRoute.matched_signals, ['conversational_ideation']);
   assert.equal(softDesireRoute.requires_confirmation, false);
 
+  const modalExplorationRoute = decideNaturalRoute('Can we make something for planning my day, or should we think more first?');
+
+  assert.equal(modalExplorationRoute.route, 'conversation.ideation');
+  assert.equal(modalExplorationRoute.owner_system, 'spark-intelligence-builder');
+  assert.equal(modalExplorationRoute.action, 'plain_chat.ideation');
+  assert.equal(modalExplorationRoute.context_source, 'latest_message');
+  assert.deepEqual(modalExplorationRoute.matched_signals, ['conversational_ideation']);
+  assert.equal(modalExplorationRoute.requires_confirmation, false);
+
   const route = decideNaturalRoute("I want to make something for planning my day but I don't really know what it should be yet.");
 
   assert.equal(route.route, 'conversation.ideation');
@@ -1062,7 +1071,8 @@ test('keeps route/access/sandbox design talk out of deterministic build and acce
     'what should restart Spark mean for nontechnical users after access 5 confirmation?',
     'how should Docker, SSH, and Modal fit into the access state machine?',
     'does access 5 really switch the harness CLI into full access across Mac Windows and Ubuntu?',
-    'audit whether setup and restart words hijack chat into instant deterministic answers'
+    'audit whether setup and restart words hijack chat into instant deterministic answers',
+    'We are discussing build vs chat as a product rule, not asking you to build.'
   ];
 
   for (const prompt of prompts) {
@@ -1088,7 +1098,7 @@ test('keeps route/access/sandbox design talk out of Spark self-improvement actio
 
   for (const prompt of prompts) {
     const route = decideNaturalRoute(prompt);
-    assert.ok(['plain_chat', 'conversation.ideation'].includes(route.route), prompt);
+    assert.ok(['plain_chat', 'chat_explain', 'conversation.ideation'].includes(route.route), prompt);
     assert.notEqual(route.route, 'spark.self_improvement', prompt);
     assert.notEqual(route.route, 'spawner.build', prompt);
     assert.notEqual(route.route, 'access.change', prompt);

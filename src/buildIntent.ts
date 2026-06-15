@@ -592,7 +592,14 @@ export function isLowSpecificityProductDesire(text: string): boolean {
   return !hasConcreteBuildExecutionAnchor(text, normalized);
 }
 
-function isOpenEndedBuildExplorationRequest(text: string): boolean {
+function isDeliberativeBuildExplorationRequest(normalized: string): boolean {
+  return (
+    /\b(?:or|and|but)\s+(?:should|could|can|would)\s+(?:we|you)\s+(?:think|talk|shape|scope|plan|brainstorm|discuss|figure|work)\b.{0,80}\b(?:first|more|through|out|before)\b/.test(normalized) ||
+    /\b(?:should|could|can|would)\s+(?:we|you)\s+(?:think|talk|shape|scope|plan|brainstorm|discuss|figure|work)\b.{0,80}\b(?:first|more|through|out|before)\b/.test(normalized)
+  );
+}
+
+export function isOpenEndedBuildExplorationRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
   const wantsSomeArtifact =
@@ -603,9 +610,12 @@ function isOpenEndedBuildExplorationRequest(text: string): boolean {
     /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
     /\b(?:i|we)\b.{0,140}\b(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized) ||
     /\b(?:let'?s|lets|can\s+(?:you|we)|could\s+(?:you|we))\s+(?:build|make|create|develop)\s+(?:(?:a|an|the|tiny|small|simple|little|quick|basic|lightweight|mini|local|new)\s+){0,5}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized);
-  if (!wantsSomeArtifact && !wantsUnderspecifiedArtifact) return false;
+  const modalArtifactQuestion =
+    /\b(?:can|could)\s+(?:you|we)\s+(?:build|make|create|develop)\s+(?:(?:a|an|the)\s+)?(?:[\w-]+\s+){0,4}(?:tool|app|project|product|site|page|dashboard|game|timer|planner|picker|tracker)\b/.test(normalized);
+  if (!wantsSomeArtifact && !wantsUnderspecifiedArtifact && !modalArtifactQuestion) return false;
   if (isLowSpecificityProductDesire(text)) return true;
   return (
+    isDeliberativeBuildExplorationRequest(normalized) ||
     /\b(?:do\s+not|don't|dont)\s+(?:really\s+)?know\s+(?:exactly\s+)?(?:what|which|how)\b.{0,100}\b(?:it|this|that|thing|project|app|tool)?\s*(?:should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create)|yet)\b/.test(normalized) ||
     /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,100}\b(?:what|which|how|kind|type|form|shape|direction|exactly|yet|should\s+(?:be|look|feel)|should\s+take|to\s+(?:build|make|create))\b/.test(normalized) ||
     /\b(?:not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out|no\s+idea)\b.{0,140}\b(?:what\s+(?:shape|form|direction)\s+(?:it|this|that|the\s+(?:app|tool|project|thing))?\s*should\s+take|what\s+(?:it|this|that|the\s+(?:app|tool|project|thing))\s+should\s+(?:look|feel)\s+like)\b/.test(normalized) ||
@@ -613,10 +623,28 @@ function isOpenEndedBuildExplorationRequest(text: string): boolean {
   );
 }
 
-function isBuildRouteMetaDiscussion(text: string): boolean {
+export function isNegatedBuildRouteMetaDiscussion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    (
+      /\b(?:not|never)\s+(?:asking|telling|requesting|instructing)\s+(?:you|spark|it)?\s*(?:to\s+)?(?:build|make|create|ship|scaffold|generate|develop|start|launch|run|execute)\b/.test(normalized) ||
+      /\b(?:not|never)\s+(?:a\s+)?(?:build|make|create|ship|scaffold|generate|develop|start|launch|run|execute)\s+(?:request|ask|command|instruction|intent)\b/.test(normalized)
+    ) &&
+    /\b(?:route|routing|intent|classification|classify|boundary|trigger|hijack|product\s+rule|build\s+vs\s+chat|chat\s+vs\s+build|discussing|discussion|review|audit)\b/.test(normalized)
+  );
+}
+
+export function isBuildRouteMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (
     /\b(?:improve|polish|update|fix|adjust|tweak|refine|rework|redesign)\b.{0,80}\b(?:existing\s+)?(?:local\s+)?(?:spawner\s+)?project\b.{0,80}\b(?:at|in|into)\s+(?:[a-z]:[\\/]|\/)/i.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    /\b(?:create|build|make|plan|stage|scaffold|generate)\b/.test(normalized) &&
+    /\b(?:benchmark pack|eval pack|evaluation pack|test suite|benchmarks?)\b/.test(normalized) &&
+    /\b(?:spark\s+qa\s+operator|specialization|path|operator)\b/.test(normalized)
   ) {
     return false;
   }
@@ -636,6 +664,9 @@ function isBuildRouteMetaDiscussion(text: string): boolean {
     /\b(?:what|which|how|why|is|are|do|does|can|could|should|would)\b.*\b(?:build|building)\b.*\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized) &&
     !/\b(?:build|create|make|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\s+[^?.!]{0,80}\b(?:app|dashboard|tool|site|website|page|game|system|tracker|planner|timer|clock)\b/.test(normalized)
   ) {
+    return true;
+  }
+  if (isNegatedBuildRouteMetaDiscussion(normalized)) {
     return true;
   }
   if (

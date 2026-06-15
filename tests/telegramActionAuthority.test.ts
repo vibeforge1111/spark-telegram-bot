@@ -106,21 +106,28 @@ function withGovernorHmacEnv(fn: () => void): void {
 }
 
 test('blocks action words when the fresh turn is meta or no-execution', () => {
-  const text = 'I am mentioning build and mission, but do not start anything. Just explain the risk.';
-  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
-    route: 'spawner.build',
-    text,
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    mutationClass: 'launches_mission'
-  });
+  const texts = [
+    'I am mentioning build and mission, but do not start anything. Just explain the risk.',
+    'We are discussing build vs chat as a product rule, not asking you to build.',
+    'This is a routing review, not a build request; why did the build route trigger?'
+  ];
 
-  assert.equal(result.allow, false);
-  assert.equal(result.routeVerdict.allow, false);
-  assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
-  assert.equal(result.toolAuthorization.verdict, 'blocked');
-  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
-  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+  for (const text of texts) {
+    const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+      route: 'spawner.build',
+      text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+
+    assert.equal(result.allow, false, text);
+    assert.equal(result.routeVerdict.allow, false, text);
+    assert.equal(result.routeVerdict.reason, 'route_not_selected_by_turn_envelope', text);
+    assert.equal(result.toolAuthorization.verdict, 'blocked', text);
+    assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
 });
 
 test('allows explicit project build only when route and envelope both authorize it', () => {
@@ -233,6 +240,7 @@ test('blocks low-information follow-through from authorizing Spawner when recent
 test('blocks uncertain product exploration from authorizing a Spawner build', () => {
   const texts = [
     'I want to make something for planning my day.',
+    'Can we make something for planning my day, or should we think more first?',
     "I keep losing track of my day and want to make something for that, but I'm not sure what shape it should take.",
     "My mornings keep slipping away and I want to make a little tool around that, but I haven't figured out what shape it should take."
   ];
