@@ -176,6 +176,25 @@ function isReadoutOnlyFollowup(text: string): boolean {
   return asksForReadout && !asksForAction;
 }
 
+function isCurrentProjectReadoutQuestion(text: string, project: ShippedProjectContext | null | undefined): boolean {
+  if (!project) return false;
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  if (/\b(?:make|build|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized)) {
+    return false;
+  }
+  const projectNameWords = project.projectName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length >= 3 && !/^(?:the|and|app|project|mission|shipped)$/.test(word));
+  const pointsAtProject =
+    /\b(?:this|that|it|current|latest|app|site|page|screen|project|build|product|tool|preview)\b/.test(normalized) ||
+    projectNameWords.some((word) => normalized.includes(word));
+  if (!pointsAtProject) return false;
+  return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+}
+
 function isCreatorLoopDomainChipPhrase(text: string, recentCreatorLoopContext: boolean): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\bdomain[-\s]*chip\b/.test(normalized)) return false;
@@ -478,6 +497,26 @@ export function decideNaturalRoute(
       matched_signals: ['shipped_project_context', 'project_improvement_request'],
       blocked_by: [],
       requires_confirmation: true
+    });
+  }
+
+  if (isCurrentProjectReadoutQuestion(normalized, context.shippedProject)) {
+    return decision({
+      route: 'project.readout',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'contextual',
+      action: 'project.readout',
+      payload: {
+        projectName: context.shippedProject?.projectName,
+        projectPath: context.shippedProject?.projectPath,
+        previewUrl: context.shippedProject?.previewUrl,
+        missionId: context.shippedProject?.missionId,
+        requestId: context.shippedProject?.requestId
+      },
+      context_source: 'visible_exact_artifact',
+      matched_signals: ['shipped_project_context', 'project_readout_question'],
+      blocked_by: [],
+      requires_confirmation: false
     });
   }
 

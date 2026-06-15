@@ -523,6 +523,37 @@ test('routes shipped project improvement against the visible exact artifact', ()
   assert.match(String(route.payload.goal), /Improve the existing shipped project/);
 });
 
+test('routes current shipped project readout questions without starting an iteration', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Shipped JS Sprint Picker',
+    projectPath: 'C:/Users/USER/.spark/workspaces/mission-1781516167809-shipped-js-sprint-picker',
+    missionId: 'mission-1781517820714',
+    requestId: 'tg-build-c7ab56830aeb-1781517820714',
+    iteration: 3
+  };
+  const route = decideNaturalRoute('What changed in JS Sprint Picker, and what would you polish next?', {
+    shippedProject: project
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, false);
+  assert.equal(route.payload.projectName, 'Shipped JS Sprint Picker');
+  assert.notEqual(route.route, 'project.iteration');
+  assert.notEqual(route.route, 'spawner.build');
+});
+
+test('keeps advisory polish questions read-only for the current shipped project', () => {
+  const route = decideNaturalRoute('What would you polish next in this app?', {
+    shippedProject: shippedProject()
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('keeps collaborative build shaping conversational', () => {
   const route = decideNaturalRoute(
     'Maybe we should improve the existing Spawner Kanban and Canvas flow, what would be the best first version?'

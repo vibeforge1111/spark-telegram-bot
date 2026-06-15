@@ -2490,6 +2490,9 @@ export function isProjectImprovementRequest(text: string, project: ShippedProjec
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
   if (isSparkSelfMemoryDiagnosticQuestion(text)) return false;
+  if (/^(?:what|which|where|how)\b.{0,100}\b(?:polish|improve|change|update|fix|add|remove|tweak|refine|redesign|clean|tighten)\b/.test(normalized)) {
+    return false;
+  }
   const explicitBuild = parseBuildIntent(text);
   if (explicitBuild?.projectPath) return false;
   if (explicitBuild && isFreshProductTransformationRequest(normalized)) return false;

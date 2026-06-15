@@ -11,6 +11,7 @@ export type DeterministicRouteId =
   | 'spawner.contextual_mission'
   | 'spawner.contextual_improvement'
   | 'spawner.project_iteration'
+  | 'project.readout'
   | 'spawner.board'
   | 'spawner.local_service'
   | 'spawner.external_research'

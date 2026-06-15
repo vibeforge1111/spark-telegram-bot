@@ -358,7 +358,7 @@ import {
   shouldWriteNaturalRouteLedger,
   shouldWriteNaturalRouteLedgerSynchronously
 } from './naturalRouteLedger';
-import { getLatestShippedProjectContext } from './shippedProjectContext';
+import { getLatestShippedProjectContext, type ShippedProjectContext } from './shippedProjectContext';
 import axios from 'axios';
 import { describeTier, getTierForUser, type SkillTier } from './userTier';
 import { acquireGatewayOwnership, releaseGatewayOwnership } from './gatewayOwnership';
@@ -433,7 +433,7 @@ function builderMemoryWriteRunner(...args: Parameters<BuilderMemoryWriteRunner>)
   return (builderMemoryWriteRunnerForTest || runBuilderTelegramMemoryWrite)(...args);
 }
 
-type EvidenceAnswerKind = 'public_release_blockers' | 'browser_use_availability';
+type EvidenceAnswerKind = 'public_release_blockers' | 'browser_use_availability' | 'project_readout';
 type EvidenceAnswerComposerInput = {
   kind: EvidenceAnswerKind;
   userText: string;
@@ -7151,6 +7151,174 @@ function spawnerUiStatePath(filename: string): string {
   return path.join(sparkHome, 'state', 'spawner-ui', filename);
 }
 
+function safeTextSnippet(value: string, maxLength = 900): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+async function readProjectText(project: ShippedProjectContext, relativePath: string, maxLength = 20_000): Promise<string> {
+  try {
+    const root = path.resolve(project.projectPath);
+    const target = path.resolve(root, relativePath);
+    const rootPrefix = root.endsWith(path.sep) ? root.toLowerCase() : `${root}${path.sep}`.toLowerCase();
+    const targetLower = target.toLowerCase();
+    if (targetLower !== root.toLowerCase() && !targetLower.startsWith(rootPrefix)) return '';
+    if (!existsSync(target)) return '';
+    return (await readFile(target, 'utf-8')).slice(0, maxLength);
+  } catch {
+    return '';
+  }
+}
+
+async function readSpawnerProjectResult(project: ShippedProjectContext): Promise<any | null> {
+  const requestId = String(project.requestId || '').trim();
+  if (!/^[A-Za-z0-9_.-]{8,160}$/.test(requestId)) return null;
+  try {
+    const raw = await readFile(spawnerUiStatePath(path.join('results', `${requestId}.json`)), 'utf-8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function testNamesFromProjectText(...texts: string[]): string[] {
+  return texts
+    .flatMap((text) => Array.from(text.matchAll(/\b(?:test|it)\(\s*['"`]([^'"`]{8,120})['"`]/g)).map((match) => match[1].trim()))
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function actionLabelsFromMain(mainJs: string): string[] {
+  return Array.from(mainJs.matchAll(/\b(?:solved|stuck|another)\s*:\s*(['"])(.*?)\1/g))
+    .map((match) => match[2].trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function taskTitlesFromSpawnerResult(result: any): string[] {
+  return (Array.isArray(result?.tasks) ? result.tasks : [])
+    .map((task: any) => typeof task?.title === 'string' ? task.title.trim() : '')
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function nextProjectPolishSuggestion(files: any): string {
+  const labels = Array.isArray(files?.actionLabels) ? files.actionLabels.map((label: string) => label.toLowerCase()) : [];
+  const testNames = Array.isArray(files?.testNames) ? files.testNames.join(' ').toLowerCase() : '';
+  if (labels.some((label: string) => /\b(?:solved|stuck|another|next)\b/.test(label))) {
+    return 'tighten the feedback moment after the main action buttons so the next step feels more useful without making the app heavier.';
+  }
+  if (testNames.includes('keyboard') || testNames.includes('navigation')) {
+    return 'polish the fastest repeated interaction path, because the tests show navigation is part of the core loop.';
+  }
+  if (files?.sprintTaskCount && Number(files.sprintTaskCount) > 1) {
+    return 'make the task choices easier to scan so the user can decide faster without adding a heavier workflow.';
+  }
+  return 'improve the most visible repeated interaction in the current UI, keeping the app small and grounded in its shipped shape.';
+}
+
+async function buildProjectReadoutEvidence(project: ShippedProjectContext): Promise<Record<string, unknown>> {
+  const [result, packageJson, readme, mainJs, unitTest, smokeTest] = await Promise.all([
+    readSpawnerProjectResult(project),
+    readProjectText(project, 'package.json', 5000),
+    readProjectText(project, 'README.md', 8000),
+    readProjectText(project, path.join('src', 'main.js'), 16_000),
+    readProjectText(project, path.join('tests', 'sprint-picker.unit.test.js'), 8000),
+    readProjectText(project, path.join('tests', 'sprint-picker.spec.js'), 8000)
+  ]);
+  const packageName = (() => {
+    try {
+      return JSON.parse(packageJson || '{}')?.name || null;
+    } catch {
+      return null;
+    }
+  })();
+  const readmeSummary = readme
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith('#') && !line.startsWith('```')) || '';
+  return {
+    project: {
+      name: project.projectName,
+      previewUrl: project.previewUrl,
+      missionId: project.missionId,
+      requestId: project.requestId || null,
+      iteration: project.iteration,
+      updatedAt: project.updatedAt,
+      shippedSummary: project.summary || null
+    },
+    spawnerResult: result ? {
+      projectName: result.projectName || null,
+      projectType: result.projectType || null,
+      techStack: result.techStack || null,
+      taskTitles: taskTitlesFromSpawnerResult(result),
+      success: result.success === true
+    } : null,
+    projectFiles: {
+      packageName,
+      readmeSummary: safeTextSnippet(readmeSummary),
+      sprintTaskCount: (mainJs.match(/\bid\s*:\s*['"`]/g) || []).length || null,
+      actionLabels: actionLabelsFromMain(mainJs),
+      testNames: testNamesFromProjectText(unitTest, smokeTest)
+    }
+  };
+}
+
+function fallbackProjectReadoutReply(project: ShippedProjectContext, evidence: Record<string, unknown>): string {
+  const result = evidence.spawnerResult as any;
+  const files = evidence.projectFiles as any;
+  const taskTitles = Array.isArray(result?.taskTitles) ? result.taskTitles : [];
+  const changed = taskTitles.length
+    ? taskTitles.slice(0, 3).join('; ')
+    : project.summary && !/completed without final notes/i.test(project.summary)
+      ? project.summary
+      : 'I can see the shipped app state, but the final provider summary did not preserve detailed notes.';
+  const labels = Array.isArray(files?.actionLabels) && files.actionLabels.length
+    ? files.actionLabels.join(', ')
+    : 'the current action buttons';
+  const tests = Array.isArray(files?.testNames) && files.testNames.length
+    ? files.testNames.slice(0, 2).join('; ')
+    : 'local smoke checks';
+  return [
+    `${project.projectName} is the current shipped project I have for this chat, at iteration ${project.iteration}.`,
+    '',
+    `What changed: ${changed}.`,
+    files?.readmeSummary ? `Current shape: ${files.readmeSummary}` : null,
+    `Current controls: ${labels}.`,
+    `Verification signal: ${tests}.`,
+    '',
+    `Next polish I would choose: ${nextProjectPolishSuggestion(files)}`,
+    project.previewUrl ? `Preview: ${project.previewUrl}` : null
+  ].filter((line): line is string => Boolean(line)).join('\n');
+}
+
+function projectReadoutReplyLooksValid(reply: string, project: ShippedProjectContext): boolean {
+  const normalized = reply.toLowerCase();
+  if (!reply.trim()) return false;
+  if (/\b(?:do not have|don't have|no saved project memory trace|no saved.*trace)\b/i.test(reply)) return false;
+  const projectWords = project.projectName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 4);
+  return projectWords.some((word) => normalized.includes(word));
+}
+
+async function composeProjectReadoutReply(project: ShippedProjectContext, userText: string): Promise<{ reply: string; evidence: Record<string, unknown> }> {
+  const evidence = await buildProjectReadoutEvidence(project);
+  const fallback = fallbackProjectReadoutReply(project, evidence);
+  const reply = await composeGovernedEvidenceAnswer(
+    {
+      kind: 'project_readout',
+      userText,
+      evidence,
+      claimBoundary: 'Answer only from the current shipped-project context, Spawner result artifact, and safe project files. Do not claim memory is missing when this evidence is present. Do not start or suggest that a build has started.'
+    },
+    fallback,
+    (candidate) => projectReadoutReplyLooksValid(candidate, project)
+  );
+  return { reply, evidence };
+}
+
 function normalizeCanvasSkillTier(value: unknown): SkillTier {
   return typeof value === 'string' && value.toLowerCase() === 'pro' ? 'pro' : 'base';
 }
@@ -9328,6 +9496,54 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(user, reply).catch(() => {});
       return;
     }
+  }
+
+  if (!earlyBuildIntent && latestShippedProject && naturalRouteShadow?.route === 'project.readout') {
+    const projectReadoutAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
+      route: 'project.readout',
+      text,
+      ownerSystem: 'spark-telegram-bot',
+      action: 'project.readout',
+      selectedBy: 'telegram_current_project_readout',
+      matchedSignal: 'project_readout_question',
+      confidence: 'contextual'
+    });
+    if (!projectReadoutAuthorization.allow) {
+      recordTelegramHarnessCoreExecution(projectReadoutAuthorization, {
+        toolName: 'answer.compose',
+        status: 'not_started',
+        summary: 'Current shipped project readout was blocked before answer composition.'
+      });
+      await ctx.reply('I did not answer from project state because the fresh turn did not authorize even the read-only answer.');
+      return;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const { reply, evidence } = await composeProjectReadoutReply(latestShippedProject, text);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'project.readout', 'spark-telegram-bot', 'harness_core.answer_boundary');
+    recordTelegramHarnessCoreExecution(projectReadoutAuthorization, {
+      toolName: 'answer.compose',
+      status: 'success',
+      summary: 'Current shipped project readout completed from shipped-project context and project evidence.'
+    });
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_current_project_readout', [
+      {
+        source: 'shipped_project_context',
+        role: 'current_project_authority',
+        freshness: 'fresh',
+        sourceRef: latestShippedProject.requestId || latestShippedProject.missionId,
+        summary: 'Telegram answered a current-project readout from the latest shipped project context for this chat.'
+      },
+      {
+        source: 'project_files_and_spawner_result',
+        role: 'artifact_evidence',
+        freshness: 'fresh',
+        sourceRef: String((evidence.project as any)?.requestId || latestShippedProject.projectPath),
+        summary: 'The answer was grounded in the Spawner result artifact and safe project files when available.'
+      }
+    ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
   }
 
   if (globalAgentDoctrineRequest) {

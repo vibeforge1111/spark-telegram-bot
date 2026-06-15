@@ -569,6 +569,8 @@ test('turns natural shipped project feedback into an iteration mission', () => {
   };
 
   assert.equal(isProjectImprovementRequest('make this more Spark colored', project), true);
+  assert.equal(isProjectImprovementRequest('what would you polish next in this app?', project), false);
+  assert.equal(isProjectImprovementRequest('what changed in Founder Signal Room, and what would you polish next?', project), false);
   assert.equal(isExplicitContextualBuildRequest('make this more Spark colored'), false);
 
   const goal = buildProjectImprovementGoal('make this more Spark colored', project, [
