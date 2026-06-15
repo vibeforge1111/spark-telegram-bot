@@ -23,8 +23,9 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
 
 ## Telegram Transport Rules
 
-Read this together with `docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md` before
-changing Telegram formatting or streaming.
+Read this together with `docs/TELEGRAM_PLATFORM_SYSTEM_RULESET.md` and
+`docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md` before changing Telegram
+formatting, streaming, guest/inline behavior, links, media, or automation.
 
 Telegram has separate transport surfaces:
 

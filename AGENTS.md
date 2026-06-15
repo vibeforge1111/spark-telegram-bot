@@ -23,7 +23,7 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md`, `docs/SPARK_HARNESS_CONTRACT.md`, and the relevant command, route, or adapter doc before edits. For Telegram rendering, rich-message, or streaming work, also read `docs/TELEGRAM_COMPOSITION_STANDARD.md`, `docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md`, and `docs/LIVE_CHAT_STREAMING_DESIGN.md`. Treat `docs/TURNINTENT_HARNESS_RULESET.md` as historical context only.
+2. Read this file plus `docs/SPARK_CONVERSATIONAL_AUTHORITY_GOVERNANCE.md`, `docs/SPARK_HARNESS_CONTRACT.md`, and the relevant command, route, or adapter doc before edits. For Telegram rendering, rich-message, streaming, guest/inline/bot-to-bot, link/media, or Telegram platform work, also read `docs/TELEGRAM_PLATFORM_SYSTEM_RULESET.md`, `docs/TELEGRAM_COMPOSITION_STANDARD.md`, `docs/TELEGRAM_RICH_MESSAGE_SYSTEM_RULESET.md`, and `docs/LIVE_CHAT_STREAMING_DESIGN.md`. Treat `docs/TURNINTENT_HARNESS_RULESET.md` as historical context only.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.

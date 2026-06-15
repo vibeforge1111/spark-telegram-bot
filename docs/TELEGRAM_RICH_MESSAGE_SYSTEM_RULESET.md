@@ -1,7 +1,10 @@
 # Telegram Rich Message System Ruleset
 
 This is the Spark-owned contract for Telegram rich text, streaming drafts, and
-client-safe final replies. It applies to all Telegram-facing Spark systems:
+client-safe final replies. Read it together with
+`docs/TELEGRAM_PLATFORM_SYSTEM_RULESET.md`, which owns the broader platform
+rules for guest mode, bot-to-bot, inline results, automation, link/media
+privacy, and adoption tiers. It applies to all Telegram-facing Spark systems:
 Spawner, Builder, memory/wiki, recursive/domain-chip, provider/access,
 browser/computer-use, installer, Cockpit, Labs, Swarm, and Telegram itself.
 
