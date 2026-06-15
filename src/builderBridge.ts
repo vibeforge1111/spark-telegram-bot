@@ -1795,6 +1795,39 @@ export async function runBuilderAgentBlackBox(
   };
 }
 
+function parseRouteProbeSummary(summary: string): {
+  gatewayReady: boolean | null;
+  providers: number | null;
+  degradedSurfaces: number | null;
+} {
+  const gatewayMatch = summary.match(/\bgateway ready=(True|False|true|false)\b/);
+  const providersMatch = summary.match(/\bproviders=(\d+)\b/);
+  const degradedSurfacesMatch = summary.match(/\bdegraded_surfaces=(\d+)\b/);
+  return {
+    gatewayReady: gatewayMatch ? gatewayMatch[1].toLowerCase() === 'true' : null,
+    providers: providersMatch ? Number(providersMatch[1]) : null,
+    degradedSurfaces: degradedSurfacesMatch ? Number(degradedSurfacesMatch[1]) : null,
+  };
+}
+
+export function normalizeRouteProbePayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const summary = String(payload.probe_summary || '').trim();
+  if (!summary) {
+    return payload;
+  }
+  const { gatewayReady, providers, degradedSurfaces } = parseRouteProbeSummary(summary);
+  const gatewayNotReady = gatewayReady === false;
+  const noProviders = providers === 0;
+  const hasDegradedSurfaces = degradedSurfaces !== null && degradedSurfaces > 0;
+  if (!gatewayNotReady && !noProviders && !hasDegradedSurfaces) {
+    return payload;
+  }
+  return {
+    ...payload,
+    status: 'degraded',
+  };
+}
+
 export function formatRouteProbeReply(payload: Record<string, unknown>): string {
   const route = String(payload.capability_key || 'unknown').trim() || 'unknown';
   const status = String(payload.status || 'unknown').trim() || 'unknown';
@@ -1979,7 +2012,7 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
     }
     throw new Error(`Builder route probe returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = normalizeRouteProbePayload(JSON.parse(trimmedStdout) as Record<string, unknown>);
   return {
     payload,
     replyText: formatRouteProbeReply(payload),
