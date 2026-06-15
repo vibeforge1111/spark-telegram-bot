@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
@@ -31,7 +32,7 @@ function truncate(value: string, maxLength: number): string {
 }
 
 function randomId(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return randomUUID().slice(0, 6);
 }
 
 function missionControlDisabled(): boolean {
