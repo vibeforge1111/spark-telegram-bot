@@ -2,9 +2,11 @@
 
 This is the Spark-owned contract for Telegram rich text, streaming drafts, and
 client-safe final replies. Read it together with
-`docs/TELEGRAM_PLATFORM_SYSTEM_RULESET.md`, which owns the broader platform
-rules for guest mode, bot-to-bot, inline results, automation, link/media
-privacy, and adoption tiers. It applies to all Telegram-facing Spark systems:
+`docs/TELEGRAM_WHOLE_SYSTEM_RULESET.md` and
+`docs/TELEGRAM_PLATFORM_SYSTEM_RULESET.md`, which own the broader platform
+rules for guest mode, bot-to-bot, inline results, automation, callbacks,
+payments, Web Apps, link/media privacy, and adoption tiers. It applies to all
+Telegram-facing Spark systems:
 Spawner, Builder, memory/wiki, recursive/domain-chip, provider/access,
 browser/computer-use, installer, Cockpit, Labs, Swarm, and Telegram itself.
 
@@ -18,6 +20,8 @@ Primary sources:
   https://core.telegram.org/bots/api#sendmessage
 - Bot API rich message formatting:
   https://core.telegram.org/bots/api#rich-message-formatting-options
+- Spark whole-system Telegram surface map:
+  docs/TELEGRAM_WHOLE_SYSTEM_RULESET.md
 - Bot API `sendRichMessage`:
   https://core.telegram.org/bots/api#sendrichmessage
 - Bot API `sendRichMessageDraft`:

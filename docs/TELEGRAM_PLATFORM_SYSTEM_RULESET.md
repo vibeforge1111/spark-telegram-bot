@@ -12,6 +12,10 @@ Primary sources:
 
 - Bot API changelog and method/object reference:
   https://core.telegram.org/bots/api
+- Bot platform features:
+  https://core.telegram.org/bots/features
+- Spark whole-system Telegram surface map:
+  docs/TELEGRAM_WHOLE_SYSTEM_RULESET.md
 - Bot API rich message formatting:
   https://core.telegram.org/bots/api#rich-message-formatting-options
 - Bot API `sendMessage`:
@@ -51,6 +55,11 @@ Primary sources:
 | Colored buttons | Bot API reply markup styling where available | Future action emphasis | Gated by action authority |
 
 ## Telegram Whole-System Map
+
+For the complete source-backed surface registry, ingress/egress authority map,
+root-cause patch rules, and QA coverage matrix, read
+`docs/TELEGRAM_WHOLE_SYSTEM_RULESET.md` first. This section is the short-form
+runtime policy.
 
 Telegram is now more than "send a text reply." Spark must model it as a set of
 separate surfaces, each with its own authority, privacy, and rendering boundary.
