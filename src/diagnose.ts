@@ -2,6 +2,11 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision,
+  type GovernorDecisionV1
+} from '@spark/harness-core';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
 import { pingChatProvider, resolveChatProviderConfig, type ChatProviderPing } from './llm';
@@ -21,6 +26,7 @@ import {
 } from './naturalRouteLedger';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { signGovernorDecisionIfConfigured } from './governorSignature';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -49,6 +55,17 @@ interface PingResult {
   ok: boolean;
   ms?: number;
   error?: string;
+}
+
+interface DiagnoseMissionPingBody {
+  goal: string;
+  chatId: string;
+  userId: string;
+  requestId: string;
+  providers: string[];
+  promptMode: 'simple';
+  suppressRelay: true;
+  executionAuthority: GovernorDecisionV1;
 }
 
 interface ProviderDescription {
@@ -256,6 +273,56 @@ export function selectPingProviderIds(
   return Array.from(ids);
 }
 
+export function buildDiagnoseMissionExecutionAuthority(input: {
+  providerId: string;
+  requestId: string;
+}): GovernorDecisionV1 {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'spark.telegram.diagnose',
+    reason: `Diagnostic Spawner provider ping for ${input.providerId}.`,
+    turnId: input.requestId,
+    requestId: input.requestId,
+    actorKind: 'human',
+    actorIdRef: 'spark-telegram-diagnose',
+    target: `provider:${input.providerId}`,
+    confidence: 0.98,
+    riskTier: 'medium',
+    publishes: false,
+    externalNetwork: false,
+    requiresHumanConfirmation: false
+  });
+  const decision = createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spawner.run',
+    restrictions: {
+      network_allowed: false,
+      write_allowed: true,
+      publish_allowed: false
+    },
+    reply_style: 'compact_status',
+    reply_instruction: 'Diagnostic provider ping only; do not relay provider output to Telegram.'
+  });
+  return signGovernorDecisionIfConfigured(decision) as GovernorDecisionV1;
+}
+
+export function buildDiagnoseMissionPingBody(providerId: string, started = Date.now()): DiagnoseMissionPingBody {
+  const requestId = `diag-${providerId}-${started}`;
+  return {
+    goal: 'Reply with exactly: PING_OK',
+    chatId: 'diag',
+    userId: 'diag',
+    requestId,
+    providers: [providerId],
+    promptMode: 'simple',
+    suppressRelay: true,
+    executionAuthority: buildDiagnoseMissionExecutionAuthority({ providerId, requestId })
+  };
+}
+
 async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: string; payload?: ProvidersPayload }> {
   try {
     const res = await axios.get(`${SPAWNER_UI_URL}/api/providers`, {
@@ -281,15 +348,7 @@ async function pingProvider(providerId: string): Promise<PingResult> {
   try {
     const run = await axios.post(
       `${SPAWNER_UI_URL}/api/spark/run`,
-      {
-        goal: 'Reply with exactly: PING_OK',
-        chatId: 'diag',
-        userId: 'diag',
-        requestId: `diag-${providerId}-${started}`,
-        providers: [providerId],
-        promptMode: 'simple',
-        suppressRelay: true
-      },
+      buildDiagnoseMissionPingBody(providerId, started),
       spawnerAxiosOptions(10000)
     );
     const missionId = run.data?.missionId;

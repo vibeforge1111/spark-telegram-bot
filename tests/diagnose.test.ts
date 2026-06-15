@@ -7,6 +7,7 @@ import {
   describeRelayHealth,
   describeProviderStatus,
   describeSpawnerPublicLinkHealth,
+  buildDiagnoseMissionPingBody,
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
   readableLocalServiceUrl,
@@ -139,6 +140,20 @@ test('pings selected Spawner route providers only', () => {
   ];
 
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
+});
+
+test('diagnose mission ping body carries fresh Governor authority for spawner.run', () => {
+  const body = buildDiagnoseMissionPingBody('codex', 1781500000000);
+  const authority = body.executionAuthority;
+
+  assert.equal(body.requestId, 'diag-codex-1781500000000');
+  assert.equal(body.suppressRelay, true);
+  assert.equal(authority.schema_version, 'governor-decision-v1');
+  assert.equal(authority.outcome, 'execute');
+  assert.equal(authority.envelope.proposed_actions[0]?.capability_id, 'capability:spawner-ui:spawner.run');
+  assert.equal(authority.envelope.proposed_actions[0]?.action_type, 'launch_mission');
+  assert.equal(authority.tool_ledgers[0]?.tool_name, 'spawner.run');
+  assert.equal(authority.tool_ledgers[0]?.result.status, 'not_started');
 });
 
 test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
