@@ -1467,7 +1467,8 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   if (!trimmedStdout) {
     throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
   }
-  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  let parsed: BuilderDiagnosticsScanJson | null = null;
+  try { parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson; } catch { return null; }
   return {
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
