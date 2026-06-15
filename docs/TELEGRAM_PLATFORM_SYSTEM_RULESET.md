@@ -50,6 +50,72 @@ Primary sources:
 | Telegram Browser link behavior | in-app browser and user link settings | Link-label policy and preview expectations | Production awareness |
 | Colored buttons | Bot API reply markup styling where available | Future action emphasis | Gated by action authority |
 
+## Telegram Whole-System Map
+
+Telegram is now more than "send a text reply." Spark must model it as a set of
+separate surfaces, each with its own authority, privacy, and rendering boundary.
+
+| Surface | What Telegram provides | Spark production rule |
+| --- | --- | --- |
+| 1:1 bot chat | Ordinary messages, rich final messages, private-chat drafts, buttons, media | Primary Spark operator console. Safe for rich/readable final replies and route-approved drafts. |
+| Group/supergroup chat | Mentions, replies, topics, admin controls, join-request flows | Final-only unless a feature has group-specific privacy and wrong-chat QA. Never assume 1:1 memory scope. |
+| Guest bot query | Bot can be mentioned in a chat where it is not a member and receives only the tagged message/reply context | Answer-only by default. Do not infer history, membership, or workspace authority. |
+| Bot-to-bot conversation | Bots may respond to bot-origin messages | Labs only. Machine-origin text is evidence, never user authority. |
+| Inline query / Web App query | `InputMessageContent`, including rich message content, can be returned through query-style surfaces | Gated. Rich output is still a delivery payload, not execution authority. |
+| Profile chat automation | A user can connect a bot to respond on their behalf with configured chat scope | Separate product mode. Requires per-chat scope, pause controls, and an audit view before production. |
+| Join-request guardian | Bot APIs for screening group join requests and Web App flows | Separate governance plane. Do not mix admission decisions with personal Spark memory. |
+| Telegram Browser | User-controlled in-app or external browser opening for links and `.md` rendering | Link labels must be self-explanatory. Do not rely on previews or browser choice for safety. |
+
+The route envelope must record which surface produced the turn. A private-chat
+turn, a guest query, an inline result, a bot-to-bot message, and a group mention
+are not interchangeable evidence.
+
+## Transport Decision Tree
+
+Choose the smallest Telegram transport that preserves meaning:
+
+1. Use `sendMessage` when the answer is short, conversational, or compatibility
+   matters more than structure.
+2. Use `sendMessage` with safe HTML when a compact status card needs bold labels,
+   simple links, and maximum fallback reliability.
+3. Use `sendRichMessage` when the final reply benefits from Telegram rich blocks:
+   real headings, paragraphs, lists, dividers, blockquotes, details, tables,
+   pre/code, math, media, anchors, references, or long evidence summaries.
+4. Use `sendRichMessageDraft` only for route-approved private-chat previews while
+   the final answer is being generated.
+5. Use inline rich message content only for query surfaces after privacy and
+   context-scope review.
+6. Use media blocks only when the media is intentionally shareable through an
+   HTTP/HTTPS URL and reveals the real artifact or result.
+
+Do not pick a richer transport just because it is available. Richness must reduce
+reading effort or improve interaction, not add spectacle.
+
+## Bot API Contract Rules
+
+- `InputRichMessage` must contain exactly one of `html` or `markdown`.
+- Prefer rich HTML for Spark-generated cards because escaping and supported-tag
+  control are easier to audit. Use rich Markdown only for trusted Markdown
+  sources that already match Telegram's rich-message grammar.
+- Leave `skip_entity_detection` off unless automatic detection would create a
+  specific bug such as accidental command, phone, e-mail, hashtag, or cashtag
+  linking in a diagnostic card.
+- `sendRichMessage` sends the final persistent message. It may include reply
+  markup, notification flags, content protection, thread/direct-topic routing,
+  and other Telegram-supported delivery extras.
+- `sendRichMessageDraft` is ephemeral. It is a temporary preview for a private
+  chat; Spark must send a final persisted message afterward.
+- `editMessageText` with `rich_message` is only for bot-owned message edits. It
+  must never be used to rewrite history, hide a failure, or mimic streaming.
+- Rich inline query content is a query answer payload. It must not start a build,
+  memory write, publish, browser/computer-use action, provider run, schedule, or
+  installer action unless a separate governed turn authorizes it.
+- Media blocks must use HTTP/HTTPS URLs. Do not embed local file paths,
+  credentialed URLs, private artifacts, or transient workspace files as rich
+  media.
+- Paid broadcast, effects, and other attention features are delivery controls.
+  They need explicit product policy before Spark uses them in production.
+
 ## Non-Negotiable Authority Boundary
 
 Telegram is Spark's field console. It does not own Spark truth.
@@ -96,6 +162,40 @@ Use rich messages to improve scanning, not to make messages decorative.
 - Use media only when it reveals the real artifact or result.
 - Use collages/slideshows only after desktop and mobile clients render them
   reliably for the active Spark audience.
+
+## Rich Block Adoption Rules
+
+| Telegram rich feature | Spark use | Rule |
+| --- | --- | --- |
+| Paragraphs and headings | Normal readable cards | Default rich structure. Headings must be real sections, not decorative emphasis. |
+| Lists and checklists | Tasks, blockers, review queues, choices | Good for grouped facts. Checklists imply item state; use only when state is real. |
+| Dividers | Separating dense sections | Use sparingly. Visible plain-text fallback must still scan well. |
+| Blockquotes and pull quotes | Quoted user text, owner evidence snippets, notable caveats | Do not use quotes as authority. Label the source when it matters. |
+| Details/summary | Optional debug detail | The summary must stand alone. Do not hide blockers or approvals inside collapsed details. |
+| Tables | Tiny comparisons, scores, capability matrices | Use only when two to four columns beat bullets. Avoid broad diagnostics in Telegram. |
+| Pre/code | Commands, exact snippets, short logs | Never include secrets. Move long logs to Workspace. |
+| Anchors, references, footnotes | Evidence definitions, caveats, local glossary | Gated until live clients prove they stay readable. Never bury the decision in a footnote. |
+| Math | Bench formulas and technical scoring | Gated. Use only when the formula itself helps the user. |
+| Media blocks | Real screenshots, previews, generated assets | Use only public or local-safe HTTP/HTTPS URLs and only when the user benefits from seeing the asset inline. |
+| Collage/slideshow | Visual result galleries | Labs until desktop and mobile QA prove layout quality. |
+| Map/location | Location-specific workflows | Separate privacy review required. |
+| Thinking block | Temporary draft placeholder | Draft-only. Never final. Never proof of work. |
+
+## Long Message Policy
+
+Telegram rich messages can hold much more than basic text, but Spark should not
+turn Telegram into a raw report dump.
+
+- Basic text remains the compatibility path for short replies.
+- Rich final messages may be used for longer summaries only when the first screen
+  carries the answer and the rest is genuinely useful.
+- Long reports must still have an inspect surface in Workspace, Canvas, Board,
+  logs, or a saved report.
+- If a rich final message crosses normal `sendMessage` limits, add explicit
+  renderer/chunking tests before widening runtime limits.
+- Current implementation note: `src/telegramRichMessage.ts` intentionally trims
+  rich output near the compatibility range until long-rich chunking and live
+  client QA are added. Do not remove that cap as a casual cleanup.
 
 ## Streaming Rules
 
@@ -146,6 +246,23 @@ Guardian/join-request flows:
   build authority.
 - Design a separate data-retention and appeal policy before implementation.
 
+Inline and Web App query flows:
+
+- Treat query text as scoped query evidence, not private chat continuity.
+- Do not import inline query content into memory unless the user explicitly
+  approves and policy permits it.
+- If returning rich content, the query answer must be self-contained and safe
+  when forwarded or inserted into another chat.
+
+Group and topic flows:
+
+- Verify the chat, topic, and bot role before replying with operational state.
+- Avoid leaking private workspace, local preview, or owner evidence into group
+  contexts.
+- Confirmation must happen in the same authority context or in a clearly linked
+  private handoff; stale private-chat approval cannot silently authorize a group
+  action.
+
 ## Link, Media, and Privacy Rules
 
 - Prefer labeled links such as `Open preview`, `Open canvas`, `Open board`, and
@@ -159,6 +276,30 @@ Guardian/join-request flows:
 - Assume users may open links in Telegram Browser or a preferred external
   browser, so link labels must make the destination clear without relying on a
   preview.
+- For `.md` files and report links that Telegram Browser may render directly,
+  treat the document itself as user-facing product copy, not as a raw artifact
+  dump.
+- Buttons and reply markup may make actions easier to tap, but the button label
+  is not the authorization record. The governed action id, owner verification,
+  and ledger remain authoritative.
+
+## Spark Message Shape Registry
+
+Use this registry when turning Spark system output into Telegram copy.
+
+| Spark output | Telegram shape | Must show | Must hide or move |
+| --- | --- | --- | --- |
+| Natural conversation | Short prose | Direct answer | System internals, forced sections |
+| Build/Spawner state | Compact card with links | Status, proof boundary, preview/canvas/board links if real | Raw mission ids unless requested |
+| Mission progress | Mission relay event | Current stage and blocker/next event | Chat-draft streaming of execution claims |
+| Completion/failure | Outcome card | Owner proof or missing proof | Polished "done" without terminal evidence |
+| Diagnostics | Compact card plus Workspace/log link | High-level health and warnings | Raw dumps, stack traces, tokens |
+| Memory/wiki answer | Prose plus source boundary | What can be answered, source class, caveat if needed | Draft text as memory evidence |
+| Provider/model run | Short result/readout | Which result matters and where to inspect | Provider telemetry unless asked |
+| Browser/computer-use | Authorization or final evidence card | User approval boundary, visible result evidence | Hidden side effects, implicit browser control |
+| Publish/PR/deploy | Confirmation/readout | Approval receipt, target, terminal result | Publishing from link/button text alone |
+| Installer/Cockpit/Labs/Swarm | Readiness card | State, blocker, next verification | Launch claims without installer owner proof |
+| Long report | Rich summary plus Workspace | Top verdict and inspect link | Full report inside Telegram by default |
 
 ## Spark Product Templates
 
@@ -246,6 +387,24 @@ Launch readiness for a Telegram feature means:
 - no hidden authority change
 - no duplicate truth store
 - rollback available through env flag, route policy, or transport fallback
+
+## Documentation And Implementation Discipline
+
+Before any Telegram feature or fix lands:
+
+1. Name the affected Telegram surface: private chat, group/topic, guest, bot-to-bot,
+   inline/Web App query, profile automation, join request, media/link, draft, or
+   final message.
+2. Name the Spark owner: Telegram rendering, Harness/Core authority, Builder,
+   Spawner, memory/wiki, provider, browser/computer-use, installer, Cockpit,
+   Labs, Swarm, or another owner.
+3. Decide the smallest transport surface from the decision tree.
+4. Add positive and negative tests for both readability and authority when the
+   change can affect routing, claims, side effects, or user-visible trust.
+5. Run live Telegram Desktop CUA when the claim is visual, spacing-related,
+   streaming-related, link-related, or client-behavior-related.
+6. Update this ruleset or the rich-message ruleset if a new Telegram capability
+   is adopted, rejected, or deferred.
 
 ## Implementation Ownership
 

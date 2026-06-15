@@ -68,6 +68,41 @@ Use the smallest surface that preserves readability and truth.
      evidence.
    - Reuse one non-zero `draft_id` per turn so Telegram animates updates.
 
+## Rich Message Grammar Contract
+
+Spark rich messages are generated artifacts, so they must use a deliberately
+small, auditable subset of Telegram's larger grammar by default.
+
+Required renderer behavior:
+
+- Escape every user, model, provider, log, and owner-system string before it
+  enters HTML.
+- Emit valid Telegram-supported rich HTML only. Unsupported tags are bugs, not
+  graceful enhancement.
+- Preserve correct plain-text reading order before adding headings, lists,
+  details, tables, media, anchors, or references.
+- Use exactly one `InputRichMessage` format: HTML or Markdown. Spark-generated
+  cards default to HTML.
+- Keep automatic entity detection on unless a specific message class needs it
+  disabled to prevent accidental command, phone, e-mail, hashtag, cashtag, or
+  username linking.
+- Render all links with human labels. Local operational links should say what
+  opens: `Open preview`, `Open canvas`, `Open board`, `Open report`, or similar.
+
+Feature tiers:
+
+| Rich feature | Default tier | Spark rule |
+| --- | --- | --- |
+| `p`, `h1`-`h6`, `ul`, `ol`, `li`, `hr` | Production | Core readable-card structure. |
+| `blockquote`, `aside` | Production with restraint | Use for quoted evidence or caveats, not decoration. |
+| `pre`, inline `code` | Production | Short exact snippets only; move long logs out of Telegram. |
+| `details`, `summary` | Production after live QA | Optional detail only. The visible summary must carry the decision. |
+| `table`, `caption`, `th`, `td` | Production for tiny tables | Avoid wide diagnostics and mobile-hostile layouts. |
+| anchors, references, footnotes | Gated | Useful for evidence definitions only after client QA. |
+| inline/block math | Gated | Use only when the formula is the answer. |
+| `img`, `video`, `audio`, `figure`, collage, slideshow, map | Gated/Labs | HTTP/HTTPS media only, privacy-reviewed, with Desktop and mobile QA. |
+| `tg-thinking` | Draft-only | Never send in a final message and never treat as work proof. |
+
 ## Rich HTML Rules
 
 The rich HTML renderer may use only tags Telegram documents as supported. The
@@ -95,6 +130,26 @@ Rules:
 - Details blocks are good for optional debug detail, but the top-level summary
   must stand alone if the details render collapsed.
 - Footnotes/references are for evidence definitions, not for hiding blockers.
+
+## Long Rich Message Rules
+
+Telegram rich messages can exceed the old `sendMessage` length, but long does not
+mean readable.
+
+- The first visible screen must answer the user's question.
+- Long rich replies must still include a Workspace, Canvas, Board, report, or log
+  link when full evidence exists elsewhere.
+- If a final reply would be mostly raw evidence, send a compact summary in
+  Telegram and link the full artifact.
+- Do not widen runtime trimming or chunking limits until tests prove:
+  - long rich payload generation stays valid
+  - fallback text remains safe
+  - link labels survive chunking
+  - live Telegram Desktop does not flatten or clip the layout badly
+  - mobile clients remain readable enough for launch
+- Current implementation note: the runtime trims rich rendering near the basic
+  text compatibility range. That is intentional until long-rich chunking and
+  live-client evidence exist.
 
 ## Client-Safe Readability Rules
 
