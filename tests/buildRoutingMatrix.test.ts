@@ -227,6 +227,21 @@ test('text handler checks latest-project iteration before generic build intent',
   assert.ok(genericBuildIndex > projectIterationIndex, 'latest-project iteration must beat broad parseBuildIntent matches');
 });
 
+test('text handler binds shipped project context before turn authority envelope', () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  const shippedProjectIndex = indexSource.indexOf('const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);');
+  const routeShadowIndex = indexSource.indexOf('const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text, {');
+  const gateIndex = indexSource.indexOf('const telegramIntentGateV2 = classifyTelegramIntentV2(text, {');
+  const envelopeIndex = indexSource.indexOf('const turnIntentEnvelope = buildTelegramTurnIntentEnvelope({');
+
+  assert.ok(shippedProjectIndex > 0, 'expected latest shipped project context in text handler');
+  assert.ok(routeShadowIndex > shippedProjectIndex, 'natural route shadow must receive shipped project context');
+  assert.ok(gateIndex > routeShadowIndex, 'intent gate must run after context-aware route shadow');
+  assert.ok(envelopeIndex > gateIndex, 'turn envelope must be built from the context-aware intent decision');
+  assert.match(indexSource.slice(routeShadowIndex, gateIndex), /shippedProject: latestShippedProject/);
+  assert.match(indexSource.slice(gateIndex, envelopeIndex), /shippedProject: latestShippedProject/);
+});
+
 test('generic build intent is gated by Harness Core authority before dispatch', () => {
   const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
   const textHandlerIndex = indexSource.indexOf('const buildIntent = earlyBuildIntent;');

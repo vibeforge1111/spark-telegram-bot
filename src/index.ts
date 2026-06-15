@@ -316,6 +316,7 @@ import {
 import {
   decideNaturalRoute,
   type NaturalRouteDecision,
+  type NaturalRouteDecisionContext,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
 import type { TelegramIntentDecisionV2 } from './intentContract';
@@ -2344,10 +2345,15 @@ function activeTelegramProfile(): string {
   }
 }
 
-async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
+async function recordNaturalRouteShadow(
+  ctx: any,
+  text: string,
+  context: Partial<Pick<NaturalRouteDecisionContext, 'shippedProject'>> = {}
+): Promise<NaturalRouteDecision | null> {
   try {
     return decideNaturalRoute(text, {
       recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      shippedProject: context.shippedProject,
       pendingBuildClarification: Boolean(
         ctx.chat?.id &&
         ctx.from?.id &&
@@ -9121,11 +9127,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
+  const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
+  const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text, {
+    shippedProject: latestShippedProject
+  });
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
   const telegramIntentGateV2 = classifyTelegramIntentV2(text, {
-    naturalRouteDecision: naturalRouteShadow
+    naturalRouteDecision: naturalRouteShadow,
+    shippedProject: latestShippedProject
   });
   const turnIntentEnvelope = buildTelegramTurnIntentEnvelope({
     text,
@@ -10711,7 +10721,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
     const projectIterationAuthorization = isProjectImprovementRequest(text, latestShippedProject)
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.project_iteration',
