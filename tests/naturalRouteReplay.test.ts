@@ -28,6 +28,15 @@ test('replays natural route fixture matrix without wrong-system starts', () => {
   assert.ok(summary.total >= 12);
 });
 
+test('replays Spark system readiness route matrix without hijacks or misses', () => {
+  const fixturePath = path.join(__dirname, 'fixtures', 'spark-system-readiness-route-cases.jsonl');
+  const cases = parseNaturalRouteReplayCases(fs.readFileSync(fixturePath, 'utf8'));
+  const summary = runNaturalRouteReplayCases(cases);
+
+  assert.equal(summary.failed, 0, formatNaturalRouteReplaySummary(summary));
+  assert.ok(summary.total >= 60);
+});
+
 test('creates redacted dry-run ledger records from replay results', () => {
   const cases = parseNaturalRouteReplayCases([
     JSON.stringify({

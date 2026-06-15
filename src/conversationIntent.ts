@@ -10,6 +10,7 @@ import type { ShippedProjectContext } from './shippedProjectContext';
 const COLLABORATIVE_IDEA_PATTERNS = [
   /\bhelp\s+me\s+(?:shape|think|figure|explore|brainstorm|develop)\b/i,
   /\bhelp\s+me\s+(?:design|plan|scope)\b/i,
+  /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love|could\s+use)\s+(?:something|anything|a\s+(?:tool|app|project|planner|tracker|system)|an\s+(?:app|interface))\b.{0,140}\b(?:what\s+shape|which\s+shape|how\s+should|what\s+should|what\s+form|which\s+form|take|look\s+like|work)\b/i,
   /\b(?:shape|explore|brainstorm|develop)\s+(?:an?\s+)?idea\b/i,
   /\bi\s+(?:do\s+not|don't|dont)\s+know\s+(?:exactly\s+)?(?:what|yet)\b/i,
   /\b(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+(?:build|make|create|develop)\s+(?:something|anything)\b.{0,140}\b(?:do\s+not|don't|dont|not\s+sure|unsure|haven't\s+figured\s+out|have\s+not\s+figured\s+out)\b.{0,100}\b(?:what|which|how|exactly|yet|should\s+(?:be|look|feel)|should\s+take)\b/i,
@@ -329,8 +330,8 @@ export function extractSparkWikiAnswerQuestion(text: string): string | null {
     return null;
   }
   const patterns = [
-    /\b(?:answer|explain|summarize)\s+(?:from|using|with)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault),?\s+(.+)$/i,
-    /\b(?:using|from)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault),?\s+(?:answer|explain|summarize)\s+(.+)$/i,
+    /\b(?:answer|explain|summarize)\s+(?:from|using|with)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)[:,]?\s+(.+)$/i,
+    /\b(?:using|from)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)[:,]?\s+(?:answer|explain|summarize)\s+(.+)$/i,
     /\b(?:can\s+you\s+)?(?:answer|explain|summarize)\s+(.+?)\s+(?:from|using|with)\s+(?:(?:your|the|spark)\s+)*(?:llm\s+)?(?:wiki|knowledge\s*base|kb|obsidian\s+vault)$/i,
   ];
   for (const pattern of patterns) {
@@ -1161,7 +1162,7 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
     };
   }
 
-  if (/\b(?:report|status|score|scores|result|results|doing|health|how'?s|how\s+is|how\s+did\s+(?:that|it)\s+go|readout|summary|short\s+version|where\s+are\s+we|where\s+did\s+we\s+land|what\s+changed|what'?s\s+the\s+signal|what'?s\s+the\s+vibe|state\s+of\s+it|what\s+should\s+.*improve\s+next|weakest|weak\s+spot|what\s+is\s+next|what'?s\s+next|whether\s+.*improv\w*|did\s+.*improv\w*|got\s+better|became\s+better|held[-\s]?out|trap\s+tests?|candidate\s+benchmark)\b/i.test(normalized)) {
+  if (/\b(?:report|status|score|scores|result|results|doing|health|how'?s|how\s+is|how\s+did\s+(?:that|it)\s+go|readout|summary|short\s+version|where\s+are\s+we|where\s+did\s+(?:we|that|this|the)\s+(?:loop\s+)?land|what\s+changed|what'?s\s+the\s+signal|what'?s\s+the\s+vibe|state\s+of\s+it|what\s+should\s+.*improve\s+next|weakest|weak\s+spot|what\s+is\s+next|what'?s\s+next|whether\s+.*improv\w*|did\s+.*improv\w*|got\s+better|became\s+better|held[-\s]?out|trap\s+tests?|candidate\s+benchmark)\b/i.test(normalized)) {
     return {
       rawCommand: `report ${target.pathId}`,
       reason: `Natural-language request for ${target.label} recursive report.`
@@ -1399,7 +1400,7 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
 }
 
 function hasKnownLocalSparkSurface(text: string): boolean {
-  return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
+  return /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark diagnostic|spark cockpit|cockpit|labs?|swarm|installer|launcher|spark local|what (?:you|we) just built|thing (?:you|we) built|just built|dashboard|ui)\b/i.test(text);
 }
 
 function isProjectLocalhostRequest(normalized: string): boolean {
@@ -1456,7 +1457,7 @@ export function isLocalSparkServiceRequest(text: string, context: string = ''): 
       (hasKnownLocalSparkSurface(normalized) || hasKnownLocalSparkSurface(contextText))) ||
     (
       /\b(?:browser|open|show|link|where|ui|dashboard)\b/.test(normalized) &&
-      /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|spark\s+(?:ui|dashboard|surface|service|local|status))\b/.test(normalized)
+      /\b(?:spawner|mission board|mission control|diagnostic|diagnostics|cockpit|spark\s+(?:ui|dashboard|surface|service|local|status|cockpit))\b/.test(normalized)
     ) ||
     (
       /\b(?:browser|open|show|link|where)\b/.test(normalized) &&
@@ -1795,12 +1796,15 @@ export function isPublicationApprovalBoundaryQuestion(text: string): boolean {
 		/\b(?:right\s+now|for\s+now|currently|here)\b.{0,50}\b(?:just|only|list|show|tell|explain|outline)\b/.test(normalized) ||
 		/\b(?:just|only)\b.{0,40}\b(?:list|show|tell|explain|outline)\b/.test(normalized) ||
 		/\b(?:might|may|could|would)\s+(?:ask|need|want)\b.{0,80}\b(?:later|after|eventually|next)\b/.test(normalized) ||
-		/\b(?:before|prior\s+to)\s+(?:we\s+|you\s+|spark\s+|any\s+)?(?:publish(?:ing)?|deploy(?:ing)?|releas(?:e|ing)|ship(?:ping)?|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized);
+		/\b(?:before|prior\s+to)\s+(?:we\s+|you\s+|spark\s+|any\s+)?(?:publish(?:ing)?|deploy(?:ing)?|releas(?:e|ing)|ship(?:ping)?|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized) ||
+		/\b(?:before|prior\s+to)\b.{0,80}\b(?:publish(?:ing)?|deploy(?:ing)?|releas(?:e|ing)|ship(?:ping)?|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized);
 	const immediatePublicationCommand =
 		/^(?:publish|deploy|release|ship|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized) ||
 		/\b(?:go\s+ahead|do\s+it|approved?|yes|okay|ok|now)\b.{0,40}\b(?:publish|deploy|release|ship|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized) ||
 		/\b(?:publish|deploy|release|ship|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\s+(?:now|today|this|it|the\s+release)\b/.test(normalized);
-	return scopedToAdviceOnly && !immediatePublicationCommand;
+	const blocksPublicationNow =
+		/\b(?:do\s+not|don't|dont|no|not|without)\b.{0,50}\b(?:publish|deploy|release|ship|merge|open\s+(?:a\s+)?pr|push\s+to\s+main)\b/.test(normalized);
+	return scopedToAdviceOnly && (!immediatePublicationCommand || blocksPublicationNow);
 }
 
 export function isQuotedDraftedExampleBoundary(text: string): boolean {
@@ -1877,7 +1881,9 @@ export function isBrowserComputerUseAuthorizationBoundaryQuestion(text: string):
 		/\b(?:browser|browser-use|browse|browsing|computer[-\s]*use)\b.{0,80}\b(?:do\s+not|don't|dont|without|not)\s+(?:use|open|call|run|click|browse|drive)\b/.test(normalized);
 	const asksBoundary =
 		/\b(?:when|how|what|which)\b.{0,120}\b(?:allowed?|authori[sz]ed?|authorization|permission|approval|approve|tool approval|gates?|criteria|boundary)\b/.test(normalized) ||
-		/\b(?:allowed?|authori[sz]ed?|authorization|permission|approval|approve|tool approval|governor|gates?|criteria|boundary)\b.{0,120}\b(?:when|how|what|which|tell|explain|list|describe)\b/.test(normalized);
+		/\b(?:allowed?|authori[sz]ed?|authorization|permission|approval|approve|tool approval|governor|gates?|criteria|boundary)\b.{0,120}\b(?:when|how|what|which|tell|explain|list|describe)\b/.test(normalized) ||
+		/\b(?:allowed|authorized|authorization|permission|boundary)\b.{0,120}\b(?:browser|browser-use|browse|browsing|computer[-\s]*use)\b/.test(normalized) ||
+		/\b(?:browser|browser-use|browse|browsing|computer[-\s]*use)\b.{0,120}\b(?:allowed|authorized|authorization|permission|boundary)\b/.test(normalized);
 	const asksAvailabilityStatus =
 		/\b(?:available|availability|status|prove|proof|currently|right\s+now|can\s+you)\b/.test(normalized);
 	const asksPolicyWords =
@@ -1888,7 +1894,7 @@ export function isBrowserComputerUseAuthorizationBoundaryQuestion(text: string):
 		/^(?:please\s+)?(?:use|open|call|run|click|browse|drive)\b.{0,80}\b(?:browser|browser-use|browse|browsing|computer[-\s]*use)\b/.test(normalized) ||
 		/\b(?:use|open|call|run|click|browse|drive)\s+(?:the\s+)?(?:browser|browser-use|computer[-\s]*use)\b/.test(normalized);
 
-	return (asksBoundary || (blocksUseNow && asksToExplain)) && !(explicitUseCommand && !blocksUseNow);
+	return (asksBoundary || (blocksUseNow && asksToExplain)) && !(explicitUseCommand && !blocksUseNow && !asksBoundary);
 }
 
 export function renderBrowserComputerUseAuthorizationBoundaryReply(text: string): string {
@@ -1947,7 +1953,7 @@ function isPublicReleaseBlockerQuestion(normalized: string): boolean {
 	const releaseContext =
 		/\b(?:public\s+release|release|installer|shipping|ship|publication|publish|prs?|pull\s+requests?|registry\s+pins?|duplicate\s+truth|red\s+lanes?|final\s+packet|gates?)\b/.test(normalized);
 	const suppressesMutation =
-		/\b(?:no|not|don't|do\s+not|dont|changed\s+my\s+mind|pause|cancel|without)\b.{0,80}\b(?:prs?|pull\s+requests?|merge|publish|ship|release|run|start|execute|write|create|update|move)\b/.test(normalized) ||
+		/\b(?:no|not|don't|do\s+not|dont|changed\s+my\s+mind|pause|cancel|without)\b.{0,80}\b(?:prs?|pull\s+requests?|merge|publish|ship|release|run|start|execute|write|create|change|edit|update|move)\b/.test(normalized) ||
 		/\bno\s+(?:prs?|pull\s+requests?)\b/.test(normalized);
 	const directBlockerRead =
 		/\b(?:what\s+remains\s+blocked|what(?:'s|\s+is)\s+still\s+blocked|remaining\s+blockers?|current\s+blockers?|blocker\s+status|red\s+lanes?)\b/.test(normalized);
@@ -2259,6 +2265,7 @@ export function isNoExecutionExplanationPrompt(text: string): boolean {
     return false;
   }
   if (isActionWordMetaDiscussion(normalized)) return true;
+  if (/\b(?:voice\s+)?transcript\b/.test(normalized) && /\b(?:said|says|quoted?|example)\b/.test(normalized) && /\b(?:what\s+should|explain)\b/.test(normalized)) return true;
   if (/\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+use\s+external\s+network\b/.test(normalized) && /\b(?:explain|policy|required|requirement)\b/.test(normalized)) return true;
   if (parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) return false;
 	return (
@@ -2683,7 +2690,7 @@ function isLowInformationProjectIterationFollowup(normalized: string): boolean {
   const cleaned = normalized.replace(/[.!]+$/g, '').replace(/\s+/g, ' ').trim();
   return (
     /^(?:(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good|right)[,.\s]*)?(?:(?:let'?s|lets|please)\s+)?(?:do|apply|make|ship|start|run|go ahead with|continue with|implement|add|use)\s+(?:that|this|it|those|them|that polish|the polish|the changes|those changes|the update|the updates|the next step|the next polish)(?:\s+(?:now|please))?$/.test(cleaned) ||
-    /^(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good)[,.\s]*(?:go ahead|do it|apply it|ship it|start it|run it|implement it)(?:\s+(?:now|please))?$/.test(cleaned)
+    /^(?:yes|yeah|yep|ok|okay|sure|nice|great|perfect|cool|sounds good)[,.\s]*(?:go ahead(?:\s+and\s+(?:do|apply|ship|start|run|implement)\s+it)?|do it|apply it|ship it|start it|run it|implement it)(?:\s+(?:now|please))?$/.test(cleaned)
   );
 }
 
@@ -3004,7 +3011,7 @@ export function parseMissionUpdatePreferenceIntent(
   const intent: MissionUpdatePreferenceIntent = {};
   if (/\b(?:verbose|detailed|all updates|everything|frequent)\b/.test(normalized)) {
     intent.verbosity = 'verbose';
-  } else if (/\b(?:only\s+)?(?:start\s+and\s+end|start\s+\/\s+end|beginning\s+and\s+end|minimal|quiet|less noisy)\b/.test(normalized)) {
+  } else if (/\b(?:only\s+)?(?:start\s+and\s+end|start\s+\/\s+end|beginning\s+and\s+end|start,\s*(?:blocker,\s*)?(?:and\s+)?completion|start,\s*(?:blocker,\s*)?(?:and\s+)?end|minimal|quiet|less noisy)\b/.test(normalized)) {
     intent.verbosity = 'minimal';
   } else if (/\b(?:middle\s+too|progress\s+too|normal|standard)\b/.test(normalized)) {
     intent.verbosity = 'normal';

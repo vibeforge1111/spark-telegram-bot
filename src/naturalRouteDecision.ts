@@ -190,6 +190,7 @@ const BUILD_NOUN_STATUS_WORDS = 'going|coming\\s+along|progressing|doing|running
 
 function isReadoutStatusOrPolishQuestion(normalized: string): boolean {
   return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|status|progress|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized) ||
+    /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{2,80})\s+(?:going|coming\s+along|progressing|doing|running|working|queued|done|finished|complete|completed)\b/.test(normalized) ||
     /\b(?:check|verify|show|separate|give\s+me|what(?:'s|\s+is)?)\b.{0,120}\b(?:preview|canvas|board|blocker|evidence|proof|receipt)s?\b/.test(normalized) ||
     /\b(?:preview|canvas|board|blocker|evidence|proof|receipt)s?\b.{0,120}\b(?:evidence|proof|receipt|status|readout|state|summary|blocker)s?\b/.test(normalized) ||
     /\bhow(?:'s|\s+is|\s+are)\s+(?:(?:it|that|this|the)\s+)?(?:(?:current|latest|recent)\s+)?(?:[a-z0-9][a-z0-9 '&.-]{0,80}\s+)?(?:build|mission|project|app|tool|board|canvas|artifact|preview)\s+(?:going|coming\s+along|progressing|doing)\b/.test(normalized) ||
@@ -282,7 +283,8 @@ function isCurrentSpawnerArtifactReadoutQuestion(
   const namesArtifact = artifactWords.some((word) => normalized.includes(word));
   const pointsAtCurrentArtifact =
     /\b(?:this|that|it|current|latest|recent)\b.{0,80}\b(?:canvas|mission|build|project|plan|artifact|board|tool|app)\b/.test(normalized) ||
-    /\b(?:canvas|mission|build|project|plan|artifact|board|tool|app)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized);
+    /\b(?:canvas|mission|build|project|plan|artifact|board|tool|app)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized) ||
+    /\b(?:preview|canvas|board|blocker|evidence|proof|receipt)s?\b/.test(normalized);
   return namesArtifact || pointsAtCurrentArtifact;
 }
 
@@ -336,9 +338,9 @@ function isCanonicalChatPlanTurn(text: string, recentMessages: string[]): boolea
     return false;
   }
   if (isDomainChipChatPlanTurn(normalized)) return true;
-  const productSurface = /\b(?:dashboard|app|tool|product|interface|ui|screen|view|workflow|panel|board|memory|stale[-\s]*context|freshness|quality)\b/.test(normalized);
+  const productSurface = /\b(?:dashboard|app|tool|product|interface|ui|screen|view|workflow|panel|board|planner|tracker|timer|habit|memory|stale[-\s]*context|freshness|quality)\b/.test(normalized);
   const planningLanguage =
-    /\b(?:sketch(?:ing)?|scope|scoping|shape|plan|planning|what\s+should|what\s+would|first\s+(?:screen|view|version)|mvp|v1|include|layout|sections?|evaluation cases?)\b/.test(normalized);
+    /\b(?:sketch(?:ing)?|scope|scoping|shape|plan|planning|write\s+(?:the\s+)?plan|what\s+should|what\s+would|first\s+(?:screen|view|version)|mvp|v1|include|layout|sections?|evaluation cases?)\b/.test(normalized);
   const contextualFollowup =
     /^(?:yes|yeah|yep|ok|okay|sure|sounds good|perfect|nice|cool)\b/.test(normalized) &&
     /\b(?:what\s+should|what\s+would|first\s+(?:screen|view|version)|include|layout|sections?|evaluation cases?)\b/.test(normalized) &&
@@ -365,6 +367,13 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   if (!normalized) return null;
   const lower = normalized.toLowerCase();
   const providerNames = ['claude', 'codex', 'minimax', 'zai', 'glm', 'openrouter'];
+  const multiProviderRun = normalized.match(/\b(?:run|ask|compare)\s+((?:(?:claude|codex|minimax|zai|glm|openrouter)(?:\s*(?:,|and|&)\s*)?){2,})\s+(?:on|for|to)\s+(.+)$/i);
+  if (multiProviderRun?.[1] && multiProviderRun[2]?.trim()) {
+    const providers = providerNames.filter((name) => new RegExp(`\\b${name}\\b`, 'i').test(multiProviderRun[1]));
+    if (providers.length >= 2) {
+      return { providers, goal: multiProviderRun[2].trim() };
+    }
+  }
   const provider = providerNames.find((name) => (
     lower.startsWith(`${name} `) ||
     lower.startsWith(`${name},`) ||
@@ -447,6 +456,48 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'latest_message',
       matched_signals: ['quoted_drafted_example_boundary'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isPublicationApprovalBoundaryQuestion(normalized)) {
+    return decision({
+      route: 'conversation.publication_approval_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.qa_boundary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['publication_approval_boundary'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isBrowserComputerUseAuthorizationBoundaryQuestion(normalized)) {
+    return decision({
+      route: 'conversation.browser_computer_use_authorization_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.qa_boundary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['browser_computer_use_authorization_boundary'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isMissionRoutingFailureClassQuestion(normalized)) {
+    return decision({
+      route: 'conversation.mission_routing_failure_class',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.qa_boundary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['mission_routing_failure_class'],
       blocked_by: [],
       requires_confirmation: false
     });

@@ -533,6 +533,9 @@ function isExistingBuildReadoutQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
   const buildNounStatusWords = 'going|coming\\s+along|progressing|doing|running|working|queued|done|finished|complete|completed|status|progress|state';
+  const asksCompletionEvidence =
+    /\b(?:does|did|do|is|are|was|were|has|have)\b.{0,80}\b(?:mean|count\s+as|prove|show)\b.{0,80}\b(?:build|mission|project|app|tool|artifact|preview)\b.{0,80}\b(?:done|finished|complete|completed|ready|shipped|working)\b/.test(normalized);
+  if (asksCompletionEvidence) return true;
   const asksForMutation =
     /\b(?:make|create|ship|scaffold|generate|develop|start|run|launch|execute|dispatch|deploy)\b/.test(normalized) ||
     new RegExp(`\\bbuild\\s+(?!(?:steps?|plan|artifact|context|evidence|${buildNounStatusWords})\\b)(?:it|this|that|a|an|the|[a-z0-9])`, 'i').test(normalized);
