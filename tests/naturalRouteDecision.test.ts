@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { decideNaturalRoute } from '../src/naturalRouteDecision';
+import { decideNaturalRoute, type SpawnerArtifactContext } from '../src/naturalRouteDecision';
 import type { ShippedProjectContext } from '../src/shippedProjectContext';
 
 function test(name: string, fn: () => void): void {
@@ -23,6 +23,20 @@ function shippedProject(): ShippedProjectContext {
     iteration: 1,
     shippedAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z'
+  };
+}
+
+function spawnerArtifact(): SpawnerArtifactContext {
+  return {
+    projectName: 'Evening Reset Board',
+    requestId: 'tg-build-5cf0540d34cb-1781519873204',
+    missionId: 'mission-1781519873204',
+    status: 'processed',
+    buildMode: 'direct',
+    buildLane: 'fast_direct',
+    canvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=prd-tg-build-5cf0540d34cb-1781519873204&mission=mission-1781519873204',
+    boardUrl: 'http://127.0.0.1:3333/kanban?mission=mission-1781519873204',
+    resultAvailable: true
   };
 }
 
@@ -552,6 +566,73 @@ test('keeps advisory polish questions read-only for the current shipped project'
 
   assert.equal(route.route, 'project.readout');
   assert.equal(route.requires_confirmation, false);
+});
+
+test('routes named current Spawner artifact readouts ahead of stale shipped context', () => {
+  const route = decideNaturalRoute('What changed in Evening Reset Board, and what would you polish next?', {
+    shippedProject: {
+      ...shippedProject(),
+      projectName: 'Day Triage Picker',
+      requestId: 'tg-build-6b199d4cc921-1781519703716'
+    },
+    spawnerArtifact: spawnerArtifact()
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, false);
+  assert.equal(route.payload.artifactKind, 'spawner_artifact');
+  assert.equal(route.payload.projectName, 'Evening Reset Board');
+  assert.equal(route.payload.requestId, 'tg-build-5cf0540d34cb-1781519873204');
+  assert.notEqual(route.payload.projectName, 'Day Triage Picker');
+});
+
+test('routes generic current build readouts to the current Spawner artifact', () => {
+  const route = decideNaturalRoute('What changed in this build, and what would you polish next?', {
+    shippedProject: shippedProject(),
+    spawnerArtifact: spawnerArtifact()
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.payload.artifactKind, 'spawner_artifact');
+  assert.equal(route.payload.projectName, 'Evening Reset Board');
+});
+
+test('does not let current Spawner artifact hijack a differently named shipped-project readout', () => {
+  const project = {
+    ...shippedProject(),
+    projectName: 'Shipped JS Sprint Picker',
+    requestId: 'tg-build-c7ab56830aeb-1781517820714'
+  };
+  const route = decideNaturalRoute('What changed in JS Sprint Picker, and what would you polish next?', {
+    shippedProject: project,
+    spawnerArtifact: spawnerArtifact()
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.payload.projectName, 'Shipped JS Sprint Picker');
+  assert.equal(route.payload.artifactKind, undefined);
+});
+
+test('ignores conversational residue words in current Spawner artifact titles', () => {
+  const route = decideNaturalRoute('What changed in Evening Reset Board, and what would you polish next?', {
+    shippedProject: {
+      ...shippedProject(),
+      projectName: 'Evening Reset Board',
+      requestId: 'tg-build-5cf0540d34cb-1781519873204'
+    },
+    spawnerArtifact: {
+      ...spawnerArtifact(),
+      projectName: ', And What Would You Polish',
+      requestId: 'tg-build-3a6b2e9aca2e-1781520796421',
+      missionId: 'mission-1781520796421'
+    }
+  });
+
+  assert.equal(route.route, 'project.readout');
+  assert.equal(route.payload.projectName, 'Evening Reset Board');
+  assert.equal(route.payload.artifactKind, undefined);
 });
 
 test('keeps open-ended new product exploration from binding to latest shipped project', () => {

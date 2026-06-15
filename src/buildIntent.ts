@@ -527,6 +527,20 @@ function isBuildContextRecallProbe(text: string): boolean {
   );
 }
 
+function isExistingBuildReadoutQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const asksReadout =
+    /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|readout|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+  if (!asksReadout) return false;
+  const pointsAtExistingWork =
+    /\b(?:this|that|it|current|latest|recent)\b.{0,80}\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b/.test(normalized) ||
+    /\b(?:build|project|app|tool|board|canvas|mission|plan|artifact|preview)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized) ||
+    /\b(?:what\s+changed|readout|polish)\b.{0,80}\b(?:in|for|on)\s+[A-Z][A-Za-z0-9 '&.-]{2,80}\b/.test(text);
+  if (!pointsAtExistingWork) return false;
+  return !/\b(?:build|make|create|ship|scaffold|generate|develop)\s+(?:a|an|the|new|this)\b.{0,80}\b(?:app|application|dashboard|website|site|landing\s+page|page|game|system|tracker|planner|timer|clock|board)\b/.test(normalized);
+}
+
 function isExplicitMemoryDirectiveText(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   return /^(?:spark,\s*)?(?:please\s+)?(?:memory\s+update|memory\s*:|remember\s+that|save\s+this|save\s+this\s+exact|save\s+this\s+kb\s+note|save\s+this\s+exact\s+kb\s+note|note\s+this)\b/.test(normalized) ||
@@ -938,6 +952,7 @@ export function parseBuildIntent(text: string): BuildIntent | null {
   if (!trimmed) return null;
   if (isBuildIdeationRequest(trimmed)) return null;
   if (isBuildContextRecallProbe(trimmed)) return null;
+  if (isExistingBuildReadoutQuestion(trimmed)) return null;
   if (isPreBuildShapingRequest(trimmed)) return null;
   if (isOpenEndedBuildExplorationRequest(trimmed)) return null;
   if (isBuildRouteMetaDiscussion(trimmed)) return null;

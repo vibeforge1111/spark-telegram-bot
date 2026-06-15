@@ -96,9 +96,23 @@ export interface NaturalRouteDecisionContext {
   recentMessages?: string[];
   recursiveTargets?: NaturalRecursiveCommandTarget[];
   shippedProject?: ShippedProjectContext | null;
+  spawnerArtifact?: SpawnerArtifactContext | null;
   localSparkContext?: string;
   pendingBuildClarification?: boolean;
   allowMissionPreferenceExecutionLanguage?: boolean;
+}
+
+export interface SpawnerArtifactContext {
+  projectName: string;
+  requestId: string;
+  missionId: string;
+  status?: string | null;
+  buildMode?: string | null;
+  buildLane?: string | null;
+  canvasUrl?: string | null;
+  boardUrl?: string | null;
+  updatedAt?: string | null;
+  resultAvailable?: boolean;
 }
 
 function decision(input: Omit<NaturalRouteDecision, 'schema_version'>): NaturalRouteDecision {
@@ -180,19 +194,53 @@ function isCurrentProjectReadoutQuestion(text: string, project: ShippedProjectCo
   if (!project) return false;
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
-  if (/\b(?:make|build|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized)) {
+  const asksForMutation =
+    /\b(?:make|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized) ||
+    /\bbuild\s+(?!(?:steps?|plan|artifact|context|evidence)\b)(?:it|this|that|a|an|the|[a-z0-9])/i.test(normalized);
+  if (asksForMutation) {
     return false;
   }
-  const projectNameWords = project.projectName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter((word) => word.length >= 3 && !/^(?:the|and|app|project|mission|shipped)$/.test(word));
+  const projectNameWords = significantNameWords(project.projectName);
   const pointsAtProject =
     /\b(?:this|that|it|current|latest|app|site|page|screen|project|build|product|tool|preview)\b/.test(normalized) ||
     projectNameWords.some((word) => normalized.includes(word));
   if (!pointsAtProject) return false;
   return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+}
+
+function significantNameWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length >= 3 && !/^(?:the|and|you|your|what|when|where|why|how|would|should|could|next|changed|change|polish|readout|summary|current|latest|recent|this|that|shipped|app|project|mission|build|canvas|board|tool|site|page|screen)$/.test(word));
+}
+
+function isReadoutOrPolishQuestion(normalized: string): boolean {
+  return /\b(?:what\s+changed|what\s+did\s+(?:you|we|it)\s+change|what\s+is\s+different|what'?s\s+new|where\s+did\s+(?:we|it)\s+land|how\s+did\s+(?:it|that)\s+go|summary|readout|tell\s+me\s+about|what\s+would\s+you\s+polish|what\s+should\s+(?:we|you)\s+polish|next\s+polish|polish\s+direction|what'?s\s+next)\b/.test(normalized);
+}
+
+function isCurrentSpawnerArtifactReadoutQuestion(
+  text: string,
+  artifact: SpawnerArtifactContext | null | undefined
+): boolean {
+  if (!artifact) return false;
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const asksForMutation =
+    /\b(?:make|create|scaffold|generate|start|run|launch|execute|dispatch|ship|deploy|save|remember)\b/.test(normalized) ||
+    /\bbuild\s+(?!(?:steps?|plan|artifact|context|evidence)\b)(?:it|this|that|a|an|the|[a-z0-9])/i.test(normalized);
+  if (asksForMutation) {
+    return false;
+  }
+  if (!isReadoutOrPolishQuestion(normalized)) return false;
+
+  const artifactWords = significantNameWords(artifact.projectName);
+  const namesArtifact = artifactWords.some((word) => normalized.includes(word));
+  const pointsAtCurrentArtifact =
+    /\b(?:this|that|it|current|latest|recent)\b.{0,80}\b(?:canvas|mission|build|project|plan|artifact|board|tool|app)\b/.test(normalized) ||
+    /\b(?:canvas|mission|build|project|plan|artifact|board|tool|app)\b.{0,80}\b(?:this|that|current|latest|recent)\b/.test(normalized);
+  return namesArtifact || pointsAtCurrentArtifact;
 }
 
 function isCreatorLoopDomainChipPhrase(text: string, recentCreatorLoopContext: boolean): boolean {
@@ -477,6 +525,31 @@ export function decideNaturalRoute(
       payload: { ...missionPreference },
       context_source: 'latest_message',
       matched_signals: ['mission_update_preference'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isCurrentSpawnerArtifactReadoutQuestion(normalized, context.spawnerArtifact)) {
+    return decision({
+      route: 'project.readout',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'contextual',
+      action: 'project.readout',
+      payload: {
+        artifactKind: 'spawner_artifact',
+        projectName: context.spawnerArtifact?.projectName,
+        requestId: context.spawnerArtifact?.requestId,
+        missionId: context.spawnerArtifact?.missionId,
+        status: context.spawnerArtifact?.status || null,
+        buildMode: context.spawnerArtifact?.buildMode || null,
+        buildLane: context.spawnerArtifact?.buildLane || null,
+        canvasUrl: context.spawnerArtifact?.canvasUrl || null,
+        boardUrl: context.spawnerArtifact?.boardUrl || null,
+        resultAvailable: context.spawnerArtifact?.resultAvailable === true
+      },
+      context_source: 'visible_exact_artifact',
+      matched_signals: ['spawner_artifact_context', 'project_readout_question'],
       blocked_by: [],
       requires_confirmation: false
     });

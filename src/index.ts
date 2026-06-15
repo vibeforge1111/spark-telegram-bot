@@ -317,7 +317,8 @@ import {
   decideNaturalRoute,
   type NaturalRouteDecision,
   type NaturalRouteDecisionContext,
-  type NaturalRouteOwnerSystem
+  type NaturalRouteOwnerSystem,
+  type SpawnerArtifactContext
 } from './naturalRouteDecision';
 import type { TelegramIntentDecisionV2 } from './intentContract';
 import {
@@ -433,7 +434,7 @@ function builderMemoryWriteRunner(...args: Parameters<BuilderMemoryWriteRunner>)
   return (builderMemoryWriteRunnerForTest || runBuilderTelegramMemoryWrite)(...args);
 }
 
-type EvidenceAnswerKind = 'public_release_blockers' | 'browser_use_availability' | 'project_readout';
+type EvidenceAnswerKind = 'public_release_blockers' | 'browser_use_availability' | 'project_readout' | 'spawner_artifact_readout';
 type EvidenceAnswerComposerInput = {
   kind: EvidenceAnswerKind;
   userText: string;
@@ -455,6 +456,7 @@ async function defaultEvidenceAnswerComposer(input: EvidenceAnswerComposerInput)
     'Do not use canned wording or a fixed status panel.',
     'Do not claim a PR, registry pin, runtime refresh, browser open, click, screenshot, mission, memory write, or other side effect happened unless the evidence says it happened in this turn.',
     'Preserve exact boolean and count facts that are present in the evidence.',
+    'Translate schema fields into natural language. Avoid raw JSON-key phrasing such as "success true", camelCase labels, or array field names unless the user asks for raw data.',
     `Claim boundary: ${input.claimBoundary}`,
     '',
     `User message: ${input.userText}`,
@@ -2348,12 +2350,13 @@ function activeTelegramProfile(): string {
 async function recordNaturalRouteShadow(
   ctx: any,
   text: string,
-  context: Partial<Pick<NaturalRouteDecisionContext, 'shippedProject'>> = {}
+  context: Partial<Pick<NaturalRouteDecisionContext, 'shippedProject' | 'spawnerArtifact'>> = {}
 ): Promise<NaturalRouteDecision | null> {
   try {
     return decideNaturalRoute(text, {
       recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
       shippedProject: context.shippedProject,
+      spawnerArtifact: context.spawnerArtifact,
       pendingBuildClarification: Boolean(
         ctx.chat?.id &&
         ctx.from?.id &&
@@ -7151,6 +7154,72 @@ function spawnerUiStatePath(filename: string): string {
   return path.join(sparkHome, 'state', 'spawner-ui', filename);
 }
 
+async function readSpawnerUiStateJson<T>(filename: string): Promise<T | null> {
+  try {
+    const raw = await readFile(spawnerUiStatePath(filename), 'utf-8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as T : null;
+  } catch {
+    return null;
+  }
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function matchesScopedId(actual: unknown, expected: string | number | undefined): boolean {
+  const actualText = nonEmptyString(actual);
+  if (!actualText || expected === undefined || expected === null) return true;
+  return actualText === String(expected);
+}
+
+function spawnerSurfaceLink(value: unknown): string | null {
+  const raw = nonEmptyString(value);
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/')) {
+    return `${resolveTelegramSpawnerSurfaceUrl().replace(/\/+$/, '')}${raw}`;
+  }
+  return null;
+}
+
+async function readSpawnerResultByRequestId(requestId: string): Promise<any | null> {
+  if (!/^[A-Za-z0-9_.-]{8,160}$/.test(requestId)) return null;
+  return readSpawnerUiStateJson<any>(path.join('results', `${requestId}.json`));
+}
+
+async function readLatestSpawnerArtifactContext(
+  chatId: string | number | undefined,
+  userId: string | number | undefined
+): Promise<SpawnerArtifactContext | null> {
+  const pending = await readSpawnerUiStateJson<any>('pending-request.json');
+  if (!pending || typeof pending !== 'object') return null;
+  const relay = pending.relay && typeof pending.relay === 'object' ? pending.relay : null;
+  if (relay) {
+    if (!matchesScopedId(relay.chatId, chatId) || !matchesScopedId(relay.userId, userId)) return null;
+  }
+
+  const projectName = nonEmptyString(pending.projectName);
+  const requestId = nonEmptyString(pending.requestId);
+  const missionId = nonEmptyString(pending.missionId);
+  if (!projectName || !requestId || !missionId) return null;
+
+  const result = await readSpawnerResultByRequestId(requestId);
+  return {
+    projectName,
+    requestId,
+    missionId,
+    status: nonEmptyString(pending.status),
+    buildMode: nonEmptyString(pending.buildMode),
+    buildLane: nonEmptyString(pending.buildLane),
+    canvasUrl: spawnerSurfaceLink(pending.canvasUrl) || spawnerSurfaceLink(pending.canvasHandoff?.canvasUrl),
+    boardUrl: spawnerSurfaceLink(pending.boardUrl),
+    updatedAt: nonEmptyString(pending.updatedAt) || nonEmptyString(pending.canvasLoadedAt) || nonEmptyString(pending.timestamp),
+    resultAvailable: Boolean(result)
+  };
+}
+
 function safeTextSnippet(value: string, maxLength = 900): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -7171,14 +7240,7 @@ async function readProjectText(project: ShippedProjectContext, relativePath: str
 
 async function readSpawnerProjectResult(project: ShippedProjectContext): Promise<any | null> {
   const requestId = String(project.requestId || '').trim();
-  if (!/^[A-Za-z0-9_.-]{8,160}$/.test(requestId)) return null;
-  try {
-    const raw = await readFile(spawnerUiStatePath(path.join('results', `${requestId}.json`)), 'utf-8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
+  return readSpawnerResultByRequestId(requestId);
 }
 
 function testNamesFromProjectText(...texts: string[]): string[] {
@@ -7315,6 +7377,148 @@ async function composeProjectReadoutReply(project: ShippedProjectContext, userTe
     },
     fallback,
     (candidate) => projectReadoutReplyLooksValid(candidate, project)
+  );
+  return { reply, evidence };
+}
+
+function spawnerResultTaskDetails(result: any): Array<{ title: string; description: string | null }> {
+  return (Array.isArray(result?.tasks) ? result.tasks : [])
+    .map((task: any) => {
+      const title = typeof task?.title === 'string' ? task.title.trim() : '';
+      if (!title) return null;
+      return {
+        title,
+        description: typeof task?.description === 'string' && task.description.trim()
+          ? safeTextSnippet(task.description, 260)
+          : null
+      };
+    })
+    .filter((task: { title: string; description: string | null } | null): task is { title: string; description: string | null } => Boolean(task))
+    .slice(0, 6);
+}
+
+function spawnerArtifactPolishSuggestion(result: any): string {
+  const tasks = spawnerResultTaskDetails(result);
+  const joined = tasks.map((task) => `${task.title} ${task.description || ''}`).join(' ').toLowerCase();
+  if (/\b(?:test|vitest|playwright|smoke|verification)\b/.test(joined)) {
+    return 'prove the core board loop with the smallest live smoke: add one item, move it across columns, refresh, and confirm the state still matches the plan.';
+  }
+  if (/\b(?:responsive|mobile|accessib|focus|keyboard)\b/.test(joined)) {
+    return 'polish the repeated interaction path on both desktop and mobile before adding any extra workflow surface.';
+  }
+  if (/\b(?:localstorage|persist|refresh)\b/.test(joined)) {
+    return 'make persistence feel trustworthy: show that a refresh keeps the board exactly where the user left it.';
+  }
+  return 'keep the next pass narrow: validate the first repeated user loop from the artifact, then polish only the friction found there.';
+}
+
+async function buildSpawnerArtifactReadoutEvidence(
+  artifact: SpawnerArtifactContext,
+  shippedProject: ShippedProjectContext | null | undefined
+): Promise<Record<string, unknown>> {
+  const result = await readSpawnerResultByRequestId(artifact.requestId);
+  const matchingShippedProject = shippedProject?.requestId === artifact.requestId ? shippedProject : null;
+  return {
+    artifact: {
+      kind: 'spawner_artifact',
+      projectName: artifact.projectName,
+      requestId: artifact.requestId,
+      missionId: artifact.missionId,
+      status: artifact.status || null,
+      buildMode: artifact.buildMode || null,
+      buildLane: artifact.buildLane || null,
+      canvasUrl: artifact.canvasUrl || null,
+      boardUrl: artifact.boardUrl || null,
+      updatedAt: artifact.updatedAt || null,
+      resultAvailable: artifact.resultAvailable === true
+    },
+    spawnerResult: result ? {
+      projectName: result.projectName || null,
+      projectType: result.projectType || null,
+      complexity: result.complexity || null,
+      infrastructure: result.infrastructure || null,
+      techStack: result.techStack || null,
+      taskDetails: spawnerResultTaskDetails(result),
+      taskQuality: result.metadata?.taskQuality || null,
+      success: result.success === true
+    } : null,
+    shippedProject: matchingShippedProject ? {
+      previewUrl: matchingShippedProject.previewUrl,
+      projectPath: matchingShippedProject.projectPath,
+      iteration: matchingShippedProject.iteration,
+      updatedAt: matchingShippedProject.updatedAt
+    } : null
+  };
+}
+
+function fallbackSpawnerArtifactReadoutReply(artifact: SpawnerArtifactContext, evidence: Record<string, unknown>): string {
+  const result = evidence.spawnerResult as any;
+  const shipped = evidence.shippedProject as any;
+  const taskDetails = Array.isArray(result?.taskDetails) ? result.taskDetails : [];
+  const taskTitles = taskDetails.map((task: { title?: string }) => task.title).filter(Boolean);
+  const taskCount = result?.taskQuality?.taskCount || taskTitles.length;
+  const currentState = result
+    ? `I can verify the current Spawner result artifact for ${artifact.projectName}. It is ${artifact.status || 'recorded'} with ${taskCount || 'the'} planned build steps.`
+    : `I can verify the current Spawner artifact for ${artifact.projectName}, but I do not see a canonical provider result file yet.`;
+  const changed = taskTitles.length
+    ? `What changed: the idea is now a concrete ${result?.projectType || 'project'} plan: ${taskTitles.slice(0, 4).join('; ')}.`
+    : 'What changed: the current artifact has a named mission/canvas handoff, but no task rows were available to summarize.';
+  const boundary = shipped?.previewUrl
+    ? `A matching shipped preview exists: ${shipped.previewUrl}`
+    : 'I do not see a matching shipped preview for this request yet, so I am treating this as canvas/result evidence rather than a finished app.';
+  const infrastructure = result?.infrastructure
+    ? [
+        result.infrastructure.needsAuth ? 'auth' : null,
+        result.infrastructure.needsDatabase ? 'database' : null,
+        result.infrastructure.needsAPI ? 'API' : null
+      ].filter(Boolean)
+    : [];
+  const scope = result?.infrastructure
+    ? infrastructure.length > 0
+      ? `Scope: needs ${infrastructure.join(', ')}.`
+      : 'Scope: local-only app shape with no auth, database, or API requirement in the artifact.'
+    : null;
+  return [
+    currentState,
+    '',
+    changed,
+    scope,
+    boundary,
+    '',
+    `Next polish I would choose: ${spawnerArtifactPolishSuggestion(result)}`
+  ].filter((line): line is string => Boolean(line)).join('\n');
+}
+
+function spawnerArtifactReadoutReplyLooksValid(reply: string, artifact: SpawnerArtifactContext): boolean {
+  const normalized = reply.toLowerCase();
+  if (!reply.trim()) return false;
+  if (/\b(?:do not have|don't have|no verified change log|no saved project memory trace|no saved.*trace)\b/i.test(reply)) return false;
+  if (/\b(?:success|resultAvailable|taskQuality|weakTaskIds|findings|taskCount|result\s+available|build\s+result|task\s+quality\s+passed|weak\s+tasks?)\s*[:=]?\s*(?:true|false|\d+)\b/i.test(reply)) return false;
+  const artifactWords = artifact.projectName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 4);
+  const namesArtifact = artifactWords.some((word) => normalized.includes(word));
+  const namesEvidenceShape = /\b(?:canvas|artifact|plan|task|step|board|result|request)\b/.test(normalized);
+  return namesArtifact && namesEvidenceShape;
+}
+
+async function composeSpawnerArtifactReadoutReply(
+  artifact: SpawnerArtifactContext,
+  shippedProject: ShippedProjectContext | null | undefined,
+  userText: string
+): Promise<{ reply: string; evidence: Record<string, unknown> }> {
+  const evidence = await buildSpawnerArtifactReadoutEvidence(artifact, shippedProject);
+  const fallback = fallbackSpawnerArtifactReadoutReply(artifact, evidence);
+  const reply = await composeGovernedEvidenceAnswer(
+    {
+      kind: 'spawner_artifact_readout',
+      userText,
+      evidence,
+      claimBoundary: 'Answer only from the current Spawner artifact, provider result, canvas/board links, and a matching shipped-project context when request IDs match. If no matching shipped preview exists, call it canvas/result evidence, not a finished app. Do not infer from older shipped projects or memory.'
+    },
+    fallback,
+    (candidate) => spawnerArtifactReadoutReplyLooksValid(candidate, artifact)
   );
   return { reply, evidence };
 }
@@ -9296,14 +9500,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
+  const latestSpawnerArtifact = await readLatestSpawnerArtifactContext(ctx.chat?.id, ctx.from?.id);
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text, {
-    shippedProject: latestShippedProject
+    shippedProject: latestShippedProject,
+    spawnerArtifact: latestSpawnerArtifact
   });
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
   const telegramIntentGateV2 = classifyTelegramIntentV2(text, {
     naturalRouteDecision: naturalRouteShadow,
-    shippedProject: latestShippedProject
+    shippedProject: latestShippedProject,
+    spawnerArtifact: latestSpawnerArtifact
   });
   const turnIntentEnvelope = buildTelegramTurnIntentEnvelope({
     text,
@@ -9496,6 +9703,59 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(user, reply).catch(() => {});
       return;
     }
+  }
+
+  if (
+    !earlyBuildIntent &&
+    latestSpawnerArtifact &&
+    naturalRouteShadow?.route === 'project.readout' &&
+    naturalRouteShadow.payload?.artifactKind === 'spawner_artifact'
+  ) {
+    const artifactReadoutAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
+      route: 'project.readout',
+      text,
+      ownerSystem: 'spark-telegram-bot',
+      action: 'project.readout',
+      selectedBy: 'telegram_spawner_artifact_readout',
+      matchedSignal: 'spawner_artifact_readout_question',
+      confidence: 'contextual'
+    });
+    if (!artifactReadoutAuthorization.allow) {
+      recordTelegramHarnessCoreExecution(artifactReadoutAuthorization, {
+        toolName: 'answer.compose',
+        status: 'not_started',
+        summary: 'Current Spawner artifact readout was blocked before answer composition.'
+      });
+      await ctx.reply('I did not answer from Spawner artifact state because the fresh turn did not authorize even the read-only answer.');
+      return;
+    }
+    await conversation.remember(user, text).catch(() => {});
+    const { reply, evidence } = await composeSpawnerArtifactReadoutReply(latestSpawnerArtifact, latestShippedProject, text);
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'project.readout', 'spark-telegram-bot', 'harness_core.answer_boundary');
+    recordTelegramHarnessCoreExecution(artifactReadoutAuthorization, {
+      toolName: 'answer.compose',
+      status: 'success',
+      summary: 'Current Spawner artifact readout completed from request-scoped artifact evidence.'
+    });
+    await ctx.reply(reply);
+    recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_spawner_artifact_readout', [
+      {
+        source: 'spawner_artifact_context',
+        role: 'current_artifact_authority',
+        freshness: 'fresh',
+        sourceRef: latestSpawnerArtifact.requestId,
+        summary: 'Telegram answered a current-artifact readout from request-scoped Spawner state.'
+      },
+      {
+        source: 'spawner_result_artifact',
+        role: 'artifact_evidence',
+        freshness: (evidence.spawnerResult as any) ? 'fresh' : 'unknown',
+        sourceRef: latestSpawnerArtifact.requestId,
+        summary: 'The answer was grounded in the Spawner provider result artifact when available, without falling back to older shipped projects.'
+      }
+    ]);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
   }
 
   if (!earlyBuildIntent && latestShippedProject && naturalRouteShadow?.route === 'project.readout') {

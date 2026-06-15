@@ -381,6 +381,12 @@ test('does not treat philosophical questions with modal verbs as build intent', 
   assert.ok(parseBuildIntent('Could we build a landing page?'));
 });
 
+test('does not treat existing-build readouts as build intent', () => {
+  assert.equal(parseBuildIntent('What changed in this build, and what would you polish next?'), null);
+  assert.equal(parseBuildIntent('What changed in Evening Reset Board, and what would you polish next?'), null);
+  assert.equal(parseBuildIntent('What would you polish next in this app?'), null);
+});
+
 test('infers a compact product name for long conceptual build briefs', () => {
   const intent = parseBuildIntent(`Let's build this A narrow tool that takes a founder's messy weekly notes - half-written thoughts, customer quotes, random metrics, meeting takeaways - and turns them into a running strategy document that actually stays current.
 
