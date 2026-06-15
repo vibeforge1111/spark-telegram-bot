@@ -71,6 +71,7 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
     mentionsDomainChipArtifact ||
     designOnlyNoExecution ||
     isAccessSandboxRouteDesignDiscussion(trimmed) ||
+    shouldUseDynamicNoExecutionIdeationReply(trimmed) ||
     COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed))
   );
 }

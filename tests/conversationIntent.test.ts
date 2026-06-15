@@ -2252,6 +2252,10 @@ test('product-shaped no-build ideation uses dynamic answer path', () => {
     true
   );
   assert.equal(
+    shouldPreferConversationalIdeation('Build something simple: a 20 minute timer with start, pause, and reset. Do not start a build yet; just tell me what you would build.'),
+    true
+  );
+  assert.equal(
     shouldUseDynamicNoExecutionIdeationReply('Use the word chip in a sentence. Do not create a chip or domain chip.'),
     false
   );
