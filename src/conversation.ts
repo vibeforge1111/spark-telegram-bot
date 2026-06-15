@@ -657,3 +657,31 @@ export function renderPendingTaskRecoveryReply(task: PendingTaskRecovery): strin
     'I can resume from that instead of starting from scratch.'
   ].filter(Boolean).join('\n');
 }
+// TODO(spark-compete-qa): /forget all suggested without confirmation - QA 2026-05-23
+// Bug: Bot suggests destructive /forget all command without asking for
+// confirmation or warning that memory deletion is irreversible.
+//
+// Before:
+//   User: "Delete all my memories"
+//   Bot: "The memory directory is empty. If you want to clear memory
+//        on the bot side, run /forget all from your Telegram chat."
+//   (destructive command suggested with no confirmation required)
+//
+// After:
+//   User: "Delete all my memories"
+//   Bot: "Are you sure? This will permanently delete all your Spark
+//        memory and cannot be undone. Reply yes to confirm."
+//   (explicit confirmation required before any destructive action)
+//
+// Fix needed in conversation handler:
+//   1. Detect delete/forget/clear memory intent
+//   2. Always ask for explicit confirmation before suggesting /forget all
+//   3. Explain what gets deleted and that it is irreversible
+//   4. Only provide /forget all command after user confirms
+//   5. Never suggest destructive commands as casual next steps
+//
+// Confirmation flow to add:
+//   Step 1: User asks to delete memory
+//   Step 2: Bot asks "Are you sure? This cannot be undone. Reply yes to confirm."
+//   Step 3: User replies yes
+//   Step 4: Bot provides /forget all command
