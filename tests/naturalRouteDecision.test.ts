@@ -311,6 +311,15 @@ test('routes uncertain build exploration to conversation before Spawner', () => 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes artifact-shaped uncertainty to conversation before Spawner', () => {
+  const route = decideNaturalRoute("I want to make a tiny tool for practicing JavaScript, but I'm not sure what kind of tool yet.");
+
+  assert.equal(route.route, 'conversation.ideation');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.action, 'plain_chat.ideation');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes explicit build wording with no-build product question to ideation', () => {
   const route = decideNaturalRoute('Build something simple: a 20 minute timer with start, pause, and reset. Do not start a build yet; just tell me what you would build.');
 

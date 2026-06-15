@@ -337,6 +337,7 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent("I want to make something for planning my day but I don't really know what it should be yet."), null);
   assert.equal(parseBuildIntent("Let's build something for my evenings, but I'm not sure what it should be yet."), null);
   assert.equal(parseBuildIntent("Can we create something for studying, but I'm not sure what exactly yet?"), null);
+  assert.equal(parseBuildIntent("I want to make a tiny tool for practicing JavaScript, but I'm not sure what kind of tool yet."), null);
   assert.equal(
     parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null

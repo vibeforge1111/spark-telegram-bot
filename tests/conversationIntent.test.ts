@@ -134,6 +134,10 @@ test('routes collaborative mission wording to conversation instead of command he
     shouldPreferConversationalIdeation("Can we create something for studying, but I'm not sure what exactly yet?"),
     true
   );
+  assert.equal(
+    shouldPreferConversationalIdeation("I want to make a tiny tool for practicing JavaScript, but I'm not sure what kind of tool yet."),
+    true
+  );
 });
 
 test('keeps explicit build specs on the build path', () => {
