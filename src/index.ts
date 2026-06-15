@@ -310,6 +310,7 @@ import {
   renderXPostReviewFromLinksBoundaryReply,
   builderReplySuppressionReason,
   shouldSuppressBuilderReplyForPlainChat,
+  shouldUseDynamicNoExecutionIdeationReply,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
 import {
@@ -10333,7 +10334,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'harness_core.answer_boundary');
-    if (isNoExecutionBoundary(text)) {
+    if (isNoExecutionBoundary(text) && !shouldUseDynamicNoExecutionIdeationReply(text)) {
       const response = buildNoExecutionIdeationReply(text);
       recordTelegramHarnessCoreExecution(ideationAuthorization, {
         toolName: 'answer.compose',
@@ -11437,7 +11438,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (isPendingClarificationAlternativeRequest(text)) {
         deletePendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id));
       }
-      if (isNoExecutionBoundary(text)) {
+      if (isNoExecutionBoundary(text) && !shouldUseDynamicNoExecutionIdeationReply(text)) {
         const response = buildNoExecutionIdeationReply(text);
         recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'harness_core.answer_boundary');
         recordTelegramHarnessCoreExecution(ideationAuthorization, {

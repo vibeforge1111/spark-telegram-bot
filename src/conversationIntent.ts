@@ -3385,6 +3385,27 @@ export function buildNoExecutionIdeationReply(text: string): string {
   ].join('\n');
 }
 
+export function shouldUseDynamicNoExecutionIdeationReply(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalized || !isNoExecutionBoundary(normalized)) return false;
+  if (/\buse\s+the\s+word\s+chip\b/.test(normalized)) return false;
+  if (
+    /\b(?:give|show|suggest|list)\s+(?:me\s+)?(?:three|3)\s+(?:build\s+)?ideas?\b/.test(normalized) ||
+    /\b(?:give|show|suggest|list)\s+(?:me\s+)?(?:three|3)\s+(?:startup\s+operator\s+)?improvements?\b/.test(normalized) ||
+    /\b(?:three|3)\s+startup\s+operator\s+improvements?\b/.test(normalized) ||
+    /\b(?:three|3)\s+improvements?\s+for\s+(?:the\s+)?startup\s+operator\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (/\b(?:domain[-\s]*chip[-\w]*|chip)\b/.test(normalized)) return false;
+
+  const asksForProductShape =
+    /\b(?:what\s+would|what\s+(?:you|we)\s+would|what\s+should|how\s+would|how\s+should|smallest|useful|version|v1|mvp|first\s+version|look\s+like|direction|directions?|idea|ideas?)\b/.test(normalized);
+  const productContext =
+    /\b(?:app|tool|project|product|workspace|dashboard|planner|picker|timer|study|studying|coding|practice|session|version|build|create|make)\b/.test(normalized);
+  return asksForProductShape && productContext;
+}
+
 export function isXContentCredentialBoundaryQuestion(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase();
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
