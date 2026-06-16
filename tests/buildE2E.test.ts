@@ -6941,9 +6941,10 @@ async function run(): Promise<void> {
 			const reply = replies[0] || '';
 			assert.match(reply, /Spark is healthy right now/);
 			assert.match(reply, /fresh runtime state.*not memory/i);
-			assert.match(reply, /Live loop/);
-			assert.match(reply, /Spawner: reachable/);
-			assert.match(reply, /Telegram: polling/);
+			assert.match(reply, /Spawner reachable/);
+			assert.match(reply, /Telegram polling/);
+			assert.doesNotMatch(reply, /Raw proof/);
+			assert.ok(reply.split(/\n/).filter((line) => line.trim()).length <= 3, `expected short live-state reply, got: ${reply}`);
 			assert.equal(captured.length, 0, 'live-state question must not launch or post work');
 		} finally {
 			process.env.PATH = oldPath;

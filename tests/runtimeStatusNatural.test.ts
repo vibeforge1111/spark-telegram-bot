@@ -159,6 +159,23 @@ async function main(): Promise<void> {
     assert.doesNotMatch(replies[0], /setup conversation|\/access_setup|Owner setup/i);
   });
 
+  await test('explicit short health prompt uses compact Telegram status shape', async () => {
+    const { handleTextMessage } = await import('../src/index');
+    const replies: string[] = [];
+
+    await handleTextMessage(fakeCtx('Is Spark healthy right now? Keep it short.', replies));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Spark is healthy right now\./);
+    assert.match(replies[0], /Fresh runtime state, not memory/i);
+    assert.match(replies[0], /Spawner reachable, Telegram polling, Mission Control ready\./);
+    assert.doesNotMatch(replies[0], /Live loop|Raw proof|No repair action needed/i);
+    assert.ok(
+      replies[0].split(/\n/).filter((line) => line.trim()).length <= 2,
+      `expected compact reply, got: ${replies[0]}`
+    );
+  });
+
   await test('current live-state wording stays on the same authoritative path', async () => {
     const { handleTextMessage } = await import('../src/index');
     const replies: string[] = [];

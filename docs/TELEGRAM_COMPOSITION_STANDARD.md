@@ -85,6 +85,11 @@ only; final replies, owner evidence, and ledgers remain authoritative.
   link should scan as three small paragraphs, not one cramped block.
 - Do not let rich formatting make a short update bigger. If the visual structure
   takes more space than the information, choose the smaller shape.
+- When the user explicitly asks for a short, brief, or concise status/readout,
+  keep the owner evidence but collapse the Telegram shape. A healthy runtime
+  answer can be a headline plus one source/status sentence; reserve section
+  headings, bullets, and action lines for raw detail, blockers, or repair
+  questions.
 - Use one status icon at the start of major outcome rows.
 - Do not combine icons with bullets, numbering, or extra markers on the same row.
 - Use dotted bullets (`•`) for grouped facts under section headings such as Score, Review, Workspace, Sharing, Why, and Move.

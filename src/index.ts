@@ -866,13 +866,40 @@ function parseSparkLiveSummary(liveStatus: string, deepVerify: string): SparkLiv
 
 function renderSparkLiveSummary(
   summary: SparkLiveSummary,
-  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean; sourceDisclosure?: boolean } = {}
+  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean; sourceDisclosure?: boolean; compact?: boolean } = {}
 ): string {
   const healthy = summary.liveReady && summary.spawnerOk && summary.telegramOk;
   const includeAction = opts.includeAction ?? true;
   const lines: string[] = [
     healthy ? '✅ Spark is healthy right now.' : '⚠️ Spark needs attention right now.'
   ];
+
+  if (opts.compact && !opts.rawDetails) {
+    const stateLine = [
+      `Spawner ${summary.spawnerOk ? 'reachable' : 'needs attention'}`,
+      `Telegram ${summary.telegramOk ? 'polling' : 'needs attention'}`,
+      `Mission Control ${summary.liveReady ? 'ready' : 'not fully ready'}`
+    ].join(', ') + '.';
+    lines.push(
+      '',
+      opts.sourceDisclosure
+        ? `Fresh runtime state, not memory. ${stateLine}`
+        : stateLine
+    );
+    if (includeAction) {
+      lines.push(
+        '',
+        healthy
+          ? (opts.restartGuidance
+              ? 'No restart needed.'
+              : 'No repair action needed right now.')
+          : (opts.restartGuidance
+              ? 'Do not blindly restart; first confirm which surface is down.'
+              : 'Repair the unhealthy surface, then rerun the fresh check.')
+      );
+    }
+    return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
 
   if (opts.sourceDisclosure) {
     lines.push('', "I'm using fresh runtime state here, not memory.");
@@ -917,8 +944,16 @@ function shouldShowRawSparkLiveDetails(text: string): boolean {
   return /\b(?:raw|debug|details?|pids?|pid|provider|providers|models?|supervision|exact|full)\b/i.test(text);
 }
 
+function shouldUseCompactSparkLiveAnswer(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  return (
+    /\b(?:keep|make|answer|reply|respond|say)\s+(?:it\s+)?(?:natural\s+and\s+|naturally\s+and\s+)?(?:short|brief|concise|terse)\b/.test(normalized) ||
+    /\b(?:keep it short|answer briefly|reply briefly|short answer|brief answer|one short reply)\b/.test(normalized)
+  );
+}
+
 async function renderAuthoritativeSparkLiveStatus(
-  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean } = {}
+  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean; compact?: boolean } = {}
 ): Promise<string> {
   try {
     const [liveStatus, deepVerify] = await Promise.all([
@@ -947,7 +982,7 @@ function firstMatchingLine(output: string, pattern: RegExp): string {
 }
 
 async function renderAuthoritativeSparkLiveStateAnswer(
-  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean } = {}
+  opts: { restartGuidance?: boolean; rawDetails?: boolean; includeAction?: boolean; compact?: boolean } = {}
 ): Promise<string> {
   try {
     const [liveStatus, deepVerify] = await Promise.all([
@@ -10055,7 +10090,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await conversation.remember(user, text).catch(() => {});
-    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
+    const compactLiveStatusAnswer = shouldUseCompactSparkLiveAnswer(text);
+    const reply = await renderAuthoritativeSparkLiveStateAnswer({
+      rawDetails: shouldShowRawSparkLiveDetails(text),
+      compact: compactLiveStatusAnswer,
+      includeAction: compactLiveStatusAnswer && runtimeStatusKind === 'live_status' ? false : undefined
+    });
     recordNaturalRouteExecution(
       ctx,
       runtimeStatusNaturalRouteDecision(runtimeStatusKind),
@@ -10829,7 +10869,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await conversation.remember(user, text).catch(() => {});
-    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
+    const compactLiveStatusAnswer = shouldUseCompactSparkLiveAnswer(text);
+    const reply = await renderAuthoritativeSparkLiveStateAnswer({
+      rawDetails: shouldShowRawSparkLiveDetails(text),
+      compact: compactLiveStatusAnswer,
+      includeAction: compactLiveStatusAnswer && runtimeStatusKind === 'live_status' ? false : undefined
+    });
     recordNaturalRouteExecution(
       ctx,
       runtimeStatusNaturalRouteDecision(runtimeStatusKind),
