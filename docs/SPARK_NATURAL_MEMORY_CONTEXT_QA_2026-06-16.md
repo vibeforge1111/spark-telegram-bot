@@ -21,6 +21,7 @@ Tracing proves route, authority, source, delivery, and side effects.
 | Rule | Pass condition |
 | --- | --- |
 | Root-cause fix discipline | The observed transcript is used as a repro; the fix changes the owning mechanism and is tested against natural variations plus adjacent traps. |
+| Human conversation read | The QA reviewer reads the latest turns and judges whether Spark followed the user's ordinary meaning before treating delivery, screenshots, or tests as a pass. |
 | Natural continuity | Spark can answer what was being discussed from hot/warm conversation context without requiring the user to say "remember". |
 | Durable memory truth | Spark does not claim a preference, fact, or project context was saved unless `memory.write` succeeded through Builder/domain-chip-memory. |
 | Restart survival | Recent conversation frame can survive a bot process restart when persisted locally, but recall remains empty unless durable memory accepted the item. |
@@ -29,6 +30,22 @@ Tracing proves route, authority, source, delivery, and side effects.
 | Wiki authority | LLM/ALM wiki answers cite/support knowledge; live status, owner traces, and newest user message win for mutable truth. |
 | Tracing | Every tested route has inspectable evidence: natural route decision, Harness authorization, owner tool ledger when a tool runs, outbound audit, and visible Telegram reply for live checks. |
 | Telegram readability | Replies use paragraph spacing, one primary link when a link is needed, and human-readable summaries rather than dense raw traces. |
+
+## Required Natural QA Loop
+
+Use this loop for each memory/context probe:
+
+1. Talk naturally for several turns.
+2. Switch topics or ask a status/provider/wiki question.
+3. Return to the project or preference without saying "remember".
+4. If needed, restart the bot and ask what survived.
+5. Record which lane answered: recent frame, durable memory, wiki support,
+   owner state, or unknown.
+6. Verify no unintended build, mission, memory write, provider run, browser
+   action, schedule, publish, or access change occurred.
+
+Do not mark a case passing because Spark said something plausible. It must use
+the right lane and avoid overclaiming saved/done/current truth.
 
 ## 40 Natural Test Cases
 

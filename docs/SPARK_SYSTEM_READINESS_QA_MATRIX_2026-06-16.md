@@ -47,6 +47,11 @@ symptom transcript
 -> Telegram/CUA proof when visible behavior changed
 ```
 
+The first step is always a human conversation read. Look at what the user
+actually meant, what Spark actually answered, and whether the answer fits the
+conversation before deciding whether the issue is route authority, source
+selection, memory lane, owner truth, execution, trace, or composition.
+
 ## Non-Negotiable Fix Discipline
 
 Every improvement must answer these questions before code changes:
@@ -78,6 +83,12 @@ patch route precedence, envelope authority, Harness policy, or owner dispatch.
 If a reply claimed saved/done/ready from weak evidence, patch owner-evidence
 truth. Do not add a deterministic response for the one phrase, project name,
 mission id, or stale reply that exposed the bug.
+
+When a fix appears to belong to one surface, check whether the failure family is
+shared. A Telegram symptom can still be a Harness Core, memory lane, provider
+truth, runtime freshness, owner adapter, or installer evidence bug. Patch the
+shared owner when the mechanism is shared, then run at least one neighboring
+surface probe.
 
 ## Scoring Rubric
 

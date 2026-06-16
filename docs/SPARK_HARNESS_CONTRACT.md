@@ -52,6 +52,37 @@ Do not ship exact-sentence, project-name, mission-id, or reply-text fixes.
 Every route, memory, provider, access, tool, or completion-truth fix needs a
 natural positive case and an adjacent negative trap.
 
+## Spark-Wide Improvement Governance
+
+Before changing any Spark system, run the same governance loop regardless of
+where the symptom appeared:
+
+```text
+read the conversation as a human
+-> classify the failure family
+-> trace route, Harness/Governor, owner, outbound, and visible reply evidence
+-> patch the earliest owning layer
+-> prove a natural positive and adjacent negative trap
+-> update docs/skills/tests if the rule should carry forward
+```
+
+This applies to Spawner, Builder, memory/wiki, provider/access,
+browser/computer-use, voice/media, recursive/domain-chip systems,
+schedule/publish, installer, Cockpit, Labs, Swarm, Telegram, and plain chat.
+
+Surface-local patches are only valid when the surface owns the failed mechanism.
+For example, unreadable spacing belongs to Telegram composition, but a build
+starting from "what happened?" belongs to route/Harness/owner authority, and a
+wrong project recall belongs to context/source selection or memory lane truth.
+
+Memory and context must stay lane-aware:
+
+- recent conversation frame can answer continuity questions
+- durable memory requires Builder/domain-chip-memory owner acceptance
+- wiki/ALM can support explanations but cannot override current owner state
+- latest user turn and exact hot artifacts outrank stale summaries
+- restarts must prove whether context survived as recent frame or durable memory
+
 ## Current Contract
 
 The current canonical contract source is:
