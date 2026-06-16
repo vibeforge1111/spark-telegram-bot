@@ -123,6 +123,54 @@ test('authorizes specific mission status as read-only without granting spawner r
   assert.ok(runAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
+test('keeps mission rerun follow-ups read-only until Spawner owner dispatch authority exists', () => {
+  const naturalRouteDecision = {
+    schema_version: 'spark.nlp.route_decision.v1' as const,
+    route: 'spawner.mission_control',
+    owner_system: 'spawner-ui' as const,
+    confidence: 'contextual' as const,
+    action: 'spawner.mission_rerun_request',
+    payload: { missionId: 'mission-1781566950658', source: 'recent_mission_status' },
+    context_source: 'hot_recent_turns' as const,
+    matched_signals: ['mission_rerun_request', 'recent_mission_status'],
+    blocked_by: ['requires_owner_dispatch_pack'],
+    requires_confirmation: true
+  };
+  const envelope = buildTelegramTurnIntentEnvelope({
+    text: 'yes, rerun it',
+    decision: classifyTelegramIntentV2('yes, rerun it', { naturalRouteDecision }),
+    userRef: 'user:qa',
+    chatRef: 'chat:qa',
+    accessProfile: 'admin',
+    conversationKind: 'dm',
+    turnId: 'turn:test',
+    traceId: 'trace:test'
+  });
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.action, 'spawner.mission_rerun_request');
+  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.mission_control.status'));
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.mission_control.command'), false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.deepEqual(envelope.toolPolicy.mutationClassesAllowed, ['none', 'read_only']);
+
+  const statusAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.mission_control.status',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'read_only'
+  });
+  assert.deepEqual(statusAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const runAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(runAuthorization.verdict, 'blocked');
+  assert.ok(runAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+  assert.ok(runAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
 test('keeps publication approval-list boundaries answer-only', () => {
   const envelope = envelopeFor('I might ask you to publish later, but right now just list what would need approval.');
 

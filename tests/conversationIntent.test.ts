@@ -84,6 +84,7 @@ import {
   isProviderRuntimeConfigQuestion,
   parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
+  parseSpawnerMissionRerunNaturalIntent,
   parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
@@ -456,6 +457,46 @@ test('routes specific mission status questions to mission evidence reads', () =>
     parseSpawnerMissionStatusNaturalIntent('The mission-1781566950658 status message spacing should be cleaner in Telegram.'),
     null
   );
+});
+
+test('parses mission rerun requests only as governed mission-control follow-ups', () => {
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('rerun mission-1781566950658'), {
+    missionId: 'mission-1781566950658',
+    source: 'explicit_mission_id'
+  });
+
+  const recentStatus = [
+    [
+      'Mission 1781548537593 Existing Day Triage Button polish 2 polish 1 failed.',
+      '',
+      'Decision',
+      '- Treat it as completed: no.',
+      '- Rerun: yes, if you still want this mission outcome.',
+      '',
+      'Board: http://127.0.0.1:3333/kanban?mission=mission-1781566950658'
+    ].join('\n')
+  ];
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('yes, rerun it', recentStatus), {
+    missionId: 'mission-1781566950658',
+    source: 'recent_mission_status'
+  });
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('try that mission again', recentStatus), {
+    missionId: 'mission-1781566950658',
+    source: 'recent_mission_status'
+  });
+
+  assert.equal(parseSpawnerMissionRerunNaturalIntent('ignore it for now', recentStatus), null);
+  assert.equal(
+    parseSpawnerMissionRerunNaturalIntent('The rerun wording for mission-1781566950658 should be clearer.'),
+    null
+  );
+  assert.equal(
+    parseSpawnerMissionRerunNaturalIntent(
+      'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
+    ),
+    null
+  );
+  assert.equal(isDiagnosticFollowupTestQuestion('try that mission again'), false);
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {

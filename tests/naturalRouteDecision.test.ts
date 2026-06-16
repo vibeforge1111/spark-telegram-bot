@@ -677,6 +677,40 @@ test('routes specific mission status questions to read-only Mission Control', ()
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes mission rerun follow-ups to governed Mission Control boundary', () => {
+  const recentStatus = [
+    [
+      'Mission 1781548537593 Existing Day Triage Button polish 2 polish 1 failed.',
+      '',
+      'Decision',
+      '- Treat it as completed: no.',
+      '- Rerun: yes, if you still want this mission outcome.',
+      '',
+      'Board: http://127.0.0.1:3333/kanban?mission=mission-1781566950658'
+    ].join('\n')
+  ];
+
+  const explicit = decideNaturalRoute('rerun mission-1781566950658');
+  assert.equal(explicit.route, 'spawner.mission_control');
+  assert.equal(explicit.owner_system, 'spawner-ui');
+  assert.equal(explicit.action, 'spawner.mission_rerun_request');
+  assert.equal(explicit.context_source, 'latest_message');
+  assert.equal(explicit.payload.missionId, 'mission-1781566950658');
+  assert.deepEqual(explicit.blocked_by, ['requires_owner_dispatch_pack']);
+  assert.equal(explicit.requires_confirmation, true);
+
+  const contextual = decideNaturalRoute('try that mission again', { recentMessages: recentStatus });
+  assert.equal(contextual.route, 'spawner.mission_control');
+  assert.equal(contextual.owner_system, 'spawner-ui');
+  assert.equal(contextual.action, 'spawner.mission_rerun_request');
+  assert.equal(contextual.context_source, 'hot_recent_turns');
+  assert.equal(contextual.payload.missionId, 'mission-1781566950658');
+  assert.notEqual(contextual.route, 'diagnostics.followup_test');
+
+  const ignore = decideNaturalRoute('ignore it for now', { recentMessages: recentStatus });
+  assert.equal(ignore.route, 'plain_chat');
+});
+
 test('keeps casual current-plan mentions conversational', () => {
   const route = decideNaturalRoute('Actually, my current plan is run a fresh diagnostics scan.');
 

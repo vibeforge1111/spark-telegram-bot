@@ -253,7 +253,10 @@ function executionPolicyForDecision(
   const readOnlySpawnerRoute =
     /^spawner\.board(?:\/|$)/.test(route) ||
     route === 'spawner.local_service' ||
-    (route === 'spawner.mission_control' && decision.action === 'spawner.mission_status');
+    (route === 'spawner.mission_control' && (
+      decision.action === 'spawner.mission_status' ||
+      decision.action === 'spawner.mission_rerun_request'
+    ));
   const localMutationRoute = !readOnlySpawnerRoute && /(?:build|spawner|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
   const fileMutationBlocked = decision.payload?.noFileMutation === true ||
     decision.matched_signals.includes('explicit_spawner_no_edit_mission');
@@ -366,7 +369,10 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'local_workspace.inspect') tools.push('local_workspace.inspect');
   if (decision.route === 'spawner.mission_control') {
     tools.push('spawner.mission_control');
-    if (decision.action === 'spawner.mission_status') tools.push('spawner.mission_control.status');
+    if (
+      decision.action === 'spawner.mission_status' ||
+      decision.action === 'spawner.mission_rerun_request'
+    ) tools.push('spawner.mission_control.status');
     else tools.push('spawner.mission_control.command');
   }
   if (policy.canLaunchMission && spawnerRunRouteForDecision(decision)) tools.push('spawner.run');

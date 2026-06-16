@@ -584,6 +584,43 @@ test('prior mission id cannot control mission actions without explicit resume in
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
 
+test('mission rerun follow-up authorizes owner status evidence but not launch', () => {
+  const text = 'try that mission again';
+  const recentMessages = [
+    [
+      'Mission 1781548537593 Existing Day Triage Button polish 2 polish 1 failed.',
+      '',
+      'Decision',
+      '- Treat it as completed: no.',
+      '- Rerun: yes, if you still want this mission outcome.',
+      '',
+      'Board: http://127.0.0.1:3333/kanban?mission=mission-1781566950658'
+    ].join('\n')
+  ];
+  const naturalRouteDecision = decideNaturalRoute(text, { recentMessages });
+  const envelope = envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
+
+  const statusResult = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.mission_control',
+    text,
+    toolName: 'spawner.mission_control.status',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'read_only'
+  });
+  assert.equal(statusResult.allow, true);
+
+  const runResult = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.mission_control',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(runResult.allow, false);
+  assert.ok(runResult.reasonCodes.includes('tool_not_allowed_by_policy'));
+  assert.ok(runResult.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
 test('fresh not-now negation blocks pending publish state from authorizing publish', () => {
   const text = 'If pending state says "publish", but I say "not now", what wins?';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

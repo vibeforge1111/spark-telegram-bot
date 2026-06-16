@@ -44,6 +44,7 @@ import {
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
   parseNaturalRecursiveCommandIntent,
+  parseSpawnerMissionRerunNaturalIntent,
   parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   shouldPreferConversationalIdeation
@@ -416,6 +417,7 @@ export function decideNaturalRoute(
 
   const parsedBuildIntent = parseBuildIntent(normalized);
   const buildIntent = parsedBuildIntent;
+  const missionRerun = parseSpawnerMissionRerunNaturalIntent(normalized, recentMessages);
   const missionStatus = parseSpawnerMissionStatusNaturalIntent(normalized);
   const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
     allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
@@ -462,6 +464,20 @@ export function decideNaturalRoute(
       matched_signals: ['mission_update_preference'],
       blocked_by: [],
       requires_confirmation: false
+    });
+  }
+
+  if (missionRerun) {
+    return decision({
+      route: 'spawner.mission_control',
+      owner_system: 'spawner-ui',
+      confidence: missionRerun.source === 'explicit_mission_id' ? 'explicit' : 'contextual',
+      action: 'spawner.mission_rerun_request',
+      payload: { ...missionRerun },
+      context_source: missionRerun.source === 'explicit_mission_id' ? 'latest_message' : 'hot_recent_turns',
+      matched_signals: ['mission_rerun_request', missionRerun.source],
+      blocked_by: ['requires_owner_dispatch_pack'],
+      requires_confirmation: true
     });
   }
 

@@ -1481,6 +1481,58 @@ export interface SpawnerMissionStatusNaturalIntent {
   asksAboutRerun: boolean;
 }
 
+export interface SpawnerMissionRerunNaturalIntent {
+  missionId: string;
+  source: 'explicit_mission_id' | 'recent_mission_status';
+}
+
+function extractSingleMissionStatusContext(recentMessages: string[]): string | null {
+  const candidateTurns = recentMessages
+    .slice(-6)
+    .filter((message) => /\b(?:rerun|re-run|run\s+again|try\s+again)\s*:\s*yes\b/i.test(message) ||
+      /\btreat\s+it\s+as\s+completed\s*:\s*no\b/i.test(message) ||
+      /\bmission\b.{0,80}\b(?:failed|blocked|cancelled)\b/i.test(message));
+  const missionIds = Array.from(new Set(candidateTurns.flatMap((message) =>
+    message.match(/\b(?:spark|mission)-[a-z0-9_-]+\b/gi) || []
+  ).map((missionId) => missionId.toLowerCase())));
+  return missionIds.length === 1 ? missionIds[0] : null;
+}
+
+export function parseSpawnerMissionRerunNaturalIntent(
+  text: string,
+  recentMessages: string[] = []
+): SpawnerMissionRerunNaturalIntent | null {
+  const trimmed = text.trim();
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized || normalized.startsWith('/')) return null;
+  if (isActionWordMetaDiscussion(normalized) || isNoExecutionBoundary(normalized)) return null;
+  if (/\b(?:wording|copy|format|spacing|readability|message|telegram\s+rules?|ruleset|rule\s+set|documentation|docs)\b/.test(normalized)) {
+    return null;
+  }
+
+  const missionId = normalized.match(/\b(?:spark|mission)-[a-z0-9_-]+\b/i)?.[0] ?? null;
+  const actionRequest =
+    /\b(?:please|can\s+you|could\s+you|would\s+you|go\s+ahead(?:\s+and)?|let'?s|lets|ok(?:ay)?|sure|yes|yeah|yep|yup)?[\s,]*(?:rerun|re-run|retry|restart)\b/.test(normalized) ||
+    /\b(?:run|try|start)\s+(?:it|this|that|that\s+one|this\s+one|that\s+mission|this\s+mission|the\s+one|the\s+mission|mission|(?:spark|mission)-[a-z0-9_-]+)\s+again\b/.test(normalized);
+  const statusQuestionOnly =
+    /\b(?:what\s+happened|what\s+went\s+wrong|should\s+i|should\s+we|treat\s+it\s+as|completed?|complete|done|finished|failed|blocked|stuck|status|state|progress)\b/.test(normalized) &&
+    /[?]\s*$/.test(trimmed);
+  if (!actionRequest || statusQuestionOnly) return null;
+
+  if (missionId) {
+    return { missionId, source: 'explicit_mission_id' };
+  }
+
+  if (/\b(?:it|this|that|that\s+one|this\s+one|that\s+mission|this\s+mission|the\s+one|the\s+mission)\b/.test(normalized)) {
+    const contextualMissionId = extractSingleMissionStatusContext(recentMessages);
+    if (contextualMissionId) {
+      return { missionId: contextualMissionId, source: 'recent_mission_status' };
+    }
+  }
+
+  return null;
+}
+
 export function parseSpawnerMissionStatusNaturalIntent(text: string): SpawnerMissionStatusNaturalIntent | null {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!normalized) return null;
@@ -1685,6 +1737,10 @@ export function isProtectedMissionCancelPronounIntent(text: string, recentMessag
 
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  if (/\b(?:mission|build|spawner)\b.{0,60}\b(?:again|rerun|re-run|retry|restart)\b/.test(normalized) ||
+      /\b(?:again|rerun|re-run|retry|restart)\b.{0,60}\b(?:mission|build|spawner)\b/.test(normalized)) {
+    return false;
+  }
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }

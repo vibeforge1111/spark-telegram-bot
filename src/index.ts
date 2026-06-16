@@ -293,6 +293,7 @@ import {
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseContextualSpawnerBoardNaturalIntent,
+  parseSpawnerMissionRerunNaturalIntent,
   parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
@@ -2422,8 +2423,12 @@ function activeTelegramProfile(): string {
 
 async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
   try {
+    const recentTurns = await conversation.getRecentTurns(ctx.from, 15).catch(() => []);
+    const recentMessages = recentTurns.length > 0
+      ? recentTurns.map((turn) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`)
+      : await conversation.getRecentMessages(ctx.from, 15).catch(() => []);
     return decideNaturalRoute(text, {
-      recentMessages: await conversation.getRecentMessages(ctx.from, 15).catch(() => []),
+      recentMessages,
       pendingBuildClarification: Boolean(
         ctx.chat?.id &&
         ctx.from?.id &&
@@ -11231,6 +11236,61 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
+    const missionRerunIntent = parseSpawnerMissionRerunNaturalIntent(text, contextualTurns);
+    const missionRerunAuthorization = missionRerunIntent
+      ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+          route: 'spawner.mission_control',
+          text,
+          toolName: 'spawner.mission_control.status',
+          ownerSystem: 'spawner-ui',
+          mutationClass: 'read_only'
+        })
+      : null;
+    if (missionRerunIntent && missionRerunAuthorization?.allow) {
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_rerun_request', 'failed');
+        recordTelegramHarnessCoreExecution(missionRerunAuthorization, {
+          toolName: 'spawner.mission_control.status',
+          status: 'failure',
+          summary: 'Mission rerun follow-up was authorized for owner evidence but blocked by Spark access policy.'
+        });
+        await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+        return;
+      }
+
+      await conversation.remember(user, text).catch(() => {});
+      await safeSendChatAction(ctx, 'typing');
+      const result = await spawner.missionCommand('status', missionRerunIntent.missionId, {
+        executionAuthority: missionRerunAuthorization.governorDecision
+      });
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_rerun_request', result.success ? 'selected' : 'failed');
+      recordTelegramHarnessCoreExecution(missionRerunAuthorization, {
+        toolName: 'spawner.mission_control.status',
+        status: result.success ? 'success' : 'failure',
+        summary: result.success
+          ? `Mission rerun request stayed inside Mission Control read authority for ${missionRerunIntent.missionId}; no dispatch was launched.`
+          : `Mission rerun request could not read owner status for ${missionRerunIntent.missionId}: ${result.message}.`
+      });
+      const reply = result.success
+        ? [
+            `I did not rerun ${missionRerunIntent.missionId}.`,
+            '',
+            'A rerun needs a fresh Spawner dispatch pack and Governor launch authority; the status readout is evidence, not launch authority.',
+            '',
+            result.message
+          ].join('\n')
+        : `I did not rerun ${missionRerunIntent.missionId} because the owner status read failed: ${result.message}`;
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      return;
+    }
+    if (missionRerunIntent && missionRerunAuthorization) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_rerun_request', 'failed');
+      await ctx.reply('I did not rerun that mission because the fresh turn did not authorize even the Mission Control owner-evidence read.');
+      return;
+    }
+
     const missionStatusIntent = parseSpawnerMissionStatusNaturalIntent(text);
     const missionStatusAuthorization = missionStatusIntent
       ? telegramActionAuthorityDecision(turnIntentEnvelope, {
@@ -11267,7 +11327,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           ? `Specific mission status read completed for ${missionStatusIntent.missionId}.`
           : `Specific mission status read failed for ${missionStatusIntent.missionId}: ${result.message}.`
       });
-      await ctx.reply(result.success ? result.message : `Mission status failed: ${result.message}`);
+      const reply = result.success ? result.message : `Mission status failed: ${result.message}`;
+      await ctx.reply(reply);
+      await conversation.rememberAssistantReply(user, reply).catch(() => {});
       return;
     }
     if (missionStatusIntent && missionStatusAuthorization) {
