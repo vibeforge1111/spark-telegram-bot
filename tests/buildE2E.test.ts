@@ -577,11 +577,13 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.traceRef, `trace:spawner-prd:${missionId}`);
 		assert.doesNotMatch(replies[0] || '', new RegExp(`Mission: ${missionId}`));
 		assert.match(replies[0] || '', /Setting up SaaS Billing Test as a direct build\./);
-		assert.match(replies[0] || '', new RegExp(`Board: http://stub-spawner\\.test/kanban\\?mission=${missionId}`));
+		assert.match(replies[0] || '', new RegExp(`<a href="http://stub-spawner\\.test/kanban\\?mission=${missionId}">Open board</a>`));
 		assert.match(replies[0] || '', /I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized\./);
 		assert.doesNotMatch(replies[0] || '', /Spawned work/);
 		assert.doesNotMatch(replies[0] || '', /Paired surfaces/);
 		assert.doesNotMatch(replies[0] || '', /Canvas:/);
+		assert.equal(replyExtras[0]?.parse_mode, 'HTML');
+		assert.equal(replyExtras[0]?.disable_web_page_preview, true);
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
@@ -2879,7 +2881,7 @@ async function run(): Promise<void> {
 			}
 		});
 
-			assert.match(reply, /Canvas is ready for domain-chip-posters/);
+			assert.match(reply, /<b>Canvas is ready for domain-chip-posters\.<\/b>/);
 			assert.match(reply, /Spark queued 2 build steps with 2 paired nodes and 1 skill\./);
 			assert.doesNotMatch(reply, /Spawned tasks/);
 			assert.doesNotMatch(reply, /Plan/);
@@ -2891,8 +2893,9 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /195s/);
 			assert.doesNotMatch(reply, /Architecture:/);
 			assert.doesNotMatch(reply, /Tests\/checks/);
-			assert.match(reply, /Canvas\n- http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&mission=mission-test/);
-			assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban/);
+			assert.match(reply, /<a href="http:\/\/stub-spawner\.test\/canvas\?pipeline=prd-test&amp;mission=mission-test">Open canvas<\/a>/);
+			assert.doesNotMatch(reply, /Canvas\n-/);
+			assert.doesNotMatch(reply, /Board: http:\/\/stub-spawner\.test\/kanban/);
 			assert.doesNotMatch(reply, /Ask for tasks or skills if you want the full plan\./);
 			assert.doesNotMatch(reply, /I will send the final handoff when it is built/);
 	});
@@ -2905,10 +2908,11 @@ async function run(): Promise<void> {
 			kanbanUrl: 'http://stub-spawner.test/kanban?mission=mission-test'
 		});
 
-		assert.match(reply, /still preparing Signal Maze\./);
+		assert.match(reply, /<b>Still preparing Signal Maze\.<\/b>/);
 		assert.match(reply, /taking a little longer than usual/);
 		assert.match(reply, /I will send the canvas when it is ready\./);
-		assert.match(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-test/);
+		assert.match(reply, /<a href="http:\/\/stub-spawner\.test\/kanban\?mission=mission-test">Open board<\/a>/);
+		assert.doesNotMatch(reply, /Board: http:\/\/stub-spawner\.test\/kanban\?mission=mission-test/);
 		assert.doesNotMatch(reply, /Mission board\n•/);
 		assert.doesNotMatch(reply, /🛠️/);
 		assert.doesNotMatch(reply, /It has been shaping/);
@@ -2924,8 +2928,8 @@ async function run(): Promise<void> {
 			elapsedSeconds: 120
 		});
 
-			assert.match(reply, /still shaping Axiom Garden\./);
-			assert.match(reply, /still shaping Axiom Garden\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
+			assert.match(reply, /<b>Still shaping Axiom Garden\.<\/b>/);
+			assert.match(reply, /<b>Still shaping Axiom Garden\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
 			assert.doesNotMatch(reply, /🛠️/);
 			assert.doesNotMatch(reply, /Canvas prep has been running/);
 			assert.doesNotMatch(reply, /^Status$/m);
