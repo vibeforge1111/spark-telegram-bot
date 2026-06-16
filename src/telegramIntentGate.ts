@@ -56,7 +56,7 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
 // and they fail SAFE: a false positive demotes a turn to noExecution (a hold/clarify),
 // it can never cause a wrong execution.
 const EXECUTION_VERB_GROUP =
-  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve|propose|change|set|switch|update|raise|lower|upgrade|downgrade|enable|disable|delete|remove|grant|revoke|cancel|drop|stop|kill|terminate|abort|research|browse|inspect|analyze|analyse|study|compare|review|prepare|package|submit|share|send)';
+  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve|propose|change|set|switch|update|raise|lower|upgrade|downgrade|enable|disable|delete|remove|grant|revoke|cancel|drop|stop|kill|terminate|abort|research|browse|inspect|analyze|analyse|study|compare|review|prepare|package|submit)';
 const NEGATION_CUE_GROUP =
   "(?:do not|don't|dont|cannot|can't|cant|won't|wont|shouldn't|shouldnt|wouldn't|wouldnt|should not|should never|must not|mustn't|let's not|lets not|rather not|no reason to|refuse to|refuses to|refusing to|never|no need to|no plans to|not going to|not gonna)";
 // cues that actually introduce a POSITIVE imperative (do not forget to build = build)
