@@ -101,6 +101,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 
 - Telegram must not claim durable memory saves unless Builder/domain-chip-memory confirms them.
 - Local conversation buffer is not durable Spark memory.
+- Natural memory recall is a governed read. If NaturalRoute selects `memory.recall`, Telegram must authorize `memory.recall` through the TurnIntent/Harness/Governor path and ask Builder/domain-chip-memory for the answer; it must not answer from Telegram-local notes or detour into Memory Doctor unless the user asked for diagnostics.
 - Render memory proof-card metadata only: owner, decision, durability, freshness, confidence, blockers, and correction path.
 - Never export memory bodies into Telegram audits, route context, or compiled projections.
 

@@ -1384,7 +1384,7 @@ async function run(): Promise<void> {
 		}
 	});
 
-	await test('natural memory-only recall does not use Telegram-local notes before Builder fallback', async () => {
+	await test('natural memory-only recall uses Builder and not Telegram-local notes', async () => {
 		restoreAxios();
 		const testUserId = 8319079589;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
@@ -1418,6 +1418,7 @@ async function run(): Promise<void> {
 
 		try {
 			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const saveReplies: string[] = [];
 			const saveCtx = makeFakeCtx(testUserId, testUserId, 5656, saveReplies);
 			saveCtx.message.text = '/remember Railway testing decision: use Railway for disposable cloud sandbox checks, but keep local Telegram proof separate from Railway proof.';
@@ -1430,11 +1431,58 @@ async function run(): Promise<void> {
 			(recallCtx as any).update = { update_id: 5657, message: recallCtx.message };
 			await indexModule.handleTextMessage(recallCtx);
 
-			assert.equal(recallBridgeCalls, 0);
+			assert.equal(recallBridgeCalls, 1);
+			assert.match(recallReplies.join('\n'), /don't currently have that saved/i);
 			assert.doesNotMatch(recallReplies.join('\n'), /use Railway for disposable cloud sandbox checks/i);
 			assert.doesNotMatch(recallReplies.join('\n'), /keep local Telegram proof separate from Railway proof/i);
-			assert.match(recallReplies.join('\n'), /don't currently have that saved|Memory is degraded|could not confirm/i);
 		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('specific natural memory recall routes through Builder with owner proof', async () => {
+		restoreAxios();
+		const testUserId = 8319079591;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let recallBridgeCalls = 0;
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			const messageText = String(((updatePayload as any).message || {}).text || '');
+			assert.match(messageText, /memory-readiness-policy-20260616b/i);
+			recallBridgeCalls += 1;
+			return {
+				used: true,
+				responseText: 'Owner proof: domain-chip-memory observation telegram-update:749543630 says memory-readiness-policy-20260616b means never store customer passwords in memory.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'memory.recall'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const recallReplies: string[] = [];
+			const recallCtx = makeFakeCtx(testUserId, testUserId, 5658, recallReplies);
+			recallCtx.message.text = 'What do you remember about memory-readiness-policy-20260616b? Include the source or proof boundary.';
+			(recallCtx as any).update = { update_id: 5658, message: recallCtx.message };
+			await indexModule.handleTextMessage(recallCtx);
+
+			assert.equal(recallBridgeCalls, 1);
+			assert.match(recallReplies.join('\n'), /Owner proof: domain-chip-memory observation telegram-update:749543630/i);
+			assert.doesNotMatch(recallReplies.join('\n'), /Memory Doctor|Memory is degraded/i);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
 			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
 			restoreAxios();
 			restoreEnv();

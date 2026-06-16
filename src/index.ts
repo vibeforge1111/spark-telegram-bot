@@ -4293,10 +4293,79 @@ function extractNaturalLocalMemoryRecallQuery(text: string): string | null {
   return isUserMemoryRecallQuestion(text) ? text : null;
 }
 
-async function buildNaturalLocalMemoryRecallReply(user: any, text: string): Promise<string | null> {
+function authorizeNaturalMemoryRecall(
+  turnIntentEnvelope: TurnIntentEnvelopeV1,
+  text: string
+): TelegramActionAuthorityResult {
+  return telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+    route: 'memory.recall',
+    text,
+    toolName: 'memory.recall',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'read_only',
+    action: 'memory.recall',
+    kind: 'memory_recall'
+  });
+}
+
+function recordMemoryRecallExecution(
+  authorization: TelegramActionAuthorityResult | null | undefined,
+  status: 'not_started' | 'success' | 'failure',
+  summary: string
+): void {
+  recordTelegramHarnessCoreExecution(authorization, {
+    toolName: 'memory.recall',
+    status,
+    summary
+  });
+}
+
+async function replyNaturalMemoryRecallAuthorityBlocked(ctx: any): Promise<void> {
+  await ctx.reply('I did not read Spark memory because the fresh turn did not authorize that read.');
+}
+
+async function handleNaturalMemoryRecall(
+  ctx: any,
+  user: any,
+  text: string,
+  turnIntentEnvelope: TurnIntentEnvelopeV1,
+  naturalRouteShadow: NaturalRouteDecision | null
+): Promise<boolean> {
   const query = extractNaturalLocalMemoryRecallQuery(text);
-  if (!query) return null;
-  return await buildLocalRecallReply(user, query) || buildMemoryBridgeUnavailableReply('recall');
+  if (!query) return false;
+
+  const authorization = authorizeNaturalMemoryRecall(turnIntentEnvelope, text);
+  if (!authorization.allow) {
+    recordMemoryRecallExecution(authorization, 'failure', 'Natural memory recall was blocked by Harness/Governor authority.');
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'failed');
+    await replyNaturalMemoryRecallAuthorityBlocked(ctx);
+    return true;
+  }
+
+  await safeSendChatAction(ctx, 'typing');
+  await conversation.remember(user, text).catch(() => {});
+  recordMemoryRecallExecution(authorization, 'not_started', 'Natural memory recall authorized before Builder/domain-chip memory read.');
+  if (await replyViaBuilder(ctx, text, authorization.legacyEnvelope || turnIntentEnvelope)) {
+    recordMemoryRecallExecution(authorization, 'success', 'Natural memory recall completed through Builder/domain-chip memory.');
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'delivered');
+    return true;
+  }
+
+  const localRecall = await buildLocalRecallReply(user, query);
+  if (localRecall) {
+    await ctx.reply(localRecall);
+    await conversation.rememberAssistantReply(user, localRecall).catch(() => {});
+    recordMemoryRecallExecution(authorization, 'success', 'Natural memory recall completed through an owner-approved local recall adapter.');
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'delivered');
+    return true;
+  }
+
+  const reply = buildMemoryBridgeUnavailableReply('recall');
+  await ctx.reply(reply);
+  await conversation.rememberAssistantReply(user, reply).catch(() => {});
+  recordMemoryRecallExecution(authorization, 'failure', 'Natural memory recall could not get a useful Builder/domain-chip memory answer.');
+  recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'failed');
+  return true;
 }
 
 function authorizeMemoryWriteCommand(
@@ -11583,11 +11652,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
     return;
   }
-  const naturalLocalMemoryRecall = earlyBuildIntent ? null : await buildNaturalLocalMemoryRecallReply(user, text);
-  if (naturalLocalMemoryRecall) {
-    await conversation.remember(user, text).catch(() => {});
-    await ctx.reply(naturalLocalMemoryRecall);
-    await conversation.rememberAssistantReply(user, naturalLocalMemoryRecall).catch(() => {});
+  const naturalMemoryRecallHandled = earlyBuildIntent
+    ? false
+    : await handleNaturalMemoryRecall(ctx, user, text, turnIntentEnvelope, naturalRouteShadow);
+  if (naturalMemoryRecallHandled) {
     return;
   }
   const recentRememberedAnswer = earlyBuildIntent ? null : answerFromRememberTurns(text, [

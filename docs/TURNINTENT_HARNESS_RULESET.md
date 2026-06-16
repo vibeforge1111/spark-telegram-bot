@@ -57,6 +57,15 @@ These always require `envelope_verified` or explicit `machine_origin_policy`:
 - startup-operator/self-improvement loops that can mutate state or start work
 - voice install/transcribe/speak when it causes network, file, memory, or chat side effects
 
+## Governed Private Reads
+
+Private reads are not mutations, but they still require fresh route authority and owner evidence:
+
+- `memory.recall` must be selected by the fresh turn envelope and authorized as a read through Harness/Governor before Telegram asks Builder/domain-chip-memory for an answer.
+- Telegram-local conversation buffers are transcript context, not durable memory truth. They cannot satisfy natural memory recall by themselves.
+- Memory Doctor is diagnostics, not recall. Do not route "what do you remember about X?" into Memory Doctor unless the user asks to diagnose memory, inspect a previous answer, or audit a recall failure.
+- A degraded memory reply is allowed only after the governed read path cannot get a useful owner-backed answer.
+
 ## No-Action Boundaries
 
 The following must block interruptive routes unless a later fresh turn explicitly changes intent:

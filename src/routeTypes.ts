@@ -38,6 +38,7 @@ export type DeterministicRouteId =
   | 'media.voice'
   | 'voice.command'
   | 'memory.write'
+  | 'memory.recall'
   | 'memory.delete'
   | 'model.switch'
   | 'schedule.create'
