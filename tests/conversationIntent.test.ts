@@ -357,6 +357,22 @@ test('prefers named project lines inside mixed context blobs over stale assistan
   assert.doesNotMatch(reply, /\bUser: Natural context QA setup/);
 });
 
+test('treats title-like continuity targets as project recall without generic noun', () => {
+  assert.equal(isBuildContextRecallQuestion('Where were we on Harbor Notes now?'), true);
+  assert.equal(isBuildContextRecallQuestion('Where were we at lunch today?'), false);
+
+  const reply = buildRecentBuildContextReply([
+    'Natural context QA setup: I am shaping a quiet planning app called Harbor Notes. The direction is one screen, warm wording, and only three visible controls.',
+    'Quick unrelated check after fix: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+  ], 'Where were we on Harbor Notes now?');
+
+  assert.ok(reply);
+  assert.match(reply, /Harbor Notes/);
+  assert.match(reply, /three visible controls/);
+  assert.match(reply, /recent conversation context, not durable memory/i);
+  assert.doesNotMatch(reply, /Provider runtime truth|Codex low fast/);
+});
+
 test('separates user memory recall from build context recall', () => {
   assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
   assert.equal(isBuildContextRecallQuestion('what do you remember about how I like mission updates?'), false);
@@ -620,6 +636,27 @@ test('does not treat route hijack audit wording as diagnostic follow-up tests', 
   assert.equal(
     isDiagnosticFollowupTestQuestion(
       'also words like build access and some other things hijack the chat instantly, can you check whether we fixed that'
+    ),
+    false
+  );
+});
+
+test('provider role status questions do not become diagnostic follow-up tests', () => {
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Quick unrelated check: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+    ),
+    true
+  );
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Quick unrelated check: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+    ),
+    false
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Let us design a role dashboard for chat, builder, memory, and mission with Codex low fast labels.'
     ),
     false
   );

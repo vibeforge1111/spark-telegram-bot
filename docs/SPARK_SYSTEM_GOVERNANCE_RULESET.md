@@ -116,6 +116,34 @@ For every nontrivial fix:
 
 When a fix touches a shared governance rule, update this file, `AGENTS.md`, the relevant Spark skill rulesets, and any route-specific docs that future agents will read.
 
+## Rule Promotion And Readiness Tracking
+
+A Spark remediation is not ready for launch because one transcript now looks
+good. Treat each finding as one of two things:
+
+- an incident-only symptom that should stay in the QA notes
+- a reusable failure class that must be promoted into rules, skills, tests, and
+  readiness rubrics
+
+Promote only reusable classes such as false-positive action hijacks,
+false-negative missed actions, wrong source lane, stale memory, provider/access
+drift, owner-evidence gaps, completion-truth gaps, trace gaps, and unreadable
+Telegram/readout composition.
+
+Every promoted rule must include:
+
+- the owning layer that prevents recurrence
+- one normal positive case that must still work
+- one adjacent no-op trap that must not execute
+- the owner proof or trace evidence required to score the result
+- the Spark surfaces the rule applies to
+
+Use this as the readiness posture across all Spark systems: score real human
+use cases, not only isolated commands. A route can pass a unit test and still
+fail release readiness if a normal Telegram conversation would feel like Spark
+ignored context, launched too early, refused a fresh action, claimed false
+completion, or answered from the wrong memory/source lane.
+
 ## Stop-Ship Anti-Patterns
 
 Block release or keep investigating when any of these appear:

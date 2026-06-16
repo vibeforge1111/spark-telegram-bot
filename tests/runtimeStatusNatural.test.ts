@@ -250,6 +250,52 @@ async function main(): Promise<void> {
     assert.equal(audit.reply_kind, 'read_only_state');
   });
 
+  await test('provider role status wording also answers from fresh provider status', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Quick unrelated check: are the chat, builder, memory, and mission roles still Codex low fast on this device?', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Provider runtime truth/);
+    assert.match(replies[0], /fresh `spark providers status`, not memory/);
+    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /mission: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('build-context recall reply carries trace metadata', async () => {
+    const indexModule = await import('../src/index');
+    const { conversation } = await import('../src/conversation');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    const user = { id: 8900000001, is_bot: false, first_name: 'RuntimeStatus', username: 'runtime_status' };
+
+    await conversation.remember(
+      user,
+      'Natural context QA setup: I am shaping a quiet planning app called Trace Harbor. The direction is one screen, warm wording, and only three visible controls.'
+    );
+    await indexModule.handleTextMessage(fakeCtx('Where were we on Trace Harbor now?', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Trace Harbor/);
+    assert.match(replies[0], /recent conversation context, not durable memory/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'build_context.recall',
+      command: 'build_context.recall',
+      replyKind: 'build_context_recall'
+    });
+  });
+
   await test('check whether Spark is healthy stays read-only and does not repair', async () => {
     const { handleTextMessage } = await import('../src/index');
     const replies: string[] = [];

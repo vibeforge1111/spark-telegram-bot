@@ -1204,6 +1204,16 @@ function readOnlyStateOutboundTraceExtra(
   });
 }
 
+function buildContextRecallOutboundTraceExtra(ctx: any): Record<string, unknown> {
+  return outboundTraceExtra({
+    turnId: telegramTurnIdFromUpdate(ctx.update),
+    telegramUpdateId: telegramUpdateIdFromUpdate(ctx.update) ?? undefined,
+    route: 'build_context.recall',
+    command: 'build_context.recall',
+    replyKind: 'build_context_recall'
+  });
+}
+
 async function replyWithGovernedReadOnlyState(
   ctx: any,
   user: any,
@@ -11062,6 +11072,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   const naturalLocalMemoryRecall = earlyBuildIntent ? null : await buildNaturalLocalMemoryRecallReply(user, text);
+  const earlyBuildContextRecall = !earlyBuildIntent && isBuildContextRecallQuestion(text)
+    ? buildRecentBuildContextReply([
+        ...(await conversation.getRecentMessages(user, 8)),
+        await conversation.getContext(user, text),
+        conversationFrameContext
+      ], text)
+    : null;
+  if (earlyBuildContextRecall) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'build_context.recall',
+      'spark-telegram-bot',
+      'build_context.recall',
+      'delivered'
+    );
+    await ctx.reply(earlyBuildContextRecall, buildContextRecallOutboundTraceExtra(ctx));
+    await conversation.rememberAssistantReply(user, earlyBuildContextRecall).catch(() => {});
+    return;
+  }
   if (naturalLocalMemoryRecall) {
     await conversation.remember(user, text).catch(() => {});
     await ctx.reply(naturalLocalMemoryRecall);
@@ -11768,7 +11799,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isBuildContextRecallQuestion(text)) {
       const recentBuildContext = buildRecentBuildContextReply(contextualTurns, text);
       if (recentBuildContext) {
-        await ctx.reply(recentBuildContext);
+        recordNaturalRouteExecution(
+          ctx,
+          naturalRouteShadow,
+          'build_context.recall',
+          'spark-telegram-bot',
+          'build_context.recall',
+          'delivered'
+        );
+        await ctx.reply(recentBuildContext, buildContextRecallOutboundTraceExtra(ctx));
         return;
       }
     }

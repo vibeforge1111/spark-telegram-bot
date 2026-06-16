@@ -53,6 +53,17 @@ schedule/publish, installer, Cockpit, Labs, Swarm, and plain chat:
 5. Claim done, saved, ready, installed, shipped, published, shared, or fixed
    only from current owner proof and no newer contradictory owner state.
 
+Reusable governance lessons must be promoted, not merely remembered in the
+current chat. When a live Telegram/CUA exchange or trace exposes a recurring
+failure class, update the relevant agent rules, Spark governance docs, installed
+Spark skills, and focused tests or QA prompts. Do this for the general class
+only: never for the exact phrase, project name, mission id, screenshot, or reply
+text that happened to reveal it.
+
+Promotion is valid only when the rule keeps both user experiences healthy:
+natural exploration/status/debugging stays answer-only, and fresh explicit
+authority to act still reaches the owning system.
+
 ## One Truth Rules
 
 - Telegram is a field console, not the global brain.

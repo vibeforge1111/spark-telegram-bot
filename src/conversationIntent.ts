@@ -1329,11 +1329,23 @@ export function isBuildContextRecallQuestion(text: string): boolean {
     /\bwhat\b.{0,40}\b(?:next|polish|main|first|current)\s+(?:step|direction|focus|scope|screen|version)\b/.test(normalized) ||
     /\bwhat\s+was\s+(?:the\s+)?(?:polish|project|build|planning)\s+(?:direction|focus|scope|idea)\b/.test(normalized);
   const asksForwardPlanning = /\bwhat\s+(?:should|would|could|can)\b/.test(normalized);
+  const hasNamedContinuityTarget = (() => {
+    const match = text.match(/\b(?:on|with|at)\s+([^?.!]+)/i);
+    if (!match) return false;
+    const target = match[1]
+      .replace(/\b(?:now|today|tonight|again|afterwards?|later|currently|right\s+now)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const words = target.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || words.length > 5) return false;
+    return words.filter((word) => /^[A-Z][A-Za-z0-9'-]{2,}$/.test(word)).length >= 2;
+  })();
   return (
     /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:did|have)\s+(?:you|we)\s+(?:just\s+)?(?:build|make|create|ship)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:were|was)\s+we\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
     /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
+    (!asksForwardPlanning && asksWhereConversationWas && hasNamedContinuityTarget) ||
     (!asksForwardPlanning && (asksWhereConversationWas || asksProjectDirection) && continuitySubject.test(normalized))
   );
 }
@@ -1857,6 +1869,9 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
     return false;
   }
   if (isPersistentMemoryQualityEvaluationRequest(normalized)) {
+    return false;
+  }
+  if (isProviderRuntimeConfigQuestion(normalized)) {
     return false;
   }
   if (isAccessSandboxRouteDesignDiscussion(normalized)) {
@@ -3616,10 +3631,20 @@ export function isProviderRuntimeConfigQuestion(text: string): boolean {
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
+  const mentionsRoleSet = /\bchat\b/.test(normalized) &&
+    /\bbuilder\b/.test(normalized) &&
+    /\bmemory\b/.test(normalized) &&
+    /\bmission\b/.test(normalized) &&
+    /\broles?\b/.test(normalized);
+  const asksCurrentProviderRoles =
+    mentionsRoleSet &&
+    /\b(?:are|is|still|current(?:ly)?|right\s+now|on\s+this\s+device)\b/.test(normalized) &&
+    /\b(?:codex|gpt|provider|model|reasoning|service\s+tier|low|high|fast)\b/.test(normalized);
   if (isNoExecutionBoundary(normalized) && /\b(?:provider|model|codex|reasoning|service\s+tier|high|fast)\b/.test(normalized)) {
     return true;
   }
   return (
+    asksCurrentProviderRoles ||
     /\b(?:which|what|show|tell)\b.{0,60}\b(?:provider|model|reasoning\s+effort|service\s+tier|runtime\s+config)\b/.test(normalized) ||
     /\b(?:are|is)\s+(?:you|spark|codex)\b.{0,60}\b(?:using|on|running)\b.{0,60}\b(?:codex|gpt|model|high|fast|reasoning)\b/.test(normalized)
   );
