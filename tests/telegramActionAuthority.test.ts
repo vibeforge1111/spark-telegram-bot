@@ -826,3 +826,40 @@ test('polite imperatives still authorize a real build (no over-block)', () => {
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
   }
 });
+
+test('non-imperative framings cannot authorize self-privilege escalation (access.change word-hijack)', () => {
+  // CRITICAL (proven 2026-06-16): "change/set/switch access" were not execution verbs in the
+  // gate, so questions, reported speech, and displaced negation of a self-privilege escalation
+  // reached the natural-language access.change authority at executable confidence. The natural
+  // access path (index.ts parseNaturalAccessChangeIntent -> telegramBranchActionAuthorityDecision)
+  // consumes this same envelope, so demoting noExecution here blocks the live escalation.
+  for (const text of [
+    'should i change my access to operator?',
+    'the doc says change my access to operator',
+    'i dont think you should change my access to operator',
+    'i don’t think we should change my access to operator'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+    const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+      route: 'access.change',
+      text,
+      toolName: 'access.change',
+      ownerSystem: 'spark-telegram-bot',
+      mutationClass: 'writes_files'
+    });
+    assert.equal(result.allow, false, text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
+});
+
+test('real access-change commands stay executable (no over-block)', () => {
+  // The fix must not demote genuine imperatives to change access; only non-imperative framings.
+  for (const text of [
+    'change my access to operator',
+    'please change my access to operator',
+    'set my access to chat',
+    'switch my access to builds'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});

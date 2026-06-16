@@ -56,7 +56,7 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
 // and they fail SAFE: a false positive demotes a turn to noExecution (a hold/clarify),
 // it can never cause a wrong execution.
 const EXECUTION_VERB_GROUP =
-  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve)';
+  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve|change|set|switch|update|raise|lower|upgrade|downgrade|enable|disable|delete|remove|grant|revoke)';
 const NEGATION_CUE_GROUP =
   "(?:do not|don't|dont|cannot|can't|cant|won't|wont|shouldn't|shouldnt|wouldn't|wouldnt|never|no need to|no plans to|not going to|not gonna)";
 // cues that actually introduce a POSITIVE imperative (do not forget to build = build)
@@ -104,7 +104,12 @@ function hasNonImperativeExecution(normalized: string): boolean {
 }
 
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normalized = text
+    .replace(/[‘’‚‛′]/g, "'")
+    .replace(/[“”„‟″]/g, '"')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
   const constraints = emptyConstraints();
   if (!normalized) return constraints;
 
