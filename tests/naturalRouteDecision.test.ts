@@ -1434,6 +1434,17 @@ test('routes Spark intent-authority QA to chat instead of ideation or Spawner bu
   assert.deepEqual(route.matched_signals, ['spark_intent_authority_boundary']);
 });
 
+test('routes restart-word intent-authority QA to chat instead of runtime status', () => {
+  const route = decideNaturalRoute(
+    'Clean restart QA: if this is just an intent-authority question about build words, should Spark start a mission? Answer briefly.'
+  );
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.qa_boundary');
+  assert.deepEqual(route.matched_signals, ['spark_intent_authority_boundary']);
+});
+
 test('routes previous-route neutral summary requests to chat-only answer boundary', () => {
   const route = decideNaturalRoute('Do not continue the previous route. Give me a neutral summary.');
 

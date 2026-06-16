@@ -1064,6 +1064,7 @@ test('allows Spark intent-authority QA only as answer boundary', () => {
   assert.equal(decision.route, 'plain_chat');
   assert.equal(decision.action, 'plain_chat.qa_boundary');
   assert.equal(envelope.selectedIntent.action, 'plain_chat.qa_boundary');
+  assert.equal(envelope.directive.noExecution, true);
   assert.equal(answer.allow, true);
   assert.equal(answer.toolAuthorization.verdict, 'allowed');
 
@@ -1076,6 +1077,18 @@ test('allows Spark intent-authority QA only as answer boundary', () => {
   });
   assert.equal(build.allow, false);
   assert.ok(build.reasonCodes.includes('route_not_selected_by_turn_envelope'));
+  assert.ok(build.reasonCodes.includes('no_execution_boundary'));
+
+  const runtimeRead = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spark.read_only_state',
+    text,
+    toolName: 'spark.read_only_state',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'read_only'
+  });
+  assert.equal(runtimeRead.allow, false);
+  assert.ok(runtimeRead.reasonCodes.includes('route_not_selected_by_turn_envelope'));
+  assert.ok(runtimeRead.reasonCodes.includes('tool_not_allowed_by_policy'));
 });
 
 test('route history cannot authorize Builder continuation from the fresh turn', () => {

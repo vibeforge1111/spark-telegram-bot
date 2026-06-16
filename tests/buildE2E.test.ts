@@ -6176,6 +6176,42 @@ async function run(): Promise<void> {
 				)),
 				'intent-authority QA answer must record Harness Core answer.compose success'
 			);
+			assert.equal(
+				ledgerRecords.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'intent-authority QA must not promote runtime/read-only state as the owner tool'
+			);
+
+			llmModule.llm.chat = async (_prompt: string, systemContext?: string) => {
+				capturedSystemContext = systemContext || '';
+				return [
+					'Spark is healthy right now.',
+					'',
+					'Live loop',
+					'- Spawner: reachable.',
+					'- Telegram: polling.',
+					'- Mission Control: ready.',
+					'',
+					'No restart needed. Restarting now would mostly add churn.'
+				].join('\n');
+			};
+			const replies2: string[] = [];
+			const ctx2 = makeFakeCtx(8319079071, 8319079055, 652, replies2);
+			ctx2.message.text = 'Clean restart QA: if this is just an intent-authority question about build words, should Spark start a mission? Answer briefly.';
+			await indexModule.handleTextMessage(ctx2);
+
+			const reply2 = replies2[0] || '';
+			assert.match(reply2, /^No\./);
+			assert.match(reply2, /read-only authority answer/i);
+			assert.doesNotMatch(reply2, /Spark is healthy|Live loop|Mission Control: ready|Restarting now/i);
+			assert.equal(captured.length, 0, 'restart-word intent-authority QA must not call Spawner or PRD bridge');
+
+			const ledgerRecords2 = readHarnessCoreToolLedger(ledgerPath);
+			assert.equal(
+				ledgerRecords2.some((record) => record.tool_name === 'spark.read_only_state'),
+				false,
+				'restart-word intent-authority QA must not promote runtime/read-only state as the owner tool'
+			);
 		} finally {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest(null);

@@ -506,6 +506,13 @@ test('bug hunt: named Telegram profile setup stays out of live health status', (
   assert.equal(shouldAnswerAuthoritativeRuntimeStatus(prompt), false);
 });
 
+test('bug hunt: intent-authority QA stays out of live health status', () => {
+  assert.equal(
+    shouldAnswerAuthoritativeRuntimeStatus('Clean restart QA: if this is just an intent-authority question about build words, should Spark start a mission? Answer briefly.'),
+    false
+  );
+});
+
 test('bug hunt: repair-needed current-status question uses live status instead of repair action', () => {
   assert.equal(
     shouldAnswerAuthoritativeRuntimeStatus('Do not repair anything. Is a repair needed from the current status?'),

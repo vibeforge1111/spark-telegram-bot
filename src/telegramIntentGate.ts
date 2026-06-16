@@ -84,6 +84,13 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     return constraints;
   }
 
+  if (isSparkIntentAuthorityBoundaryQuestion(normalized)) {
+    constraints.noExecution = true;
+    constraints.noNetworkAbsorptionClaim = true;
+    constraints.localOnly = true;
+    return constraints;
+  }
+
   if (classifyStaleContextAuthorityBoundary(normalized)) {
     constraints.noExecution = true;
     constraints.noNetworkAbsorptionClaim = true;
@@ -409,6 +416,25 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       blocked_candidates: [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'enforce_safe',
+      natural_route: naturalRoute
+    });
+  }
+
+  if (isSparkIntentAuthorityBoundaryQuestion(normalized)) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'plain_chat',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: { ...basePayload(naturalRoute), naturalAction: naturalRoute?.action },
+      matched_signals: ['spark_intent_authority_boundary'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Spark intent-authority QA owns the turn over incidental runtime, build, restart, or mission wording.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'observe',
       natural_route: naturalRoute
     });
   }

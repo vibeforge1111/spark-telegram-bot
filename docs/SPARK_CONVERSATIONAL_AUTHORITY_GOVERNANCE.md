@@ -118,6 +118,7 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 - Spawner board/latest-preview/latest-failure/latest-provider routes are read-only even when the route string contains `spawner`; the Telegram envelope must not mint `spawner.run`, file-write, or mission-launch authority for them.
 - User-facing "latest" promotion must skip operational probes and question/readout residue unless the entry has real artifact/build task evidence. Board history counts may include residue; promoted project/job/failure truth must not.
 - Shipped-project readouts and advisory polish questions are answer/readout routes until the user explicitly says to apply, build, run, or change.
+- Spark intent-authority QA owns the turn over incidental runtime, restart, build, mission, provider, memory, or publish words. IntentGate must select `plain_chat.qa_boundary`, the envelope must carry `noExecution`, runtime/restart predicates must return false, and final-answer gates must suppress replies that answer with health/status instead of the asked authority boundary.
 
 ## Ban List
 

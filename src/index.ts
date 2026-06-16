@@ -1496,6 +1496,7 @@ async function renderSparkReadOnlyStateAnswer(kind: SparkReadOnlyStateQuestion, 
 
 function shouldAnswerRestartNeededQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (isSparkIntentAuthorityBoundaryQuestion(text)) return false;
   return /\brestart\b/.test(normalized) && /\b(?:needed|need|recommend|should|improve|healthy|right now)\b/.test(normalized);
 }
 
@@ -2154,6 +2155,15 @@ function isSparkIntentAuthorityQaRoute(text: string, route: NaturalRouteDecision
   );
 }
 
+function isSparkIntentAuthorityQaDecision(decision: TelegramIntentDecisionV2): boolean {
+  return (
+    decision.route === 'plain_chat' &&
+    decision.action === 'plain_chat.qa_boundary' &&
+    decision.owner_system === 'spark-telegram-bot' &&
+    decision.matched_signals.includes('spark_intent_authority_boundary')
+  );
+}
+
 function sparkIntentAuthorityBoundaryContextHint(): string {
   return [
     'Current Spark intent-authority context for this answer:',
@@ -2174,12 +2184,22 @@ function violatesSparkIntentAuthorityBoundaryReply(userText: string, replyText: 
     /\b(?:should|would|could|can)\s+(?:spark|it|that|this)\b.{0,120}\b(?:start|trigger|launch|run|build|queue|mission)\b/.test(user) ||
     /\bif\b.{0,120}\b(?:user|someone|telegram)\b.{0,120}\b(?:asks?|says?|mentions?)\b.{0,120}\b(?:start|trigger|launch|run|build|queue|mission)\b/.test(user);
   const startsWithAffirmative = /^(?:yes|yeah|yep|correct|right)\b/.test(reply);
+  const startsWithNegative = /^(?:no|nope|not\b|it\s+should\s+not\b|that\s+should\s+not\b|this\s+should\s+not\b)/.test(reply);
   const unprovedActionPlan =
     /\b(?:i|we|spark)\s+(?:will|would|should|can|could)\s+(?:add|write|run|patch|hotfix|fix|start|launch|queue|build|create|implement|apply|prove)\b/.test(reply) ||
     /\b(?:add|write|run|patch|hotfix|fix|start|launch|queue|build|create|implement|apply)\s+(?:failing\s+)?(?:regressions?|tests?|the\s+boundary|a\s+mission|a\s+build)\b/.test(reply);
   const claimsExecutionBoundary =
     /\b(?:mission|build|patch|hotfix|registry|runtime|installer|memory|publish|deploy)\b.{0,60}\b(?:started|queued|launched|ran|patched|fixed|updated|changed|proved|completed|done)\b/.test(reply);
-  return (asksWhetherToStart && startsWithAffirmative) || unprovedActionPlan || claimsExecutionBoundary;
+  const unrelatedRuntimeStatus =
+    asksWhetherToStart &&
+    /\b(?:spark\s+is\s+healthy|live\s+loop|spawner:\s*reachable|telegram:\s*polling|mission\s+control:\s*ready|no\s+restart\s+needed|restart(?:ing)?\s+now)\b/.test(reply);
+  return (
+    (asksWhetherToStart && !startsWithNegative) ||
+    (asksWhetherToStart && startsWithAffirmative) ||
+    unrelatedRuntimeStatus ||
+    unprovedActionPlan ||
+    claimsExecutionBoundary
+  );
 }
 
 function renderSparkIntentAuthorityBoundaryFallback(userText: string): string {
@@ -2219,6 +2239,7 @@ function isMetaNoActionTriggerDiscussion(text: string): boolean {
 
 export function shouldAnswerAuthoritativeRuntimeStatus(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (isSparkIntentAuthorityBoundaryQuestion(text)) return false;
   if (isMetaNoActionTriggerDiscussion(text)) return false;
   if (!runtimeTruthSignals(text).live) return false;
   return (
@@ -3768,7 +3789,7 @@ function shouldBypassBuilderBridgeForTurnIntent(
     ) ||
     (
       selectedPlainChat &&
-      isSparkIntentAuthorityQaRoute(text, naturalRoute)
+      (isSparkIntentAuthorityQaDecision(decision) || isSparkIntentAuthorityQaRoute(text, naturalRoute))
     ) ||
     (
       selectedPlainChat &&
@@ -12565,7 +12586,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       : [storedMemoryContext, conversationFrameContext].filter(Boolean).join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const localAnswerRoute = localChatReplyRoute(naturalRouteShadow);
-    const sparkIntentAuthorityQaRoute = isSparkIntentAuthorityQaRoute(text, naturalRouteShadow);
+    const sparkIntentAuthorityQaRoute = isSparkIntentAuthorityQaDecision(telegramIntentGateV2) || isSparkIntentAuthorityQaRoute(text, naturalRouteShadow);
     const localAnswerAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
       route: localAnswerRoute,
       text,
