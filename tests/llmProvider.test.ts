@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, prepareSparkCodexHome, resolveChatProviderConfig, sanitizeCodexConfigForSpark } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -217,6 +220,39 @@ test('normalizes unsupported Codex service tier to fast', () => {
     } else {
       process.env.CODEX_SERVICE_TIER = oldTier;
     }
+  }
+});
+
+test('sanitizes incompatible global Codex service tier before Spark subprocess use', () => {
+  const source = [
+    'model = "gpt-5.5"',
+    'service_tier = "priority"',
+    '',
+    '[projects.foo]',
+    'service_tier = "flex"'
+  ].join('\n');
+
+  const sanitized = sanitizeCodexConfigForSpark(source);
+  assert.match(sanitized, /service_tier = "fast"/);
+  assert.match(sanitized, /\[projects\.foo\]\nservice_tier = "flex"/);
+});
+
+test('prepares a temporary Spark Codex home only when inherited config needs sanitizing', () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-home-test-'));
+  const sourceHome = path.join(tempRoot, 'source');
+  const parent = path.join(tempRoot, 'runtime');
+  mkdirSync(sourceHome, { recursive: true });
+  mkdirSync(parent, { recursive: true });
+  writeFileSync(path.join(sourceHome, 'config.toml'), 'service_tier = "priority"\n', 'utf-8');
+  writeFileSync(path.join(sourceHome, 'auth.json'), '{"auth":"present"}', 'utf-8');
+
+  try {
+    const codexHome = prepareSparkCodexHome(parent, sourceHome);
+    assert.ok(codexHome);
+    assert.equal(readFileSync(path.join(codexHome, 'config.toml'), 'utf-8').trim(), 'service_tier = "fast"');
+    assert.equal(readFileSync(path.join(codexHome, 'auth.json'), 'utf-8'), '{"auth":"present"}');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 

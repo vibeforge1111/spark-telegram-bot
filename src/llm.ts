@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { config as loadEnv } from 'dotenv';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -98,6 +98,29 @@ export function codexExecArgs(model: string, outputPath: string): string[] {
     outputPath,
     '-',
   ];
+}
+
+export function sanitizeCodexConfigForSpark(text: string): string {
+  return text.replace(/^(\s*service_tier\s*=\s*)["']priority["']\s*$/gm, '$1"fast"');
+}
+
+export function prepareSparkCodexHome(parentDir: string, sourceHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')): string | null {
+  const sourceConfigPath = path.join(sourceHome, 'config.toml');
+  if (!existsSync(sourceConfigPath)) return null;
+  const configText = readFileSync(sourceConfigPath, 'utf-8');
+  const sanitized = sanitizeCodexConfigForSpark(configText);
+  if (sanitized === configText) return null;
+
+  const codexHome = path.join(parentDir, 'codex-home');
+  mkdirSync(codexHome, { recursive: true });
+  writeFileSync(path.join(codexHome, 'config.toml'), sanitized, 'utf-8');
+
+  const authPath = path.join(sourceHome, 'auth.json');
+  if (existsSync(authPath)) {
+    copyFileSync(authPath, path.join(codexHome, 'auth.json'));
+  }
+
+  return codexHome;
 }
 
 export interface ChatProviderPing {
@@ -351,11 +374,11 @@ ${conversationHistory ? `## Where we left off\n${conversationHistory}` : ''}
 Keep responses brief (1-3 sentences) unless the user asks for detail. If you need more, keep paragraphs short and skimmable.`;
 }
 
-export function runProcess(command: string, args: string[], input: string, timeoutMs: number): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+export function runProcess(command: string, args: string[], input: string, timeoutMs: number, env: NodeJS.ProcessEnv = process.env): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawnHidden(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env: { ...env },
     });
     let stdout = '';
     let stderr = '';
@@ -402,8 +425,20 @@ export function runProcess(command: string, args: string[], input: string, timeo
 }
 
 async function codexAvailable(): Promise<boolean> {
-  const result = await runProcess(CODEX_PATH, ['--version'], '', 5000);
-  return result.ok;
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-health-'));
+  try {
+    const codexHome = prepareSparkCodexHome(tmpDir);
+    const result = await runProcess(
+      CODEX_PATH,
+      ['--version'],
+      '',
+      5000,
+      codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env
+    );
+    return result.ok;
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatProviderPing> {
@@ -504,7 +539,14 @@ async function codexChat(prompt: string): Promise<string> {
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-chat-'));
   const outputPath = path.join(tmpDir, 'last-message.txt');
   try {
-    const result = await runProcess(CODEX_PATH, codexExecArgs(CODEX_MODEL, outputPath), prompt, chatCommandTimeoutMs());
+    const codexHome = prepareSparkCodexHome(tmpDir);
+    const result = await runProcess(
+      CODEX_PATH,
+      codexExecArgs(CODEX_MODEL, outputPath),
+      prompt,
+      chatCommandTimeoutMs(),
+      codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env
+    );
     if (!result.ok) {
       throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
     }
