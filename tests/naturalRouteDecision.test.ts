@@ -1395,6 +1395,17 @@ test('routes user memory recall questions away from build-context recall', () =>
   assert.equal(route.context_source, 'cold_memory');
 });
 
+test('routes saved canary memory recall with proof wording away from Memory Doctor', () => {
+  const route = decideNaturalRoute(
+    'What do you remember about memory-readiness-policy-20260616b? Include the source or proof boundary.'
+  );
+
+  assert.equal(route.route, 'memory.recall');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.context_source, 'cold_memory');
+  assert.notEqual(route.route, 'memory.doctor');
+});
+
 test('routes Spawner board reads through canonical board consumer paths', () => {
   const route = decideNaturalRoute('Which LLM took the latest Spawner job?');
 

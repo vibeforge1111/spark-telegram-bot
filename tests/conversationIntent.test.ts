@@ -355,6 +355,15 @@ test('answers what we were going to build from recent context', () => {
 
 test('separates user memory recall from build context recall', () => {
   assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
+  assert.equal(
+    isUserMemoryRecallQuestion('What do you remember about memory-readiness-policy-20260616b? Include the source or proof boundary.'),
+    true
+  );
+  assert.equal(
+    isMemoryDoctorRequest('What do you remember about memory-readiness-policy-20260616b? Include the source or proof boundary.'),
+    false
+  );
+  assert.equal(isUserMemoryRecallQuestion('diagnose last answer'), false);
   assert.equal(isBuildContextRecallQuestion('what do you remember about how I like mission updates?'), false);
   assert.equal(
     isUserMemoryRecallQuestion('what do you know about how I like to work, and what is only recent context?'),
