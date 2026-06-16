@@ -83,6 +83,7 @@ export interface BuilderBridgeReply {
   routingDecision: string;
   requestId?: string;
   traceRef?: string;
+  error?: string;
   voiceMedia?: BuilderBridgeVoiceMedia;
   voiceTiming?: Record<string, unknown>;
 }
@@ -3080,8 +3081,8 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       used: false,
       responseText: '',
       decision: '',
-      bridgeMode: '',
-      routingDecision: '',
+      bridgeMode: 'off',
+      routingDecision: 'bridge_off',
     };
   }
 
@@ -3096,8 +3097,9 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       used: false,
       responseText: '',
       decision: '',
-      bridgeMode: '',
-      routingDecision: '',
+      bridgeMode: 'unavailable',
+      routingDecision: 'bridge_unavailable',
+      error: `Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`,
     };
   }
 
@@ -3125,8 +3127,9 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
       used: false,
       responseText: '',
       decision: '',
-      bridgeMode: '',
-      routingDecision: '',
+      bridgeMode: 'bridge_error',
+      routingDecision: 'bridge_error',
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }

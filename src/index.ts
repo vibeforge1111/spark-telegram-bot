@@ -32,6 +32,7 @@ import {
   runBuilderSourceUsed,
   runBuilderSelfImprovementPlan,
   runBuilderSelfAwarenessStatus,
+  type BuilderBridgeReply,
   runBuilderTelegramBridge,
   runBuilderTelegramMemoryWrite,
   runBuilderWikiAnswer,
@@ -3981,23 +3982,75 @@ async function renderGovernedQuotedExampleBoundaryReply(
 }
 
 async function replyViaBuilder(ctx: any, text: string, envelope?: TurnIntentEnvelopeV1): Promise<boolean> {
+  const result = await replyViaBuilderWithResult(ctx, text, envelope);
+  return result.delivered;
+}
+
+type ReplyViaBuilderResult = {
+  delivered: boolean;
+  reason?: 'bridge_not_used' | 'bridge_error' | 'low_information_reply';
+  builderReply?: BuilderBridgeReply;
+};
+
+function builderBridgeFailureReason(builderReply: BuilderBridgeReply): ReplyViaBuilderResult['reason'] {
+  if (!builderReply.used) return 'bridge_not_used';
+  if (builderReply.bridgeMode === 'bridge_error') return 'bridge_error';
+  return 'low_information_reply';
+}
+
+function builderBridgeFailureTrace(ctx: any, builderReply?: BuilderBridgeReply): NodeOutboundTraceContext {
+  const turnId = telegramTurnIdFromUpdate(ctx.update);
+  return {
+    turnId,
+    telegramUpdateId: telegramUpdateIdFromUpdate(ctx.update) ?? undefined,
+    route: builderReply?.routingDecision || 'builder_bridge',
+    replyKind: 'builder_bridge_failed',
+    requestId: builderReply?.requestId,
+    traceRef: builderReply?.traceRef || (turnId ? `trace:telegram-builder-bridge:${turnId}` : undefined)
+  };
+}
+
+function builderBridgeFailureSummary(result: ReplyViaBuilderResult): string {
+  const reply = result.builderReply;
+  const mode = reply?.bridgeMode || 'unknown';
+  const route = reply?.routingDecision || 'unknown';
+  const error = reply?.error ? ` error=${redactText(reply.error)}` : '';
+  return `Builder/domain-chip memory answer unavailable: reason=${result.reason || 'unknown'} mode=${mode} route=${route}.${error}`;
+}
+
+async function replyViaBuilderWithResult(
+  ctx: any,
+  text: string,
+  envelope?: TurnIntentEnvelopeV1
+): Promise<ReplyViaBuilderResult> {
   const user = ctx.from;
   if (user) {
     await conversation.remember(user, text).catch(() => {});
   }
   const builderReply = await builderBridgeRunner(buildUpdateWithText(ctx.update as Record<string, unknown>, text, envelope));
   if (!builderReply.used || builderReply.bridgeMode === 'bridge_error') {
-    return false;
+    return {
+      delivered: false,
+      reason: builderBridgeFailureReason(builderReply),
+      builderReply
+    };
   }
   if (isLowInformationLlmReply(builderReply.responseText)) {
-    return false;
+    return {
+      delivered: false,
+      reason: 'low_information_reply',
+      builderReply
+    };
   }
   const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
   await deliverBuilderReply(ctx, { ...builderReply, responseText });
   if (user && responseText) {
     await conversation.rememberAssistantReply(user, responseText).catch(() => {});
   }
-  return true;
+  return {
+    delivered: true,
+    builderReply
+  };
 }
 
 export async function deliverBuilderReply(
@@ -4345,7 +4398,8 @@ async function handleNaturalMemoryRecall(
   await safeSendChatAction(ctx, 'typing');
   await conversation.remember(user, text).catch(() => {});
   recordMemoryRecallExecution(authorization, 'not_started', 'Natural memory recall authorized before Builder/domain-chip memory read.');
-  if (await replyViaBuilder(ctx, text, authorization.legacyEnvelope || turnIntentEnvelope)) {
+  const builderResult = await replyViaBuilderWithResult(ctx, text, authorization.legacyEnvelope || turnIntentEnvelope);
+  if (builderResult.delivered) {
     recordMemoryRecallExecution(authorization, 'success', 'Natural memory recall completed through Builder/domain-chip memory.');
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'delivered');
     return true;
@@ -4361,9 +4415,9 @@ async function handleNaturalMemoryRecall(
   }
 
   const reply = buildMemoryBridgeUnavailableReply('recall');
-  await ctx.reply(reply);
+  await ctx.reply(reply, outboundTraceExtra(builderBridgeFailureTrace(ctx, builderResult.builderReply)));
   await conversation.rememberAssistantReply(user, reply).catch(() => {});
-  recordMemoryRecallExecution(authorization, 'failure', 'Natural memory recall could not get a useful Builder/domain-chip memory answer.');
+  recordMemoryRecallExecution(authorization, 'failure', builderBridgeFailureSummary(builderResult));
   recordNaturalRouteExecution(ctx, naturalRouteShadow, 'memory.recall', 'spark-intelligence-builder', 'memory.recall', 'failed');
   return true;
 }

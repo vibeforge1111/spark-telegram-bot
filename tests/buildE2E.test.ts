@@ -1044,7 +1044,7 @@ async function run(): Promise<void> {
 			assert.match(saveReplies.join('\n'), /could not confirm|Memory is degraded/i);
 			assert.doesNotMatch(saveReplies.join('\n'), /passive Spark bug recognition/i);
 			assert.doesNotMatch(recallReplies.join('\n'), /concise and outcome-focused/i);
-			assert.match(recallReplies.join('\n'), /could not confirm|Memory is degraded|do not currently have saved entity state/i);
+			assert.match(recallReplies.join('\n'), /could not confirm|Memory is degraded|do not currently have saved entity state|will not treat memory as proof/i);
 			assert.doesNotMatch(recallReplies.join('\n'), /passive Spark bug recognition/i);
 			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
 			assert.ok(
@@ -1354,7 +1354,7 @@ async function run(): Promise<void> {
 
 			assert.match(saveReplies.join('\n'), /Memory is degraded|could not confirm/i);
 			assert.equal(recallBridgeCalls, 1);
-			assert.match(recallReplies.join('\n'), /do not currently have saved entity state|Memory is degraded|could not confirm/i);
+			assert.match(recallReplies.join('\n'), /do not currently have saved entity state|Memory is degraded|could not confirm|will not treat memory as proof/i);
 			assert.doesNotMatch(recallReplies.join('\n'), /I remember this: audit marker/i);
 			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
 			assert.ok(
@@ -1484,6 +1484,72 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest(null);
 			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('specific natural memory recall records Builder bridge failure evidence', async () => {
+		restoreAxios();
+		const testUserId = 8319079592;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-recall-bridge-failure-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let recallBridgeCalls = 0;
+		(builderBridge as any).runBuilderTelegramBridge = async () => {
+			recallBridgeCalls += 1;
+			return {
+				used: true,
+				responseText: '',
+				decision: 'test',
+				bridgeMode: 'bridge_error',
+				routingDecision: 'bridge_error',
+				error: 'simulated timeout'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const recallReplies: string[] = [];
+			const replyExtras: any[] = [];
+			const recallCtx = makeFakeCtx(testUserId, testUserId, 5659, recallReplies, replyExtras);
+			recallCtx.message.text = 'What do you remember about memory-readiness-policy-20260616b? Include the source or proof boundary.';
+			(recallCtx as any).update = { update_id: 5659, message: recallCtx.message };
+			await indexModule.handleTextMessage(recallCtx);
+
+			assert.equal(recallBridgeCalls, 1);
+			assert.match(recallReplies.join('\n'), /will not treat memory as proof/i);
+			assert.doesNotMatch(recallReplies.join('\n'), /Owner proof|Memory Doctor/i);
+			const traceContext = replyExtras.find((extra) => extra?.__sparkTraceContext)?.__sparkTraceContext;
+			assert.equal(traceContext?.route, 'bridge_error');
+			assert.equal(traceContext?.replyKind, 'builder_bridge_failed');
+			assert.match(String(traceContext?.traceRef || ''), /trace:telegram-builder-bridge:telegram-update:5659/);
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'memory.recall' &&
+					record.result.status === 'failure' &&
+					/bridge_error/.test(record.result.summary) &&
+					/simulated timeout/.test(record.result.summary)
+				)),
+				'natural recall bridge failures must preserve the owner bridge reason in Harness Core ledger'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			rmSync(tempRoot, { recursive: true, force: true });
 			restoreAxios();
 			restoreEnv();
 		}
