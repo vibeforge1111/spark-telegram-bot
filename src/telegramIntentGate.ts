@@ -82,6 +82,27 @@ function hasReportedSpeechBeforeExecution(normalized: string): boolean {
   return re.test(normalized);
 }
 
+// Interrogative / hypothetical / how-to frames before an execution verb mean the user is
+// ASKING ABOUT the action, not commanding it ("should i build", "how do i build",
+// "what if we build", "why did the build fail", "remind me how to build"). Deliberately
+// excludes polite imperatives ("could you build", "would you build", "please build"),
+// which ARE commands and must stay executable.
+const NON_IMPERATIVE_FRAME_GROUP =
+  "(?:should (?:i|we)|how (?:do|would|should|can|could|to) (?:i|we|you|one)|how to|what if|why (?:did|do|does|is|was|are|were)|is it (?:worth|possible|safe|ok|okay|a good idea)|do (?:i|we) (?:need|have) to|what(?:'s| is) the best way to|remind me (?:how|what|to)|thinking about|considering)";
+// Hedged / tentative-future cues: not a fresh command this turn.
+const HEDGE_CUE_GROUP = '(?:might|maybe|perhaps|possibly|we could)';
+
+function hasNonImperativeExecution(normalized: string): boolean {
+  const frame = new RegExp(
+    `\\b${NON_IMPERATIVE_FRAME_GROUP}\\b(?:\\s+\\w+){0,6}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+  );
+  if (frame.test(normalized)) return true;
+  const hedge = new RegExp(
+    `\\b${HEDGE_CUE_GROUP}\\b(?:\\s+\\w+){0,4}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+  );
+  return hedge.test(normalized);
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const constraints = emptyConstraints();
@@ -149,7 +170,8 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\b(?:just explain|explain only|only explain|we can talk here|talk here|stay in chat)\b/
   ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword) ||
     hasScopedNegationBeforeExecution(normalized) ||
-    hasReportedSpeechBeforeExecution(normalized);
+    hasReportedSpeechBeforeExecution(normalized) ||
+    hasNonImperativeExecution(normalized);
 
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;

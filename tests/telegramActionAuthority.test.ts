@@ -804,3 +804,25 @@ test('negation-inversion phrasings still authorize a real build (no over-block)'
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
   }
 });
+
+test('question and hypothetical frames cannot authorize a build (word-hijack regression)', () => {
+  // Proven 2026-06-16: these routed to spawner.build at explicit confidence before the fix.
+  // They ask ABOUT building, they do not command it.
+  for (const text of [
+    'should i build the chip?',
+    'how do i build a chip?',
+    'what if we build the dashboard?',
+    'why did the build fail?',
+    'we might build a chip later',
+    'remind me how to build a chip'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+  }
+});
+
+test('polite imperatives still authorize a real build (no over-block)', () => {
+  // "could you / please build" are commands, not questions; they must stay executable.
+  for (const text of ['could you build the chip', 'please build the chip', 'build me a dashboard']) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});
