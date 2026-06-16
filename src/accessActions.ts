@@ -169,6 +169,11 @@ function buttonForAction(actionId: SparkAccessActionId): { text: string; callbac
   };
 }
 
+function localTerminalCommandForAccessAction(actionId: SparkAccessActionId): string {
+  const args = SPARK_ACCESS_ACTIONS[actionId].command.filter((arg) => arg !== '--json');
+  return ['spark', ...args].join(' ');
+}
+
 export async function runSparkAccessAction(
   actionId: SparkAccessActionId,
   runner: SparkCommandRunner = defaultSparkCommandRunner
@@ -191,18 +196,19 @@ export async function runSparkAccessActionDetailed(
       anyError.stderr,
       anyError.message,
     ].filter(Boolean).map(String).join('\n').trim());
-    const nonInteractive = /non-interactive|interactive terminal|requires?.*confirmation/i.test(output);
-    const reply = nonInteractive
+    const needsLocalApproval = /non-interactive|interactive terminal|requires?.*confirmation|needs confirmation before continuing|Approval phrase:/i.test(output);
+    const localCommand = localTerminalCommandForAccessAction(actionId);
+    const reply = needsLocalApproval
       ? [
-          'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires an interactive confirmation.',
-          'Run `spark access disable-level5` in a trusted local terminal, then restart Spark Live. The Telegram chat access setting can still be lowered separately.'
+          'Spark could not change the Level 5 service lane from this Telegram process because the Spark CLI requires a trusted local confirmation.',
+          `Run \`${localCommand}\` in a trusted local terminal, type the Spark approval phrase there, then restart Spark Live if the command asks you to. The Telegram chat access setting can still be lowered separately.`
         ].join('\n')
       : [`Spark access action failed: ${action.id}`, output || 'No output.'].join('\n');
     return {
       reply,
       payload: {
         ok: false,
-        error: nonInteractive ? 'non_interactive_confirmation_required' : 'command_failed'
+        error: needsLocalApproval ? 'non_interactive_confirmation_required' : 'command_failed'
       },
       needsSparkRestart: false,
     };

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildTurnTraceLineRecord } from '../src/index';
 
 function test(name: string, fn: () => void): void {
@@ -41,6 +42,30 @@ test('builds a D11-safe turn trace line with SIB trace context', () => {
     if (previousSalt === undefined) delete process.env.SPARK_CHAT_REF_SALT;
     else process.env.SPARK_CHAT_REF_SALT = previousSalt;
   }
+});
+
+test('turn trace schema covers emitted record keys', () => {
+  const schema = JSON.parse(readFileSync('schemas/turn-trace-line.v1.schema.json', 'utf-8'));
+  const record = buildTurnTraceLineRecord({
+    chatId: 123456789,
+    update: { update_id: 987654 },
+    traceContext: {
+      route: 'plain_chat',
+      replyKind: 'builder_reply',
+      requestId: 'telegram-update:987654',
+      traceRef: 'trace:agent-1:human-1:telegram-update:987654'
+    },
+    now: new Date('2026-06-10T00:00:00.000Z')
+  });
+
+  assert.ok(record);
+  for (const key of Object.keys(record)) {
+    assert.ok(schema.properties[key], `schema is missing emitted key ${key}`);
+  }
+  for (const key of schema.required) {
+    assert.ok(Object.prototype.hasOwnProperty.call(record, key), `record is missing required schema key ${key}`);
+  }
+  assert.equal(schema.properties.schema.const, 'spark.turn_trace.v1');
 });
 
 test('skips records when no Telegram update id is available', () => {
