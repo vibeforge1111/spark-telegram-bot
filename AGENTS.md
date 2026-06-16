@@ -64,6 +64,41 @@ Promotion is valid only when the rule keeps both user experiences healthy:
 natural exploration/status/debugging stays answer-only, and fresh explicit
 authority to act still reaches the owning system.
 
+## Spark Governance Reflex
+
+Apply this reflex before every Spark bug fix, Telegram QA verdict, message
+polish pass, memory/context adjustment, provider/access check, Spawner change,
+or Harness/Core authority change:
+
+1. Read the user turn as a normal human conversation, not as a keyword bag.
+2. Identify what was freshly authorized, what was only discussed, and what was
+   explicitly bounded as no-save, no-build, no-publish, no-change, or no-op.
+3. Identify the lane that should answer: recent chat, durable memory, wiki/ALM,
+   owner state, provider state, mission state, trace, or plain conversation.
+4. Identify the owner that can prove truth or side effects: Harness
+   Core/Governor, Builder, Spawner, domain-chip-memory, CLI/provider,
+   Telegram composition, browser/computer-use, voice/media, installer,
+   Cockpit, Labs, Swarm, or another declared owner.
+5. Decide whether the issue is reusable across wording, project names, owners,
+   surfaces, or timing. If not, keep it as an incident note.
+6. Patch the owner mechanism that made the wrong route, source, authority,
+   owner proof, ledger, or composition decision. Do not patch the visible
+   sentence unless trace evidence proves the route/source/owner path is already
+   correct.
+7. Reject exact transcript saves. Do not key fixes to the observed phrase,
+   project name, mission id, screenshot, provider label, or answer text unless
+   that token is a real typed contract in the owner system.
+8. Preserve the paired boundary: one natural positive must still execute, and
+   one adjacent natural no-op trap must remain answer-only.
+9. Verify with owner evidence, Harness/Governor trace, ledger/outbound audit,
+   side-effect proof, and visible Telegram/CUA evidence when Telegram changed.
+10. Promote reusable lessons into this file, Spark governance docs, relevant
+    installed skills, and focused tests or QA prompts before calling the fix
+    captured.
+
+Small patches are fine only when they are mechanism-level patches. A fix that
+only makes the current transcript look good is not a Spark fix.
+
 For every reusable failure, capture a governance packet before editing or
 promoting the rule:
 

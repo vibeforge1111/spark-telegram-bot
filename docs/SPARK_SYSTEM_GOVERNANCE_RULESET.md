@@ -27,6 +27,43 @@ Before editing code, prompts, docs, skills, tests, or runtime rules, write down:
 
 Patch only after the failure family and owning layer are known.
 
+## Governance Reflex
+
+This reflex is mandatory across Spark systems. Use it before every
+implementation, QA verdict, Telegram composition change, memory/context change,
+provider/access change, Spawner change, or Harness/Core authority change.
+
+1. Read the latest turn as a normal human conversation, not a keyword bag.
+2. Name what the user freshly authorized, what they only discussed, and what
+   they bounded as no-save, no-build, no-publish, no-change, or no-op.
+3. Select the answer lane that should win: recent chat, durable memory,
+   wiki/ALM, owner state, provider state, mission state, trace, or plain
+   conversation.
+4. Name the owner that can prove truth or side effects: Harness Core/Governor,
+   Builder, Spawner, domain-chip-memory, CLI/provider, Telegram composition,
+   browser/computer-use, voice/media, installer, Cockpit, Labs, Swarm, or
+   another declared owner.
+5. Decide whether the issue is a reusable failure class across wording,
+   projects, owners, surfaces, or timing. If it is not reusable, keep it as an
+   incident note instead of promoting a broad rule.
+6. Patch the mechanism that made the wrong decision: route selection, source
+   selection, authority, owner proof, bridge contract, ledgering, or
+   composition.
+7. Reject deterministic transcript saves. Do not key a fix to the observed
+   phrase, project name, mission id, screenshot, provider label, or answer text
+   unless that token is a real typed contract in the owner system.
+8. Preserve both sides: one natural positive must still work, and one adjacent
+   natural no-op trap must remain answer-only.
+9. Verify with owner evidence, Harness/Governor trace, ledger/outbound audit,
+   side-effect proof, and visible Telegram/CUA proof when the human Telegram
+   surface changed.
+10. Promote reusable lessons into agent rules, this governance doc or a
+    route-specific doc, relevant installed skills, and focused tests or QA
+    prompts before calling the fix captured.
+
+The goal is not to make one transcript pass. The goal is to remove the class of
+failure while preserving natural Spark use across all planes.
+
 ## Authority Model
 
 Treat every surface as evidence until Harness/Core and the owner system make it authoritative.
