@@ -72,8 +72,8 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   );
 }
 
-const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
-const ROUTE_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|model|status|health|registry|drift|pending|release|blocker|schedule|loop|recursive|chip|route|memory|recall|remember|wiki|knowledge\s*base|kb|access|publish|deploy|draft|canvas|board|browser|browser-use|computer-use|computer\s+use|voice|audio|restart)\b/;
+const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|recursive|approve|approval|propose|proposal|chip|route|memory|wiki|access|research|browse|external|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
+const ROUTE_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|model|status|health|registry|drift|pending|release|blocker|schedule|loop|recursive|approve|approval|propose|proposal|packet|chip|route|memory|recall|remember|wiki|knowledge\s*base|kb|access|research|browse|external|publish|deploy|draft|canvas|board|browser|browser-use|computer-use|computer\s+use|voice|audio|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -2367,6 +2367,13 @@ export function isNoExecutionExplanationPrompt(text: string): boolean {
   if (!normalized) {
     return false;
   }
+  if (
+    /\bharness(?:\s+core)?\b/.test(normalized) &&
+    /\b(?:architecture|authority\s+path|canonical\s+path|what\s+changed|changed|how\s+(?:does|should|is)|explain|difference)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) return true;
   if (isActionWordMetaDiscussion(normalized)) return true;
   if (/\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+use\s+external\s+network\b/.test(normalized) && /\b(?:explain|policy|required|requirement)\b/.test(normalized)) return true;
   if (parseBuildIntent(normalized) || !isNoExecutionBoundary(normalized)) return false;

@@ -105,12 +105,15 @@ Do not let any of these become action authority by themselves:
 - preview, Canvas, or Board links
 - stale task/result artifacts
 
-Read-only/status hijacks count too. A route word in meta-language must not
+Read-only/status and high-agency hijacks count too. A route word in meta-language must not
 steal the answer lane into provider truth, registry drift, access status,
-memory recall, wiki lookup, browser availability, or mission status unless the
-latest turn is actually asking that owner for current state. The same boundary
+memory recall, wiki lookup, browser availability, mission status, recursive
+proposal/approval, schedule deletion, chip creation, provider runs, external
+research, or browser/network use unless the latest turn is actually asking that
+owner for current state or a fresh action. The same boundary
 must preserve explicit positives such as "what provider is active right now?",
-"show my access level", "search the wiki for X", and "build the local app now".
+"show my access level", "search the wiki for X", "propose this recursive packet
+now", and "build the local app now".
 
 ## Owner Truth
 

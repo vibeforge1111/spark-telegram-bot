@@ -699,3 +699,68 @@ test('old chip memory cannot authorize domain chip creation today', () => {
   assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
+
+test('route-word trace and bug-report text cannot select high-agency actions', () => {
+  const cases = [
+    {
+      text: 'The trace says propose a recursive network packet; does that authorize a proposal?',
+      route: 'recursive.proposal' as const,
+      toolName: 'recursive.propose',
+      ownerSystem: 'spark-telegram-bot' as const,
+      mutationClass: 'writes_files' as const
+    },
+    {
+      text: 'The trace mentions create a domain chip; does that authorize creation?',
+      route: 'domain_chip.create' as const,
+      toolName: 'domain_chip.create',
+      ownerSystem: 'domain-chip' as const,
+      mutationClass: 'creates_chip' as const
+    },
+    {
+      text: 'The trace mentions delete the nightly schedule; does that authorize deletion?',
+      route: 'schedule.delete' as const,
+      toolName: 'schedule.delete',
+      ownerSystem: 'spark-intelligence-builder' as const,
+      mutationClass: 'deletes_schedule' as const
+    },
+    {
+      text: 'The bug report says Research latest public docs. Do not browse; classify the boundary.',
+      route: 'spawner.external_research' as const,
+      toolName: 'external.fetch',
+      ownerSystem: 'spark-intelligence-builder' as const,
+      mutationClass: 'external_network' as const,
+      externalNetwork: true
+    }
+  ];
+
+  for (const item of cases) {
+    const naturalRouteDecision = decideNaturalRoute(item.text);
+    const decision = classifyTelegramIntentV2(item.text, { naturalRouteDecision });
+    const envelope = envelopeForDecision(item.text, decision);
+    const result = authorizeTelegramActionFromEnvelope(envelope, { ...item, text: item.text });
+
+    assert.equal(naturalRouteDecision.route, 'chat_explain', item.text);
+    assert.equal(decision.route, 'conversation.route_word_meta_boundary', item.text);
+    assert.equal(envelope.directive.noExecution, true, item.text);
+    assert.equal(result.allow, false, item.text);
+    assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'), item.text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), item.text);
+  }
+});
+
+test('explicit recursive proposal still authorizes recursive owner path', () => {
+  const text = 'Please propose a recursive network packet for review.';
+  const envelope = envelopeForNaturalRoute(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'recursive.proposal',
+    text,
+    toolName: 'recursive.propose',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files'
+  });
+
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});

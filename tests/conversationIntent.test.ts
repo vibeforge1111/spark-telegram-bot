@@ -687,8 +687,12 @@ test('route-word explanation discussions do not become status or source-lane rou
   const accessPatch = 'Can you talk me through the access patch without changing my access level?';
   const wikiBoundary = 'Why did the wiki route hijack happen, and what general boundary should prevent it?';
   const memoryBoundary = 'Explain why the memory hijack happened and what changed in the classifier.';
+  const recursiveTrace = 'The trace says propose a recursive network packet; does that authorize a proposal?';
+  const researchReport = 'The bug report says Research latest public docs. Do not browse; classify the boundary.';
 
   assert.equal(isRouteWordMetaExplanationDiscussion(providerFix), true);
+  assert.equal(isRouteWordMetaExplanationDiscussion(recursiveTrace), true);
+  assert.equal(isRouteWordMetaExplanationDiscussion(researchReport), true);
   assert.equal(isProviderRuntimeConfigQuestion(providerFix), false);
   assert.equal(isAccessStatusQuestion(accessPatch), false);
   assert.equal(isSparkWikiStatusQuestion(wikiBoundary), false);

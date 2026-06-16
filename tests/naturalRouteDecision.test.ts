@@ -322,6 +322,26 @@ test('routes mission wording UX questions to canonical chat_explain', () => {
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes route-word trace authority questions to canonical chat_explain', () => {
+  const prompts = [
+    'The trace says propose a recursive network packet; does that authorize a proposal?',
+    'The trace mentions create a domain chip; does that authorize creation?',
+    'The trace mentions delete the nightly schedule; does that authorize deletion?',
+    'The bug report says Research latest public docs. Do not browse; classify the boundary.'
+  ];
+
+  for (const prompt of prompts) {
+    const route = decideNaturalRoute(prompt);
+
+    assert.equal(route.route, 'chat_explain', prompt);
+    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
+    assert.equal(route.action, 'plain_chat.qa_boundary', prompt);
+    assert.equal(route.context_source, 'latest_message', prompt);
+    assert.deepEqual(route.matched_signals, ['no_execution_explanation'], prompt);
+    assert.equal(route.requires_confirmation, false, prompt);
+  }
+});
+
 test('routes quoted drafted high-agency examples to answer-only boundary', () => {
   const prompts = [
     'Write a message that says "start a mission now" but do not send or run it.',

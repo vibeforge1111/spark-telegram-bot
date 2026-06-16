@@ -72,7 +72,7 @@ The following must block interruptive routes unless a later fresh turn explicitl
 - quoted action phrases
 - examples of action words
 - bug reports about action routing
-- logs, traces, fenced repros, selectedIntent snippets, prior Spark replies, and mission logs that contain route words
+- logs, traces, fenced repros, selectedIntent snippets, prior Spark replies, and mission logs that contain route words, recursive proposal/approval wording, schedule/delete wording, chip creation wording, or research/browse wording
 - "what changed?", "what failed?", "does that authorize?", and "why is that enough authority?" questions about route behavior
 - architecture discussion about routing/action systems
 - benchmark or QA prompt creation that mentions words like score, run, stale, build, mission, provider

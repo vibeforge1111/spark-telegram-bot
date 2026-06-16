@@ -91,14 +91,16 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     return constraints;
   }
 
+  const routeWordMetaBoundary = isRouteWordMetaExplanationDiscussion(normalized);
+  const actionWordMetaBoundary = isActionWordMetaDiscussion(normalized);
   const hasMetaLanguageBoundary =
-    isActionWordMetaDiscussion(normalized) ||
-    isRouteWordMetaExplanationDiscussion(normalized) ||
+    actionWordMetaBoundary ||
+    routeWordMetaBoundary ||
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|example|quoted example|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|just quoted|only quoted|not a request|not an instruction|not a command|not asking for|does not mean|doesn't mean|not mean|talking about the (?:word|phrase)|discussing the (?:word|phrase))\b/.test(normalized);
   const hasExecutionKeyword =
-    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
+    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|recursive|approve|approval|propose|proposal|packet|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
 
-  constraints.noExecution = [
+  constraints.noExecution = routeWordMetaBoundary || [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
@@ -379,6 +381,30 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       blocked_candidates: [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'observe',
+      natural_route: naturalRoute
+    });
+  }
+
+  const routeWordMetaBoundary = isRouteWordMetaExplanationDiscussion(normalized);
+  const actionWordMetaBoundary = isActionWordMetaDiscussion(normalized);
+  if (
+    (routeWordMetaBoundary || actionWordMetaBoundary) &&
+    naturalRoute?.action !== 'plain_chat.harness_architecture'
+  ) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'conversation.route_word_meta_boundary',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.route_word_meta_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: [routeWordMetaBoundary ? 'route_word_meta_explanation_boundary' : 'action_word_meta_boundary'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'conversation.route_word_meta_boundary' && naturalRoute.route !== 'plain_chat'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Route/action words inside explanations, traces, logs, bug reports, or quoted text are evidence only and cannot own execution.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'enforce_safe',
       natural_route: naturalRoute
     });
   }
