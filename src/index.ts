@@ -175,6 +175,11 @@ import {
   startMissionRelay,
   unregisterMissionRelay
 } from './missionRelay';
+import {
+  isRecoverableTelegramStartupError,
+  telegramPollingRetryDelayMs,
+  telegramStartupErrorMessage
+} from './telegramPollingStartup';
 import { buildDiagnoseReport, renderDiagnoseReportHtml } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
@@ -3555,6 +3560,7 @@ mapCleanupTimer.unref?.();
 const PUBLIC_ONBOARDING_COMMANDS = new Set(['/start', '/myid']);
 const TELEGRAM_POLLING_READY_GRACE_MS = 3000;
 let pollingActive = false;
+let pollingStartupLoopActive = false;
 
 function clearPendingExecutionState(key: string): boolean {
   const hadClarification = deletePendingBuildClarification(key);
@@ -3665,6 +3671,76 @@ async function ensurePollingReady(): Promise<void> {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function recordTelegramPollingStartupError(error: unknown): string {
+  const message = redactText(telegramStartupErrorMessage(error));
+  pollingLastError = message;
+  publishPollingRuntimeStatus('starting');
+  return message;
+}
+
+async function startTelegramPollingWithRetry(): Promise<void> {
+  if (pollingStartupLoopActive || pollingActive) return;
+  pollingStartupLoopActive = true;
+  let attempt = 0;
+  const retryDelayMs = telegramPollingRetryDelayMs();
+
+  try {
+    while (!pollingActive) {
+      attempt += 1;
+      try {
+        await ensurePollingReady();
+        pollingStartedAt = new Date().toISOString();
+        pollingLastError = null;
+        publishPollingRuntimeStatus('starting');
+        const launchPromise = bot.launch();
+        const launchProbe = await Promise.race([
+          launchPromise.then(
+            () => ({ status: 'settled' as const }),
+            (error) => ({ status: 'failed' as const, error })
+          ),
+          wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
+        ]);
+        if (launchProbe.status === 'failed') {
+          throw launchProbe.error;
+        }
+        if (launchProbe.status === 'settled') {
+          throw new Error('Telegram polling stopped during startup.');
+        }
+        pollingActive = true;
+        publishPollingRuntimeStatus('active');
+        console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
+        void launchPromise.catch((err) => {
+          pollingActive = false;
+          const message = recordTelegramPollingStartupError(err);
+          if (isRecoverableTelegramStartupError(err)) {
+            console.warn(`Telegram polling stopped with recoverable error: ${message}. Retrying in ${retryDelayMs}ms.`);
+            setTimeout(() => {
+              void startTelegramPollingWithRetry().catch((retryError) => {
+                console.error('Telegram polling retry loop failed:', retryError);
+                process.exit(1);
+              });
+            }, retryDelayMs).unref?.();
+            return;
+          }
+          void releaseGatewayOwnership();
+          console.error('Telegram polling stopped:', err);
+          process.exit(1);
+        });
+        return;
+      } catch (error) {
+        const message = recordTelegramPollingStartupError(error);
+        if (!isRecoverableTelegramStartupError(error)) {
+          throw error;
+        }
+        console.warn(`Telegram polling startup attempt ${attempt} failed with recoverable error: ${message}. Retrying in ${retryDelayMs}ms.`);
+        await wait(retryDelayMs);
+      }
+    }
+  } finally {
+    pollingStartupLoopActive = false;
+  }
 }
 
 function requireAdmin(ctx: any): boolean {
@@ -12198,30 +12274,7 @@ async function start() {
     return;
   }
 
-  await ensurePollingReady();
-  pollingStartedAt = new Date().toISOString();
-  const launchPromise = bot.launch();
-  const launchProbe = await Promise.race([
-    launchPromise.then(
-      () => ({ status: 'settled' as const }),
-      (error) => ({ status: 'failed' as const, error })
-    ),
-    wait(TELEGRAM_POLLING_READY_GRACE_MS).then(() => ({ status: 'running' as const }))
-  ]);
-  if (launchProbe.status === 'failed') {
-    throw launchProbe.error;
-  }
-  if (launchProbe.status === 'settled') {
-    throw new Error('Telegram polling stopped during startup.');
-  }
-  pollingActive = true;
-  publishPollingRuntimeStatus('active');
-  console.log('Spark bot is running in polling mode. Press Ctrl+C to stop.');
-  void launchPromise.catch((err) => {
-    void releaseGatewayOwnership();
-    console.error('Telegram polling stopped:', err);
-    process.exit(1);
-  });
+  await startTelegramPollingWithRetry();
 }
 
 // Guard: only auto-start when run as the main module. Importing this file
