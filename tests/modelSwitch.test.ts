@@ -98,6 +98,25 @@ test('refuses API providers when no key is configured', () => {
   assert.equal(providerIsConfigured('anthropic', {} as NodeJS.ProcessEnv), true);
 });
 
+test('provider allowlist blocks configured GLM model switching', async () => {
+  const before = { ...process.env };
+  try {
+    process.env.SPARK_MODULE_CONFIG_DIR = '__missing_test_dir__';
+    process.env.SPARK_ALLOWED_LLM_PROVIDERS = 'codex';
+    process.env.ZAI_API_KEY = 'zai-test-key';
+
+    const agentReply = await switchModelRoute('agent', 'zai');
+    const missionReply = await switchModelRoute('mission', 'zai');
+
+    assert.match(agentReply, /cannot switch agent chat\/runtime\/memory to zai/);
+    assert.match(agentReply, /Allowed chat provider\(s\): codex/);
+    assert.match(missionReply, /cannot switch missions to zai/);
+    assert.match(missionReply, /Allowed mission provider\(s\): codex/);
+  } finally {
+    process.env = before;
+  }
+});
+
 test('uses a lightweight Ollama default for local model switching', async () => {
   const before = { ...process.env };
   try {

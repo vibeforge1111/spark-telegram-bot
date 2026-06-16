@@ -237,7 +237,7 @@ import {
   telegramPendingMissionCancelKey
 } from './telegramPendingMissionCancelEvidence';
 import { parseSafeOperatorAction, runSafeOperatorAction } from './operatorActions';
-import { resolveMissionDefaultProvider } from './providerRouting';
+import { filterAllowedMissionProviders, formatAllowedMissionProviders, resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
   buildNoExecutionIdeationReply,
@@ -8006,6 +8006,11 @@ for (const variant of RUN_VARIANTS) {
       return ctx.reply(`Usage: ${variant.usage}`);
     }
     const providers = variant.name === 'run' ? [missionDefaultProvider()] : variant.providers;
+    const allowedProviders = filterAllowedMissionProviders(providers);
+    if (providers.length > 0 && allowedProviders.length !== providers.length) {
+      await ctx.reply(`This Spark install is locked to mission provider(s): ${formatAllowedMissionProviders()}.`);
+      return;
+    }
     const isBuild = variant.name === 'run' && Boolean(parseBuildIntent(goal));
     const authorization = telegramCommandActionAuthorityDecision(ctx, {
       commandName: variant.name,
@@ -8022,7 +8027,7 @@ for (const variant of RUN_VARIANTS) {
       return;
     }
     const buildDispatchRef: { current?: BuildIntentDispatchResult } = {};
-    const missionId = await handleRunCommand(ctx, goal, providers, undefined, {
+    const missionId = await handleRunCommand(ctx, goal, allowedProviders, undefined, {
       allowBuildIntent: variant.name === 'run',
       executionAuthority: authorization.governorDecision,
       onBuildDispatchResult: (result) => {
