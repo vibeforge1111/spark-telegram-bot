@@ -2,6 +2,11 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision,
+  type GovernorDecisionV1
+} from '@spark/harness-core';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
 import { pingChatProvider, resolveChatProviderConfig, type ChatProviderPing } from './llm';
@@ -21,6 +26,7 @@ import {
 } from './naturalRouteLedger';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { signGovernorDecisionIfConfigured } from './governorSignature';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -68,6 +74,9 @@ interface HttpStatusResult {
   err?: string;
   payload?: unknown;
 }
+
+const DIAGNOSE_SECTION_HEADERS = new Set(['Health', 'Issue', 'Routes', 'Workspace']);
+const DIAGNOSE_LABELS = new Set(['Chat', 'Builds', 'Providers', 'Ping', 'Board', 'Spawner UI']);
 
 export interface DiagnoseSubject {
   userId: number;
@@ -276,8 +285,46 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
   }
 }
 
-async function pingProvider(providerId: string): Promise<PingResult> {
+export function buildDiagnosePingExecutionAuthority(input: {
+  providerId: string;
+  requestId: string;
+  actorIdRef?: string;
+}): GovernorDecisionV1 {
+  const providerId = input.providerId.trim() || 'unknown';
+  const requestId = input.requestId.trim();
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'spark-telegram-bot/diagnose-command',
+    reason: [
+      `Admin /diagnose command authorized a provider health ping for ${providerId}.`,
+      'This is a suppress-relay diagnostic mission scoped to checking selected Spawner build routing only.'
+    ].join(' '),
+    requestId,
+    actorKind: 'human',
+    actorIdRef: input.actorIdRef || 'telegram-admin',
+    target: providerId,
+    confidence: 1,
+    riskTier: 'medium'
+  });
+
+  return signGovernorDecisionIfConfigured(createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spawner.run',
+    restrictions: {
+      network_allowed: true,
+      write_allowed: true,
+      publish_allowed: false
+    },
+    reply_instruction: 'Authorize only this suppress-relay diagnostic Spawner mission; do not publish, ship, or claim user-facing completion.'
+  }));
+}
+
+async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): Promise<PingResult> {
   const started = Date.now();
+  const requestId = `diag-${providerId}-${started}`;
   try {
     const run = await axios.post(
       `${SPAWNER_UI_URL}/api/spark/run`,
@@ -285,10 +332,11 @@ async function pingProvider(providerId: string): Promise<PingResult> {
         goal: 'Reply with exactly: PING_OK',
         chatId: 'diag',
         userId: 'diag',
-        requestId: `diag-${providerId}-${started}`,
+        requestId,
         providers: [providerId],
         promptMode: 'simple',
-        suppressRelay: true
+        suppressRelay: true,
+        executionAuthority: buildDiagnosePingExecutionAuthority({ providerId, requestId, actorIdRef })
       },
       spawnerAxiosOptions(10000)
     );
@@ -358,6 +406,44 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
   return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escapeTelegramHtmlAttribute(value: string): string {
+  return escapeTelegramHtml(value).replace(/"/g, '&quot;');
+}
+
+function renderDiagnoseTelegramLine(line: string, index: number): string {
+  if (!line.trim()) return '';
+  if (index === 0) return `<b>${escapeTelegramHtml(line)}</b>`;
+  if (DIAGNOSE_SECTION_HEADERS.has(line.trim())) {
+    return `<b>${escapeTelegramHtml(line.trim())}</b>`;
+  }
+
+  const label = line.match(/^([A-Za-z][A-Za-z ]+):\s*(.*)$/);
+  if (!label || !DIAGNOSE_LABELS.has(label[1])) {
+    return escapeTelegramHtml(line);
+  }
+
+  const name = label[1];
+  const value = label[2] || '';
+  if (name === 'Spawner UI' && /^https?:\/\//i.test(value)) {
+    const href = escapeTelegramHtmlAttribute(value);
+    return `<b>${name}:</b> <a href="${href}">open</a>`;
+  }
+
+  const renderedValue = value ? `<code>${escapeTelegramHtml(value)}</code>` : '';
+  return `<b>${name}:</b>${renderedValue ? ` ${renderedValue}` : ''}`;
+}
+
+export function renderDiagnoseReportHtml(report: string): string {
+  return report.split('\n').map(renderDiagnoseTelegramLine).join('\n');
 }
 
 export function resolveDiagnoseRouteProviders(

@@ -175,7 +175,7 @@ import {
   startMissionRelay,
   unregisterMissionRelay
 } from './missionRelay';
-import { buildDiagnoseReport } from './diagnose';
+import { buildDiagnoseReport, renderDiagnoseReportHtml } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
 import { readMemoryMovementSummary, renderMemoryMovementSummary } from './memoryMovement';
@@ -4464,7 +4464,14 @@ bot.command('status', async (ctx) => {
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
-  await ctx.reply('Running diagnostics - checks chat, access, relay, Spawner, and provider ping. Takes ~30s...');
+  const richReplyOptions = {
+    parse_mode: 'HTML',
+    disable_web_page_preview: true
+  } as const;
+  await ctx.reply(
+    '<b>Running diagnostics</b>\n\nChecking chat, access, relay, Spawner, and provider ping. Takes ~30s...',
+    richReplyOptions as any
+  );
   try {
     const report = await buildDiagnoseReport(ctx.from.id, {
       userId: ctx.from.id,
@@ -4473,7 +4480,7 @@ bot.command('diagnose', async (ctx) => {
       isAllowed: conversation.isAllowed(ctx.from)
     });
     // Telegram limit is 4096 chars; diagnose is always well under.
-    await ctx.reply(report);
+    await ctx.reply(renderDiagnoseReportHtml(report), richReplyOptions as any);
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }

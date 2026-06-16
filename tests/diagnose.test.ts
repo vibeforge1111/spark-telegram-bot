@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildDiagnosePingExecutionAuthority,
   describeAccessDiagnostics,
   describeBuilderBridgeHealth,
   describeChatProviderHealth,
@@ -10,6 +11,7 @@ import {
   getRelayIdentityFromEnv,
   inferDiagnoseLikelyIssue,
   readableLocalServiceUrl,
+  renderDiagnoseReportHtml,
   resolveDiagnoseRouteProviders,
   selectPingProviderIds,
   type DiagnoseSubject,
@@ -141,6 +143,23 @@ test('pings selected Spawner route providers only', () => {
   assert.deepEqual(selectPingProviderIds(providers, ['zai']), ['zai']);
 });
 
+test('diagnostic provider pings carry Harness Core Spawner run authority', () => {
+  const authority = buildDiagnosePingExecutionAuthority({
+    providerId: 'codex',
+    requestId: 'diag-codex-123'
+  }) as any;
+
+  assert.equal(authority.schema_version, 'governor-decision-v1');
+  assert.equal(authority.execution_boundary.action_authorized, true);
+  assert.equal(authority.authorizations[0].verdict, 'allow');
+  assert.equal(authority.authorizations[0].capability_id, 'capability:spawner-ui:spawner.run');
+  assert.equal(authority.authorizations[0].restrictions.publish_allowed, false);
+  assert.equal(authority.envelope.actor.kind, 'human');
+  assert.equal(authority.envelope.proposed_actions[0].action_type, 'launch_mission');
+  assert.equal(authority.envelope.proposed_actions[0].args_ref.path_or_uri, 'telegram://actions/spawner.run/diag-codex-123');
+  assert.match(authority.turn_id, /diagnose-command:diag-codex-123$/);
+});
+
 test('diagnostics keep OpenAI-compatible chat separate from Codex mission routing', () => {
   const routes = resolveDiagnoseRouteProviders({
     BOT_DEFAULT_PROVIDER: 'codex',
@@ -153,6 +172,27 @@ test('diagnostics keep OpenAI-compatible chat separate from Codex mission routin
   assert.equal(routes.chatProvider, 'openai');
   assert.equal(routes.telegramRunProvider, 'codex');
   assert.equal(routes.spawnerDefaultProvider, 'codex');
+});
+
+test('renders diagnose reports as safe Telegram HTML with readable sections', () => {
+  const html = renderDiagnoseReportHtml([
+    '🟢 Spark diagnostics look healthy.',
+    '',
+    'Health',
+    '🟢 Relay ready',
+    '',
+    'Routes',
+    'Chat: codex (gpt-5.5)',
+    'Builds: zai <unsafe>',
+    'Spawner UI: http://127.0.0.1:3333'
+  ].join('\n'));
+
+  assert.match(html, /^<b>🟢 Spark diagnostics look healthy\.<\/b>/);
+  assert.match(html, /<b>Health<\/b>/);
+  assert.match(html, /<b>Routes<\/b>/);
+  assert.match(html, /<b>Chat:<\/b> <code>codex \(gpt-5\.5\)<\/code>/);
+  assert.match(html, /<b>Builds:<\/b> <code>zai &lt;unsafe&gt;<\/code>/);
+  assert.match(html, /<b>Spawner UI:<\/b> <a href="http:\/\/127\.0\.0\.1:3333">open<\/a>/);
 });
 
 test('summarizes route divergence and build misroutes for diagnose', () => {
