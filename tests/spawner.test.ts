@@ -1840,6 +1840,99 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^Move$/m);
   });
 
+  await test('latestFailureSummary explains stale provider sessions without raw dumps', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [],
+          failed: [
+            {
+              missionId: 'mission-stale-provider',
+              missionName: 'Day Triage Button polish',
+              status: 'failed',
+              lastEventType: 'provider_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Provider failed: Provider runtime has no active session after Spawner restart; marked stale so the mission can be run again.',
+              taskName: null,
+              providerResults: []
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestFailureSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /That run did not make it through: Day Triage Button polish\./);
+    assert.match(result.message, /provider session went stale after a Spawner restart; rerun from the board/i);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-stale-provider/);
+    assert.doesNotMatch(result.message, /Provider runtime has no active session/);
+    assert.doesNotMatch(result.message, /marked stale so the mission can be run again/);
+  });
+
+  await test('latest failure readouts skip failed question residue', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [],
+          failed: [
+            {
+              missionId: 'mission-failed-question-residue',
+              missionName: ': what happened to mission-1781566950658? Should',
+              status: 'failed',
+              lastEventType: 'mission_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission failed.',
+              taskName: null,
+              taskNames: [
+                'Inspect mission-1781566950658 state files',
+                'Classify completion versus rerun status',
+                'Send concise Telegram answer'
+              ],
+              providerResults: [{ providerId: 'codex', status: 'failed' }]
+            },
+            {
+              missionId: 'mission-real-failed-build',
+              missionName: 'Day Triage Button polish',
+              status: 'failed',
+              lastEventType: 'provider_failed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              taskName: 'Build one-screen polish',
+              providerResults: [{ providerId: 'codex', status: 'failed' }],
+              providerSummary: 'Codex: Provider runtime has no active session after Spawner restart.'
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const failure = await spawner.latestFailureSummary();
+    const provider = await spawner.latestFailedProviderSummary();
+
+    assert.equal(failure.success, true);
+    assert.match(failure.message, /That run did not make it through: Day Triage Button polish\./);
+    assert.match(failure.message, /mission-real-failed-build/);
+    assert.doesNotMatch(failure.message, /what happened to mission-1781566950658/i);
+    assert.doesNotMatch(failure.message, /mission-failed-question-residue/);
+
+    assert.equal(provider.success, true);
+    assert.match(provider.message, /latest failed Spawner job reached Codex, then failed\./);
+    assert.match(provider.message, /mission-real-failed-build/);
+    assert.doesNotMatch(provider.message, /what happened to mission-1781566950658/i);
+    assert.doesNotMatch(provider.message, /mission-failed-question-residue/);
+  });
+
   await test('latestProjectPreview returns the shipped app link for root route builds', async () => {
     restoreAxios();
     const now = Date.now();
@@ -1904,6 +1997,41 @@ async function run(): Promise<void> {
     const result = await spawner.latestProjectPreview();
 
     assert.equal(result.success, true);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:3333\/preview\/[A-Za-z0-9_-]+\/index\.html/);
+  });
+
+  await test('latestProjectPreview keeps real question-titled shipped apps eligible', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-how-to-focus',
+              missionName: 'How To Focus Timer',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship timer app',
+              taskNames: ['Build timer UI', 'Implement focus session state', 'Run smoke test'],
+              providerSummary: 'Codex: Built and verified `How To Focus Timer` at `C:\\Users\\USER\\Desktop\\how-to-focus-timer`.'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Here is the latest shipped app/);
+    assert.match(result.message, /How To Focus Timer/);
     assert.match(result.message, /http:\/\/127\.0\.0\.1:3333\/preview\/[A-Za-z0-9_-]+\/index\.html/);
   });
 
@@ -2066,6 +2194,54 @@ async function run(): Promise<void> {
     assert.match(result.message, /I do not see a shipped app link yet\./);
     assert.doesNotMatch(result.message, /Telegram Golden Path Probe/);
     assert.doesNotMatch(result.message, /Mission board/);
+  });
+
+  await test('latestProjectPreview skips question readout residue when reporting missing app links', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-question-residue',
+              missionName: ': what happened to mission-1781566950658? Should',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              taskNames: [
+                'Inspect mission-1781566950658 state files',
+                'Classify completion versus rerun status',
+                'Send concise Telegram answer'
+              ]
+            },
+            {
+              missionId: 'mission-completed-no-link',
+              missionName: 'Quiet Completed Mission',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Complete without preview',
+              providerSummary: 'Codex: completed without a local preview URL.'
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /latest app-like completed run: Quiet Completed Mission/);
+    assert.doesNotMatch(result.message, /what happened to mission-1781566950658/i);
+    assert.doesNotMatch(result.message, /mission-question-residue/);
   });
 
   await test('latestProjectPreview reports missing app link from latest completed mission only', async () => {

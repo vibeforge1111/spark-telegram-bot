@@ -487,6 +487,8 @@ test('routes natural Spawner board questions to board reads', () => {
   assert.equal(parseSpawnerBoardNaturalIntent('why did the latest mission fail?'), 'latest_failure');
   assert.equal(parseSpawnerBoardNaturalIntent('What failed recently in Spawner, which provider handled it, and what should I retry or ignore?'), 'latest_failed_provider');
   assert.equal(parseSpawnerBoardNaturalIntent('no the localhost for the beauty centre'), 'latest_project_preview');
+  assert.equal(parseSpawnerBoardNaturalIntent('where can I open the latest preview?'), 'latest_project_preview');
+  assert.equal(parseSpawnerBoardNaturalIntent('send me the current app link'), 'latest_project_preview');
   assert.equal(isLocalSparkServiceRequest('no the localhost for the beauty centre', 'Completed Spawner mission spark-123'), false);
   assert.equal(
     parseSpawnerBoardNaturalIntent('the canvas event stream looked good, can you check whether the kanban side saw the same mission?'),

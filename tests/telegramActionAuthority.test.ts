@@ -861,6 +861,39 @@ test('natural wiki reads require Harness read authority and tool ledgers', () =>
   assert.equal(result.consumerVerification?.allowed, true);
 });
 
+test('latest preview questions authorize only read-only Spawner board access', () => {
+  const text = 'where can I open the latest preview?';
+  const envelope = envelopeForNaturalRoute(text);
+  const readResult = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.board',
+    text,
+    toolName: 'spawner.board',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'read_only'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'spawner.board_read');
+  assert.equal(envelope.candidates[0]?.route, 'spawner.board/latest_project_preview');
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(readResult.allow, true);
+  assert.equal(readResult.routeVerdict.reason, 'envelope_selected_route');
+  assert.equal(readResult.toolAuthorization.verdict, 'allowed');
+  assert.equal(readResult.harnessCore?.authorization.verdict, 'allow');
+  assert.equal(readResult.governorDecision?.outcome, 'read_only');
+  assert.equal(readResult.consumerVerification?.allowed, true);
+
+  const buildResult = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(buildResult.allow, false);
+  assert.equal(buildResult.routeVerdict.reason, 'route_not_selected_by_turn_envelope');
+});
+
 test('allows explicit no-edit Mission Control diagnostics through Spawner', () => {
   const text = 'Run a deliberately slow no-edit Mission Control diagnostic through Spawner. It should only prove live running-state UI and reply with SPARK_E2E_SLOW_NO_EDIT_OK after waiting about 30 seconds. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.';
   const envelope = envelopeFor(text);

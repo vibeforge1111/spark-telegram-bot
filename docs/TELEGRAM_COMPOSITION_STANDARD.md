@@ -107,6 +107,10 @@ only; final replies, owner evidence, and ledgers remain authoritative.
 - For build/artifact readouts, include enough grounded signal for the user to
   understand what changed, what proof exists, whether anything is blocked, and
   the next safe move. Do not send heading-only or title-only status text.
+- For Spawner "latest" readouts, separate history from promotion. History counts
+  can include operational probes and accidental question/readout missions, but
+  the promoted latest project, preview, failure, or provider job must skip that
+  residue unless owner evidence shows a real artifact/build task.
 - Let the absence of a warning mean clear.
 - Preserve Spark's voice through small, plain sentences. Do not make every reply a rigid report card.
 

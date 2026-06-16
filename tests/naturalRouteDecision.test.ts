@@ -808,6 +808,18 @@ test('routes Spawner failure-provider readouts ahead of current artifact residue
   assert.notEqual(route.route, 'project.readout');
 });
 
+test('routes latest preview link requests as read-only Spawner board reads', () => {
+  const route = decideNaturalRoute('where can I open the latest preview?');
+
+  assert.equal(route.route, 'spawner.board/latest_project_preview');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.action, 'spawner.board_read');
+  assert.deepEqual(route.payload, { intent: 'latest_project_preview' });
+  assert.equal(route.context_source, 'visible_exact_artifact');
+  assert.equal(route.requires_confirmation, false);
+  assert.notEqual(route.route, 'spawner.build');
+});
+
 test('ignores conversational residue words in current Spawner artifact titles', () => {
   const route = decideNaturalRoute('What changed in Evening Reset Board, and what would you polish next?', {
     shippedProject: {

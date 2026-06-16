@@ -1551,6 +1551,13 @@ export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNatura
   if (isProjectLocalhostRequest(normalized)) {
     return 'latest_project_preview';
   }
+  if (
+    /\b(?:latest|last|recent|newest|current)\b/.test(normalized) &&
+    /\b(?:preview|app|site|project|tool)\b/.test(normalized) &&
+    /\b(?:open|link|url|localhost|browser|where|show|send|give)\b/.test(normalized)
+  ) {
+    return 'latest_project_preview';
+  }
   if (/\b(?:link|url|open|browser|where|localhost)\b/.test(normalized) && isLocalSparkServiceRequest(text, '')) {
     return null;
   }

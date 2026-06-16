@@ -114,6 +114,8 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 - Bare agreement cannot create mutation authority from stale or mismatched context.
 - Current Spawner artifacts cannot steal named readouts for a different shipped project.
 - Current Spawner artifacts cannot steal explicit Spawner board, failure, provider, mission, or Kanban readouts; those routes are read-only `spawner-ui` owner evidence.
+- Spawner board/latest-preview/latest-failure/latest-provider routes are read-only even when the route string contains `spawner`; the Telegram envelope must not mint `spawner.run`, file-write, or mission-launch authority for them.
+- User-facing "latest" promotion must skip operational probes and question/readout residue unless the entry has real artifact/build task evidence. Board history counts may include residue; promoted project/job/failure truth must not.
 - Shipped-project readouts and advisory polish questions are answer/readout routes until the user explicitly says to apply, build, run, or change.
 
 ## Ban List

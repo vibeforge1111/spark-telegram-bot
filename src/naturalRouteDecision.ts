@@ -866,6 +866,10 @@ export function decideNaturalRoute(
     });
   }
 
+  if (spawnerBoard === 'latest_project_preview') {
+    return spawnerBoardNaturalRouteDecision(spawnerBoard);
+  }
+
   if (
     buildIntent &&
     !isNoExecutionBoundary(normalized) &&

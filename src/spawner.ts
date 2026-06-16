@@ -297,13 +297,16 @@ function latestBoardEntry(
   return entries[0] || null;
 }
 
-function latestFailureEntry(board: BoardSnapshot): BoardEntry | null {
+function latestFailureEntry(
+  board: BoardSnapshot,
+  options: { skipOperationalProbes?: boolean; skipQuestionResidue?: boolean } = {}
+): BoardEntry | null {
   const entries = [
     ...board.failed,
     ...board.running,
     ...board.completed,
     ...board.created
-  ];
+  ].filter((entry) => isBoardEntryVisibleForSurface(entry, options));
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
   return entries.find((entry) => entry.status === 'failed' || entry.lastEventType === 'mission_failed') || null;
 }
@@ -720,6 +723,9 @@ function failureCauseLines(entry: BoardEntry): string[] {
   }
   if (!hasSkillApiFailure && /\bconnection refused\b|\beconnrefused\b|\bfailed to connect\b/.test(text)) {
     causes.push('A local service connection failed inside the spawned lane.');
+  }
+  if (/\bno active session\b|\bactive session\b.{0,80}\bstale\b|\bspawner restart\b|\bprovider session\b.{0,80}\bstale\b/.test(text)) {
+    causes.push('The provider session went stale after a Spawner restart; rerun from the board.');
   }
   if (/\bauth\b|\boauth\b|\bunauthorized\b|\bforbidden\b|\b401\b|\b403\b/.test(text)) {
     causes.push('Provider/auth access needs a fresh check.');
@@ -1997,7 +2003,10 @@ export const spawner = {
 
   async latestFailedProviderSummary(): Promise<{ success: boolean; message: string }> {
     try {
-      const latest = latestFailureEntry(await fetchBoardSnapshot());
+      const latest = latestFailureEntry(await fetchBoardSnapshot(), {
+        skipOperationalProbes: true,
+        skipQuestionResidue: true
+      });
       if (!latest) {
         return {
           success: true,
@@ -2046,7 +2055,10 @@ export const spawner = {
 
   async latestFailureSummary(): Promise<{ success: boolean; message: string }> {
     try {
-      const latest = latestFailureEntry(await fetchBoardSnapshot());
+      const latest = latestFailureEntry(await fetchBoardSnapshot(), {
+        skipOperationalProbes: true,
+        skipQuestionResidue: true
+      });
       if (!latest) {
         return {
           success: true,
@@ -2071,7 +2083,9 @@ export const spawner = {
       const board = await fetchBoardSnapshot();
       const completed = [...board.completed]
         .sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
-      const shippedCandidates = completed.filter((entry) => !isOperationalProbeMission(entry));
+      const shippedCandidates = completed.filter((entry) =>
+        isBoardEntryVisibleForSurface(entry, { skipOperationalProbes: true, skipQuestionResidue: true })
+      );
       const latest = shippedCandidates.find((entry) => projectOpenLinkForEntry(entry)) || shippedCandidates[0];
       if (!latest) {
         return {
