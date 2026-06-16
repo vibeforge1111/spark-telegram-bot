@@ -12,6 +12,7 @@ import {
   isNoExecutionBoundary,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
+  isSparkIntentAuthorityBoundaryQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isStartupFounderAdvisoryQuestion,
@@ -480,6 +481,10 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
   }
 
   if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.harness_architecture') {
+    return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
+  if (naturalRoute?.route === 'plain_chat' && naturalRoute.action === 'plain_chat.qa_boundary' && isSparkIntentAuthorityBoundaryQuestion(normalized)) {
     return observedNaturalRouteDecision(constraints, naturalRoute);
   }
 

@@ -3017,13 +3017,14 @@ async function run(): Promise<void> {
 		qaCtx.message.text = 'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow';
 		await indexModule.handleTextMessage(qaCtx);
 
+		const qaReply = replies[replies.length - 1] || '';
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'unrelated QA turn must not dispatch pending domain chip');
-		assert.match(replies.join('\n'), /QA pass first, not a mission launch/);
-		assert.match(replies.join('\n'), /I will not start a mission from this wording/);
-		assert.doesNotMatch(replies.join('\n'), /read-only/i);
-		assert.doesNotMatch(replies.join('\n'), /Prepared, but/i);
-		assert.doesNotMatch(replies.join('\n'), /Starting domain-chip-/);
-		assert.doesNotMatch(replies.join('\n'), /Spawned work/);
+		assert.match(qaReply, /read-only QA plan, not a mission launch/);
+		assert.match(qaReply, /No build or mission is authorized by this wording/);
+		assert.doesNotMatch(qaReply, /\bhotfix\b|I will not start/i);
+		assert.doesNotMatch(qaReply, /Prepared, but/i);
+		assert.doesNotMatch(qaReply, /Starting domain-chip-/);
+		assert.doesNotMatch(qaReply, /Spawned work/);
 
 		const directionCtx = makeFakeCtx(8319079055, 8319079055, 856, replies);
 		directionCtx.message.text = 'names with rationale and usage angle, make the vibe surreal';
@@ -6082,6 +6083,98 @@ async function run(): Promise<void> {
 					/Local chat reply delivered through Harness Core answer boundary for plain_chat/i.test(record.result.summary)
 				)),
 				'architecture answer must record local Harness Core answer.compose success'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			llmModule.llm.chat = originalChat;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('Spark intent-authority QA bypasses ideation and rejects unproved action-plan replies', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-intent-authority-qa-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const llmModule = await import('../src/llm');
+		const originalChat = llmModule.llm.chat;
+		let builderBridgeCalls = 0;
+		let capturedSystemContext = '';
+		(builderBridge as any).runBuilderTelegramBridge = async () => {
+			builderBridgeCalls += 1;
+			throw new Error('Spark intent-authority QA should not detour through Builder bridge.');
+		};
+		llmModule.llm.chat = async (_prompt: string, systemContext?: string) => {
+			capturedSystemContext = systemContext || '';
+			return [
+				'Yes. I would treat this as a QA pass first, not a mission launch.',
+				'Add failing regressions, hotfix the boundary, run focused tests, then prove it live in Telegram.',
+				'I will not start a mission from this wording.'
+			].join('\n\n');
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079071, 8319079055, 651, replies);
+			ctx.message.text = 'Registry QA after launch-pin promotion: if a Telegram user asks what changed in the installer/runtime pins, should Spark start any build? Keep it short and answer from current owner evidence.';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies[0] || '';
+			assert.equal(builderBridgeCalls, 0, 'intent-authority QA should bypass Builder ideation');
+			assert.match(capturedSystemContext, /Current Spark intent-authority context/i);
+			assert.match(reply, /^No\./);
+			assert.match(reply, /read-only authority answer/i);
+			assert.match(reply, /Harness Core builds the envelope/i);
+			assert.doesNotMatch(reply, /\bhotfix\b|Add failing regressions|I will not start/i);
+			assert.equal(captured.length, 0, 'intent-authority QA must not call Spawner or PRD bridge');
+
+			const plainChatRoute = (record: any) => (
+				record.shadow_route === 'plain_chat' &&
+				record.executed_route === 'plain_chat' &&
+				record.executed_action === 'harness_core.answer_boundary'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, plainChatRoute);
+			const routeRecord = naturalRouteRecords.find(plainChatRoute);
+			assert.ok(routeRecord, 'intent-authority QA must record natural route execution');
+			assert.equal(routeRecord?.executed_owner, 'spark-telegram-bot');
+			assert.equal(routeRecord?.outcome, 'matched');
+			assert.equal(routeRecord?.delivery, 'delivered');
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.authorization.restrictions.write_allowed === false &&
+					record.authorization.restrictions.publish_allowed === false &&
+					record.result.status === 'success'
+				)),
+				'intent-authority QA answer must record Harness Core answer.compose success'
 			);
 		} finally {
 			const indexModule: any = await import('../src/index');

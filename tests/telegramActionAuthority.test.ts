@@ -1050,6 +1050,34 @@ test('allows stale-context authority questions only as answer boundaries', () =>
   assert.ok(restart.reasonCodes.includes('no_execution_boundary'));
 });
 
+test('allows Spark intent-authority QA only as answer boundary', () => {
+  const text = 'Registry QA after launch-pin promotion: if a Telegram user asks what changed in the installer/runtime pins, should Spark start any build? Keep it short and answer from current owner evidence.';
+  const decision = classifyTelegramIntentV2(text);
+  const envelope = envelopeForDecision(text, decision);
+  const answer = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'plain_chat',
+    text,
+    toolName: 'answer.compose',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'none'
+  });
+  assert.equal(decision.route, 'plain_chat');
+  assert.equal(decision.action, 'plain_chat.qa_boundary');
+  assert.equal(envelope.selectedIntent.action, 'plain_chat.qa_boundary');
+  assert.equal(answer.allow, true);
+  assert.equal(answer.toolAuthorization.verdict, 'allowed');
+
+  const build = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(build.allow, false);
+  assert.ok(build.reasonCodes.includes('route_not_selected_by_turn_envelope'));
+});
+
 test('route history cannot authorize Builder continuation from the fresh turn', () => {
   const text = 'If route history says Builder was active, can that continue a build now?';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

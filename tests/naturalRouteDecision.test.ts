@@ -1423,6 +1423,17 @@ test('routes Harness architecture questions to chat even when stale build wordin
   assert.deepEqual(route.matched_signals, ['harness_architecture_question']);
 });
 
+test('routes Spark intent-authority QA to chat instead of ideation or Spawner build', () => {
+  const route = decideNaturalRoute(
+    'Registry QA after launch-pin promotion: if a Telegram user asks what changed in the installer/runtime pins, should Spark start any build? Keep it short and answer from current owner evidence.'
+  );
+
+  assert.equal(route.route, 'plain_chat');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.qa_boundary');
+  assert.deepEqual(route.matched_signals, ['spark_intent_authority_boundary']);
+});
+
 test('routes previous-route neutral summary requests to chat-only answer boundary', () => {
   const route = decideNaturalRoute('Do not continue the previous route. Give me a neutral summary.');
 

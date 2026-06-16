@@ -34,6 +34,7 @@ import {
   isQuotedDraftedExampleBoundary,
   isProjectImprovementRequest,
   isSparkChipStatusOverclaimQuestion,
+  isSparkIntentAuthorityBoundaryQuestion,
   isSparkSelfMemoryDiagnosticQuestion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
@@ -658,6 +659,20 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'latest_message',
       matched_signals: ['mission_routing_failure_class'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isSparkIntentAuthorityBoundaryQuestion(normalized)) {
+    return decision({
+      route: 'plain_chat',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.qa_boundary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['spark_intent_authority_boundary'],
       blocked_by: [],
       requires_confirmation: false
     });

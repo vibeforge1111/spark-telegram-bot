@@ -73,6 +73,9 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return false;
   }
+  if (isSparkIntentAuthorityBoundaryQuestion(trimmed)) {
+    return false;
+  }
   const mentionsDomainChipArtifact = /\bdomain[-\s]*chip[-\w]*\b/i.test(trimmed);
   const designOnlyNoExecution =
     isNoExecutionBoundary(trimmed) &&
@@ -1779,6 +1782,9 @@ export function isSparkWorkflowBugHuntRequest(text: string): boolean {
   if (isProductMemoryMissionBoundaryQuestion(normalized)) {
     return false;
   }
+  if (isSparkIntentAuthorityBoundaryQuestion(normalized)) {
+    return false;
+  }
   const qaLanguage = /\b(?:unit\s+tests?|qa|bug\s+hunt(?:er|ing)?|edge\s+cases?|regressions?|smoke\s+tests?|test\s+suite|comprehensive\s+tests?|trigger\s+bugs?|bug\s+hunter)\b/.test(normalized);
   const sparkSurface = /\b(?:spawner|mission\s+control|mission\s+loop|telegram|relay|workflow|canvas|kanban|builder|route|routing)\b/.test(normalized);
   return qaLanguage && sparkSurface;
@@ -1829,6 +1835,31 @@ export function isMissionRoutingFailureClassQuestion(text: string): boolean {
 	);
 	const noExecution = isNoExecutionBoundary(normalized) || describesOldRouteBug;
 	return (asksFailureClass || describesOldRouteBug) && mentionsRouting && noExecution;
+}
+
+export function isSparkIntentAuthorityBoundaryQuestion(text: string): boolean {
+	const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+	if (!normalized || parseBuildIntent(normalized)) {
+		return false;
+	}
+	const asks = (
+		/[?]$/.test(normalized) ||
+		/\b(?:should|would|could|can|whether|if|when|how|what\s+changed|what\s+happened|why|qa|audit|verify|check|readiness)\b/.test(normalized)
+	);
+	if (!asks) {
+		return false;
+	}
+	const sparkSystemSurface = /\b(?:spark|harness(?:\s+core)?|governor|authority|governance|intent(?:ion)?|route|routing|telegram|spawner|builder|installer|runtime|registry|mission\s+control|canvas|kanban|owner[-\s]*evidence|owner\s+evidence|launch[-\s]*pin|pins?)\b/.test(normalized);
+	const highAgencyBoundary = (
+		/\b(?:start|started|trigger|triggered|route|routed|hijack|hijacked|authorize|authorized|execute|executed|launch|launched|run|ran|build|mission|memory\s+write|publish|deploy|registry|runtime|installer)\b/.test(normalized) ||
+		/\b(?:owner[-\s]*evidence|owner\s+evidence|fresh\s+intent|governor|ledger|envelope|completion\s+claim|failure\s+claim|claim\s+boundary)\b/.test(normalized)
+	);
+	const asksBoundary = (
+		/\b(?:should|would|could|can)\s+(?:spark|it|that|this)\b.{0,100}\b(?:start|trigger|route|authorize|execute|launch|run|build|mission|claim)\b/.test(normalized) ||
+		/\b(?:if|when)\b.{0,100}\b(?:user|someone|telegram|spark)\b.{0,120}\b(?:asks?|says?|mentions?)\b.{0,120}\b(?:should|would|could|can)?\s*(?:spark|it)?\b.{0,120}\b(?:start|trigger|route|authorize|execute|launch|run|build|mission|claim)\b/.test(normalized) ||
+		/\b(?:false[-\s]*positive|false[-\s]*negative|hijack|mismatch|misroute|missed\s+action|route\s+boundary|intent\s+boundary|authority\s+boundary)\b/.test(normalized)
+	);
+	return sparkSystemSurface && highAgencyBoundary && asksBoundary;
 }
 
 export function isPublicationApprovalBoundaryQuestion(text: string): boolean {
@@ -2346,7 +2377,7 @@ function isProductMemoryMissionBoundaryQuestion(normalized: string): boolean {
 
 export function renderSparkWorkflowBugHuntReply(_text: string): string {
   return [
-    'Yes. I would treat this as a QA pass first, not a mission launch.',
+    'This should stay as a read-only QA plan, not a mission launch.',
     '',
     'Coverage',
     '• route hijacks and no-execution boundaries',
@@ -2356,10 +2387,10 @@ export function renderSparkWorkflowBugHuntReply(_text: string): string {
     '• Spawner-down cases with no fake mission id',
     '• completion dedupe and Telegram composition clutter',
     '',
-    'Move',
-    '• Add failing regressions, hotfix the boundary, run focused tests, then prove it live in Telegram.',
+    'Next proof',
+    '• Reproduce the failing class, fix the owning Harness/Core boundary if needed, run focused regressions, then verify live in Telegram.',
     '',
-    'I will not start a mission from this wording.'
+    'No build or mission is authorized by this wording.'
   ].join('\n');
 }
 

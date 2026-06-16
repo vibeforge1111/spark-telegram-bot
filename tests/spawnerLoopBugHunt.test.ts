@@ -219,11 +219,11 @@ test('bug hunt: Spark workflow QA prompts get a local plan, not invented executi
   assert.equal(isSparkWorkflowBugHuntRequest(prompt), true);
   const reply = renderSparkWorkflowBugHuntReply(prompt);
 
-  assert.match(reply, /QA pass first, not a mission launch/);
+  assert.match(reply, /read-only QA plan, not a mission launch/);
   assert.match(reply, /route hijacks/);
   assert.match(reply, /no-edit Spawner probes/);
-  assert.match(reply, /I will not start a mission from this wording\./);
-  assert.doesNotMatch(reply, /read-only/i);
+  assert.match(reply, /No build or mission is authorized by this wording\./);
+  assert.doesNotMatch(reply, /\bhotfix\b|I will not start/i);
   assert.doesNotMatch(reply, /Prepared, but/i);
   assert.doesNotMatch(reply, /tests\/missionControlSpawnerWorkflow/i);
 });

@@ -284,6 +284,7 @@ import {
   isProtectedMissionPausePronounIntent,
   isProtectedMissionResumePronounIntent,
   isSparkChipStatusOverclaimQuestion,
+  isSparkIntentAuthorityBoundaryQuestion,
   isSparkThreadQaGoldenCaseRequest,
   isSparkWorkflowBugHuntRequest,
   isSparkWikiInventoryQuestion,
@@ -2141,6 +2142,59 @@ function harnessCoreArchitectureContextHint(): string {
   ].join('\n');
 }
 
+function isSparkIntentAuthorityQaRoute(text: string, route: NaturalRouteDecision | null): boolean {
+  return (
+    isSparkIntentAuthorityBoundaryQuestion(text) ||
+    (
+      route?.route === 'plain_chat' &&
+      route.action === 'plain_chat.qa_boundary' &&
+      route.owner_system === 'spark-telegram-bot' &&
+      route.matched_signals.includes('spark_intent_authority_boundary')
+    )
+  );
+}
+
+function sparkIntentAuthorityBoundaryContextHint(): string {
+  return [
+    'Current Spark intent-authority context for this answer:',
+    '- This is a read-only governance or QA answer, not a request to start a mission, build, patch, edit, publish, save memory, change registry/runtime state, or run tools.',
+    '- If the user asks whether Spark should start a build or mission from this wording, answer the yes/no boundary directly before any explanation.',
+    '- Action-like words inside a governance, status, QA, quote, or edge-case question are evidence only.',
+    '- Fresh user intent may propose a route, but Harness Core and the Governor must authorize the exact owner, capability, risk, restrictions, and ledger before any side effect.',
+    '- A valid answer should name the owner boundary, the side effect that is not authorized, and the proof that would be needed before it could happen.',
+    '- Do not say you will add tests, hotfix, patch, start, queue, run, build, or prove something live unless this turn actually authorized and executed that action.'
+  ].join('\n');
+}
+
+function violatesSparkIntentAuthorityBoundaryReply(userText: string, replyText: string): boolean {
+  const user = userText.toLowerCase().replace(/\s+/g, ' ').trim();
+  const reply = replyText.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!reply) return true;
+  const asksWhetherToStart =
+    /\b(?:should|would|could|can)\s+(?:spark|it|that|this)\b.{0,120}\b(?:start|trigger|launch|run|build|queue|mission)\b/.test(user) ||
+    /\bif\b.{0,120}\b(?:user|someone|telegram)\b.{0,120}\b(?:asks?|says?|mentions?)\b.{0,120}\b(?:start|trigger|launch|run|build|queue|mission)\b/.test(user);
+  const startsWithAffirmative = /^(?:yes|yeah|yep|correct|right)\b/.test(reply);
+  const unprovedActionPlan =
+    /\b(?:i|we|spark)\s+(?:will|would|should|can|could)\s+(?:add|write|run|patch|hotfix|fix|start|launch|queue|build|create|implement|apply|prove)\b/.test(reply) ||
+    /\b(?:add|write|run|patch|hotfix|fix|start|launch|queue|build|create|implement|apply)\s+(?:failing\s+)?(?:regressions?|tests?|the\s+boundary|a\s+mission|a\s+build)\b/.test(reply);
+  const claimsExecutionBoundary =
+    /\b(?:mission|build|patch|hotfix|registry|runtime|installer|memory|publish|deploy)\b.{0,60}\b(?:started|queued|launched|ran|patched|fixed|updated|changed|proved|completed|done)\b/.test(reply);
+  return (asksWhetherToStart && startsWithAffirmative) || unprovedActionPlan || claimsExecutionBoundary;
+}
+
+function renderSparkIntentAuthorityBoundaryFallback(userText: string): string {
+  const asksBuildStart = /\b(?:start|trigger|launch|run|queue|build|mission)\b/i.test(userText);
+  return [
+    asksBuildStart
+      ? 'No. That should stay a read-only authority answer, not start a build or mission.'
+      : 'That should stay a read-only authority answer.',
+    '',
+    'The safe path is: fresh user intent proposes a route, Harness Core builds the envelope, the Governor authorizes the exact owner and capability, and the owner ledger proves execution or denial.',
+    '',
+    'If any of those proofs are missing, Spark should explain the boundary from current owner evidence and leave side-effect fields empty.'
+  ].join('\n');
+}
+
 function previousRouteNeutralSummaryContextHint(): string {
   return [
     'Current route-interruption context for this answer:',
@@ -3711,6 +3765,10 @@ function shouldBypassBuilderBridgeForTurnIntent(
     (
       selectedPlainChat &&
       isHarnessCoreArchitectureQuestion(text)
+    ) ||
+    (
+      selectedPlainChat &&
+      isSparkIntentAuthorityQaRoute(text, naturalRoute)
     ) ||
     (
       selectedPlainChat &&
@@ -12507,6 +12565,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       : [storedMemoryContext, conversationFrameContext].filter(Boolean).join('\n\n');
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const localAnswerRoute = localChatReplyRoute(naturalRouteShadow);
+    const sparkIntentAuthorityQaRoute = isSparkIntentAuthorityQaRoute(text, naturalRouteShadow);
     const localAnswerAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
       route: localAnswerRoute,
       text,
@@ -12530,6 +12589,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const systemContext = [
       renderSparkAccessRuntimeHint(accessProfile),
       isHarnessCoreArchitectureQuestion(text) ? harnessCoreArchitectureContextHint() : '',
+      sparkIntentAuthorityQaRoute ? sparkIntentAuthorityBoundaryContextHint() : '',
       isPreviousRouteNeutralSummaryRequest(text) ? previousRouteNeutralSummaryContextHint() : '',
       freshRuntimeTruthContext
         ? [
@@ -12551,6 +12611,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: `Local chat answer composition failed after Harness Core authorization: ${redactText(error instanceof Error ? error.message : String(error))}.`
       });
       throw error;
+    }
+
+    if (sparkIntentAuthorityQaRoute && violatesSparkIntentAuthorityBoundaryReply(text, response)) {
+      recordFinalAnswerGateSuppression({
+        chatId: ctx.chat?.id,
+        userId: ctx.from?.id,
+        update: ctx.update,
+        suppressionReason: 'spark_intent_authority_boundary',
+        builderRoutingDecision: 'plain_chat.local_llm',
+        builderBridgeMode: 'local_chat',
+        builderReply: response,
+        fallbackRoute: 'local_chat'
+      });
+      response = renderSparkIntentAuthorityBoundaryFallback(text);
     }
 
     const localSuppressionReason = builderReplySuppressionReason(response, 'plain_chat');
