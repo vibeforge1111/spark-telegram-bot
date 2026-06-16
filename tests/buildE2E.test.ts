@@ -1668,6 +1668,78 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('mission-id status questions bypass stale pending task recovery', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079922';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-mission-status-over-recovery-'));
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
+		const user = { id: 8319079922, username: 'mission-status-test' };
+		const capturedPosts: CapturedCall[] = [];
+		const capturedGets: string[] = [];
+
+		(axios as any).post = async (url: string, body: any) => {
+			capturedPosts.push({ url, body });
+			return { data: { success: true } };
+		};
+		(axios as any).get = async (url: string) => {
+			capturedGets.push(url);
+			if (url.includes('/api/mission-control/status')) {
+				return {
+					data: {
+						ok: true,
+						missionId: 'mission-1781566950658',
+						snapshot: {
+							providerResults: [{ providerId: 'codex', status: 'failed' }],
+							completionEvidence: { terminalStatus: 'failed', providerTerminal: true, tasksTerminal: true }
+						}
+					}
+				};
+			}
+			return { data: { success: true } };
+		};
+
+		try {
+			await conversationModule.conversation.recordInterruptedTask(user, {
+				message: 'I have a messy startup idea. Help me find the riskiest assumption without starting a benchmark.',
+				failure: 'Chat runtime returned a low-information reply.',
+				stage: 'chat_runtime'
+			});
+
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(user.id, user.id, 5654, replies);
+			ctx.message.text = 'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?';
+			const indexModule: any = await import('../src/index');
+			await indexModule.handleTextMessage(ctx);
+
+			const missionStatus = capturedGets.find((url) => url.includes('/api/mission-control/status'));
+			assert.ok(missionStatus, 'fresh mission-id status question must read Mission Control status');
+			assert.match(missionStatus, /missionId=mission-1781566950658/);
+			assert.equal(
+				capturedPosts.some((call) => call.url.includes('/api/mission-control/command')),
+				false,
+				'read-only mission status must not POST a Mission Control command'
+			);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /Mission is failed/i);
+			assert.match(reply, /Do not treat it as completed/i);
+			assert.match(reply, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-1781566950658/);
+			assert.doesNotMatch(reply, /\/mission pause mission-1781566950658/i);
+			assert.doesNotMatch(reply, /I recovered the last interrupted task/i);
+			assert.doesNotMatch(reply, /messy startup idea/i);
+			assert.doesNotMatch(reply, /low-information reply/i);
+		} finally {
+			restoreAxios();
+			restoreEnv();
+			removeTempRoot(tempRoot);
+		}
+	});
+
 	await test('final-answer gate audit preserves Builder trace ids for suppressed replies', async () => {
 		restoreAxios();
 		const testUserId = 8319079570;

@@ -352,7 +352,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.action === 'spawner.board_read' || decision.route === 'spawner.board') tools.push('spawner.board');
   if (/^local_service\./.test(decision.route) || decision.route === 'spawner.local_service') tools.push('spawner.local_service');
   if (decision.route === 'local_workspace.inspect') tools.push('local_workspace.inspect');
-  if (decision.route === 'spawner.mission_control') tools.push('spawner.mission_control');
+  if (decision.route === 'spawner.mission_control') tools.push('spawner.mission_control', 'spawner.mission_control.command');
   if (policy.canLaunchMission) tools.push('spawner.run');
   if (decision.route === 'natural_run') tools.push('provider.run');
   if (decision.route === 'pending_task.recovery') tools.push('pending_task.recovery');
@@ -377,6 +377,7 @@ function deniedToolsForDecision(
       'spawner.run',
       'spawner.files',
       'spawner.mission_control',
+      'spawner.mission_control.command',
       'domain_chip.create',
       'schedule.create',
       'schedule.delete',

@@ -6,9 +6,11 @@ import {
   isLocalSparkServiceRequest,
   parseMissionUpdatePreferenceIntent,
   parseNaturalAccessChangeIntent,
+  parseNaturalMissionStatusIntent,
   parseSpawnerBoardNaturalIntent
 } from '../src/conversationIntent';
 import { isLocalWorkspaceInspectionOnlyRequest } from '../src/localWorkspace';
+import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -218,6 +220,23 @@ test('non-build utility requests still route away from builder', () => {
   assert.ok(parseBuildIntent('Build a tool for Spark users to manage reminders.'));
 });
 
+test('explicit mission id status questions route to Mission Control status', () => {
+  assert.deepEqual(
+    parseNaturalMissionStatusIntent('Quick QA: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'),
+    { action: 'status', missionId: 'mission-1781566950658' }
+  );
+  assert.deepEqual(
+    parseNaturalMissionStatusIntent('Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'),
+    { action: 'status', missionId: 'mission-1781566950658' }
+  );
+  assert.deepEqual(
+    parseNaturalMissionStatusIntent('Should I retry spark-provider-run-17 or is it completed?'),
+    { action: 'status', missionId: 'spark-provider-run-17' }
+  );
+  assert.equal(parseNaturalMissionStatusIntent('We are discussing mission IDs as a product concept, not launching a mission.'), null);
+  assert.equal(parseNaturalMissionStatusIntent('please resume mission-1781566950658'), null);
+});
+
 test('text handler checks latest-project iteration before generic build intent', () => {
   const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
   const projectIterationMatch = /isProjectImprovementRequest\(text,\s*latestShippedProject\b/.exec(indexSource);
@@ -226,6 +245,23 @@ test('text handler checks latest-project iteration before generic build intent',
 
   assert.ok(projectIterationIndex > 0, 'expected latest-project iteration guard in text handler');
   assert.ok(genericBuildIndex > projectIterationIndex, 'latest-project iteration must beat broad parseBuildIntent matches');
+});
+
+test('text handler checks explicit mission status before generic build intent', () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.ts'), 'utf8');
+  const missionStatusIndex = indexSource.indexOf('const naturalMissionStatus = parseNaturalMissionStatusIntent(text);');
+  const genericBuildIndex = indexSource.indexOf('if (buildIntent) {', missionStatusIndex);
+
+  assert.ok(missionStatusIndex > 0, 'expected natural mission status guard in text handler');
+  assert.ok(genericBuildIndex > missionStatusIndex, 'explicit mission-id status must beat broad parseBuildIntent matches');
+});
+
+test('intent gate lets mission-id status own build-like status wording', () => {
+  const decision = classifyTelegramIntentV2('Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?');
+
+  assert.equal(decision.route, 'spawner.mission_control');
+  assert.equal(decision.owner_system, 'spawner-ui');
+  assert.equal(decision.action, 'spawner.mission_status');
 });
 
 test('text handler binds shipped project context before turn authority envelope', () => {

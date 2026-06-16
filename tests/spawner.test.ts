@@ -865,9 +865,14 @@ async function run(): Promise<void> {
   await test('missionCommand formats provider status for Telegram', async () => {
     restoreAxios();
     const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
+    let capturedUrl = '';
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+    (axios as any).get = async (url: string) => {
+      capturedUrl = url;
       return {
       data: {
         status: {
@@ -885,7 +890,8 @@ async function run(): Promise<void> {
     const result = await spawner.missionCommand('status', 'spark-status', { executionAuthority });
 
     assert.equal(result.success, true);
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
+    assert.match(capturedUrl, /\/api\/mission-control\/status\?missionId=spark-status$/);
+    assert.equal(postCalled, false);
     assert.match(result.message, /Mission is complete/);
     assert.match(result.message, /• Complete: yes/);
     assert.match(result.message, /• Codex: completed/);
@@ -893,6 +899,71 @@ async function run(): Promise<void> {
     assert.match(result.message, /• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-status/);
     assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
     assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-status/);
+  });
+
+  await test('missionCommand failed status tells Telegram not to treat it as completed', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    (axios as any).get = async () => ({
+      data: {
+        status: {
+          boardStatus: 'failed',
+          paused: false,
+          allComplete: false,
+          providers: {
+            codex: 'failed'
+          }
+        }
+      }
+    });
+
+    const result = await spawner.missionCommand('status', 'mission-failed-status', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Mission is failed/);
+    assert.match(result.message, /Complete: no/);
+    assert.match(result.message, /Do not treat it as completed/);
+    assert.match(result.message, /rerun from the board/);
+    assert.doesNotMatch(result.message, /\/mission pause mission-failed-status/);
+  });
+
+  await test('missionCommand infers failed status from Mission Control read snapshot', async () => {
+    restoreAxios();
+    const executionAuthority = fakeMissionControlAuthority();
+    (axios as any).get = async () => ({
+      data: {
+        ok: true,
+        missionId: 'mission-snapshot-failed',
+        snapshot: {
+          recent: [
+            {
+              eventType: 'task_progress',
+              timestamp: '2026-06-15T23:46:28.184Z'
+            }
+          ],
+          providerResults: [
+            {
+              providerId: 'codex',
+              status: 'failed',
+              summary: 'Provider runtime has no active session after Spawner restart; marked stale so the mission can be run again.'
+            }
+          ],
+          completionEvidence: {
+            terminalStatus: 'failed',
+            providerTerminal: true,
+            tasksTerminal: true
+          }
+        }
+      }
+    });
+
+    const result = await spawner.missionCommand('status', 'mission-snapshot-failed', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Mission is failed/);
+    assert.match(result.message, /Codex: failed/);
+    assert.match(result.message, /Do not treat it as completed/);
+    assert.doesNotMatch(result.message, /\/mission pause mission-snapshot-failed/);
   });
 
   await test('missionCommand forwards native Governor authority when supplied', async () => {
@@ -1044,7 +1115,7 @@ async function run(): Promise<void> {
 
   await test('missionCommand reports not-found status without inventing a mission', async () => {
     restoreAxios();
-    (axios as any).post = async () => ({
+    (axios as any).get = async () => ({
       data: {
         ok: false,
         error: 'Mission spark-not-real was not found. Use /board to pick a current mission ID.'

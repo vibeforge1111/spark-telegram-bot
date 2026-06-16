@@ -299,6 +299,7 @@ import {
   parseContextualAccessChangeIntent,
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
+  parseNaturalMissionStatusIntent,
   parseNaturalRecursiveCommandIntent,
   parseContextualSpawnerBoardNaturalIntent,
   parseSpawnerBoardNaturalIntent,
@@ -9970,6 +9971,64 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   if (!earlyBuildIntent && await handleTelegramIntentGateV2SafeRoute(ctx, user, text, naturalRouteShadow, telegramIntentGateV2, turnIntentEnvelope)) {
+    return;
+  }
+  const naturalMissionStatus = parseNaturalMissionStatusIntent(text);
+  const naturalMissionStatusAuthorization = naturalMissionStatus
+    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'spawner.mission_control',
+        text,
+        toolName: 'spawner.mission_control.command',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'read_only'
+      })
+    : null;
+  if (naturalMissionStatus && naturalMissionStatusAuthorization?.allow) {
+    const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+    if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_status', 'failed');
+      recordTelegramHarnessCoreExecution(naturalMissionStatusAuthorization, {
+        toolName: 'spawner.mission_control.command',
+        status: 'failure',
+        summary: `Natural mission status read for ${naturalMissionStatus.missionId} was blocked by Spark access policy.`
+      });
+      await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+      return;
+    }
+
+    await conversation.remember(user, text).catch(() => {});
+    await safeSendChatAction(ctx, 'typing');
+    const result = await spawner.missionCommand('status', naturalMissionStatus.missionId, {
+      executionAuthority: naturalMissionStatusAuthorization.governorDecision
+    });
+    recordNaturalRouteExecution(
+      ctx,
+      naturalRouteShadow,
+      'spawner.mission_control',
+      'spawner-ui',
+      'spawner.mission_status',
+      result.success ? 'selected' : 'failed'
+    );
+    recordTelegramHarnessCoreExecution(naturalMissionStatusAuthorization, {
+      toolName: 'spawner.mission_control.command',
+      status: result.success ? 'success' : 'failure',
+      summary: result.success
+        ? `Natural mission status read completed for ${naturalMissionStatus.missionId}.`
+        : `Natural mission status read failed for ${naturalMissionStatus.missionId}: ${result.message}.`
+    });
+    const reply = result.success ? result.message : `Mission status failed: ${result.message}`;
+    await ctx.reply(reply);
+    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    return;
+  }
+  if (naturalMissionStatus && naturalMissionStatusAuthorization) {
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_status', 'failed');
+    recordTelegramHarnessCoreExecution(naturalMissionStatusAuthorization, {
+      toolName: 'spawner.mission_control.command',
+      status: 'not_started',
+      summary: `Natural mission status read was blocked before reading ${naturalMissionStatus.missionId}: ${naturalMissionStatusAuthorization.reasonCodes.join(',') || 'not_authorized'}.`
+    });
+    await ctx.reply('I did not read that mission because the fresh turn did not authorize a Mission Control status check.');
     return;
   }
   const quotedOriginReply = buildQuotedMissionStatusOriginReply(text, quotedTelegramMessageText(ctx.message));

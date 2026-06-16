@@ -805,6 +805,76 @@ function providerStatusRows(providers: unknown): string[] {
   return rows.length > 0 ? rows : ['• none'];
 }
 
+function missionStatusHasFailureEvidence(status: any): boolean {
+  const boardStatus = typeof status?.boardStatus === 'string' ? status.boardStatus : '';
+  if (/\b(?:fail(?:ed|ure)?|blocked|cancelled|canceled|stale|error)\b/i.test(boardStatus)) {
+    return true;
+  }
+  const providers = status?.providers;
+  if (!providers || typeof providers !== 'object' || Array.isArray(providers)) return false;
+  return Object.values(providers as Record<string, unknown>).some((value) => (
+    /\b(?:fail(?:ed|ure)?|blocked|cancelled|canceled|stale|error)\b/i.test(String(value || ''))
+  ));
+}
+
+function missionStatusNextStep(status: any, missionId: string): string {
+  if (status?.allComplete) return '• Inspect the handoff in Spawner.';
+  if (missionStatusHasFailureEvidence(status)) {
+    return '• Do not treat it as completed. Inspect the trace, then rerun from the board if the request is still needed.';
+  }
+  if (status?.paused) return `• /mission resume ${missionId}`;
+  return `• /mission pause ${missionId}`;
+}
+
+function providerStatusesFromMissionControlSnapshot(snapshot: any): Record<string, string> {
+  const providers: Record<string, string> = {};
+  const providerResults = Array.isArray(snapshot?.providerResults) ? snapshot.providerResults : [];
+  for (const result of providerResults) {
+    const providerId = typeof result?.providerId === 'string' && result.providerId.trim()
+      ? result.providerId.trim()
+      : null;
+    if (!providerId) continue;
+    const status = typeof result?.status === 'string' && result.status.trim()
+      ? result.status.trim()
+      : typeof result?.summary === 'string' && result.summary.trim()
+        ? result.summary.trim()
+        : 'unknown';
+    providers[providerId] = status;
+  }
+  return providers;
+}
+
+function latestMissionControlEvent(snapshot: any): any | null {
+  const recent = Array.isArray(snapshot?.recent) ? snapshot.recent : [];
+  return recent.find((event: unknown) => event && typeof event === 'object') || null;
+}
+
+function missionStatusFromMissionControlStatusResponse(data: any, missionId: string): any {
+  const snapshot = data?.snapshot || {};
+  const completionEvidence = snapshot.completionEvidence || {};
+  const latest = latestMissionControlEvent(snapshot);
+  const terminalStatus = typeof completionEvidence.terminalStatus === 'string'
+    ? completionEvidence.terminalStatus
+    : null;
+  const latestEventType = typeof latest?.eventType === 'string' ? latest.eventType : null;
+  const inferredBoardStatus = terminalStatus
+    || (latestEventType === 'mission_cancelled' ? 'cancelled' : null)
+    || (latestEventType === 'mission_failed' ? 'failed' : null)
+    || (latestEventType === 'mission_paused' ? 'paused' : null)
+    || (latestEventType === 'mission_completed' ? 'completed' : null)
+    || (latestEventType === 'mission_started' || latestEventType === 'task_started' || latestEventType === 'task_progress' ? 'running' : null);
+
+  return {
+    paused: inferredBoardStatus === 'paused',
+    allComplete: terminalStatus === 'completed',
+    providers: providerStatusesFromMissionControlSnapshot(snapshot),
+    boardStatus: inferredBoardStatus,
+    lastEventType: latestEventType,
+    lastUpdated: typeof latest?.timestamp === 'string' ? latest.timestamp : null,
+    missionId: data?.missionId || missionId
+  };
+}
+
 function formatCreatorReadiness(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
@@ -1398,16 +1468,21 @@ export const spawner = {
       return { success: false, message: authorityError };
     }
     try {
-      const res = await axios.post(
-        `${SPAWNER_UI_URL}/api/mission-control/command`,
-        {
-          action,
-          missionId,
-          source: 'telegram',
-          executionAuthority: options.executionAuthority
-        },
-        spawnerAxiosOptions(10000)
-      );
+      const res = action === 'status'
+        ? await axios.get(
+            `${SPAWNER_UI_URL}/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`,
+            spawnerAxiosOptions(10000)
+          )
+        : await axios.post(
+            `${SPAWNER_UI_URL}/api/mission-control/command`,
+            {
+              action,
+              missionId,
+              source: 'telegram',
+              executionAuthority: options.executionAuthority
+            },
+            spawnerAxiosOptions(10000)
+          );
 
       if (res.data?.ok === false) {
         return {
@@ -1417,7 +1492,7 @@ export const spawner = {
       }
 
       if (action === 'status') {
-        const status = res.data?.status;
+        const status = res.data?.status || missionStatusFromMissionControlStatusResponse(res.data, missionId);
         const statusLabel = missionStatusLabel(status);
         const boardStatus = typeof status?.boardStatus === 'string' && status.boardStatus.trim()
           ? formatCreatorReadiness(status.boardStatus)
@@ -1434,11 +1509,7 @@ export const spawner = {
           ...providerStatusRows(status?.providers),
           '',
           'Next',
-          status?.allComplete
-            ? '• Inspect the handoff in Spawner.'
-            : status?.paused
-              ? `• /mission resume ${missionId}`
-              : `• /mission pause ${missionId}`,
+          missionStatusNextStep(status, missionId),
           '',
           ...missionInspectionLines(missionId)
         ];

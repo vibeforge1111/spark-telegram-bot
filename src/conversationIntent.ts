@@ -1509,6 +1509,36 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
 
 export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_failed_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
+export interface NaturalMissionStatusIntent {
+  action: 'status';
+  missionId: string;
+}
+
+export function parseNaturalMissionStatusIntent(text: string): NaturalMissionStatusIntent | null {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+
+  const missionId = text.match(/\b(?:mission|spark)-[A-Za-z0-9][A-Za-z0-9_-]{2,}\b/)?.[0];
+  if (!missionId || missionId.includes('<') || missionId.includes('>')) return null;
+
+  if (/^(?:please\s+)?(?:pause|resume|cancel|kill|stop)\s+(?:the\s+)?(?:mission\s+)?(?:mission|spark)-[a-z0-9][a-z0-9_-]{2,}\b/.test(normalized)) {
+    return null;
+  }
+
+  const statusQuestionEvidence =
+    /\b(?:what\s+happened|what\s+went\s+wrong|why\s+did(?:\s+it|\s+this|\s+that)?\s+fail|should\s+i\s+treat|treat\s+it\s+as|completed\s+or\s+rerun|completed\s+or\s+retry|readout|trace|status)\b/.test(normalized);
+  const asksForStatus =
+    statusQuestionEvidence ||
+    /\b(?:progress|state|summary|provider|rerun|retry|failed|failure|blocked|stale)\b/.test(normalized) ||
+    /\b(?:running|working|queued|done|finished|complete|completed|shipped)\b/.test(normalized) ||
+    /\btreat\b.{0,80}\b(?:complete|completed|done|rerun|retry)\b/.test(normalized);
+  if (!asksForStatus) return null;
+  if (parseBuildIntent(normalized) && !statusQuestionEvidence) return null;
+  if (shouldPreferConversationalIdeation(text) && !statusQuestionEvidence) return null;
+
+  return { action: 'status', missionId };
+}
+
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;

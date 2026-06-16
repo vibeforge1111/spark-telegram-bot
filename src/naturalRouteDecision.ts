@@ -44,6 +44,7 @@ import {
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
+  parseNaturalMissionStatusIntent,
   parseNaturalRecursiveCommandIntent,
   parseSpawnerBoardNaturalIntent,
   shouldAnswerRuntimeTruthPriority,
@@ -773,6 +774,25 @@ export function decideNaturalRoute(
       },
       context_source: 'latest_message',
       matched_signals: ['fresh_user_intent', 'read_only_state_question', `read_only_state:${readOnlyStateQuestion}`],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const missionStatus = parseNaturalMissionStatusIntent(text);
+  if (missionStatus) {
+    return decision({
+      route: 'spawner.mission_control',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.mission_status',
+      payload: {
+        action: missionStatus.action,
+        missionId: missionStatus.missionId,
+        mutation_class: 'read_only'
+      },
+      context_source: 'latest_message',
+      matched_signals: ['explicit_mission_id', 'mission_status_question'],
       blocked_by: [],
       requires_confirmation: false
     });

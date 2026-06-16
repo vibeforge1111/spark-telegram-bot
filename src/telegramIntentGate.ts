@@ -500,6 +500,10 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     });
   }
 
+  if (naturalRoute?.route === 'spawner.mission_control') {
+    return observedNaturalRouteDecision(constraints, naturalRoute);
+  }
+
   const explicitSpawnerNoEditMission = isExplicitSpawnerNoEditMissionRequest(normalized);
   if (naturalRoute?.route === 'project.iteration' && naturalRoute.context_source === 'visible_exact_artifact') {
     return observedNaturalRouteDecision(constraints, naturalRoute);
