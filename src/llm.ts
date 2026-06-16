@@ -81,7 +81,7 @@ export function isCodexProvider(value: string | undefined = process.env.LLM_PROV
 
 export function codexExecArgs(model: string, outputPath: string): string[] {
   const configArgs: string[] = [];
-  const reasoningEffort = (process.env.CODEX_REASONING_EFFORT || process.env.SPARK_CODEX_REASONING_EFFORT || 'medium').trim();
+  const reasoningEffort = (process.env.CODEX_REASONING_EFFORT || process.env.SPARK_CODEX_REASONING_EFFORT || 'low').trim();
   const rawServiceTier = (process.env.CODEX_SERVICE_TIER || process.env.SPARK_CODEX_SERVICE_TIER || 'fast').trim().toLowerCase();
   const serviceTier = rawServiceTier === 'flex' ? 'flex' : 'fast';
   if (reasoningEffort) configArgs.push('-c', `model_reasoning_effort="${reasoningEffort}"`);
@@ -101,7 +101,9 @@ export function codexExecArgs(model: string, outputPath: string): string[] {
 }
 
 export function sanitizeCodexConfigForSpark(text: string): string {
-  return text.replace(/^(\s*service_tier\s*=\s*)["']priority["']\s*$/gm, '$1"fast"');
+  return text
+    .replace(/^(\s*service_tier\s*=\s*)["']priority["']\s*$/gm, '$1"fast"')
+    .replace(/^(\s*model_reasoning_effort\s*=\s*)["'](?:medium|high|xhigh)["']\s*$/gm, '$1"low"');
 }
 
 export function prepareSparkCodexHome(parentDir: string, sourceHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')): string | null {

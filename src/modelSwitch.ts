@@ -129,7 +129,7 @@ const PROVIDERS: Record<ProviderId, ProviderSpec> = {
 };
 
 const CODEX_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
-const CODEX_SERVICE_TIERS = new Set(['auto', 'default', 'fast', 'flex', 'priority']);
+const CODEX_SERVICE_TIERS = new Set(['fast', 'flex']);
 
 function isModelLikeToken(token: string): boolean {
   return /^(?:gpt|o\d|openai\/|codex\/)/i.test(token) || token.includes('/');
@@ -154,7 +154,7 @@ export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientC
 
     if (['model', 'reasoning', 'reasoning-effort', 'effort', 'tier', 'service-tier'].includes(key)) {
       if (!rawValue) index += 1;
-      if (!value) return { handled: true, error: 'Use /model codex fast high, or /model codex tier=fast reasoning=high.' };
+      if (!value) return { handled: true, error: 'Use /model codex fast low, or /model codex tier=fast reasoning=low.' };
       if (key === 'model') {
         args.push('--model', value);
         modelSet = true;
@@ -183,7 +183,7 @@ export function codexClientConfigArgsFromModelCommand(raw: string): CodexClientC
       modelSet = true;
       continue;
     }
-    return { handled: true, error: `I do not recognize "${token}". Use /model codex status, /model codex fast high, or /model codex model=gpt-5.5 tier=fast reasoning=high.` };
+    return { handled: true, error: `I do not recognize "${token}". Use /model codex status, /model codex fast low, or /model codex model=gpt-5.5 tier=fast reasoning=low.` };
   }
   return { handled: true, args };
 }
@@ -373,7 +373,7 @@ export function renderModelStatus(): string {
     '/model agent huggingface google/gemma-4-26B-A4B-it:fastest',
     '/model mission huggingface google/gemma-4-31B-it:fastest',
     '/model codex status',
-    '/model codex fast high',
+    '/model codex fast low',
     '',
     'You can pass an exact model id as the third value. Use /diagnose after changing to verify the route.'
   ].join('\n');

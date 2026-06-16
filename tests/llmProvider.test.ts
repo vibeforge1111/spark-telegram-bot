@@ -152,7 +152,7 @@ test('builds Codex exec args for non-git Spark workspaces', () => {
     'exec',
     '--skip-git-repo-check',
     '-c',
-    'model_reasoning_effort="medium"',
+    'model_reasoning_effort="low"',
     '-c',
     'service_tier="fast"',
     '--model',
@@ -210,7 +210,7 @@ test('normalizes unsupported Codex service tier to fast', () => {
       'exec',
       '--skip-git-repo-check',
       '-c',
-      'model_reasoning_effort="medium"',
+      'model_reasoning_effort="low"',
       '-c',
       'service_tier="fast"',
     ]);
@@ -223,16 +223,23 @@ test('normalizes unsupported Codex service tier to fast', () => {
   }
 });
 
-test('sanitizes incompatible global Codex service tier before Spark subprocess use', () => {
+test('sanitizes incompatible global Codex tuning before Spark subprocess use', () => {
   const source = [
     'model = "gpt-5.5"',
+    'model_reasoning_effort = "high"',
     'service_tier = "priority"',
+    '',
+    '[profiles.speed]',
+    'model_reasoning_effort = "xhigh"',
+    'service_tier = "flex"',
     '',
     '[projects.foo]',
     'service_tier = "flex"'
   ].join('\n');
 
   const sanitized = sanitizeCodexConfigForSpark(source);
+  assert.match(sanitized, /model_reasoning_effort = "low"/);
+  assert.match(sanitized, /\[profiles\.speed\]\nmodel_reasoning_effort = "low"\nservice_tier = "flex"/);
   assert.match(sanitized, /service_tier = "fast"/);
   assert.match(sanitized, /\[projects\.foo\]\nservice_tier = "flex"/);
 });
@@ -243,13 +250,16 @@ test('prepares a temporary Spark Codex home only when inherited config needs san
   const parent = path.join(tempRoot, 'runtime');
   mkdirSync(sourceHome, { recursive: true });
   mkdirSync(parent, { recursive: true });
-  writeFileSync(path.join(sourceHome, 'config.toml'), 'service_tier = "priority"\n', 'utf-8');
+  writeFileSync(path.join(sourceHome, 'config.toml'), 'model_reasoning_effort = "high"\nservice_tier = "priority"\n', 'utf-8');
   writeFileSync(path.join(sourceHome, 'auth.json'), '{"auth":"present"}', 'utf-8');
 
   try {
     const codexHome = prepareSparkCodexHome(parent, sourceHome);
     assert.ok(codexHome);
-    assert.equal(readFileSync(path.join(codexHome, 'config.toml'), 'utf-8').trim(), 'service_tier = "fast"');
+    assert.equal(
+      readFileSync(path.join(codexHome, 'config.toml'), 'utf-8').trim(),
+      'model_reasoning_effort = "low"\nservice_tier = "fast"'
+    );
     assert.equal(readFileSync(path.join(codexHome, 'auth.json'), 'utf-8'), '{"auth":"present"}');
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
