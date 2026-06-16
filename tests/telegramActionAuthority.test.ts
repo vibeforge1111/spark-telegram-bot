@@ -964,3 +964,29 @@ test('round-3 fixes do not over-block real commands or run-on imperatives', () =
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
   }
 });
+
+test('recursive.package framings demote; common verbs do not over-block', () => {
+  // The recursive.package route parses prepare/package/submit/share/send + a recursive-context
+  // noun (review/network/swarm/workspace). Adding those verbs demotes hostile framings; bare
+  // imperatives and noun/past-tense uses of these common verbs must stay executable.
+  for (const text of [
+    'should we prepare a review packet for startup-yc and submit to the swarm network',
+    'never prepare a review packet for startup-yc and submit to the swarm network',
+    'why would we package the review for the swarm network',
+    'dont submit the review packet to the swarm network'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+  }
+  for (const text of [
+    'prepare a review packet for startup-yc and submit to the swarm network',
+    'send the message',
+    'share the file with the team',
+    'submit the form',
+    'package the app for release',
+    'the package arrived yesterday',
+    'i sent it last week',
+    'a shared folder for the docs'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});
