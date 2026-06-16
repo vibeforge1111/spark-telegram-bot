@@ -355,3 +355,77 @@ live transport. The cleanup need is to remove exact-string expectations for
 human route explanations and assert semantic boundaries instead: no owner-state
 read, no action, no mutation, and a human-readable explanation of fresh
 authority.
+
+## Later Update: Owner-Side Memory Recall Repair
+
+Time: 2026-06-16 18:52-18:55 UTC.
+
+After the delivery blocker was separated from the memory system, a deeper local
+run exposed a real memory/context bug:
+
+- Natural recall prompts like "What is the session test code word I asked you
+  to remember?" were not being classified as user-memory recall.
+- Because the recall lane missed the turn, Spark fell through to an unrelated
+  recursive-session answer: `No recursive sessions found.`
+- Explicit memory directive turns were intentionally filtered out of ordinary
+  recent context, which is still correct. The missing piece was a dedicated
+  recent-memory-directive lane that can answer recall questions without letting
+  memory-write residue leak into normal context.
+
+Fix shape:
+
+- Added a recent-memory-directive reader on the conversation store. It only
+  extracts explicit user memory directives from raw recent user turns.
+- Expanded memory-recall intent recognition for natural "what did I ask you to
+  remember" forms.
+- Implemented local recall from the recent-memory-directive lane with source
+  labeling: `From recent chat:`.
+- Preserved the anti-residue rule: memory directives still do not appear in
+  ordinary context, recent turns, or conversation frames.
+- Improved Builder memory writer diagnostics so governed write failures include
+  sanitized CLI stdout/stderr instead of only `Command failed`.
+
+Owner evidence:
+
+- Direct Builder memory smoke passed against
+  `C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real`.
+- The live Telegram Builder home had durable memory disabled:
+  `spark.memory.enabled=false` and `spark.memory.shadow_mode=true`.
+- The live Builder config was repaired through the Builder config owner:
+  `spark.memory.enabled=true` and `spark.memory.shadow_mode=false`.
+- After that, Builder bridge writes reported governed acceptance:
+  `status=succeeded accepted=1 rejected=0 skipped=0`.
+
+Verification:
+
+```powershell
+npm test -- --run tests/conversationMemory.test.ts tests/conversationIntent.test.ts tests/telegramActionAuthority.test.ts tests/traceAndMemoryDrilldowns.test.ts
+npm run context:live
+npm run context:ux
+npm run build
+npm run build:sync
+```
+
+Results:
+
+- Focused tests passed.
+- `npm run context:live` passed 20/20.
+- `npm run context:ux` passed 15/15.
+- The runtime was synced and relaunched. `spark-recursive` is running on port
+  8791, but its health check still times out because Telegram Bot API access is
+  blocked from this machine.
+
+Current honest verdict:
+
+- Recent-chat memory recall is now above the release bar for the tested natural
+  prompt class.
+- Durable memory writes are now correctly enabled and accepted by the Builder
+  owner in the local Telegram runtime home.
+- Durable memory recall across a true bot restart is still not live-proven
+  through Telegram because `api.telegram.org:443` is timing out.
+- No Telegram Desktop/CUA pass should be claimed until the Telegram transport
+  route is healthy enough for messages to deliver and replies to return.
+
+Next improvement should be a restart-window test that proves recall from the
+Builder durable memory owner when the recent chat window is unavailable. That
+should be a source-selection improvement, not a phrase patch.

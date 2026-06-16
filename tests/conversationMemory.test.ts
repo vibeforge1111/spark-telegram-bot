@@ -89,6 +89,7 @@ async function main(): Promise<void> {
     const context = await memory.getContext(user, 'what do you remember about mission updates?');
     const recentMessages = await memory.getRecentMessages(user, 4);
     const recentTurns = await memory.getRecentTurns(user, 4);
+    const recentMemoryDirectives = await memory.getRecentMemoryDirectives(user, 4);
     const frame = await memory.getConversationFrame(user, 'what do you remember about mission updates?');
     const recalled = await memory.recall(user, 'mission updates', 1);
 
@@ -96,6 +97,9 @@ async function main(): Promise<void> {
     assert.deepEqual(recentMessages, []);
     assert.deepEqual(recentTurns.map((turn) => turn.text), [
       'Memory is degraded, so I could not confirm that write.'
+    ]);
+    assert.deepEqual(recentMemoryDirectives.map((item) => item.note), [
+      'my preferred mission updates are concise and outcome-focused'
     ]);
     assert.deepEqual(frame.hotTurns.map((turn) => turn.text), [
       'Memory is degraded, so I could not confirm that write.'

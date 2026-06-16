@@ -3538,6 +3538,8 @@ export function isUserMemoryRecallQuestion(text: string): boolean {
   return (
     /\bwhat\b.*\bremember\b.*\b(?:prefer|preferred|preference|like|mission\s+updates?|updates?|about\s+me|about\s+how\s+i|how\s+i\s+work|work\s+style)\b/.test(normalized) ||
     /\bwhat\s+did\s+i\s+ask\s+you\s+to\s+remember(?:\s+earlier)?\s+about\b/.test(normalized) ||
+    /\bwhat\s+(?:is|was)\b.*\bi\s+asked\s+you\s+to\s+remember\b/.test(normalized) ||
+    /\bwhat\s+did\s+i\s+ask\s+you\s+to\s+remember\b/.test(normalized) ||
     /\brecall\s+(?:my|our|the)\s+(?:current\s+)?(?:project\s+)?(?:focus|plan|context)\b/.test(normalized) ||
     /\bwho\s+owns\b.*\b(?:launch\s+)?(?:checklist|plan|project|workstream|track)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:prefer|preferred|preference|like)\b.*\bremember\b/.test(normalized) ||

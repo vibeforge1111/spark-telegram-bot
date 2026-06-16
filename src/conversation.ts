@@ -74,6 +74,11 @@ export interface RecentConversationTurn {
   text: string;
 }
 
+export interface RecentMemoryDirective {
+  note: string;
+  sourceText: string;
+}
+
 const ORDINAL_WORDS: Record<string, number> = {
   first: 1,
   second: 2,
@@ -195,6 +200,23 @@ function isMemoryWriteTranscriptResidueLine(text: string): boolean {
     /^spark:\s*(?:i remember this:|noted:)/.test(normalized) ||
     /^spark:\s*you told me\b/.test(normalized)
   );
+}
+
+function extractRecentMemoryDirective(text: string): string | null {
+  const line = compactLine(text).replace(/^User:\s*/i, '').trim();
+  const memoryUpdate = line.match(/^memory update\s*:\s*(.+?)(?:\s+please\s+save\s+this\b.*)?$/i)?.[1]?.trim();
+  if (memoryUpdate) return userFacingMemoryContent(memoryUpdate);
+
+  const explicit = line.match(
+    /^(?:spark,?\s*)?(?:please\s+|can\s+you\s+|could\s+you\s+)?(?:remember|save|store)\s+(?:this|that|it)?\s*(?:as\s+[^:]{1,80})?\s*[:,-]?\s*(.+)$/i
+  )?.[1]?.trim();
+  if (!explicit) return null;
+
+  const cleaned = explicit
+    .replace(/\b(?:please\s+)?(?:save|store|remember)\s+(?:this|that|it)\b.*$/i, '')
+    .replace(/\bthis\s+turn\s+is\s+only\s+a\s+memory\s+update\b.*$/i, '')
+    .trim();
+  return cleaned ? userFacingMemoryContent(cleaned) : null;
 }
 
 function isContextualRecentLine(text: string): boolean {
@@ -576,6 +598,20 @@ export class ConversationMemory {
         return { role: 'user' as const, text: (userMatch?.[1] || item).trim() };
       })
       .filter((turn) => turn.text.length > 0);
+  }
+
+  async getRecentMemoryDirectives(user: TelegramUser, limit: number = 8): Promise<RecentMemoryDirective[]> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    const recent = this.recentByUser.get(key) || [];
+    return recent
+      .filter((item) => /^User:\s*/i.test(item))
+      .map((item) => {
+        const note = extractRecentMemoryDirective(item);
+        return note ? { note, sourceText: item.replace(/^User:\s*/i, '').trim() } : null;
+      })
+      .filter((item): item is RecentMemoryDirective => item !== null)
+      .slice(-Math.max(1, limit));
   }
 
   async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {

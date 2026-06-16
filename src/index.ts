@@ -4475,10 +4475,73 @@ async function handlePlainChatMemoryDirective(
   });
 }
 
+const RECENT_MEMORY_RECALL_STOPWORDS = new Set([
+  'about',
+  'asked',
+  'did',
+  'earlier',
+  'is',
+  'me',
+  'my',
+  'please',
+  'recall',
+  'remember',
+  'saved',
+  'session',
+  'that',
+  'the',
+  'this',
+  'to',
+  'was',
+  'what',
+  'you'
+]);
+
+function recentMemoryRecallTokens(text: string): string[] {
+  return Array.from(new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2 && !RECENT_MEMORY_RECALL_STOPWORDS.has(token))
+  ));
+}
+
+function scoreRecentMemoryDirective(query: string, note: string): number {
+  const queryTokens = recentMemoryRecallTokens(query);
+  if (queryTokens.length === 0) return 1;
+  const noteTokens = new Set(recentMemoryRecallTokens(note));
+  return queryTokens.filter((token) => noteTokens.has(token)).length;
+}
+
+function formatRecentMemoryDirectiveRecall(note: string): string {
+  return [
+    'From recent chat:',
+    '',
+    note.replace(/[.!?]+$/g, '').trim()
+  ].join('\n');
+}
+
 async function buildLocalRecallReply(user: any, query: string): Promise<string | null> {
-  void user;
-  void query;
-  return null;
+  const directives = await conversation.getRecentMemoryDirectives(user, 8).catch(() => []);
+  if (directives.length === 0) return null;
+
+  const ranked = directives
+    .map((directive, index) => ({
+      directive,
+      index,
+      score: scoreRecentMemoryDirective(query, directive.note)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.index - a.index);
+
+  const selected = ranked[0]?.directive || (
+    /\bwhat\s+did\s+i\s+ask\s+you\s+to\s+remember\b/i.test(query)
+      ? directives[directives.length - 1]
+      : null
+  );
+  return selected ? formatRecentMemoryDirectiveRecall(selected.note) : null;
 }
 
 function extractNaturalLocalMemoryRecallQuery(text: string): string | null {

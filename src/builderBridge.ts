@@ -28,6 +28,19 @@ function processOutputText(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function execFailureDetail(error: unknown): string {
+  const record = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+  const message = error instanceof Error ? error.message : String(error);
+  const stdout = processOutputText(record.stdout).trim();
+  const stderr = processOutputText(record.stderr).trim();
+  const parts = [
+    message,
+    stdout ? `stdout=${stdout}` : '',
+    stderr ? `stderr=${stderr}` : ''
+  ].filter(Boolean);
+  return redactText(parts.join(' ')).slice(0, 4000);
+}
+
 function sourceLedgerLabel(value: unknown, fallback: string): string {
   const text = String(value || '').trim();
   if (!text) {
@@ -2962,10 +2975,11 @@ export async function runBuilderTelegramMemoryWrite(
       payload,
     };
   } catch (error) {
+    const detail = execFailureDetail(error);
     if (config.mode === 'required') {
-      throw error;
+      throw new Error(detail, { cause: error instanceof Error ? error : undefined });
     }
-    console.warn('[BuilderBridge] Telegram memory writer unavailable:', error);
+    console.warn('[BuilderBridge] Telegram memory writer unavailable:', detail);
     return {
       used: false,
       status: 'error',
@@ -2973,10 +2987,10 @@ export async function runBuilderTelegramMemoryWrite(
       rejectedCount: 0,
       skippedCount: 0,
       abstained: false,
-      reason: error instanceof Error ? error.message : String(error),
+      reason: detail,
       responseText: '',
       bridgeMode: config.mode,
-      error: error instanceof Error ? error.message : String(error),
+      error: detail,
     };
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});

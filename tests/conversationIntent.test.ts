@@ -386,6 +386,10 @@ test('separates user memory recall from build context recall', () => {
     true
   );
   assert.equal(
+    isUserMemoryRecallQuestion('What is the session test code word I asked you to remember?'),
+    true
+  );
+  assert.equal(
     isBuildContextRecallQuestion('Use memory only as context: what did we decide about Railway testing? Keep it short and do not run anything.'),
     false
   );
