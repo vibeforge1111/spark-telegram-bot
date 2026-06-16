@@ -56,19 +56,43 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
 // and they fail SAFE: a false positive demotes a turn to noExecution (a hold/clarify),
 // it can never cause a wrong execution.
 const EXECUTION_VERB_GROUP =
-  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve|change|set|switch|update|raise|lower|upgrade|downgrade|enable|disable|delete|remove|grant|revoke|cancel|drop|stop|kill|terminate|abort)';
+  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve|propose|change|set|switch|update|raise|lower|upgrade|downgrade|enable|disable|delete|remove|grant|revoke|cancel|drop|stop|kill|terminate|abort|research|browse|inspect|analyze|analyse|study|compare|review)';
 const NEGATION_CUE_GROUP =
-  "(?:do not|don't|dont|cannot|can't|cant|won't|wont|shouldn't|shouldnt|wouldn't|wouldnt|never|no need to|no plans to|not going to|not gonna)";
+  "(?:do not|don't|dont|cannot|can't|cant|won't|wont|shouldn't|shouldnt|wouldn't|wouldnt|should not|should never|must not|mustn't|let's not|lets not|rather not|no reason to|refuse to|refuses to|refusing to|never|no need to|no plans to|not going to|not gonna)";
 // cues that actually introduce a POSITIVE imperative (do not forget to build = build)
 const NEGATION_INVERSION_GROUP = '(?:forget|hesitate|worry|be\\s+afraid|be\\s+shy|mind)';
+// A coordinating conjunction between a negation/reported frame and an execution verb usually
+// starts a NEW independent clause that carries a real command ("i never liked the old thing SO
+// build the dashboard"). The filler windows below stop at these words so a genuine command in a
+// later clause is not demoted by a negation about something else earlier in the sentence. This is
+// what lets the windows be wide (catching long displaced negations) without over-blocking run-ons.
+// "and" is deliberately excluded: it is more often a verb-phrase conjunction ("go and build",
+// "try and deploy") than a clause break, so stopping on it would let displaced negations through.
+const CLAUSE_BREAK_LOOKAHEAD = '(?!(?:so|but|then|therefore|thus|also)\\b)';
 const REPORTED_FRAME_GROUP =
-  "(?:you said|you mentioned|you told me|earlier you|they said|i said|we said|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error)s?\\s+(?:say|says|said|reported)|was that|did (?:you|we))";
+  "(?:you said|you mentioned|you told me|earlier you|they (?:said|stated|told me)|i said|we said|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error|team|owner|customer|client)s?\\s+(?:say|says|said|reported|stated|insisted|wrote|recommended)|was that|did (?:you|we))";
+
+// Quote / bracket / emphasis glyphs glued to a verb ("build", `deploy`, (build), *build*, ""build"")
+// broke the \bVERB\b adjacency the three frame detectors below rely on, so a quoted verb
+// ("should i \"build\" the dashboard") slipped past the interrogative / negation / reported demotion
+// and reached spawner.build at execute confidence (verified live execution hole, not partial).
+// Replace runs of those glyphs with a space ONLY for the frame-detector inputs; this is a separate
+// string and never touches `normalized`, so the meta-discussion boundary detectors (which need the
+// quote glyphs to recognize "the word \"build\"" as discussion) are unaffected. Single-quote
+// delimiters are stripped only at word boundaries so contractions (don't, can't, let's) survive and
+// the negation cue group keeps matching. Fail-safe: a false positive can only demote to a clarify.
+function stripGlueGlyphs(normalized: string): string {
+  return normalized
+    .replace(/[`«»‹›()\[\]{}*"]+/g, ' ')
+    .replace(/(?<=\s|^)'+(?=\w)/g, ' ')
+    .replace(/(?<=\w)'+(?=\s|$|[^\w'])/g, ' ');
+}
 
 // A negation cue (that is not an inversion phrase) appearing before an execution verb within
 // a short window: the user is negating or deferring the action, not commanding it.
 function hasScopedNegationBeforeExecution(normalized: string): boolean {
   const re = new RegExp(
-    `\\b${NEGATION_CUE_GROUP}\\b(?!\\s+${NEGATION_INVERSION_GROUP}\\b)(?:\\s+\\w+){0,6}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+    `\\b${NEGATION_CUE_GROUP}\\b(?!\\s+${NEGATION_INVERSION_GROUP}\\b)(?:\\s+${CLAUSE_BREAK_LOOKAHEAD}\\w+){0,12}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
   );
   return re.test(normalized);
 }
@@ -77,7 +101,7 @@ function hasScopedNegationBeforeExecution(normalized: string): boolean {
 // quoted or recalled ("earlier you said create X"), not a fresh command this turn.
 function hasReportedSpeechBeforeExecution(normalized: string): boolean {
   const re = new RegExp(
-    `\\b${REPORTED_FRAME_GROUP}\\b(?:\\s+\\w+){0,10}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+    `\\b${REPORTED_FRAME_GROUP}\\b(?:\\s+${CLAUSE_BREAK_LOOKAHEAD}\\w+){0,16}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
   );
   return re.test(normalized);
 }
@@ -88,7 +112,7 @@ function hasReportedSpeechBeforeExecution(normalized: string): boolean {
 // excludes polite imperatives ("could you build", "would you build", "please build"),
 // which ARE commands and must stay executable.
 const NON_IMPERATIVE_FRAME_GROUP =
-  "(?:should (?:i|we)|how (?:do|would|should|can|could|to) (?:i|we|you|one)|how to|what if|why (?:did|do|does|is|was|are|were)|is it (?:worth|possible|safe|ok|okay|a good idea)|do (?:i|we) (?:need|have) to|what(?:'s| is) the best way to|remind me (?:how|what|to)|thinking about|considering)";
+  "(?:should (?:i|we)|how (?:do|would|should|can|could|to) (?:i|we|you|one)|how to|what if|why (?:did|do|does|is|was|are|were|would|will|should)|is it (?:worth|possible|safe|ok|okay|a good idea)|do (?:i|we) (?:need|have) to|do (?:you|we) think|what(?:'s| is) the best way to|remind me (?:how|what|to)|thinking about|considering|wonder(?:ing)? (?:if|whether)|i wonder|suppose (?:we|i|you|that))";
 // Hedged / tentative-future cues: not a fresh command this turn.
 const HEDGE_CUE_GROUP = '(?:might|maybe|perhaps|possibly|we could)';
 
@@ -174,9 +198,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/,
     /\b(?:just explain|explain only|only explain|we can talk here|talk here|stay in chat)\b/
   ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword) ||
-    hasScopedNegationBeforeExecution(normalized) ||
-    hasReportedSpeechBeforeExecution(normalized) ||
-    hasNonImperativeExecution(normalized);
+    hasScopedNegationBeforeExecution(stripGlueGlyphs(normalized)) ||
+    hasReportedSpeechBeforeExecution(stripGlueGlyphs(normalized)) ||
+    hasNonImperativeExecution(stripGlueGlyphs(normalized));
 
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;

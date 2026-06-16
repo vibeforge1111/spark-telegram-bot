@@ -901,3 +901,66 @@ test('real destructive commands stay executable (no over-block)', () => {
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
   }
 });
+
+test('round-3 hijack holes (H3/H4/H5/H7) demote hostile framings', () => {
+  // H3 recursive.propose (verb "propose" added), H4 external_research (research family added),
+  // H5 displaced negation (wider clause-break-bounded window), H7 quote/glyph-glued verb
+  // (glyph normalization), plus the verb-agnostic frame-group enrichment (why would / should not
+  // / suppose / wonder if). All proven verdict=allowed end-to-end before the fix.
+  for (const text of [
+    // H3 propose
+    'dont propose a recursive network proposal',
+    'should we propose a recursive network proposal',
+    'why would we propose a recursive network proposal',
+    'we should not propose a recursive network proposal',
+    // H4 research family
+    'should we research github.com/foo/bar',
+    'you said research github.com/foo/bar',
+    'should we analyze github.com/foo/bar',
+    'should we review github.com/foo/bar',
+    // H5 displaced negation past the old {0,6} window
+    'dont think we should ever really want to build the dashboard',
+    'i really do not think that we should now go and build the dashboard',
+    // H7 quote/glyph-glued verb (every glyph variant, incl doubled quotes)
+    'should i "build" the dashboard',
+    'should i `build` the dashboard',
+    'should i (build) the dashboard',
+    'should i *build* the dashboard',
+    'should i ""build"" the dashboard',
+    // frame-group enrichment on the existing build verb
+    'why would i build the dashboard',
+    'we should not build the dashboard',
+    'suppose we build the dashboard',
+    'i wonder if we should build the dashboard'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+  }
+});
+
+test('round-3 fixes do not over-block real commands or run-on imperatives', () => {
+  // Clause-break protection: a negation about one thing must NOT demote a real command in a
+  // later clause introduced by so/but/also. Glyph normalization must not touch real commands or
+  // contractions. Verb additions must not demote noun uses.
+  for (const text of [
+    // H5 run-on real commands (clause break)
+    'i dont want to keep wasting time on the old broken thing so build the dashboard',
+    'i never liked how the previous team handled this so build the dashboard properly',
+    'dont send the old email blast to everyone and also build the dashboard',
+    'i dont like the old one but build a new one',
+    // H7 real commands with quoted nouns / contractions
+    'build the "create" page',
+    "let's build the dashboard now",
+    // H3/H4 real commands + nouns
+    'propose a recursive network proposal for startup-yc',
+    'please propose a recursive network proposal',
+    'research github.com/foo/bar',
+    'the research shows our revenue is up',
+    'market research is important for startups',
+    'the browser inspector is broken',
+    // polite imperatives + inversion guard must stay executable
+    'could you build the dashboard',
+    'dont forget to build the dashboard'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});
