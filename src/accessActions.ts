@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { spawnHidden, withHiddenWindows } from './hiddenProcess';
+import { spawnHidden, withHiddenWindows, resolveWindowsCommand, windowsCmdShimArgs, windowsPowerShellShimArgs } from './hiddenProcess';
 import { redactText } from './redaction';
 
 const execFileAsync = promisify(execFile);
@@ -229,10 +229,26 @@ export async function runSparkAccessActionDetailed(
   };
 }
 
+// Resolve the spark CLI the same way runSparkCli does, so access actions work on Windows.
+// Bare execFile('spark') ENOENTs on Windows (the CLI is spark.cmd, and execFile does not apply
+// PATHEXT or use a shell), which is why level5_enable / workspace_setup failed with "spawn spark
+// ENOENT". Honor SPARK_CLI_COMMAND/SPARK_CLI_PATH, else resolve 'spark' against PATH+PATHEXT.
+function resolveSparkCliForAccessActions(): string {
+  const explicit = process.env.SPARK_CLI_COMMAND?.trim() || process.env.SPARK_CLI_PATH?.trim();
+  if (explicit) return explicit;
+  return resolveWindowsCommand('spark');
+}
+
 async function defaultSparkCommandRunner(args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string }> {
+  const resolved = resolveSparkCliForAccessActions();
+  const [command, commandArgs] = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolved)
+    ? [process.env.ComSpec || 'cmd.exe', windowsCmdShimArgs(resolved, args)]
+    : process.platform === 'win32' && /\.ps1$/i.test(resolved)
+      ? ['powershell.exe', windowsPowerShellShimArgs(resolved, args)]
+      : [resolved, args];
   const { stdout, stderr } = await execFileAsync(
-    'spark',
-    args,
+    command,
+    commandArgs,
     withHiddenWindows({
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024,
