@@ -92,6 +92,7 @@ Raw words may propose candidates. Fresh user intent plus Harness/Governor author
 Do not let any of these become action authority by themselves:
 
 - route keywords
+- route words inside explanations, bug reports, logs, traces, fenced repros, prior Spark replies, QA fixtures, or "does that authorize?" conversations
 - pending state
 - route history
 - old mission ids
@@ -103,6 +104,13 @@ Do not let any of these become action authority by themselves:
 - cached summaries
 - preview, Canvas, or Board links
 - stale task/result artifacts
+
+Read-only/status hijacks count too. A route word in meta-language must not
+steal the answer lane into provider truth, registry drift, access status,
+memory recall, wiki lookup, browser availability, or mission status unless the
+latest turn is actually asking that owner for current state. The same boundary
+must preserve explicit positives such as "what provider is active right now?",
+"show my access level", "search the wiki for X", and "build the local app now".
 
 ## Owner Truth
 

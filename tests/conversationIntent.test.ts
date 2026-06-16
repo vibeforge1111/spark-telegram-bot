@@ -82,6 +82,7 @@ import {
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
   isProviderRuntimeConfigQuestion,
+  isRouteWordMetaExplanationDiscussion,
   parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
   parseSpawnerMissionRerunNaturalIntent,
@@ -672,6 +673,34 @@ test('provider role status questions do not become diagnostic follow-up tests', 
     ),
     false
   );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Before we move on, what changed in that provider check fix, and why does it matter for normal people using Spark? Just talk me through it.'
+    ),
+    false
+  );
+});
+
+test('route-word explanation discussions do not become status or source-lane routes', () => {
+  const providerFix = 'Before we move on, what changed in that provider check fix, and why does it matter for normal people using Spark? Just talk me through it.';
+  const registryFix = 'What changed in the registry drift fix, and why did that hijack happen?';
+  const accessPatch = 'Can you talk me through the access patch without changing my access level?';
+  const wikiBoundary = 'Why did the wiki route hijack happen, and what general boundary should prevent it?';
+  const memoryBoundary = 'Explain why the memory hijack happened and what changed in the classifier.';
+
+  assert.equal(isRouteWordMetaExplanationDiscussion(providerFix), true);
+  assert.equal(isProviderRuntimeConfigQuestion(providerFix), false);
+  assert.equal(isAccessStatusQuestion(accessPatch), false);
+  assert.equal(isSparkWikiStatusQuestion(wikiBoundary), false);
+  assert.equal(extractSparkWikiQuery(wikiBoundary), null);
+  assert.equal(extractSparkWikiAnswerQuestion(wikiBoundary), null);
+  assert.equal(isUserMemoryRecallQuestion(memoryBoundary), false);
+  assert.equal(isRouteWordMetaExplanationDiscussion(registryFix), true);
+
+  assert.equal(isProviderRuntimeConfigQuestion('Which provider, model, reasoning effort, and service tier are active for chat and builder right now?'), true);
+  assert.equal(isAccessStatusQuestion("What's my access level right now?"), true);
+  assert.equal(isSparkWikiStatusQuestion('is your LLM wiki active right now?'), true);
+  assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
 });
 
 test('does not turn product-memory mission boundary questions into workflow bug hunt cards', () => {
@@ -1947,6 +1976,11 @@ test('extracts explicit plain-chat memory directives', () => {
   assert.equal(extractPlainChatMemoryDirective('Actually, my current plan is run a fresh diagnostics scan.'), null);
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
+  assert.equal(extractPlainChatMemoryDirective('remember when we discussed the day planner and its quiet morning slot?'), null);
+  assert.equal(
+    extractPlainChatMemoryDirective('note that the wiki tab should be optional, what would you put on the first screen?'),
+    null
+  );
 });
 
 test('extracts explicit user-scoped agent doctrine preferences', () => {

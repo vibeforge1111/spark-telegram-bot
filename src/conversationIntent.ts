@@ -73,6 +73,7 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
 }
 
 const HIGH_AGENCY_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/;
+const ROUTE_WORD_PATTERN = /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|model|status|health|registry|drift|pending|release|blocker|schedule|loop|recursive|chip|route|memory|recall|remember|wiki|knowledge\s*base|kb|access|publish|deploy|draft|canvas|board|browser|browser-use|computer-use|computer\s+use|voice|audio|restart)\b/;
 
 export function isActionWordMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -91,6 +92,22 @@ export function isActionWordMetaDiscussion(text: string): boolean {
     /\b(?:not\s+a\s+command|not\s+an\s+instruction|not\s+a\s+request|not\s+as\s+(?:a\s+)?(?:fresh\s+)?(?:command|request|instruction)|not\s+asking\s+(?:you\s+)?to|do\s+not|don't|dont|no\s+need\s+to|stay\s+in\s+chat|chat\s+only|conversational)\b/.test(normalized);
 
   return framesAsLanguage && (asksBoundary || labelsOnly || explicitBoundary);
+}
+
+export function isRouteWordMetaExplanationDiscussion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || !ROUTE_WORD_PATTERN.test(normalized)) return false;
+
+  const asksExplanation =
+    /\b(?:what\s+changed|what\s+did\s+(?:you|we)\s+change|what\s+was\s+fixed|what\s+failed|why\s+did|why\s+does\s+it\s+matter|why\s+is|why\s+must|how\s+did|how\s+does\s+(?:that|this|it)\s+work|does\s+that\s+authorize|is\s+that\s+enough\s+authority|classify|diagnos(?:e|is|tic)|explain|talk\s+me\s+through|walk\s+me\s+through|what\s+general\s+boundary|which\s+boundary|what\s+boundary|owner\s+layer)\b/.test(normalized);
+  const framesIncidentOrMechanism =
+    /\b(?:fix|fixed|patch|patched|change|changed|improvement|update|hijack|hijacked|hijacking|bug|regression|regression\s+report|route|classifier|detector|trigger|boundary|guard|intent|selectedintent|expected\s+chat[-\s]*only|authority|authorize|authorized|trace|log|logs|repro|residue|prior\s+reply|last\s+reply|mission\s+log)\b/.test(normalized);
+  const asksCurrentOwnerState =
+    /\b(?:still|current(?:ly)?|right\s+now|active|configured|set\s+to|status|health|which\s+provider|what\s+provider|show\s+provider|tell\s+me\s+the\s+provider|runtime\s+config|service\s+tier|reasoning\s+effort)\b/.test(normalized) &&
+    /\b(?:check|show|tell|confirm|verify|what|which|whether|are|is)\b/.test(normalized) &&
+    !/\b(?:fix|fixed|patch|patched|hijack|hijacked|hijacking|bug|regression|boundary|detector|classifier)\b/.test(normalized);
+
+  return asksExplanation && framesIncidentOrMechanism && !asksCurrentOwnerState;
 }
 
 export type StaleContextAuthorityBoundaryKind =
@@ -224,6 +241,9 @@ export function isSparkWikiStatusQuestion(text: string): boolean {
   if (!normalized) {
     return false;
   }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
+    return false;
+  }
   if (parseBuildIntent(normalized)) {
     return false;
   }
@@ -252,6 +272,9 @@ export function isSparkWikiInventoryQuestion(text: string): boolean {
   if (!normalized || parseBuildIntent(normalized)) {
     return false;
   }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
+    return false;
+  }
   const mentionsWiki =
     /\b(?:llm\s+)?wiki\b/i.test(normalized) ||
     /\b(?:knowledge\s*base|kb)\b/i.test(normalized) ||
@@ -274,6 +297,9 @@ export function isSparkWikiInventoryQuestion(text: string): boolean {
 export function extractSparkWikiQuery(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
     return null;
   }
   if (isSparkWikiStatusQuestion(normalized) || isSparkWikiInventoryQuestion(normalized)) {
@@ -304,6 +330,9 @@ export function extractSparkWikiQuery(text: string): string | null {
 export function extractSparkWikiAnswerQuestion(text: string): string | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || parseBuildIntent(normalized)) {
+    return null;
+  }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
     return null;
   }
   if (isSparkWikiStatusQuestion(normalized) || isSparkWikiInventoryQuestion(normalized)) {
@@ -2402,6 +2431,9 @@ export function isAccessStatusQuestion(text: string): boolean {
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
+    return false;
+  }
 
   if (isAccessCapabilityMismatchQuestion(normalized)) {
     return false;
@@ -2581,6 +2613,9 @@ export function hasRecentAccessCapabilityRepair(recentMessages: string[]): boole
 export function isAccessHelpQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
+    return false;
+  }
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
     return false;
   }
   if (parseNaturalAccessChangeIntent(normalized)) {
@@ -3258,6 +3293,17 @@ export function renderChatRuntimeFailureReply(isAdmin: boolean, bridgeFailed: bo
 
 export function extractPlainChatMemoryDirective(text: string): string | null {
   const trimmed = text.trim();
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
+  if (
+    /\b(?:do\s+you\s+)?remember\s+(?:when|how|what|where|why)\b/.test(normalized) ||
+    /\bremember\s+(?:the\s+time|we|you|i)\b/.test(normalized)
+  ) {
+    return null;
+  }
+  const hasQuestionContinuation =
+    /[?]\s*$/.test(trimmed) ||
+    /,\s*(?:what|how|why|where|which|should|can|could|would|do|does|is|are)\b/i.test(trimmed) ||
+    /\b(?:what|how|why|where|which)\s+(?:would|should|can|could|do|does|is|are)\b/i.test(trimmed);
   const cleanDirective = (value: string): string => value
     .replace(/^[\"'“”‘’]|[\"'“”‘’]$/g, '')
     .replace(/[.!?]+$/g, '')
@@ -3299,6 +3345,9 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
     const match = trimmed.match(pattern);
     const value = match?.[1]?.trim();
     if (value) {
+      if (hasQuestionContinuation) {
+        return null;
+      }
       return cleanDirective(value);
     }
   }
@@ -3471,6 +3520,7 @@ export function isAgentDoctrinePreferenceStatusQuestion(text: string): boolean {
 export function isUserMemoryRecallQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
+  if (isRouteWordMetaExplanationDiscussion(normalized)) return false;
   if (
     /^memory\s+update\s*:/.test(normalized) ||
     /\b(?:please\s+)?(?:remember|save)\s+(?:this|that)\b/.test(normalized)
@@ -3680,6 +3730,9 @@ export function isProviderRuntimeConfigQuestion(text: string): boolean {
     .filter((role) => new RegExp(`\\b${role}\\b`).test(normalized)).length;
   const mentionsRoleSet = roleMentions >= 2 &&
     (/\broles?\b/.test(normalized) || /\b(?:codex|gpt|provider|model|reasoning|service\s+tier|low|high|fast)\b/.test(normalized));
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
+    return false;
+  }
   const asksCurrentRuntime =
     /\b(?:are|is|still|current(?:ly)?|right\s+now|on\s+this\s+device|using|running|set\s+to|configured)\b/.test(normalized);
   const isDesignOrLabelTrap =

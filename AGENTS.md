@@ -152,6 +152,7 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - Raw words may propose candidates; fresh user intent authorizes action.
 - Every high-agency Telegram route must be `envelope_verified` or explicit `machine_origin_policy`; any high-agency `legacy_local_gate` is a release blocker.
 - Quoted examples, bug reports, meta-language, no-action turns, and "just explain" boundaries block interruptive routes.
+- Route words inside explanations, logs, traces, fenced repros, prior Spark replies, or "what changed/what failed/does that authorize?" conversations are evidence only. They must not become status reads, memory/wiki source selection, Spawner builds, provider runs, schedule/chip actions, or browser/network calls unless the latest user turn separately asks for current owner state or a fresh action.
 - Builder owns RouteConfidenceGateV1. Telegram asks Builder whether to `act`, `ask`, `explain`, or `refuse`.
 - The action gate can be deterministic; the user-facing sentence should stay natural and context-aware.
 - Explicit no-execution constraints beat action keywords.

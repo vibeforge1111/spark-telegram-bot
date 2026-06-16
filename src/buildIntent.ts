@@ -536,6 +536,25 @@ function isPreBuildShapingRequest(text: string): boolean {
 function isBuildRouteMetaDiscussion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (
+    /^(?:build|create|make|scaffold|generate)\s+(?:a|an|the|this|new|tiny|small|compact|practical|private|local)\b/.test(normalized) &&
+    /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform|board|pad|page)\b/.test(normalized)
+  ) {
+    return false;
+  }
+  if (
+    /\b(?:route\s+explanation|fix\s+notes?|bug|regression|trace|logs?|repro|prior\s+reply|last\s+reply|mission\s+log|selectedintent|route=)\b/.test(normalized) &&
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized) &&
+    /\b(?:authority|authorize|authorized|fresh\s+intent|what\s+failed|why|classify|diagnos(?:e|is|tic)|owner\s+layer|expected\s+chat[-\s]*only|boundary|not\s+approving|candidate\s+evidence|execution\s+authority|no[-\s]*op)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
+    /\b(?:does\s+that\s+authorize|is\s+that\s+enough\s+authority|not\s+enough\s+authority|not\s+approving)\b/.test(normalized) &&
+    /\b(?:build|make|create|ship|scaffold|generate|develop)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  if (
     /\b(?:what|which|anything|something|thing|else|other|first\s+major\s+focus)\b.*\b(?:healthy|useful|good|better|worth|nice)?\s*(?:to\s+)?build(?:ing)?\b/.test(normalized) &&
     /\b(?:updates?|upgrades?|self[-\s]*updates?|ledger|systems?|spark|capabilit(?:y|ies)|improvements?)\b/.test(normalized)
   ) {
@@ -669,6 +688,7 @@ function isNoExecutionBoundary(text: string): boolean {
     /\b(?:mentioning|saying|using|writing|typing)\b.{0,40}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,40}\b(?:does\s+not|doesn't|doesnt|is\s+not|isn't|isnt)\s+mean\b/,
     /\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,100}\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b/,
     /\b(?:keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|not a request|not an instruction|not a command|not asking for|does\s+not\s+mean|doesn't\s+mean|not\s+mean)\b.{0,100}\b(?:build|make|create|ship|scaffold|generate|develop)\b/,
+    /\b(?:route\s+explanation|fix\s+notes?|bug|regression|trace|logs?|repro|prior\s+reply|last\s+reply|mission\s+log|selectedintent|route=)\b.{0,140}\b(?:build|make|create|ship|scaffold|generate|develop)\b.{0,140}\b(?:authority|authorize|authorized|fresh\s+intent|what\s+failed|why|classify|diagnos(?:e|is|tic)|owner\s+layer|expected\s+chat[-\s]*only|boundary|not\s+approving|candidate\s+evidence|execution\s+authority|no[-\s]*op)\b/,
     /\b(?:stay in chat|just explain|explain the boundary|explain the failure class)\b/,
     /\b(?:we can|we should|let'?s|lets|just)\s+(?:talk|chat|discuss)(?:\s+(?:here|for now|instead))?\b/
   ].some((pattern) => pattern.test(normalized));

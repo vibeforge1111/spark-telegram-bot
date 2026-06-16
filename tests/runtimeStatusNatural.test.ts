@@ -292,6 +292,39 @@ async function main(): Promise<void> {
     });
   });
 
+  await test('provider fix explanation stays conversational instead of fetching provider status', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Before we move on, what changed in that provider check fix, and why does it matter for normal people using Spark? Just talk me through it.', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.doesNotMatch(replies[0], /Provider runtime truth/);
+    assert.doesNotMatch(replies[0], /fresh `spark providers status`, not memory/);
+    assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.provider_runtime_config');
+    assert.equal(extras[0]?.__sparkTraceContext?.missionId, undefined);
+  });
+
+  await test('read-only route words in fix explanations stay conversational', async () => {
+    const indexModule = await import('../src/index');
+    const { llm } = await import('../src/llm');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    const originalChat = llm.chat;
+    (llm as any).chat = async () => 'Route words can be discussed without becoming fresh owner-state reads.';
+    try {
+      await indexModule.handleTextMessage(fakeCtx('What changed in the registry drift fix, and why did that hijack happen?', replies, extras));
+    } finally {
+      (llm as any).chat = originalChat;
+    }
+
+    assert.equal(replies.length, 1);
+    assert.equal(replies[0], 'Route words can be discussed without becoming fresh owner-state reads.');
+    assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.registry_drift');
+    assert.equal(extras[0]?.__sparkTraceContext?.missionId, undefined);
+  });
+
   await test('build-context recall reply carries trace metadata', async () => {
     const indexModule = await import('../src/index');
     const { conversation } = await import('../src/conversation');

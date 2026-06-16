@@ -12,6 +12,7 @@ import {
   isNoExecutionBoundary,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
+  isRouteWordMetaExplanationDiscussion,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isStartupFounderAdvisoryQuestion,
@@ -92,12 +93,13 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
 
   const hasMetaLanguageBoundary =
     isActionWordMetaDiscussion(normalized) ||
+    isRouteWordMetaExplanationDiscussion(normalized) ||
     /\b(?:mentioning|just mentioning|only mentioning|keyword|keywords|word here|words here|word alone|words alone|phrase|phrases|term|terms|example|quoted example|quoted text|quoted bug[-\s]*report term|bug\s+report|qa\s+case|meta[-\s]*language|just quoted|only quoted|not a request|not an instruction|not a command|not asking for|does not mean|doesn't mean|not mean|talking about the (?:word|phrase)|discussing the (?:word|phrase))\b/.test(normalized);
   const hasExecutionKeyword =
-    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b/.test(normalized);
+    /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
 
   constraints.noExecution = [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:do|act\s+on|execute)\s+(?:it|this|that|the\s+example)\b/,
@@ -171,6 +173,15 @@ function supportingRoutes(naturalRoute: NaturalRouteDecision | null): string[] {
 
 function basePayload(naturalRoute: NaturalRouteDecision | null): Record<string, unknown> {
   return naturalRoute ? { naturalRoute: naturalRoute.route } : {};
+}
+
+function noExecutionBoundaryBlocksMemoryDirective(text: string, constraints: TelegramIntentConstraintsV2): boolean {
+  if (!constraints.noExecution) return false;
+  return (
+    isActionWordMetaDiscussion(text) ||
+    isRouteWordMetaExplanationDiscussion(text) ||
+    /\b(?:quoted|quote|repro|bug\s+report|regression\s+report|not\s+a\s+memory\s+request|not\s+a\s+request|not\s+an\s+instruction|not\s+a\s+command|no[-\s]*store|do\s+not\s+(?:save|store|remember)|don't\s+(?:save|store|remember)|dont\s+(?:save|store|remember))\b/.test(text)
+  );
 }
 
 function isScheduleDeleteRequest(text: string): boolean {
@@ -372,7 +383,7 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     });
   }
 
-  if (memoryDirective) {
+  if (memoryDirective && !noExecutionBoundaryBlocksMemoryDirective(normalized, constraints)) {
     return makeDecision({
       kind: 'memory_write',
       route: 'memory.write',

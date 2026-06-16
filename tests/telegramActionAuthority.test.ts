@@ -533,6 +533,26 @@ test('keeps no-store memory boundary text out of memory write authority', () => 
   assert.notEqual(decision.route, 'memory.write');
 });
 
+test('quoted memory words cannot resurrect memory write authority', () => {
+  const text = 'Quoted repro: "remember this dashboard setting". This is a bug report, not a memory request. What boundary failed?';
+  const naturalRouteDecision = decideNaturalRoute(text);
+  const decision = classifyTelegramIntentV2(text, { naturalRouteDecision });
+  const envelope = envelopeForDecision(text, decision);
+
+  assert.notEqual(decision.route, 'memory.write');
+  assert.equal(envelope.directive.noExecution, true);
+
+  const verdict = authorizeTelegramActionFromEnvelope(envelope, {
+    text,
+    route: 'memory.write',
+    toolName: 'memory.write',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'writes_memory'
+  });
+  assert.equal(verdict.allow, false);
+  assert.equal(verdict.harnessCoreLedger?.result.status, 'not_started');
+});
+
 test('blocks provider runs without an explicit provider-run envelope policy', () => {
   const text = 'I am talking about the word Codex here, not asking a provider to run.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

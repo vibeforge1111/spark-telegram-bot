@@ -1,3 +1,5 @@
+import { isRouteWordMetaExplanationDiscussion } from './conversationIntent';
+
 function normalizeRouteText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
@@ -21,6 +23,9 @@ export function shouldAnswerSparkRepairRequest(text: string): boolean {
 export function isLiveSparkHealthQuestion(text: string): boolean {
   const normalized = normalizeRouteText(text);
   if (!normalized) return false;
+  if (isRouteWordMetaExplanationDiscussion(normalized)) {
+    return false;
+  }
   if (isRuntimeDoctrineDiscussion(normalized)) {
     return false;
   }

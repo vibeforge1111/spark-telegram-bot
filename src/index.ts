@@ -294,6 +294,7 @@ import {
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
   isProviderRuntimeConfigQuestion,
+  isRouteWordMetaExplanationDiscussion,
   isStartupReleaseBoundaryQuestion,
   isStartupFounderAdvisoryQuestion,
   isStartupSelfImprovementCanaryRequest,
@@ -1125,6 +1126,7 @@ function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQue
     /\b(?:read|show|check|tell|what|whether|is|are|current|status)\b/.test(normalized) ||
     /\b(?:any|if)\b.{0,40}\b(?:blockers?|drift|pending|waiting)\b/.test(normalized);
   if (!asksRead) return null;
+  if (isRouteWordMetaExplanationDiscussion(text)) return null;
   if (shouldAnswerSparkRiskProfile(text)) {
     return 'risk_profile';
   }
