@@ -417,6 +417,7 @@ export function decideNaturalRoute(
 
   const parsedBuildIntent = parseBuildIntent(normalized);
   const buildIntent = parsedBuildIntent;
+  const buildContextRecall = isBuildContextRecallQuestion(normalized);
   const missionRerun = parseSpawnerMissionRerunNaturalIntent(normalized, recentMessages);
   const missionStatus = parseSpawnerMissionStatusNaturalIntent(normalized);
   const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
@@ -490,6 +491,20 @@ export function decideNaturalRoute(
       payload: { ...missionStatus },
       context_source: 'latest_message',
       matched_signals: ['specific_mission_status_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (buildContextRecall) {
+    return decision({
+      route: 'build_context.recall',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'contextual',
+      action: 'build_context.recall',
+      payload: {},
+      context_source: 'hot_recent_turns',
+      matched_signals: ['build_context_recall_question'],
       blocked_by: [],
       requires_confirmation: false
     });
@@ -1004,20 +1019,6 @@ export function decideNaturalRoute(
       payload: {},
       context_source: hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
       matched_signals: ['diagnostic_followup_test_question'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
-  if (isBuildContextRecallQuestion(normalized)) {
-    return decision({
-      route: 'build_context.recall',
-      owner_system: 'spark-telegram-bot',
-      confidence: 'contextual',
-      action: 'build_context.recall',
-      payload: {},
-      context_source: 'hot_recent_turns',
-      matched_signals: ['build_context_recall_question'],
       blocked_by: [],
       requires_confirmation: false
     });

@@ -9801,6 +9801,28 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const memoryDirective = earlyBuildIntent ? null : extractPlainChatMemoryDirective(text);
+  const memoryDirectiveAuthorization = memoryDirective
+    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'memory.write',
+        text,
+        toolName: 'memory.write',
+        ownerSystem: 'domain-chip-memory',
+        mutationClass: 'writes_memory'
+      })
+    : null;
+  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
+    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
+    return;
+  }
+  if (memoryDirective && memoryDirectiveAuthorization) {
+    recordTelegramHarnessCoreExecution(memoryDirectiveAuthorization, {
+      toolName: 'memory.write',
+      status: 'not_started',
+      summary: 'Natural Telegram memory directive was blocked by Harness Core authority before any memory write.'
+    });
+    await ctx.reply('I did not save that memory note because the fresh turn did not authorize a memory write.');
+    return;
+  }
   const browserProofAnswer = !earlyBuildIntent && !memoryDirective ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     const browserProofAuthorization = telegramActionAuthorityDecision(
@@ -10706,19 +10728,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       summary: 'Natural domain-chip request staged a pending build preview without launching execution.'
     });
     await ctx.reply(formatDomainChipBuildPreview(earlyNaturalChipBrief));
-    return;
-  }
-  const memoryDirectiveAuthorization = memoryDirective
-    ? telegramActionAuthorityDecision(turnIntentEnvelope, {
-        route: 'memory.write',
-        text,
-        toolName: 'memory.write',
-        ownerSystem: 'domain-chip-memory',
-        mutationClass: 'writes_memory'
-      })
-    : null;
-  if (memoryDirective && memoryDirectiveAuthorization?.allow) {
-    await handlePlainChatMemoryDirective(ctx, user, text, memoryDirective, memoryDirectiveAuthorization);
     return;
   }
   if (!earlyBuildIntent && naturalRouteShadow?.route !== 'chat_plan' && shouldPreferConversationalIdeation(text)) {
@@ -11728,7 +11737,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (isBuildContextRecallQuestion(text)) {
-      const recentBuildContext = buildRecentBuildContextReply(contextualTurns);
+      const recentBuildContext = buildRecentBuildContextReply(contextualTurns, text);
       if (recentBuildContext) {
         await ctx.reply(recentBuildContext);
         return;

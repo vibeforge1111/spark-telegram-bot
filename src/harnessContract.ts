@@ -502,10 +502,11 @@ function isScopedMemoryWriteWithNegativeConstraints(decision: TelegramIntentDeci
     return false;
   }
   const lowerText = normalizedText.toLowerCase();
+  const exactMemoryObject = '(?:kb\\s+)?(?:memory\\s+)?(?:note|preference|context|focus|plan)';
   const hasExplicitWrite = /\b(?:owner\s+approves|approved|approve)\b.{0,80}\b(?:memory\s+write|kb\s+note|memory\s+note|save|store|remember)\b/.test(lowerText) ||
-    /\bexactly\s+one\s+(?:memory\s+write|kb\s+note|memory\s+note)\b/.test(lowerText) ||
-    /\b(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\b/.test(lowerText) ||
-    /\b(?:save|store|remember)\s+this\s+(?:exact\s+)?(?:kb\s+)?(?:memory\s+)?note\s+exactly\b/.test(lowerText);
+    new RegExp(`\\bexactly\\s+one\\s+(?:memory\\s+write|kb\\s+note|memory\\s+note|${exactMemoryObject})\\b`).test(lowerText) ||
+    new RegExp(`\\b(?:save|store|remember)\\s+this\\s+exact\\s+${exactMemoryObject}\\b`).test(lowerText) ||
+    new RegExp(`\\b(?:save|store|remember)\\s+this\\s+(?:exact\\s+)?${exactMemoryObject}\\s+exactly\\b`).test(lowerText);
   const hasDirectMemoryDenial = /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to|without)\s+(?:save|store|remember|write)\b/.test(lowerText);
   const hasScopedNegative = /\b(?:do\s+not|don't|dont|no\s+need\s+to)\s+(?:start|run|launch|create|change|publish|merge|ship|deploy|use|open|record|send)\b/.test(lowerText);
   const hasQuotedDirectiveContent =

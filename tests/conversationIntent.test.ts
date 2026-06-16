@@ -285,6 +285,9 @@ test('does not infer default build from you decide without build context', () =>
 
 test('answers what we were going to build from recent context', () => {
   assert.equal(isBuildContextRecallQuestion('we were gonna build something do you remember what it was'), true);
+  assert.equal(isBuildContextRecallQuestion('where were we on the day planner project?'), true);
+  assert.equal(isBuildContextRecallQuestion('what was the polish direction for the sprint picker?'), true);
+  assert.equal(isBuildContextRecallQuestion('can we pick up where we left off on that little game idea?'), true);
   const reply = buildRecentBuildContextReply([
     'a new domain chip',
     "let's build something that can be helpful in recognizing the bugs happening in the systems of Spark",
@@ -294,6 +297,64 @@ test('answers what we were going to build from recent context', () => {
   assert.ok(reply);
   assert.match(reply, /passive Spark bug recognition/);
   assert.match(reply, /Obsidian-friendly diagnostic notes/);
+});
+
+test('answers natural project continuity from recent turns without durable memory wording', () => {
+  const reply = buildRecentBuildContextReply([
+    'I want to make something for planning my day, but it should feel calm instead of a productivity dashboard.',
+    'Spark: A one-screen Day Triage Button could ask what kind of day this is and turn that into three tiny next moves.',
+    'Before building, the polish direction is warmer copy, less dense controls, and one clear morning flow.',
+    'Quick unrelated thing: are provider roles still Codex low fast?'
+  ]);
+
+  assert.ok(reply);
+  assert.match(reply, /latest project context/i);
+  assert.match(reply, /Day Triage Button/);
+  assert.match(reply, /warmer copy/);
+  assert.match(reply, /recent conversation context, not durable memory/i);
+  assert.doesNotMatch(reply, /Next step: say "yes create it"/);
+});
+
+test('prefers the named current project over older unrelated build context', () => {
+  const reply = buildRecentBuildContextReply([
+    'We were shaping improvements to the existing Spawner Kanban and Canvas.',
+    'The next decision is Kanban visibility, Canvas execution state, or Telegram relay messaging.',
+    'Natural context QA setup: I am shaping a calm day planner called Day Lantern. The polish direction is one screen, warmer copy, and no dense controls.',
+    'Spark: Day Lantern sounds like a clean reset. One screen, warmer copy, minimal controls.',
+    'The thing to pin down next: what lives on that one screen?'
+  ], 'Where were we on the Day Lantern project?');
+
+  assert.ok(reply);
+  assert.match(reply, /Day Lantern/);
+  assert.match(reply, /warmer copy/);
+  assert.doesNotMatch(reply, /Spawner Kanban and Canvas/);
+  assert.doesNotMatch(reply, /Kanban visibility/);
+});
+
+test('prefers named project lines inside mixed context blobs over stale assistant summaries', () => {
+  const mixedContextBlob = [
+    'Recent Telegram turns:',
+    'User: Natural context QA setup: I am shaping a calm day planner called Day Lantern. The polish direction is one screen, warmer copy, and no dense controls.',
+    'Spark: Day Lantern sounds like a clean reset. One screen, warmer copy, minimal controls.',
+    'User: Where were we on the Day Lantern project?',
+    'Spark: We were shaping improvements to the existing Spawner Kanban and Canvas.',
+    'Spark: The current direction is to make mission state easier to trust: Canvas execution should map cleanly to Kanban status.'
+  ].join('\n');
+
+  const reply = buildRecentBuildContextReply([
+    mixedContextBlob,
+    'Quick runtime ping after restart: are you receiving this?'
+  ], 'Where were we on the Day Lantern project now?');
+
+  assert.ok(reply);
+  assert.match(reply, /Day Lantern/);
+  assert.match(reply, /warmer copy/);
+  assert.match(reply, /minimal controls/);
+  assert.equal((reply.match(/Natural context QA setup/g) || []).length, 1);
+  assert.doesNotMatch(reply, /Spawner Kanban and Canvas/);
+  assert.doesNotMatch(reply, /mission state easier to trust/);
+  assert.doesNotMatch(reply, /-\s+-\s+User:/);
+  assert.doesNotMatch(reply, /\bUser: Natural context QA setup/);
 });
 
 test('separates user memory recall from build context recall', () => {

@@ -322,6 +322,45 @@ async function main(): Promise<void> {
   });
   });
 
+  await test('keeps natural project continuity across restart without creating durable memory', async () => {
+  await withTempState(async () => {
+    const first = new ConversationMemory();
+    await first.remember(user, 'I want a day planner that feels calm, not like a productivity dashboard.');
+    await first.rememberAssistantReply(user, 'A one-screen Day Triage Button could turn the morning into three tiny next moves.');
+    await first.remember(user, 'The polish direction is warmer copy, less dense controls, and one clear morning flow.');
+    await first.remember(user, 'Unrelated: are all provider roles Codex low fast now?');
+
+    const second = new ConversationMemory();
+    const context = await second.getContext(user, 'where were we on the day planner project?');
+    const frame = await second.getConversationFrame(user, 'what was the polish direction for that planner?');
+    const recalled = await second.recall(user, 'day planner warmer copy', 3);
+
+    assert.match(context, /Recent Telegram turns/);
+    assert.match(context, /Day Triage Button/);
+    assert.match(context, /warmer copy/);
+    assert.equal(frame.hotTurns.some((turn) => /one clear morning flow/i.test(turn.text)), true);
+    assert.deepEqual(recalled, []);
+  });
+  });
+
+  await test('keeps switched project threads in recent context without cross-user leakage', async () => {
+  await withTempState(async () => {
+    const otherUser = { id: 67890, first_name: 'Other' };
+    const memory = new ConversationMemory();
+
+    await memory.remember(user, 'Project A is a calm day planner with one clear morning flow.');
+    await memory.remember(user, 'Switching topics: provider roles should stay Codex low fast on this device.');
+    await memory.remember(user, 'Back to Project A, the next polish should reduce dense controls.');
+
+    const sameUserContext = await memory.getContext(user, 'where did we leave Project A?');
+    const otherUserContext = await memory.getContext(otherUser, 'where did we leave Project A?');
+
+    assert.match(sameUserContext, /Project A is a calm day planner/);
+    assert.match(sameUserContext, /reduce dense controls/);
+    assert.equal(otherUserContext, 'No prior memories.');
+  });
+  });
+
   await test('persists interrupted task recovery context across instances', async () => {
   await withTempState(async () => {
     const first = new ConversationMemory();

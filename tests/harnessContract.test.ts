@@ -428,6 +428,40 @@ test('allows scoped owner-approved memory write while denying other negative sid
   }
 });
 
+test('allows exact preference memory write while scoped side effects stay denied', () => {
+  const envelope = envelopeFor(
+    'Remember this exact preference: spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory. Do not start missions, do not create chips, and do not change runtime or registry truth.'
+  );
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.selectedIntent.kind, 'memory_write');
+  assert.equal(envelope.selectedIntent.action, 'memory.write');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canWriteMemory, true);
+  assert.equal(envelope.executionPolicy.canLaunchMission, false);
+  assert.equal(envelope.executionPolicy.canCreateChip, false);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('memory.write'));
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+
+  assert.deepEqual(
+    authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'memory.write',
+      ownerSystem: 'domain-chip-memory',
+      mutationClass: 'writes_memory'
+    }),
+    { verdict: 'allowed', reasonCodes: [] }
+  );
+
+  assert.equal(
+    authorizeToolCallFromEnvelope(envelope, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    }).verdict,
+    'blocked'
+  );
+});
+
 test('allows quoted tool-surface wording inside an explicit memory note', () => {
   const envelope = envelopeFor(
     'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."'

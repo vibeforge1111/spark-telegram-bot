@@ -1320,18 +1320,114 @@ export function isBuildContextRecallQuestion(text: string): boolean {
   if (isUserMemoryRecallQuestion(normalized)) {
     return false;
   }
+  const continuitySubject = /\b(?:project|app|tool|game|dashboard|planner|planning|build|idea|prototype|polish|direction|scope|version|screen|flow|thing)\b/;
+  const asksWhereConversationWas =
+    /\b(?:where|what)\b.{0,40}\b(?:were|was|are)\b.{0,40}\b(?:we|you)\b.{0,40}\b(?:on|with|at)\b/.test(normalized) ||
+    /\bwhere\s+did\s+we\s+(?:leave|land|end\s+up)\b/.test(normalized) ||
+    /\bpick\s+up\s+where\s+we\s+left\s+off\b/.test(normalized);
+  const asksProjectDirection =
+    /\bwhat\b.{0,40}\b(?:next|polish|main|first|current)\s+(?:step|direction|focus|scope|screen|version)\b/.test(normalized) ||
+    /\bwhat\s+was\s+(?:the\s+)?(?:polish|project|build|planning)\s+(?:direction|focus|scope|idea)\b/.test(normalized);
+  const asksForwardPlanning = /\bwhat\s+(?:should|would|could|can)\b/.test(normalized);
   return (
     /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:did|have)\s+(?:you|we)\s+(?:just\s+)?(?:build|make|create|ship)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:were|was)\s+we\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
-    /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized)
+    /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
+    (!asksForwardPlanning && (asksWhereConversationWas || asksProjectDirection) && continuitySubject.test(normalized))
   );
 }
 
-export function buildRecentBuildContextReply(recentMessages: string[]): string | null {
-  const usefulTurns = recentMessages
+const BUILD_CONTEXT_SUBJECT_STOPWORDS = new Set([
+  'about',
+  'after',
+  'again',
+  'back',
+  'build',
+  'current',
+  'did',
+  'for',
+  'idea',
+  'left',
+  'off',
+  'on',
+  'pick',
+  'project',
+  'now',
+  'that',
+  'the',
+  'this',
+  'were',
+  'what',
+  'where',
+  'with'
+]);
+
+function buildContextSubjectTokens(text: string): string[] {
+  const normalized = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return [];
+  return Array.from(new Set(normalized
+    .split(' ')
+    .filter((token) => token.length > 2 && !BUILD_CONTEXT_SUBJECT_STOPWORDS.has(token))
+  )).slice(0, 6);
+}
+
+function cleanBuildContextEvidenceLine(line: string): string {
+  return line
+    .trim()
+    .replace(/^(?:[-•]\s*)+/, '')
+    .replace(/^(?:User|Spark|Assistant):\s*/i, '')
+    .trim();
+}
+
+function splitBuildContextEvidence(messages: string[]): string[] {
+  const seen = new Set<string>();
+  const evidence: string[] = [];
+  for (const message of messages) {
+    for (const rawLine of message.split(/\r?\n+/)) {
+      const line = cleanBuildContextEvidenceLine(rawLine);
+      if (!line || /^(?:recent telegram turns|conversation frame|cold memory|context|hot turns):?$/i.test(line)) {
+        continue;
+      }
+      const key = line.toLowerCase().replace(/\s+/g, ' ');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      evidence.push(line);
+    }
+  }
+  return evidence;
+}
+
+function subjectRelevantBuildTurns(turns: string[], currentMessage: string): string[] {
+  const tokens = buildContextSubjectTokens(currentMessage);
+  if (tokens.length === 0) return turns;
+
+  const scored = turns.map((turn) => {
+    const normalized = turn.toLowerCase();
+    const score = tokens.reduce((sum, token) => (
+      new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(normalized)
+        ? sum + 1
+        : sum
+    ), 0);
+    return { turn, score };
+  });
+  const maxScore = scored.reduce((max, item) => Math.max(max, item.score), 0);
+  if (maxScore === 0) return turns;
+  const minimumScore = tokens.length >= 2 && maxScore >= 2 ? 2 : 1;
+  return scored
+    .filter((item) => item.score >= minimumScore)
+    .map((item) => item.turn);
+}
+
+export function buildRecentBuildContextReply(recentMessages: string[], currentMessage = ''): string | null {
+  const allUsefulTurns = splitBuildContextEvidence(recentMessages)
     .map((message) => message.trim())
     .filter((message) => message && !isLowSignalPlanningTurn(message));
+  const usefulTurns = currentMessage ? subjectRelevantBuildTurns(allUsefulTurns, currentMessage) : allUsefulTurns;
   if (usefulTurns.length === 0) return null;
 
   const context = usefulTurns.join('\n');
@@ -1375,7 +1471,20 @@ export function buildRecentBuildContextReply(recentMessages: string[]): string |
     ].join('\n\n');
   }
 
-  return null;
+  const planningTurns = usefulTurns.filter((message) => {
+    const normalized = message.toLowerCase();
+    return /\b(?:project|app|tool|game|dashboard|planner|planning|build|idea|prototype|polish|direction|scope|version|screen|flow)\b/.test(normalized);
+  });
+  const relevantTurns = planningTurns.length > 0 ? planningTurns : usefulTurns;
+  if (relevantTurns.length === 0) return null;
+
+  return [
+    'The latest project context I have is:',
+    '',
+    ...relevantTurns.slice(-4).map((message) => `- ${message}`),
+    '',
+    'I would treat that as recent conversation context, not durable memory or permission to start work. A fresh build or edit request should still control what happens next.'
+  ].join('\n');
 }
 
 function hasKnownLocalSparkSurface(text: string): boolean {
@@ -3097,6 +3206,7 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   const explicitSavePatterns = [
     /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["“](.+?)["”](?:\s+.+)?[.!?]?$/i,
     /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:kb\s+)?(?:memory\s+)?note\s+(?:for\s+me\s*)?(?:and\s+nothing\s+else\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
+    /^(?:.+?\b)?(?:save|store|remember)\s+this\s+exact\s+(?:preference|context|focus|plan)\s*(?:for\s+me\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
     /^(?:.+?\b)?(?:save|store|remember)\s+this\s+(?:exact\s+)?(?:kb\s+)?(?:memory\s+)?note\s+exactly\s*(?:for\s+me\s*)?[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont|this\s+turn\s+is\s+only)\b.+)?[.!?]?$/i,
     /^(?:.+?\b)?(?:save|store|remember)\s+(?:exactly\s+)?(?:one\s+)?(?:kb\s+)?(?:memory\s+)?(?:write|note)\s*[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,

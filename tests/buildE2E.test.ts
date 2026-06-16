@@ -488,6 +488,43 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('PRD canvas lifecycle notifier carries governed trace metadata to outbound audit', async () => {
+		const indexModule: any = await import('../src/index');
+		const requestId = 'tg-build-canvas-trace-1780865000003';
+		const missionId = 'mission-1780865000003';
+		const traceRef = `trace:spawner-prd:${missionId}`;
+		const extra = indexModule.buildPrdCanvasNotifierTraceExtra({
+			requestId,
+			traceRef,
+			missionId,
+			replyKind: 'canvas_ready'
+		});
+
+		assert.deepEqual(extra.__sparkTraceContext, {
+			route: 'spawner',
+			command: 'run',
+			replyKind: 'canvas_ready',
+			requestId,
+			traceRef,
+			missionId
+		});
+
+		const audit = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'Canvas is ready for Trace Proof.',
+			new Date('2026-06-16T00:00:00.000Z'),
+			extra.__sparkTraceContext
+		);
+		assert.equal(audit.trace_context_present, true);
+		assert.equal(audit.mission_id_present, true);
+		assert.equal(audit.request_id, requestId);
+		assert.equal(audit.trace_ref, traceRef);
+		assert.equal(audit.route, 'spawner');
+		assert.equal(audit.command, 'run');
+		assert.equal(audit.reply_kind, 'canvas_ready');
+		restoreEnv();
+	});
+
 	await test('PRD canvas handoff refuses stale dispatch authority for a different mission', async () => {
 		const requestId = 'tg-build-dispatch-body-test-1780865000002';
 		const missionId = 'mission-1780865000002';
@@ -601,6 +638,60 @@ async function run(): Promise<void> {
 		assert.equal(subscription.userId, '8319079055');
 		assert.equal(subscription.requestId, writeCall!.body.requestId);
 		assert.equal(subscription.traceRef, writeCall!.body.traceRef);
+
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('build intent surfaces Spawner authority refusal reason codes', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			if (url.includes('/api/prd-bridge/write')) {
+				return {
+					data: {
+						success: false,
+						error: 'spawner.prd.write requires native GovernorDecisionV1 authority.',
+						code: 'harness_authority_blocked',
+						authority: {
+							allowed: false,
+							source: 'governor_decision',
+							reasonCodes: [
+								'native_governor_required',
+								'governor_missing_matching_tool_ledger'
+							]
+						}
+					}
+				};
+			}
+			return { data: { success: true } };
+		};
+		(axios as any).get = async () => ({ data: { pending: false } });
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		const result = await callHandleBuildIntent({
+			ctx,
+			prd: 'Build a governed PRD refusal smoke test.',
+			projectName: 'governed-refusal-smoke',
+			buildMode: 'direct'
+		});
+
+		const writeCall = captured.find((c) => c.url.includes('/api/prd-bridge/write'));
+		assert.ok(writeCall, 'expected POST to /api/prd-bridge/write');
+		assert.equal(result.status, 'failure');
+		assert.match(replies.join('\n'), /Spawner refused the PRD write\./);
+		assert.match(replies.join('\n'), /native_governor_required/);
+		assert.match(replies.join('\n'), /governor_missing_matching_tool_ledger/);
+		assert.match(result.summary, /native_governor_required/);
+		assert.match(result.summary, /governor_missing_matching_tool_ledger/);
 
 		restoreAxios();
 		restoreEnv();
@@ -1128,18 +1219,19 @@ async function run(): Promise<void> {
 			const replies: string[] = [];
 			const testUserId = 8319079777;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5661, replies);
-			ctx.message.text = 'Owner approves exactly one memory write. Save this exact KB note and nothing else: "harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence." Do not start missions, do not create chips, and do not change runtime or registry truth.';
+			ctx.message.text = 'Remember this exact preference: spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory. Do not start missions, do not create chips, and do not change runtime or registry truth.';
 			(ctx as any).update = { update_id: 5661, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
 
 			assert.equal(
 				writtenText,
-				'harness-cua-kb-20260607-0703: Browser/computer-use must remain read-only planning until Harness Core grants explicit tool authority with screenshot and side-effect evidence'
+				'spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory'
 			);
 			assert.equal(writtenHumanId, `human:telegram:${testUserId}`);
 			assert.ok(writtenGovernorDecision, 'direct memory writer must receive the Harness Core Governor decision');
 			assert.doesNotMatch(writtenText, /Do not start missions|do not create chips|runtime or registry truth/i);
 			assert.match(replies.join('\n'), /Saved exact memory note/i);
+
 			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
 			assert.ok(
 				ledgerRecords.some((record) => (

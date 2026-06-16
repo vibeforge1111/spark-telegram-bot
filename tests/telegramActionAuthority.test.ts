@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   createHarnessCoreActionEnvelopeVNext,
   createHarnessCoreAuthorizedGovernorDecision
@@ -22,11 +25,24 @@ import { decideNaturalRoute } from '../src/naturalRouteDecision';
 
 function test(name: string, fn: () => void): void {
   try {
-    fn();
+    withTempHarnessCoreLedgerPath(fn);
     console.log(`ok - ${name}`);
   } catch (error) {
     console.error(`not ok - ${name}`);
     throw error;
+  }
+}
+
+function withTempHarnessCoreLedgerPath<T>(fn: () => T): T {
+  const previousPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'spark-telegram-action-ledger-'));
+  process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(dir, 'ledger.jsonl');
+  try {
+    return fn();
+  } finally {
+    if (previousPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = previousPath;
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -488,8 +504,8 @@ test('allows explicit provider runs through provider policy', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
-test('classifies memory directives without letting Intent Gate V2 execute them', () => {
-  const text = 'Remember that tonight I prefer concise Harness release updates.';
+test('classifies exact preference memory directives without letting Intent Gate V2 execute them', () => {
+  const text = 'Remember this exact preference: tonight I prefer concise Harness release updates. Do not start missions, do not create chips, and do not change runtime truth.';
   const decision = classifyTelegramIntentV2(text);
   const envelope = envelopeForDecision(text, decision);
   const result = authorizeTelegramActionFromEnvelope(envelope, {
@@ -506,6 +522,15 @@ test('classifies memory directives without letting Intent Gate V2 execute them',
   assert.equal(shouldEnforceTelegramIntentGateV2(decision), false);
   assert.equal(result.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.ok(envelope.threatDefense.reasonCodes.includes('scoped_no_execution_boundary'));
+});
+
+test('keeps no-store memory boundary text out of memory write authority', () => {
+  const text = 'For this answer only, do not save this: temporary color is ultraviolet. Just answer with the memory boundary.';
+  const decision = classifyTelegramIntentV2(text);
+
+  assert.notEqual(decision.route, 'memory.write');
 });
 
 test('blocks provider runs without an explicit provider-run envelope policy', () => {

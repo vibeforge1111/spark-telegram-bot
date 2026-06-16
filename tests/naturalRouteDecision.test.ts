@@ -628,6 +628,27 @@ test('routes explicit memory directives to Builder memory write', () => {
   assert.equal(route.payload.directive, 'I prefer concise Telegram replies');
 });
 
+test('routes exact preference memory directives to Builder memory write', () => {
+  const route = decideNaturalRoute(
+    'Remember this exact preference: spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory.'
+  );
+
+  assert.equal(route.route, 'memory.write');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(
+    route.payload.directive,
+    'spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory'
+  );
+});
+
+test('does not route no-store memory boundary text as a write', () => {
+  const route = decideNaturalRoute(
+    'For this answer only, do not save this: spark-memory-no-store-20260616-0847 favorite debug color is ultraviolet. Just answer with the memory boundary.'
+  );
+
+  assert.notEqual(route.route, 'memory.write');
+});
+
 test('routes explicit current-plan saves to Builder memory write', () => {
   const route = decideNaturalRoute(
     'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
@@ -651,6 +672,43 @@ test('routes user memory recall questions away from build-context recall', () =>
   assert.equal(route.route, 'memory.recall');
   assert.equal(route.owner_system, 'spark-intelligence-builder');
   assert.equal(route.context_source, 'cold_memory');
+});
+
+test('routes natural project continuity questions to read-only build context recall', () => {
+  const recentMessages = [
+    'User: I want to make something for planning my day, but it should feel calm instead of a productivity dashboard.',
+    'Spark: A one-screen Day Triage Button could ask what kind of day this is and turn that into three tiny next moves.',
+    'User: The polish direction is warmer copy, less dense controls, and one clear morning flow.'
+  ];
+
+  for (const prompt of [
+    'where were we on the day planner project?',
+    'what was the polish direction for the day planner?',
+    'can we pick up where we left off on that little planner idea?'
+  ]) {
+    const route = decideNaturalRoute(prompt, { recentMessages });
+
+    assert.equal(route.route, 'build_context.recall', prompt);
+    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
+    assert.equal(route.action, 'build_context.recall', prompt);
+    assert.equal(route.context_source, 'hot_recent_turns', prompt);
+    assert.equal(route.requires_confirmation, false, prompt);
+  }
+});
+
+test('does not turn natural project continuity questions into side effects', () => {
+  const route = decideNaturalRoute('where were we on the game idea after that build chat?', {
+    recentMessages: [
+      'User: We are comparing a tiny browser game and a planning tool.',
+      'Spark: The game idea was a fast score-chasing loop; no build has started yet.'
+    ]
+  });
+
+  assert.equal(route.route, 'build_context.recall');
+  assert.notEqual(route.route, 'spawner.build');
+  assert.notEqual(route.route, 'memory.write');
+  assert.notEqual(route.route, 'creator.mission');
+  assert.equal(route.requires_confirmation, false);
 });
 
 test('routes Spawner board reads through canonical board consumer paths', () => {
