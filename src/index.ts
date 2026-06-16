@@ -45,6 +45,7 @@ import { datamarkUntrusted, generateBuildClarificationMicrocopy, llm, type Build
 import { runIntentProposerShadow } from './intentProposerShadow';
 import { intentProposerProviderComplete } from './intentProposerCompleter';
 import { logIntentProposerShadow } from './intentProposerLog';
+import { decideProposerEnforcement, NO_ACTION_ROUTES } from './intentProposerEnforce';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -9753,10 +9754,30 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // Phase-1 shadow intent proposer (observe-only, env-gated, fire-and-forget). Enforces NOTHING:
   // it logs regex-route vs model-proposed-route agreement so we can measure where they disagree
   // before any live routing change. Not awaited (zero added latency), fail-safe by construction.
-  if (process.env.SPARK_INTENT_PROPOSER_SHADOW === '1' && naturalRouteShadow) {
-    void runIntentProposerShadow(text, naturalRouteShadow.route, intentProposerProviderComplete)
-      .then((result) => logIntentProposerShadow({ text, agreement: result.agreement, proposal: result.proposal }))
-      .catch(() => {});
+  const intentProposerShadowOn = process.env.SPARK_INTENT_PROPOSER_SHADOW === '1';
+  const intentProposerEnforceOn = process.env.SPARK_INTENT_PROPOSER_ENFORCE === '1';
+  if ((intentProposerShadowOn || intentProposerEnforceOn) && naturalRouteShadow) {
+    const shadowRoute = naturalRouteShadow.route;
+    // Phase 2 (scoped, env-gated): only on a chat-bound turn do we AWAIT the proposer (bounding the
+    // added latency to turns that would otherwise just chat) and, if the scoped decision fires, send
+    // a one-line nudge. It never executes and never fires when the regex already chose an action.
+    if (intentProposerEnforceOn && NO_ACTION_ROUTES.has(shadowRoute)) {
+      try {
+        const result = await runIntentProposerShadow(text, shadowRoute, intentProposerProviderComplete);
+        logIntentProposerShadow({ text, agreement: result.agreement, proposal: result.proposal });
+        const enforcement = decideProposerEnforcement(shadowRoute, result.proposal);
+        if (enforcement.mode === 'suggest' && enforcement.message) {
+          await ctx.reply(enforcement.message);
+        }
+      } catch {
+        // observe/enforce must never break the turn
+      }
+    } else {
+      // Shadow (observe-only): fire-and-forget, zero added latency.
+      void runIntentProposerShadow(text, shadowRoute, intentProposerProviderComplete)
+        .then((result) => logIntentProposerShadow({ text, agreement: result.agreement, proposal: result.proposal }))
+        .catch(() => {});
+    }
   }
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
