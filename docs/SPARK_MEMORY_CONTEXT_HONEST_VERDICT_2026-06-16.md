@@ -536,3 +536,171 @@ silently. The target is not a clever recall answer. The target is a source-aware
 agent that knows whether it is using recent chat, durable memory, owner state,
 wiki support, or plain conversation, and can explain that naturally when it
 matters.
+
+## Cross-Spark Context And Memory Audit Update
+
+Time: 2026-06-16 19:17-19:35 UTC.
+
+This pass looked beyond one saved note. It tested whether Spark can use context
+and memory across normal Spark work: what is being built, domain-chip and
+recursive-loop state, tool/Spawner evidence, wiki/knowledge support, recent
+conversation, and durable memory.
+
+### Evidence Collected
+
+Backend Telegram gateway tests:
+
+```powershell
+npm test -- --run tests/conversationMemory.test.ts tests/conversationFrame.test.ts tests/shippedProjectContext.test.ts tests/traceAndMemoryDrilldowns.test.ts tests/recursive.test.ts tests/recursiveCommand.test.ts tests/chipCreate.test.ts tests/creatorMissionStatus.test.ts tests/spawnerBoardTrace.test.ts tests/spawnerLoopBugHunt.test.ts tests/telegramActionAuthority.test.ts
+npm run context:live
+npm run context:ux
+```
+
+Results:
+
+- Focused Telegram gateway pack passed.
+- `context:live` passed 20/20.
+- `context:ux` passed 15/15.
+- Recursive/domain-chip/creator mission tests passed for the sampled surfaces:
+  recursive session lists, reports, review queues, domain-chip creation parsing,
+  creator mission status safety, Spawner board trace metadata, and route-hijack
+  authority traps.
+
+Live Telegram Desktop/CUA evidence:
+
+- CUA saw Telegram Desktop process `Telegram.exe` and window title
+  `Spark Recursive`.
+- Screenshot evidence:
+  `C:\Users\USER\Documents\Codex\2026-06-14\are-you-there\evidence\telegram-memory-context-2026-06-16T1919.png`
+  and
+  `C:\Users\USER\Documents\Codex\2026-06-14\are-you-there\evidence\telegram-memory-context-after-wait-2026-06-16T1925.png`.
+- The visible chat still showed the natural follow-up
+  "What did I ask you to do with launch QA updates a few minutes ago?" with no
+  visible bot reply after the wait.
+- The latest turn trace tail did not show a fresh update after
+  `2026-06-16T15:12:11Z`.
+- Runtime logs showed repeated Telegram Bot API startup/polling timeouts to
+  `api.telegram.org:443`.
+
+Builder/domain-chip-memory probes:
+
+```powershell
+python -m spark_intelligence.cli memory status --home C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real --json
+python -m spark_intelligence.cli memory inspect-capsule --home C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real --query "What is the session test code word?" --json
+python -m spark_intelligence.cli memory lookup-current-state --home C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real --subject human:telegram:1278511160 --predicate belief.telegram.evidence_session_test_code --json
+python -m pytest -q tests/test_context_capsule.py tests/test_bridge_authority.py -k "episodic_recall or source_labeled or memory_read or recall"
+```
+
+Results:
+
+- Memory runtime is configured as `domain_chip_memory`, enabled, not shadow, and
+  ready.
+- Live Builder memory status showed 14 write requests, 14 write results, and 14
+  accepted observations.
+- Direct current-state lookup for
+  `belief.telegram.evidence_session_test_code` returned the saved value
+  containing `aurora mango` with current-state provenance.
+- `inspect-capsule` for the same code-word found matching memory evidence, but
+  promotion gates warned that the selected packet was supporting-only evidence
+  and not an authoritative current-state answer packet.
+- Source-labeled context/authority tests passed: 6 passed, 40 deselected.
+
+Failed or blocked Builder memory probes:
+
+```powershell
+python -m pytest -q tests/test_telegram_generic_memory.py -k "open_memory_recall or belief_recall or natural_fact_recall or stale_current_plan_recall"
+python -m spark_intelligence.cli memory direct-smoke --home C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real --json
+python -m spark_intelligence.cli memory run-telegram-acceptance --home C:\Users\USER\Desktop\spark-intelligence-builder\.tmp-home-live-telegram-real --json
+```
+
+Results:
+
+- The focused Builder generic-memory recall slice failed 9 tests and passed 1.
+  The failures mostly returned "I don't currently have a saved belief about
+  that" after write-authorized setup.
+- `direct-smoke` was blocked by memory authority:
+  `authority_required:invalid_governor_decision`.
+- `run-telegram-acceptance` was blocked because the operator terminal-to-
+  Telegram bridge is disabled:
+  `operator.experimental.telegram_terminal_bridge_enabled`.
+
+### Honest Lane Verdict
+
+| Lane | Verdict | Why |
+| --- | --- | --- |
+| Recent chat / conversation frame | Strong local pass | The gateway context harnesses preserve list choices, topic-switch context, access shifts, and recent memory directives without treating them as durable memory. |
+| Telegram Desktop human-visible lane | Blocked today | CUA can see the correct Spark Recursive chat, but Telegram Bot API polling is timing out and visible replies do not arrive. |
+| Durable memory write path | Mostly healthy | Builder/domain-chip-memory is enabled, not shadow, and accepted the tested Telegram memory writes. |
+| Durable current-state exact lookup | Works for known predicate | Direct lookup returned the saved code-word with current-state provenance. |
+| Open-ended durable recall | Not release-ready | Builder generic recall tests failed around belief/current-state recall and stale-current-state downgrade behavior. |
+| Wiki / ALM knowledge support | Working as support, not truth | `inspect-capsule` retrieved wiki packets as `supporting_not_authoritative`, which is the right boundary. |
+| Domain-chip / recursive state | Good sampled backend signal | Recursive/domain-chip tests passed for reports, session lists, loop status, creator mission safety, and no-overclaiming. |
+| Spawner/tool state recall | Good sampled backend signal | Spawner board trace and route-hijack tests passed, but live Telegram status/readout remains transport-blocked. |
+| Memory movement observability | Useful but imperfect | Movement rows show captured/promoted/retrieved/saved/selected counts, but recent memory read abstentions still have weak or missing reasons. |
+
+### Main Takeaway
+
+Spark is getting the architecture mostly right: it has separate lanes for recent
+chat, durable memory, wiki support, owner state, recursive/domain-chip evidence,
+and Spawner/tool state. That is the important win.
+
+But the readiness claim must stay bounded:
+
+- It can say recent context and owner-scoped exact current-state lookup are
+  working in backend tests.
+- It cannot yet say natural durable recall is fully reliable.
+- It cannot yet say live Telegram memory/context is passing today.
+- It should not surprise users with "memory magic" unless it can name the lane:
+  recent chat, saved current-state memory, supporting evidence, wiki support, or
+  owner tool state.
+
+### What Needs Root-Cause Work
+
+1. Open-ended durable recall selection:
+   the failing Builder tests suggest the write path and the recall query path do
+   not agree on which belief/current-state records should answer natural
+   questions. Patch the memory owner/query planner or recall selector, not the
+   Telegram sentence.
+2. Authority for direct smoke:
+   `direct-smoke` now fails with `invalid_governor_decision`. Either the smoke
+   command needs to mint valid governed test authority or it should be renamed
+   as a shadow-only diagnostic and not used as proof of write/read readiness.
+3. Missing read-abstention reasons:
+   memory status reported recent `memory_read_abstained` rows with null reasons.
+   That weakens diagnosis. Abstentions should always say whether the cause was
+   no candidates, authority, stale source, source mismatch, disabled lane, or
+   query mismatch.
+4. Telegram transport:
+   live Telegram Bot API reachability must be restored before any human-visible
+   Telegram verdict can pass. Until then, screenshots are only evidence of the
+   client state and pending/no-reply behavior.
+5. Humanized source labels:
+   source honesty should remain, but phrases like `From recent chat:` can become
+   more natural. Example target: "I have that from this conversation: ...".
+
+### Do Not Overclaim
+
+- Do not call memory launch-ready because `context:live` and `context:ux`
+  passed. Those prove gateway context behavior, not full durable recall.
+- Do not call Telegram QA passed while Bot API polling is timing out.
+- Do not turn the code-word test into a deterministic route. It is just a probe
+  showing that exact current-state lookup can find a known saved predicate.
+- Do not treat wiki packets or memory movement rows as current truth. They are
+  support and observability unless promoted by the owning memory lane.
+
+### Next Best Tests
+
+1. Repair or explain the failing Builder generic-memory tests, starting with why
+   belief writes do not satisfy later belief recall queries.
+2. Add a restart-window test where recent Telegram context is unavailable and
+   Spark must answer from direct current-state memory or clearly say it cannot.
+3. Once Telegram transport works, repeat the visible CUA flow with:
+   "I usually like launch QA updates short and source-bound when we're moving
+   fast. Can you use that as we keep testing?"
+   then a topic switch, then:
+   "What did I ask you to do with launch QA updates?"
+4. Test recursive/tool state naturally:
+   "where did that loop land?",
+   "what changed in the domain chip work?",
+   "is that from the board or from memory?",
+   and require Spark to name the source lane.
