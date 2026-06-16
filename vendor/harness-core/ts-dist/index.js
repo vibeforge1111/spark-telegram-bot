@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROTECTED_HARNESS_COMPONENT_TYPES = exports.boundLedgerRow = exports.HARNESS_CORE_RISK_ORDER = void 0;
+exports.PROTECTED_HARNESS_COMPONENT_TYPES = exports.boundLedgerRow = exports.HARNESS_CORE_RISK_ORDER = exports.HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = exports.HARNESS_CORE_WIRE_CONTRACT_VERSION = void 0;
 exports.canonicalHarnessCoreJson = canonicalHarnessCoreJson;
 exports.unsignedHarnessCoreGovernorDecision = unsignedHarnessCoreGovernorDecision;
 exports.harnessCoreGovernorDecisionSignaturePayload = harnessCoreGovernorDecisionSignaturePayload;
 exports.signHarnessCoreGovernorDecision = signHarnessCoreGovernorDecision;
+exports.negotiateHarnessCoreWireContract = negotiateHarnessCoreWireContract;
 exports.harnessCoreGovernorDecisionSignatureReasonCodes = harnessCoreGovernorDecisionSignatureReasonCodes;
 exports.safeHarnessCoreId = safeHarnessCoreId;
 exports.createHarnessCoreTraceRef = createHarnessCoreTraceRef;
@@ -38,6 +39,8 @@ exports.isHarnessCoreProtectedComponentType = isHarnessCoreProtectedComponentTyp
 exports.assertHarnessCoreComponentEditablePolicy = assertHarnessCoreComponentEditablePolicy;
 const node_crypto_1 = require("node:crypto");
 const DEFAULT_AUTHORIZATION_TTL_SECONDS = 600;
+exports.HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+exports.HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
 function canonicalHarnessCoreJson(value) {
     if (value === undefined)
         return 'null';
@@ -91,6 +94,19 @@ function signHarnessCoreGovernorDecision(decision, input) {
             signature: hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, signature), key)
         }
     };
+}
+function negotiateHarnessCoreWireContract(input) {
+    const consumerVersion = input.consumer_version ?? exports.HARNESS_CORE_WIRE_CONTRACT_VERSION;
+    const producerMin = input.producer_min_version ?? Math.max(1, input.producer_version - 1);
+    const consumerMin = input.consumer_min_version ?? Math.max(1, consumerVersion - 1);
+    if (input.producer_version < producerMin || consumerVersion < consumerMin) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_invalid_range'] };
+    }
+    const agreedVersion = Math.min(input.producer_version, consumerVersion);
+    if (agreedVersion < Math.max(producerMin, consumerMin)) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_no_overlap'] };
+    }
+    return { allowed: true, agreed_version: agreedVersion, reason_codes: [] };
 }
 function harnessCoreSimulationMarker(reason) {
     return {
@@ -533,6 +549,7 @@ function createHarnessCoreGovernorDecision(input) {
         authorizations.some((authorization) => authorization.approval.required);
     return {
         schema_version: 'governor-decision-v1',
+        wire_contract_version: exports.HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('governor-decision', `${input.envelope.turn_id}:${outcome}`),
         created_at: new Date().toISOString(),
         surface: input.envelope.surface,
@@ -679,6 +696,9 @@ function verifyHarnessCoreGovernorExecutionAuthority(input) {
         });
     }
     const reasonCodes = [];
+    reasonCodes.push(...negotiateHarnessCoreWireContract({
+        producer_version: Number(governorDecision.wire_contract_version || 0)
+    }).reason_codes);
     reasonCodes.push(...harnessCoreGovernorDecisionSignatureReasonCodes({
         governor_decision: governorDecision,
         key: input.governor_hmac_key || null,
@@ -822,6 +842,7 @@ function createHarnessCoreAuthorizedGovernorDecision(input) {
         : undefined;
     const authorization = {
         schema_version: 'authorization-decision-v1',
+        wire_contract_version: exports.HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('decision', `${input.envelope.turn_id}:${action.action_id}`),
         created_at: now,
         turn_id: input.envelope.turn_id,
@@ -862,6 +883,7 @@ function createHarnessCoreAuthorizedGovernorDecision(input) {
     const ledgerId = safeHarnessCoreId('ledger', input.idempotency_key || `${input.envelope.turn_id}:${action.action_id}`);
     const ledger = {
         schema_version: 'tool-call-ledger-v1',
+        wire_contract_version: exports.HARNESS_CORE_WIRE_CONTRACT_VERSION,
         ledger_id: ledgerId,
         created_at: now,
         turn_id: input.envelope.turn_id,

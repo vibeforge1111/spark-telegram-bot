@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "root": "vendor/harness-core",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "8efa65754a1826349f4fbbb5e2155876bd7ab5fd613719ed5ecee22c71848ef1",
+      "bytes": 158
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "7e0faa2dcd59ae137d7311613142cacaf7bf730c2064ba267d5bc577f049f678",
+      "bytes": 2449
+    },
+    {
+      "path": "docs/CONSUMER_INTEGRATION_GUIDE.md",
+      "sha256": "5d59bdc5d43543e41bbf61a9035a6f66b4094e5ba39461b63f984911f21e1f2f",
+      "bytes": 8743
+    },
+    {
+      "path": "docs/RUNTIME_CHARTER.md",
+      "sha256": "62fa1c82c3ce9647a4842fcebd9c5a5fb1b8be49f49cbdfef124db801e895f62",
+      "bytes": 7704
+    },
+    {
+      "path": "docs/SPARK_GENESIS_KERNEL_SCHEMA_DESIGN.md",
+      "sha256": "25c454b1c4e71ada85fb500889fba017b81a8033668d74fe269c288690d7637f",
+      "bytes": 4763
+    },
+    {
+      "path": "docs/TELEGRAM_FIRST_INTEGRATION_PLAN.md",
+      "sha256": "16ec4436286dcaeb9fb3970d916a044ae2a3d4b2b64260176a93536d55445297",
+      "bytes": 3382
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "ff7f7c2fe12a2c64a9a3aeca9b8cfbfef6cb83255442ba07ad6f23699d69197f",
+      "bytes": 1086
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "d7005708e1baf6ef5436fcf2d058378087d3e50867266ffd76e2d0c607068a41",
+      "bytes": 751
+    },
+    {
+      "path": "package.json",
+      "sha256": "e597c6bddea59df755b34458b5fbde11bdd706c484daff7e449ad7f8fe437c0d",
+      "bytes": 769
+    },
+    {
+      "path": "README.md",
+      "sha256": "9cc0c533015ebadf3ade7816d8f4d4a1a6a5da601203affffb294582a4db4121",
+      "bytes": 7359
+    },
+    {
+      "path": "schemas/authorization-decision-v1.schema.json",
+      "sha256": "1b2959a59fd0c47c1931df7b9493b02dd3d42d279df2f5c5d9a5c46d5905bdbe",
+      "bytes": 4273
+    },
+    {
+      "path": "schemas/autonomy-policy-v1.schema.json",
+      "sha256": "94473d38db74019996cdf3ea99e507dc1427b10846f69228365d1ee8f469a2d6",
+      "bytes": 3418
+    },
+    {
+      "path": "schemas/capability-module-v1.schema.json",
+      "sha256": "9accfcecfd9b4313f8de3c4b416e6d5dc2f0ab6b11b8e942399d512a4a88702a",
+      "bytes": 3000
+    },
+    {
+      "path": "schemas/change-manifest-v1.schema.json",
+      "sha256": "2e481d23aa3de41d726b9932f109c18a989c5337bd90f81e645cbea3e5990ef5",
+      "bytes": 3000
+    },
+    {
+      "path": "schemas/common-v1.schema.json",
+      "sha256": "048055b084ddd6820c2284fbd3ca361ea551232512d6fd7c27af1daf63ca23b2",
+      "bytes": 4698
+    },
+    {
+      "path": "schemas/evaluation-pack-v1.schema.json",
+      "sha256": "f49d7860b6570a39b071f7916e8442e6f5191dfa67bff32b2fe347af39f92578",
+      "bytes": 2757
+    },
+    {
+      "path": "schemas/experience-index-v1.schema.json",
+      "sha256": "1798ac1ae9a28de566a4c02798e95e5b9bc4867aff847b539de924db899a4a5f",
+      "bytes": 2796
+    },
+    {
+      "path": "schemas/governor-consumer-verification-v1.schema.json",
+      "sha256": "39b8ed4d94be78f96ef0f5ddab9e3b170414a5a12f9d397c7c4ef8338c481049",
+      "bytes": 4394
+    },
+    {
+      "path": "schemas/governor-decision-v1.schema.json",
+      "sha256": "68a9402291341b18767e6e7aafcbfe3bd0df7ff03757df65e489138ec012cccb",
+      "bytes": 7100
+    },
+    {
+      "path": "schemas/harness-component-v1.schema.json",
+      "sha256": "3d7b378b760995de3fdacba50ecc4dafa6ae0021e1d2d790b81dd6f881cfc190",
+      "bytes": 2532
+    },
+    {
+      "path": "schemas/harness-run-v1.schema.json",
+      "sha256": "8a43559c943c506674b26cc1fdd4eda5e8ae2d79d5d6a41ebfabeaff6b803ef6",
+      "bytes": 2581
+    },
+    {
+      "path": "schemas/legacy-authority-inventory-v1.schema.json",
+      "sha256": "4a1dd8eb3578fd2088eb83c655bb9f3768a0882a5388d60ff908a80b97e3c513",
+      "bytes": 3496
+    },
+    {
+      "path": "schemas/legacy-authority-plane-v1.schema.json",
+      "sha256": "364036cc192571ea350e887a986712701ae4de4c75ea312038610ca2d4796f9b",
+      "bytes": 3818
+    },
+    {
+      "path": "schemas/readiness-score-v1.schema.json",
+      "sha256": "083a1fd2fb21f219c8981ab97969f39595bc7041133115b8785c37b5bb10e6c5",
+      "bytes": 3842
+    },
+    {
+      "path": "schemas/resource-registry-v1.schema.json",
+      "sha256": "a892feb78fb4c01b3adb14bd6ed7d61e4016493935de9fc359535780d9ea7891",
+      "bytes": 3078
+    },
+    {
+      "path": "schemas/self-evolution-run-v1.schema.json",
+      "sha256": "384319eb8774e623f5fa66cfdf942b7647477f0a43feb6df26969aae3dd0bc4c",
+      "bytes": 3072
+    },
+    {
+      "path": "schemas/surface-spec-v1.schema.json",
+      "sha256": "7c104bc4b01a2fa66e760cb5480dcf83b805b0f8eb0879cd4e3d6874af384b36",
+      "bytes": 4918
+    },
+    {
+      "path": "schemas/telegram-live-qa-evidence-packet-v1.schema.json",
+      "sha256": "769fc24e3f033f2470c86800c2207e1a94dfe16bbd877f43adf886c606dd4268",
+      "bytes": 8529
+    },
+    {
+      "path": "schemas/tool-call-ledger-v1.schema.json",
+      "sha256": "80181ebfc59c7934dc37b484d7788152e57c0d0de72e016ae761852a0cc89efc",
+      "bytes": 3735
+    },
+    {
+      "path": "schemas/turn-intent-envelope-vnext.schema.json",
+      "sha256": "83a8da87e0ddc218912a6c9ee981c46b432a0acd167980cd3e95d197be57084e",
+      "bytes": 8378
+    },
+    {
+      "path": "SOURCE_MANIFEST.md",
+      "sha256": "bbcc75ba4769fc4c2da6001b822502dedad77ddb86d9aa4bffea175da3f71dda",
+      "bytes": 895
+    },
+    {
+      "path": "spark.toml",
+      "sha256": "4c13816678cbedfd28f2da376c7f59af00f8d9a5489a5368601e1a6c8a55f3c3",
+      "bytes": 1066
+    },
+    {
+      "path": "ts-dist/index.d.ts",
+      "sha256": "e0c1a638f1fc49ea86686123834acef2db4f84291e085e45680cf9b59c8e4767",
+      "bytes": 32932
+    },
+    {
+      "path": "ts-dist/index.js",
+      "sha256": "0b86f0571ccc0859fd906b4e28d310dcc3b9dd9bb5c9fb0652db7fc74ad56bb9",
+      "bytes": 76494
+    },
+    {
+      "path": "ts-dist-esm/index.mjs",
+      "sha256": "0a07c2ae4dcffbc38ecfffb69e3da81f468b4fd3eccc89075c740f6476738b5f",
+      "bytes": 73529
+    },
+    {
+      "path": "tsconfig.esm.json",
+      "sha256": "090b0dffbdb3ba252570bf835e982b37e2919bb0c2fb3045e8d3a45bba3a2099",
+      "bytes": 236
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "b4bbc2395313fdc81356694cda495f0e9511f5f93186dae6d7a47679d530413e",
+      "bytes": 383
+    }
+  ]
+}

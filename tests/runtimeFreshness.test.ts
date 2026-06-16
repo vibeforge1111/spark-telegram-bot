@@ -155,11 +155,6 @@ test('default runtime freshness paths cover Harness Core authority binding', () 
     'dist/harnessCoreVNext.js',
     'dist/harnessCoreLedger.js',
     'dist/telegramActionAuthority.js',
-    'vendor/harness-core/package.json',
-    'vendor/harness-core/SOURCE_MANIFEST.md',
-    'vendor/harness-core/ts-dist/index.js',
-    'vendor/harness-core/schemas/tool-call-ledger-v1.schema.json',
-    'vendor/harness-core/schemas/governor-decision-v1.schema.json',
     'node_modules/@spark/harness-core/package.json',
     'node_modules/@spark/harness-core/ts-dist/index.js'
   ];

@@ -82,6 +82,25 @@ test('defaults Harness Core ledger path under the shared gateway state dir', () 
   }
 });
 
+test('defaults Harness Core ledger path under the bot state dir without env overrides', () => {
+  const previousPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  const previousStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+  delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  delete process.env.SPARK_GATEWAY_STATE_DIR;
+  try {
+    assert.equal(
+      harnessCoreToolLedgerPath(),
+      path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot', '.spark-harness-core-tool-ledger.jsonl')
+    );
+    assert.notEqual(path.dirname(harnessCoreToolLedgerPath()), process.cwd());
+  } finally {
+    if (previousPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = previousPath;
+    if (previousStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+    else process.env.SPARK_GATEWAY_STATE_DIR = previousStateDir;
+  }
+});
+
 test('records allowed Telegram Harness Core authorization ledgers', () => {
   withLedgerPath((filePath) => {
     const text = 'Build a private local-first dashboard for memory reports with stale context labels.';

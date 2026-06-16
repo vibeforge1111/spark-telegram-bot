@@ -5,6 +5,7 @@ import type {
   TurnIntentEnvelopeV1
 } from './harnessContract';
 import {
+  HARNESS_CORE_WIRE_CONTRACT_VERSION,
   HARNESS_CORE_RISK_ORDER,
   actionTypeForHarnessMutation,
   createHarnessCoreActionEnvelopeVNext,
@@ -309,6 +310,7 @@ export function authorizeHarnessCoreAction(
   const approvalRequired = verdict === 'interrupt' || highRisk;
   return {
     schema_version: 'authorization-decision-v1',
+    wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
     decision_id: safeId('decision', `${envelope.turn_id}:${action.action_id}`),
     created_at: nowIso(),
     turn_id: envelope.turn_id,
@@ -366,6 +368,7 @@ export function recordHarnessCoreToolLedger(input: {
   );
   const ledger: ToolCallLedgerV1 = {
     schema_version: 'tool-call-ledger-v1',
+    wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
     ledger_id: safeId('ledger', `${input.envelope.turn_id}:${input.action.action_id}:${input.toolName}`),
     created_at: createdAt,
     turn_id: input.envelope.turn_id,

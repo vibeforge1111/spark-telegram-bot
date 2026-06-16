@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "wire_contract_version",
     "ledger_id",
     "created_at",
     "turn_id",
@@ -20,6 +21,7 @@
   ],
   "properties": {
     "schema_version": { "const": "tool-call-ledger-v1" },
+    "wire_contract_version": { "type": "integer", "minimum": 1 },
     "ledger_id": { "$ref": "https://spark.local/schemas/common-v1.schema.json#/$defs/sparkId" },
     "created_at": { "$ref": "https://spark.local/schemas/common-v1.schema.json#/$defs/isoTimestamp" },
     "turn_id": { "$ref": "https://spark.local/schemas/common-v1.schema.json#/$defs/sparkId" },

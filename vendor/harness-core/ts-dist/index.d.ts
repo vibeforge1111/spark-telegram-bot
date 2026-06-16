@@ -1,3 +1,5 @@
+export declare const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+export declare const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
 export type HarnessCoreSchemaVersion = 'turn-intent-envelope-vnext';
 export type HarnessCoreAuthorizationSchemaVersion = 'authorization-decision-v1';
 export type HarnessCoreToolLedgerSchemaVersion = 'tool-call-ledger-v1';
@@ -91,6 +93,7 @@ export interface TurnIntentEnvelopeVNext {
 }
 export interface AuthorizationDecisionV1 {
     schema_version: HarnessCoreAuthorizationSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     turn_id: string;
@@ -119,6 +122,7 @@ export interface AuthorizationDecisionV1 {
 }
 export interface ToolCallLedgerV1 {
     schema_version: HarnessCoreToolLedgerSchemaVersion;
+    wire_contract_version: number;
     ledger_id: string;
     created_at: string;
     turn_id: string;
@@ -158,6 +162,7 @@ export interface GovernorDecisionSignatureV1 {
 }
 export interface GovernorDecisionV1 {
     schema_version: HarnessCoreGovernorSchemaVersion;
+    wire_contract_version: number;
     decision_id: string;
     created_at: string;
     surface: HarnessCoreSurface;
@@ -197,6 +202,17 @@ export declare function signHarnessCoreGovernorDecision<T extends GovernorDecisi
     nonce?: string;
     created_at?: string;
 }): T;
+export interface HarnessCoreWireContractNegotiation {
+    allowed: boolean;
+    agreed_version: number | null;
+    reason_codes: string[];
+}
+export declare function negotiateHarnessCoreWireContract(input: {
+    producer_version: number;
+    producer_min_version?: number | null;
+    consumer_version?: number | null;
+    consumer_min_version?: number | null;
+}): HarnessCoreWireContractNegotiation;
 export declare function harnessCoreGovernorDecisionSignatureReasonCodes(input: {
     governor_decision?: GovernorDecisionV1 | null;
     key?: string | null;

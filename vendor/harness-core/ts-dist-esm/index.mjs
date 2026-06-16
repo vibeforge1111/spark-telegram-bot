@@ -1,5 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 const DEFAULT_AUTHORIZATION_TTL_SECONDS = 600;
+export const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+export const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
 export function canonicalHarnessCoreJson(value) {
     if (value === undefined)
         return 'null';
@@ -53,6 +55,19 @@ export function signHarnessCoreGovernorDecision(decision, input) {
             signature: hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, signature), key)
         }
     };
+}
+export function negotiateHarnessCoreWireContract(input) {
+    const consumerVersion = input.consumer_version ?? HARNESS_CORE_WIRE_CONTRACT_VERSION;
+    const producerMin = input.producer_min_version ?? Math.max(1, input.producer_version - 1);
+    const consumerMin = input.consumer_min_version ?? Math.max(1, consumerVersion - 1);
+    if (input.producer_version < producerMin || consumerVersion < consumerMin) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_invalid_range'] };
+    }
+    const agreedVersion = Math.min(input.producer_version, consumerVersion);
+    if (agreedVersion < Math.max(producerMin, consumerMin)) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_no_overlap'] };
+    }
+    return { allowed: true, agreed_version: agreedVersion, reason_codes: [] };
 }
 function harnessCoreSimulationMarker(reason) {
     return {
@@ -495,6 +510,7 @@ export function createHarnessCoreGovernorDecision(input) {
         authorizations.some((authorization) => authorization.approval.required);
     return {
         schema_version: 'governor-decision-v1',
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('governor-decision', `${input.envelope.turn_id}:${outcome}`),
         created_at: new Date().toISOString(),
         surface: input.envelope.surface,
@@ -641,6 +657,9 @@ export function verifyHarnessCoreGovernorExecutionAuthority(input) {
         });
     }
     const reasonCodes = [];
+    reasonCodes.push(...negotiateHarnessCoreWireContract({
+        producer_version: Number(governorDecision.wire_contract_version || 0)
+    }).reason_codes);
     reasonCodes.push(...harnessCoreGovernorDecisionSignatureReasonCodes({
         governor_decision: governorDecision,
         key: input.governor_hmac_key || null,
@@ -784,6 +803,7 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
         : undefined;
     const authorization = {
         schema_version: 'authorization-decision-v1',
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('decision', `${input.envelope.turn_id}:${action.action_id}`),
         created_at: now,
         turn_id: input.envelope.turn_id,
@@ -824,6 +844,7 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
     const ledgerId = safeHarnessCoreId('ledger', input.idempotency_key || `${input.envelope.turn_id}:${action.action_id}`);
     const ledger = {
         schema_version: 'tool-call-ledger-v1',
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
         ledger_id: ledgerId,
         created_at: now,
         turn_id: input.envelope.turn_id,

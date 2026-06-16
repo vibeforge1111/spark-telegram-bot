@@ -117,6 +117,8 @@ test('Telegram action authority now requires Harness Core allow verdict', () => 
   assert.doesNotMatch(result.harnessCore?.envelope.action_authority.reason || '', /legacy route evidence authorize/i);
   assert.equal(result.harnessCore?.action.action_type, 'launch_mission');
   assert.equal(result.harnessCore?.authorization.schema_version, 'authorization-decision-v1');
+  assert.equal(typeof result.harnessCore?.authorization.wire_contract_version, 'number');
+  assert.ok((result.harnessCore?.authorization.wire_contract_version || 0) >= 1);
   assert.equal(result.harnessCore?.authorization.verdict, 'allow');
   assert.equal(result.governorDecision?.schema_version, 'governor-decision-v1');
   assert.equal(result.governorDecision?.outcome, 'execute');
@@ -141,6 +143,7 @@ test('Harness Core interrupts high-risk publish even when legacy evidence would 
   assert.equal(bundle.envelope.action_authority.state, 'confirmation_required');
   assert.equal(bundle.action.risk_tier, 'high');
   assert.equal(bundle.authorization.verdict, 'interrupt');
+  assert.equal(typeof bundle.authorization.wire_contract_version, 'number');
   assert.equal(bundle.authorization.approval.required, true);
   assert.ok(bundle.authorization.reasons.includes('authority_state_confirmation_required'));
 
@@ -241,9 +244,15 @@ test('records Harness Core tool ledger for authorized execution', () => {
   });
 
   assert.equal(ledger.schema_version, 'tool-call-ledger-v1');
+  assert.equal(typeof ledger.wire_contract_version, 'number');
+  assert.equal(ledger.authorization.wire_contract_version, ledger.wire_contract_version);
   assert.equal(ledger.turn_id, result.harnessCore?.envelope.turn_id);
   assert.equal(ledger.authorization.verdict, 'allow');
   assert.equal(ledger.result.status, 'success');
   assert.ok(ledger.lifecycle.some((stage) => stage.stage === 'authorize' && stage.verdict === 'passed'));
   assert.equal(result.governorDecision?.tool_ledgers[0].schema_version, 'tool-call-ledger-v1');
+  assert.equal(
+    result.governorDecision?.tool_ledgers[0].wire_contract_version,
+    result.governorDecision?.authorizations[0].wire_contract_version
+  );
 });

@@ -1,14 +1,20 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { resolveStatePath } from './jsonState';
 import {
   recordHarnessCoreToolLedger,
   type HarnessCoreAuthorizationBundle,
   type ToolCallLedgerV1
 } from './harnessCoreVNext';
 
+const BOT_STATE_DIR = path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot');
+
 export function harnessCoreToolLedgerPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.SPARK_HARNESS_CORE_LEDGER_PATH?.trim() || resolveStatePath('.spark-harness-core-tool-ledger.jsonl');
+  const explicitPath = env.SPARK_HARNESS_CORE_LEDGER_PATH?.trim();
+  if (explicitPath) return explicitPath;
+
+  const stateDir = env.SPARK_GATEWAY_STATE_DIR?.trim() || BOT_STATE_DIR;
+  return path.join(stateDir, '.spark-harness-core-tool-ledger.jsonl');
 }
 
 export function shouldWriteHarnessCoreLedger(env: NodeJS.ProcessEnv = process.env): boolean {
