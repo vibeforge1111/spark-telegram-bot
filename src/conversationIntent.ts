@@ -1216,6 +1216,8 @@ export function isNoExecutionBoundary(text: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\b[^.?!]{0,80}\b(?:start|run|launch|execute|open\s+(?:a\s+)?pr|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+use\s+external\s+network\b.{0,100}\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|codex|provider|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate)(?:[.!?]+|\s|$)/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:save|store|remember|write)\b(?:\s+(?:this|that|it|anything|something|memory|note|private\s+(?:phrase|detail|context)))?/,
+    /\b(?:no[-\s]*store|without\s+storing|answer\s+without\s+storing)\b/,
     /\b(?:not|isn't|is not|wasn't|was not|aren't|are not)\s+(?:starting|running|launching|executing|scheduling|saving|building|creating|making)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:resume|unpause|continue|pause|hold|freeze|cancel|stop|kill)\s+(?:it|this|that|that\s+one|this\s+one|the\s+one|anything|something|missions?|work)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
@@ -1837,9 +1839,35 @@ export function isMissionRoutingFailureClassQuestion(text: string): boolean {
 	return (asksFailureClass || describesOldRouteBug) && mentionsRouting && noExecution;
 }
 
+function isOpenEndedIntentAuthorityDesignDiscussion(normalized: string): boolean {
+	if (!normalized) {
+		return false;
+	}
+	if (
+		isNoExecutionBoundary(normalized) ||
+		/\b(?:bug\s+report|qa\s+case|fixture|quoted|quote|sample\s+text|hijack|hijacked|false[-\s]*positive|false[-\s]*negative|misroute|mismatch|missed\s+action|regression|stale\s+context|pending\s+state|route\s+history)\b/.test(normalized)
+	) {
+		return false;
+	}
+	const asksOpenEndedGovernance =
+		/\b(?:can|could)\s+we\s+think\s+through\b/.test(normalized) ||
+		/\bwhat\s+would\s+be\s+the\s+risks?\b/.test(normalized) ||
+		/\bhow\s+should\s+spark\s+decide\s+when\b/.test(normalized) ||
+		/\btell\s+me\s+the\s+best\s+way\s+to\s+evaluate\b/.test(normalized) ||
+		/\bbefore\s+using\b.{0,100}\bwhat\s+evidence\s+should\b/.test(normalized) ||
+		/\bwould\b.{0,100}\bbe\s+a\s+good\b.{0,80}\bcapability\b/.test(normalized) ||
+		/\bi\s+am\s+comparing\b/.test(normalized);
+	const discussesActionBoundary =
+		/\b(?:conversation\s+versus\s+action|action\s+versus\s+conversation|chat\s+versus|versus\s+(?:action|execution|tool|route)|capability|harness|evidence|risk|before\s+using|advisory\s+first)\b/.test(normalized);
+	return asksOpenEndedGovernance && discussesActionBoundary;
+}
+
 export function isSparkIntentAuthorityBoundaryQuestion(text: string): boolean {
 	const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
 	if (!normalized || parseBuildIntent(normalized)) {
+		return false;
+	}
+	if (isOpenEndedIntentAuthorityDesignDiscussion(normalized)) {
 		return false;
 	}
 	const asks = (

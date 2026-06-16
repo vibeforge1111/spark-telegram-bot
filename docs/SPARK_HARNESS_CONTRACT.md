@@ -78,6 +78,10 @@ Release-risk Telegram QA should prove:
 - Governor outcome is visible in trace
 - authorization and tool ledger exist when a tool runs
 - refusal/no-op cases produce no side effect
+- no-store/privacy turns do not authorize memory, wiki, file, mission, provider,
+  publish, schedule, or browser/computer-use side effects
+- open-ended authority/governance discussion remains conversational unless the
+  fresh user turn asks for a concrete action or names a QA/trap scenario
 - build/memory/chip/browser/computer-use prompts cannot be hijacked by stale
   context, health words, provider names, or keyword matches
 
@@ -93,6 +97,8 @@ false-negative missed actions.
 - Owner routes reject bare VNext for execution.
 - Negative/no-action prompts block mission, file, publish, schedule, memory
   write, chip creation, browser/computer-use, and provider dispatch.
+- Privacy/no-store prompts block write-like authority even when they mention
+  save, store, remember, memory, or wiki.
 - Positive explicit actions still work without defensive phrasing from the
   user when Harness Core authorizes the exact action.
 - Live proof uses native Telegram Desktop via CUA when the test is about the

@@ -130,6 +130,32 @@ test('blocks action words when the fresh turn is meta or no-execution', () => {
   }
 });
 
+test('blocks no-store privacy language from authorizing memory writes', () => {
+  const texts = [
+    'Use this private phrase only for this answer and do not store it: spark-private-nostore-test.',
+    'No-store this private launch QA note; answer without storing it.',
+    "This is private context, don't remember it or write memory from it."
+  ];
+
+  for (const text of texts) {
+    const envelope = envelopeFor(text);
+    const result = authorizeTelegramActionFromEnvelope(envelope, {
+      route: 'memory.write',
+      text,
+      toolName: 'memory.write',
+      ownerSystem: 'domain-chip-memory',
+      mutationClass: 'writes_memory'
+    });
+
+    assert.equal(envelope.directive.noExecution, true, text);
+    assert.equal(envelope.toolPolicy.allowedTools.includes('memory.write'), false, text);
+    assert.equal(result.allow, false, text);
+    assert.equal(result.harnessCore?.envelope.freshness.memory_used_as_instruction, false, text);
+    assert.notEqual(result.governorDecision?.outcome, 'execute', text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
+});
+
 test('allows explicit project build only when route and envelope both authorize it', () => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

@@ -110,6 +110,8 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 - Builder/provider fallback and direct Builder delivery surfaces are answer composition only. They may discuss plans, advice, and evidence, but must suppress done/ready/fixed/shipped/installed/published/open-preview claims unless an owner route already supplied proof.
 - Read-only authority never authorizes writes, launches, publishing, scheduling, memory writes, chip creation, mission control, or provider dispatch.
 - No-execution, quoted examples, meta-language, stale-context questions, "explain only", and explicit no-run language block mutations.
+- Privacy and no-store language such as "do not store this", "no-store", or "answer without storing" blocks durable memory writes, wiki promotion, and any other write-like side effect for the turn. The reply may still answer conversationally, but it cannot treat the private text as memory authority.
+- Open-ended governance/design questions about action boundaries stay conversational unless they include a concrete fresh action request or an explicit QA/trap context. Do not convert ordinary "how should Spark decide..." discussion into execution denial machinery, and do not let it mint execution authority.
 - Local-only/no-publish/no-deploy language blocks publishing and deployment, not explicit local builds.
 - Contextual follow-through can act only when hot recent turns or visible exact artifacts make the target unambiguous.
 - Bare agreement cannot create mutation authority from stale or mismatched context.
@@ -183,6 +185,8 @@ negativeBoundaryShapes:
   - quoted_action_word
   - bug_report_about_building
   - open_ended_product_exploration
+  - no_store_privacy_boundary
+  - open_ended_authority_design_discussion
   - stale_project_reference
   - readout_or_status_question
 mustNotRoutes:

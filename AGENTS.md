@@ -78,6 +78,14 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - Builder owns RouteConfidenceGateV1. Telegram asks Builder whether to `act`, `ask`, `explain`, or `refuse`.
 - The action gate can be deterministic; the user-facing sentence should stay natural and context-aware.
 - Explicit no-execution constraints beat action keywords.
+- Open-ended authority/governance discussion is still conversation. Do not turn
+  questions like "how should Spark decide when build is conversation versus
+  action?" into defensive execution denials or action routes unless the turn also
+  carries a concrete fresh action request or a specific QA/trap context.
+- Privacy and no-store wording such as "do not store this", "no-store", or
+  "answer without storing" blocks memory/write authority for the turn. It may be
+  answered in chat, but it must not authorize durable memory, wiki promotion, or
+  any other side effect.
 - Readout, status, "what changed?", and advisory polish questions are answer/readout routes unless the fresh user turn explicitly asks to apply, build, run, or change something.
 - Explicit Spawner board, failure, provider, mission, or Kanban readouts are owned by `spawner-ui` board evidence and must outrank stale current-artifact readout residue.
 - Readout validators must reject title-only, repeated-heading, raw-schema, or evidence-light generated answers and fall back to owner-evidence summaries rather than delivering low-information text.
