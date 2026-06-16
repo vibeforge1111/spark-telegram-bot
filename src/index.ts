@@ -41,7 +41,7 @@ import {
   runBuilderWikiStatus
 } from './builderBridge';
 import { spark } from './spark';
-import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
+import { datamarkUntrusted, generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -476,7 +476,11 @@ async function defaultEvidenceAnswerComposer(input: EvidenceAnswerComposerInput)
     '',
     `User message: ${input.userText}`,
     '',
-    `Evidence JSON:\n${JSON.stringify(input.evidence, null, 2)}`
+    // The evidence is tool/runtime output (untrusted_but_usable); fence it so an injected
+    // instruction inside a probe receipt or CLI status cannot steer this composed answer. This
+    // call passes empty system/memories args, so without the fence the evidence reached the model
+    // entirely undatamarked (Plane 3b completeness gap).
+    datamarkUntrusted('evidence JSON', JSON.stringify(input.evidence, null, 2))
   ].join('\n');
   return llm.chat(prompt, '', '');
 }
