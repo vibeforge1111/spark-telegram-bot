@@ -1808,6 +1808,115 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /running/);
   });
 
+  await test('latestProjectPreview warns when a newer related mission contradicts an older completed preview', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-proof-orchard',
+              missionName: 'Proof Orchard',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship app',
+              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
+              }
+            }
+          ],
+          failed: [
+            {
+              missionId: 'mission-proof-orchard-polish-failed',
+              missionName: 'Mission mission-proof-orchard Proof Orchard polish',
+              status: 'failed',
+              lastEventType: 'provider_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission failed.',
+              taskName: 'Polish Proof Orchard',
+              providerSummary: 'Codex: unknown error',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                parentMissionId: 'mission-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard-polish/index.html'
+              }
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /completed preview for Proof Orchard/i);
+    assert.match(result.message, /would not treat it as the current finished version yet/i);
+    assert.match(result.message, /newer related Mission Control item is failed/i);
+    assert.match(result.message, /mission-proof-orchard-polish-failed/);
+    assert.doesNotMatch(result.message, /Here is the latest shipped app/i);
+  });
+
+  await test('latestProjectPreview ignores unrelated newer failures when choosing shipped apps', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-proof-orchard',
+              missionName: 'Proof Orchard',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Done',
+              taskName: 'Ship app',
+              providerSummary: 'Codex: Replaced the root screen with Proof Orchard in src/routes/+page.svelte.',
+              projectLineage: {
+                projectId: 'project-proof-orchard',
+                previewUrl: 'http://127.0.0.1:3333/preview/proof-orchard/index.html'
+              }
+            }
+          ],
+          failed: [
+            {
+              missionId: 'mission-unrelated-failed',
+              missionName: 'Unrelated Failure Probe',
+              status: 'failed',
+              lastEventType: 'mission_failed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission failed.',
+              taskName: 'Check another lane',
+              providerSummary: 'Codex: unknown error',
+              projectLineage: {
+                projectId: 'project-unrelated'
+              }
+            }
+          ],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Here is the latest shipped app/i);
+    assert.match(result.message, /Proof Orchard/);
+    assert.doesNotMatch(result.message, /Unrelated Failure Probe/);
+    assert.doesNotMatch(result.message, /would not treat it as the current finished version/i);
+  });
+
   await test('latestProjectPreview skips no-edit golden path probes when choosing shipped apps', async () => {
     restoreAxios();
     const now = Date.now();

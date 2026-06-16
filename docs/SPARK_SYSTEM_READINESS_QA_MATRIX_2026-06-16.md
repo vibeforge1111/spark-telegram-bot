@@ -52,6 +52,13 @@ actually meant, what Spark actually answered, and whether the answer fits the
 conversation before deciding whether the issue is route authority, source
 selection, memory lane, owner truth, execution, trace, or composition.
 
+For reusable failures, attach a governance packet to the readiness row or QA
+note before patching: human meaning, failure family, affected surfaces, owner
+system, earliest owning layer, positive case, adjacent trap, owner proof,
+Harness/Governor trace, ledger/outbound audit, side-effect evidence, and the
+docs/skills/tests/QA prompts that must inherit the rule. This prevents a live
+Telegram symptom from becoming a deterministic transcript fix.
+
 ## Non-Negotiable Fix Discipline
 
 Every improvement must answer these questions before code changes:

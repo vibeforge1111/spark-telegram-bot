@@ -64,6 +64,20 @@ Promotion is valid only when the rule keeps both user experiences healthy:
 natural exploration/status/debugging stays answer-only, and fresh explicit
 authority to act still reaches the owning system.
 
+For every reusable failure, capture a governance packet before editing or
+promoting the rule:
+
+- human meaning of the latest turn
+- failure family, affected Spark surfaces, owner system, and earliest owning layer
+- positive natural case that must still work
+- adjacent no-op trap that must not execute
+- owner proof, Harness/Governor trace, ledger, outbound audit, and side-effect evidence
+- code, tests, docs, skills, and QA prompts that must inherit the rule
+
+Promote this packet into durable structure only for reusable failure classes.
+Keep incident-only transcript details in QA notes. A fix is not complete if the
+lesson lives only in this chat, a final answer, or a local operator memory.
+
 ## One Truth Rules
 
 - Telegram is a field console, not the global brain.

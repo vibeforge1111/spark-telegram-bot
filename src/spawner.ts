@@ -207,6 +207,12 @@ interface BoardEntry {
     summary?: string;
   }>;
   providerSummary?: string;
+  projectLineage?: {
+    projectId?: string | null;
+    projectPath?: string | null;
+    previewUrl?: string | null;
+    parentMissionId?: string | null;
+  } | null;
 }
 
 const STALE_RUNNING_MISSION_MS = 15 * 60 * 1000;
@@ -303,6 +309,67 @@ function latestFailureEntry(board: BoardSnapshot): BoardEntry | null {
   ];
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
   return entries.find((entry) => entry.status === 'failed' || entry.lastEventType === 'mission_failed') || null;
+}
+
+function boardEntryLineageKeys(entry: BoardEntry): Set<string> {
+  const keys = new Set<string>();
+  const add = (prefix: string, value: string | null | undefined) => {
+    const normalized = value?.trim().toLowerCase();
+    if (normalized) keys.add(`${prefix}:${normalized}`);
+  };
+  const text = [
+    entry.missionId,
+    entry.missionName,
+    entry.taskName,
+    entry.providerSummary,
+    entry.lastSummary,
+    entry.projectLineage?.projectId,
+    entry.projectLineage?.projectPath,
+    entry.projectLineage?.previewUrl,
+    entry.projectLineage?.parentMissionId
+  ].filter((part): part is string => Boolean(part?.trim())).join('\n');
+
+  add('mission-ref', entry.missionId);
+  add('mission-ref', entry.projectLineage?.parentMissionId);
+  add('project', entry.projectLineage?.projectId);
+  add('project-path', entry.projectLineage?.projectPath);
+  add('preview', entry.projectLineage?.previewUrl);
+
+  for (const match of text.matchAll(/\bmission-\d{6,}\b/gi)) {
+    add('mission-ref', match[0]);
+  }
+
+  return keys;
+}
+
+function hasSharedLineage(left: BoardEntry, right: BoardEntry): boolean {
+  const leftKeys = boardEntryLineageKeys(left);
+  if (leftKeys.size === 0) return false;
+  for (const key of boardEntryLineageKeys(right)) {
+    if (leftKeys.has(key)) return true;
+  }
+  return false;
+}
+
+function findNewerNonCompletedLineageEntry(candidate: BoardEntry, board: BoardSnapshot): BoardEntry | null {
+  const candidateUpdated = Date.parse(candidate.lastUpdated || '');
+  const entries = [
+    ...board.running,
+    ...board.paused,
+    ...board.failed,
+    ...board.cancelled,
+    ...board.created
+  ]
+    .filter((entry) => entry.missionId !== candidate.missionId)
+    .filter((entry) => {
+      const entryUpdated = Date.parse(entry.lastUpdated || '');
+      if (!Number.isFinite(candidateUpdated)) return Number.isFinite(entryUpdated);
+      return Number.isFinite(entryUpdated) && entryUpdated > candidateUpdated;
+    })
+    .filter((entry) => hasSharedLineage(candidate, entry));
+
+  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  return entries[0] || null;
 }
 
 function isKnownProviderLabel(value: string | null | undefined): value is string {
@@ -2000,6 +2067,21 @@ export const spawner = {
       }
 
       const openLink = projectOpenLinkForEntry(latest);
+      const newerRelated = findNewerNonCompletedLineageEntry(latest, board);
+      if (openLink && newerRelated) {
+        return {
+          success: true,
+          message: [
+            `I found a completed preview for ${missionTitle(latest)}, but I would not treat it as the current finished version yet.`,
+            '',
+            `A newer related Mission Control item is ${statusWord(newerRelated.status)}: ${missionTitle(newerRelated)}.`,
+            '',
+            'Inspect',
+            `â€¢ Preview: ${openLink}`,
+            `â€¢ Board: ${missionScopedBoardUrl(newerRelated.missionId)}`
+          ].join('\n')
+        };
+      }
       if (!openLink) {
         return {
           success: true,

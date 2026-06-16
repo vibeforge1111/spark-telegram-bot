@@ -138,6 +138,20 @@ Every promoted rule must include:
 - the owner proof or trace evidence required to score the result
 - the Spark surfaces the rule applies to
 
+Every promoted rule must come from a governance packet, not from vibe or a
+single screenshot:
+
+- human meaning of the latest turn
+- failure family and affected Spark surfaces
+- owner system and earliest owning layer
+- positive natural case and adjacent no-op trap
+- required owner proof, Harness/Governor trace, ledger, outbound audit, and side-effect evidence
+- code, tests, docs, skills, and QA prompts that need the rule
+
+If the packet cannot name an owner layer, keep investigating. If the lesson
+cannot generalize beyond the exact transcript, keep it as an incident note
+instead of creating a broad rule.
+
 Use this as the readiness posture across all Spark systems: score real human
 use cases, not only isolated commands. A route can pass a unit test and still
 fail release readiness if a normal Telegram conversation would feel like Spark
