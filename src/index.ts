@@ -42,6 +42,9 @@ import {
 } from './builderBridge';
 import { spark } from './spark';
 import { datamarkUntrusted, generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
+import { runIntentProposerShadow } from './intentProposerShadow';
+import { intentProposerProviderComplete } from './intentProposerCompleter';
+import { logIntentProposerShadow } from './intentProposerLog';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -9747,6 +9750,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
 
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
+  // Phase-1 shadow intent proposer (observe-only, env-gated, fire-and-forget). Enforces NOTHING:
+  // it logs regex-route vs model-proposed-route agreement so we can measure where they disagree
+  // before any live routing change. Not awaited (zero added latency), fail-safe by construction.
+  if (process.env.SPARK_INTENT_PROPOSER_SHADOW === '1' && naturalRouteShadow) {
+    void runIntentProposerShadow(text, naturalRouteShadow.route, intentProposerProviderComplete)
+      .then((result) => logIntentProposerShadow({ text, agreement: result.agreement, proposal: result.proposal }))
+      .catch(() => {});
+  }
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
   const telegramIntentGateV2 = classifyTelegramIntentV2(text, {
