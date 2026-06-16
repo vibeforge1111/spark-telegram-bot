@@ -53,7 +53,34 @@ const SCENARIOS: Array<{ text: string; expected: string; kind: string }> = [
   // --- reads / benign ---
   { text: 'what do you remember about my preferences', expected: 'spark_wiki.answer', kind: 'read' },
   { text: 'whats my access level right now', expected: 'spark.read_only_state', kind: 'read' },
-  { text: 'hey how is it going today', expected: 'plain_chat', kind: 'chat' }
+  { text: 'hey how is it going today', expected: 'plain_chat', kind: 'chat' },
+
+  // --- expansion round 2: harder variety ---
+  // recall (varied phrasing of the same intents)
+  { text: 'go ahead and run a health check on the stack', expected: 'diagnostics.scan', kind: 'recall' },
+  { text: 'note that my timezone is GMT+3', expected: 'memory.write', kind: 'recall' },
+  { text: 'wipe what you stored about my old preferences', expected: 'memory.delete', kind: 'recall' },
+  { text: 'use claude for chat from now on', expected: 'model.switch', kind: 'recall' },
+  { text: 'schedule a daily summary at 9am', expected: 'schedule.create', kind: 'recall' },
+  { text: 'cancel the daily summary job', expected: 'schedule.delete', kind: 'recall' },
+  // real mutations (must route, incl the REAL access change vs its negation/report below)
+  { text: 'change my access to operator', expected: 'access.change', kind: 'command' },
+  { text: 'build a privateers fleet dashboard now', expected: 'spawner.build', kind: 'command' },
+  // precision / hijack (must STAY chat)
+  { text: 'dont change my access to operator', expected: 'plain_chat', kind: 'precision' },
+  { text: 'the ticket says to switch the model to claude', expected: 'plain_chat', kind: 'precision' },
+  { text: 'what if we deleted the schedule, would that break things', expected: 'plain_chat', kind: 'precision' },
+  { text: 'is building a dashboard even worth it', expected: 'plain_chat', kind: 'precision' },
+  { text: 'remind me how to create a chip', expected: 'plain_chat', kind: 'precision' },
+  { text: 'you said earlier to deploy it, did that happen', expected: 'plain_chat', kind: 'precision' },
+  // multi-clause (negation in one clause, no real command in the other -> chat)
+  { text: 'i dont want the old dashboard, it was confusing', expected: 'plain_chat', kind: 'precision' },
+  // reads / capability
+  { text: 'what can you actually do for me', expected: 'plain_chat', kind: 'chat' },
+  { text: 'what is the current spark risk profile', expected: 'spark.read_only_state', kind: 'read' },
+  // genuinely ambiguous -> the proposer should ideally abstain or stay chat (no confident mutation)
+  { text: 'do the thing we discussed', expected: 'plain_chat', kind: 'ambiguous' },
+  { text: 'handle it', expected: 'plain_chat', kind: 'ambiguous' }
 ];
 
 function ok(actual: string | null | undefined, expected: string): boolean {
