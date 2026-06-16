@@ -455,7 +455,9 @@ function rootRouteLooksLikeProject(text: string): boolean {
 function projectOpenLinkForEntry(entry: BoardEntry): string | null {
   const text = providerResultText(entry);
   const projectPath = extractProjectPathFromText(text);
-  return extractPreviewUrlFromText(text)
+  return entry.projectLineage?.previewUrl?.trim()
+    || (entry.projectLineage?.projectPath?.trim() ? projectPreviewLink(entry.projectLineage.projectPath) : null)
+    || extractPreviewUrlFromText(text)
     || (projectPath ? projectPreviewLink(projectPath) : null)
     || (rootRouteLooksLikeProject(text) ? PROJECT_PREVIEW_URL.replace(/\/+$/, '') : null);
 }
@@ -466,6 +468,7 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
   return /\btelegram\s+golden\s+path\s+probe\b/i.test(title)
     || /\bno[-\s]*edit\s+spawner\s+probe\b/i.test(title)
     || /\bgolden[-\s]*path\s+health\s+probe\b/i.test(text)
+    || /\bspark\s+run:\s*reply\s+with\s+exactly\b/i.test(title)
     || /\breply\s+with\s+exactly\b[\s\S]{0,140}\bdo\s+not\s+edit\s+files\b/i.test(text);
 }
 

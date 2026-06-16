@@ -1962,6 +1962,59 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /SPARK_QA_NO_EDIT_OK/);
   });
 
+  await test('latestProjectPreview uses structured project lineage preview over newer Spark run probes', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'spark-ping-ok-probe',
+              missionName: 'Spark Run: Reply with exactly: PING_OK',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: 'Execute goal',
+              providerSummary: 'Provider summary requires control auth.',
+              taskCount: 1,
+              taskNames: ['Execute goal'],
+              projectLineage: null
+            },
+            {
+              missionId: 'mission-day-triage-reset',
+              missionName: 'Day Triage Reset QA 20260616',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              providerSummary: 'Provider summary requires control auth.',
+              projectLineage: {
+                projectId: 'project-day-triage-reset',
+                previewUrl: 'http://127.0.0.1:3333/preview/day-triage-reset/index.html'
+              }
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestProjectPreview();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /Here is the latest shipped app/i);
+    assert.match(result.message, /Day Triage Reset QA 20260616/);
+    assert.match(result.message, /http:\/\/127\.0\.0\.1:3333\/preview\/day-triage-reset\/index\.html/);
+    assert.doesNotMatch(result.message, /PING_OK/);
+    assert.doesNotMatch(result.message, /latest app-like completed run/i);
+  });
+
   await test('latestProjectPreview does not present only golden path probes as shipped apps', async () => {
     restoreAxios();
     const now = Date.now();
