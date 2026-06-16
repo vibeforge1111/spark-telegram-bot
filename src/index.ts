@@ -12212,8 +12212,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         /\b(?:no prior list|what are you choosing between|which one|which option)\b/i.test(builderReply.responseText);
       const suppressionReason = contradictsResolvedList
         ? 'contradicts_resolved_list'
-        : builderReplySuppressionReason(builderReply.responseText, builderReply.routingDecision);
-      if (!suppressionReason && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
+        : builderReplySuppressionReason(builderReply.responseText, builderReply.routingDecision, text);
+      if (!suppressionReason && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision, text)) {
         const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
         const answerAuthorization = telegramBuilderChatReplyAuthorityDecision(
           turnIntentEnvelope,

@@ -4,6 +4,10 @@ Status: mandatory for Spark remediation, QA, release-readiness, and live Telegra
 
 This ruleset applies across Spawner, Builder, Telegram, memory/wiki, provider/access, browser/computer-use, voice/media, recursive/domain-chip systems, schedule/publish, installer, Cockpit, Labs, Swarm, and plain chat.
 
+Companion rule: use `docs/SPARK_HUMAN_CONVERSATION_QA_MAP.md` when designing
+Telegram/CUA prompt batches, route tests, memory/context probes, Spawner
+continuum checks, and launch-readiness rubrics.
+
 ## Prime Directive
 
 Never patch Spark with a deterministic phrase save that only fixes the latest transcript, project name, mission id, reply text, or screenshot.
@@ -12,6 +16,9 @@ Every nontrivial fix must remove a failure class at the earliest owning layer an
 
 - users exploring, asking status, quoting examples, debugging, or asking what changed must not accidentally start work
 - users giving fresh, explicit permission to act must not be blocked by an overbroad safety rule
+- QA prompts must represent how users actually talk to Spark. Operator-shaped
+  prompts may test operator paths, but they cannot be the main evidence for
+  normal conversational readiness.
 
 ## Governance Loop
 
@@ -162,11 +169,16 @@ Telegram is a human surface, not the safety boundary.
 For every nontrivial fix:
 
 - add or update a focused test for the affected route/source/owner/composition behavior
-- include one natural positive case
-- include one adjacent negative trap
+- include one natural positive case written in ordinary user language
+- include one adjacent negative trap written in ordinary user language
+- include a topic switch or return-to-context probe for memory/context changes
 - verify owner evidence, Harness/Governor decision, and side-effect/no-op proof when authority is involved
 - use Telegram Desktop through CUA for user-facing Telegram behavior when feasible
 - record live evidence without treating screenshots as owner truth
+
+Do not score a conversational route as launch-ready if it only passes prompts
+that say things like "answer verdict first, then evidence", "after fix", or
+"route this as chat_plan" unless the user is explicitly acting as an operator.
 
 When a fix touches a shared governance rule, update this file, `AGENTS.md`, the relevant Spark skill rulesets, and any route-specific docs that future agents will read.
 

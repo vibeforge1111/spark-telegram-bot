@@ -3013,16 +3013,45 @@ export function isMemoryAcknowledgementReply(reply: string): boolean {
   );
 }
 
+function isUnsupportedMemoryClaimInPlainReply(reply: string): boolean {
+  const normalized = reply.trim()
+    .replace(/^[_*~`(\s]+|[_*~`)\s]+$/g, '')
+    .toLowerCase();
+  if (!normalized) return false;
+  const memoryClaimPatterns = [
+    /\b(?:i|spark|we)\s+(?:have\s+)?(?:saved|remembered|stored|recorded)\s+(?:that|this|it|your|the)\b/,
+    /\b(?:saved|remembered|stored|recorded)\s+(?:memory|preference|instruction|style|rule|doctrine|profile|context)\b/,
+    /\b(?:memory|preference|instruction|style|rule|doctrine|profile|context)\s+(?:was|is|has been)\s+(?:saved|remembered|stored|recorded)\b/,
+    /\bsaved\s+(?:style|reply|response|communication|interaction|working)\s+(?:rules?|preferences?|guidance|doctrine)\b/,
+    /\bpersonal\s+update\s+(?:landed|was\s+saved|is\s+saved|has\s+landed)\b/,
+    /\b(?:i|spark|we)\s+(?:will|can)\s+remember\s+(?:that|this|it|your)\b/
+  ];
+  return memoryClaimPatterns.some((pattern) => pattern.test(normalized));
+}
+
 export type BuilderReplySuppressionReason =
   | 'diagnostic_wall'
   | 'route_menu'
   | 'project_event_residue'
   | 'memory_acknowledgement'
+  | 'agent_onboarding_detour'
   | 'low_information';
 
-export function builderReplySuppressionReason(reply: string, routingDecision: string = ''): BuilderReplySuppressionReason | null {
+function isExplicitAgentOnboardingRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  return (
+    /\b(?:set\s*up|setup|onboard|re[-\s]*run|rerun|restart|change|update|edit|configure)\b.{0,80}\b(?:agent|personality|persona|assistant personality|reply style|communication style|interaction style)\b/.test(normalized) ||
+    /\b(?:agent|personality|persona|assistant personality|reply style|communication style|interaction style)\b.{0,80}\b(?:setup|set\s*up|onboarding|onboard|re[-\s]*run|rerun|restart|change|update|edit|configure)\b/.test(normalized)
+  );
+}
+
+export function builderReplySuppressionReason(reply: string, routingDecision: string = '', latestUserText: string = ''): BuilderReplySuppressionReason | null {
   if (/^memory(?:[_.]|$)/i.test(routingDecision.trim())) {
     return null;
+  }
+  if (/^agent[_-]?onboarding\b/i.test(routingDecision.trim()) && !isExplicitAgentOnboardingRequest(latestUserText)) {
+    return 'agent_onboarding_detour';
   }
   const normalized = reply.trim().toLowerCase();
   if (
@@ -3079,14 +3108,17 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   if (isMemoryAcknowledgementReply(reply)) {
     return 'memory_acknowledgement';
   }
+  if (isUnsupportedMemoryClaimInPlainReply(reply)) {
+    return 'memory_acknowledgement';
+  }
   if (isLowInformationLlmReply(reply)) {
     return 'low_information';
   }
   return null;
 }
 
-export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDecision: string = ''): boolean {
-  return builderReplySuppressionReason(reply, routingDecision) !== null;
+export function shouldSuppressBuilderReplyForPlainChat(reply: string, routingDecision: string = '', latestUserText: string = ''): boolean {
+  return builderReplySuppressionReason(reply, routingDecision, latestUserText) !== null;
 }
 
 export function shouldUseBuilderReplyForMemoryDirective(reply: string, routingDecision: string = ''): boolean {

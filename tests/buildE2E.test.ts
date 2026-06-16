@@ -4215,6 +4215,183 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('no-save chat setup suppresses unsupported saved-style Builder claims', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-no-save-claim-boundary-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const finalAnswerAuditPath = path.join(tempRoot, 'final-answer-gate.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = finalAnswerAuditPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const llmModule = await import('../src/llm');
+		const originalChat = llmModule.llm.chat;
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: [
+				'Verdict: Ember Porch is held in conversation only. No save, no build.',
+				'',
+				'Evidence: your described first screen matches the saved style rules attached to this session. That means the personal update landed and is shaping the reply.'
+			].join('\n'),
+			decision: 'provider_fallback_chat+manual_recommended',
+			bridgeMode: 'external_configured',
+			routingDecision: 'provider_fallback_chat+manual_recommended',
+			requestId: 'turn:test:no-save-claim',
+			traceRef: 'trace:test:no-save-claim'
+		});
+		llmModule.llm.chat = async () => (
+			'Verdict: Ember Porch stays in recent chat only. No save, no build.\n\n' +
+			'Evidence: first screen is soft inbox, three breathing slots, and one Settle button. I am using same-session context, not durable memory.'
+		);
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079055, 8319079055, 616, replies);
+			ctx.message.text = "I am sketching a quiet planning app called Ember Porch. It opens with a soft inbox, three breathing slots, and one button called Settle. Let's just talk through it for now; don't save it or build anything yet.";
+			(ctx as any).update = { update_id: 616, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /Ember Porch|soft inbox|breathing slots|Settle/i);
+			assert.match(reply, /recent chat|same-session context/i);
+			assert.match(reply, /No save, no build|not durable memory/i);
+			assert.doesNotMatch(reply, /saved style rules|personal update landed/i);
+			assert.equal(captured.length, 0, 'no-save claim fallback must not call Spawner or PRD bridge');
+
+			const suppressionRecords = await waitForJsonlRecord(
+				finalAnswerAuditPath,
+				(record: any) => record.event === 'final_answer_checked' && record.suppression_reason === 'memory_acknowledgement'
+			);
+			assert.ok(
+				suppressionRecords.some((record: any) => /saved style rules/i.test(record.builder_reply_preview || '')),
+				'unsupported saved-style Builder claim must be audited before fallback'
+			);
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.authorization.restrictions.write_allowed === false &&
+					record.result.status === 'success'
+				)),
+				'clean fallback answer must record read-only Harness Core answer.compose success'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			llmModule.llm.chat = originalChat;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
+	await test('chat-only project setup suppresses agent onboarding detours', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-agent-onboarding-detour-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const finalAnswerAuditPath = path.join(tempRoot, 'final-answer-gate.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = finalAnswerAuditPath;
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const llmModule = await import('../src/llm');
+		const originalChat = llmModule.llm.chat;
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: [
+				'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+				'',
+				'Reply `yes` to start the short setup conversation, or anything else to keep things as they are.'
+			].join('\n'),
+			decision: 'agent_onboarding',
+			bridgeMode: 'external_configured',
+			routingDecision: 'agent_onboarding',
+			requestId: 'turn:test:agent-onboarding-detour',
+			traceRef: 'trace:test:agent-onboarding-detour'
+		});
+		llmModule.llm.chat = async () => (
+			'Verdict: Willow Hearth is still chat-only. No save, no build.\n\n' +
+			'Evidence: the first screen is a tiny inbox, two settling slots, and one Breathe button. I am answering from this turn, not starting agent setup.'
+		);
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079055, 8319079055, 617, replies);
+			ctx.message.text = "I am sketching a quiet planning app called Willow Hearth. It opens with a tiny inbox, two settling slots, and one button called Breathe. Let's just talk through it for now; don't save it or build anything yet.";
+			(ctx as any).update = { update_id: 617, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /Willow Hearth|tiny inbox|settling slots|Breathe/i);
+			assert.match(reply, /chat-only|No save, no build/i);
+			assert.doesNotMatch(reply, /re-run setup|current personality|reply `yes`/i);
+			assert.equal(captured.length, 0, 'chat-only onboarding detour fallback must not call Spawner or PRD bridge');
+
+			const suppressionRecords = await waitForJsonlRecord(
+				finalAnswerAuditPath,
+				(record: any) => record.event === 'final_answer_checked' && record.suppression_reason === 'agent_onboarding_detour'
+			);
+			assert.ok(
+				suppressionRecords.some((record: any) => record.builder_routing_decision === 'agent_onboarding'),
+				'agent onboarding detour must be audited before fallback'
+			);
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.authorization.restrictions.write_allowed === false &&
+					record.result.status === 'success'
+				)),
+				'clean fallback answer must record read-only Harness Core answer.compose success'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			llmModule.llm.chat = originalChat;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('startup answer editing in chat does not become access or mission execution', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

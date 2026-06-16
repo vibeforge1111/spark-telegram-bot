@@ -1685,6 +1685,52 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     null
   );
   assert.equal(
+    builderReplySuppressionReason(
+      [
+        'Verdict: Ember Porch is held in conversation only. No save, no build.',
+        '',
+        'Evidence: your described first screen matches the saved style rules attached to this session. That means the personal update landed and is shaping the reply.'
+      ].join('\n'),
+      'provider_fallback_chat+manual_recommended'
+    ),
+    'memory_acknowledgement'
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Nice tiny game idea. A satisfying first version can include saved game progress as a product feature.',
+      'provider_fallback_chat'
+    ),
+    false
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      [
+        'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+        '',
+        'Reply `yes` to start the short setup conversation, or anything else to keep things as they are.'
+      ].join('\n'),
+      'agent_onboarding',
+      "I am sketching a quiet planning app called Willow Hearth. It opens with a tiny inbox, two settling slots, and one button called Breathe. Let's just talk through it for now; don't save it or build anything yet."
+    ),
+    'agent_onboarding_detour'
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+      'agent_onboarding',
+      'Please rerun setup for my agent personality.'
+    ),
+    false
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+      'agent_onboarding',
+      'Can we set up this app idea before we build anything?'
+    ),
+    true
+  );
+  assert.equal(
     shouldSuppressBuilderReplyForPlainChat(
       [
         'Spark self-awareness',

@@ -23,7 +23,7 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`, `docs/TURNINTENT_HARNESS_RULESET.md`, and the relevant command, route, or adapter doc before edits.
+2. Read this file plus `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`, `docs/SPARK_HUMAN_CONVERSATION_QA_MAP.md`, `docs/TURNINTENT_HARNESS_RULESET.md`, and the relevant command, route, or adapter doc before edits.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.
@@ -98,6 +98,12 @@ or Harness/Core authority change:
 
 Small patches are fine only when they are mechanism-level patches. A fix that
 only makes the current transcript look good is not a Spark fix.
+
+Conversational QA prompts must sound like real people using Spark. Default to
+plain human turns such as "can we talk this through?", "what changed?", "where
+were we?", "don't build this yet", and "ok, make the small version now." Use
+operator-shaped wording only for operator paths. A route that only behaves when
+the user speaks like a QA harness is not ready.
 
 For every reusable failure, capture a governance packet before editing or
 promoting the rule:
