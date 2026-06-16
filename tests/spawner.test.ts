@@ -1216,6 +1216,61 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^-\s+/m);
   });
 
+  await test('board does not promote question readout residue as the latest project', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-real-project',
+              missionName: 'Existing Day Triage Button polish',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              taskCount: 3,
+              taskNames: ['Build one-screen polish', 'Wire button states', 'Run smoke test']
+            },
+            {
+              missionId: 'mission-question-residue',
+              missionName: ': what happened to mission-1781566950658? Should',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              taskCount: 4,
+              taskNames: [
+                'Inspect mission-1781566950658 state files and event records',
+                'Classify mission-1781566950658 completion versus rerun status',
+                'Send concise Telegram-ready mission-1781566950658 answer',
+                'PRD analysis'
+              ]
+            }
+          ],
+          failed: [],
+          cancelled: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.board();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /total: 2/);
+    assert.match(result.message, /complete: 2/);
+    assert.match(result.message, /Latest: Existing Day Triage Button polish finished\./);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-real-project/);
+    assert.doesNotMatch(result.message, /what happened to mission-1781566950658/i);
+    assert.doesNotMatch(result.message, /mission-question-residue/);
+  });
+
   await test('board tolerates malformed board buckets from Spawner', async () => {
     restoreAxios();
     (axios as any).get = async () => ({
@@ -1406,6 +1461,55 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^Tasks:/im);
     assert.doesNotMatch(result.message, /^Relay:/im);
     assert.doesNotMatch(result.message, /mission-older/);
+  });
+
+  await test('latestKanbanSummary skips newer readout residue but keeps real question-titled builds', async () => {
+    restoreAxios();
+    const now = Date.now();
+    (axios as any).get = async () => ({
+      data: {
+        board: {
+          running: [],
+          paused: [],
+          completed: [
+            {
+              missionId: 'mission-question-product',
+              missionName: 'How To Focus Timer',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now - 60_000).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              taskNames: ['Build timer UI', 'Implement focus session state', 'Run smoke test']
+            },
+            {
+              missionId: 'mission-question-residue',
+              missionName: 'Should I treat mission-1781566950658 as completed or rerun it?',
+              status: 'completed',
+              lastEventType: 'mission_completed',
+              lastUpdated: new Date(now).toISOString(),
+              lastSummary: 'Mission completed.',
+              taskName: null,
+              taskNames: [
+                'Inspect mission-1781566950658 state files',
+                'Classify completion versus rerun status',
+                'Send concise Telegram answer'
+              ]
+            }
+          ],
+          failed: [],
+          created: []
+        }
+      }
+    });
+
+    const result = await spawner.latestKanbanSummary();
+
+    assert.equal(result.success, true);
+    assert.match(result.message, /^Yes - How To Focus Timer is on Kanban\. It finished\./);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-question-product/);
+    assert.doesNotMatch(result.message, /completed or rerun/i);
+    assert.doesNotMatch(result.message, /mission-question-residue/);
   });
 
   await test('latestProviderSummary reports the provider for the newest Spawner job', async () => {

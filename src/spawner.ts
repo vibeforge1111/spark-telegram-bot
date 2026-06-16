@@ -281,7 +281,10 @@ async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
   };
 }
 
-function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
+function latestBoardEntry(
+  board: BoardSnapshot,
+  options: { skipOperationalProbes?: boolean; skipQuestionResidue?: boolean } = {}
+): BoardEntry | null {
   const entries = [
     ...board.running,
     ...board.paused,
@@ -289,7 +292,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.failed,
     ...board.cancelled,
     ...board.created
-  ];
+  ].filter((entry) => isBoardEntryVisibleForSurface(entry, options));
   entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
   return entries[0] || null;
 }
@@ -400,6 +403,58 @@ function isOperationalProbeMission(entry: BoardEntry): boolean {
     || /\bno[-\s]*edit\s+spawner\s+probe\b/i.test(title)
     || /\bgolden[-\s]*path\s+health\s+probe\b/i.test(text)
     || /\breply\s+with\s+exactly\b[\s\S]{0,140}\bdo\s+not\s+edit\s+files\b/i.test(text);
+}
+
+const QUESTION_TITLE_STARTERS = new Set([
+  'what',
+  'which',
+  'where',
+  'when',
+  'why',
+  'how',
+  'should',
+  'could',
+  'would',
+  'can',
+  'did',
+  'does',
+  'do',
+  'is',
+  'are'
+]);
+
+function normalizedWords(text: string): string[] {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+}
+
+function isQuestionLikeBoardTitle(title: string): boolean {
+  const trimmed = title.trim();
+  if (!trimmed) return false;
+  const words = normalizedWords(trimmed);
+  if (words.length === 0) return false;
+  if (/\?/.test(trimmed)) return true;
+  if (QUESTION_TITLE_STARTERS.has(words[0])) return true;
+  return /^[^\w]+/.test(trimmed) && words.some((word) => QUESTION_TITLE_STARTERS.has(word));
+}
+
+function hasArtifactTaskEvidence(entry: BoardEntry): boolean {
+  const taskText = [entry.taskName, ...(entry.taskNames || [])]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(' ');
+  return /\b(?:build|built|create|created|scaffold|implement|design|wire|render|ship|static|frontend|backend|ui|ux|app|page|screen|component|dashboard|website|game|readme|test|smoke)\b/i.test(taskText);
+}
+
+function isQuestionResidueBoardEntry(entry: BoardEntry): boolean {
+  return isQuestionLikeBoardTitle(missionTitle(entry)) && !hasArtifactTaskEvidence(entry);
+}
+
+function isBoardEntryVisibleForSurface(
+  entry: BoardEntry,
+  options: { skipOperationalProbes?: boolean; skipQuestionResidue?: boolean }
+): boolean {
+  if (options.skipOperationalProbes && isOperationalProbeMission(entry)) return false;
+  if (options.skipQuestionResidue && isQuestionResidueBoardEntry(entry)) return false;
+  return true;
 }
 
 function missionTitle(entry: BoardEntry): string {
@@ -712,7 +767,7 @@ function formatBoardTelegramSummary(board: BoardSnapshot): string {
     queued: board.created.length
   };
   const history = counts.completed + counts.failed + counts.cancelled;
-  const latest = latestBoardEntry(board);
+  const latest = latestBoardEntry(board, { skipOperationalProbes: true, skipQuestionResidue: true });
   const lines = [
     'Right now',
     boardCountLine('running', counts.running, board.running[0]),
@@ -1878,7 +1933,10 @@ export const spawner = {
 
   async latestKanbanSummary(): Promise<{ success: boolean; message: string }> {
     try {
-      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      const latest = latestBoardEntry(await fetchBoardSnapshot(), {
+        skipOperationalProbes: true,
+        skipQuestionResidue: true
+      });
       if (!latest) {
         return {
           success: true,
@@ -1914,7 +1972,10 @@ export const spawner = {
 
   async latestProviderSummary(): Promise<{ success: boolean; message: string }> {
     try {
-      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      const latest = latestBoardEntry(await fetchBoardSnapshot(), {
+        skipOperationalProbes: true,
+        skipQuestionResidue: true
+      });
       if (!latest) {
         return {
           success: true,
@@ -1961,7 +2022,9 @@ export const spawner = {
 
   async latestMissionSummary(): Promise<{ success: boolean; message: string }> {
     try {
-      const latest = latestBoardEntry(await fetchBoardSnapshot());
+      const latest = latestBoardEntry(await fetchBoardSnapshot(), {
+        skipQuestionResidue: true
+      });
       if (!latest) {
         return {
           success: true,
