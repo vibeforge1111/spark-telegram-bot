@@ -1766,6 +1766,39 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     'unsupported_action_claim'
   );
   assert.equal(
+    builderReplySuppressionReason(
+      [
+        'I got this one finished for you.',
+        '',
+        'Open it here:',
+        'http://127.0.0.1:3333/preview/day-triage-button/index.html'
+      ].join('\n'),
+      'provider_fallback_chat'
+    ),
+    'unsupported_action_claim'
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      'The Day Triage Button build is done. Preview is ready: http://127.0.0.1:3333/preview/day-triage-button/index.html',
+      'plain_chat'
+    ),
+    'unsupported_action_claim'
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      'A good next polish direction is to make it one screen with one outcome before we run another pass.',
+      'plain_chat'
+    ),
+    null
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      'That launch plan is ready to discuss, but I would still verify the owner evidence before claiming it shipped.',
+      'plain_chat'
+    ),
+    null
+  );
+  assert.equal(
     shouldSuppressBuilderReplyForPlainChat(
       'I found the app and attempted the patch, but this runner is read-only, so no files changed.',
       'plain_chat'

@@ -107,6 +107,10 @@ only; final replies, owner evidence, and ledgers remain authoritative.
 - For build/artifact readouts, include enough grounded signal for the user to
   understand what changed, what proof exists, whether anything is blocked, and
   the next safe move. Do not send heading-only or title-only status text.
+- Completion/readiness language is a claim boundary. Telegram may say a build,
+  edit, installer step, memory change, publish, or preview is done only when the
+  owning system supplied terminal proof; Builder/provider fallback text and
+  direct voice/media replies are not proof by themselves.
 - For Spawner "latest" readouts, separate history from promotion. History counts
   can include operational probes and accidental question/readout missions, but
   the promoted latest project, preview, failure, or provider job must skip that

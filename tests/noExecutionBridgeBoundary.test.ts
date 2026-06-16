@@ -445,3 +445,69 @@ test('plain Builder replies drop voice media without delivery authorization', as
     indexModule.__setBuilderBridgeRunnerForTest(null);
   }
 });
+
+test('direct Builder delivery suppresses unproved completion claims and voice media', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-direct-builder-claim-'));
+  const auditPath = path.join(tempRoot, 'final-answer-gate-audit.jsonl');
+  process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = auditPath;
+
+  const indexModule: any = await import('../src/index');
+
+  try {
+    const replies: string[] = [];
+    const mediaReplies = { voice: [] as unknown[], audio: [] as unknown[] };
+    await indexModule.deliverBuilderReply(
+      fakeCtx('Recall the latest Day Triage app.', replies, mediaReplies),
+      {
+        used: true,
+        responseText: [
+          'I got this one finished for you.',
+          'The Day Triage Button build is done.',
+          'Open it here: http://127.0.0.1:3333/preview/day-triage-button/index.html'
+        ].join('\n'),
+        decision: 'plain_chat',
+        bridgeMode: 'test',
+        routingDecision: 'plain_chat',
+        requestId: 'req-direct-builder-claim',
+        traceRef: 'trace:req-direct-builder-claim',
+        voiceMedia: {
+          audioBase64: Buffer.from('synthetic-audio').toString('base64'),
+          mimeType: 'audio/ogg',
+          filename: 'reply.ogg',
+          voiceCompatible: true,
+          spokenText: 'The Day Triage Button build is done.'
+        }
+      },
+      { allowVoiceMedia: true }
+    );
+
+    assert.deepEqual(mediaReplies.voice, []);
+    assert.deepEqual(mediaReplies.audio, []);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /I should not claim that work happened/i);
+    assert.match(replies[0], /No files were changed, no mission was started, and no completion proof was found/i);
+    assert.doesNotMatch(replies[0], /got this one finished/i);
+
+    const records = await waitForJsonlRecord(
+      auditPath,
+      (record) => record.suppression_reason === 'unsupported_action_claim'
+    );
+    assert.ok(
+      records.some((record) => (
+        record.suppression_reason === 'unsupported_action_claim' &&
+        record.builder_routing_decision === 'plain_chat' &&
+        record.request_id === 'req-direct-builder-claim' &&
+        record.trace_ref === 'trace:req-direct-builder-claim'
+      )),
+      'direct Builder delivery suppression must be audited with trace ids'
+    );
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});

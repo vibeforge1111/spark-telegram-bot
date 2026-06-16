@@ -107,6 +107,7 @@ Do not patch a downstream reply or route branch when the upstream envelope still
 
 - Every high-agency action requires selected route, owner, tool, action type, action id, pre-execution ledger, Governor decision, and owner-side verification.
 - Every completion or readiness claim requires selected owner evidence, terminal success, verification proof, and no conflicting newer failure for the same artifact.
+- Builder/provider fallback and direct Builder delivery surfaces are answer composition only. They may discuss plans, advice, and evidence, but must suppress done/ready/fixed/shipped/installed/published/open-preview claims unless an owner route already supplied proof.
 - Read-only authority never authorizes writes, launches, publishing, scheduling, memory writes, chip creation, mission control, or provider dispatch.
 - No-execution, quoted examples, meta-language, stale-context questions, "explain only", and explicit no-run language block mutations.
 - Local-only/no-publish/no-deploy language blocks publishing and deployment, not explicit local builds.
@@ -133,6 +134,7 @@ Do not ship:
 - delivery success as answer success
 - output reports as stronger truth than repo contracts, source manifests, live ledgers, and owner-system evidence
 - done/ready/shipped wording based only on task completion, preview links, Telegram delivery, dashboard presence, or stale cached state
+- Builder voice/media/text delivery that bypasses the final-answer claim gate
 
 ## Required Route-Family Test Contract
 

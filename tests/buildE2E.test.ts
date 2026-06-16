@@ -1819,8 +1819,8 @@ async function run(): Promise<void> {
 			await indexModule.handleTextMessage(ctx);
 
 			const reply = replies.join('\n');
-			assert.match(reply, /I should not claim an edit/i);
-			assert.match(reply, /No files were changed and no mission was started/i);
+			assert.match(reply, /I should not claim that work happened/i);
+			assert.match(reply, /No files were changed, no mission was started, and no completion proof was found/i);
 			assert.doesNotMatch(reply, /attempted the patch/i);
 			assert.doesNotMatch(reply, /Patch scope/i);
 			assert.doesNotMatch(reply, /Allowed, blocked here/i);
@@ -1846,6 +1846,93 @@ async function run(): Promise<void> {
 					record.builder_routing_decision === 'plain_chat.local_llm'
 				)),
 				'Local fallback unsupported action claims must be audited before fallback delivery'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			(llmModule.llm as any).chat = originalChat;
+			restoreAxios();
+			restoreEnv();
+			removeTempRoot(tempRoot);
+		}
+	});
+
+	await test('final-answer gate suppresses unproved completion claims before Telegram delivery', async () => {
+		restoreAxios();
+		const testUserId = 8319079055;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-final-answer-completion-claim-'));
+		const auditPath = path.join(tempRoot, 'final-answer-gate-audit.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH = auditPath;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const unsafeReply = [
+			'I got this one finished for you.',
+			'The Day Triage Button build is done and the preview is ready.',
+			'Open it here: http://127.0.0.1:3333/preview/day-triage-button/index.html'
+		].join('\n');
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const llmModule = require('../src/llm') as typeof import('../src/llm');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const originalChat = llmModule.llm.chat;
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: unsafeReply,
+			decision: 'chat',
+			bridgeMode: 'test',
+			routingDecision: 'provider_fallback_chat',
+			requestId: 'req-unsafe-completion-claim',
+			traceRef: 'trace:req-unsafe-completion-claim'
+		});
+		(llmModule.llm as any).chat = async () => unsafeReply;
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079088, testUserId, 641, replies);
+			ctx.message.text = 'Can you talk me through the polish direction for that app?';
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /I should not claim that work happened/i);
+			assert.match(reply, /No files were changed, no mission was started, and no completion proof was found/i);
+			assert.doesNotMatch(reply, /got this one finished/i);
+			assert.doesNotMatch(reply, /build is done/i);
+			assert.doesNotMatch(reply, /Open it here/i);
+			assert.equal(captured.length, 0, 'unproved completion fallback must not call Spawner or PRD bridge');
+
+			const auditRecords = await waitForJsonlRecord(
+				auditPath,
+				(record) => record.suppression_reason === 'unsupported_action_claim',
+				50
+			);
+			assert.ok(
+				auditRecords.some((record) => (
+					record.suppression_reason === 'unsupported_action_claim' &&
+					record.builder_routing_decision === 'provider_fallback_chat' &&
+					record.request_id === 'req-unsafe-completion-claim' &&
+					record.trace_ref === 'trace:req-unsafe-completion-claim'
+				)),
+				'Builder unproved completion claims must be audited with trace ids'
+			);
+			assert.ok(
+				auditRecords.some((record) => (
+					record.suppression_reason === 'unsupported_action_claim' &&
+					record.builder_routing_decision === 'plain_chat.local_llm'
+				)),
+				'Local fallback unproved completion claims must be audited before fallback delivery'
 			);
 		} finally {
 			const indexModule: any = await import('../src/index');
@@ -4382,7 +4469,7 @@ async function run(): Promise<void> {
 			assert.match(writeCall!.body.content, /Current artifact evidence/i);
 			assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
 			assert.match(reply, /Got it\. I will improve Mission 1781548537593 Existing Day Triage Button polish 2/i);
-			assert.doesNotMatch(reply, /No files were changed and no mission was started/i);
+			assert.doesNotMatch(reply, /No files were changed, no mission was started, and no completion proof was found/i);
 			assert.doesNotMatch(reply, /read-only/i);
 
 			const projectIterationRoute = (record: any) => (

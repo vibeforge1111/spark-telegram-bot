@@ -3266,12 +3266,28 @@ function isUnsupportedActionClaimReply(normalized: string): boolean {
   const actionClaim =
     /\b(?:i|we|spark)\s+(?:found|resolved|attempted|patched|changed|updated|edited|wrote|created|queued|started|ran|launched|applied)\b/.test(normalized) &&
     /\b(?:patch|files?|workspace|mission|build|task|queue|project|app|code|readme|tests?)\b/.test(normalized);
+  const artifactActionSurface =
+    /\b(?:mission|build|app|project|preview|workspace|files?|code|patch|edit|change|update|installer|telegram|voice|memory|wiki|chip|schedule|publish|deploy)\b/;
+  const completionClaim =
+    (
+      /\b(?:i|we|spark)\s+(?:got\s+)?(?:this|that|it|one|the\s+\w+(?:\s+\w+){0,3})\s+(?:finished|done|completed|ready|shipped|launched|published|installed|fixed|built)\b/.test(normalized) ||
+      /\b(?:i|we|spark)\s+(?:finished|completed|fixed|built|shipped|launched|published|installed)\b/.test(normalized)
+    ) &&
+    artifactActionSurface.test(normalized);
+  const surfaceCompletionClaim =
+    artifactActionSurface.test(normalized) &&
+    (
+      /\b(?:is|was|looks|got|has been|'s)\s+(?:done|finished|complete|completed|ready|shipped|launched|published|installed|fixed|built|updated|changed|patched|deployed|queued|started)\b/.test(normalized) ||
+      /\b(?:open it here|preview is ready|mission (?:started|queued)|files? (?:changed|updated|written|patched)|build (?:finished|completed|is done|is ready)|app (?:finished|is ready|is done))\b/.test(normalized)
+    );
   return (
     /\bpatch scope\b/.test(normalized) ||
     /\battempted\s+(?:the\s+)?patch\b/.test(normalized) ||
     /\b(?:runner|lane)\s+is\s+read[-\s]*only\b/.test(normalized) && /\b(?:no files changed|patch|files?)\b/.test(normalized) ||
     /\buse\s+a\s+writable\s+(?:spawner|codex|runner|lane)\b/.test(normalized) && /\b(?:apply|patch|edit|files?)\b/.test(normalized) ||
-    actionClaim
+    actionClaim ||
+    completionClaim ||
+    surfaceCompletionClaim
   );
 }
 

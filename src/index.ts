@@ -3835,9 +3835,9 @@ function recordLocalChatReplyExecution(ctx: any, naturalRouteShadow: NaturalRout
 
 function renderUnsupportedActionClaimFallback(): string {
   return [
-    'I should not claim an edit from that message.',
+    'I should not claim that work happened from that message.',
     '',
-    'No files were changed and no mission was started. I can keep shaping the polish in chat, or you can make a fresh explicit build/iteration request with the target project and change.'
+    'No files were changed, no mission was started, and no completion proof was found. I can keep shaping the polish in chat, or you can make a fresh explicit build/iteration request with the target project and change.'
   ].join('\n');
 }
 
@@ -3891,6 +3891,30 @@ export async function deliverBuilderReply(
   builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>,
   options: { allowVoiceMedia?: boolean } = {}
 ): Promise<void> {
+  const unsupportedClaimReason = builderReply.responseText
+    ? builderReplySuppressionReason(builderReply.responseText, builderReply.routingDecision)
+    : null;
+  if (unsupportedClaimReason === 'unsupported_action_claim') {
+    recordFinalAnswerGateSuppression({
+      chatId: ctx.chat?.id,
+      userId: ctx.from?.id,
+      update: ctx.update,
+      suppressionReason: unsupportedClaimReason,
+      builderRoutingDecision: builderReply.routingDecision || builderReply.decision || 'builder_bridge',
+      builderBridgeMode: builderReply.bridgeMode || '',
+      builderReply: builderReply.responseText,
+      requestId: builderReply.requestId,
+      traceRef: builderReply.traceRef,
+      fallbackRoute: 'local_chat'
+    });
+    await replyWithSanitizedTelegramText(ctx, renderUnsupportedActionClaimFallback(), outboundTraceExtra({
+      route: builderReply.routingDecision || builderReply.decision || 'builder_bridge',
+      replyKind: 'builder_reply_suppressed',
+      requestId: builderReply.requestId,
+      traceRef: builderReply.traceRef
+    }));
+    return;
+  }
   if (builderReply.voiceMedia) {
     if (options.allowVoiceMedia) {
       await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
