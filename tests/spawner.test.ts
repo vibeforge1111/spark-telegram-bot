@@ -31,6 +31,8 @@ const originalPort = process.env.TELEGRAM_RELAY_PORT;
 const originalProfile = process.env.SPARK_TELEGRAM_PROFILE;
 const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalUiKey = process.env.SPARK_UI_API_KEY;
+const originalMcpKey = process.env.MCP_API_KEY;
+const originalEventsKey = process.env.EVENTS_API_KEY;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -46,10 +48,15 @@ function restoreEnv(): void {
   else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
   if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
   else process.env.SPARK_UI_API_KEY = originalUiKey;
+  if (originalMcpKey === undefined) delete process.env.MCP_API_KEY;
+  else process.env.MCP_API_KEY = originalMcpKey;
+  if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
+  else process.env.EVENTS_API_KEY = originalEventsKey;
 }
 
 function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
   if (toolName === 'spawner.creator_mission.status') return 'read_only';
+  if (toolName === 'spawner.mission_control.status') return 'read_only';
   if (toolName === 'spawner.mission_control.command') return 'controls_mission';
   if (toolName === 'creator.mission.create' || toolName === 'spawner.creator_mission') return 'creates_chip';
   return 'launches_mission';
@@ -864,18 +871,22 @@ async function run(): Promise<void> {
 
   await test('missionCommand formats provider status for Telegram', async () => {
     restoreAxios();
-    const executionAuthority = fakeMissionControlAuthority();
-    let capturedBody: any = null;
-    (axios as any).post = async (_url: string, body: unknown) => {
-      capturedBody = body;
+    const executionAuthority = fakeExecutionAuthority('spawner.mission_control.status');
+    let capturedUrl = '';
+    (axios as any).get = async (url: string) => {
+      capturedUrl = url;
       return {
       data: {
-        status: {
-          paused: false,
-          allComplete: true,
-          providers: {
-            codex: 'completed',
-            claude: 'running'
+        ok: true,
+        snapshot: {
+          recent: [{
+            eventType: 'mission_failed',
+            missionName: 'Status Probe',
+            summary: 'Codex could not finish.'
+          }],
+          providerSummary: 'Codex: unknown error',
+          completionEvidence: {
+            terminalStatus: 'failed'
           }
         }
       }
@@ -885,14 +896,12 @@ async function run(): Promise<void> {
     const result = await spawner.missionCommand('status', 'spark-status', { executionAuthority });
 
     assert.equal(result.success, true);
-    assert.equal(capturedBody.executionAuthority, executionAuthority);
-    assert.match(result.message, /Mission is complete/);
-    assert.match(result.message, /• Complete: yes/);
-    assert.match(result.message, /• Codex: completed/);
-    assert.match(result.message, /• Claude: running/);
-    assert.match(result.message, /• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-status/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-status/);
+    assert.match(capturedUrl, /\/api\/mission-control\/status\?missionId=spark-status$/);
+    assert.match(result.message, /Status Probe failed/);
+    assert.match(result.message, /Terminal status: failed/);
+    assert.match(result.message, /Provider: Codex: unknown error/);
+    assert.match(result.message, /Treat it as completed: no/);
+    assert.match(result.message, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-status/);
   });
 
   await test('missionCommand forwards native Governor authority when supplied', async () => {
@@ -908,6 +917,26 @@ async function run(): Promise<void> {
 
     assert.equal(result.success, true);
     assert.equal(capturedBody.executionAuthority, executionAuthority);
+  });
+
+  await test('missionCommand uses event control auth instead of bridge auth', async () => {
+    restoreAxios();
+    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret-for-tests';
+    process.env.MCP_API_KEY = 'mcp-secret-for-tests';
+    process.env.EVENTS_API_KEY = 'events-secret-for-tests';
+    process.env.SPARK_UI_API_KEY = 'ui-secret-for-tests';
+    const executionAuthority = fakeMissionControlAuthority();
+    let capturedOptions: any = null;
+    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
+      capturedOptions = options;
+      return { data: { ok: true, message: 'paused' } };
+    };
+
+    const result = await spawner.missionCommand('pause', 'spark-status', { executionAuthority });
+
+    assert.equal(result.success, true);
+    assert.equal(capturedOptions.headers['x-api-key'], 'events-secret-for-tests');
+    assert.equal(capturedOptions.headers['x-spawner-ui-key'], 'ui-secret-for-tests');
   });
 
   await test('missionCommand fails closed before network when authority is missing', async () => {
@@ -1044,7 +1073,7 @@ async function run(): Promise<void> {
 
   await test('missionCommand reports not-found status without inventing a mission', async () => {
     restoreAxios();
-    (axios as any).post = async () => ({
+    (axios as any).get = async () => ({
       data: {
         ok: false,
         error: 'Mission spark-not-real was not found. Use /board to pick a current mission ID.'
@@ -1052,7 +1081,7 @@ async function run(): Promise<void> {
     });
 
     const result = await spawner.missionCommand('status', 'spark-not-real', {
-      executionAuthority: fakeMissionControlAuthority()
+      executionAuthority: fakeExecutionAuthority('spawner.mission_control.status')
     });
 
     assert.equal(result.success, false);

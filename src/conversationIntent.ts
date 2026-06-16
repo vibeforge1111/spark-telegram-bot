@@ -1475,6 +1475,37 @@ export function buildLocalSparkServiceReply(spawnerAvailable: boolean): string {
 
 export type SpawnerBoardNaturalIntent = 'board' | 'active_missions' | 'latest_on_kanban' | 'latest_provider' | 'latest_failed_provider' | 'latest_mission' | 'latest_project_preview' | 'latest_failure';
 
+export interface SpawnerMissionStatusNaturalIntent {
+  missionId: string;
+  asksAboutFailure: boolean;
+  asksAboutRerun: boolean;
+}
+
+export function parseSpawnerMissionStatusNaturalIntent(text: string): SpawnerMissionStatusNaturalIntent | null {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!normalized) return null;
+  const missionId = normalized.match(/\b(?:spark|mission)-[a-z0-9_-]+\b/i)?.[0];
+  if (!missionId) return null;
+
+  const asksStatus =
+    /\b(?:what\s+happened|what\s+went\s+wrong|why\s+did|why\s+is|status|state|progress|completed?|complete|done|finished|failed?|blocked|stuck|running|paused|treat\s+it\s+as|should\s+i)\b/.test(normalized);
+  const asksRerun = /\b(?:rerun|re-run|run\s+again|try\s+again|restart)\b/.test(normalized);
+  const isQuestion = /[?]\s*$/.test(text.trim()) || /^(?:quick\s+qa\s+after\s+fix:\s*)?(?:what|why|how|should|is|did|does|can|could|would)\b/.test(normalized);
+  const tokenCount = normalized.split(/\s+/).filter(Boolean).length;
+  const directStatusRead = tokenCount <= 8 && (
+    /^(?:please\s+)?(?:status|state|progress|check|inspect|read|show|look\s+up|get|pull)\b/.test(normalized) ||
+    /\b(?:status|state|progress)\s+(?:for|of|on)?\s*(?:spark|mission)-[a-z0-9_-]+\b/.test(normalized) ||
+    /\b(?:spark|mission)-[a-z0-9_-]+\s+(?:status|state|progress)\b/.test(normalized)
+  );
+  if (!(directStatusRead || (asksStatus && isQuestion) || (asksRerun && isQuestion))) return null;
+
+  return {
+    missionId,
+    asksAboutFailure: /\b(?:what\s+happened|what\s+went\s+wrong|why|failed?|blocked|stuck)\b/.test(normalized),
+    asksAboutRerun: asksRerun
+  };
+}
+
 export function parseSpawnerBoardNaturalIntent(text: string): SpawnerBoardNaturalIntent | null {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return null;

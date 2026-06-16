@@ -792,6 +792,85 @@ function providerStatusRows(providers: unknown): string[] {
   return rows.length > 0 ? rows : ['• none'];
 }
 
+function stringField(record: unknown, key: string): string | null {
+  if (!record || typeof record !== 'object') return null;
+  const value = (record as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function missionStatusFromEvent(eventType: string | null): string | null {
+  if (eventType === 'mission_completed') return 'completed';
+  if (eventType === 'mission_failed' || eventType === 'task_failed') return 'failed';
+  if (eventType === 'mission_cancelled' || eventType === 'task_cancelled') return 'cancelled';
+  if (eventType === 'mission_paused') return 'paused';
+  if (eventType) return 'running';
+  return null;
+}
+
+function missionStatusSentence(status: string | null, title: string): string {
+  if (status === 'completed') return `${title} completed.`;
+  if (status === 'failed') return `${title} failed.`;
+  if (status === 'cancelled') return `${title} was cancelled.`;
+  if (status === 'paused') return `${title} is paused.`;
+  if (status === 'running') return `${title} is still running.`;
+  return `${title} has Mission Control evidence.`;
+}
+
+function safeMissionEvidenceLine(value: string): string {
+  if (/[/\\]\.spark[/\\]workspaces[/\\]/i.test(value) || /[A-Z]:\\Users\\/i.test(value)) {
+    return 'Spawner recorded local workspace evidence; private local paths are hidden here.';
+  }
+  return value;
+}
+
+function formatMissionStatusReadReply(missionId: string, data: unknown): string {
+  const snapshot = data && typeof data === 'object' ? (data as Record<string, any>).snapshot : null;
+  const recent = Array.isArray(snapshot?.recent) ? snapshot.recent : [];
+  const latest = recent[0] && typeof recent[0] === 'object' ? recent[0] : null;
+  const completionEvidence = snapshot?.completionEvidence && typeof snapshot.completionEvidence === 'object'
+    ? snapshot.completionEvidence
+    : null;
+  const terminalStatus = stringField(completionEvidence, 'terminalStatus') || missionStatusFromEvent(stringField(latest, 'eventType'));
+  const title = stringField(latest, 'missionName') || missionId;
+  const providerSummary = stringField(snapshot, 'providerSummary');
+  const latestSummary = stringField(latest, 'summary');
+
+  if (!recent.length && !providerSummary && !terminalStatus) {
+    return [
+      `I could not find ${missionId} in Mission Control.`,
+      '',
+      `Board: ${missionScopedBoardUrl(missionId)}`
+    ].join('\n');
+  }
+
+  const lines = [
+    missionStatusSentence(terminalStatus, title),
+    '',
+    'Evidence'
+  ];
+  if (terminalStatus) lines.push(`- Terminal status: ${formatCreatorReadiness(terminalStatus)}`);
+  if (providerSummary) lines.push(`- Provider: ${safeMissionEvidenceLine(providerSummary)}`);
+  else if (latestSummary) lines.push(`- Latest event: ${safeMissionEvidenceLine(latestSummary)}`);
+
+  lines.push('', 'Decision');
+  if (terminalStatus === 'completed') {
+    lines.push('- Treat it as completed: yes.');
+    lines.push('- Rerun: only if you want a new polish pass.');
+  } else if (terminalStatus === 'failed' || terminalStatus === 'cancelled') {
+    lines.push('- Treat it as completed: no.');
+    lines.push('- Rerun: yes, if you still want this mission outcome.');
+  } else if (terminalStatus === 'running' || terminalStatus === 'paused') {
+    lines.push('- Treat it as completed: no.');
+    lines.push('- Rerun: not yet; inspect or resume the current mission first.');
+  } else {
+    lines.push('- Treat it as completed: not proven.');
+    lines.push('- Rerun: decide after checking the board evidence.');
+  }
+
+  lines.push('', `Board: ${missionScopedBoardUrl(missionId)}`);
+  return lines.join('\n');
+}
+
 function formatCreatorReadiness(value: string | undefined): string {
   return (value || 'unknown').replace(/_/g, ' ');
 }
@@ -1365,14 +1444,14 @@ export const spawner = {
     const missionControlAuthorityExpectation = action === 'status'
       ? [
           {
-            toolName: 'spawner.mission_control.command',
+            toolName: 'spawner.mission_control.status',
             ownerSystem: 'spawner-ui',
             actionType: 'read' as const
           },
           {
             toolName: 'spawner.mission_control.command',
             ownerSystem: 'spawner-ui',
-            actionType: 'run_command' as const
+            actionType: 'read' as const
           }
         ]
       : {
@@ -1385,6 +1464,22 @@ export const spawner = {
       return { success: false, message: authorityError };
     }
     try {
+      if (action === 'status') {
+        const res = await axios.get(
+          `${SPAWNER_UI_URL}/api/mission-control/status?missionId=${encodeURIComponent(missionId)}`,
+          spawnerAxiosOptions(10000)
+        );
+
+        if (res.data?.ok === false) {
+          return {
+            success: false,
+            message: res.data?.error || `Mission ${missionId} status read was rejected.`
+          };
+        }
+
+        return { success: true, message: formatMissionStatusReadReply(missionId, res.data) };
+      }
+
       const res = await axios.post(
         `${SPAWNER_UI_URL}/api/mission-control/command`,
         {
@@ -1393,7 +1488,7 @@ export const spawner = {
           source: 'telegram',
           executionAuthority: options.executionAuthority
         },
-        spawnerAxiosOptions(10000)
+        spawnerAxiosOptions(10000, {}, { mode: 'events' })
       );
 
       if (res.data?.ok === false) {
@@ -1401,35 +1496,6 @@ export const spawner = {
           success: false,
           message: res.data?.error || `Mission ${missionId} command was rejected.`
         };
-      }
-
-      if (action === 'status') {
-        const status = res.data?.status;
-        const statusLabel = missionStatusLabel(status);
-        const boardStatus = typeof status?.boardStatus === 'string' && status.boardStatus.trim()
-          ? formatCreatorReadiness(status.boardStatus)
-          : null;
-        const lines = [
-          `Mission is ${statusLabel}.`,
-          '',
-          'State',
-          ...(boardStatus ? [`• Board: ${boardStatus}`] : []),
-          `• Paused: ${status?.paused ? 'yes' : 'no'}`,
-          `• Complete: ${status?.allComplete ? 'yes' : 'no'}`,
-          '',
-          'Providers',
-          ...providerStatusRows(status?.providers),
-          '',
-          'Next',
-          status?.allComplete
-            ? '• Inspect the handoff in Spawner.'
-            : status?.paused
-              ? `• /mission resume ${missionId}`
-              : `• /mission pause ${missionId}`,
-          '',
-          ...missionInspectionLines(missionId)
-        ];
-        return { success: true, message: lines.join('\n') };
       }
 
       const actionLabel = action === 'kill' ? 'stop' : action;

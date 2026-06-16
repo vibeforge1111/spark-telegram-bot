@@ -84,6 +84,7 @@ import {
   isProviderRuntimeConfigQuestion,
   parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
+  parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
   renderXContentCredentialBoundaryReply,
@@ -433,6 +434,28 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_on_kanban'
   );
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
+});
+
+test('routes specific mission status questions to mission evidence reads', () => {
+  const status = parseSpawnerMissionStatusNaturalIntent(
+    'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
+  );
+
+  assert.deepEqual(status, {
+    missionId: 'mission-1781566950658',
+    asksAboutFailure: true,
+    asksAboutRerun: true
+  });
+  assert.deepEqual(parseSpawnerMissionStatusNaturalIntent('check mission-1781566950658 status'), {
+    missionId: 'mission-1781566950658',
+    asksAboutFailure: false,
+    asksAboutRerun: false
+  });
+  assert.equal(parseSpawnerMissionStatusNaturalIntent('A prior mission id mission-1781566950658 is just context.'), null);
+  assert.equal(
+    parseSpawnerMissionStatusNaturalIntent('The mission-1781566950658 status message spacing should be cleaner in Telegram.'),
+    null
+  );
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {

@@ -3,7 +3,7 @@ import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -293,6 +293,7 @@ import {
   parseNaturalAccessChangeIntent,
   parseNaturalChipCreateIntent,
   parseContextualSpawnerBoardNaturalIntent,
+  parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   parseMissionUpdatePreferenceIntent,
   renderChatRuntimeFailureReply,
@@ -414,6 +415,10 @@ type BuilderBridgeRunner = typeof runBuilderTelegramBridge;
 let builderBridgeRunnerForTest: BuilderBridgeRunner | null = null;
 type BuilderMemoryWriteRunner = typeof runBuilderTelegramMemoryWrite;
 let builderMemoryWriteRunnerForTest: BuilderMemoryWriteRunner | null = null;
+type BridgeTurnAuthorityPayload = {
+  turnIntentEnvelopeVNext?: NonNullable<TelegramActionAuthorityResult['harnessCore']>['envelope'];
+  governorDecision?: NonNullable<TelegramActionAuthorityResult['governorDecision']>;
+};
 
 export function __setBuilderBridgeRunnerForTest(runner: BuilderBridgeRunner | null): void {
   builderBridgeRunnerForTest = runner;
@@ -1663,6 +1668,78 @@ function objectRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
+function stringArrayValue(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function spawnerPrdWriteFailurePayload(value: unknown): unknown {
+  const response = objectRecord(value).response;
+  const responseData = objectRecord(response).data;
+  return responseData && typeof responseData === 'object' ? responseData : value;
+}
+
+function spawnerPrdWriteFailureMessage(value: unknown, payload: unknown, fallback: string): string {
+  const payloadError = objectRecord(payload).error;
+  if (typeof payloadError === 'string' && payloadError.trim()) return payloadError.trim();
+  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  return fallback;
+}
+
+function spawnerAuthorityReasonCodes(payload: unknown): string[] {
+  const record = objectRecord(payload);
+  const authority = objectRecord(record.authority);
+  const verdict = objectRecord(record.verdict);
+  return [...new Set([
+    ...stringArrayValue(authority.reasonCodes),
+    ...stringArrayValue(authority.reason_codes),
+    ...stringArrayValue(verdict.reasonCodes),
+    ...stringArrayValue(verdict.reason_codes),
+    ...stringArrayValue(record.reasonCodes),
+    ...stringArrayValue(record.reason_codes)
+  ])];
+}
+
+function spawnerPrdWriteAuthorityRefusalReply(value: unknown, fallback: string): string | null {
+  const payload = spawnerPrdWriteFailurePayload(value);
+  const record = objectRecord(payload);
+  const reasonCodes = spawnerAuthorityReasonCodes(payload);
+  if (record.code !== 'harness_authority_blocked' && reasonCodes.length === 0) return null;
+  const message = spawnerPrdWriteFailureMessage(value, payload, fallback);
+  const lines = [
+    'Spawner refused the PRD write.',
+    '',
+    message
+  ];
+  if (reasonCodes.length) {
+    lines.push('', `Reason codes: ${reasonCodes.join(', ')}`);
+  }
+  return lines.join('\n');
+}
+
+function renderSpawnerPrdWriteFailureReply(value: unknown, fallback: string, isAdmin: boolean): string {
+  const authorityReply = spawnerPrdWriteAuthorityRefusalReply(value, fallback);
+  if (authorityReply) return authorityReply;
+  const payload = spawnerPrdWriteFailurePayload(value);
+  return renderSparkErrorReply(
+    new Error(spawnerPrdWriteFailureMessage(value, payload, fallback)),
+    'spawner',
+    isAdmin
+  );
+}
+
+function summarizeSpawnerPrdWriteFailure(value: unknown, fallback: string): string {
+  const payload = spawnerPrdWriteFailurePayload(value);
+  const reasonCodes = spawnerAuthorityReasonCodes(payload);
+  const message = spawnerPrdWriteFailureMessage(value, payload, fallback);
+  return reasonCodes.length
+    ? `${fallback}: ${message} Reason codes: ${reasonCodes.join(', ')}.`
+    : `${fallback}: ${message}.`;
+}
+
 function boolText(value: unknown): string {
   return value === true ? 'yes' : value === false ? 'no' : 'unknown';
 }
@@ -2621,6 +2698,22 @@ function recordTelegramHarnessCoreExecution(
   }
 }
 
+function bridgeTurnAuthorityFromAuthorization(
+  authorization: TelegramActionAuthorityResult | null | undefined
+): BridgeTurnAuthorityPayload | undefined {
+  if (
+    !authorization?.allow ||
+    !authorization.harnessCore?.envelope ||
+    !authorization.governorDecision
+  ) {
+    return undefined;
+  }
+  return {
+    turnIntentEnvelopeVNext: authorization.harnessCore.envelope,
+    governorDecision: authorization.governorDecision
+  };
+}
+
 function telegramAnswerComposeAuthorityDecision(
   baseEnvelope: TurnIntentEnvelopeV1,
   input: {
@@ -3017,6 +3110,8 @@ function previewAuditText(text: string, limit = 240): string {
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 
 type NodeOutboundTraceContext = {
+  turnId?: string;
+  telegramUpdateId?: number | string;
   route?: string;
   command?: string;
   replyKind?: string;
@@ -3055,6 +3150,134 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+export function buildPrdCanvasNotifierTraceExtra(args: {
+  requestId: string;
+  traceRef: string;
+  missionId: string;
+  replyKind?: string;
+}): Record<string, unknown> {
+  return outboundTraceExtra({
+    route: 'spawner',
+    command: 'run',
+    replyKind: args.replyKind || 'canvas_ready',
+    requestId: args.requestId,
+    traceRef: args.traceRef,
+    missionId: args.missionId
+  });
+}
+
+function turnTracePath(): string {
+  return (
+    process.env.SPARK_TURN_TRACE_PATH ||
+    path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot', 'turn-trace.jsonl')
+  );
+}
+
+function saltedChatRef(chatId: unknown): string {
+  const text = String(chatId ?? '').trim();
+  if (!text || text === 'unknown') return 'unknown';
+  const salt = process.env.SPARK_CHAT_REF_SALT?.trim() || os.hostname() || 'spark-telegram-bot';
+  const digest = createHash('sha256').update(`${salt}:${text}`, 'utf8').digest('hex').slice(0, 16);
+  return `chat_${digest}`;
+}
+
+function telegramUpdateIdFromValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
+function telegramUpdateIdFromUpdate(update: unknown): number | null {
+  if (!update || typeof update !== 'object') return null;
+  return telegramUpdateIdFromValue((update as Record<string, unknown>).update_id);
+}
+
+function telegramTurnIdFromUpdate(update: unknown): string | undefined {
+  const updateId = telegramUpdateIdFromUpdate(update);
+  return updateId === null ? undefined : `telegram-update:${updateId}`;
+}
+
+function turnTraceHops(traceContext?: NodeOutboundTraceContext | null): string[] {
+  const hops = ['telegram-bot'];
+  if (traceContext?.requestId || traceContext?.traceRef) hops.push('sib-gateway');
+  if (traceContext?.missionId) hops.push('spawner');
+  return hops;
+}
+
+export function buildTurnTraceLineRecord(input: {
+  chatId: unknown;
+  update?: unknown;
+  telegramUpdateId?: number | string | null;
+  traceContext?: NodeOutboundTraceContext | null;
+  status?: 'delivered' | 'failed' | 'suppressed';
+  now?: Date;
+}): Record<string, unknown> | null {
+  const telegramUpdateId = telegramUpdateIdFromValue(input.telegramUpdateId) ??
+    telegramUpdateIdFromValue(input.traceContext?.telegramUpdateId) ??
+    telegramUpdateIdFromUpdate(input.update);
+  const turnId = String(input.traceContext?.turnId || '').trim() ||
+    (telegramUpdateId === null ? '' : `telegram-update:${telegramUpdateId}`);
+  if (telegramUpdateId === null || !turnId) return null;
+
+  const requestId = typeof input.traceContext?.requestId === 'string' && input.traceContext.requestId.trim()
+    ? input.traceContext.requestId.trim()
+    : null;
+  const traceRef = typeof input.traceContext?.traceRef === 'string' && input.traceContext.traceRef.trim()
+    ? input.traceContext.traceRef.trim()
+    : null;
+  const missionId = typeof input.traceContext?.missionId === 'string' && input.traceContext.missionId.trim()
+    ? input.traceContext.missionId.trim()
+    : null;
+  const route = typeof input.traceContext?.route === 'string' && input.traceContext.route.trim()
+    ? input.traceContext.route.trim()
+    : null;
+  const replyKind = typeof input.traceContext?.replyKind === 'string' && input.traceContext.replyKind.trim()
+    ? input.traceContext.replyKind.trim()
+    : null;
+  return {
+    schema: 'spark.turn_trace.v1',
+    ts: (input.now || new Date()).toISOString(),
+    turn_id: turnId,
+    telegram_update_id: telegramUpdateId,
+    chat_ref: saltedChatRef(input.chatId),
+    status: input.status || 'delivered',
+    hops: turnTraceHops(input.traceContext),
+    sib_request_id: requestId,
+    sib_trace_ref: traceRef,
+    mission_id: missionId,
+    build_request_id: requestId?.startsWith('tg-build') ? requestId : null,
+    route,
+    reply_kind: replyKind,
+    'gen_ai.usage.input_tokens': null,
+    'gen_ai.usage.output_tokens': null,
+    'gen_ai.request.model': null,
+    duration_ms: null
+  };
+}
+
+const recordedTurnTraceKeys = new Set<string>();
+
+function recordTurnTraceDelivery(input: {
+  chatId: unknown;
+  update?: unknown;
+  telegramUpdateId?: number | string | null;
+  traceContext?: NodeOutboundTraceContext | null;
+  status?: 'delivered' | 'failed' | 'suppressed';
+}): void {
+  const record = buildTurnTraceLineRecord(input);
+  if (!record) return;
+  const key = `${record.turn_id}:${record.status}`;
+  if (recordedTurnTraceKeys.has(key)) return;
+  recordedTurnTraceKeys.add(key);
+  const filePath = turnTracePath();
+  mkdir(path.dirname(filePath), { recursive: true })
+    .then(() => appendFile(filePath, `${JSON.stringify(record)}\n`, 'utf-8'))
+    .catch((error) => {
+      recordedTurnTraceKeys.delete(key);
+      console.warn('[TurnTrace] failed to write turn trace line:', error);
+    });
+}
+
 export function buildNodeOutboundAuditRecord(
   chatId: unknown,
   deliveredText: unknown,
@@ -3088,7 +3311,12 @@ export function buildNodeOutboundAuditRecord(
   };
 }
 
-function recordNodeOutboundDelivery(chatId: unknown, deliveredText: unknown, traceContext?: NodeOutboundTraceContext | null): void {
+function recordNodeOutboundDelivery(
+  chatId: unknown,
+  deliveredText: unknown,
+  traceContext?: NodeOutboundTraceContext | null,
+  update?: unknown
+): void {
   const auditPath = nodeOutboundAuditPath();
   const record = buildNodeOutboundAuditRecord(chatId, deliveredText, new Date(), traceContext);
   mkdir(path.dirname(auditPath), { recursive: true })
@@ -3096,6 +3324,7 @@ function recordNodeOutboundDelivery(chatId: unknown, deliveredText: unknown, tra
     .catch((error) => {
       console.warn('[OutboundAudit] failed to write node delivery audit:', error);
     });
+  recordTurnTraceDelivery({ chatId, update, traceContext });
 }
 
 function finalAnswerGateAuditPath(): string {
@@ -3210,7 +3439,7 @@ bot.use(async (ctx, next) => {
     const cleanExtra = stripOutboundTraceContext(extra);
     if (typeof text !== 'string') {
       const delivery = await originalReply(text, cleanExtra);
-      recordNodeOutboundDelivery(ctx.chat?.id, text, traceContext);
+      recordNodeOutboundDelivery(ctx.chat?.id, text, traceContext, ctx.update);
       return delivery;
     }
 
@@ -3218,7 +3447,7 @@ bot.use(async (ctx, next) => {
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
       lastReply = await originalReply(chunk, cleanExtra);
-      recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext);
+      recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext, ctx.update);
     }
     return lastReply!;
   }) as typeof ctx.reply;
@@ -3444,13 +3673,26 @@ function requireAdmin(ctx: any): boolean {
 
 function withSparkTurnIntentEnvelope(
   update: Record<string, unknown>,
-  envelope: TurnIntentEnvelopeV1
+  envelope: TurnIntentEnvelopeV1,
+  authority?: BridgeTurnAuthorityPayload
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
   cloned.spark_turn_intent = envelope;
+  if (authority?.turnIntentEnvelopeVNext) {
+    cloned.turn_intent_envelope_vnext = authority.turnIntentEnvelopeVNext;
+  }
+  if (authority?.governorDecision) {
+    cloned.governor_decision = authority.governorDecision;
+  }
   const messagePayload = cloned.message;
   if (messagePayload && typeof messagePayload === 'object') {
     (messagePayload as Record<string, unknown>).spark_turn_intent = envelope;
+    if (authority?.turnIntentEnvelopeVNext) {
+      (messagePayload as Record<string, unknown>).turn_intent_envelope_vnext = authority.turnIntentEnvelopeVNext;
+    }
+    if (authority?.governorDecision) {
+      (messagePayload as Record<string, unknown>).governor_decision = authority.governorDecision;
+    }
   }
   return cloned;
 }
@@ -3458,7 +3700,8 @@ function withSparkTurnIntentEnvelope(
 function buildUpdateWithText(
   update: Record<string, unknown>,
   text: string,
-  envelope?: TurnIntentEnvelopeV1
+  envelope?: TurnIntentEnvelopeV1,
+  authority?: BridgeTurnAuthorityPayload
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
   const messagePayload = cloned.message;
@@ -3469,6 +3712,14 @@ function buildUpdateWithText(
   if (envelope) {
     cloned.spark_turn_intent = envelope;
     (messagePayload as Record<string, unknown>).spark_turn_intent = envelope;
+  }
+  if (authority?.turnIntentEnvelopeVNext) {
+    cloned.turn_intent_envelope_vnext = authority.turnIntentEnvelopeVNext;
+    (messagePayload as Record<string, unknown>).turn_intent_envelope_vnext = authority.turnIntentEnvelopeVNext;
+  }
+  if (authority?.governorDecision) {
+    cloned.governor_decision = authority.governorDecision;
+    (messagePayload as Record<string, unknown>).governor_decision = authority.governorDecision;
   }
   return cloned;
 }
@@ -3532,6 +3783,23 @@ function telegramBuilderChatReplyAuthorityDecision(
     action: builderChatReplyAction(routingDecision),
     selectedBy: 'builder_bridge_reply',
     matchedSignal: normalized,
+    confidence: naturalRouteShadow?.confidence || 'contextual'
+  });
+}
+
+function telegramBuilderBridgeHandoffAuthorityDecision(
+  baseEnvelope: TurnIntentEnvelopeV1,
+  naturalRouteShadow: NaturalRouteDecision | null,
+  text: string
+): TelegramActionAuthorityResult {
+  const routingHint = naturalRouteShadow?.route || 'builder_chat';
+  return telegramAnswerComposeAuthorityDecision(baseEnvelope, {
+    route: builderChatReplyRoute(naturalRouteShadow, routingHint),
+    text,
+    ownerSystem: 'spark-intelligence-builder',
+    action: 'plain_chat.builder_bridge_handoff',
+    selectedBy: 'builder_bridge_request',
+    matchedSignal: routingHint,
     confidence: naturalRouteShadow?.confidence || 'contextual'
   });
 }
@@ -3666,7 +3934,12 @@ export async function deliverBuilderReply(
     return;
   }
   if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+    await replyWithSanitizedTelegramText(ctx, builderReply.responseText, outboundTraceExtra({
+      route: builderReply.routingDecision || builderReply.decision || 'builder_bridge',
+      replyKind: 'builder_reply',
+      requestId: builderReply.requestId,
+      traceRef: builderReply.traceRef
+    }));
   }
 }
 
@@ -5261,7 +5534,7 @@ export async function handleClarificationAnswers(
 
     if (!res.data?.success) {
       if (relayRegistered) await unregisterMissionRelay(missionId);
-      await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Clarification re-dispatch failed'), 'spawner', conversation.isAdmin(ctx.from)));
+      await ctx.reply(renderSpawnerPrdWriteFailureReply(res.data, 'Clarification re-dispatch failed', conversation.isAdmin(ctx.from)));
       return;
     }
 
@@ -5295,12 +5568,13 @@ export async function handleClarificationAnswers(
     });
   } catch (err) {
     if (relayRegistered) await unregisterMissionRelay(missionId);
+    const summary = summarizeSpawnerPrdWriteFailure(err, 'Clarified build dispatch failed');
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'spawner.run',
       status: 'failure',
-      summary: `Clarified build dispatch failed: ${err instanceof Error ? err.message : String(err)}.`
+      summary
     });
-    await ctx.reply(renderSparkErrorReply(err instanceof Error ? err : new Error(String(err)), 'spawner', conversation.isAdmin(ctx.from)));
+    await ctx.reply(renderSpawnerPrdWriteFailureReply(err, 'Clarified build dispatch failed', conversation.isAdmin(ctx.from)));
   }
 }
 
@@ -5315,9 +5589,15 @@ function startPrdCanvasReadyNotifier(args: {
 	kanbanUrl: string;
 	buildLane?: BuildLane;
   tier?: SkillTier;
-	dispatchExecutionAuthority?: unknown;
+  dispatchExecutionAuthority?: unknown;
 }): void {
   void (async () => {
+    const traceExtra = (replyKind = 'canvas_ready') => buildPrdCanvasNotifierTraceExtra({
+      requestId: args.requestId,
+      traceRef: spawnerPrdTraceRef(args.missionId),
+      missionId: args.missionId,
+      replyKind
+    });
     const started = Date.now();
     const readyTimeoutMs = localServiceTimeoutMs('SPARK_SPAWNER_PRD_READY_TIMEOUT_MS');
     const backendFallbackGraceMs = Math.min(60_000, Math.max(15_000, Math.round(readyTimeoutMs * 0.25)));
@@ -5339,7 +5619,7 @@ function startPrdCanvasReadyNotifier(args: {
           await bot.telegram.sendMessage(args.chatId, formatCanvasShapingHeartbeatSummary({
             projectName: args.projectName,
             elapsedSeconds: elapsedSec
-          })).catch(() => {});
+          }), traceExtra('canvas_shaping')).catch(() => {});
           heartbeatIndex += 1;
         }
 
@@ -5374,7 +5654,7 @@ function startPrdCanvasReadyNotifier(args: {
                 `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
                 `I am not sending a canvas link yet because Spawner did not prove a complete materialized workflow: ${materializationGate.reason}.`,
                 `Board: ${args.kanbanUrl}`
-              ));
+              ), traceExtra('canvas_handoff_blocked'));
               return;
             }
             if (typeof queue.data?.canvasUrl !== 'string' || !queue.data.canvasUrl.trim()) {
@@ -5382,7 +5662,7 @@ function startPrdCanvasReadyNotifier(args: {
                 `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
                 'I am not sending a canvas link yet because Spawner did not return a materialized canvas handoff.',
                 `Board: ${args.kanbanUrl}`
-              ));
+              ), traceExtra('canvas_handoff_blocked'));
               return;
             }
             const readyCanvasUrl = `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`;
@@ -5403,7 +5683,7 @@ function startPrdCanvasReadyNotifier(args: {
               readyCanvasUrl,
               kanbanUrl: args.kanbanUrl,
               canvasMaterialization
-            }));
+            }), traceExtra('canvas_ready'));
           } catch (queueErr: any) {
             const detail = summarizeSpawnerRequestError(queueErr);
             console.warn(
@@ -5415,7 +5695,8 @@ function startPrdCanvasReadyNotifier(args: {
                 `Analysis finished for ${args.projectName}, but Spawner could not queue the canvas handoff.`,
                 detail,
                 `Board: ${args.kanbanUrl}`
-              )
+              ),
+              traceExtra('canvas_handoff_failed')
             );
           }
           return;
@@ -5437,7 +5718,7 @@ function startPrdCanvasReadyNotifier(args: {
       projectName: args.projectName,
       elapsedSeconds: Math.round(readyTimeoutMs / 1000),
       kanbanUrl: args.kanbanUrl
-    }));
+    }), traceExtra('canvas_still_running'));
   })();
 }
 
@@ -7410,8 +7691,8 @@ export async function handleBuildIntent(
 
     if (!res.data?.success) {
       if (relayRegistered) await unregisterMissionRelay(missionId);
-      await ctx.reply(renderSparkErrorReply(new Error(res.data?.error || 'Spawner PRD queue failed'), 'spawner', conversation.isAdmin(ctx.from)));
-      return { status: 'failure', summary: `Spawner PRD queue failed: ${res.data?.error || 'unknown error'}.`, requestId, traceRef };
+      await ctx.reply(renderSpawnerPrdWriteFailureReply(res.data, 'Spawner PRD queue failed', conversation.isAdmin(ctx.from)));
+      return { status: 'failure', summary: summarizeSpawnerPrdWriteFailure(res.data, 'Spawner PRD queue failed'), requestId, traceRef };
     }
 
     // Clarification gate: spawner returns needsClarification:true on vague
@@ -7489,8 +7770,8 @@ export async function handleBuildIntent(
     return { status: 'success', summary: `Spawner accepted PRD bridge build for ${polishedProjectName}.`, missionId, requestId, traceRef };
   } catch (err: any) {
     if (relayRegistered) await unregisterMissionRelay(missionId);
-    await ctx.reply(renderSparkErrorReply(err, 'spawner', conversation.isAdmin(ctx.from)));
-    return { status: 'failure', summary: `Build dispatch failed: ${err instanceof Error ? err.message : String(err)}` };
+    await ctx.reply(renderSpawnerPrdWriteFailureReply(err, 'Build dispatch failed', conversation.isAdmin(ctx.from)));
+    return { status: 'failure', summary: summarizeSpawnerPrdWriteFailure(err, 'Build dispatch failed') };
   }
 }
 
@@ -8930,7 +9211,7 @@ bot.command('mission', async (ctx) => {
     commandName: 'mission',
     route: 'spawner.mission_control',
     text: ctx.message.text,
-    toolName: 'spawner.mission_control.command',
+    toolName: action === 'status' ? 'spawner.mission_control.status' : 'spawner.mission_control.command',
     ownerSystem: 'spawner-ui',
     mutationClass: action === 'status' ? 'read_only' : 'controls_mission',
     action: `spawner.mission_${action}`,
@@ -8946,7 +9227,7 @@ bot.command('mission', async (ctx) => {
     executionAuthority: authorization.governorDecision
   });
   recordTelegramHarnessCoreExecution(authorization, {
-    toolName: 'spawner.mission_control.command',
+    toolName: action === 'status' ? 'spawner.mission_control.status' : 'spawner.mission_control.command',
     status: result.success ? 'success' : 'failure',
     summary: result.success
       ? `Slash /mission ${action} completed for ${missionId}.`
@@ -8988,7 +9269,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     userRef: userRef(ctx.from?.id),
     chatRef: chatRef(ctx.chat?.id),
     accessProfile: conversation.isAdmin(ctx.from) ? 'admin' : 'standard',
-    conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group'
+    conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group',
+    turnId: telegramTurnIdFromUpdate(ctx.update)
   });
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
     route: 'spawner.build',
@@ -10949,6 +11231,51 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
 
+    const missionStatusIntent = parseSpawnerMissionStatusNaturalIntent(text);
+    const missionStatusAuthorization = missionStatusIntent
+      ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+          route: 'spawner.mission_control',
+          text,
+          toolName: 'spawner.mission_control.status',
+          ownerSystem: 'spawner-ui',
+          mutationClass: 'read_only'
+        })
+      : null;
+    if (missionStatusIntent && missionStatusAuthorization?.allow) {
+      const accessProfile = await getSparkAccessProfile(ctx.chat.id);
+      if (!sparkAccessAllows(accessProfile, 'spawner_build')) {
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_status', 'failed');
+        recordTelegramHarnessCoreExecution(missionStatusAuthorization, {
+          toolName: 'spawner.mission_control.status',
+          status: 'failure',
+          summary: 'Specific mission status read was authorized by Harness Core but blocked by Spark access policy.'
+        });
+        await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
+        return;
+      }
+
+      await conversation.remember(user, text).catch(() => {});
+      await safeSendChatAction(ctx, 'typing');
+      const result = await spawner.missionCommand('status', missionStatusIntent.missionId, {
+        executionAuthority: missionStatusAuthorization.governorDecision
+      });
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_status', result.success ? 'selected' : 'failed');
+      recordTelegramHarnessCoreExecution(missionStatusAuthorization, {
+        toolName: 'spawner.mission_control.status',
+        status: result.success ? 'success' : 'failure',
+        summary: result.success
+          ? `Specific mission status read completed for ${missionStatusIntent.missionId}.`
+          : `Specific mission status read failed for ${missionStatusIntent.missionId}: ${result.message}.`
+      });
+      await ctx.reply(result.success ? result.message : `Mission status failed: ${result.message}`);
+      return;
+    }
+    if (missionStatusIntent && missionStatusAuthorization) {
+      recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.mission_control', 'spawner-ui', 'spawner.mission_status', 'failed');
+      await ctx.reply('I did not read that mission because the fresh turn did not authorize a Spawner mission-status read.');
+      return;
+    }
+
     const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent(text, contextualTurns);
     const spawnerBoardRoute = spawnerBoardIntent
       ? spawnerBoardIntent === 'board' ? 'spawner.board' : `spawner.board/${spawnerBoardIntent}`
@@ -11397,13 +11724,21 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     );
     if (!hasFreshRuntimeTruth && !bypassBuilderBridge) {
       try {
+        const bridgeTurnAuthority = bridgeTurnAuthorityFromAuthorization(
+          telegramBuilderBridgeHandoffAuthorityDecision(turnIntentEnvelope, naturalRouteShadow, text)
+        );
         const bridgeUpdate = memoryDoctorEvidenceTurns.length > 0
           ? buildUpdateWithText(
               ctx.update as unknown as Record<string, unknown>,
               buildMemoryDoctorEvidencePrompt(text, memoryDoctorEvidenceTurns),
-              turnIntentEnvelope
+              turnIntentEnvelope,
+              bridgeTurnAuthority
             )
-          : withSparkTurnIntentEnvelope(ctx.update as unknown as Record<string, unknown>, turnIntentEnvelope);
+          : withSparkTurnIntentEnvelope(
+              ctx.update as unknown as Record<string, unknown>,
+              turnIntentEnvelope,
+              bridgeTurnAuthority
+            );
         builderReply = await builderBridgeRunner(bridgeUpdate);
       } catch (bridgeError) {
         bridgeFailed = true;

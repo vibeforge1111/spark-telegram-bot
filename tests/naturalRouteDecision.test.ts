@@ -663,6 +663,20 @@ test('routes Spawner board reads through canonical board consumer paths', () => 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes specific mission status questions to read-only Mission Control', () => {
+  const route = decideNaturalRoute(
+    'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
+  );
+
+  assert.equal(route.route, 'spawner.mission_control');
+  assert.equal(route.owner_system, 'spawner-ui');
+  assert.equal(route.action, 'spawner.mission_status');
+  assert.equal(route.context_source, 'latest_message');
+  assert.equal(route.payload.missionId, 'mission-1781566950658');
+  assert.equal(route.payload.asksAboutRerun, true);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('keeps casual current-plan mentions conversational', () => {
   const route = decideNaturalRoute('Actually, my current plan is run a fresh diagnostics scan.');
 

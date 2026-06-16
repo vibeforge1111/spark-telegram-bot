@@ -250,14 +250,18 @@ function executionPolicyForDecision(
   const noExecution = (options.noExecutionBoundary ?? decision.constraints.noExecution) || decision.enforcement === 'blocked';
   const route = decision.route;
   const canPublish = !decision.constraints.noPublish && !decision.constraints.localOnly;
-  const localMutationRoute = /(?:build|spawner|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
+  const readOnlySpawnerRoute =
+    /^spawner\.board(?:\/|$)/.test(route) ||
+    route === 'spawner.local_service' ||
+    (route === 'spawner.mission_control' && decision.action === 'spawner.mission_status');
+  const localMutationRoute = !readOnlySpawnerRoute && /(?:build|spawner|creator|domain_chip|canvas|prd|operator\.safe_action|diagnostics\.scan|spark\.self_improvement|spark\.process|spark\.reflect|spark_wiki\.promote|spark\.wiki|access\.change|mission_updates\.preference|model\.switch|voice\.command|sparkqa\.|recursive\.)/.test(route);
   const fileMutationBlocked = decision.payload?.noFileMutation === true ||
     decision.matched_signals.includes('explicit_spawner_no_edit_mission');
   const routeProbeExternalNetwork = route === 'route.probe' && decision.payload?.externalNetwork === true;
 
   return {
     canMutateFiles: !noExecution && !fileMutationBlocked && localMutationRoute,
-    canLaunchMission: !noExecution && /(?:spawner|mission|creator|domain_chip|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
+    canLaunchMission: !noExecution && !readOnlySpawnerRoute && /(?:spawner|mission|creator|domain_chip|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research)/.test(route),
     canWriteMemory: !noExecution && (route === 'memory.write' || route === 'memory.delete' || route === 'spark_wiki.promote' || route === 'spark.wiki' || route === 'spark.process' || route === 'spark.reflect' || route === 'route.probe'),
     canCreateSchedule: !noExecution && /schedule\.create/.test(route),
     canDeleteSchedule: !noExecution && /schedule\.delete/.test(route),
@@ -278,6 +282,14 @@ function mutationClassesForPolicy(policy: SparkHarnessExecutionPolicy): SparkHar
   if (policy.canPublish) classes.push('publishes');
   if (policy.canUseExternalNetwork) classes.push('external_network');
   return classes;
+}
+
+function spawnerRunRouteForDecision(decision: TelegramIntentDecisionV2): boolean {
+  if (/^spawner\.board(?:\/|$)/.test(decision.route)) return false;
+  if (decision.route === 'spawner.local_service') return false;
+  if (decision.route === 'spawner.mission_control') return false;
+  return /(?:spawner|mission|creator|domain_chip|recursive\.start|startup\.answer_improvement_canary|natural_run|external_research|spark\.self_improvement)/.test(decision.route) ||
+    decision.action === 'spawner.build';
 }
 
 function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: SparkHarnessExecutionPolicy): string[] {
@@ -352,8 +364,12 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.action === 'spawner.board_read' || decision.route === 'spawner.board') tools.push('spawner.board');
   if (/^local_service\./.test(decision.route) || decision.route === 'spawner.local_service') tools.push('spawner.local_service');
   if (decision.route === 'local_workspace.inspect') tools.push('local_workspace.inspect');
-  if (decision.route === 'spawner.mission_control') tools.push('spawner.mission_control');
-  if (policy.canLaunchMission) tools.push('spawner.run');
+  if (decision.route === 'spawner.mission_control') {
+    tools.push('spawner.mission_control');
+    if (decision.action === 'spawner.mission_status') tools.push('spawner.mission_control.status');
+    else tools.push('spawner.mission_control.command');
+  }
+  if (policy.canLaunchMission && spawnerRunRouteForDecision(decision)) tools.push('spawner.run');
   if (decision.route === 'natural_run') tools.push('provider.run');
   if (decision.route === 'pending_task.recovery') tools.push('pending_task.recovery');
   if (policy.canMutateFiles) tools.push('spawner.files');

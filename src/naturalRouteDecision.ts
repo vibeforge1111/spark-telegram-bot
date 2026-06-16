@@ -44,6 +44,7 @@ import {
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
   parseNaturalRecursiveCommandIntent,
+  parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
@@ -415,6 +416,7 @@ export function decideNaturalRoute(
 
   const parsedBuildIntent = parseBuildIntent(normalized);
   const buildIntent = parsedBuildIntent;
+  const missionStatus = parseSpawnerMissionStatusNaturalIntent(normalized);
   const missionPreference = parseMissionUpdatePreferenceIntent(normalized, {
     allowExecutionLanguage: context.allowMissionPreferenceExecutionLanguage
   });
@@ -458,6 +460,20 @@ export function decideNaturalRoute(
       payload: { ...missionPreference },
       context_source: 'latest_message',
       matched_signals: ['mission_update_preference'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (missionStatus) {
+    return decision({
+      route: 'spawner.mission_control',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.mission_status',
+      payload: { ...missionStatus },
+      context_source: 'latest_message',
+      matched_signals: ['specific_mission_status_question'],
       blocked_by: [],
       requires_confirmation: false
     });

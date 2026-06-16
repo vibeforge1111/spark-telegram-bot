@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   authorizeToolCallFromEnvelope,
   buildTelegramTurnIntentEnvelope,
@@ -8,11 +11,24 @@ import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 
 function test(name: string, fn: () => void): void {
   try {
-    fn();
+    withTempHarnessCoreLedgerPath(fn);
     console.log(`ok - ${name}`);
   } catch (error) {
     console.error(`not ok - ${name}`);
     throw error;
+  }
+}
+
+function withTempHarnessCoreLedgerPath<T>(fn: () => T): T {
+  const previousPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'spark-harness-contract-ledger-'));
+  process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(dir, 'ledger.jsonl');
+  try {
+    return fn();
+  } finally {
+    if (previousPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = previousPath;
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -76,6 +92,35 @@ test('blocks tool execution when the envelope does not authorize mutation', () =
   assert.ok(authorization.reasonCodes.includes('no_execution_boundary'));
   assert.ok(authorization.reasonCodes.includes('tool_denied_by_policy'));
   assert.ok(authorization.reasonCodes.includes('mutation_class_not_authorized'));
+});
+
+test('authorizes specific mission status as read-only without granting spawner run', () => {
+  const text = 'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?';
+  const envelope = envelopeFor(text);
+
+  assert.equal(validateTurnIntentEnvelopeV1(envelope), true);
+  assert.equal(envelope.candidates[0]?.route, 'spawner.mission_control');
+  assert.equal(envelope.selectedIntent.action, 'spawner.mission_status');
+  assert.ok(envelope.toolPolicy.allowedTools.includes('spawner.mission_control.status'));
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.mission_control.command'), false);
+  assert.equal(envelope.toolPolicy.allowedTools.includes('spawner.run'), false);
+  assert.deepEqual(envelope.toolPolicy.mutationClassesAllowed, ['none', 'read_only']);
+
+  const statusAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.mission_control.status',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'read_only'
+  });
+  assert.deepEqual(statusAuthorization, { verdict: 'allowed', reasonCodes: [] });
+
+  const runAuthorization = authorizeToolCallFromEnvelope(envelope, {
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(runAuthorization.verdict, 'blocked');
+  assert.ok(runAuthorization.reasonCodes.includes('tool_not_allowed_by_policy'));
+  assert.ok(runAuthorization.reasonCodes.includes('mutation_class_not_authorized'));
 });
 
 test('keeps publication approval-list boundaries answer-only', () => {
