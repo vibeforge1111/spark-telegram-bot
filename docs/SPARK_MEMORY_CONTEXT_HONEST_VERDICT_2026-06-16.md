@@ -429,3 +429,110 @@ Current honest verdict:
 Next improvement should be a restart-window test that proves recall from the
 Builder durable memory owner when the recent chat window is unavailable. That
 should be a source-selection improvement, not a phrase patch.
+
+## Audit Handoff For Next Session
+
+This section is intentionally opinionated so the next audit does not lose the
+thread or accidentally turn one passing harness into a release claim.
+
+### What Is Genuinely Strong
+
+- The anti-residue boundary is strong. Explicit memory-write turns are not
+  allowed to leak into ordinary recent context, frames, or local durable recall.
+  That is the right architecture because memory instructions are evidence for a
+  memory owner, not general chat material.
+- The recent-memory-directive lane is a good mechanism. It gives Spark a way to
+  answer natural "what did I ask you to remember?" questions from recent chat
+  without weakening the anti-residue boundary.
+- Builder/domain-chip-memory governed writes are now actually enabled in the
+  live Telegram Builder home. The earlier disabled/shadow config was a real
+  owner-configuration bug, not only a Telegram issue.
+- The local harnesses are useful enough to keep. `context:live` and
+  `context:ux` caught a real source-lane failure, and after the fix they passed
+  20/20 and 15/15.
+- The provider surface currently reports Codex for chat, builder, memory, and
+  mission roles. Keep verifying this, but the status readout no longer points
+  at GLM on the checked surface.
+
+### What Is Better But Not Proven Enough
+
+- Recent-chat recall is good for the tested class, but durable recall is not
+  proven through a true Telegram restart. A bot restart, a cleared recent window,
+  and then a natural follow-up should prove whether Builder durable memory can
+  answer without falling back to recent chat.
+- The answer wording `From recent chat:` is honest, but it is still plain. The
+  next composition pass should make this more human without hiding the source
+  lane. Example target: "I have that from this conversation: ...".
+- The harnesses still test more like operators than normal users in places. The
+  next batch should include casual turns, topic switches, vague follow-ups, and
+  "where were we?" style questions.
+- Builder write acceptance is proven locally, but read-path owner evidence is
+  weaker than write-path evidence. The next audit should capture durable memory
+  read ledgers, source labels, and the exact owner that supplied the answer.
+
+### What Is Ugly Or Suspicious
+
+- Telegram transport is still the largest blocker. `api.telegram.org:443`
+  timeouts mean no live Telegram Desktop/CUA memory verdict should be treated as
+  passed. If Telegram sends are pending, the audit is measuring transport, not
+  memory quality.
+- Health reporting is degraded: `spark-recursive` can be running while
+  `spark-telegram-bot` health times out. The next audit should separate
+  "process alive", "polling connected", "messages deliver", and "owner reply is
+  correct" into different rubric rows.
+- The runtime needed a manual start workaround after token validation timed out.
+  That is operationally fragile. The launcher should probably distinguish
+  token-identity validation failure from Telegram network unavailability and
+  allow a clear degraded boot mode when the operator chooses it.
+- There is an unrelated unstaged `src/index.ts` access-status hunk in the repo.
+  The next session should not accidentally fold it into memory/context work
+  unless it deliberately audits access status behavior.
+- Exact-string test expectations remain a smell. Human explanation tests should
+  assert semantic boundaries: no owner read, no mutation, no launch, source lane
+  named when needed, and human-readable wording.
+
+### Where To Look First
+
+1. Restart-window durable recall:
+   write a natural preference through Telegram or the same owner path, restart
+   the bot, avoid recent-window help, then ask a casual follow-up without the
+   word "remember". Pass only if the durable memory owner supplies the answer
+   and Spark labels the lane honestly.
+2. Topic-switch continuity:
+   discuss Project A, switch to personal work style or another project, then
+   return with "ok, what were we changing there?" Pass only if Spark selects the
+   right recent thread and does not invent a durable memory claim.
+3. No-save and no-build traps:
+   use normal language like "don't save this, but I usually like shorter launch
+   updates" and "before we build, talk me through the polish." Pass only if
+   Spark can converse usefully without saving or launching.
+4. Health/readiness truth:
+   ask Spark if Telegram, memory, provider, and Spawner are ready. Pass only if
+   it separates process status, transport status, provider status, owner memory
+   status, and live user-facing proof.
+5. Rich Telegram composition:
+   take dense status replies and make them readable with spacing, one primary
+   link, source labels, and restrained rich formatting. Do not make formatting
+   the safety boundary.
+
+### Do Not Patch These The Wrong Way
+
+- Do not add a canned answer for the phrase "session test code word" or any
+  other exact prompt from this audit.
+- Do not make every use of "remember", "save", "build", "provider", "status",
+  or "ready" trigger an owner route. The latest user turn and authority envelope
+  must decide.
+- Do not claim durable memory from recent chat, wiki support, route history, or
+  a previous reply. If the source is recent chat, say so.
+- Do not treat Telegram message delivery, a preview URL, or a green local
+  harness as proof that the human-facing Telegram experience passed.
+- Do not hide an owner/source bug by making the Telegram wording nicer.
+
+### What Would Make This Excellent
+
+Spark memory/context becomes launch-ready when the same natural conversation can
+survive a topic switch, bot restart, and ambiguity without changing lanes
+silently. The target is not a clever recall answer. The target is a source-aware
+agent that knows whether it is using recent chat, durable memory, owner state,
+wiki support, or plain conversation, and can explain that naturally when it
+matters.
