@@ -78,6 +78,43 @@ async function waitForJsonlRecord(filePath: string, predicate: (record: any) => 
   }
 }
 
+test('Builder bridge handoff carries vnext envelope and governor decision', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  let capturedUpdate: any = null;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async (update: Record<string, unknown>) => {
+    capturedUpdate = update;
+    return {
+      used: true,
+      responseText: 'Bridge answer.',
+      decision: 'plain_chat',
+      bridgeMode: 'test',
+      routingDecision: 'plain_chat'
+    };
+  });
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx('Please answer with one brief neutral greeting.', replies));
+
+    assert.ok(capturedUpdate, 'Builder bridge should receive an update payload');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.message?.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.message?.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.tool_name, 'answer.compose');
+    assert.equal(replies.length, 1);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
 test('no-execution meta action words bypass Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
