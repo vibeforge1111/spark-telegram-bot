@@ -215,10 +215,11 @@ async function main(): Promise<void> {
   });
 
   await test('provider runtime config question answers from fresh provider status', async () => {
-    const { handleTextMessage } = await import('../src/index');
+    const indexModule = await import('../src/index');
     const replies: string[] = [];
+    const extras: any[] = [];
 
-    await handleTextMessage(fakeCtx('Provider truth QA: which provider, model, reasoning effort, and service tier are active for chat, builder, memory, and mission right now? Do not change anything.', replies));
+    await indexModule.handleTextMessage(fakeCtx('Provider truth QA: which provider, model, reasoning effort, and service tier are active for chat, builder, memory, and mission right now? Do not change anything.', replies, extras));
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Provider runtime truth/);
@@ -229,6 +230,24 @@ async function main(): Promise<void> {
     assert.match(replies[0], /mission: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
     assert.match(replies[0], /I did not change provider settings\./);
     assert.doesNotMatch(replies[0], /QA pass first|Add failing regressions|I will not start a mission/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+
+    const audit = indexModule.buildNodeOutboundAuditRecord(
+      8900000001,
+      replies[0],
+      new Date('2026-06-16T00:00:00.000Z'),
+      extras[0]?.__sparkTraceContext
+    );
+    assert.equal(audit.trace_context_present, true);
+    assert.equal(audit.route, 'spark.read_only_state.provider_runtime_config');
+    assert.equal(audit.command, 'read_only_state');
+    assert.equal(audit.reply_kind, 'read_only_state');
   });
 
   await test('check whether Spark is healthy stays read-only and does not repair', async () => {

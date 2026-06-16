@@ -68,6 +68,28 @@ test('turn trace schema covers emitted record keys', () => {
   assert.equal(schema.properties.schema.const, 'spark.turn_trace.v1');
 });
 
+test('read-only state trace context records route and reply kind without SIB ids', () => {
+  const record = buildTurnTraceLineRecord({
+    chatId: 123456789,
+    update: { update_id: 987654 },
+    traceContext: {
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    },
+    now: new Date('2026-06-16T00:00:00.000Z')
+  });
+
+  assert.ok(record);
+  assert.equal(record.turn_id, 'telegram-update:987654');
+  assert.equal(record.telegram_update_id, 987654);
+  assert.equal(record.route, 'spark.read_only_state.provider_runtime_config');
+  assert.equal(record.reply_kind, 'read_only_state');
+  assert.equal(record.sib_request_id, null);
+  assert.equal(record.sib_trace_ref, null);
+  assert.deepEqual(record.hops, ['telegram-bot']);
+});
+
 test('skips records when no Telegram update id is available', () => {
   assert.equal(buildTurnTraceLineRecord({ chatId: 123456789 }), null);
 });

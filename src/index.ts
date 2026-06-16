@@ -1190,6 +1190,20 @@ function readOnlyStateNaturalRouteDecision(kind: SparkReadOnlyStateQuestion | 'b
   };
 }
 
+function readOnlyStateOutboundTraceExtra(
+  ctx: any,
+  kind: SparkReadOnlyStateQuestion | 'browser_use_availability' | string,
+  replyKind = 'read_only_state'
+): Record<string, unknown> {
+  return outboundTraceExtra({
+    turnId: telegramTurnIdFromUpdate(ctx.update),
+    telegramUpdateId: telegramUpdateIdFromUpdate(ctx.update) ?? undefined,
+    route: `spark.read_only_state.${kind}`,
+    command: 'read_only_state',
+    replyKind
+  });
+}
+
 async function replyWithGovernedReadOnlyState(
   ctx: any,
   user: any,
@@ -1230,7 +1244,10 @@ async function replyWithGovernedReadOnlyState(
       status: 'not_started',
       summary: `Natural read-only Spark state answer was blocked for ${input.kind}.`
     });
-    await ctx.reply(input.denialReply || 'I did not read Spark state because the fresh turn did not authorize that read-only check.');
+    await ctx.reply(
+      input.denialReply || 'I did not read Spark state because the fresh turn did not authorize that read-only check.',
+      readOnlyStateOutboundTraceExtra(ctx, input.kind, 'read_only_state_denied')
+    );
     return true;
   }
 
@@ -1248,7 +1265,7 @@ async function replyWithGovernedReadOnlyState(
     status: 'success',
     summary: input.summary || `Natural read-only Spark state answer completed for ${input.kind}.`
   });
-  await ctx.reply(reply);
+  await ctx.reply(reply, readOnlyStateOutboundTraceExtra(ctx, input.kind));
   recordTelegramSourceUsedEvidence(ctx, user, text, input.sourceId, input.evidence);
   await conversation.rememberAssistantReply(user, reply).catch(() => {});
   return true;
@@ -3380,6 +3397,15 @@ export function buildNodeOutboundAuditRecord(
   const missionId = typeof traceContext?.missionId === 'string' && traceContext.missionId.trim()
     ? traceContext.missionId.trim()
     : null;
+  const route = typeof traceContext?.route === 'string' && traceContext.route.trim()
+    ? traceContext.route.trim()
+    : null;
+  const command = typeof traceContext?.command === 'string' && traceContext.command.trim()
+    ? traceContext.command.trim()
+    : null;
+  const replyKind = typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim()
+    ? traceContext.replyKind.trim()
+    : null;
   return {
     ts: now.toISOString(),
     event: 'telegram_node_delivered',
@@ -3387,13 +3413,13 @@ export function buildNodeOutboundAuditRecord(
     chat_id_present: String(chatId ?? '').trim().length > 0,
     chat_ref: chatRef(chatId),
     text_length: text.length,
-    trace_context_present: Boolean(requestId || traceRef || missionId),
+    trace_context_present: Boolean(requestId || traceRef || missionId || route || command || replyKind),
     mission_id_present: Boolean(missionId),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
-    ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
-    ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
-    ...(typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim() ? { reply_kind: traceContext.replyKind.trim() } : {})
+    ...(route ? { route } : {}),
+    ...(command ? { command } : {}),
+    ...(replyKind ? { reply_kind: replyKind } : {})
   };
 }
 
@@ -9866,7 +9892,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       status: 'success',
       summary: 'Natural browser-use availability answer completed without opening a browser.'
     });
-    await ctx.reply(browserProofAnswer, telegramHtmlExtra() as any);
+    await ctx.reply(browserProofAnswer, telegramHtmlExtra(readOnlyStateOutboundTraceExtra(ctx, 'browser_use_availability')) as any);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_use_availability_boundary', [
       {
         source: 'spark_browser_use_status',
@@ -9916,7 +9942,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       status: 'success',
       summary: `Natural read-only Spark state answer completed for ${readOnlyStateQuestion}.`
     });
-    await ctx.reply(reply);
+    await ctx.reply(reply, readOnlyStateOutboundTraceExtra(ctx, readOnlyStateQuestion));
     recordTelegramSourceUsedEvidence(ctx, user, text, readOnlyStateQuestion === 'risk_profile' ? 'telegram_spark_risk_profile_answer' : `telegram_read_only_state_${readOnlyStateQuestion}`, [
       {
         source: 'current_diagnostics',
@@ -9938,7 +9964,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
   if (readOnlyStateQuestion && readOnlyStateAuthorization) {
-    await ctx.reply('I did not read Spark state because the fresh turn did not authorize that read-only check.');
+    await ctx.reply(
+      'I did not read Spark state because the fresh turn did not authorize that read-only check.',
+      readOnlyStateOutboundTraceExtra(ctx, readOnlyStateQuestion, 'read_only_state_denied')
+    );
     return;
   }
 
