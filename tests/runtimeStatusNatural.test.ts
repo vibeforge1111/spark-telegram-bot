@@ -41,6 +41,18 @@ function writeSparkCliStub(root: string, browserUseStatus?: Record<string, unkno
       '  echo LLM roles: chat=codex',
       '  exit /b 0',
       ')',
+      'if "%1"=="providers" if "%2"=="status" (',
+      '  echo Spark LLM provider roles',
+      '  echo [OK] chat    provider=codex model=gpt-5.5 auth=codex_oauth',
+      '  echo           codex_client service_tier=fast reasoning=low',
+      '  echo [OK] builder provider=codex model=gpt-5.5 auth=codex_oauth',
+      '  echo           codex_client service_tier=fast reasoning=low',
+      '  echo [OK] memory  provider=codex model=gpt-5.5 auth=codex_oauth',
+      '  echo           codex_client service_tier=fast reasoning=low',
+      '  echo [OK] mission provider=codex model=gpt-5.5 auth=codex_oauth',
+      '  echo           codex_client service_tier=fast reasoning=low',
+      '  exit /b 0',
+      ')',
       'if "%1"=="verify" if "%2"=="--deep" (',
       '  echo Runtime processes are running under Spark supervision: spawner-ui, spark-telegram-bot.',
       '  exit /b 0',
@@ -67,6 +79,18 @@ function writeSparkCliStub(root: string, browserUseStatus?: Record<string, unkno
     '  echo "[OK] spark-telegram-bot: polling"',
     '  echo "Telegram profiles: qa"',
     '  echo "LLM roles: chat=codex"',
+    '  exit 0',
+    'fi',
+    'if [ "$1" = "providers" ] && [ "$2" = "status" ]; then',
+    '  echo "Spark LLM provider roles"',
+    '  echo "[OK] chat    provider=codex model=gpt-5.5 auth=codex_oauth"',
+    '  echo "          codex_client service_tier=fast reasoning=low"',
+    '  echo "[OK] builder provider=codex model=gpt-5.5 auth=codex_oauth"',
+    '  echo "          codex_client service_tier=fast reasoning=low"',
+    '  echo "[OK] memory  provider=codex model=gpt-5.5 auth=codex_oauth"',
+    '  echo "          codex_client service_tier=fast reasoning=low"',
+    '  echo "[OK] mission provider=codex model=gpt-5.5 auth=codex_oauth"',
+    '  echo "          codex_client service_tier=fast reasoning=low"',
     '  exit 0',
     'fi',
     'if [ "$1" = "verify" ] && [ "$2" = "--deep" ]; then',
@@ -188,6 +212,23 @@ async function main(): Promise<void> {
     assert.match(replies[0], /Spark is healthy right now\./);
     assert.match(replies[0], /Spawner: reachable\./);
     assert.match(replies[0], /Telegram: polling\./);
+  });
+
+  await test('provider runtime config question answers from fresh provider status', async () => {
+    const { handleTextMessage } = await import('../src/index');
+    const replies: string[] = [];
+
+    await handleTextMessage(fakeCtx('Provider truth QA: which provider, model, reasoning effort, and service tier are active for chat, builder, memory, and mission right now? Do not change anything.', replies));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Provider runtime truth/);
+    assert.match(replies[0], /fresh `spark providers status`, not memory/);
+    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /builder: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /memory: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /mission: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /I did not change provider settings\./);
+    assert.doesNotMatch(replies[0], /QA pass first|Add failing regressions|I will not start a mission/i);
   });
 
   await test('check whether Spark is healthy stays read-only and does not repair', async () => {

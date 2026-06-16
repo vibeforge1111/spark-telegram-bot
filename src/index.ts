@@ -293,6 +293,7 @@ import {
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isProjectImprovementRequest,
+  isProviderRuntimeConfigQuestion,
   isStartupReleaseBoundaryQuestion,
   isStartupFounderAdvisoryQuestion,
   isStartupSelfImprovementCanaryRequest,
@@ -823,6 +824,7 @@ type SparkReadOnlyStateQuestion =
   | 'telegram_primary_polling'
   | 'contract_coverage_blockers'
   | 'public_release_blockers'
+  | 'provider_runtime_config'
   | 'registry_drift'
   | 'mission_update_preference'
   | 'pending_action'
@@ -974,6 +976,62 @@ async function renderAuthoritativeSparkLiveStateAnswer(
   }
 }
 
+function parseProviderStatusRoles(output: string): Array<{ role: string; provider: string; model: string; reasoning: string; serviceTier: string }> {
+  const roles: Array<{ role: string; provider: string; model: string; reasoning: string; serviceTier: string }> = [];
+  const lines = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^\[OK\]\s+(\w+)\s+provider=([^\s]+)\s+model=([^\s]+)\b/i);
+    if (!match) continue;
+    const tuningLine = lines[index + 1] || '';
+    roles.push({
+      role: match[1].toLowerCase(),
+      provider: match[2],
+      model: match[3],
+      serviceTier: tuningLine.match(/\bservice_tier=([^\s]+)/i)?.[1] || 'not reported',
+      reasoning: tuningLine.match(/\breasoning=([^\s]+)/i)?.[1] || 'not reported'
+    });
+  }
+  return roles;
+}
+
+async function renderAuthoritativeProviderRuntimeConfigAnswer(): Promise<string> {
+  try {
+    const providerStatus = await runSparkCli(['providers', 'status'], 45_000);
+    const roles = parseProviderStatusRoles(providerStatus);
+    if (!roles.length) {
+      return [
+        'Provider runtime truth',
+        '',
+        "I'm using fresh `spark providers status`, not memory.",
+        '',
+        compactRuntimeOutput(providerStatus, 14),
+        '',
+        'I did not change provider settings.'
+      ].join('\n').trim();
+    }
+    return [
+      'Provider runtime truth',
+      '',
+      "I'm using fresh `spark providers status`, not memory.",
+      '',
+      'Roles',
+      ...roles.map((role) => `• ${role.role}: ${role.provider} (${role.model}), reasoning=${role.reasoning}, service_tier=${role.serviceTier}.`),
+      '',
+      'I did not change provider settings.'
+    ].join('\n').trim();
+  } catch (error) {
+    const detail = redactText(error instanceof Error ? error.message : String(error));
+    return [
+      'Provider runtime truth: unknown.',
+      '',
+      'I could not run `spark providers status` from this Telegram runtime.',
+      `Error: ${detail}`,
+      '',
+      'This is a probe failure, not proof that a provider changed.'
+    ].join('\n');
+  }
+}
+
 function sparkSystemMapEvidencePath(fileName: string): string {
   const stateDir = process.env.SPARK_SYSTEM_MAP_STATE_DIR?.trim() ||
     path.join(os.homedir(), '.spark', 'state', 'system-map');
@@ -1072,6 +1130,9 @@ function classifySparkReadOnlyStateQuestion(text: string): SparkReadOnlyStateQue
   }
   if (isPublicReleaseBlockerQuestion(normalized)) {
     return 'public_release_blockers';
+  }
+  if (isProviderRuntimeConfigQuestion(text)) {
+    return 'provider_runtime_config';
   }
   if (/\b(?:install|repair|restart|start|run|launch|execute|write|save|change|set)\b/.test(normalized) &&
       !/\b(?:installed|install\s+state|last\s+install|running|run\s+compile|read-only|read\s+only)\b/.test(normalized)) {
@@ -1544,6 +1605,8 @@ async function renderSparkReadOnlyStateAnswer(kind: SparkReadOnlyStateQuestion, 
       return renderContractCoverageBlockersAnswer();
     case 'public_release_blockers':
       return renderPublicReleaseBlockersAnswer(String(ctx.message?.text || ''));
+    case 'provider_runtime_config':
+      return renderAuthoritativeProviderRuntimeConfigAnswer();
     case 'registry_drift':
       return renderRegistryDriftAnswer();
     case 'mission_update_preference':

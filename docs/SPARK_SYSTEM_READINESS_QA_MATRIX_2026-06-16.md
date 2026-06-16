@@ -46,6 +46,23 @@ High-traffic Telegram lanes should be 8 or higher.
 | Side-effect safety | A denied prompt can mutate, launch, publish, write memory, or use tools. | Most side effects gated, with unclear exceptions. | Denied probes produce no side effect and leave ledger evidence. | Negative live Telegram/CUA proof exists for high-risk routes. |
 | Coverage depth | No focused tests or only snapshots. | Unit tests exist but no end-to-end or owner proof. | Focused parser, route, envelope, authority, owner, and reply tests cover the lane. | Broad matrix, live Telegram/CUA, and release commands cover realistic natural use. |
 
+## Built-In User Surface Priority Ladder
+
+Use this order when deciding what to test or perfect next. It follows how a
+human is most likely to experience Spark, not repo boundaries.
+
+| Priority | User surface | Built-ins that must work together | Current launch target |
+| --- | --- | --- | --- |
+| P0 | "Talk to Spark" | Telegram ingress, Builder chat, Harness answer boundary, memory context, Telegram composition. | No accidental action, readable replies, fresh context beats stale residue. |
+| P0 | "Build and improve something" | Spawner, Builder/PRD bridge, Canvas, Kanban, provider runtime, mission relay, preview truth. | Vague ideas converse first; explicit approvals build; status/done/fail claims follow owner evidence. |
+| P0 | "Ask what happened" | Mission Control, Spawner result reconciliation, runtime freshness, provider/status truth. | Latest owner state wins; failed/blocked missions are never called done because a preview or old canvas exists. |
+| P0 | "Remember this" | Builder memory bridge, domain-chip-memory, no-store/privacy vetoes, Memory Doctor. | Exact saves/recalls work; Telegram-local context never becomes durable truth. |
+| P0 | "Are you healthy / what model are you using?" | Spark CLI status, provider roles, Codex low/fast policy, access state, diagnostics. | Fresh CLI/provider evidence answers directly; GLM/Z.AI is not exposed as active on this device. |
+| P1 | "Use knowledge and wiki" | Spark LLM wiki, Builder source answers, memory filters, source hierarchy. | Wiki supports answers but does not override current runtime or owner state. |
+| P1 | "Improve Spark itself" | Recursive QA Operator, domain chips, creator missions, benchmark packs, review queues. | Explicit starts run; architecture talk and quoted route words stay answer-only. |
+| P1 | "Use tools safely" | Access/governance, browser/computer-use, voice/media, schedule/publish, route ledgers. | Read-only capability questions do not launch tools; positive actions require scoped authority and owner proof. |
+| P2 | "Ship and operate Spark" | Installer, registry pins, Cockpit, Labs, Swarm, release evidence, rollback. | Spark names proven, staged, dirty, and blocked surfaces without duplicate truths. |
+
 ## Spark-Wide Readiness Table
 
 | Plane | Human use cases | Current evidence to inspect | Readiness | Next proof needed |
@@ -57,7 +74,7 @@ High-traffic Telegram lanes should be 8 or higher.
 | Spark LLM wiki | Wiki status, inventory, query, answer, candidate promotion. | `tests/builderBridge.test.ts`, `tests/conversationIntent.test.ts`, `tests/telegramActionAuthority.test.ts`, `src/builderBridge.ts`. | 7 | Live query and promote-denial probes proving wiki is supporting knowledge, not current mutable truth. |
 | Recursive/QA Operator | Start loop, status, report, compare, package, approve/reject review item, avoid accidental loop launch from architecture talk. | `tests/recursive.test.ts`, `tests/recursiveCommand.test.ts`, `tests/naturalRouteDecision.test.ts`, `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`. | 6.5 | Live Telegram/CUA status/report and no-launch planning probes; inspect Workspace/Cockpit links for readable evidence. |
 | Domain chip/creator mission | Create chip, stage creator mission, run/validate/status creator path, follow-up "run it"/"status" from pending evidence. | `tests/spawner.test.ts`, `tests/creatorMissionStatus.test.ts`, `tests/conversationIntent.test.ts`, `tests/naturalRouteDecision.test.ts`, `src/telegramPendingCreatorMissionEvidence.ts`. | 6.5 | Live staged creator mission flow with one contextual follow-up; prove pending evidence cannot hijack unrelated QA/chat turns. |
-| Provider routing | Chat provider status, mission provider status, explicit provider run, provider failure explanation, provider switch. | `tests/providerRouting.test.ts`, `tests/llmProvider.test.ts`, `tests/diagnose.test.ts`, `tests/errorExplain.test.ts`, `tests/telegramActionAuthority.test.ts`. | 7 | Live provider status/failure prompts; verify provider names are evidence, not action authority. |
+| Provider routing | Chat provider status, mission provider status, explicit provider run, provider failure explanation, provider switch. | `tests/runtimeStatusNatural.test.ts`, `tests/providerRouting.test.ts`, `tests/llmProvider.test.ts`, `tests/diagnose.test.ts`, `tests/errorExplain.test.ts`, `tests/telegramActionAuthority.test.ts`; live CUA update `749543667`. | 8 | Add one live provider failure/degraded prompt; keep provider names as evidence, not action authority. |
 | Access/governance | Access status, help, change levels, Level 5 confirmation, writable runner truth, read-only runner refusal. | `tests/accessPolicy.test.ts`, `tests/accessActions.test.ts`, `tests/accessRepairE2E.test.ts`, `tests/authorityStatus.test.ts`. | 7 | Telegram/CUA `/access`, natural access question, and denied mixed build/access prompt. |
 | Browser/computer-use | Availability/status, authorization boundary, screenshot/tool use planning, no accidental browser launch. | `tests/buildE2E.test.ts`, `tests/noExecutionBridgeBoundary.test.ts`, `tests/telegramMediaAuthority.test.ts`. | 6.5 | Live no-launch authorization prompt and a positive explicit browser-use path when owner authority exists. |
 | Voice/media | Voice status/setup/speak, voice input transcription, image analysis, caption safety, no raw media in memory by default. | `docs/VOICE_RUNTIME_ARCHITECTURE.md`, `tests/telegramCommandAuthority.test.ts`, `tests/telegramVoiceBridge.test.ts`, `tests/voiceRuntimeState.test.ts`, `tests/telegramMediaHandlers.test.ts`. | 6.5 | Live voice/media Telegram proof on active profile; verify raw audio/transcripts stay out of shared projections. |
@@ -67,9 +84,11 @@ High-traffic Telegram lanes should be 8 or higher.
 
 ## Telegram/TryCUA User-Journey Priority List
 
-Run this priority list in Telegram Desktop with trycua when the native desktop
-controller is available. Until then, local tests and Spark CLI evidence can
-prove route logic, but they do not replace visible Telegram/CUA proof.
+Run this priority list in Telegram Desktop with native CUA. On this device the
+driver is `C:\Users\USER\.cua-driver\packages\current\cua-driver.exe`, and the
+repeatable helpers live in `C:\Users\USER\Documents\Codex\2026-06-14\are-you-there\work`.
+Local tests and Spark CLI evidence prove route logic, but they do not replace
+visible Telegram/CUA proof for user-facing behavior.
 
 Each journey must capture the visible Telegram reply, selected route, Harness or
 Governor authority, owner evidence, and side-effect proof. A journey is not
@@ -117,6 +136,13 @@ spacing, or claims success from delivery/cache/preview evidence alone.
 | Telegram readability | The reply is readable in five seconds, with paragraph spacing and one primary link when a link is useful. |
 | Side effects | Negative probes leave no file, mission, provider, memory, schedule, access, browser, publish, or Swarm side effect. |
 | Follow-up continuity | Natural follow-ups like "ok do it", "status", "run it", and "what happened?" resolve from fresh context only. |
+
+### Live Evidence Log
+
+| Time | Journey | Prompt | Verdict | Evidence |
+| --- | --- | --- | --- | --- |
+| 2026-06-16 08:33 UTC | P0 runtime/provider truth | `Provider truth QA: which provider, model, reasoning effort, and service tier are active for chat, builder, memory, and mission right now? Do not change anything.` | Failed before fix: fell through to stale QA-plan chat instead of provider owner evidence. | Telegram update `749543666`; fixed by routing provider runtime config questions through governed `spark.read_only_state.provider_runtime_config`. |
+| 2026-06-16 08:39 UTC | P0 runtime/provider truth | Same prompt after runtime sync and restart. | Passed: visible Telegram reply used fresh `spark providers status`; chat, builder, memory, and mission all showed `codex (gpt-5.5)`, `reasoning=low`, `service_tier=fast`; no settings changed. | Telegram update `749543667`; `spark-recursive` pid `68236`; tests `runtimeStatusNatural`, provider/access/no-execution/memory-harness packs passed. |
 
 ## Telegram Natural QA Prompt Bank
 
