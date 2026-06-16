@@ -16,6 +16,13 @@ Wiki supports answers but does not override current owner state.
 Tracing proves route, authority, source, delivery, and side effects.
 ```
 
+Fix boundary:
+
+```text
+A wrong memory/context answer is not fixed by recognizing that exact prompt.
+It is fixed when the correct lane wins for the next natural variation too.
+```
+
 ## Pass Rules
 
 | Rule | Pass condition |
@@ -46,6 +53,11 @@ Use this loop for each memory/context probe:
 
 Do not mark a case passing because Spark said something plausible. It must use
 the right lane and avoid overclaiming saved/done/current truth.
+
+If a case fails, patch the owning lane/source mechanism rather than the final
+reply: source selector, lane classifier, Builder bridge, domain-chip-memory,
+wiki boundary, or owner-state readout. The regression must include the original
+shape, one natural variation, and one adjacent trap.
 
 ## 40 Natural Test Cases
 

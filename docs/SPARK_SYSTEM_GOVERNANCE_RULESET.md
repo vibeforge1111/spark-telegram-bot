@@ -84,6 +84,14 @@ Users will usually speak naturally. They will not always say "remember".
 - Preferences inferred from conversation may guide the current exchange, but Spark must not claim they were saved unless a memory-write owner accepted them.
 - Restart tests must distinguish recent-frame survival from durable memory recall.
 
+Memory/context failures are source-governance failures until proven otherwise.
+If Spark answers a normal continuity question from the wrong project, stale
+route residue, wiki note, provider/status context, or local frame, do not patch
+the visible sentence. Reproduce the class with natural conversation, topic
+switching, and an adjacent trap; then patch the earliest owner mechanism that
+made the wrong lane win: source selection, lane classification, Builder bridge,
+domain-chip-memory, wiki support boundary, or owner-state readout.
+
 ## Telegram And Readout Rules
 
 Telegram is a human surface, not the safety boundary.
