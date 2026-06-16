@@ -48,6 +48,40 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
   };
 }
 
+// Scope-aware non-imperative detection (added 2026-06-16 to close the word-hijack hole).
+// The adjacency-only negation regexes below required the negator to sit right next to the
+// verb, so displaced negation ("I don't think we should build") and reported speech
+// ("earlier you said create the dashboard") slipped through and routed to execution at
+// explicit confidence. These two detectors look at grammatical FORM, not enumerated phrases,
+// and they fail SAFE: a false positive demotes a turn to noExecution (a hold/clarify),
+// it can never cause a wrong execution.
+const EXECUTION_VERB_GROUP =
+  '(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|deploy|ship|publish|merge|schedule|spawn|save|remember|approve)';
+const NEGATION_CUE_GROUP =
+  "(?:do not|don't|dont|cannot|can't|cant|won't|wont|shouldn't|shouldnt|wouldn't|wouldnt|never|no need to|no plans to|not going to|not gonna)";
+// cues that actually introduce a POSITIVE imperative (do not forget to build = build)
+const NEGATION_INVERSION_GROUP = '(?:forget|hesitate|worry|be\\s+afraid|be\\s+shy|mind)';
+const REPORTED_FRAME_GROUP =
+  "(?:you said|you mentioned|you told me|earlier you|they said|i said|we said|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error)s?\\s+(?:say|says|said|reported)|was that|did (?:you|we))";
+
+// A negation cue (that is not an inversion phrase) appearing before an execution verb within
+// a short window: the user is negating or deferring the action, not commanding it.
+function hasScopedNegationBeforeExecution(normalized: string): boolean {
+  const re = new RegExp(
+    `\\b${NEGATION_CUE_GROUP}\\b(?!\\s+${NEGATION_INVERSION_GROUP}\\b)(?:\\s+\\w+){0,6}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+  );
+  return re.test(normalized);
+}
+
+// A reported-speech / past-reference frame appearing before an execution verb: the verb is
+// quoted or recalled ("earlier you said create X"), not a fresh command this turn.
+function hasReportedSpeechBeforeExecution(normalized: string): boolean {
+  const re = new RegExp(
+    `\\b${REPORTED_FRAME_GROUP}\\b(?:\\s+\\w+){0,10}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+  );
+  return re.test(normalized);
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const constraints = emptyConstraints();
@@ -113,7 +147,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     /\bnot\s+a?\s*tool\s+call\b/,
     /\b(?:keep|stay)\s+(?:this|it)?\s*(?:in\s+)?(?:chat|conversation)\b/,
     /\b(?:just explain|explain only|only explain|we can talk here|talk here|stay in chat)\b/
-  ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword);
+  ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword) ||
+    hasScopedNegationBeforeExecution(normalized) ||
+    hasReportedSpeechBeforeExecution(normalized);
 
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
     constraints.noExecution = false;

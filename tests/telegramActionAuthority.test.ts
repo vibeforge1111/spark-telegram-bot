@@ -764,3 +764,43 @@ test('explicit recursive proposal still authorizes recursive owner path', () => 
   assert.equal(result.routeVerdict.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
+
+test('displaced negation cannot authorize a build (word-hijack regression)', () => {
+  // Proven 2026-06-16: this routed to spawner.build at explicit confidence before the
+  // scope-aware noExecution fix. The negator sits 3 words from the verb, past the
+  // adjacency-only regexes, so only grammatical-form detection catches it.
+  const text = 'I dont think we should build the chip yet';
+  assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true);
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(result.allow, false);
+  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+});
+
+test('reported-speech recall cannot authorize a build (word-hijack regression)', () => {
+  // Proven 2026-06-16: "earlier you said create..." is a question about a past statement,
+  // not a fresh command, but routed to spawner.build at explicit confidence before the fix.
+  const text = 'earlier you said create the dashboard, was that the right call?';
+  assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true);
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(result.allow, false);
+  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+});
+
+test('negation-inversion phrasings still authorize a real build (no over-block)', () => {
+  // The fix must not demote genuine imperatives that merely contain a negation token.
+  for (const text of ['dont forget to build the chip', 'dont worry, build the chip now']) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});
