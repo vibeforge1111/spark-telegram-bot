@@ -7,6 +7,11 @@ turns the Harness Core rule set into a repeatable QA plan across Telegram,
 Spawner, Builder, memory/wiki, recursive/domain-chip systems, providers, access,
 browser/computer-use, voice, installer, Cockpit, Labs, and Swarm.
 
+Natural memory/context continuity cases live in
+`docs/SPARK_NATURAL_MEMORY_CONTEXT_QA_2026-06-16.md`. Use that matrix for
+regular-conversation testing: topic switching, project returns, restart
+survival, work preferences, LLM/ALM wiki boundaries, and trace connectivity.
+
 Core rule:
 
 ```text
@@ -14,6 +19,32 @@ Raw words propose candidates.
 Fresh user intent plus Harness/Governor authority authorizes action.
 Owner evidence proves completion.
 Telegram stays human.
+```
+
+## Spark-Wide Governance Operating Model
+
+Spark readiness is governed by owner boundaries, not by whichever surface
+noticed the problem first.
+
+| Layer | Owns | Must not own |
+| --- | --- | --- |
+| Telegram | Inbound turn evidence, chat/user/request metadata, visible reply composition, delivery evidence. | Mission truth, durable memory truth, provider truth, installer readiness, or tool authority. |
+| Natural route / intent envelope | Candidate route, route precedence, side-effect class, freshness, no-action boundaries. | Final execution authority without Harness/Governor approval. |
+| Harness Core / Governor | Execution authorization, owner/tool binding, pre-execution ledger, denial reason. | Domain-specific completion truth after dispatch. |
+| Owner adapter | Owner-side verification and dispatch to Spawner, Builder, memory, provider, access, browser, voice, schedule, publish, installer, Cockpit, Labs, or Swarm. | Re-deciding from raw Telegram text after Governor refusal. |
+| Owner system | Current state and terminal truth for its domain. | Global user intent, cross-system authority, or unrelated route recovery. |
+| Telegram composition | Human-readable summary, one useful link, uncertainty and blocker wording. | Hiding missing owner proof or making reply wording the safety boundary. |
+
+Every Spark fix should preserve this chain:
+
+```text
+symptom transcript
+-> failure family
+-> owning layer
+-> positive case
+-> adjacent negative trap
+-> owner/trace proof
+-> Telegram/CUA proof when visible behavior changed
 ```
 
 ## Non-Negotiable Fix Discipline
@@ -32,6 +63,21 @@ Every improvement must answer these questions before code changes:
 Do not fix by exact sentence patches, broad keyword gates, reply-only safety
 wording, or pending-state/memory/route-history shortcuts. If the envelope or
 Governor still authorizes the wrong action, the fix is not at the surface.
+
+Root-cause rule:
+
+```text
+The transcript is the repro, not the patch.
+Patch the mechanism that failed.
+Prove the class with natural variations and adjacent traps.
+```
+
+If a Telegram/CUA run shows the route was safe but the answer used the wrong
+source, patch context/source selection. If a turn launched work by accident,
+patch route precedence, envelope authority, Harness policy, or owner dispatch.
+If a reply claimed saved/done/ready from weak evidence, patch owner-evidence
+truth. Do not add a deterministic response for the one phrase, project name,
+mission id, or stale reply that exposed the bug.
 
 ## Scoring Rubric
 

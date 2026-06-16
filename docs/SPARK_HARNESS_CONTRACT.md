@@ -16,6 +16,9 @@ Telegram should:
   `ToolCallLedgerV1`
 - forward high-agency work only to the owner route named by the Governor
 - compose concise human replies from owner-system results and trace evidence
+- preserve the governed request, trace, and mission identifiers on
+  machine-origin lifecycle notifications such as PRD canvas-ready, blocked
+  handoff, still-running, and mission relay messages
 
 Telegram should not:
 
@@ -27,6 +30,27 @@ Telegram should not:
   interruption, or no-action outcome
 - claim memory saves, mission execution, publication, or installer readiness
   without owner proof
+
+## Root-Cause Change Rule
+
+The transcript is the repro, not the patch. When a Telegram turn exposes a
+failure, classify the failure family and fix the earliest owning layer:
+
+- parser/candidate generation when Spark fails to recognize a general natural
+  language class
+- natural route precedence or context/source selection when stale residue,
+  older projects, or action words steal the turn
+- Telegram intent envelope or Harness contract when side-effect class,
+  freshness, no-action, or scoped authority is wrong
+- Harness Core/Governor when authorization, owner/tool binding, or denial
+  reason is wrong
+- owner adapter/system when execution, terminal state, or proof is wrong
+- reply composition only when authority, source, and owner truth are already
+  correct but the human-facing message is unclear
+
+Do not ship exact-sentence, project-name, mission-id, or reply-text fixes.
+Every route, memory, provider, access, tool, or completion-truth fix needs a
+natural positive case and an adjacent negative trap.
 
 ## Current Contract
 
@@ -77,6 +101,8 @@ Release-risk Telegram QA should prove:
 - selected route equals executed route
 - Governor outcome is visible in trace
 - authorization and tool ledger exist when a tool runs
+- machine-origin lifecycle notifications are scoped to the original governed
+  dispatch and carry metadata-only outbound audit context
 - refusal/no-op cases produce no side effect
 - build/memory/chip/browser/computer-use prompts cannot be hijacked by stale
   context, health words, provider names, or keyword matches
