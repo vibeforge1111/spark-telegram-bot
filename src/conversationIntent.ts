@@ -329,6 +329,10 @@ export function extractSparkSelfImprovementGoal(text: string): string | null {
   if (!normalized || parseBuildIntent(normalized)) {
     return null;
   }
+  if (isNoExecutionBoundary(normalized) &&
+      !/\b(?:self[-\s]*improvement|improve\s+(?:spark|yourself|your\s+(?:own\s+)?capabilit(?:y|ies)|your\s+(?:own\s+)?systems?))\b/i.test(normalized)) {
+    return null;
+  }
   if (isVoiceAnswerRequest(normalized) || isAccessSandboxRouteDesignDiscussion(normalized)) {
     return null;
   }
@@ -3030,7 +3034,16 @@ export function builderReplySuppressionReason(reply: string, routingDecision: st
   if (
     normalized.includes('spark could not reach the builder memory path right now') ||
     normalized.includes('operator fix: spark fix telegram') ||
-    /^memory doctor\s*:/i.test(reply.trim())
+    /^memory doctor\s*:/i.test(reply.trim()) ||
+    (
+      normalized.includes('memory doctor') &&
+      (
+        normalized.includes('missing spark authority') ||
+        normalized.includes('proposed_action_not_authorized') ||
+        normalized.includes('fresh authorized memory diagnostic') ||
+        normalized.includes('tool_not_allowed_by_policy')
+      )
+    )
   ) {
     return 'diagnostic_wall';
   }

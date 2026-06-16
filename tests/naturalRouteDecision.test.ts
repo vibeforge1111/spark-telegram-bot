@@ -612,6 +612,16 @@ test('keeps route/access/sandbox design talk out of Spark self-improvement actio
   }
 });
 
+test('keeps memory context QA setup with no-save boundary in chat', () => {
+  const route = decideNaturalRoute('Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.');
+
+  assert.ok(['plain_chat', 'chat_plan'].includes(route.route));
+  assert.notEqual(route.route, 'spark.self_improvement');
+  assert.notEqual(route.route, 'memory.write');
+  assert.notEqual(route.route, 'spawner.build');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('does not force unrelated personal chat into a Spark system', () => {
   const route = decideNaturalRoute("what's a nice lunch idea?");
 

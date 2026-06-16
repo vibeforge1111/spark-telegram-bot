@@ -129,7 +129,7 @@ stay in QA notes.
 
 - Local fixture coverage now includes natural continuity prompts such as "where were we on the day planner project?" and "what was the polish direction for the sprint picker?".
 - Conversation frame state persists across `ConversationMemory` instances for same-user recent context, while `recall()` remains empty unless durable memory accepted the content.
-- Live Telegram/CUA post-restart memory proof is not complete yet: CUA typed into Telegram Desktop, but the send action did not deliver a new inbound update after the 08:43 trace. Do not claim live Telegram post-fix memory success until a new trace and visible reply are captured.
+- Live Telegram/CUA post-fix proof for the Tide Desk no-save/no-build case reached update `749543690`. The final-answer gate suppressed the unauthorized Memory Doctor detour as `diagnostic_wall`, then Harness Core delivered a local `chat_plan` answer with `write_allowed=false` and `publish_allowed=false`. Treat the route/source/side-effect fix as verified by trace and ledger evidence; UIA text extraction remained flaky, so keep using screenshots plus ledgers for human-visible Telegram proof until the CUA readout is stable.
 
 ## Stop-Ship Memory/Context Anti-Patterns
 

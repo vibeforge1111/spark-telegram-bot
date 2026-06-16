@@ -1618,6 +1618,17 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     null
   );
   assert.equal(
+    builderReplySuppressionReason(
+      [
+        'I can run Memory Doctor, but this turn is missing Spark authority for memory diagnostics.',
+        'Reason: proposed_action_not_authorized.',
+        'Send it as a fresh authorized memory diagnostic and I will inspect the trace.'
+      ].join('\n'),
+      'runtime_command'
+    ),
+    'diagnostic_wall'
+  );
+  assert.equal(
     shouldSuppressBuilderReplyForPlainChat(
       'Spark could not reach the Builder memory path right now.\n\nCheck now: Run /diagnose so Spark can check Builder, memory, and the selected memory model.\n\nOperator fix: spark fix telegram, then spark verify --onboarding.',
       'plain_chat'
@@ -1747,6 +1758,10 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
   assert.equal(
     extractSparkSelfImprovementGoal('do not build yet, help me think through a domain chip for route confidence'),
+    null
+  );
+  assert.equal(
+    extractSparkSelfImprovementGoal('Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.'),
     null
   );
   for (const prompt of [

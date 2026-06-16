@@ -4123,6 +4123,98 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('memory context setup with no-save boundary rejects Memory Doctor detours', async () => {
+		restoreAxios();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.BOT_DEFAULT_TIER = 'base';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-memory-context-no-save-boundary-'));
+		const ledgerPath = path.join(tempRoot, 'harness-core-ledger.jsonl');
+		const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+		process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+		delete process.env.SPARK_HARNESS_CORE_LEDGER;
+
+		const captured: CapturedCall[] = [];
+		(axios as any).post = async (url: string, body: any) => {
+			captured.push({ url, body });
+			return { data: { success: true } };
+		};
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const llmModule = await import('../src/llm');
+		const originalChat = llmModule.llm.chat;
+		let fallbackPrompt = '';
+		(builderBridge as any).runBuilderTelegramBridge = async () => ({
+			used: true,
+			responseText: [
+				'I can run Memory Doctor, but this turn is missing Spark authority for memory diagnostics.',
+				'Reason: proposed_action_not_authorized.',
+				'Send it as a fresh authorized memory diagnostic and I will inspect the trace.'
+			].join('\n'),
+			decision: 'runtime_command',
+			bridgeMode: 'external_configured',
+			routingDecision: 'runtime_command'
+		});
+		llmModule.llm.chat = async (prompt: string) => {
+			fallbackPrompt = prompt;
+			return 'Got it. Tide Desk stays in this conversation for now: calm inbox, tiny priority slider, and one Clear next step button. I will not save memory or start a build from that.';
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const ctx = makeFakeCtx(8319079055, 8319079055, 615, replies);
+			ctx.message.text = 'Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.';
+			(ctx as any).update = { update_id: 615, message: ctx.message };
+			await indexModule.handleTextMessage(ctx);
+
+			const reply = replies.join('\n');
+			assert.match(reply, /Tide Desk|calm inbox|priority slider|Clear next step/i);
+			assert.match(reply, /not save memory|not.*start a build/i);
+			assert.doesNotMatch(reply, /Memory Doctor|missing Spark authority|proposed_action_not_authorized|fresh authorized memory diagnostic/i);
+			assert.match(fallbackPrompt, /Memory\/context QA|Tide Desk/i);
+			assert.equal(captured.length, 0, 'no-save chat context setup must not call Spawner or PRD bridge');
+
+			const chatPlanRoute = (record: any) => (
+				record.shadow_route === 'chat_plan' &&
+				record.executed_route === 'chat_plan' &&
+				record.executed_action === 'harness_core.answer_boundary'
+			);
+			const naturalRouteRecords = await waitForJsonlRecord(naturalRouteLedgerPath, chatPlanRoute);
+			const routeRecord = naturalRouteRecords.find(chatPlanRoute);
+			assert.ok(routeRecord, 'no-save chat setup must record chat_plan answer execution');
+			assert.equal(routeRecord?.executed_owner, 'spark-intelligence-builder');
+			assert.equal(routeRecord?.delivery, 'delivered');
+
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'answer.compose' &&
+					record.authorization.verdict === 'allow' &&
+					record.authorization.restrictions.write_allowed === false &&
+					record.authorization.restrictions.publish_allowed === false &&
+					record.result.status === 'success'
+				)),
+				'fallback chat answer must record read-only Harness Core answer.compose success'
+			);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			llmModule.llm.chat = originalChat;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('startup answer editing in chat does not become access or mission execution', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
