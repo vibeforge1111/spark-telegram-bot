@@ -298,7 +298,8 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.match(canvasReady, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p1&amp;mission=mission-123">Open canvas<\/a>/);
   assert.doesNotMatch(canvasReady, /Canvas\n-/);
   assert.doesNotMatch(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
-  assert.match(canvasReady, /Spark queued 4 build steps with 4 paired nodes and 5 skills\./);
+  assert.match(canvasReady, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(canvasReady, /paired nodes|skills/);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
@@ -322,7 +323,8 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(oneStepFastLane, /Spark queued 1 build step with 1 paired node and 3 skills/);
+  assert.match(oneStepFastLane, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(oneStepFastLane, /paired node|skills/);
   assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
@@ -367,7 +369,8 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(tenStepReply, /Spark queued 10 build steps with 10 paired nodes and 1 skill\./);
+  assert.match(tenStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(tenStepReply, /paired nodes|skill/);
   assert.match(tenStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p2&amp;mission=mission-456">Open canvas<\/a>/);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
@@ -387,7 +390,8 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(twelveStepReply, /Spark queued 12 build steps with 12 paired nodes and 1 skill\./);
+  assert.match(twelveStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(twelveStepReply, /paired nodes|skill/);
   assert.match(twelveStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p3&amp;mission=mission-789">Open canvas<\/a>/);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);

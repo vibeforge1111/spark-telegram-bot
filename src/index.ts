@@ -4896,14 +4896,126 @@ function formatBrowserProofScope(proofNames: string[]): string {
   return `The fresh probe covered ${scope}.`;
 }
 
+type BrowserUseCliStatus = {
+  ok?: boolean;
+  status?: string;
+  proof_fresh?: boolean;
+  proofs?: unknown;
+  proven_scope?: unknown;
+  unproven_scope?: unknown;
+  last_failure_reason?: string;
+  next_action?: string;
+};
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : [];
+}
+
+function parseCliJsonObject(raw: string): Record<string, unknown> {
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end < start) {
+    throw new Error('Spark CLI returned no JSON object.');
+  }
+  const parsed = JSON.parse(raw.slice(start, end + 1));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Spark CLI returned non-object JSON.');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+async function readBrowserUseCliStatus(): Promise<BrowserUseCliStatus> {
+  const raw = await runSparkCli(['browser-use', 'status', '--json'], 45_000);
+  return parseCliJsonObject(raw) as BrowserUseCliStatus;
+}
+
+function browserUseCliStatusIsReady(status: BrowserUseCliStatus): boolean {
+  return status.ok === true && status.status === 'ready' && status.proof_fresh === true;
+}
+
+function formatBrowserUseCliStatusAnswer(status: BrowserUseCliStatus): string {
+  const provenScope = stringList(status.proven_scope);
+  const proofNames = stringList(status.proofs);
+  const unprovenScope = stringList(status.unproven_scope);
+
+  if (browserUseCliStatusIsReady(status)) {
+    return telegramBlocks(
+      telegramHtmlBold('Browser-use is currently proven for the scoped lane.'),
+      provenScope.length
+        ? `Proven: ${escapeTelegramHtml(provenScope.join(', '))}.`
+        : escapeTelegramHtml(formatBrowserProofScope(proofNames)),
+      unprovenScope.length
+        ? `Still unproven: ${escapeTelegramHtml(unprovenScope.join(', '))}.`
+        : 'Still unproven: logged-in pages, cookies, sensitive clicks, arbitrary sites, and Spawner browser automation.',
+      'I did not open a browser from this Telegram turn.'
+    );
+  }
+
+  const ownerStatus = status.status || 'unknown';
+  const reason = status.last_failure_reason || (status.proof_fresh === false ? 'browser-use proof is stale or incomplete.' : '');
+  const nextAction = status.next_action || 'Run spark browser-use probe to refresh owner proof.';
+  return telegramBlocks(
+    telegramHtmlBold('Browser-use is not currently proven ready.'),
+    `Owner status: <code>${escapeTelegramHtml(ownerStatus)}</code>.`,
+    reason ? `Why: ${escapeTelegramHtml(sentenceWithPeriod(reason))}` : null,
+    `Next: ${escapeTelegramHtml(sentenceWithPeriod(nextAction))}`,
+    'I did not open a browser from this Telegram turn.'
+  );
+}
+
+function telegramHtmlFromEvidenceReply(reply: string): string {
+  if (/<\/?(?:a|b|strong|i|em|u|s|strike|del|code|pre)\b/i.test(reply)) {
+    return reply;
+  }
+  const blocks = reply.split(/\n{2,}/).map((block) => block.trim()).filter(Boolean);
+  return blocks
+    .map((block, index) => index === 0 ? telegramHtmlBold(block) : escapeTelegramHtml(block))
+    .join('\n\n');
+}
+
 async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
   const fallback = formatBrowserProofQuestionAnswer(query);
   if (!fallback) return '';
 
   try {
+    const ownerStatus = await readBrowserUseCliStatus();
+    const ownerFallback = formatBrowserUseCliStatusAnswer(ownerStatus);
+    return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
+      {
+        kind: 'browser_use_availability',
+        userText: query,
+        evidence: {
+          browser_use_owner_status: {
+            ok: ownerStatus.ok === true,
+            status: ownerStatus.status || 'unknown',
+            proof_fresh: ownerStatus.proof_fresh === true,
+            proofs: stringList(ownerStatus.proofs),
+            proven_scope: stringList(ownerStatus.proven_scope),
+            unproven_scope: stringList(ownerStatus.unproven_scope),
+            last_failure_reason: ownerStatus.last_failure_reason || '',
+            next_action: ownerStatus.next_action || ''
+          },
+          browser_opened_this_turn: false,
+          browser_tool_called_this_turn: false
+        },
+        claimBoundary: 'Answer from spark browser-use status --json owner evidence. Do not claim browser access unless ok, ready, and proof_fresh are true.'
+      },
+      ownerFallback,
+      (reply) => /browser/i.test(reply) &&
+        (
+          browserUseCliStatusIsReady(ownerStatus)
+            ? /(?:proven|proof|ready|evidence)/i.test(reply)
+            : /(?:not|no|unproven|stale|incomplete|failed)/i.test(reply)
+        )
+    ));
+  } catch (error) {
+    console.warn('[BrowserProof] owner browser-use status read failed:', redactText(error instanceof Error ? error.message : String(error)));
+  }
+
+  try {
     const receipt = await readLatestCapabilityProbeReceipt('spark_browser');
     if (!receipt) {
-      return composeGovernedEvidenceAnswer(
+      return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
         {
           kind: 'browser_use_availability',
           userText: query,
@@ -4919,7 +5031,7 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
         (reply) => /browser/i.test(reply) &&
           /(?:probe|proof|prove|evidence)/i.test(reply) &&
           /(?:not|no|without|unproven)/i.test(reply)
-      );
+      ));
     }
 
     const status = receipt.status.toLowerCase();
@@ -4934,7 +5046,7 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
         '',
         'Still unproven: logged-in pages, cookies, sensitive clicks, arbitrary sites, and Spawner browser automation. Those need their own probe.'
       ].filter(Boolean).join('\n');
-      return composeGovernedEvidenceAnswer(
+      return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
         {
           kind: 'browser_use_availability',
           userText: query,
@@ -4952,7 +5064,7 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
         },
         successFallback,
         (reply) => /browser/i.test(reply) && /(?:probe|proof|proved|evidence)/i.test(reply)
-      );
+      ));
     }
 
     const failedFallback = [
@@ -4962,7 +5074,7 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
       '',
       'Once browser-use is fixed and `/probe browser` succeeds, I can claim only the scope that probe proves.'
     ].filter(Boolean).join('\n');
-    return composeGovernedEvidenceAnswer(
+    return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
       {
         kind: 'browser_use_availability',
         userText: query,
@@ -4980,10 +5092,10 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
       },
       failedFallback,
       (reply) => /browser/i.test(reply) && /(?:failed|unavailable|not\s+available|not\s+proven)/i.test(reply)
-    );
+    ));
   } catch (error) {
     console.warn('[BrowserProof] latest probe receipt read failed:', redactText(error instanceof Error ? error.message : String(error)));
-    return composeGovernedEvidenceAnswer(
+    return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
       {
         kind: 'browser_use_availability',
         userText: query,
@@ -4997,7 +5109,7 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
       },
       fallback,
       (reply) => /browser/i.test(reply) && /(?:probe|proof|unproven|not)/i.test(reply)
-    );
+    ));
   }
 }
 
@@ -7104,15 +7216,8 @@ export function formatCanvasReadySummary(args: {
   const tasks = Array.isArray(args.analysis?.tasks) ? args.analysis.tasks : [];
   const rawTaskCount = typeof args.taskCount === 'number' ? args.taskCount : tasks.length;
   const taskCount = Number.isFinite(rawTaskCount) ? rawTaskCount : 0;
-  const pairedNodeCount = typeof args.canvasMaterialization?.pairedNodeCount === 'number'
-    ? args.canvasMaterialization.pairedNodeCount
-    : 0;
-  const skillCount = typeof args.canvasMaterialization?.skillCount === 'number'
-    ? args.canvasMaterialization.skillCount
-    : 0;
-  const skillClause = skillCount > 0 ? ` and ${skillCount} ${skillCount === 1 ? 'skill' : 'skills'}` : '';
   const buildStepLine = taskCount > 0
-    ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} with ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}${skillClause}.`
+    ? 'The canvas is ready to inspect, and Spark is moving into the build.'
     : 'Spark is moving into the build now.';
   return telegramBlocks(
     telegramHtmlBold(`Canvas is ready for ${args.projectName}.`),
@@ -9671,13 +9776,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       status: 'success',
       summary: 'Natural browser-use availability answer completed without opening a browser.'
     });
-    await ctx.reply(browserProofAnswer);
+    await ctx.reply(browserProofAnswer, telegramHtmlExtra() as any);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_browser_use_availability_boundary', [
       {
-        source: 'capability_probe_receipt',
+        source: 'spark_browser_use_status',
         role: 'browser_use_availability_evidence',
-        freshness: 'live_probed',
-        sourceRef: 'spark_browser capability probe receipt when present',
+        freshness: 'fresh',
+        sourceRef: 'spark browser-use status --json, with capability receipt fallback only if owner status is unreadable',
         summary: 'Telegram answered browser-use availability as a read-only status claim and did not open a browser.'
       }
     ]);

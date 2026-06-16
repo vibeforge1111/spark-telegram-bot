@@ -15,13 +15,24 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
   }
 }
 
-function writeSparkCliStub(root: string): string {
+function shellSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, "'\"'\"'")}'`;
+}
+
+function writeSparkCliStub(root: string, browserUseStatus?: Record<string, unknown>): string {
   const binDir = path.join(root, 'bin');
   mkdirSync(binDir, { recursive: true });
+  const browserUseStatusJson = browserUseStatus ? JSON.stringify(browserUseStatus) : null;
   if (process.platform === 'win32') {
     const filePath = path.join(binDir, 'spark.cmd');
     writeFileSync(filePath, [
       '@echo off',
+      ...(browserUseStatusJson ? [
+        'if "%1"=="browser-use" if "%2"=="status" if "%3"=="--json" (',
+        `  echo ${browserUseStatusJson}`,
+        '  exit /b 0',
+        ')'
+      ] : []),
       'if "%1"=="live" if "%2"=="status" (',
       '  echo [OK] Spark Live is ready',
       '  echo [OK] spawner-ui: http://127.0.0.1:3333',
@@ -44,6 +55,12 @@ function writeSparkCliStub(root: string): string {
   const filePath = path.join(binDir, 'spark');
   writeFileSync(filePath, [
     '#!/usr/bin/env sh',
+    ...(browserUseStatusJson ? [
+      'if [ "$1" = "browser-use" ] && [ "$2" = "status" ] && [ "$3" = "--json" ]; then',
+      `  echo ${shellSingleQuoted(browserUseStatusJson)}`,
+      '  exit 0',
+      'fi'
+    ] : []),
     'if [ "$1" = "live" ] && [ "$2" = "status" ]; then',
     '  echo "[OK] Spark Live is ready"',
     '  echo "[OK] spawner-ui: http://127.0.0.1:3333"',
@@ -86,7 +103,7 @@ function writeFailingSparkCliStub(root: string): string {
   return filePath;
 }
 
-function fakeCtx(text: string, replies: string[]): any {
+function fakeCtx(text: string, replies: string[], replyExtras?: any[]): any {
   const user = { id: 8900000001, is_bot: false, first_name: 'RuntimeStatus', username: 'runtime_status' };
   const chat = { id: 8900000001, type: 'private', first_name: 'RuntimeStatus', username: 'runtime_status' };
   return {
@@ -110,13 +127,15 @@ function fakeCtx(text: string, replies: string[]): any {
       text
     },
     sendChatAction: async () => undefined,
-    reply: async (reply: unknown) => {
+    reply: async (reply: unknown, extra?: any) => {
       replies.push(String(reply ?? ''));
+      if (replyExtras) replyExtras.push(extra);
       return { message_id: replies.length + 1 };
     },
     telegram: {
-      sendMessage: async (_chatId: unknown, reply: unknown) => {
+      sendMessage: async (_chatId: unknown, reply: unknown, extra?: any) => {
         replies.push(String(reply ?? ''));
+        if (replyExtras) replyExtras.push(extra);
         return { message_id: replies.length + 1 };
       }
     }
@@ -219,6 +238,63 @@ async function main(): Promise<void> {
     assert.match(replies[0], /Current Spark risk profile: low\./);
     assert.doesNotMatch(replies[0], /stale temp spark shim|Current Spark risk profile: unknown/i);
     assert.match(replies[0], /I did not start a mission or repair action\./);
+  });
+
+  await test('browser-use availability reads owner status before stale probe receipts', async () => {
+    const indexModule = await import('../src/index');
+    writeSparkCliStub(tempRoot, {
+      ok: false,
+      status: 'installed_unproven',
+      proof_fresh: false,
+      last_failure_reason: 'browser-use proof receipt is stale; rerun spark browser-use probe.',
+      next_action: 'Run spark browser-use probe to create a fresh proof receipt.',
+      proven_scope: ['browser-use doctor', 'public page open', 'page state read', 'screenshot capture'],
+      unproven_scope: ['logged-in pages', 'cookies/profile reuse', 'Spawner browser automation']
+    });
+    indexModule.__setEvidenceAnswerComposerForTest(async () => '');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    try {
+      await indexModule.handleTextMessage(fakeCtx('Tell me whether browser-use is currently available, but do not open a browser.', replies, extras));
+    } finally {
+      indexModule.__setEvidenceAnswerComposerForTest(null);
+      writeSparkCliStub(tempRoot);
+    }
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /<b>Browser-use is not currently proven ready\.<\/b>/);
+    assert.match(replies[0], /<code>installed_unproven<\/code>/);
+    assert.match(replies[0], /spark browser-use probe/);
+    assert.doesNotMatch(replies[0], /just proved|opened a browser from this Telegram turn as proof/i);
+    assert.equal(extras[0]?.parse_mode, 'HTML');
+  });
+
+  await test('browser-use availability can say scoped ready only from fresh owner proof', async () => {
+    const indexModule = await import('../src/index');
+    writeSparkCliStub(tempRoot, {
+      ok: true,
+      status: 'ready',
+      proof_fresh: true,
+      proofs: ['doctor', 'public_page_open', 'state_read', 'screenshot_capture'],
+      proven_scope: ['browser-use doctor', 'public page open', 'page state read', 'screenshot capture'],
+      unproven_scope: ['logged-in pages', 'cookies/profile reuse', 'sensitive click workflows', 'Spawner browser automation']
+    });
+    indexModule.__setEvidenceAnswerComposerForTest(async () => '');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    try {
+      await indexModule.handleTextMessage(fakeCtx('Can you prove browser-use is available right now without opening a browser?', replies, extras));
+    } finally {
+      indexModule.__setEvidenceAnswerComposerForTest(null);
+      writeSparkCliStub(tempRoot);
+    }
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /<b>Browser-use is currently proven for the scoped lane\.<\/b>/);
+    assert.match(replies[0], /public page open/);
+    assert.match(replies[0], /Still unproven: .*logged-in pages/);
+    assert.match(replies[0], /I did not open a browser from this Telegram turn\./);
+    assert.equal(extras[0]?.parse_mode, 'HTML');
   });
 }
 
