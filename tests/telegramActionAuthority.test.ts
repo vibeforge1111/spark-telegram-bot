@@ -863,3 +863,41 @@ test('real access-change commands stay executable (no over-block)', () => {
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
   }
 });
+
+test('non-imperative framings cannot authorize a destructive schedule deletion (H1 word-hijack)', () => {
+  // CRITICAL (proven 2026-06-16): delete/remove/cancel/drop were absent from the gate verb
+  // group, so questions, reported speech, and negation of a destructive deletion reached the
+  // schedule.delete authority at executable confidence.
+  for (const text of [
+    'should i delete the scheduled job',
+    'you said cancel the scheduled reminder',
+    'dont delete the scheduled job',
+    'what if we drop the scheduled job'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+    const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+      route: 'schedule.delete',
+      text,
+      toolName: 'schedule.delete',
+      ownerSystem: 'spark-intelligence-builder',
+      mutationClass: 'deletes_schedule'
+    });
+    assert.equal(result.allow, false, text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
+});
+
+test('real destructive commands stay executable (no over-block)', () => {
+  // Genuine imperatives to delete/cancel/stop must stay executable; only framings demote.
+  // Substrings (killer/skill/mindset) must never trip the verb group.
+  for (const text of [
+    'delete the scheduled job',
+    'cancel the scheduled job',
+    'stop the mission now',
+    'drop the cron job',
+    'the killer feature shipped',
+    'this is a great skill'
+  ]) {
+    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, false, text);
+  }
+});
