@@ -3676,15 +3676,20 @@ export function isProviderRuntimeConfigQuestion(text: string): boolean {
   if (!normalized || isExplicitMemoryWriteLikeRequest(normalized)) {
     return false;
   }
-  const mentionsRoleSet = /\bchat\b/.test(normalized) &&
-    /\bbuilder\b/.test(normalized) &&
-    /\bmemory\b/.test(normalized) &&
-    /\bmission\b/.test(normalized) &&
-    /\broles?\b/.test(normalized);
+  const roleMentions = ['chat', 'builder', 'memory', 'mission']
+    .filter((role) => new RegExp(`\\b${role}\\b`).test(normalized)).length;
+  const mentionsRoleSet = roleMentions >= 2 &&
+    (/\broles?\b/.test(normalized) || /\b(?:codex|gpt|provider|model|reasoning|service\s+tier|low|high|fast)\b/.test(normalized));
+  const asksCurrentRuntime =
+    /\b(?:are|is|still|current(?:ly)?|right\s+now|on\s+this\s+device|using|running|set\s+to|configured)\b/.test(normalized);
+  const isDesignOrLabelTrap =
+    /\b(?:design|build|make|create|sketch|draft|write|label|labels|dashboard|screen|app|feature|copy|example|quote|pretend)\b/.test(normalized) &&
+    !/\b(?:check|tell|show|what|which|whether|confirm|verify|are|is|still|current(?:ly)?|right\s+now)\b/.test(normalized);
   const asksCurrentProviderRoles =
     mentionsRoleSet &&
-    /\b(?:are|is|still|current(?:ly)?|right\s+now|on\s+this\s+device)\b/.test(normalized) &&
-    /\b(?:codex|gpt|provider|model|reasoning|service\s+tier|low|high|fast)\b/.test(normalized);
+    asksCurrentRuntime &&
+    /\b(?:codex|gpt|provider|model|reasoning|service\s+tier|low|high|fast)\b/.test(normalized) &&
+    !isDesignOrLabelTrap;
   if (isNoExecutionBoundary(normalized) && /\b(?:provider|model|codex|reasoning|service\s+tier|high|fast)\b/.test(normalized)) {
     return true;
   }

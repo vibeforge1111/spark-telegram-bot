@@ -271,6 +271,27 @@ async function main(): Promise<void> {
     });
   });
 
+  await test('two-role natural provider status wording answers from fresh provider status', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx("Quick unrelated check: are the chat and builder still on Codex low fast here? Please don't change anything.", replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Provider runtime truth/);
+    assert.match(replies[0], /fresh `spark providers status`, not memory/);
+    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /builder: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
   await test('build-context recall reply carries trace metadata', async () => {
     const indexModule = await import('../src/index');
     const { conversation } = await import('../src/conversation');

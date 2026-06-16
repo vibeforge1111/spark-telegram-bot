@@ -656,7 +656,19 @@ test('provider role status questions do not become diagnostic follow-up tests', 
   );
   assert.equal(
     isProviderRuntimeConfigQuestion(
+      "Quick unrelated check: are the chat and builder still on Codex low fast here? Please don't change anything."
+    ),
+    true
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
       'Let us design a role dashboard for chat, builder, memory, and mission with Codex low fast labels.'
+    ),
+    false
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'I want a small settings screen with chat and builder labels that say Codex low fast.'
     ),
     false
   );
