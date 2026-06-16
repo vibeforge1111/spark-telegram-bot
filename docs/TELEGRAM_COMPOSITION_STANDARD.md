@@ -10,6 +10,11 @@ C:\Users\USER\.codex\skills\spark-telegram-composition\SKILL.md
 
 This repo copy is the mergeable source for Telegram gateway behavior.
 
+Composition work must follow `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`.
+Formatting is allowed to fix readability, spacing, link clutter, and scan
+quality. It must not be used to compensate for a wrong route, stale source,
+missing owner proof, or unsafe Harness/Governor decision.
+
 ## Goal
 
 Telegram should answer only four things:

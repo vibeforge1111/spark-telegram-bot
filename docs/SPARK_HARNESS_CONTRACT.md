@@ -54,6 +54,10 @@ natural positive case and an adjacent negative trap.
 
 ## Spark-Wide Improvement Governance
 
+The standing governance rule lives in
+`docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`. This contract file describes how
+that rule binds to Harness Core and Telegram.
+
 Before changing any Spark system, run the same governance loop regardless of
 where the symptom appeared:
 

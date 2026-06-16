@@ -23,12 +23,35 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/TURNINTENT_HARNESS_RULESET.md` and the relevant command, route, or adapter doc before edits.
+2. Read this file plus `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`, `docs/TURNINTENT_HARNESS_RULESET.md`, and the relevant command, route, or adapter doc before edits.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.
 6. Keep adapters thin and metadata-only.
 7. Commit one logical checkpoint and record verification.
+
+## Spark-Wide Root-Cause Governance
+
+The canonical repo rule is `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`.
+
+Do not patch Spark behavior with deterministic phrase saves, exact project-name
+special cases, exact mission-id handling, or reply-text fixes that only make the
+latest transcript look good. For every nontrivial Spark fix, classify the
+failure family, identify the earliest owning layer, and prove one natural
+positive plus one adjacent negative trap.
+
+Use the same governance loop across Spawner, Builder, Telegram, memory/wiki,
+recursive/domain-chip, provider/access, browser/computer-use, voice/media,
+schedule/publish, installer, Cockpit, Labs, Swarm, and plain chat:
+
+1. Read the exchange as a human conversation.
+2. Trace route, Harness/Governor, owner result, outbound audit, ledger, visible
+   reply, and side effects as applicable.
+3. Patch the owner mechanism, not the final sentence, unless the failure is
+   truly only composition.
+4. Keep Telegram readable, but never make Telegram wording the safety boundary.
+5. Claim done, saved, ready, installed, shipped, published, shared, or fixed
+   only from current owner proof and no newer contradictory owner state.
 
 ## One Truth Rules
 

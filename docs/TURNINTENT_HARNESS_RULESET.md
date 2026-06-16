@@ -14,6 +14,11 @@ Date: 2026-05-31
 
 This is the permanent Spark-wide rule for stopping deterministic route fighting, word hijacks, stale pending-state launches, memory-driven authority drift, and accidental tool calls.
 
+Use this file together with `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`. The
+governance ruleset defines the required root-cause loop for all Spark systems;
+this file defines the TurnIntent/Harness authority contract underneath that
+loop.
+
 Spark may keep deterministic systems underneath for speed, routing evidence, health checks, and state machines. Those systems must never become the authority for a high-agency action unless they are bound to the shared TurnIntent harness contract.
 
 The core rule is:
