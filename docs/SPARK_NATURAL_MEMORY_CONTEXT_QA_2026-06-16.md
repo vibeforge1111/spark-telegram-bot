@@ -130,6 +130,7 @@ stay in QA notes.
 - Local fixture coverage now includes natural continuity prompts such as "where were we on the day planner project?" and "what was the polish direction for the sprint picker?".
 - Conversation frame state persists across `ConversationMemory` instances for same-user recent context, while `recall()` remains empty unless durable memory accepted the content.
 - Live Telegram/CUA post-fix proof for the Tide Desk no-save/no-build case reached update `749543690`. The final-answer gate suppressed the unauthorized Memory Doctor detour as `diagnostic_wall`, then Harness Core delivered a local `chat_plan` answer with `write_allowed=false` and `publish_allowed=false`. Treat the route/source/side-effect fix as verified by trace and ledger evidence; UIA text extraction remained flaky, so keep using screenshots plus ledgers for human-visible Telegram proof until the CUA readout is stable.
+- Live Telegram/CUA post-fix proof for the Moss Window natural chat-only case reached update `749543696`. The user wrote in ordinary language: "Can we just talk it through for now? I do not want you to save it or build anything yet." Spark answered from same-session chat, did not claim a durable save, did not start a build, and asked a shaping follow-up. Outbound audit showed `mission_id_present=false` and route `provider_fallback_chat+manual_recommended`; screenshot evidence is `C:\Users\USER\Documents\Codex\2026-06-14\are-you-there\evidence\telegram-moss-window-natural-humanizer-delivered.png`.
 
 ## Stop-Ship Memory/Context Anti-Patterns
 

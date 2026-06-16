@@ -23,6 +23,11 @@ teach the system to pass an artificial conversation.
 - Anthropic's agent guidance emphasizes simple designs, transparency, testing,
   and adding agentic complexity only when it improves outcomes:
   https://www.anthropic.com/engineering/building-effective-agents
+- Spark-specific Hermes/OpenClaw research lives in
+  `docs/SPARK_AGENT_USAGE_RESEARCH_HERMES_OPENCLAW_2026-06-16.md`. Use it when
+  designing QA around persistent agents, Telegram rich/streaming output, memory
+  boundaries, CUA/browser proof, approvals, and human recovery from weird
+  transcripts.
 
 ## Prime Humanizer Rule
 
@@ -61,6 +66,9 @@ minute? I do not want to build it yet.
 | Casual exploration | "what would you make if this were yours?" | advise or brainstorm | infer permission to build |
 | Correction | "no, I meant the other one" | resolve context carefully | resurrect stale pending state |
 | Frustration | "this is weird, why is it doing that?" | acknowledge and trace | over-defend or dump logs |
+| Human repair | "that was not what I meant" | slow down, re-read context, ask one good question or inspect evidence | patch by exact phrase or launch a recovery action without authority |
+| Visibility check | "open it and tell me what you see" | use CUA/browser owner proof and report visible state | claim visual success from backend logs alone |
+| Rich status | "this is hard to read on Telegram" | use spacing, concise sections, and rich blocks only when they clarify | dump raw traces, duplicate links, or overformatted prose |
 
 ## Natural Prompt Bank
 
@@ -86,6 +94,16 @@ Use prompts like these before using operator-shaped probes:
 18. "Ok, go ahead with the small version we just discussed."
 19. "No, not that project, the other day-planner one."
 20. "This answer is hard to read. Can you make these updates easier to scan?"
+21. "That was not what I meant."
+22. "You said it was saved. Did it really save?"
+23. "You said it finished. What proof do we actually have?"
+24. "Can you open the preview and tell me what you see?"
+25. "Please check without changing anything."
+26. "Back to that tiny planner idea, where were we?"
+27. "Don't make this a big report. Just make it readable."
+28. "If it failed, tell me what failed before trying again."
+29. "Can you slow down and ask one question?"
+30. "Is that from memory, or just from this chat?"
 
 ## Scoring Rubric
 
@@ -98,6 +116,11 @@ Score each live Telegram conversation on five dimensions, 0-10:
 - Composition fit: did the Telegram reply use spacing, bullets, links, and rich formatting only to clarify true state?
 
 Stop-ship if a route passes only because the prompt used internal vocabulary.
+
+Also stop-ship if a route passes only because the user behaved like a QA
+operator. At least one proof for each launch-critical route must begin with
+ordinary human language: vague idea, short follow-up, correction, frustration,
+status check, or return to context.
 
 ## Regression Rule
 

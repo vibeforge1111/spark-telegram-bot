@@ -23,7 +23,7 @@ This repo does not own:
 ## Start-of-Work Protocol
 
 1. Run `git status --short --branch`.
-2. Read this file plus `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`, `docs/SPARK_HUMAN_CONVERSATION_QA_MAP.md`, `docs/TURNINTENT_HARNESS_RULESET.md`, and the relevant command, route, or adapter doc before edits.
+2. Read this file plus `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`, `docs/SPARK_HUMAN_CONVERSATION_QA_MAP.md`, `docs/SPARK_AGENT_USAGE_RESEARCH_HERMES_OPENCLAW_2026-06-16.md`, `docs/TURNINTENT_HARNESS_RULESET.md`, and the relevant command, route, or adapter doc before edits.
 3. Identify whether the change is Telegram-owned or belongs in Builder, CLI, Spawner, memory, Cockpit, voice, Labs, or Swarm.
 4. Define the smallest user-visible behavior and stop-ship gate.
 5. Add focused tests for routing, composition, access, bridge serialization, or relay metadata.
@@ -104,6 +104,12 @@ plain human turns such as "can we talk this through?", "what changed?", "where
 were we?", "don't build this yet", and "ok, make the small version now." Use
 operator-shaped wording only for operator paths. A route that only behaves when
 the user speaks like a QA harness is not ready.
+
+When designing broad Spark QA, use the Hermes/OpenClaw research doc as the
+human-agent usage baseline: persistent assistant relationship, natural action
+requests, memory/source boundaries, rich Telegram output, CUA/browser
+visibility, approval posture, and recovery from weird transcripts. Borrow the
+failure modes and human moments, not exact product behavior.
 
 For every reusable failure, capture a governance packet before editing or
 promoting the rule:
