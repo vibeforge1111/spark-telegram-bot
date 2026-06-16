@@ -92,6 +92,23 @@ switching, and an adjacent trap; then patch the earliest owner mechanism that
 made the wrong lane win: source selection, lane classification, Builder bridge,
 domain-chip-memory, wiki support boundary, or owner-state readout.
 
+Required memory/context probes must include regular human turns, not only
+commands:
+
+- project or preference discussion without the word "remember"
+- follow-up after several intervening turns
+- topic switch and return to the original project
+- bot restart followed by a continuity question
+- explicit comparison of saved memory versus recent context
+- natural no-save, no-build, or no-execution boundaries
+
+Passing means the correct lane won and no unauthorized owner acted. If the
+selected route is safe but the final answer is a Memory Doctor refusal,
+provider/status detour, stale Spawner readout, wiki overreach, or another
+unrelated owner response, classify it as a source-selection or bridge-boundary
+failure. Repair the lane/owner mechanism; do not add a reply keyed to the
+observed prompt.
+
 ## Telegram And Readout Rules
 
 Telegram is a human surface, not the safety boundary.
@@ -157,6 +174,13 @@ use cases, not only isolated commands. A route can pass a unit test and still
 fail release readiness if a normal Telegram conversation would feel like Spark
 ignored context, launched too early, refused a fresh action, claimed false
 completion, or answered from the wrong memory/source lane.
+
+No root-cause lesson is considered captured if it exists only in operator
+memory, a chat final answer, or a handoff note. Reusable lessons must be
+promoted into agent rules, this governance file or the relevant route doc,
+installed Spark skills, and regression/QA prompts. If the lesson cannot name an
+owning layer and paired positive/trap cases, keep it as an incident note and
+continue tracing.
 
 ## Stop-Ship Anti-Patterns
 

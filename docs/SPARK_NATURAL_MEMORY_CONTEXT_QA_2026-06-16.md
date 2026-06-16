@@ -37,6 +37,8 @@ It is fixed when the correct lane wins for the next natural variation too.
 | Wiki authority | LLM/ALM wiki answers cite/support knowledge; live status, owner traces, and newest user message win for mutable truth. |
 | Tracing | Every tested route has inspectable evidence: natural route decision, Harness authorization, owner tool ledger when a tool runs, outbound audit, and visible Telegram reply for live checks. |
 | Telegram readability | Replies use paragraph spacing, one primary link when a link is needed, and human-readable summaries rather than dense raw traces. |
+| Wrong-source rejection | A safe chat-plan route must not surface Memory Doctor, provider/status, Spawner, wiki, or stale-route answers unless that owner was freshly authorized and evidence-backed for the latest turn. |
+| Durable rule capture | Reusable findings are promoted into agent rules, repo governance docs, installed Spark skills, and QA prompts/tests rather than staying in a chat summary or operator memory. |
 
 ## Required Natural QA Loop
 
@@ -58,6 +60,15 @@ If a case fails, patch the owning lane/source mechanism rather than the final
 reply: source selector, lane classifier, Builder bridge, domain-chip-memory,
 wiki boundary, or owner-state readout. The regression must include the original
 shape, one natural variation, and one adjacent trap.
+
+If Spark selects a safe conversational route but the final answer comes from an
+unrelated diagnostic or owner, treat that as contamination in answer-source
+selection. The fix belongs at the bridge/source boundary that accepted the wrong
+answer, not in a deterministic Telegram reply for the exact prompt.
+
+Reusable failures must leave behind durable structure: a rule update, a focused
+test or QA prompt, and owner/trace evidence. Incident-only transcript details
+stay in QA notes.
 
 ## 40 Natural Test Cases
 

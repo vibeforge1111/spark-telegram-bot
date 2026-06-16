@@ -119,12 +119,25 @@ Use allowlisted serializers for route context, audits, final-answer metadata, an
 - Local conversation buffer is not durable Spark memory.
 - Render memory proof-card metadata only: owner, decision, durability, freshness, confidence, blockers, and correction path.
 - Never export memory bodies into Telegram audits, route context, or compiled projections.
+- Memory/context QA must include ordinary conversation, not only explicit
+  commands. Test implicit preferences, project setup without the word
+  "remember", topic switches, restarts, no-save boundaries, no-build boundaries,
+  and follow-ups that ask what was being discussed.
+- Passing requires the correct source lane and no unintended side effects. A
+  plausible answer from stale context, a wiki note, provider residue, route
+  history, or an unauthorized diagnostic is still a failure.
 - Memory/context fixes must be lane-governance fixes, not transcript patches.
   If Spark answers from the wrong project, stale route residue, wiki notes,
   provider/status context, or local frame, reproduce with natural conversation
   plus a topic switch and patch the source selector, lane classifier, Builder
   bridge, memory owner, or owner-state readout that made the wrong source win.
   Do not special-case the project name, exact prompt, mission id, or reply text.
+
+If a safe chat-plan turn is routed correctly but the visible answer comes from
+Memory Doctor, Spawner, provider status, or another unrelated owner, treat that
+as source-selection or Builder-bridge contamination. Do not fix it by teaching
+Telegram one exact answer; reject the wrong source and repair the owner/lane
+boundary that allowed it to win.
 
 ## Verification Menu
 
