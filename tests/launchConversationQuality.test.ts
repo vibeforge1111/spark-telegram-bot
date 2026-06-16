@@ -257,8 +257,8 @@ test('launch natural work replies pass the readability ergonomics vibe bar', () 
 
   assert.match(clarification, /Page\.\n\nRecommended starting point:/);
   assert.match(clarification, /presets\.\n\nSay "go" to start/);
-  assert.match(heartbeat, /^still shaping Paragraph Spacing Smoke Page\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
-  assert.match(stillRunning, /^still preparing Paragraph Spacing Smoke Page\. It is taking a little longer than usual, and I will send the canvas when it is ready\./m);
+  assert.match(heartbeat, /^<b>Still shaping Paragraph Spacing Smoke Page\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./m);
+  assert.match(stillRunning, /^<b>Still preparing Paragraph Spacing Smoke Page\.<\/b>\n\nIt is taking a little longer than usual\. I will send the canvas when it is ready\./m);
   assert.doesNotMatch(heartbeat, /🛠️|Canvas prep has been running/);
   assert.doesNotMatch(stillRunning, /🛠️|It has been shaping/);
 });

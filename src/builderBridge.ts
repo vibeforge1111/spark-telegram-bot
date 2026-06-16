@@ -1358,7 +1358,7 @@ export function formatSelfAwarenessReply(payload: unknown): string {
     lines.push('- I should use that as background, not as live truth.');
     lines.push('');
   }
-  lines.push('Core rule: I can try the right route, but I should name missing evidence before claiming certainty.');
+  lines.push('Core rule: current-state evidence wins; I can try the right route, but I should name missing evidence before claiming certainty.');
   const reply = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   if (reply.length <= 1800) {
     return reply;

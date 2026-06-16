@@ -27,6 +27,10 @@ import {
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 import { signGovernorDecisionIfConfigured } from './governorSignature';
+import {
+  escapeTelegramHtml,
+  escapeTelegramHtmlAttribute
+} from './telegramHtml';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -406,17 +410,6 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
   return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
-}
-
-function escapeTelegramHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function escapeTelegramHtmlAttribute(value: string): string {
-  return escapeTelegramHtml(value).replace(/"/g, '&quot;');
 }
 
 function renderDiagnoseTelegramLine(line: string, index: number): string {

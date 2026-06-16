@@ -36,6 +36,15 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
   answer came from a deterministic state machine.
 - Prefer one or two plain sentences plus one inspect link for ordinary follow-ups.
   Section headings are optional, not the default.
+- Use Telegram HTML for polished operational cards when the sender owns the
+  escaping and delivery options. Escape dynamic text, disable link previews, and
+  render links as short labels such as `Open canvas` or `Open board`.
+- Prefer one inspect link per operational update. Do not show the same URL as
+  both link text and a raw parenthesized URL, and do not send Canvas, Board, and
+  trace links together unless the user asked for raw evidence.
+- Do not use standalone markdown divider lines such as `---` in Telegram
+  replies. Collapse them into normal paragraph spacing so sentence blocks have
+  a blank line between them without looking like a pasted report.
 - Use one status icon at the start of major outcome rows.
 - Do not combine icons with bullets, numbering, or extra markers on the same row.
 - Use dotted bullets (`•`) for grouped facts under section headings such as Score, Review, Workspace, Sharing, Why, and Move.
@@ -293,6 +302,8 @@ Before shipping a Telegram message:
 - Is there exactly one main thing to notice?
 - Is each line carrying new information?
 - Did we avoid double markers like `- <icon>` or `<icon> 1.`?
+- Did we avoid standalone divider lines and use normal paragraph spacing
+  between sentence blocks?
 - Did we collapse repeated movement and artifact rows?
 - Is raw evidence still accessible somewhere else?
 - Is the next action obvious without being noisy?

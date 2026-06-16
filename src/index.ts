@@ -180,6 +180,12 @@ import {
   telegramPollingRetryDelayMs,
   telegramStartupErrorMessage
 } from './telegramPollingStartup';
+import {
+  TELEGRAM_HTML_REPLY_OPTIONS,
+  escapeTelegramHtml,
+  telegramHtmlBold,
+  telegramHtmlLink
+} from './telegramHtml';
 import { buildDiagnoseReport, renderDiagnoseReportHtml } from './diagnose';
 import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './authorityStatus';
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
@@ -3160,6 +3166,13 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+function telegramHtmlExtra(extra?: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...(extra || {}),
+    ...TELEGRAM_HTML_REPLY_OPTIONS
+  };
+}
+
 export function buildPrdCanvasNotifierTraceExtra(args: {
   requestId: string;
   traceRef: string;
@@ -4540,13 +4553,9 @@ bot.command('status', async (ctx) => {
 bot.command('diagnose', async (ctx) => {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
-  const richReplyOptions = {
-    parse_mode: 'HTML',
-    disable_web_page_preview: true
-  } as const;
   await ctx.reply(
     '<b>Running diagnostics</b>\n\nChecking chat, access, relay, Spawner, and provider ping. Takes ~30s...',
-    richReplyOptions as any
+    TELEGRAM_HTML_REPLY_OPTIONS as any
   );
   try {
     const report = await buildDiagnoseReport(ctx.from.id, {
@@ -4556,7 +4565,7 @@ bot.command('diagnose', async (ctx) => {
       isAllowed: conversation.isAllowed(ctx.from)
     });
     // Telegram limit is 4096 chars; diagnose is always well under.
-    await ctx.reply(renderDiagnoseReportHtml(report), richReplyOptions as any);
+    await ctx.reply(renderDiagnoseReportHtml(report), TELEGRAM_HTML_REPLY_OPTIONS as any);
   } catch (err: any) {
     await ctx.reply(renderSparkErrorReply(err, 'diagnose', conversation.isAdmin(ctx.from)));
   }
@@ -5635,7 +5644,7 @@ export async function handleClarificationAnswers(
       buildLane,
       missionId,
       kanbanUrl
-    }));
+    }), telegramHtmlExtra() as any);
     startPrdCanvasReadyNotifier({
       chatId: Number(ctx.chat.id),
       userId: Number(ctx.from.id),
@@ -5707,7 +5716,7 @@ function startPrdCanvasReadyNotifier(args: {
           await bot.telegram.sendMessage(args.chatId, formatCanvasShapingHeartbeatSummary({
             projectName: args.projectName,
             elapsedSeconds: elapsedSec
-          }), traceExtra('canvas_shaping')).catch(() => {});
+          }), telegramHtmlExtra(traceExtra('canvas_shaping')) as any).catch(() => {});
           heartbeatIndex += 1;
         }
 
@@ -5739,18 +5748,18 @@ function startPrdCanvasReadyNotifier(args: {
             });
             if (!materializationGate.ready) {
               await bot.telegram.sendMessage(args.chatId, telegramBlocks(
-                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
-                `I am not sending a canvas link yet because Spawner did not prove a complete materialized workflow: ${materializationGate.reason}.`,
-                `Board: ${args.kanbanUrl}`
-              ), traceExtra('canvas_handoff_blocked'));
+                telegramHtmlBold(`Analysis finished for ${args.projectName}.`),
+                `I am not sending a canvas link yet because Spawner did not prove a complete materialized workflow: ${escapeTelegramHtml(materializationGate.reason)}.`,
+                telegramHtmlLink('Open board', args.kanbanUrl)
+              ), telegramHtmlExtra(traceExtra('canvas_handoff_blocked')) as any);
               return;
             }
             if (typeof queue.data?.canvasUrl !== 'string' || !queue.data.canvasUrl.trim()) {
               await bot.telegram.sendMessage(args.chatId, telegramBlocks(
-                `Analysis finished for ${args.projectName}, and the mission board is tracking it.`,
+                telegramHtmlBold(`Analysis finished for ${args.projectName}.`),
                 'I am not sending a canvas link yet because Spawner did not return a materialized canvas handoff.',
-                `Board: ${args.kanbanUrl}`
-              ), traceExtra('canvas_handoff_blocked'));
+                telegramHtmlLink('Open board', args.kanbanUrl)
+              ), telegramHtmlExtra(traceExtra('canvas_handoff_blocked')) as any);
               return;
             }
             const readyCanvasUrl = `${args.telegramSurfaceUrl.replace(/\/+$/, '')}${queue.data.canvasUrl}`;
@@ -5771,7 +5780,7 @@ function startPrdCanvasReadyNotifier(args: {
               readyCanvasUrl,
               kanbanUrl: args.kanbanUrl,
               canvasMaterialization
-            }), traceExtra('canvas_ready'));
+            }), telegramHtmlExtra(traceExtra('canvas_ready')) as any);
           } catch (queueErr: any) {
             const detail = summarizeSpawnerRequestError(queueErr);
             console.warn(
@@ -5780,11 +5789,11 @@ function startPrdCanvasReadyNotifier(args: {
             await bot.telegram.sendMessage(
               args.chatId,
               telegramBlocks(
-                `Analysis finished for ${args.projectName}, but Spawner could not queue the canvas handoff.`,
-                detail,
-                `Board: ${args.kanbanUrl}`
+                telegramHtmlBold(`Analysis finished for ${args.projectName}.`),
+                `Spawner could not queue the canvas handoff: ${escapeTelegramHtml(detail)}`,
+                telegramHtmlLink('Open board', args.kanbanUrl)
               ),
-              traceExtra('canvas_handoff_failed')
+              telegramHtmlExtra(traceExtra('canvas_handoff_failed')) as any
             );
           }
           return;
@@ -5806,7 +5815,7 @@ function startPrdCanvasReadyNotifier(args: {
       projectName: args.projectName,
       elapsedSeconds: Math.round(readyTimeoutMs / 1000),
       kanbanUrl: args.kanbanUrl
-    }), traceExtra('canvas_still_running'));
+    }), telegramHtmlExtra(traceExtra('canvas_still_running')) as any);
   })();
 }
 
@@ -6257,8 +6266,9 @@ export function formatCanvasStillRunningSummary(args: {
   kanbanUrl: string;
 }): string {
   return telegramBlocks(
-    `still preparing ${args.projectName}. It is taking a little longer than usual, and I will send the canvas when it is ready.`,
-    `Board: ${args.kanbanUrl}`
+    telegramHtmlBold(`Still preparing ${args.projectName}.`),
+    'It is taking a little longer than usual. I will send the canvas when it is ready.',
+    telegramHtmlLink('Open board', args.kanbanUrl)
   );
 }
 
@@ -6267,7 +6277,7 @@ export function formatCanvasShapingHeartbeatSummary(args: {
   elapsedSeconds: number;
 }): string {
   return telegramBlocks(
-    `still shaping ${args.projectName}.`,
+    telegramHtmlBold(`Still shaping ${args.projectName}.`),
     'I will keep this quiet until the canvas is ready or something needs attention.'
   );
 }
@@ -6287,11 +6297,11 @@ function formatBuildMissionQueuedReply(input: {
       ? 'planning canvas'
       : 'direct build';
   return telegramBlocks(
-    input.lead,
-    `Setting up ${input.projectName} as a ${modeText}.`,
-    `Board: ${input.kanbanUrl}`,
+    telegramHtmlBold(input.lead),
+    `Setting up ${escapeTelegramHtml(input.projectName)} as a ${escapeTelegramHtml(modeText)}.`,
+    telegramHtmlLink('Open board', input.kanbanUrl),
     'I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized.',
-    input.projectPath ? ['Workspace', `- ${input.projectPath}`].join('\n') : null,
+    input.projectPath ? ['Workspace', `<code>${escapeTelegramHtml(input.projectPath)}</code>`].join('\n') : null,
   );
 }
 
@@ -7105,10 +7115,9 @@ export function formatCanvasReadySummary(args: {
     ? `Spark queued ${taskCount} build ${taskCount === 1 ? 'step' : 'steps'} with ${pairedNodeCount} paired ${pairedNodeCount === 1 ? 'node' : 'nodes'}${skillClause}.`
     : 'Spark is moving into the build now.';
   return telegramBlocks(
-    `Canvas is ready for ${args.projectName}.`,
+    telegramHtmlBold(`Canvas is ready for ${args.projectName}.`),
     buildStepLine,
-    ['Canvas', `- ${args.readyCanvasUrl}`].join('\n'),
-    `Board: ${args.kanbanUrl}`
+    telegramHtmlLink('Open canvas', args.readyCanvasUrl)
   );
 }
 
@@ -7823,14 +7832,14 @@ export async function handleBuildIntent(
       projectPath,
       missionId,
       kanbanUrl
-    }), outboundTraceExtra({
+    }), telegramHtmlExtra(outboundTraceExtra({
       route: 'spawner',
       command: 'run',
       replyKind: 'build_ack',
       requestId,
       traceRef,
       missionId
-    }));
+    })) as any);
     recordCommandReplyDelivery({
       command: 'run',
       replyKind: 'build_ack',

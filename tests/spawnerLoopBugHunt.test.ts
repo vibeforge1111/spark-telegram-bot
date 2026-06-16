@@ -293,10 +293,11 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(canvasReady, /Canvas is ready for Proof Orchard\./);
+  assert.match(canvasReady, /<b>Canvas is ready for Proof Orchard\.<\/b>/);
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
-  assert.match(canvasReady, /Canvas\n- http:\/\/127\.0\.0\.1:3333\/canvas/);
-  assert.match(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
+  assert.match(canvasReady, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p1&amp;mission=mission-123">Open canvas<\/a>/);
+  assert.doesNotMatch(canvasReady, /Canvas\n-/);
+  assert.doesNotMatch(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
   assert.match(canvasReady, /Spark queued 4 build steps with 4 paired nodes and 5 skills\./);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
@@ -326,8 +327,8 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
   const heartbeat = formatCanvasShapingHeartbeatSummary({ projectName: 'Proof Orchard', elapsedSeconds: 120 });
-  assert.match(heartbeat, /still shaping Proof Orchard\./);
-  assert.match(heartbeat, /still shaping Proof Orchard\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>/);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
   assert.doesNotMatch(heartbeat, /🛠️/);
   assert.doesNotMatch(heartbeat, /Canvas prep has been running/);
   assert.doesNotMatch(heartbeat, /^Status$/m);
@@ -339,9 +340,11 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsedSeconds: 240,
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123'
   });
-  assert.match(stillRunning, /still preparing Proof Orchard\./);
+  assert.match(stillRunning, /<b>Still preparing Proof Orchard\.<\/b>/);
   assert.match(stillRunning, /taking a little longer than usual/);
   assert.match(stillRunning, /I will send the canvas when it is ready\./);
+  assert.match(stillRunning, /<a href="http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123">Open board<\/a>/);
+  assert.doesNotMatch(stillRunning, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
   assert.doesNotMatch(stillRunning, /🛠️/);
   assert.doesNotMatch(stillRunning, /It has been shaping/);
   assert.doesNotMatch(stillRunning, /^Status$/m);
@@ -365,6 +368,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     }
   });
   assert.match(tenStepReply, /Spark queued 10 build steps with 10 paired nodes and 1 skill\./);
+  assert.match(tenStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p2&amp;mission=mission-456">Open canvas<\/a>/);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
@@ -384,6 +388,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     }
   });
   assert.match(twelveStepReply, /Spark queued 12 build steps with 12 paired nodes and 1 skill\./);
+  assert.match(twelveStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p3&amp;mission=mission-789">Open canvas<\/a>/);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);
