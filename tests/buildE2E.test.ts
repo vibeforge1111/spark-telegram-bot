@@ -2417,8 +2417,9 @@ async function run(): Promise<void> {
 
 			const reply = replies.join('\n');
 			assert.equal(recursiveStatusCalls, 0);
-			assert.match(reply, /fresh `\/probe browser` result/i);
-			assert.match(reply, /logged-in pages are unproven|screenshots, clicks, cookies/i);
+			assert.match(reply, /Browser-use is not currently proven ready/i);
+			assert.match(reply, /installed_unproven|spark browser-use probe/i);
+			assert.doesNotMatch(reply, /fresh `\/probe browser` result/i);
 			assert.doesNotMatch(reply, /benchmark-backed evidence for an improvement claim/i);
 		} finally {
 			(pathLoop as any).readSpecializationPathLoopStatus = originalRead;
@@ -2882,7 +2883,9 @@ async function run(): Promise<void> {
 		});
 
 			assert.match(reply, /<b>Canvas is ready for domain-chip-posters\.<\/b>/);
-			assert.match(reply, /Spark queued 2 build steps with 2 paired nodes and 1 skill\./);
+			assert.match(reply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+			assert.doesNotMatch(reply, /Spark queued 2 build steps/);
+			assert.doesNotMatch(reply, /paired nodes|skills?/i);
 			assert.doesNotMatch(reply, /Spawned tasks/);
 			assert.doesNotMatch(reply, /Plan/);
 			assert.doesNotMatch(reply, /Chip manifest/);
