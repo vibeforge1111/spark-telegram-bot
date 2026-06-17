@@ -16,6 +16,10 @@ export interface IntentProposerShadowRecord {
   text: string;
   agreement: ProposalAgreement;
   proposal: IntentProposal | null;
+  // Optional enforcement outcome for the audit trail (Phase 2 nudge / Phase 2b veto). Observe-only
+  // logging: these record what the kernel decided, never affect it.
+  enforcement?: { mode: string; route?: string; confidence?: number } | null;
+  veto?: { veto: boolean; route?: string; confidence?: number; reason?: string } | null;
 }
 
 export function logIntentProposerShadow(
@@ -32,7 +36,9 @@ export function logIntentProposerShadow(
       agrees: record.agreement.agrees,
       abstain: record.agreement.abstain,
       proposed: record.proposal === null,
-      candidates: record.proposal ? record.proposal.candidates.slice(0, 3) : []
+      candidates: record.proposal ? record.proposal.candidates.slice(0, 3) : [],
+      enforcement: record.enforcement ?? null,
+      veto: record.veto ?? null
     };
     appendFileSync(logPath, `${JSON.stringify(row)}\n`, 'utf8');
   } catch {

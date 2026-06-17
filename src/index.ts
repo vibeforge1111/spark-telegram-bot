@@ -45,7 +45,7 @@ import { datamarkUntrusted, generateBuildClarificationMicrocopy, llm, type Build
 import { runIntentProposerShadow } from './intentProposerShadow';
 import { intentProposerProviderComplete } from './intentProposerCompleter';
 import { logIntentProposerShadow } from './intentProposerLog';
-import { decideProposerEnforcement, NO_ACTION_ROUTES } from './intentProposerEnforce';
+import { decideProposerEnforcement, NO_ACTION_ROUTES, decideProposerVeto, proposerVetoConfirmMessage } from './intentProposerEnforce';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -9772,8 +9772,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       } catch {
         // observe/enforce must never break the turn
       }
-    } else {
-      // Shadow (observe-only): fire-and-forget, zero added latency.
+    } else if (intentProposerShadowOn) {
+      // Shadow (observe-only): fire-and-forget, zero added latency. Under pure ENFORCE (shadow off),
+      // mutation-permitted turns are intentionally NOT handled here - they fall through to the
+      // semantic veto below, so the proposer is called at most once per turn.
       void runIntentProposerShadow(text, shadowRoute, intentProposerProviderComplete)
         .then((result) => logIntentProposerShadow({ text, agreement: result.agreement, proposal: result.proposal }))
         .catch(() => {});
@@ -9793,6 +9795,44 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group',
     turnId: telegramTurnIdFromUpdate(ctx.update)
   });
+  // Phase 2b: the semantic anti-hijack VETO (env-gated by SPARK_INTENT_PROPOSER_ENFORCE). It fires
+  // ONLY when the deterministic gate has already PERMITTED a mutation on this turn
+  // (requiresApprovalFor non-empty and no existing no-execution boundary) - the high-stakes case where
+  // a hijack would actually execute. The model reads ONLY the fresh user text; if it confidently lands
+  // on a non-action route (discussion, a question, a negation, quoted/reported speech), the kernel
+  // blocks the mutation and asks for one explicit confirmation. It can ONLY add a block, never grant
+  // execution, and on any error it falls through to the normal cascade, so it is strictly safe.
+  if (
+    intentProposerEnforceOn &&
+    !turnIntentEnvelope.directive.noExecution &&
+    turnIntentEnvelope.toolPolicy.requiresApprovalFor.length > 0
+  ) {
+    try {
+      const vetoShadow = await runIntentProposerShadow(
+        text,
+        naturalRouteShadow?.route || telegramIntentGateV2.route,
+        intentProposerProviderComplete
+      );
+      const veto = decideProposerVeto(vetoShadow.proposal, { failClosedOnNull: true });
+      logIntentProposerShadow({ text, agreement: vetoShadow.agreement, proposal: vetoShadow.proposal, veto });
+      if (veto.veto) {
+        const actionLabel = telegramIntentGateV2.action || telegramIntentGateV2.route || 'that action';
+        console.log(
+          `[IntentProposerVeto] blocked mutation route=${telegramIntentGateV2.route} action=${telegramIntentGateV2.action || 'none'} reason=${veto.reason || 'semantic'} proposer=${veto.route || 'none'} conf=${veto.confidence ?? 'n/a'}`
+        );
+        await conversation.remember(user, text).catch(() => {});
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.semantic_proposer_veto', 'spark-telegram-bot', 'plain_chat.semantic_veto');
+        const reply = veto.reason === 'proposer_unavailable'
+          ? `I could not double-check that this was a fresh command (my intent classifier did not respond), so I held off on "${actionLabel}". Reply with a clear go-ahead such as "yes, ${actionLabel}" and I will run it.`
+          : proposerVetoConfirmMessage(actionLabel);
+        await ctx.reply(reply);
+        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        return;
+      }
+    } catch {
+      // veto must never break the turn; on any error fall through to the normal cascade.
+    }
+  }
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
     route: 'spawner.build',
     text,

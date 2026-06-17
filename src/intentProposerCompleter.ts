@@ -22,6 +22,22 @@ interface ChatCompletionsResponse {
   choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
 }
 
+// GLM intermittently returns an EMPTY completion for an otherwise-fine prompt (observed ~1-in-3 on
+// some turns). Empties come back instantly, so a retry is nearly free and recovers the vast majority.
+// This matters because the proposer now feeds a security veto: a dropped response must not silently
+// become "no opinion". Default 3 attempts; override with SPARK_INTENT_PROPOSER_ATTEMPTS.
+function proposerAttempts(): number {
+  const raw = Number(process.env.SPARK_INTENT_PROPOSER_ATTEMPTS);
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 5) return Math.floor(raw);
+  return 3;
+}
+
+const PER_ATTEMPT_TIMEOUT_MS = 9000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export const intentProposerProviderComplete: IntentProposerCompleter = async ({ system, user }) => {
   let config;
   try {
@@ -32,30 +48,36 @@ export const intentProposerProviderComplete: IntentProposerCompleter = async ({ 
   // The shadow proposer only drives the live (openai_compat) provider. Other backends (codex/claude
   // CLIs, anthropic API) are not wired here on purpose - they return '' and the proposal is null.
   if (config.kind !== 'openai_compat' || !config.baseUrl) return '';
-  try {
-    const res = await axios.post<ChatCompletionsResponse>(
-      joinUrl(config.baseUrl, '/chat/completions'),
-      {
-        model: config.model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user }
-        ],
-        temperature: 0,
-        max_tokens: 400,
-        thinking: { type: 'disabled' }
-      },
-      {
-        timeout: 12000,
-        headers: {
-          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
-          'Content-Type': 'application/json'
+  const attempts = proposerAttempts();
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const res = await axios.post<ChatCompletionsResponse>(
+        joinUrl(config.baseUrl, '/chat/completions'),
+        {
+          model: config.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user }
+          ],
+          temperature: 0,
+          max_tokens: 400,
+          thinking: { type: 'disabled' }
+        },
+        {
+          timeout: PER_ATTEMPT_TIMEOUT_MS,
+          headers: {
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+            'Content-Type': 'application/json'
+          }
         }
-      }
-    );
-    const message = res.data.choices?.[0]?.message;
-    return stripThinkPreamble(message?.content || message?.reasoning_content || '');
-  } catch {
-    return '';
+      );
+      const message = res.data.choices?.[0]?.message;
+      const out = stripThinkPreamble(message?.content || message?.reasoning_content || '');
+      if (out) return out; // non-empty -> done
+    } catch {
+      // fall through to retry; final failure returns '' below
+    }
+    if (attempt < attempts - 1) await delay(150);
   }
+  return '';
 };

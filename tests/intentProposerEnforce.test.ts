@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { decideProposerEnforcement, NO_ACTION_ROUTES, DEFAULT_ENFORCE_ALLOWLIST } from '../src/intentProposerEnforce';
+import {
+  decideProposerEnforcement,
+  NO_ACTION_ROUTES,
+  DEFAULT_ENFORCE_ALLOWLIST,
+  decideProposerVeto,
+  proposerVetoConfirmMessage,
+  NON_MUTATING_PROPOSER_ROUTES
+} from '../src/intentProposerEnforce';
 import type { IntentProposal } from '../src/intentProposerShadow';
 
 const registered: Array<[string, () => void]> = [];
@@ -57,6 +64,62 @@ test('scope invariants hold (allowlist subset of routes, no-action set non-empty
   assert.ok(NO_ACTION_ROUTES.has('plain_chat'));
   // a hijack-over-routed mutation must never be enforceable: it would arrive as an action regexRoute
   assert.equal(decideProposerEnforcement('spawner.build', prop('plain_chat', 0.95)).mode, 'none');
+});
+
+// --- Phase 2b veto -------------------------------------------------------------------------------
+
+test('VETO fires when the model confidently reads a mutation-permitted turn as plain chat', () => {
+  // the classic hijack: gate permitted a mutation, but the fresh text is discussion -> block + confirm.
+  const d = decideProposerVeto(prop('plain_chat', 0.93));
+  assert.equal(d.veto, true);
+  assert.equal(d.route, 'plain_chat');
+  assert.equal(d.reason, 'semantic_proposer_veto');
+});
+
+test('VETO fires for negation/quote read as a read-only route at the lower veto bar', () => {
+  for (const route of ['spark.read_only_state', 'spark_wiki.answer', 'spawner.board']) {
+    assert.equal(decideProposerVeto(prop(route, 0.82)).veto, true, route);
+  }
+});
+
+test('VETO does NOT fire when the model agrees it is a real action (never block a genuine command)', () => {
+  for (const route of ['spawner.build', 'access.change', 'schedule.delete', 'memory.write']) {
+    assert.equal(decideProposerVeto(prop(route, 0.99)).veto, false, route);
+  }
+});
+
+test('VETO does NOT fire below the veto bar, on abstain, or on a null proposal (default open)', () => {
+  assert.equal(decideProposerVeto(prop('plain_chat', 0.7)).veto, false);
+  assert.equal(decideProposerVeto(prop('plain_chat', 0.99, true)).veto, false);
+  assert.equal(decideProposerVeto(null).veto, false);
+});
+
+test('VETO fails CLOSED on a null proposal when guarding a permitted mutation', () => {
+  const d = decideProposerVeto(null, { failClosedOnNull: true });
+  assert.equal(d.veto, true);
+  assert.equal(d.reason, 'proposer_unavailable');
+  // abstain is a real model opinion ("ask"), not an outage -> still open, not the fail-closed path
+  assert.equal(decideProposerVeto(prop('plain_chat', 0.99, true), { failClosedOnNull: true }).veto, false);
+});
+
+test('VETO honors a custom confidence bar', () => {
+  assert.equal(decideProposerVeto(prop('plain_chat', 0.85), { minConfidence: 0.95 }).veto, false);
+  assert.equal(decideProposerVeto(prop('plain_chat', 0.97), { minConfidence: 0.95 }).veto, true);
+});
+
+test('VETO non-mutating set covers the no-action routes and reads, not the mutations', () => {
+  assert.ok(NON_MUTATING_PROPOSER_ROUTES.has('plain_chat'));
+  assert.ok(NON_MUTATING_PROPOSER_ROUTES.has('spark.read_only_state'));
+  for (const route of NO_ACTION_ROUTES) assert.ok(NON_MUTATING_PROPOSER_ROUTES.has(route), route);
+  assert.ok(!NON_MUTATING_PROPOSER_ROUTES.has('spawner.build'));
+  assert.ok(!NON_MUTATING_PROPOSER_ROUTES.has('access.change'));
+});
+
+test('veto confirm message names the action and gives an explicit go-ahead, no em dash', () => {
+  const msg = proposerVetoConfirmMessage('access.change');
+  assert.match(msg, /access\.change/);
+  assert.match(msg, /yes, access\.change/);
+  assert.ok(!msg.includes('—'));
 });
 
 void (async () => {
