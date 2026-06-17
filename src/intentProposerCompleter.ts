@@ -28,45 +28,91 @@ interface ChatCompletionsResponse {
 // become "no opinion". Default 3 attempts; override with SPARK_INTENT_PROPOSER_ATTEMPTS.
 function proposerAttempts(): number {
   const raw = Number(process.env.SPARK_INTENT_PROPOSER_ATTEMPTS);
-  if (Number.isFinite(raw) && raw >= 1 && raw <= 5) return Math.floor(raw);
-  return 3;
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 6) return Math.floor(raw);
+  return 4;
 }
 
 const PER_ATTEMPT_TIMEOUT_MS = 9000;
+// Generous enough that a reasoning model emitting a short think block before the JSON does not get
+// truncated to an empty content field (a cause of the transient empties the retries recover).
+const PROPOSER_MAX_TOKENS = 700;
+
+// HARD wall-clock budget across ALL retries. The veto runs synchronously on the (rare) mutation turn,
+// so a flaky/slow provider must not hang the turn: once the budget is spent we stop retrying and
+// return '' (the veto then fails CLOSED to a fast confirm prompt - safe). Tunable for the live bot.
+function proposerDeadlineMs(): number {
+  const raw = Number(process.env.SPARK_INTENT_PROPOSER_DEADLINE_MS);
+  if (Number.isFinite(raw) && raw >= 3000 && raw <= 30000) return Math.floor(raw);
+  return 13000;
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const intentProposerProviderComplete: IntentProposerCompleter = async ({ system, user }) => {
-  let config;
-  try {
-    config = resolveChatProviderConfig();
-  } catch {
-    return '';
+const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
+
+interface ProposerProvider {
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+}
+
+// The proposer is an intent CLASSIFIER, not the chat brain - it wants a cheap, fast model and an
+// openai_compat endpoint, and it must NOT be coupled to whatever heavy model the bot chats with
+// (codex/gpt-5.5, anthropic, etc.). So resolve a dedicated provider in priority order:
+//   1. dedicated SPARK_INTENT_PROPOSER_* (explicit, lets the operator point the classifier anywhere)
+//   2. ZAI/GLM if configured (the natural fast classifier) - even when main chat is on another backend
+//   3. fall back to the main chat provider ONLY if it is already openai_compat
+// Returns null if no openai_compat classifier is reachable (then the proposal is null and, on a
+// mutation-permitted turn, the veto fails CLOSED to a confirm prompt).
+function resolveProposerProvider(): ProposerProvider | null {
+  const env = process.env;
+  const dedicatedBase = env.SPARK_INTENT_PROPOSER_BASE_URL;
+  const dedicatedKey = env.SPARK_INTENT_PROPOSER_API_KEY;
+  if (dedicatedBase && dedicatedKey) {
+    return { baseUrl: dedicatedBase, model: env.SPARK_INTENT_PROPOSER_MODEL || env.ZAI_MODEL || 'glm-5.1', apiKey: dedicatedKey };
   }
-  // The shadow proposer only drives the live (openai_compat) provider. Other backends (codex/claude
-  // CLIs, anthropic API) are not wired here on purpose - they return '' and the proposal is null.
-  if (config.kind !== 'openai_compat' || !config.baseUrl) return '';
+  if (env.ZAI_API_KEY) {
+    return { baseUrl: env.ZAI_BASE_URL || ZAI_DEFAULT_BASE_URL, model: env.ZAI_MODEL || 'glm-5.1', apiKey: env.ZAI_API_KEY };
+  }
+  try {
+    const cfg = resolveChatProviderConfig();
+    if (cfg.kind === 'openai_compat' && cfg.baseUrl) {
+      return { baseUrl: cfg.baseUrl, model: cfg.model, apiKey: cfg.apiKey };
+    }
+  } catch {
+    // fall through to null
+  }
+  return null;
+}
+
+export const intentProposerProviderComplete: IntentProposerCompleter = async ({ system, user }) => {
+  const provider = resolveProposerProvider();
+  if (!provider) return '';
   const attempts = proposerAttempts();
+  const deadline = proposerDeadlineMs();
+  const startedAt = Date.now();
   for (let attempt = 0; attempt < attempts; attempt++) {
+    const remaining = deadline - (Date.now() - startedAt);
+    if (remaining < 1500) break; // not enough budget left for a useful attempt -> stop, caller fails closed
     try {
       const res = await axios.post<ChatCompletionsResponse>(
-        joinUrl(config.baseUrl, '/chat/completions'),
+        joinUrl(provider.baseUrl, '/chat/completions'),
         {
-          model: config.model,
+          model: provider.model,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user }
           ],
           temperature: 0,
-          max_tokens: 400,
+          max_tokens: PROPOSER_MAX_TOKENS,
           thinking: { type: 'disabled' }
         },
         {
-          timeout: PER_ATTEMPT_TIMEOUT_MS,
+          timeout: Math.min(PER_ATTEMPT_TIMEOUT_MS, remaining),
           headers: {
-            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+            ...(provider.apiKey ? { Authorization: `Bearer ${provider.apiKey}` } : {}),
             'Content-Type': 'application/json'
           }
         }
@@ -77,7 +123,7 @@ export const intentProposerProviderComplete: IntentProposerCompleter = async ({ 
     } catch {
       // fall through to retry; final failure returns '' below
     }
-    if (attempt < attempts - 1) await delay(150);
+    if (attempt < attempts - 1 && deadline - (Date.now() - startedAt) >= 1500) await delay(150);
   }
   return '';
 };
