@@ -768,6 +768,75 @@ export async function generateBuildClarificationMicrocopy(
   }
 }
 
+export interface ProviderCompleteOptions {
+  temperature?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
+}
+
+// Provider-agnostic single-shot completion with a CUSTOM system+user prompt, returning the raw model
+// text (reasoning preamble stripped) or '' on any failure. It dispatches across EVERY configured
+// backend exactly like chat does (codex CLI, claude CLI, anthropic API, openai_compat, ollama), so a
+// caller automatically uses whatever model the chat uses - no second provider to configure or keep
+// healthy. Used by the intent proposer/classifier so the veto rides the same model as chat.
+export async function providerComplete(
+  system: string,
+  user: string,
+  opts: ProviderCompleteOptions = {}
+): Promise<string> {
+  const temperature = opts.temperature ?? 0;
+  const maxTokens = opts.maxTokens ?? 700;
+  const timeoutMs = opts.timeoutMs ?? 9000;
+  try {
+    const config = resolveChatProviderConfig();
+    if (config.kind === 'codex') {
+      return stripReasoningPreamble(await codexChat(`${system}\n\n${user}`));
+    }
+    if (config.kind === 'claude') {
+      return stripReasoningPreamble(await claudeChat(`${system}\n\n${user}`, config.model));
+    }
+    if (config.kind === 'anthropic_api') {
+      return stripReasoningPreamble(await anthropicMessage(config, { system, user, temperature, maxTokens, timeoutMs }) || '');
+    }
+    if (config.kind === 'openai_compat') {
+      const res = await axios.post<ZaiChatResponse>(
+        joinUrl(config.baseUrl, '/chat/completions'),
+        {
+          model: config.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user }
+          ],
+          temperature,
+          max_tokens: maxTokens,
+          thinking: { type: 'disabled' }
+        },
+        {
+          timeout: timeoutMs,
+          headers: {
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      return stripReasoningPreamble(res.data.choices?.[0]?.message?.content || '') ||
+        stripReasoningPreamble(res.data.choices?.[0]?.message?.reasoning_content || '') ||
+        '';
+    }
+    if (config.kind === 'ollama') {
+      const res = await axios.post<OllamaResponse>(
+        `${config.baseUrl.replace(/\/+$/, '')}/api/generate`,
+        { model: config.model, prompt: user, system, stream: false, options: { temperature, num_predict: maxTokens } },
+        { timeout: timeoutMs }
+      );
+      return (res.data.response || '').trim();
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
 function isReadableStream(value: unknown): value is Readable {
   return value instanceof Readable || Boolean(value && typeof (value as any)[Symbol.asyncIterator] === 'function');
 }
