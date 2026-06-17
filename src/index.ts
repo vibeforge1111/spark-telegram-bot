@@ -9756,6 +9756,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // before any live routing change. Not awaited (zero added latency), fail-safe by construction.
   const intentProposerShadowOn = process.env.SPARK_INTENT_PROPOSER_SHADOW === '1';
   const intentProposerEnforceOn = process.env.SPARK_INTENT_PROPOSER_ENFORCE === '1';
+  // VETO-only mode: enables the semantic anti-hijack veto WITHOUT the nudge. The nudge awaits the
+  // proposer on every chat-bound turn (adds latency to ordinary messages); the veto awaits only on
+  // the rare mutation-permitted turn. This lets a daily-driver run the security veto without slowing
+  // chat. ENFORCE implies veto too (full mode for QA). VETO alone = veto only.
+  const intentProposerVetoOn = process.env.SPARK_INTENT_PROPOSER_VETO === '1' || intentProposerEnforceOn;
   if ((intentProposerShadowOn || intentProposerEnforceOn) && naturalRouteShadow) {
     const shadowRoute = naturalRouteShadow.route;
     // Phase 2 (scoped, env-gated): only on a chat-bound turn do we AWAIT the proposer (bounding the
@@ -9795,15 +9800,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group',
     turnId: telegramTurnIdFromUpdate(ctx.update)
   });
-  // Phase 2b: the semantic anti-hijack VETO (env-gated by SPARK_INTENT_PROPOSER_ENFORCE). It fires
-  // ONLY when the deterministic gate has already PERMITTED a mutation on this turn
+  // Phase 2b: the semantic anti-hijack VETO (env-gated by SPARK_INTENT_PROPOSER_VETO, implied by
+  // ENFORCE). It fires ONLY when the deterministic gate has already PERMITTED a mutation on this turn
   // (requiresApprovalFor non-empty and no existing no-execution boundary) - the high-stakes case where
   // a hijack would actually execute. The model reads ONLY the fresh user text; if it confidently lands
   // on a non-action route (discussion, a question, a negation, quoted/reported speech), the kernel
   // blocks the mutation and asks for one explicit confirmation. It can ONLY add a block, never grant
   // execution, and on any error it falls through to the normal cascade, so it is strictly safe.
   if (
-    intentProposerEnforceOn &&
+    intentProposerVetoOn &&
     !turnIntentEnvelope.directive.noExecution &&
     turnIntentEnvelope.toolPolicy.requiresApprovalFor.length > 0
   ) {
