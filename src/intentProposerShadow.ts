@@ -17,10 +17,12 @@
 // Wiring into the live handler is a separate, env-gated step (SPARK_INTENT_PROPOSER_SHADOW=1);
 // until then this changes no behavior.
 
-import type { DeterministicRouteId } from './routeTypes';
-
+// route is a plain string: the proposer is a suggestion layer, and the live tree has inconsistent
+// route ids across layers (e.g. external research is 'external_research.inspect' in the router but
+// 'spawner.external_research' in DeterministicRouteId). Agreement is compared as strings; the
+// deterministic kernel still validates any route before it could ever execute.
 export interface RouteDescriptor {
-  route: DeterministicRouteId | 'abstain';
+  route: string;
   useWhen: string;
   doNotUseWhen: string;
   mutating: boolean;
@@ -36,7 +38,7 @@ export const INTENT_PROPOSER_TAXONOMY: RouteDescriptor[] = [
   { route: 'schedule.create', useWhen: 'the user gives a fresh imperative to create or set up a scheduled job or recurring task', doNotUseWhen: 'they ask about or negate scheduling', mutating: true },
   { route: 'schedule.delete', useWhen: 'the user gives a fresh imperative to delete, cancel, or remove a scheduled job', doNotUseWhen: 'they ask whether to, negate, or report someone saying to delete a schedule', mutating: true },
   { route: 'recursive.proposal', useWhen: 'the user gives a fresh imperative to propose or prepare a recursive network proposal/packet', doNotUseWhen: 'they ask about, negate, or discuss proposing one', mutating: true },
-  { route: 'spawner.external_research', useWhen: 'the user gives a fresh imperative to research, inspect, or browse an external repo/url/topic', doNotUseWhen: 'they ask whether/how to research, negate it, or use research as a noun', mutating: true },
+  { route: 'external_research.inspect', useWhen: 'the user gives a fresh imperative to research, inspect, or browse an external repo/url/topic', doNotUseWhen: 'they ask whether/how to research, negate it, or use research as a noun', mutating: true },
   { route: 'domain_chip.create', useWhen: 'the user gives a fresh imperative to create a new domain chip', doNotUseWhen: 'they ask about or negate chip creation', mutating: true },
   { route: 'creator.mission', useWhen: 'the user gives a fresh imperative to start a creator mission', doNotUseWhen: 'they discuss or negate it', mutating: true },
   { route: 'memory.write', useWhen: 'the user explicitly asks to remember/save a preference or fact for the future', doNotUseWhen: 'they ask what is remembered, or negate saving', mutating: true },

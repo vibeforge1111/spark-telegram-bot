@@ -30,7 +30,13 @@ export const NO_ACTION_ROUTES = new Set<string>([
 // pass + more corpus (e.g. external research uses two different ids in the tree today).
 export const DEFAULT_ENFORCE_ALLOWLIST = new Set<string>([
   'diagnostics.scan',
-  'memory.write'
+  'memory.write',
+  // Expanded 2026-06-17 after the 39-case corpus showed the proposer recovers these recall holes
+  // at high confidence while the regex drops them to chat. All still nudge-only (no execution).
+  'memory.delete',
+  'model.switch',
+  'schedule.create',
+  'schedule.delete'
 ]);
 
 export const DEFAULT_MIN_CONFIDENCE = 0.9;
@@ -39,7 +45,11 @@ export const DEFAULT_MIN_CONFIDENCE = 0.9;
 // so a missed tool becomes a visible, confirmable next step instead of a silent chat reply.
 const NUDGE: Record<string, string> = {
   'diagnostics.scan': "It looks like you wanted a diagnostics run, which I did not start. Reply \"run a diagnostics scan\" or send /diagnose and I will.",
-  'memory.write': "It sounds like you want me to save that to memory, which I have not done durably. Reply \"remember that <fact>\" and I will save it."
+  'memory.write': "It sounds like you want me to save that to memory, which I have not done durably. Reply \"remember that <fact>\" and I will save it.",
+  'memory.delete': "It sounds like you want me to forget something I stored, which I have not done. Reply \"forget <topic>\" and I will remove it.",
+  'model.switch': "It looks like you want to switch the chat model, which I have not changed. Reply \"switch the model to <name>\" and I will.",
+  'schedule.create': "It sounds like you want to schedule a recurring job, which I have not created. Reply \"schedule <task> at <time>\" and I will set it up.",
+  'schedule.delete': "It sounds like you want to delete a scheduled job, which I have not done. Reply \"delete the <name> schedule\" and I will."
 };
 
 export interface EnforcementDecision {

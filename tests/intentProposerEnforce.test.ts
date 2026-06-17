@@ -27,10 +27,18 @@ test('does NOT fire when the regex already chose an action route (cannot fight a
   assert.equal(decideProposerEnforcement('schedule.delete', prop('memory.write', 0.99)).mode, 'none');
 });
 
+test('fires for the expanded recall routes (schedule/model/memory.delete)', () => {
+  for (const route of ['schedule.create', 'schedule.delete', 'model.switch', 'memory.delete']) {
+    assert.equal(decideProposerEnforcement('plain_chat', prop(route, 0.95)).mode, 'suggest', route);
+  }
+});
+
 test('does NOT fire for a route outside the scoped allowlist', () => {
-  // schedule.delete is a real recall miss too, but deliberately not in the v1 allowlist (mutating, riskier)
-  assert.equal(decideProposerEnforcement('plain_chat', prop('schedule.delete', 0.99)).mode, 'none');
-  assert.equal(decideProposerEnforcement('plain_chat', prop('spawner.build', 0.99)).mode, 'none');
+  // high-blast-radius routes stay OUT of the nudge allowlist (build, chip creation, access change,
+  // external research) even when the regex chatted and the proposer is confident.
+  for (const route of ['spawner.build', 'domain_chip.create', 'access.change', 'external_research.inspect']) {
+    assert.equal(decideProposerEnforcement('plain_chat', prop(route, 0.99)).mode, 'none', route);
+  }
 });
 
 test('does NOT fire below the confidence bar, on abstain, or on a null proposal', () => {
