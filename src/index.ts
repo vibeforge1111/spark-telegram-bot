@@ -9931,6 +9931,43 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
               return true;
             }
+          },
+          {
+            // Governed read of the user's Spark access/operator status (read-only; never changes access).
+            routeId: 'access.status',
+            run: async (d) => {
+              const auth = telegramAccessReadAuthorityDecision(
+                telegramActionEnvelope(d.turnIntentEnvelope, {
+                  route: 'access.status',
+                  ownerSystem: 'spark-telegram-bot',
+                  action: 'answer',
+                  kind: 'access_status',
+                  confidence: 'explicit',
+                  mutationClass: 'read_only'
+                }),
+                'access.status',
+                d.text
+              );
+              if (!auth.allow) {
+                await d.ctx.reply('I did not read Spark access status because the fresh turn did not authorize that read-only check.');
+                return true;
+              }
+              await conversation.remember(d.user, d.text).catch(() => {});
+              const reply = await renderAuthoritativeSparkAccessStatus(d.ctx.chat.id);
+              recordTelegramHarnessCoreExecution(auth, { toolName: 'access.status', status: 'success', summary: 'Natural access status read completed from Spark access state.' });
+              await d.ctx.reply(reply);
+              recordTelegramSourceUsedEvidence(d.ctx, d.user, d.text, 'telegram_access_status_answer', [
+                {
+                  source: 'spark_access_status',
+                  role: 'access_truth',
+                  freshness: 'fresh',
+                  sourceRef: 'spark access status --json',
+                  summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.'
+                }
+              ]);
+              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
