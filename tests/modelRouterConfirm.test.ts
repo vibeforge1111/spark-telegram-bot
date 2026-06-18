@@ -14,17 +14,18 @@ test('isConfirmText: affirmatives yes, negations and arbitrary text no', () => {
 
 test('stage/get/clear pending, with TTL expiry', () => {
   const key = pendingConfirmKey(1, 2);
-  stagePendingConfirm(key, { route: 'access.change', label: 'change access to operator', turnId: 't1' }, 1000);
+  stagePendingConfirm(key, { route: 'access.change', label: 'change access to operator', turnId: 't1', text: 'change my access to operator' }, 1000);
   const p = getPendingConfirm(key, 2000);
   assert.equal(p?.route, 'access.change');
+  assert.equal(p?.text, 'change my access to operator');
   assert.equal(getPendingConfirm(key, 1000 + 11 * 60 * 1000), null); // expired past TTL
-  stagePendingConfirm(key, { route: 'schedule.delete', label: 'delete 9am', turnId: 't2' }, 5000);
+  stagePendingConfirm(key, { route: 'schedule.delete', label: 'delete 9am', turnId: 't2', text: 'delete the 9am schedule' }, 5000);
   clearPendingConfirm(key);
   assert.equal(getPendingConfirm(key, 5000), null);
 });
 
 test('shouldConsumeConfirm: only a confirmation with a pending consumes', () => {
-  const pending = { route: 'access.change', label: 'change access to operator', turnId: 't1', createdAt: 0 };
+  const pending = { route: 'access.change', label: 'change access to operator', turnId: 't1', text: 'change my access to operator', createdAt: 0 };
   assert.deepEqual(shouldConsumeConfirm(pending, 'yes'), { consume: true, route: 'access.change', label: 'change access to operator' });
   assert.equal(shouldConsumeConfirm(pending, 'no').consume, false);
   assert.equal(shouldConsumeConfirm(null, 'yes').consume, false); // no pending -> a stray yes does nothing

@@ -9820,7 +9820,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       // CONFIRM CONSUMPTION: a fresh "yes" only acts when it matches a single-use pending we staged on
       // a prior high-blast turn. A stray "yes" with no pending does nothing (closes the confirm-echo
       // hole); a bare token never reaches here as an action (the model routes it to chat).
-      const confirmConsume = shouldConsumeConfirm(getPendingConfirm(confirmKey), text);
+      const pendingForConfirm = getPendingConfirm(confirmKey);
+      const confirmConsume = shouldConsumeConfirm(pendingForConfirm, text);
+      // On a confirmed pending, dispatch with the ORIGINAL command text (not the "yes") so the route's
+      // args survive (e.g. "change my access to operator", not "yes").
+      const dispatchText = confirmConsume.consume && pendingForConfirm ? pendingForConfirm.text : text;
       let routeDecision: ModelRouteDecision;
       if (confirmConsume.consume && confirmConsume.route) {
         clearPendingConfirm(confirmKey);
@@ -9844,7 +9848,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         // High-blast-radius mutation: stage a single-use pending and ask. It executes only on a matching
         // confirmation next turn (irreversibility-scaled confirmation).
         const label = routeDecision.route || 'that action';
-        stagePendingConfirm(confirmKey, { route: routeDecision.route as string, label, turnId: telegramTurnIdFromUpdate(ctx.update) || '' });
+        stagePendingConfirm(confirmKey, { route: routeDecision.route as string, label, turnId: telegramTurnIdFromUpdate(ctx.update) || '', text });
         await conversation.remember(user, text).catch(() => {});
         const reply = confirmPromptMessage(label);
         await ctx.reply(reply);
@@ -10169,7 +10173,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
-          ctx, text, user, turnIntentEnvelope, naturalRouteShadow
+          ctx, text: dispatchText, user, turnIntentEnvelope, naturalRouteShadow
         });
         if (handled) return;
       }

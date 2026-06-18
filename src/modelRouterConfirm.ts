@@ -14,6 +14,7 @@ export interface PendingConfirm {
   route: string;
   label: string;
   turnId: string;
+  text: string;       // the ORIGINAL command text, so the confirmed dispatch keeps its args (not "yes")
   createdAt: number;
 }
 
@@ -24,7 +25,7 @@ export function pendingConfirmKey(chatId: unknown, userId: unknown): string {
   return `${String(chatId)}:${String(userId)}`;
 }
 
-export function stagePendingConfirm(key: string, p: { route: string; label: string; turnId: string }, now: number = Date.now()): void {
+export function stagePendingConfirm(key: string, p: { route: string; label: string; turnId: string; text: string }, now: number = Date.now()): void {
   PENDING.set(key, { ...p, createdAt: now });
 }
 
