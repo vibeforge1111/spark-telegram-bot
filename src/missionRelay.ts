@@ -1234,7 +1234,28 @@ function previewLinkFromEvent(event: DeliverableRelayEvent): string | null {
   return relayStringField(event.data, 'previewUrl') || relayStringField(event.data, 'preview_url');
 }
 
+function isPrivateOrReservedHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (['127.0.0.1', 'localhost', '::1', '0.0.0.0'].includes(lower)) return true;
+  if (lower.startsWith('10.')) return true;
+  if (lower.startsWith('172.')) {
+    const second = parseInt(lower.split('.')[1], 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  if (lower.startsWith('192.168.')) return true;
+  if (lower.startsWith('169.254.')) return true;
+  if (lower === 'metadata.google.internal' || lower === 'metadata.google.com') return true;
+  if (lower.endsWith('.internal') || lower.endsWith('.local')) return true;
+  return false;
+}
+
 async function httpPreviewIsReachable(url: string): Promise<boolean> {
+  try {
+    const parsed = new URL(url);
+    if (isPrivateOrReservedHost(parsed.hostname)) return false;
+  } catch {
+    return false;
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2500);
   const uiKey = process.env.SPARK_UI_API_KEY?.trim();
