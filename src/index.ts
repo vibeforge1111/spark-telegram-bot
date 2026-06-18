@@ -9883,6 +9883,54 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
               return true;
             }
+          },
+          {
+            // Governed read of live Spark state. Classifier covers 9 kinds via one render fn; if it
+            // returns null (a separate-predicate sub-question) we fall through to the cascade.
+            routeId: 'spark.read_only_state',
+            run: async (d) => {
+              const kind = classifySparkReadOnlyStateQuestion(d.text);
+              if (!kind) return false;
+              const auth = telegramActionAuthorityDecision(
+                telegramActionEnvelope(d.turnIntentEnvelope, {
+                  route: 'spark.read_only_state',
+                  ownerSystem: 'spark-telegram-bot',
+                  action: `spark.read_only_state.${kind}`,
+                  kind: 'runtime_truth_or_operator',
+                  confidence: 'explicit',
+                  mutationClass: 'read_only'
+                }),
+                { route: 'spark.read_only_state', text: d.text, toolName: 'spark.read_only_state', ownerSystem: 'spark-telegram-bot', mutationClass: 'read_only' }
+              );
+              if (!auth.allow) {
+                await d.ctx.reply('I did not read Spark state because the fresh turn did not authorize that read-only check.', readOnlyStateOutboundTraceExtra(d.ctx, kind, 'read_only_state_denied'));
+                return true;
+              }
+              await conversation.remember(d.user, d.text).catch(() => {});
+              const reply = await renderSparkReadOnlyStateAnswer(kind, d.ctx, d.user);
+              recordNaturalRouteExecution(d.ctx, readOnlyStateNaturalRouteDecision(kind), `spark.read_only_state.${kind}`, 'spark-telegram-bot', 'harness_core.read_only_state');
+              recordTelegramHarnessCoreExecution(auth, { toolName: 'spark.read_only_state', status: 'success', summary: `Natural read-only Spark state answer completed for ${kind}.` });
+              await d.ctx.reply(reply, readOnlyStateOutboundTraceExtra(d.ctx, kind));
+              recordTelegramSourceUsedEvidence(d.ctx, d.user, d.text, kind === 'risk_profile' ? 'telegram_spark_risk_profile_answer' : `telegram_read_only_state_${kind}`, [
+                {
+                  source: 'current_diagnostics',
+                  role: 'read_only_state_authority',
+                  freshness: kind === 'pending_action' || kind === 'mission_update_preference' ? 'fresh' : 'live_probed',
+                  sourceRef: kind === 'risk_profile'
+                    ? 'spark live status + spark providers status'
+                    : kind.startsWith('contract') || kind === 'registry_drift'
+                      ? 'spark os system-map evidence'
+                      : kind === 'pending_action'
+                        ? 'telegram pending-state stores'
+                        : kind === 'mission_update_preference'
+                          ? 'telegram mission relay preferences'
+                          : 'spark live status --json',
+                  summary: 'Telegram answered a read-only Spark state question without execution authority.'
+                }
+              ]);
+              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
