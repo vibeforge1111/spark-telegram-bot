@@ -9869,6 +9869,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               const contextualTurns = recent.map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`);
               return await handleNaturalSpawnerBoardRead(d.ctx, d.user, d.text, d.naturalRouteShadow, d.turnIntentEnvelope, contextualTurns);
             }
+          },
+          {
+            // Pure read of the user's own memory (no authority gate). Returns false if there is nothing
+            // to recall -> falls through to the cascade.
+            routeId: 'memory.recall',
+            run: async (d) => {
+              const reply = await buildNaturalLocalMemoryRecallReply(d.user, d.text);
+              if (!reply) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'memory.recall', 'spark-telegram-bot', 'memory.recall', 'delivered');
+              await d.ctx.reply(reply);
+              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {

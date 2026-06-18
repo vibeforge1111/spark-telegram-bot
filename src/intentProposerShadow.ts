@@ -48,6 +48,7 @@ export const INTENT_PROPOSER_TAXONOMY: RouteDescriptor[] = [
   { route: 'spawner.board', useWhen: 'the user asks to see mission/board state', doNotUseWhen: 'they want to start a build', mutating: false },
   { route: 'spark.read_only_state', useWhen: 'the user asks a question about current live Spark state, status, or capability', doNotUseWhen: 'they give a fresh imperative to change something', mutating: false },
   { route: 'spark_wiki.answer', useWhen: 'the user asks a knowledge question Spark can answer from its wiki/memory', doNotUseWhen: 'they give a fresh imperative to act', mutating: false },
+  { route: 'memory.recall', useWhen: 'the user asks what you remember about them, or to recall a stored preference or fact', doNotUseWhen: 'they ask you to save (memory.write) or forget (memory.delete) something', mutating: false },
   { route: 'plain_chat', useWhen: 'the turn is conversation, ideation, a question, or anything that does not map to a concrete action route', doNotUseWhen: 'the user gives a clear fresh imperative matching one of the action routes', mutating: false },
   { route: 'abstain', useWhen: 'the intent is genuinely ambiguous between two or more routes and you are not confident, so the system should ask one clarifying question', doNotUseWhen: 'one route clearly fits', mutating: false }
 ];
