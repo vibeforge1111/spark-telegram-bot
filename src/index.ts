@@ -10082,6 +10082,29 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
               return true;
             }
+          },
+          {
+            // Low-blast memory delete (new NL path; was slash-only). Routes the natural forget request
+            // through the Builder bridge like /forget. Falls through if the bridge is unavailable.
+            routeId: 'memory.delete',
+            run: async (d) => {
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'memory.delete', ownerSystem: 'domain-chip-memory', action: 'memory.delete', kind: 'memory_write', mutationClass: 'writes_memory'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'memory.delete', text: d.text, toolName: 'memory.delete', ownerSystem: 'domain-chip-memory', mutationClass: 'writes_memory'
+              });
+              if (!auth.allow) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              let routed = false;
+              try { routed = await replyViaBuilder(d.ctx, d.text); } catch (err) { console.error('[ModelRouter] memory.delete via Builder failed:', err); }
+              recordTelegramHarnessCoreExecution(auth, { toolName: 'memory.delete', status: routed ? 'success' : 'failure', summary: routed ? 'Model-router routed a memory delete through Builder.' : 'Model-router memory delete could not route through Builder.' });
+              if (routed) {
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'memory.delete', 'domain-chip-memory', 'memory.delete', 'delivered');
+                return true;
+              }
+              return false;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
