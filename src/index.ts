@@ -10052,6 +10052,36 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               }
               return true;
             }
+          },
+          {
+            // Low-blast, reversible. NL parse: default role=agent (chat), unless "mission" is named;
+            // provider = first word the normalizer accepts. Falls through if it cannot resolve a valid
+            // provider (so a vague "switch model" gets the cascade's guide instead of a wrong switch).
+            routeId: 'model.switch',
+            run: async (d) => {
+              const lower = d.text.toLowerCase();
+              const role = normalizeModelRole(/\bmission\b/.test(lower) ? 'mission' : 'agent');
+              let provider: ReturnType<typeof normalizeModelProvider> = null;
+              for (const word of lower.split(/\s+/).filter(Boolean)) {
+                const p = normalizeModelProvider(word);
+                if (p) { provider = p; break; }
+              }
+              if (!role || !provider) return false;
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'model.switch', ownerSystem: 'spark-telegram-bot', action: 'model.switch', kind: 'runtime_truth_or_operator', mutationClass: 'writes_files'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'model.switch', text: d.text, toolName: 'model.switch', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files'
+              });
+              if (!auth.allow) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              const reply = await switchModelRoute(role, provider, '');
+              recordTelegramHarnessCoreExecution(auth, { toolName: 'model.switch', status: /now uses/i.test(reply) ? 'success' : 'failure', summary: `Model-router switched ${role} routing to ${provider}.` });
+              recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'model.switch', 'spark-telegram-bot', 'model.switch', 'delivered');
+              await d.ctx.reply(reply);
+              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
