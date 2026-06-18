@@ -10021,6 +10021,37 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               }
               return true;
             }
+          },
+          {
+            // External research mission (external_network). Taxonomy id external_research.inspect maps
+            // to the internal spawner.external_research. Keeps the second Spark access gate + mission
+            // launch + learn-about-user exactly as the cascade. Falls through if the kernel denies.
+            routeId: 'external_research.inspect',
+            run: async (d) => {
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'spawner.external_research', ownerSystem: d.turnIntentEnvelope.selectedIntent.ownerSystem, action: 'spawner.external_research', mutationClass: 'external_network'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'spawner.external_research', text: d.text, toolName: 'external.fetch', ownerSystem: d.turnIntentEnvelope.selectedIntent.ownerSystem, mutationClass: 'external_network', externalNetwork: true
+              });
+              if (!auth.allow) return false;
+              const accessProfile = await getSparkAccessProfile(d.ctx.chat.id);
+              if (!sparkAccessAllows(accessProfile, 'external_research')) {
+                await d.ctx.reply(renderSparkAccessDenial(accessProfile, 'external_research'));
+                recordTelegramHarnessCoreExecution(auth, { toolName: 'external.fetch', status: 'failure', summary: 'Natural external research was authorized by intent but blocked by Spark access.' });
+                return true;
+              }
+              await conversation.remember(d.user, d.text).catch(() => {});
+              const recent = await conversation.getRecentTurns(d.user, 15).catch(() => []);
+              const contextualTurns = recent.map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`);
+              const missionId = await handleRunCommand(d.ctx, buildExternalResearchGoal(d.text, contextualTurns), [missionDefaultProvider()], 'external_research', { executionAuthority: auth.governorDecision });
+              recordTelegramHarnessCoreExecution(auth, { toolName: 'external.fetch', status: missionId ? 'success' : 'failure', summary: missionId ? `Natural external research started Spawner mission ${missionId}.` : 'Natural external research did not return a mission id.' });
+              if (missionId) {
+                await conversation.learnAboutUser(d.user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'external_research.inspect', 'spawner-ui', 'spawner.external_research', 'delivered');
+              }
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
