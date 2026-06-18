@@ -10145,6 +10145,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change', 'delivered');
               return await handleAccessChangeRequest(d.ctx, d.text, auth);
             }
+          },
+          {
+            // High-blast (CONFIRM_ROUTES) - reached via a confirmed pending. handleCreatorMissionPlan
+            // only stages the plan privately (no run/publish). Falls through if the intent will not parse.
+            routeId: 'creator.mission',
+            run: async (d) => {
+              const parsed = parseNaturalCreatorMissionIntent(d.text, []);
+              if (!parsed) return false;
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'creator.mission', ownerSystem: 'spawner-ui', action: 'creator.mission.plan', kind: 'creator_or_domain_chip', mutationClass: 'creates_chip'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'creator.mission', text: d.text, toolName: 'creator.mission.create', ownerSystem: 'spawner-ui', mutationClass: 'creates_chip'
+              });
+              if (!auth.allow) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              await d.ctx.reply(`I will stage the ${parsed.artifactLabel} privately first. No run or publishing yet.`);
+              const result = await handleCreatorMissionPlan(d.ctx, parsed, auth);
+              recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'creator.mission', 'spawner-ui', 'creator.mission.plan', result.status === 'success' ? 'delivered' : 'failed');
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
