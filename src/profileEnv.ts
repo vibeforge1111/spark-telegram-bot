@@ -96,7 +96,7 @@ function readSparkSecretViaPythonBridge(secretId: string): string | null {
   try {
     const output = execFileSync(command.python, command.args, {
       encoding: 'utf-8',
-      env: { ...process.env, SPARK_APPROVAL_ENFORCE: '0' },
+      env: process.env,
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim();
     return output || null;
