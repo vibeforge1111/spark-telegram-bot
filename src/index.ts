@@ -46,6 +46,8 @@ import { runIntentProposerShadow } from './intentProposerShadow';
 import { intentProposerProviderComplete } from './intentProposerCompleter';
 import { logIntentProposerShadow } from './intentProposerLog';
 import { decideProposerEnforcement, NO_ACTION_ROUTES, decideProposerVeto, proposerVetoConfirmMessage } from './intentProposerEnforce';
+import { decideModelRoute } from './modelRouter';
+import { buildDispatchTable, runModelDispatch } from './modelDispatch';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -9761,7 +9763,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // the rare mutation-permitted turn. This lets a daily-driver run the security veto without slowing
   // chat. ENFORCE implies veto too (full mode for QA). VETO alone = veto only.
   const intentProposerVetoOn = process.env.SPARK_INTENT_PROPOSER_VETO === '1' || intentProposerEnforceOn;
-  if ((intentProposerShadowOn || intentProposerEnforceOn) && naturalRouteShadow) {
+  // MODEL-AS-ROUTER (kill-switch SPARK_MODEL_ROUTER): when on, the model is the PRIMARY router (block
+  // just after the envelope) and SUPERSEDES the shadow/nudge/veto bolt-ons - so skip them here.
+  const modelRouterPrimary = process.env.SPARK_MODEL_ROUTER === '1';
+  if (!modelRouterPrimary && (intentProposerShadowOn || intentProposerEnforceOn) && naturalRouteShadow) {
     const shadowRoute = naturalRouteShadow.route;
     // Phase 2 (scoped, env-gated): only on a chat-bound turn do we AWAIT the proposer (bounding the
     // added latency to turns that would otherwise just chat) and, if the scoped decision fires, send
@@ -9800,6 +9805,70 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group',
     turnId: telegramTurnIdFromUpdate(ctx.update)
   });
+  // MODEL-AS-ROUTER, primary (kill-switch SPARK_MODEL_ROUTER). The proven harness pattern: the MODEL
+  // decides the route from the FRESH user text only; the deterministic kernel still disposes. This is
+  // the front gate that supersedes the shadow/nudge/veto bolt-ons:
+  //   - mode=chat     : the model read this as conversation (or a hijack it refused to treat as a
+  //                     command) -> disable execution for the whole turn (master switch), fall to chat.
+  //   - mode=dispatch : run the model-router dispatch table; routes not yet migrated fall through to
+  //                     the legacy cascade (strangler-fig); confirm/high-blast also fall through (for now).
+  // Off by default = zero behavior change. On any error it falls through to the cascade.
+  if (modelRouterPrimary) {
+    try {
+      const { proposal: modelRouteProposal } = await runIntentProposerShadow(
+        text,
+        naturalRouteShadow?.route || telegramIntentGateV2.route,
+        intentProposerProviderComplete
+      );
+      const routeDecision = decideModelRoute(modelRouteProposal);
+      console.log(
+        `[ModelRouter] mode=${routeDecision.mode} route=${routeDecision.route || 'none'} conf=${routeDecision.confidence ?? 'n/a'} reason=${routeDecision.reason}`
+      );
+      if (routeDecision.mode === 'chat') {
+        // Anti-hijack: only a fresh command the model routes to an action may execute. Everything else
+        // runs with execution disabled - the cascade's mutation branches all no-op via this master switch.
+        turnIntentEnvelope.directive.noExecution = true;
+      } else {
+        // dispatch | confirm. The dispatch table is the cascade's replacement, filled route-by-route
+        // (Wave A = pure reads). Un-migrated routes and confirm fall through to the legacy cascade.
+        const modelDispatchTable = buildDispatchTable([
+          {
+            routeId: 'spark_wiki.answer',
+            run: async (d) => {
+              const question = extractSparkWikiAnswerQuestion(d.text) || d.text;
+              const auth = authorizeNaturalWikiRead(d.turnIntentEnvelope, d.text, 'spark_wiki.answer');
+              if (!auth.allow) {
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
+                await replyWikiReadAuthorityBlocked(d.ctx);
+                return true;
+              }
+              await safeSendChatAction(d.ctx, 'typing');
+              await conversation.remember(d.user, d.text).catch(() => {});
+              recordWikiReadExecution(auth, 'spark_wiki.answer', 'not_started', 'Model-router wiki answer read authorized before Builder wiki call.');
+              try {
+                const result = await runBuilderWikiAnswer({ question, refresh: true, limit: 5, userId: d.user.id, chatId: d.ctx.chat.id, currentMessage: d.text });
+                await d.ctx.reply(result.replyText);
+                recordWikiReadExecution(auth, 'spark_wiki.answer', 'success', 'Model-router wiki answer read completed through Builder.');
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'delivered');
+                await conversation.rememberAssistantReply(d.user, result.replyText).catch(() => {});
+              } catch (err: any) {
+                recordWikiReadExecution(auth, 'spark_wiki.answer', 'failure', `Model-router wiki answer read failed: ${err?.message || String(err)}.`);
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
+                await d.ctx.reply(renderSparkErrorReply(err, 'builder', conversation.isAdmin(d.ctx.from)));
+              }
+              return true;
+            }
+          }
+        ]);
+        const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
+          ctx, text, user, turnIntentEnvelope, naturalRouteShadow
+        });
+        if (handled) return;
+      }
+    } catch (err) {
+      console.warn('[ModelRouter] primary routing failed, falling through to cascade:', err);
+    }
+  }
   // Phase 2b: the semantic anti-hijack VETO (env-gated by SPARK_INTENT_PROPOSER_VETO, implied by
   // ENFORCE). It fires ONLY when the deterministic gate has already PERMITTED a mutation on this turn
   // (requiresApprovalFor non-empty and no existing no-execution boundary) - the high-stakes case where
@@ -9809,6 +9878,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // execution, and on any error it falls through to the normal cascade, so it is strictly safe.
   if (
     intentProposerVetoOn &&
+    !modelRouterPrimary &&
     !turnIntentEnvelope.directive.noExecution &&
     turnIntentEnvelope.toolPolicy.requiresApprovalFor.length > 0
   ) {
