@@ -9985,6 +9985,42 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               await handlePlainChatMemoryDirective(d.ctx, d.user, d.text, directive, auth);
               return true;
             }
+          },
+          {
+            // Low-blast action (writes a diagnostics note). Rebuild the envelope for the model's route;
+            // kernel still authorizes. Falls through if denied.
+            routeId: 'diagnostics.scan',
+            run: async (d) => {
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'diagnostics.scan', ownerSystem: 'spark-cli', action: 'diagnostics.scan', kind: 'diagnostic_or_self_awareness', mutationClass: 'writes_files'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'diagnostics.scan', text: d.text, toolName: 'diagnostics.scan', ownerSystem: 'spark-cli', mutationClass: 'writes_files'
+              });
+              if (!auth.allow) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              await safeSendChatAction(d.ctx, 'typing');
+              try {
+                const scan = await runBuilderDiagnosticsScan();
+                recordTelegramHarnessCoreExecution(auth, { toolName: 'diagnostics.scan', status: 'success', summary: scan.markdownPath ? `Natural diagnostics scan wrote ${path.basename(scan.markdownPath)}.` : 'Natural diagnostics scan completed without an attached note path.' });
+                await d.ctx.reply(scan.replyText);
+                if (scan.markdownPath) {
+                  try {
+                    await d.ctx.replyWithDocument({ source: scan.markdownPath, filename: path.basename(scan.markdownPath) });
+                  } catch (attachError) {
+                    console.warn('[Diagnostics] failed to attach markdown note:', attachError);
+                    await d.ctx.reply(`I wrote the Markdown note, but could not attach it here:\n${scan.markdownPath}`);
+                  }
+                }
+                recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'diagnostics.scan', 'spark-cli', 'diagnostics.scan', 'delivered');
+              } catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                await conversation.recordInterruptedTask(d.user, { message: d.text, failure: detail, stage: 'diagnostics_scan' }).catch(() => {});
+                recordTelegramHarnessCoreExecution(auth, { toolName: 'diagnostics.scan', status: 'failure', summary: `Natural diagnostics scan failed: ${detail}.` });
+                await d.ctx.reply(`Diagnostics scan failed: ${detail}`);
+              }
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
