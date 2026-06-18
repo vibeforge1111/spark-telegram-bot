@@ -34,6 +34,7 @@ export interface RouteDescriptor {
 // show which routes need sharper descriptions.
 export const INTENT_PROPOSER_TAXONOMY: RouteDescriptor[] = [
   { route: 'spawner.build', useWhen: 'the user gives a fresh imperative to build, create, scaffold, or make a new app, tool, dashboard, or chip', doNotUseWhen: 'they ask whether/how to build, negate building, quote or discuss the word build, or refer to a prior build', mutating: true },
+  { route: 'spawner.run', useWhen: 'the user gives a fresh imperative to run, kick off, start, or launch a mission, spawner task, or probe (e.g. "kick off a mission that checks X", "run a no-edit Spawner probe")', doNotUseWhen: 'they want to BUILD a new app/tool/dashboard/chip (spawner.build), or they ask about an existing mission (spawner.board)', mutating: true },
   { route: 'access.change', useWhen: 'the user gives a fresh imperative to change their own access level or operator mode', doNotUseWhen: 'they ask about, question, negate, or report someone else saying to change access', mutating: true },
   { route: 'schedule.create', useWhen: 'the user gives a fresh imperative to create or set up a scheduled job or recurring task', doNotUseWhen: 'they ask about or negate scheduling', mutating: true },
   { route: 'schedule.delete', useWhen: 'the user gives a fresh imperative to delete, cancel, or remove a scheduled job', doNotUseWhen: 'they ask whether to, negate, or report someone saying to delete a schedule', mutating: true },
