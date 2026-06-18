@@ -10147,7 +10147,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               if (!auth.allow) return false;
               await conversation.remember(d.user, d.text).catch(() => {});
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change', 'delivered');
-              return await handleAccessChangeRequest(d.ctx, d.text, auth);
+              // Extract the level token ("operator"/"5"/...) from the NL command so the handler does not
+              // get a full sentence it cannot normalize; falls back to the raw text (handler then asks).
+              const accessPref = parseNaturalAccessChangeIntent(d.text);
+              return await handleAccessChangeRequest(d.ctx, accessPref || d.text, auth);
             }
           },
           {
