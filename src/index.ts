@@ -9858,6 +9858,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               }
               return true;
             }
+          },
+          {
+            // Pure read; the self-contained handler does authority + access + record + reply. It needs
+            // recent turns for contextual board sub-intents, fetched here (returns false -> falls
+            // through to the cascade if it cannot resolve a board intent from the text).
+            routeId: 'spawner.board',
+            run: async (d) => {
+              const recent = await conversation.getRecentTurns(d.user, 15).catch(() => []);
+              const contextualTurns = recent.map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`);
+              return await handleNaturalSpawnerBoardRead(d.ctx, d.user, d.text, d.naturalRouteShadow, d.turnIntentEnvelope, contextualTurns);
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
