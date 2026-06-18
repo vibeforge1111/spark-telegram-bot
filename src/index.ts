@@ -46,8 +46,9 @@ import { runIntentProposerShadow } from './intentProposerShadow';
 import { intentProposerProviderComplete } from './intentProposerCompleter';
 import { logIntentProposerShadow } from './intentProposerLog';
 import { decideProposerEnforcement, NO_ACTION_ROUTES, decideProposerVeto, proposerVetoConfirmMessage } from './intentProposerEnforce';
-import { decideModelRoute } from './modelRouter';
+import { decideModelRoute, type ModelRouteDecision } from './modelRouter';
 import { buildDispatchTable, runModelDispatch } from './modelDispatch';
+import { pendingConfirmKey, getPendingConfirm, clearPendingConfirm, stagePendingConfirm, shouldConsumeConfirm, confirmPromptMessage } from './modelRouterConfirm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -9815,12 +9816,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   // Off by default = zero behavior change. On any error it falls through to the cascade.
   if (modelRouterPrimary) {
     try {
-      const { proposal: modelRouteProposal } = await runIntentProposerShadow(
-        text,
-        naturalRouteShadow?.route || telegramIntentGateV2.route,
-        intentProposerProviderComplete
-      );
-      const routeDecision = decideModelRoute(modelRouteProposal);
+      const confirmKey = pendingConfirmKey(ctx.chat?.id, ctx.from?.id);
+      // CONFIRM CONSUMPTION: a fresh "yes" only acts when it matches a single-use pending we staged on
+      // a prior high-blast turn. A stray "yes" with no pending does nothing (closes the confirm-echo
+      // hole); a bare token never reaches here as an action (the model routes it to chat).
+      const confirmConsume = shouldConsumeConfirm(getPendingConfirm(confirmKey), text);
+      let routeDecision: ModelRouteDecision;
+      if (confirmConsume.consume && confirmConsume.route) {
+        clearPendingConfirm(confirmKey);
+        routeDecision = { mode: 'dispatch', route: confirmConsume.route, reason: 'confirmed_pending' };
+      } else {
+        const { proposal: modelRouteProposal } = await runIntentProposerShadow(
+          text,
+          naturalRouteShadow?.route || telegramIntentGateV2.route,
+          intentProposerProviderComplete
+        );
+        routeDecision = decideModelRoute(modelRouteProposal);
+      }
       console.log(
         `[ModelRouter] mode=${routeDecision.mode} route=${routeDecision.route || 'none'} conf=${routeDecision.confidence ?? 'n/a'} reason=${routeDecision.reason}`
       );
@@ -9828,9 +9840,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         // Anti-hijack: only a fresh command the model routes to an action may execute. Everything else
         // runs with execution disabled - the cascade's mutation branches all no-op via this master switch.
         turnIntentEnvelope.directive.noExecution = true;
+      } else if (routeDecision.mode === 'confirm') {
+        // High-blast-radius mutation: stage a single-use pending and ask. It executes only on a matching
+        // confirmation next turn (irreversibility-scaled confirmation).
+        const label = routeDecision.route || 'that action';
+        stagePendingConfirm(confirmKey, { route: routeDecision.route as string, label, turnId: telegramTurnIdFromUpdate(ctx.update) || '' });
+        await conversation.remember(user, text).catch(() => {});
+        const reply = confirmPromptMessage(label);
+        await ctx.reply(reply);
+        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        return;
       } else {
-        // dispatch | confirm. The dispatch table is the cascade's replacement, filled route-by-route
-        // (Wave A = pure reads). Un-migrated routes and confirm fall through to the legacy cascade.
+        // dispatch (incl. a confirmed pending). The dispatch table is the cascade's replacement, filled
+        // route-by-route. Un-migrated routes fall through to the legacy cascade (strangler-fig).
         const modelDispatchTable = buildDispatchTable([
           {
             routeId: 'spark_wiki.answer',
@@ -10104,6 +10126,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 return true;
               }
               return false;
+            }
+          },
+          {
+            // High-blast (CONFIRM_ROUTES) - only reached here via a CONFIRMED pending. The handler keeps
+            // the L5/operator guardrail internally (trusted-terminal phrase), so this never auto-enables
+            // L5; it degrades to asking for a level if the phrase is unparseable.
+            routeId: 'access.change',
+            run: async (d) => {
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'access.change', ownerSystem: 'spark-telegram-bot', action: 'access.change', kind: 'runtime_truth_or_operator', mutationClass: 'writes_files'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'access.change', text: d.text, toolName: 'access.change', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files'
+              });
+              if (!auth.allow) return false;
+              await conversation.remember(d.user, d.text).catch(() => {});
+              recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change', 'delivered');
+              return await handleAccessChangeRequest(d.ctx, d.text, auth);
             }
           }
         ]);
