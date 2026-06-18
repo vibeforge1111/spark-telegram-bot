@@ -9968,6 +9968,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
               return true;
             }
+          },
+          {
+            // Low-blast mutation. Rebuild the envelope for the MODEL's route so a save the regex gate
+            // missed still authorizes (kernel still checks access). Falls through if the kernel denies.
+            routeId: 'memory.write',
+            run: async (d) => {
+              const directive = extractPlainChatMemoryDirective(d.text) || d.text;
+              const env = telegramActionEnvelope(d.turnIntentEnvelope, {
+                route: 'memory.write', ownerSystem: 'domain-chip-memory', action: 'memory.write', mutationClass: 'writes_memory'
+              });
+              const auth = telegramActionAuthorityDecision(env, {
+                route: 'memory.write', text: d.text, toolName: 'memory.write', ownerSystem: 'domain-chip-memory', mutationClass: 'writes_memory'
+              });
+              if (!auth.allow) return false;
+              await handlePlainChatMemoryDirective(d.ctx, d.user, d.text, directive, auth);
+              return true;
+            }
           }
         ]);
         const handled = await runModelDispatch(modelDispatchTable, routeDecision, {
