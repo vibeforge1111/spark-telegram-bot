@@ -53,6 +53,9 @@ function compactDetail(text: string): string {
   // Remove internal file paths and stack traces but keep the actual error message
   const cleaned = oneLine
     .replace(/(?:\/[\w.-]+)+\.(?:ts|js|py):\d+/g, '[path]')
+    .replace(/Command failed:[^)]{0,500}/g, 'The internal command did not finish cleanly')
+    .replace(/(?:python|node)\.exe?\s+-c\s+[^)]{20,}/g, '[internal command]')
+    .replace(/(?:spark_intelligence\.cli|simulate-telegram-update|runpy\.run_module|runpy)/g, '[internal]')
     .replace(/\bat\s+\S+\s+\([^)]*\)/g, '')
     .trim();
   return cleaned.length > 220 ? `${cleaned.slice(0, 217)}...` : cleaned;
@@ -64,8 +67,9 @@ function doctorCommand(category: string, context: SparkErrorContext): string {
 }
 
 export function explainSparkError(error: unknown, context: SparkErrorContext = 'chat'): SparkErrorExplanation {
-  const detail = compactDetail(extractErrorText(error));
-  const lower = detail.toLowerCase();
+  const rawText = extractErrorText(error);
+  const lower = rawText.toLowerCase();
+  const detail = compactDetail(rawText);
 
   if (
     lower.includes('unauthorized') ||

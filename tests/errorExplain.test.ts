@@ -77,7 +77,7 @@ test('does not mislabel Builder command failures as Telegram config', () => {
   );
 
   assert.match(reply, /Builder memory path/);
-  assert.match(reply, /Builder bridge command did not finish cleanly/);
+  assert.match(reply, /Spark could not reach the Builder memory path right now/);
   assert.match(reply, /Spark builder failure: builder_or_memory/);
   assert.doesNotMatch(reply, /Telegram configuration problem/);
   assert.doesNotMatch(reply, /Spark telegram failure: telegram_config/);
