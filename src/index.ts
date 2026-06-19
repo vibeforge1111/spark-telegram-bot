@@ -3929,7 +3929,12 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
       return;
     }
     const localSaved = await saveSlashRememberLocally(ctx.from, text);
-    const builderRouted = await replyViaBuilder(ctx, `Please remember this: ${text}`);
+    let builderRouted = false;
+    try {
+      builderRouted = await replyViaBuilder(ctx, `Please remember this: ${text}`);
+    } catch (bridgeError) {
+      console.warn('[Remember] Builder bridge failed, using local fallback:', bridgeError);
+    }
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: builderRouted
         ? 'memory.write'
@@ -5322,8 +5327,12 @@ bot.command('recall', handleRecallCommand);
 // /about command - what do I know about you
 bot.command('about', async (ctx) => {
   try {
-    if (await replyViaBuilder(ctx, 'What do you know about me?')) {
-      return;
+    try {
+      if (await replyViaBuilder(ctx, 'What do you know about me?')) {
+        return;
+      }
+    } catch (bridgeError) {
+      console.warn('[About] Builder bridge failed:', bridgeError);
     }
     await ctx.reply(buildMemoryBridgeUnavailableReply('about'));
   } catch (err) {
