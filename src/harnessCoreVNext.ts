@@ -5,6 +5,7 @@ import type {
   TurnIntentEnvelopeV1
 } from './harnessContract';
 import {
+  HARNESS_CORE_WIRE_CONTRACT_VERSION,
   HARNESS_CORE_RISK_ORDER,
   actionTypeForHarnessMutation,
   createHarnessCoreActionEnvelopeVNext,
@@ -115,6 +116,26 @@ function riskTierForAction(action: HarnessCoreActionInput): HarnessCoreRiskTier 
   });
 }
 
+function actionTypeForTelegramAction(action: HarnessCoreActionInput): ReturnType<typeof actionTypeForHarnessMutation> {
+  if (action.publishes || action.mutationClass === 'publishes') return 'publish';
+  if (action.mutationClass === 'launches_mission') return actionTypeForHarnessMutation(action.mutationClass, action.publishes);
+  if (action.externalNetwork || action.mutationClass === 'external_network') return 'external_api_call';
+  return actionTypeForHarnessMutation(action.mutationClass, action.publishes);
+}
+
+function alignProposedActionType<T extends { proposed_actions: HarnessCoreProposedAction[] }>(
+  envelope: T,
+  actionType: ReturnType<typeof actionTypeForHarnessMutation>
+): T {
+  if (envelope.proposed_actions[0]) {
+    envelope.proposed_actions[0] = {
+      ...envelope.proposed_actions[0],
+      action_type: actionType
+    };
+  }
+  return envelope;
+}
+
 function moveForEnvelope(
   envelope: TurnIntentEnvelopeV1,
   action: HarnessCoreActionInput | null,
@@ -182,9 +203,9 @@ function routeEvidence(envelope: TurnIntentEnvelopeV1): HarnessCoreEvidenceRef[]
 }
 
 export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: string): HarnessCoreProposedAction {
-  const actionType = actionTypeForHarnessMutation(input.mutationClass, input.publishes);
+  const actionType = actionTypeForTelegramAction(input);
   const riskTier = riskTierForAction(input);
-  const actionEnvelope = createHarnessCoreActionEnvelopeVNext({
+  const actionEnvelope = alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
     surface: 'telegram',
     ownerSystem: String(input.ownerSystem || 'spark-telegram-bot'),
     toolName: input.toolName,
@@ -198,7 +219,7 @@ export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: st
     publishes: input.publishes,
     externalNetwork: input.externalNetwork,
     requiresHumanConfirmation: RISK_ORDER[riskTier] >= RISK_ORDER.high
-  });
+  }), actionType);
   return actionEnvelope.proposed_actions[0];
 }
 
@@ -209,14 +230,15 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
 ): TurnIntentEnvelopeVNext {
   const riskTier = action ? riskTierForAction(action) : envelope.executionPolicy.canLaunchMission ? 'medium' : 'none';
   const move = moveForEnvelope(envelope, action, legacyAllowed, riskTier);
-  const actionEnvelope = action && !move.startsWith('chat_')
-    ? createHarnessCoreActionEnvelopeVNext({
+  const actionType = action ? actionTypeForTelegramAction(action) : null;
+  const actionEnvelope = action && actionType && !move.startsWith('chat_')
+    ? alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
         surface: 'telegram',
         ownerSystem: String(action.ownerSystem || 'spark-telegram-bot'),
         toolName: action.toolName,
         mutationClass: action.mutationClass,
         source: action.route,
-        reason: `Telegram proposed ${actionTypeForHarnessMutation(action.mutationClass, action.publishes)} via ${action.toolName} for route ${action.route}.`,
+        reason: `Telegram proposed ${actionType} via ${action.toolName} for route ${action.route}.`,
         requestId: envelope.turnId,
         actorIdRef: envelope.user.userRef,
         target: action.route,
@@ -225,7 +247,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
         publishes: action.publishes,
         externalNetwork: action.externalNetwork,
         requiresHumanConfirmation: RISK_ORDER[riskTier] >= RISK_ORDER.high
-      })
+      }), actionType)
     : null;
   const proposedAction = actionEnvelope?.proposed_actions[0] || null;
   const evidence = routeEvidence(envelope);
@@ -296,7 +318,15 @@ export function authorizeHarnessCoreAction(
     verdict = 'deny';
     reasons.push(...legacyAuthorization.reasonCodes);
   }
-  const readOnlyAllowed = envelope.action_authority.state === 'read_only' && action.action_type === 'read';
+  // A read-only action is permitted in read_only authority state even when its action_type is a
+  // network read (external_api_call) rather than a local read. Media analysis (image/voice) reads
+  // via an external vision/transcription API: mutationClass stays read_only but action_type becomes
+  // external_api_call, which would otherwise miss this carve-out and deny a legitimate read-only
+  // analysis. Gate on a non-mutating mutationClass so real mutations that land in read_only state
+  // (e.g. inspect mode) are still NOT auto-allowed as reads.
+  const nonMutatingAction = input.mutationClass === 'none' || input.mutationClass === 'read_only';
+  const readOnlyAllowed = envelope.action_authority.state === 'read_only'
+    && (action.action_type === 'read' || nonMutatingAction);
   if (envelope.action_authority.state !== 'executable' && !readOnlyAllowed) {
     verdict = envelope.action_authority.state === 'confirmation_required' ? 'interrupt' : 'deny';
     reasons.push(`authority_state_${envelope.action_authority.state}`);
@@ -309,6 +339,7 @@ export function authorizeHarnessCoreAction(
   const approvalRequired = verdict === 'interrupt' || highRisk;
   return {
     schema_version: 'authorization-decision-v1',
+    wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
     decision_id: safeId('decision', `${envelope.turn_id}:${action.action_id}`),
     created_at: nowIso(),
     turn_id: envelope.turn_id,
@@ -366,6 +397,7 @@ export function recordHarnessCoreToolLedger(input: {
   );
   const ledger: ToolCallLedgerV1 = {
     schema_version: 'tool-call-ledger-v1',
+    wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
     ledger_id: safeId('ledger', `${input.envelope.turn_id}:${input.action.action_id}:${input.toolName}`),
     created_at: createdAt,
     turn_id: input.envelope.turn_id,

@@ -27,9 +27,7 @@ import {
   isDomainChipPendingDirection,
   isPendingClarificationAlternativeRequest,
   isPendingClarificationFollowup,
-  isRouteConfidenceGateUnsupportedError,
   latestCanvasPlanFromLoadState,
-  routeConfidenceGateCompatibilityAllows,
   cleanupSlidingWindowRateLimit,
   slidingWindowRateLimitAllows,
   shouldAnswerAuthoritativeRuntimeStatus,
@@ -164,6 +162,8 @@ test('bug hunt: no-execution boundaries outrank build and mission words', () => 
 
 test('bug hunt: pending domain-chip drafts only accept explicit confirmation or chip-shaping direction', () => {
   assert.equal(isDomainChipPendingDirection('go'), true);
+  assert.equal(isDomainChipPendingDirection('go ahead and start that domain chip with the recommended defaults'), true);
+  assert.equal(isDomainChipPendingDirection('please use the recommended defaults for that domain chip'), true);
   assert.equal(isDomainChipPendingDirection('yes'), false);
   assert.equal(isDomainChipPendingDirection('yes create it'), true);
   assert.equal(isDomainChipPendingDirection('names with rationale and usage angle, make the vibe surreal'), true);
@@ -181,6 +181,10 @@ test('bug hunt: pending domain-chip draft state lives behind evidence adapter', 
 
   assert.match(indexSource, /telegramPendingDomainChipEvidence/);
   assert.match(indexSource, /getPendingDomainChipBuild/);
+  assert.ok(
+    indexSource.indexOf('pendingDomainChipKeyForRouter') < indexSource.indexOf('if (modelRouterPrimary)'),
+    'pending domain-chip followups must be handled before generic model-router confirmation/chat handling'
+  );
   assert.doesNotMatch(indexSource, /const pendingDomainChipBuilds = new Map/);
   assert.doesNotMatch(indexSource, /export function isDomainChipPendingDirection/);
   assert.match(adapterSource, /const domainChipBuilds = new Map/);
@@ -202,6 +206,7 @@ test('bug hunt: pending creator and cancel state live behind evidence adapters',
   assert.match(creatorAdapter, /export function parsePendingCreatorMissionAction/);
   assert.match(cancelAdapter, /const missionCancelConfirmations = new Map/);
   assert.match(cancelAdapter, /export function isMissionCancelConfirmationText/);
+  assert.doesNotMatch(cancelAdapter, /executionAuthority/);
 });
 
 test('bug hunt: branch promotion cannot mint mutating route authority', () => {
@@ -284,6 +289,7 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 145,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p1&mission=mission-123',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 5, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the app shell', skills: ['frontend-engineer', 'ui-design'] },
@@ -293,11 +299,13 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
       ]
     }
   });
-  assert.match(canvasReady, /Canvas is ready for Proof Orchard\./);
+  assert.match(canvasReady, /<b>Canvas is ready for Proof Orchard\.<\/b>/);
   assert.doesNotMatch(canvasReady, /Spawned tasks/);
-  assert.match(canvasReady, /Canvas\n• http:\/\/127\.0\.0\.1:3333\/canvas/);
-  assert.doesNotMatch(canvasReady, /Mission board/);
-  assert.match(canvasReady, /Spark queued 4 build steps and is moving now\./);
+  assert.match(canvasReady, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p1&amp;mission=mission-123">Open canvas<\/a>/);
+  assert.doesNotMatch(canvasReady, /Canvas\n-/);
+  assert.doesNotMatch(canvasReady, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
+  assert.match(canvasReady, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(canvasReady, /paired nodes|skills/);
   assert.doesNotMatch(canvasReady, /Plan\n• App shell · frontend/);
   assert.doesNotMatch(canvasReady, /• Smoke notes/);
   assert.doesNotMatch(canvasReady, /• Smoke notes · docs/);
@@ -314,19 +322,21 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsed: 4,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-fast&mission=mission-fast',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-fast',
+    canvasMaterialization: { nodeCount: 1, pairedNodeCount: 1, skillCount: 3, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Build and check the single-file static page', skills: ['frontend-engineer', 'accessibility', 'qa-engineering'] }
       ]
     }
   });
-  assert.match(oneStepFastLane, /Spark queued 1 build step and is moving now/);
+  assert.match(oneStepFastLane, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(oneStepFastLane, /paired node|skills/);
   assert.doesNotMatch(oneStepFastLane, /• Build \+ check static page · frontend/);
   assert.doesNotMatch(oneStepFastLane, /\.\.\./);
 
   const heartbeat = formatCanvasShapingHeartbeatSummary({ projectName: 'Proof Orchard', elapsedSeconds: 120 });
-  assert.match(heartbeat, /still shaping Proof Orchard\./);
-  assert.match(heartbeat, /still shaping Proof Orchard\.\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>/);
+  assert.match(heartbeat, /<b>Still shaping Proof Orchard\.<\/b>\n\nI will keep this quiet until the canvas is ready or something needs attention\./);
   assert.doesNotMatch(heartbeat, /🛠️/);
   assert.doesNotMatch(heartbeat, /Canvas prep has been running/);
   assert.doesNotMatch(heartbeat, /^Status$/m);
@@ -338,9 +348,11 @@ test('bug hunt: Telegram composition keeps mission ids and telemetry mostly behi
     elapsedSeconds: 240,
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-123'
   });
-  assert.match(stillRunning, /still preparing Proof Orchard\./);
+  assert.match(stillRunning, /<b>Still preparing Proof Orchard\.<\/b>/);
   assert.match(stillRunning, /taking a little longer than usual/);
   assert.match(stillRunning, /I will send the canvas when it is ready\./);
+  assert.match(stillRunning, /<a href="http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123">Open board<\/a>/);
+  assert.doesNotMatch(stillRunning, /Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-123/);
   assert.doesNotMatch(stillRunning, /🛠️/);
   assert.doesNotMatch(stillRunning, /It has been shaping/);
   assert.doesNotMatch(stillRunning, /^Status$/m);
@@ -355,6 +367,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p2&mission=mission-456',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-456',
+    canvasMaterialization: { nodeCount: 10, pairedNodeCount: 10, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 10 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -362,7 +375,9 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(tenStepReply, /Spark queued 10 build steps and is moving now\./);
+  assert.match(tenStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(tenStepReply, /paired nodes|skill/);
+  assert.match(tenStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p2&amp;mission=mission-456">Open canvas<\/a>/);
   assert.doesNotMatch(tenStepReply, /• Step 1 · frontend/);
   assert.doesNotMatch(tenStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(tenStepReply, /• \+\d+ more/);
@@ -373,6 +388,7 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
     elapsed: 20,
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p3&mission=mission-789',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-789',
+    canvasMaterialization: { nodeCount: 12, pairedNodeCount: 12, skillCount: 1, pairingStatus: 'complete' },
     analysis: {
       tasks: Array.from({ length: 12 }, (_, index) => ({
         title: `Step ${index + 1}`,
@@ -380,7 +396,9 @@ test('bug hunt: automatic canvas-ready summary keeps build details behind explic
       }))
     }
   });
-  assert.match(twelveStepReply, /Spark queued 12 build steps and is moving now\./);
+  assert.match(twelveStepReply, /The canvas is ready to inspect, and Spark is moving into the build\./);
+  assert.doesNotMatch(twelveStepReply, /paired nodes|skill/);
+  assert.match(twelveStepReply, /<a href="http:\/\/127\.0\.0\.1:3333\/canvas\?pipeline=p3&amp;mission=mission-789">Open canvas<\/a>/);
   assert.doesNotMatch(twelveStepReply, /• Step 10 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• Step 11 · frontend/);
   assert.doesNotMatch(twelveStepReply, /• \+2 more/);
@@ -394,6 +412,7 @@ test('bug hunt: automatic pro canvas summaries do not dump skill machinery', () 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p4&mission=mission-pro',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-pro',
+    canvasMaterialization: { nodeCount: 2, pairedNodeCount: 2, skillCount: 4, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         { title: 'Create the playable game shell', skills: ['frontend-engineer', 'game-development'] },
@@ -416,6 +435,7 @@ test('bug hunt: automatic pro canvas ready summary hides the full skill stack', 
     tier: 'pro',
     readyCanvasUrl: 'http://127.0.0.1:3333/canvas?pipeline=p-h70&mission=mission-h70',
     kanbanUrl: 'http://127.0.0.1:3333/kanban?mission=mission-h70',
+    canvasMaterialization: { nodeCount: 4, pairedNodeCount: 4, skillCount: 12, pairingStatus: 'complete' },
     analysis: {
       tasks: [
         {
@@ -473,6 +493,10 @@ test('bug hunt: canvas task details stay available as an explicit follow-up', ()
 });
 
 test('bug hunt: casual next-step questions do not recall stale canvas plans', () => {
+  assert.equal(
+    isLatestCanvasPlanQuestion('Quick reset check: after the restart, what was the little project I said I was sketching tonight, and what constraint did I put on the next step?'),
+    false
+  );
   assert.equal(
     isLatestCanvasPlanQuestion('What’s the smallest useful next step here? Keep it natural, short paragraphs, and use bullets only if they help.'),
     false
@@ -586,60 +610,6 @@ test('bug hunt: created mission handoff is not framed as finished work', () => {
   assert.match(message, /Created the focused Spawner mission v1/i);
   assert.doesNotMatch(message, /I got this one finished|got it done|came back clean|this one is finished/i);
   assert.doesNotMatch(message, /^✨/);
-});
-
-test('bug hunt: missing Builder route-confidence command degrades through local compatibility gate', () => {
-  assert.equal(
-    isRouteConfidenceGateUnsupportedError(
-      new Error("spark-intelligence self: error: argument self_command: invalid choice: 'route-confidence-gate'")
-    ),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    true
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'no_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'missing',
-      spawnerAvailable: true,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: false,
-      runnerWritable: 'yes'
-    }),
-    false
-  );
-  assert.equal(
-    routeConfidenceGateCompatibilityAllows({
-      latestInstruction: 'allow_execution',
-      confirmationState: 'not_required',
-      spawnerAvailable: true,
-      runnerWritable: 'no'
-    }),
-    false
-  );
 });
 
 test('bug hunt: pause, resume, and cancel relay state messages stay compact', () => {

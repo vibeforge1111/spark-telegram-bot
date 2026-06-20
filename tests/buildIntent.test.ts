@@ -151,6 +151,9 @@ test('parses advanced PRD mode preface before build command', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
+  assert.equal(intent.requestedProjectPath, 'C:\\Users\\USER\\Desktop\\spark-galaxy-garden');
+  assert.equal(intent.projectPathEvidenceOnly, false);
+  assert.equal(intent.projectPathRejectedReason, null);
   assert.equal(intent.buildMode, 'advanced_prd');
   assert.equal(intent.buildModeReason, 'User explicitly requested advanced PRD mode.');
   assert.equal(intent.projectName, 'Spark Galaxy Garden');
@@ -172,6 +175,9 @@ test('ignores paths outside the configured workspace root', () => {
 
   assert.ok(intent);
   assert.equal(intent.projectPath, null);
+  assert.equal(intent.requestedProjectPath, 'D:\\tmp\\outside');
+  assert.equal(intent.projectPathEvidenceOnly, true);
+  assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
 });
 
 test('parses Ubuntu target paths under configured project root', () => {
@@ -184,6 +190,8 @@ test('parses Ubuntu target paths under configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, '/root/spark-orbit-diner');
+    assert.equal(intent.requestedProjectPath, '/root/spark-orbit-diner');
+    assert.equal(intent.projectPathEvidenceOnly, false);
     assert.equal(intent.buildMode, 'advanced_prd');
     assert.equal(intent.projectName, 'Spark Orbit Diner');
     assert.match(intent.prd, /^a vanilla-JS single-page app called Spark Orbit Diner\./);
@@ -221,6 +229,9 @@ test('ignores POSIX paths outside configured project root', () => {
 
     assert.ok(intent);
     assert.equal(intent.projectPath, null);
+    assert.equal(intent.requestedProjectPath, '/etc/spark-danger');
+    assert.equal(intent.projectPathEvidenceOnly, true);
+    assert.equal(intent.projectPathRejectedReason, 'outside_configured_workspace_root');
   } finally {
     if (originalRoot === undefined) delete process.env.SPARK_PROJECT_ROOT;
     else process.env.SPARK_PROJECT_ROOT = originalRoot;
@@ -300,6 +311,7 @@ test('does not turn exploratory conversation into an accidental build', () => {
   assert.equal(parseBuildIntent('No build or mission for now, just help me think through the QA plan.'), null);
   assert.equal(parseBuildIntent('Do not start a build yet. Should normal prompts still work when H70 skills are mandatory?'), null);
   assert.equal(parseBuildIntent('What edge cases should we test in Spawner routing and Telegram relay?'), null);
+  assert.equal(parseBuildIntent('Before the startup operator can build, what would a reliable agent harness check?'), null);
   assert.equal(
     parseBuildIntent('I want to create a new advanced domain chip with Spark. Help me shape the chip first before creating it.'),
     null
@@ -421,4 +433,36 @@ Behavior:
   assert.equal(intent.projectPath, 'C:\\Users\\USER\\Desktop\\terminal-chef-clock');
   assert.equal(intent.projectName, 'Terminal Chef Clock');
   assert.match(intent.prd, /Countdown updates every second/);
+});
+
+test('UI feature words pause/stop/reset do not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build me a small focus timer web app called harness-genesis-timer-20260609. It needs a 25-minute countdown, start, pause, and reset buttons, and a session counter. Please start the build now.'
+  );
+
+  assert.ok(intent, 'feature enumeration with pause/reset buttons must still parse as a build');
+  assert.equal(intent.projectName, 'Harness Genesis Timer 20260609');
+});
+
+test('display text containing pause does not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build a tiny single-file project named harness-pause-cua-20260610 that shows the text pause route proof passed. Token cua-20260610-build-pause-01. Please start the build now.'
+  );
+
+  assert.ok(intent, 'quoted/display copy containing pause must still parse as a build');
+  assert.equal(intent.projectName, 'Harness Pause CUA 20260610');
+});
+
+test('slash-separated start/pause/reset controls do not veto an explicit build request', () => {
+  const intent = parseBuildIntent(
+    'Build me a small focus timer web app called harness-genesis-timer-b with a single page: a 25-minute countdown, start/pause/reset buttons, and a simple session counter. Please start the build now.'
+  );
+
+  assert.ok(intent, 'start/pause/reset control listing must still parse as a build');
+});
+
+test('standalone decline verbs still veto build execution', () => {
+  assert.equal(parseBuildIntent('Build me a todo app. Actually, pause.'), null);
+  assert.equal(parseBuildIntent('Build me a todo app. Hold off and cancel that for now.'), null);
+  assert.equal(parseBuildIntent('Build me a todo app. Stop, lets discuss first.'), null);
 });

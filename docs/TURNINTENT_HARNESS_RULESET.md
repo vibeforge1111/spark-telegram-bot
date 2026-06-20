@@ -2,9 +2,22 @@
 
 Date: 2026-05-31
 
+> Historical predecessor note: this file describes the TurnIntent-era adoption
+> rules that led to Harness Core. Current installer-facing authority is
+> `TurnIntentEnvelopeVNext` plus `GovernorDecisionV1`,
+> `AuthorizationDecisionV1`, matching `ToolCallLedgerV1`, and owner consumer
+> verification from `@spark/harness-core`. Treat old `spark.turn_intent.v1`
+> wording as compatibility/migration context, not sufficient execution
+> authority.
+
 ## Purpose
 
 This is the permanent Spark-wide rule for stopping deterministic route fighting, word hijacks, stale pending-state launches, memory-driven authority drift, and accidental tool calls.
+
+Use this file together with `docs/SPARK_SYSTEM_GOVERNANCE_RULESET.md`. The
+governance ruleset defines the required root-cause loop for all Spark systems;
+this file defines the TurnIntent/Harness authority contract underneath that
+loop.
 
 Spark may keep deterministic systems underneath for speed, routing evidence, health checks, and state machines. Those systems must never become the authority for a high-agency action unless they are bound to the shared TurnIntent harness contract.
 
@@ -20,7 +33,7 @@ The core rule is:
 4. Fresh user intent outranks stale route history.
 5. Fresh user intent outranks mission IDs and provider names.
 6. Words alone never launch, save, schedule, publish, mutate files, create chips, write memory, call network tools, run providers, or start missions.
-7. Quoted examples, bug reports, meta-language, and no-action turns must block interruptive routes.
+7. Quoted examples, bug reports, logs, traces, fenced repros, prior replies, meta-language, and no-action turns must block interruptive routes.
 8. Positive explicit commands must still work without needless friction.
 9. Deterministic machinery stays underneath; Telegram/chat surfaces stay human.
 10. Every high-agency edge must appear in Spark CLI contract coverage.
@@ -59,6 +72,8 @@ The following must block interruptive routes unless a later fresh turn explicitl
 - quoted action phrases
 - examples of action words
 - bug reports about action routing
+- logs, traces, fenced repros, selectedIntent snippets, prior Spark replies, and mission logs that contain route words, recursive proposal/approval wording, schedule/delete wording, chip creation wording, or research/browse wording
+- "what changed?", "what failed?", "does that authorize?", and "why is that enough authority?" questions about route behavior
 - architecture discussion about routing/action systems
 - benchmark or QA prompt creation that mentions words like score, run, stale, build, mission, provider
 - "what happened?" or provenance questions about a prior action
@@ -73,6 +88,7 @@ Explicit action should still be fast:
 - Bare "go" applies only to a live pending action with matching scope and expiry.
 - Pending state must clear on conversation-only boundaries.
 - Stale pending state must never wake up from a vague later turn.
+- Explicit product/build/action requests must not be blocked merely because the artifact includes words like authority, trace, status, registry, health, or memory as requirements.
 
 ## TurnIntent Envelope Requirements
 
@@ -189,7 +205,7 @@ Rules:
 
 Required proof:
 
-- route firewall tests
+- Harness Core action authority tests
 - Telegram action authority tests
 - 350-message matrix
 - full `npm test`

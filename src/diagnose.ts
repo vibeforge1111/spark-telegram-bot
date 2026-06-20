@@ -2,6 +2,11 @@
 // Designed to run from Telegram and fit in a single message.
 
 import axios from 'axios';
+import {
+  createHarnessCoreActionEnvelopeVNext,
+  createHarnessCoreAuthorizedGovernorDecision,
+  type GovernorDecisionV1
+} from '@spark/harness-core';
 import { getSparkAccessProfile, sparkAccessLabel } from './accessPolicy';
 import { getBuilderBridgeStatus, type BuilderBridgeStatus } from './builderBridge';
 import { pingChatProvider, resolveChatProviderConfig, type ChatProviderPing } from './llm';
@@ -14,8 +19,18 @@ import {
 } from './providerRouting';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { relayHealthUrl } from './healthRuntime';
+import {
+  readNaturalRouteExecutionLedger,
+  summarizeNaturalRouteExecutionRecords,
+  type NaturalRouteExecutionRecord
+} from './naturalRouteLedger';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
+import { signGovernorDecisionIfConfigured } from './governorSignature';
+import {
+  escapeTelegramHtml,
+  escapeTelegramHtmlAttribute
+} from './telegramHtml';
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const CODEX_SHIM_URL = process.env.CODEX_SHIM_URL;
@@ -64,11 +79,43 @@ interface HttpStatusResult {
   payload?: unknown;
 }
 
+const DIAGNOSE_SECTION_HEADERS = new Set(['Health', 'Issue', 'Routes', 'Workspace']);
+const DIAGNOSE_LABELS = new Set(['Chat', 'Builds', 'Providers', 'Ping', 'Board', 'Spawner UI']);
+
 export interface DiagnoseSubject {
   userId: number;
   chatId: string | number;
   isAdmin: boolean;
   isAllowed: boolean;
+}
+
+function isBuildRouteDivergence(record: NaturalRouteExecutionRecord): boolean {
+  return record.shadow_route === 'spawner.build' && (
+    record.executed_route === 'plain_chat' ||
+    record.executed_route === 'chat_plan' ||
+    record.executed_route === 'conversation.ideation' ||
+    record.executed_route.startsWith('spark.read_only_state')
+  );
+}
+
+export function describeRouteDivergence(records: NaturalRouteExecutionRecord[], limit = 3): string[] {
+  const summary = summarizeNaturalRouteExecutionRecords(records);
+  if (summary.total === 0) {
+    return ['Route divergence: no route ledger records yet'];
+  }
+  if (summary.mismatch === 0) {
+    return [`Route divergence: ok (${summary.total} records, 0 mismatches)`];
+  }
+
+  const buildMisroutes = records.filter(isBuildRouteDivergence).length;
+  const pairs = Object.entries(summary.mismatchesByPair)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([pair, count]) => `${pair} x${count}`);
+  return [
+    `Route divergence: ${summary.mismatch}/${summary.total} mismatched; build misroutes ${buildMisroutes}`,
+    `Top divergence: ${pairs.join(', ')}`
+  ];
 }
 
 export function getRelayIdentityFromEnv(env: NodeJS.ProcessEnv = process.env): RelayIdentity {
@@ -242,8 +289,46 @@ async function fetchProviders(): Promise<{ ok: boolean; status?: number; err?: s
   }
 }
 
-async function pingProvider(providerId: string): Promise<PingResult> {
+export function buildDiagnosePingExecutionAuthority(input: {
+  providerId: string;
+  requestId: string;
+  actorIdRef?: string;
+}): GovernorDecisionV1 {
+  const providerId = input.providerId.trim() || 'unknown';
+  const requestId = input.requestId.trim();
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'spark-telegram-bot/diagnose-command',
+    reason: [
+      `Admin /diagnose command authorized a provider health ping for ${providerId}.`,
+      'This is a suppress-relay diagnostic mission scoped to checking selected Spawner build routing only.'
+    ].join(' '),
+    requestId,
+    actorKind: 'human',
+    actorIdRef: input.actorIdRef || 'telegram-admin',
+    target: providerId,
+    confidence: 1,
+    riskTier: 'medium'
+  });
+
+  return signGovernorDecisionIfConfigured(createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spawner.run',
+    restrictions: {
+      network_allowed: true,
+      write_allowed: true,
+      publish_allowed: false
+    },
+    reply_instruction: 'Authorize only this suppress-relay diagnostic Spawner mission; do not publish, ship, or claim user-facing completion.'
+  }));
+}
+
+async function pingProvider(providerId: string, actorIdRef = 'telegram-admin'): Promise<PingResult> {
   const started = Date.now();
+  const requestId = `diag-${providerId}-${started}`;
   try {
     const run = await axios.post(
       `${SPAWNER_UI_URL}/api/spark/run`,
@@ -251,10 +336,11 @@ async function pingProvider(providerId: string): Promise<PingResult> {
         goal: 'Reply with exactly: PING_OK',
         chatId: 'diag',
         userId: 'diag',
-        requestId: `diag-${providerId}-${started}`,
+        requestId,
         providers: [providerId],
         promptMode: 'simple',
-        suppressRelay: true
+        suppressRelay: true,
+        executionAuthority: buildDiagnosePingExecutionAuthority({ providerId, requestId, actorIdRef })
       },
       spawnerAxiosOptions(10000)
     );
@@ -324,6 +410,33 @@ export function describeBuilderBridgeHealth(status: BuilderBridgeStatus): string
 
 export function describeChatProviderHealth(result: ChatProviderPing, chatProviderLabel: string): string {
   return `Chat provider completion: ${result.ok ? '✅' : '❌'} ${chatProviderLabel} (${result.detail})`;
+}
+
+function renderDiagnoseTelegramLine(line: string, index: number): string {
+  if (!line.trim()) return '';
+  if (index === 0) return `<b>${escapeTelegramHtml(line)}</b>`;
+  if (DIAGNOSE_SECTION_HEADERS.has(line.trim())) {
+    return `<b>${escapeTelegramHtml(line.trim())}</b>`;
+  }
+
+  const label = line.match(/^([A-Za-z][A-Za-z ]+):\s*(.*)$/);
+  if (!label || !DIAGNOSE_LABELS.has(label[1])) {
+    return escapeTelegramHtml(line);
+  }
+
+  const name = label[1];
+  const value = label[2] || '';
+  if (name === 'Spawner UI' && /^https?:\/\//i.test(value)) {
+    const href = escapeTelegramHtmlAttribute(value);
+    return `<b>${name}:</b> <a href="${href}">open</a>`;
+  }
+
+  const renderedValue = value ? `<code>${escapeTelegramHtml(value)}</code>` : '';
+  return `<b>${name}:</b>${renderedValue ? ` ${renderedValue}` : ''}`;
+}
+
+export function renderDiagnoseReportHtml(report: string): string {
+  return report.split('\n').map(renderDiagnoseTelegramLine).join('\n');
 }
 
 export function resolveDiagnoseRouteProviders(
@@ -397,7 +510,15 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     isAllowed: subject?.isAllowed ?? true
   };
 
-  const [botRelay, spawnerProviders, shimHealth, builderBridge, chatProviderPing, accessProfile] = await Promise.all([
+  const [
+    botRelay,
+    spawnerProviders,
+    shimHealth,
+    builderBridge,
+    chatProviderPing,
+    accessProfile,
+    naturalRouteRecords
+  ] = await Promise.all([
     httpStatus(relayHealthUrl(), 2000),
     fetchProviders(),
     CODEX_SHIM_URL ? httpStatus(`${CODEX_SHIM_URL}/health`, 2000) : Promise.resolve(null),
@@ -411,7 +532,8 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
       ok: false,
       detail: error instanceof Error ? error.message : String(error)
     })),
-    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const)
+    getSparkAccessProfile(diagnoseSubject.chatId).catch(() => 'agent' as const),
+    readNaturalRouteExecutionLedger().catch(() => [])
   ]);
 
   const providers = spawnerProviders.payload?.providers || [];
@@ -482,6 +604,7 @@ export async function buildDiagnoseReport(adminId: number, subject?: Partial<Dia
     `Builds: ${providerLabel(telegramRunProvider, providers)}`,
     `Providers: ${providers.length > 0 ? `${readyProviderCount}/${providers.length} ready` : 'metadata unavailable'}`,
     `Ping: ${pingSummary}`,
+    ...describeRouteDivergence(naturalRouteRecords),
     '',
     'Workspace',
     `Board: ${boardSummary}`,

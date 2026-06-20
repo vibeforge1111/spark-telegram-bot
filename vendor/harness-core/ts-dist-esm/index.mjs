@@ -1,3 +1,155 @@
+import { createHmac, randomUUID } from 'node:crypto';
+const DEFAULT_AUTHORIZATION_TTL_SECONDS = 600;
+export const HARNESS_CORE_WIRE_CONTRACT_VERSION = 1;
+export const HARNESS_CORE_MIN_WIRE_CONTRACT_VERSION = 1;
+export function canonicalHarnessCoreJson(value) {
+    if (value === undefined)
+        return 'null';
+    if (typeof value === 'number' && !Number.isFinite(value))
+        throw new Error('canonical JSON numbers must be finite');
+    if (value === null || typeof value !== 'object')
+        return JSON.stringify(value) ?? 'null';
+    if (Array.isArray(value))
+        return `[${value.map((item) => canonicalHarnessCoreJson(item)).join(',')}]`;
+    const entries = Object.entries(value)
+        .filter(([, entryValue]) => entryValue !== undefined)
+        .sort(([left], [right]) => compareUtf16Strings(left, right));
+    return `{${entries
+        .map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalHarnessCoreJson(entryValue)}`)
+        .join(',')}}`;
+}
+function compareUtf16Strings(left, right) {
+    const length = Math.min(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+        const diff = left.charCodeAt(index) - right.charCodeAt(index);
+        if (diff !== 0)
+            return diff;
+    }
+    return left.length - right.length;
+}
+export function unsignedHarnessCoreGovernorDecision(decision) {
+    const { signature: _signature, ...unsigned } = decision;
+    return unsigned;
+}
+export function harnessCoreGovernorDecisionSignaturePayload(decision, signature) {
+    return canonicalHarnessCoreJson({
+        decision: unsignedHarnessCoreGovernorDecision(decision),
+        signature
+    });
+}
+export function signHarnessCoreGovernorDecision(decision, input) {
+    const key = (input.key || '').trim();
+    if (!key)
+        throw new Error('key is required');
+    const signature = {
+        schema_version: 'governor-decision-signature-v1',
+        alg: 'hmac-sha256',
+        key_id: (input.key_id || '').trim() || 'local',
+        nonce: input.nonce || randomUUID(),
+        created_at: input.created_at || new Date().toISOString()
+    };
+    return {
+        ...decision,
+        signature: {
+            ...signature,
+            signature: hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, signature), key)
+        }
+    };
+}
+export function negotiateHarnessCoreWireContract(input) {
+    const consumerVersion = input.consumer_version ?? HARNESS_CORE_WIRE_CONTRACT_VERSION;
+    const producerMin = input.producer_min_version ?? Math.max(1, input.producer_version - 1);
+    const consumerMin = input.consumer_min_version ?? Math.max(1, consumerVersion - 1);
+    if (input.producer_version < producerMin || consumerVersion < consumerMin) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_invalid_range'] };
+    }
+    const agreedVersion = Math.min(input.producer_version, consumerVersion);
+    if (agreedVersion < Math.max(producerMin, consumerMin)) {
+        return { allowed: false, agreed_version: null, reason_codes: ['wire_contract_no_overlap'] };
+    }
+    return { allowed: true, agreed_version: agreedVersion, reason_codes: [] };
+}
+function harnessCoreSimulationMarker(reason) {
+    return {
+        dry_run: true,
+        execution_skipped: true,
+        reason
+    };
+}
+function simulatedHarnessCoreGovernorDecision(decision, reason) {
+    if (decision.signature) {
+        throw new Error('dry-run mode cannot retrofit a signed governor decision');
+    }
+    const marker = harnessCoreSimulationMarker(reason);
+    const simulated = JSON.parse(JSON.stringify(decision));
+    simulated.simulation = marker;
+    for (const authorization of simulated.authorizations || []) {
+        authorization.simulation = marker;
+    }
+    for (const ledger of simulated.tool_ledgers || []) {
+        ledger.simulation = marker;
+        ledger.authorization.simulation = marker;
+    }
+    return simulated;
+}
+export function harnessCoreGovernorDecisionSignatureReasonCodes(input) {
+    const key = (input.key || '').trim();
+    const signatureRequired = Boolean(input.require_signature || key);
+    if (!signatureRequired)
+        return [];
+    if (!key)
+        return ['governor_signature_key_missing'];
+    const decision = input.governor_decision || null;
+    if (!decision)
+        return ['missing_governor_decision'];
+    const signature = decision.signature || null;
+    if (!signature)
+        return ['governor_signature_missing'];
+    const reasonCodes = [];
+    if (signature.schema_version !== 'governor-decision-signature-v1')
+        reasonCodes.push('governor_signature_schema_invalid');
+    if (signature.alg !== 'hmac-sha256')
+        reasonCodes.push('governor_signature_alg_invalid');
+    if (input.expected_key_id && signature.key_id !== input.expected_key_id)
+        reasonCodes.push('governor_signature_key_id_mismatch');
+    if (!/^[0-9a-f]{64}$/.test(signature.signature || ''))
+        reasonCodes.push('governor_signature_invalid');
+    if (reasonCodes.length > 0)
+        return dedupeStrings(reasonCodes);
+    const expected = hmacSha256Hex(harnessCoreGovernorDecisionSignaturePayload(decision, {
+        schema_version: signature.schema_version,
+        alg: signature.alg,
+        key_id: signature.key_id,
+        nonce: signature.nonce,
+        created_at: signature.created_at
+    }), key);
+    if (!constantTimeEqualHex(signature.signature, expected))
+        reasonCodes.push('governor_signature_invalid');
+    return dedupeStrings(reasonCodes);
+}
+function hmacSha256Hex(payload, key) {
+    return createHmac('sha256', key).update(payload, 'utf8').digest('hex');
+}
+function constantTimeEqualHex(left, right) {
+    if (left.length !== right.length)
+        return false;
+    let diff = 0;
+    for (let index = 0; index < left.length; index += 1) {
+        diff |= left.charCodeAt(index) ^ right.charCodeAt(index);
+    }
+    return diff === 0;
+}
+function dedupeStrings(values) {
+    const seen = new Set();
+    const deduped = [];
+    for (const value of values) {
+        if (seen.has(value))
+            continue;
+        seen.add(value);
+        deduped.push(value);
+    }
+    return deduped;
+}
 export const HARNESS_CORE_RISK_ORDER = Object.freeze({
     none: 0,
     read: 1,
@@ -136,7 +288,7 @@ export function createHarnessCoreActionEnvelopeVNext(input) {
     });
     const actionType = actionTypeForHarnessMutation(input.mutationClass, input.publishes);
     const requiresConfirmation = input.requiresHumanConfirmation === true || HARNESS_CORE_RISK_ORDER[riskTier] >= HARNESS_CORE_RISK_ORDER.high;
-    const turnId = safeHarnessCoreId('turn', `${input.surface}:${input.source}:${requestId}`);
+    const turnId = input.turnId?.trim() || safeHarnessCoreId('turn', `${input.surface}:${input.source}:${requestId}`);
     const trace = createHarnessCoreTraceRef({
         id: `${input.surface}:${input.source}:${requestId}`,
         summary: input.reason,
@@ -358,6 +510,7 @@ export function createHarnessCoreGovernorDecision(input) {
         authorizations.some((authorization) => authorization.approval.required);
     return {
         schema_version: 'governor-decision-v1',
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('governor-decision', `${input.envelope.turn_id}:${outcome}`),
         created_at: new Date().toISOString(),
         surface: input.envelope.surface,
@@ -408,6 +561,79 @@ function createGovernorConsumerVerification(input) {
         ledger_id: input.ledger?.ledger_id || null
     };
 }
+function stringOrNull(value) {
+    if (value === null || value === undefined)
+        return null;
+    const text = String(value).trim();
+    return text.length > 0 ? text : null;
+}
+function authorizationExpiryReasonCode(authorization, now) {
+    if (authorization.approval.status === 'expired')
+        return 'authorization_approval_expired';
+    const expiresAt = stringOrNull(authorization.expires_at);
+    if (!expiresAt)
+        return null;
+    const expiresMs = Date.parse(expiresAt);
+    if (Number.isNaN(expiresMs))
+        return 'authorization_expiry_invalid';
+    const nowMs = now instanceof Date ? now.getTime() : now ? Date.parse(now) : Date.now();
+    if (Number.isNaN(nowMs))
+        return 'authorization_expiry_invalid';
+    if (expiresMs <= nowMs)
+        return 'authorization_expired';
+    return null;
+}
+export function boundHarnessCoreLedgerRow(input) {
+    const summary = stringOrNull(input.ledger.result.summary) || stringOrNull(input.ledger.trace.summary);
+    return {
+        turn_id: stringOrNull(input.ledger.turn_id),
+        action_id: stringOrNull(input.ledger.action_id),
+        capability_id: stringOrNull(input.ledger.capability_id),
+        authorization_decision_id: stringOrNull(input.verdict.authorization_decision_id) || stringOrNull(input.ledger.authorization.decision_id),
+        ledger_id: stringOrNull(input.ledger.ledger_id),
+        tool_name: stringOrNull(input.ledger.tool_name),
+        owner_system: stringOrNull(input.owner_system),
+        mutation_class: stringOrNull(input.mutation_class),
+        outcome: input.verdict.outcome || null,
+        status: input.ledger.result.status || null,
+        surface: stringOrNull(input.surface),
+        request_id: stringOrNull(input.request_id),
+        trace_ref: stringOrNull(input.trace_ref) || stringOrNull(input.ledger.trace.id),
+        summary,
+        ledger_json: input.ledger
+    };
+}
+export const boundLedgerRow = boundHarnessCoreLedgerRow;
+function isHarnessCoreRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function isHarnessCoreGovernorDecisionVerifierShape(value) {
+    if (!isHarnessCoreRecord(value))
+        return false;
+    if (value.schema_version !== 'governor-decision-v1')
+        return false;
+    if (typeof value.turn_id !== 'string' || value.turn_id.length === 0)
+        return false;
+    if (typeof value.outcome !== 'string' || value.outcome.length === 0)
+        return false;
+    if (!isHarnessCoreRecord(value.execution_boundary))
+        return false;
+    if (typeof value.execution_boundary.action_authorized !== 'boolean')
+        return false;
+    if (!isHarnessCoreRecord(value.envelope))
+        return false;
+    if (!Array.isArray(value.envelope.proposed_actions))
+        return false;
+    if (!isHarnessCoreRecord(value.envelope.freshness))
+        return false;
+    if (!Array.isArray(value.envelope.evidence))
+        return false;
+    if (!Array.isArray(value.authorizations))
+        return false;
+    if (!Array.isArray(value.tool_ledgers))
+        return false;
+    return true;
+}
 export function verifyHarnessCoreGovernorExecutionAuthority(input) {
     const governorDecision = input.governor_decision || null;
     if (!governorDecision) {
@@ -420,7 +646,26 @@ export function verifyHarnessCoreGovernorExecutionAuthority(input) {
             toolName: input.tool_name || null
         });
     }
+    if (!isHarnessCoreGovernorDecisionVerifierShape(governorDecision)) {
+        return createGovernorConsumerVerification({
+            allowed: false,
+            reasonCodes: ['invalid_governor_decision'],
+            governorDecision: null,
+            expectedCapabilityId: input.expected_capability_id,
+            expectedActionType: input.expected_action_type || null,
+            toolName: input.tool_name || null
+        });
+    }
     const reasonCodes = [];
+    reasonCodes.push(...negotiateHarnessCoreWireContract({
+        producer_version: Number(governorDecision.wire_contract_version || 0)
+    }).reason_codes);
+    reasonCodes.push(...harnessCoreGovernorDecisionSignatureReasonCodes({
+        governor_decision: governorDecision,
+        key: input.governor_hmac_key || null,
+        expected_key_id: input.governor_hmac_key_id || null,
+        require_signature: input.require_signature
+    }));
     const allowedOutcomes = new Set(['execute']);
     if (input.allow_read_only)
         allowedOutcomes.add('read_only');
@@ -444,6 +689,11 @@ export function verifyHarnessCoreGovernorExecutionAuthority(input) {
     });
     if (!matchingAuthorization) {
         reasonCodes.push('governor_missing_matching_authorization');
+    }
+    else {
+        const expiryReason = authorizationExpiryReasonCode(matchingAuthorization, input.now);
+        if (expiryReason)
+            reasonCodes.push(expiryReason);
     }
     const hasMatchingProposedAction = matchingAuthorization
         ? governorDecision.envelope.proposed_actions.some((action) => {
@@ -507,15 +757,20 @@ export function verifyHarnessCoreGovernorToolAuthority(input) {
         tool_name: input.tool_name,
         action_id: input.action_id,
         allow_read_only: input.allow_read_only,
-        require_pre_execution_ledger: input.require_pre_execution_ledger
+        require_pre_execution_ledger: input.require_pre_execution_ledger,
+        governor_hmac_key: input.governor_hmac_key || null,
+        governor_hmac_key_id: input.governor_hmac_key_id || null,
+        require_signature: input.require_signature,
+        now: input.now || null
     });
 }
 export function createHarnessCoreAuthorizedGovernorDecision(input) {
+    const hasActionSelector = Boolean(input.action_id || input.capability_id);
     const action = input.envelope.proposed_actions.find((candidate) => input.action_id
         ? candidate.action_id === input.action_id
         : input.capability_id
             ? candidate.capability_id === input.capability_id
-            : true) || input.envelope.proposed_actions[0];
+            : true) || (hasActionSelector ? undefined : input.envelope.proposed_actions[0]);
     if (!action) {
         return createHarnessCoreGovernorDecision({
             envelope: input.envelope,
@@ -539,8 +794,16 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
         : action.requires_confirmation
             ? 'interrupt'
             : 'allow';
+    const ttlSeconds = input.ttl_seconds === undefined ? DEFAULT_AUTHORIZATION_TTL_SECONDS : input.ttl_seconds;
+    const expiresAt = verdict === 'allow' && ttlSeconds !== null
+        ? new Date(Date.parse(now) + ttlSeconds * 1000).toISOString()
+        : undefined;
+    const simulation = input.dry_run
+        ? harnessCoreSimulationMarker(input.dry_run_reason || 'Dry-run governed turn skipped execution.')
+        : undefined;
     const authorization = {
         schema_version: 'authorization-decision-v1',
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
         decision_id: safeHarnessCoreId('decision', `${input.envelope.turn_id}:${action.action_id}`),
         created_at: now,
         turn_id: input.envelope.turn_id,
@@ -574,11 +837,15 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
             publish_allowed: freshnessReasons.length === 0 && authorityReasons.length === 0 && action.action_type === 'publish',
             ...(freshnessReasons.length === 0 && authorityReasons.length === 0 ? input.restrictions || {} : {})
         },
+        ...(expiresAt ? { expires_at: expiresAt } : {}),
+        ...(simulation ? { simulation } : {}),
         trace
     };
+    const ledgerId = safeHarnessCoreId('ledger', input.idempotency_key || `${input.envelope.turn_id}:${action.action_id}`);
     const ledger = {
         schema_version: 'tool-call-ledger-v1',
-        ledger_id: safeHarnessCoreId('ledger', `${input.envelope.turn_id}:${action.action_id}`),
+        wire_contract_version: HARNESS_CORE_WIRE_CONTRACT_VERSION,
+        ledger_id: ledgerId,
         created_at: now,
         turn_id: input.envelope.turn_id,
         action_id: action.action_id,
@@ -612,15 +879,23 @@ export function createHarnessCoreAuthorizedGovernorDecision(input) {
                 redaction_class: 'metadata_only'
             })
         },
-        trace
+        ...(simulation ? { simulation } : {}),
+        trace: input.idempotency_key
+            ? createHarnessCoreTraceRef({
+                id: `record:${input.idempotency_key}`,
+                summary: `Governor authorization for ${input.tool_name}.`,
+                redaction_class: 'metadata_only'
+            })
+            : trace
     };
-    return createHarnessCoreGovernorDecision({
+    const governorDecision = createHarnessCoreGovernorDecision({
         envelope: input.envelope,
         authorizations: [authorization],
         tool_ledgers: [ledger],
         reply_style: input.reply_style,
         reply_instruction: input.reply_instruction
     });
+    return simulation ? { ...governorDecision, simulation } : governorDecision;
 }
 function executeStageVerdictForHarnessStatus(status) {
     if (status === 'not_started')
@@ -649,7 +924,19 @@ function assertHarnessCoreLedgerAuthorizationBinding(ledger) {
     }
 }
 export function finalizeHarnessCoreToolCallLedger(input) {
+    const finalTraceId = input.idempotency_key
+        ? safeHarnessCoreId('trace', `finalize:${input.ledger.ledger_id}:${input.idempotency_key}`)
+        : null;
     assertHarnessCoreLedgerAuthorizationBinding(input.ledger);
+    if (HARNESS_CORE_EXECUTED_TOOL_STATUSES.has(input.ledger.result.status)) {
+        if (finalTraceId && input.ledger.trace.id === finalTraceId) {
+            if (input.ledger.result.status !== input.status) {
+                throw new Error('idempotency key already finalized ledger with a different status');
+            }
+            return input.ledger;
+        }
+        throw new Error('terminal tool-call ledger cannot be finalized again');
+    }
     assertHarnessCoreExecutionStatusAuthorized(input.ledger.authorization.verdict, input.status);
     const now = input.now || new Date().toISOString();
     const executeStage = {
@@ -683,10 +970,166 @@ export function finalizeHarnessCoreToolCallLedger(input) {
             ...(input.rollback_ref ? { rollback_ref: input.rollback_ref } : {})
         },
         trace: createHarnessCoreTraceRef({
-            id: `${input.ledger.ledger_id}:${input.status}:final`,
+            id: input.idempotency_key
+                ? `finalize:${input.ledger.ledger_id}:${input.idempotency_key}`
+                : `${input.ledger.ledger_id}:${input.status}:final`,
             summary: `Final ledger for ${input.ledger.tool_name}.`
         })
     };
+}
+export async function withGovernedTurn(input, execute) {
+    const dryRunSummary = input.dry_run_summary || 'Dry-run governed turn skipped execution.';
+    const governorDecision = input.governor_decision && input.dry_run
+        ? simulatedHarnessCoreGovernorDecision(input.governor_decision, dryRunSummary)
+        : input.governor_decision || null;
+    if (!governorDecision) {
+        throw new Error('withGovernedTurn requires a governor decision');
+    }
+    const expectedCapabilityId = input.expected_capability_id ||
+        (input.owner_system ? safeHarnessCoreId('capability', `${input.owner_system}:${input.tool_name}`) : null);
+    if (!expectedCapabilityId) {
+        throw new Error('withGovernedTurn requires owner_system or expected_capability_id');
+    }
+    const verification = verifyHarnessCoreGovernorExecutionAuthority({
+        governor_decision: governorDecision,
+        expected_capability_id: expectedCapabilityId,
+        expected_action_type: input.action_type,
+        tool_name: input.tool_name,
+        action_id: input.action_id,
+        allow_read_only: input.allow_read_only,
+        require_pre_execution_ledger: input.require_pre_execution_ledger,
+        governor_hmac_key: input.governor_hmac_key || null,
+        governor_hmac_key_id: input.governor_hmac_key_id || null,
+        require_signature: input.require_signature,
+        now: input.now || null
+    });
+    if (!verification.allowed) {
+        throw new Error(`withGovernedTurn refused by Governor verification: ${verification.reason_codes.join(', ') || 'unknown'}`);
+    }
+    const ledger = governorDecision.tool_ledgers.find((item) => item.ledger_id === verification.ledger_id);
+    if (!ledger) {
+        throw new Error('withGovernedTurn requires a matching pre-execution ledger');
+    }
+    let activeLedger = JSON.parse(JSON.stringify(ledger));
+    let finalizedLedger = null;
+    const turn = {
+        governor_decision: governorDecision,
+        verification,
+        ledger: activeLedger,
+        finalized_ledger: null,
+        finalize(finalizeInput) {
+            if (finalizedLedger)
+                return finalizedLedger;
+            finalizedLedger = finalizeHarnessCoreToolCallLedger({
+                ledger: activeLedger,
+                status: finalizeInput.status,
+                summary: finalizeInput.summary,
+                output_ref: finalizeInput.output_ref,
+                output_path_or_uri: finalizeInput.output_path_or_uri,
+                error_ref: finalizeInput.error_ref,
+                rollback_ref: finalizeInput.rollback_ref,
+                now: finalizeInput.now,
+                idempotency_key: finalizeInput.idempotency_key
+            });
+            activeLedger = finalizedLedger;
+            turn.ledger = finalizedLedger;
+            turn.finalized_ledger = finalizedLedger;
+            if (input.on_finalize)
+                input.on_finalize(finalizedLedger);
+            return finalizedLedger;
+        }
+    };
+    if (input.dry_run) {
+        turn.finalize({
+            status: 'not_started',
+            summary: dryRunSummary,
+            output_path_or_uri: input.dry_run_output_path_or_uri || `harness-core://governed-turns/${activeLedger.ledger_id}/dry-run`
+        });
+        return undefined;
+    }
+    try {
+        const result = await execute(turn);
+        if (!finalizedLedger) {
+            turn.finalize({
+                status: 'success',
+                summary: input.success_summary || 'Governed turn completed.',
+                output_path_or_uri: input.success_output_path_or_uri || `harness-core://governed-turns/${activeLedger.ledger_id}/success`
+            });
+        }
+        return result;
+    }
+    catch (error) {
+        if (!finalizedLedger) {
+            turn.finalize({
+                status: 'failure',
+                summary: input.failure_summary || 'Governed turn failed during execution.',
+                output_path_or_uri: input.failure_output_path_or_uri || `harness-core://governed-turns/${activeLedger.ledger_id}/failure`,
+                error_ref: input.failure_error_ref
+            });
+        }
+        throw error;
+    }
+}
+export function repairHarnessCoreStrandedToolCallLedger(input) {
+    if (input.ledger.result.status !== 'not_started')
+        return null;
+    const createdMs = Date.parse(input.ledger.created_at);
+    const nowMs = input.now ? Date.parse(input.now) : Date.now();
+    if (Number.isNaN(createdMs) || Number.isNaN(nowMs))
+        return null;
+    const strandedAfterSeconds = input.stranded_after_seconds ?? 3600;
+    if ((nowMs - createdMs) / 1000 < strandedAfterSeconds)
+        return null;
+    const summary = input.summary || `failure(stranded): not_started ledger exceeded ${strandedAfterSeconds}s without finalization.`;
+    const outputPath = input.output_path_or_uri || `harness-core://repairs/${input.ledger.ledger_id}/stranded`;
+    const executeStage = {
+        stage: 'execute',
+        at: input.now || new Date(nowMs).toISOString(),
+        verdict: 'failed',
+        summary
+    };
+    const lifecycle = [...input.ledger.lifecycle];
+    if (lifecycle.length > 0 && lifecycle[lifecycle.length - 1].stage === 'execute') {
+        lifecycle[lifecycle.length - 1] = executeStage;
+    }
+    else {
+        lifecycle.push(executeStage);
+    }
+    return {
+        ...input.ledger,
+        lifecycle,
+        result: {
+            status: 'failure',
+            summary,
+            sanitized_output_ref: createHarnessCoreArtifactRef({
+                id: `${input.ledger.ledger_id}:stranded:output`,
+                kind: 'tool_output',
+                path_or_uri: outputPath,
+                summary,
+                redaction_class: 'metadata_only'
+            }),
+            error_ref: createHarnessCoreArtifactRef({
+                id: `${input.ledger.ledger_id}:stranded:error`,
+                kind: 'tool_error',
+                path_or_uri: `${outputPath}/error`,
+                summary: 'Stranded ledger repair provenance.',
+                redaction_class: 'metadata_only'
+            })
+        },
+        trace: createHarnessCoreTraceRef({
+            id: `${input.ledger.ledger_id}:stranded:repair`,
+            summary: `Stranded ledger repair for ${input.ledger.tool_name}.`
+        })
+    };
+}
+export function repairHarnessCoreStrandedToolCallLedgers(input) {
+    return input.ledgers
+        .map((ledger) => repairHarnessCoreStrandedToolCallLedger({
+        ledger,
+        now: input.now,
+        stranded_after_seconds: input.stranded_after_seconds
+    }))
+        .filter((ledger) => ledger !== null);
 }
 export function createHarnessCoreReadinessScore(input) {
     const values = Object.values(input.categories).map((category) => category.score);

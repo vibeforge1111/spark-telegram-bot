@@ -119,8 +119,7 @@ test('default runtime freshness paths cover conversational routing and sync guar
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('spark.toml'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/builderBridge.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/builderRepoPath.ts'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeFirewall.ts'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeArbiter.ts'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/routeTypes.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/conversationSmoke.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/operatorActions.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('src/memoryDoctorBridge.ts'));
@@ -132,8 +131,7 @@ test('default runtime freshness paths cover conversational routing and sync guar
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/runtimeFreshnessCheck.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/realtimeConversationSmoke.ts'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('ops/realtime-conversation-smoke.json'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeFirewall.js'));
-  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeArbiter.js'));
+  assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/routeTypes.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/conversationSmoke.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/operatorActions.js'));
   assert.ok(ROUTE_CRITICAL_RUNTIME_PATHS.includes('dist/memoryDoctorBridge.js'));
@@ -157,11 +155,6 @@ test('default runtime freshness paths cover Harness Core authority binding', () 
     'dist/harnessCoreVNext.js',
     'dist/harnessCoreLedger.js',
     'dist/telegramActionAuthority.js',
-    'vendor/harness-core/package.json',
-    'vendor/harness-core/SOURCE_MANIFEST.md',
-    'vendor/harness-core/ts-dist/index.js',
-    'vendor/harness-core/schemas/tool-call-ledger-v1.schema.json',
-    'vendor/harness-core/schemas/governor-decision-v1.schema.json',
     'node_modules/@spark/harness-core/package.json',
     'node_modules/@spark/harness-core/ts-dist/index.js'
   ];

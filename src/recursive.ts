@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -262,6 +262,8 @@ export interface RecursiveNetworkProposalResult {
   submitState: string | null;
   submitError: string | null;
 }
+
+const AD_HOC_RECURSIVE_PROPOSAL_PREFIX = 'ad-hoc:';
 
 interface RecursiveProposalOptions {
   submit: boolean;
@@ -949,9 +951,96 @@ function localProposalRoots(): string[] {
   return [...new Set(roots)];
 }
 
+function isAdHocRecursiveProposalTarget(value: string): boolean {
+  return value.startsWith(AD_HOC_RECURSIVE_PROPOSAL_PREFIX);
+}
+
+function adHocRecursiveProposalTargetLabel(value: string): string {
+  const target = value.slice(AD_HOC_RECURSIVE_PROPOSAL_PREFIX.length).trim();
+  return labelFromKey(target || 'spark-improvement-proposal');
+}
+
+function adHocRecursiveProposalPayloadPath(value: string): string {
+  const target = value.slice(AD_HOC_RECURSIVE_PROPOSAL_PREFIX.length).trim() || 'spark-improvement-proposal';
+  const slug = normalizeWorkspaceIdPart(target);
+  const root = path.join(tmpdir(), 'spark-recursive-natural-proposals', slug);
+  mkdirSync(root, { recursive: true });
+  const payloadPath = path.join(root, 'collective-sync.json');
+  const emittedAt = new Date().toISOString();
+  const pathId = `path_natural_proposal_${slug}`;
+  const outcomeId = `outcome_natural_proposal_${slug}_${compactTimestamp(emittedAt)}`;
+  const label = adHocRecursiveProposalTargetLabel(value);
+  const payload = {
+    workspaceId: 'telegram-natural-recursive-proposal',
+    agentId: 'agent:spark-telegram-bot',
+    runtimeSource: {
+      kind: 'spark_telegram_natural_proposal',
+      version: 'telegram-recursive-proposal.v1',
+      sourceInstanceId: 'agent:spark-telegram-bot',
+      sourceRunId: `spark-telegram:natural-recursive-proposal:${slug}:${emittedAt}`,
+      chipKey: target,
+      chipLabel: label
+    },
+    specialization: null,
+    runtimePulse: {
+      agentId: 'agent:spark-telegram-bot',
+      repoId: null,
+      runtimeState: 'idle',
+      passNumber: 0,
+      stageKey: 'natural_recursive_proposal',
+      stageLabel: 'Natural Recursive Proposal',
+      blocker: null,
+      recommendation: `Review and shape the proposed Spark improvement for ${label}.`,
+      lastUpdatedAt: emittedAt,
+      intelligencePulse: null
+    },
+    intelligencePulse: null,
+    evolutionPaths: [{
+      id: pathId,
+      scope: 'workspace',
+      specializationId: null,
+      repoId: null,
+      repoLabel: 'spark-telegram-bot',
+      summary: `Natural Telegram request proposed an improvement to ${label}.`,
+      status: 'open',
+      assignedAgentId: 'agent:spark-telegram-bot',
+      bestOutcomeId: outcomeId,
+      expiresAt: null,
+      createdAt: emittedAt,
+      updatedAt: emittedAt
+    }],
+    insights: [],
+    masteries: [],
+    masteryReviews: [],
+    contradictions: [],
+    upgrades: [],
+    upgradeDeliveries: [],
+    outcomes: [{
+      id: outcomeId,
+      targetType: 'evolution_path',
+      targetId: pathId,
+      evidenceLane: 'telegram_natural_request',
+      verdict: 'candidate',
+      summary: `Prepare a governed recursive review proposal for ${label}.`,
+      metricName: null,
+      metricValue: null,
+      context: {
+        requestedTarget: target,
+        sourceLane: 'fresh_telegram_turn'
+      },
+      createdAt: emittedAt
+    }],
+    artifactRefs: [],
+    emittedAt
+  };
+  writeFileSync(payloadPath, JSON.stringify(payload, null, 2), 'utf-8');
+  return payloadPath;
+}
+
 export function resolveRecursiveProposalPayloadPath(input: string): string {
   const value = (input || '').trim();
   if (!value) throw new Error('Usage: /recursive propose <path-or-key> [submit]');
+  if (isAdHocRecursiveProposalTarget(value)) return adHocRecursiveProposalPayloadPath(value);
   if (existsSync(value)) return value;
   const normalized = value.replace(/^path:/i, '').replace(/^domain-chip-/i, '');
   const repoNames = [
@@ -983,6 +1072,10 @@ function inferRecursiveProposalDefaults(input: string, payloadPath: string): Rec
     const label = String(runtimeSource.chipLabel || runtimeSource.autoloopId || runtimeSource.chipKey || input || '').trim();
     if (label) defaults.title = labelFromKey(label);
     defaults.riskNotes = 'Private workspace evidence only; review benchmark evidence, privacy, and rollback before sharing.';
+    if (isAdHocRecursiveProposalTarget(input)) {
+      defaults.riskNotes = 'Natural Telegram improvement proposal; review source-lane evidence, owner boundaries, and rollback before sharing.';
+      defaults.replayCommand = `Review Spark improvement target: ${adHocRecursiveProposalTargetLabel(input)}`;
+    }
 
     if (runtimeSource.sourceKind === 'domain_autoloop') {
       const manifest = proposalArtifactPath(payload, 'manifest');

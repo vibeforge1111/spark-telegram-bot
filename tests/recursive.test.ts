@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -178,6 +178,45 @@ test('resolves human proposal keys to local collective payloads', () => {
     if (oldRoots === undefined) delete process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS;
     else process.env.SPARK_RECURSIVE_PROPOSAL_ROOTS = oldRoots;
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('refreshes ad-hoc natural proposal payloads for each Telegram request', () => {
+  const target = `recursive-test-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const payloadPath = resolveRecursiveProposalPayloadPath(`ad-hoc:${target}`);
+  try {
+    const stalePayload = {
+      workspaceId: 'telegram-natural-recursive-proposal',
+      agentId: 'agent:spark-telegram-bot',
+      runtimeSource: {
+        kind: 'spark_telegram_natural_proposal',
+        version: 'telegram-recursive-proposal.v1',
+        sourceInstanceId: 'agent:spark-telegram-bot',
+        sourceRunId: 'spark-telegram:natural-recursive-proposal:stale:2000-01-01T00:00:00.000Z',
+        chipKey: target,
+        chipLabel: 'Stale Proposal'
+      },
+      runtimePulse: {
+        lastUpdatedAt: '2000-01-01T00:00:00.000Z'
+      },
+      evolutionPaths: [],
+      outcomes: [],
+      artifactRefs: [],
+      emittedAt: '2000-01-01T00:00:00.000Z'
+    };
+    writeFileSync(payloadPath, JSON.stringify(stalePayload, null, 2), 'utf-8');
+
+    const refreshedPath = resolveRecursiveProposalPayloadPath(`ad-hoc:${target}`);
+    const refreshed = JSON.parse(readFileSync(refreshedPath, 'utf-8'));
+
+    assert.equal(refreshedPath, payloadPath);
+    assert.notEqual(refreshed.emittedAt, stalePayload.emittedAt);
+    assert.equal(refreshed.runtimePulse.lastUpdatedAt, refreshed.emittedAt);
+    assert.match(refreshed.runtimeSource.sourceRunId, /^spark-telegram:natural-recursive-proposal:/);
+    assert.match(refreshed.runtimeSource.sourceRunId, new RegExp(`${refreshed.emittedAt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+    assert.equal(refreshed.outcomes[0].context.sourceLane, 'fresh_telegram_turn');
+  } finally {
+    rmSync(path.dirname(payloadPath), { recursive: true, force: true });
   }
 });
 

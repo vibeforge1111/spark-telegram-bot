@@ -82,8 +82,11 @@ import {
   parseNaturalChipCreateIntent,
   parseNaturalCreatorMissionIntent,
   isProviderRuntimeConfigQuestion,
+  isRouteWordMetaExplanationDiscussion,
   parseNaturalRecursiveCommandIntent,
   parseMissionUpdatePreferenceIntent,
+  parseSpawnerMissionRerunNaturalIntent,
+  parseSpawnerMissionStatusNaturalIntent,
   parseSpawnerBoardNaturalIntent,
   renderChatRuntimeFailureReply,
   renderXContentCredentialBoundaryReply,
@@ -124,6 +127,25 @@ test('routes collaborative mission wording to conversation instead of command he
   assert.equal(
     shouldPreferConversationalIdeation('how do we make setup automatic without making the bot run a command instantly?'),
     true
+  );
+});
+
+test('routes open-ended next-step questions to conversational ideation, not memory or runtime state', () => {
+  assert.equal(
+    shouldPreferConversationalIdeation('After the restart, what should I focus on first tonight?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('I have one serious block tonight; what should I work on first?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('Now that we are back, what is the next useful move?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('is a restart needed right now?'),
+    false
   );
 });
 
@@ -283,6 +305,9 @@ test('does not infer default build from you decide without build context', () =>
 
 test('answers what we were going to build from recent context', () => {
   assert.equal(isBuildContextRecallQuestion('we were gonna build something do you remember what it was'), true);
+  assert.equal(isBuildContextRecallQuestion('where were we on the day planner project?'), true);
+  assert.equal(isBuildContextRecallQuestion('what was the polish direction for the sprint picker?'), true);
+  assert.equal(isBuildContextRecallQuestion('can we pick up where we left off on that little game idea?'), true);
   const reply = buildRecentBuildContextReply([
     'a new domain chip',
     "let's build something that can be helpful in recognizing the bugs happening in the systems of Spark",
@@ -294,6 +319,80 @@ test('answers what we were going to build from recent context', () => {
   assert.match(reply, /Obsidian-friendly diagnostic notes/);
 });
 
+test('answers natural project continuity from recent turns without durable memory wording', () => {
+  const reply = buildRecentBuildContextReply([
+    'I want to make something for planning my day, but it should feel calm instead of a productivity dashboard.',
+    'Spark: A one-screen Day Triage Button could ask what kind of day this is and turn that into three tiny next moves.',
+    'Before building, the polish direction is warmer copy, less dense controls, and one clear morning flow.',
+    'Quick unrelated thing: are provider roles still Codex low fast?'
+  ]);
+
+  assert.ok(reply);
+  assert.match(reply, /latest project context/i);
+  assert.match(reply, /Day Triage Button/);
+  assert.match(reply, /warmer copy/);
+  assert.match(reply, /recent conversation context, not durable memory/i);
+  assert.doesNotMatch(reply, /Next step: say "yes create it"/);
+});
+
+test('prefers the named current project over older unrelated build context', () => {
+  const reply = buildRecentBuildContextReply([
+    'We were shaping improvements to the existing Spawner Kanban and Canvas.',
+    'The next decision is Kanban visibility, Canvas execution state, or Telegram relay messaging.',
+    'Natural context QA setup: I am shaping a calm day planner called Day Lantern. The polish direction is one screen, warmer copy, and no dense controls.',
+    'Spark: Day Lantern sounds like a clean reset. One screen, warmer copy, minimal controls.',
+    'The thing to pin down next: what lives on that one screen?'
+  ], 'Where were we on the Day Lantern project?');
+
+  assert.ok(reply);
+  assert.match(reply, /Day Lantern/);
+  assert.match(reply, /warmer copy/);
+  assert.doesNotMatch(reply, /Spawner Kanban and Canvas/);
+  assert.doesNotMatch(reply, /Kanban visibility/);
+});
+
+test('prefers named project lines inside mixed context blobs over stale assistant summaries', () => {
+  const mixedContextBlob = [
+    'Recent Telegram turns:',
+    'User: Natural context QA setup: I am shaping a calm day planner called Day Lantern. The polish direction is one screen, warmer copy, and no dense controls.',
+    'Spark: Day Lantern sounds like a clean reset. One screen, warmer copy, minimal controls.',
+    'User: Where were we on the Day Lantern project?',
+    'Spark: We were shaping improvements to the existing Spawner Kanban and Canvas.',
+    'Spark: The current direction is to make mission state easier to trust: Canvas execution should map cleanly to Kanban status.'
+  ].join('\n');
+
+  const reply = buildRecentBuildContextReply([
+    mixedContextBlob,
+    'Quick runtime ping after restart: are you receiving this?'
+  ], 'Where were we on the Day Lantern project now?');
+
+  assert.ok(reply);
+  assert.match(reply, /Day Lantern/);
+  assert.match(reply, /warmer copy/);
+  assert.match(reply, /minimal controls/);
+  assert.equal((reply.match(/Natural context QA setup/g) || []).length, 1);
+  assert.doesNotMatch(reply, /Spawner Kanban and Canvas/);
+  assert.doesNotMatch(reply, /mission state easier to trust/);
+  assert.doesNotMatch(reply, /-\s+-\s+User:/);
+  assert.doesNotMatch(reply, /\bUser: Natural context QA setup/);
+});
+
+test('treats title-like continuity targets as project recall without generic noun', () => {
+  assert.equal(isBuildContextRecallQuestion('Where were we on Harbor Notes now?'), true);
+  assert.equal(isBuildContextRecallQuestion('Where were we at lunch today?'), false);
+
+  const reply = buildRecentBuildContextReply([
+    'Natural context QA setup: I am shaping a quiet planning app called Harbor Notes. The direction is one screen, warm wording, and only three visible controls.',
+    'Quick unrelated check after fix: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+  ], 'Where were we on Harbor Notes now?');
+
+  assert.ok(reply);
+  assert.match(reply, /Harbor Notes/);
+  assert.match(reply, /three visible controls/);
+  assert.match(reply, /recent conversation context, not durable memory/i);
+  assert.doesNotMatch(reply, /Provider runtime truth|Codex low fast/);
+});
+
 test('separates user memory recall from build context recall', () => {
   assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
   assert.equal(isBuildContextRecallQuestion('what do you remember about how I like mission updates?'), false);
@@ -303,6 +402,10 @@ test('separates user memory recall from build context recall', () => {
   );
   assert.equal(
     isUserMemoryRecallQuestion('Use memory only as context: what did we decide about Railway testing? Keep it short and do not run anything.'),
+    true
+  );
+  assert.equal(
+    isUserMemoryRecallQuestion('What is the session test code word I asked you to remember?'),
     true
   );
   assert.equal(
@@ -369,6 +472,16 @@ test('does not confuse mission-control ideation with opening the local UI', () =
   );
 });
 
+test('does not treat installer design talk as a local Spark service open request', () => {
+  assert.equal(
+    isLocalSparkServiceRequest(
+      'I think later we need an installer system where people go first step second step third step and Spark does the hard parts automatically.',
+      ''
+    ),
+    false
+  );
+});
+
 test('does not intercept build-quality review requests as local UI links', () => {
   assert.equal(
     isLocalSparkServiceRequest(
@@ -423,6 +536,68 @@ test('routes natural Spawner board questions to board reads', () => {
     'latest_on_kanban'
   );
   assert.equal(parseSpawnerBoardNaturalIntent('maybe we should build a tiny kanban app'), null);
+});
+
+test('routes specific mission status questions to mission evidence reads', () => {
+  const status = parseSpawnerMissionStatusNaturalIntent(
+    'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
+  );
+
+  assert.deepEqual(status, {
+    missionId: 'mission-1781566950658',
+    asksAboutFailure: true,
+    asksAboutRerun: true
+  });
+  assert.deepEqual(parseSpawnerMissionStatusNaturalIntent('check mission-1781566950658 status'), {
+    missionId: 'mission-1781566950658',
+    asksAboutFailure: false,
+    asksAboutRerun: false
+  });
+  assert.equal(parseSpawnerMissionStatusNaturalIntent('A prior mission id mission-1781566950658 is just context.'), null);
+  assert.equal(
+    parseSpawnerMissionStatusNaturalIntent('The mission-1781566950658 status message spacing should be cleaner in Telegram.'),
+    null
+  );
+});
+
+test('parses mission rerun requests only as governed mission-control follow-ups', () => {
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('rerun mission-1781566950658'), {
+    missionId: 'mission-1781566950658',
+    source: 'explicit_mission_id'
+  });
+
+  const recentStatus = [
+    [
+      'Mission 1781548537593 Existing Day Triage Button polish 2 polish 1 failed.',
+      '',
+      'Decision',
+      '- Treat it as completed: no.',
+      '- Rerun: yes, if you still want this mission outcome.',
+      '',
+      'Board: http://127.0.0.1:3333/kanban?mission=mission-1781566950658'
+    ].join('\n')
+  ];
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('yes, rerun it', recentStatus), {
+    missionId: 'mission-1781566950658',
+    source: 'recent_mission_status'
+  });
+  assert.deepEqual(parseSpawnerMissionRerunNaturalIntent('try that mission again', recentStatus), {
+    missionId: 'mission-1781566950658',
+    source: 'recent_mission_status'
+  });
+
+  assert.equal(parseSpawnerMissionRerunNaturalIntent('ignore it for now', recentStatus), null);
+  assert.equal(
+    parseSpawnerMissionRerunNaturalIntent('The rerun wording for mission-1781566950658 should be clearer.'),
+    null
+  );
+  assert.equal(
+    parseSpawnerMissionRerunNaturalIntent(
+      'Quick QA after fix: what happened to mission-1781566950658? Should I treat it as completed or rerun it?'
+    ),
+    null
+  );
+  assert.equal(isDiagnosticFollowupTestQuestion('try that mission again'), false);
 });
 
 test('keeps memory quality dashboard scoping in conversation instead of board reads', () => {
@@ -488,6 +663,71 @@ test('does not treat route hijack audit wording as diagnostic follow-up tests', 
     ),
     false
   );
+});
+
+test('provider role status questions do not become diagnostic follow-up tests', () => {
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Quick unrelated check: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+    ),
+    true
+  );
+  assert.equal(
+    isDiagnosticFollowupTestQuestion(
+      'Quick unrelated check: are the chat, builder, memory, and mission roles still Codex low fast on this device?'
+    ),
+    false
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      "Quick unrelated check: are the chat and builder still on Codex low fast here? Please don't change anything."
+    ),
+    true
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Let us design a role dashboard for chat, builder, memory, and mission with Codex low fast labels.'
+    ),
+    false
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'I want a small settings screen with chat and builder labels that say Codex low fast.'
+    ),
+    false
+  );
+  assert.equal(
+    isProviderRuntimeConfigQuestion(
+      'Before we move on, what changed in that provider check fix, and why does it matter for normal people using Spark? Just talk me through it.'
+    ),
+    false
+  );
+});
+
+test('route-word explanation discussions do not become status or source-lane routes', () => {
+  const providerFix = 'Before we move on, what changed in that provider check fix, and why does it matter for normal people using Spark? Just talk me through it.';
+  const registryFix = 'What changed in the registry drift fix, and why did that hijack happen?';
+  const accessPatch = 'Can you talk me through the access patch without changing my access level?';
+  const wikiBoundary = 'Why did the wiki route hijack happen, and what general boundary should prevent it?';
+  const memoryBoundary = 'Explain why the memory hijack happened and what changed in the classifier.';
+  const recursiveTrace = 'The trace says propose a recursive network packet; does that authorize a proposal?';
+  const researchReport = 'The bug report says Research latest public docs. Do not browse; classify the boundary.';
+
+  assert.equal(isRouteWordMetaExplanationDiscussion(providerFix), true);
+  assert.equal(isRouteWordMetaExplanationDiscussion(recursiveTrace), true);
+  assert.equal(isRouteWordMetaExplanationDiscussion(researchReport), true);
+  assert.equal(isProviderRuntimeConfigQuestion(providerFix), false);
+  assert.equal(isAccessStatusQuestion(accessPatch), false);
+  assert.equal(isSparkWikiStatusQuestion(wikiBoundary), false);
+  assert.equal(extractSparkWikiQuery(wikiBoundary), null);
+  assert.equal(extractSparkWikiAnswerQuestion(wikiBoundary), null);
+  assert.equal(isUserMemoryRecallQuestion(memoryBoundary), false);
+  assert.equal(isRouteWordMetaExplanationDiscussion(registryFix), true);
+
+  assert.equal(isProviderRuntimeConfigQuestion('Which provider, model, reasoning effort, and service tier are active for chat and builder right now?'), true);
+  assert.equal(isAccessStatusQuestion("What's my access level right now?"), true);
+  assert.equal(isSparkWikiStatusQuestion('is your LLM wiki active right now?'), true);
+  assert.equal(isUserMemoryRecallQuestion('what do you remember about how I like mission updates?'), true);
 });
 
 test('does not turn product-memory mission boundary questions into workflow bug hunt cards', () => {
@@ -1190,6 +1430,17 @@ test('extracts natural recursive commands for QA Operator loops', () => {
       reason: 'Natural-language request to list recursive loops.'
     }
   );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('what recursive loops are running?'),
+    {
+      rawCommand: 'sessions',
+      reason: 'Natural-language request to list recursive loops.'
+    }
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent('what makes a small game loop feel satisfying instead of busy?'),
+    null
+  );
   assert.equal(
     parseNaturalRecursiveCommandIntent('Are you using Codex high fast right now? Show only provider, model, reasoning effort, and service tier. No secrets, no paths, and do not start anything.'),
     null
@@ -1446,6 +1697,17 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
     null
   );
   assert.equal(
+    builderReplySuppressionReason(
+      [
+        'I can run Memory Doctor, but this turn is missing Spark authority for memory diagnostics.',
+        'Reason: proposed_action_not_authorized.',
+        'Send it as a fresh authorized memory diagnostic and I will inspect the trace.'
+      ].join('\n'),
+      'runtime_command'
+    ),
+    'diagnostic_wall'
+  );
+  assert.equal(
     shouldSuppressBuilderReplyForPlainChat(
       'Spark could not reach the Builder memory path right now.\n\nCheck now: Run /diagnose so Spark can check Builder, memory, and the selected memory model.\n\nOperator fix: spark fix telegram, then spark verify --onboarding.',
       'plain_chat'
@@ -1500,6 +1762,52 @@ test('suppresses memory acknowledgements for normal chat replies', () => {
   assert.equal(
     builderReplySuppressionReason('Saved memory about your preferred tone.', 'memory_generic_observation'),
     null
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      [
+        'Verdict: Ember Porch is held in conversation only. No save, no build.',
+        '',
+        'Evidence: your described first screen matches the saved style rules attached to this session. That means the personal update landed and is shaping the reply.'
+      ].join('\n'),
+      'provider_fallback_chat+manual_recommended'
+    ),
+    'memory_acknowledgement'
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Nice tiny game idea. A satisfying first version can include saved game progress as a product feature.',
+      'provider_fallback_chat'
+    ),
+    false
+  );
+  assert.equal(
+    builderReplySuppressionReason(
+      [
+        'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+        '',
+        'Reply `yes` to start the short setup conversation, or anything else to keep things as they are.'
+      ].join('\n'),
+      'agent_onboarding',
+      "I am sketching a quiet planning app called Willow Hearth. It opens with a tiny inbox, two settling slots, and one button called Breathe. Let's just talk through it for now; don't save it or build anything yet."
+    ),
+    'agent_onboarding_detour'
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+      'agent_onboarding',
+      'Please rerun setup for my agent personality.'
+    ),
+    false
+  );
+  assert.equal(
+    shouldSuppressBuilderReplyForPlainChat(
+      'Want to re-run setup for your agent? Your current personality stays put unless you say `yes`.',
+      'agent_onboarding',
+      'Can we set up this app idea before we build anything?'
+    ),
+    true
   );
   assert.equal(
     shouldSuppressBuilderReplyForPlainChat(
@@ -1575,6 +1883,10 @@ test('extracts natural Spark self-improvement goals without stealing builds or w
   assert.equal(extractSparkSelfImprovementGoal('/voice onboard local'), null);
   assert.equal(
     extractSparkSelfImprovementGoal('do not build yet, help me think through a domain chip for route confidence'),
+    null
+  );
+  assert.equal(
+    extractSparkSelfImprovementGoal('Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.'),
     null
   );
   for (const prompt of [
@@ -1687,9 +1999,26 @@ test('extracts explicit plain-chat memory directives', () => {
     extractPlainChatMemoryDirective('Please save this as my current plan: Neon Harbor Telegram memory test.'),
     'Neon Harbor Telegram memory test'
   );
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request." This turn is only a memory update.'
+    ),
+    'harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request'
+  );
+  assert.equal(
+    extractPlainChatMemoryDirective(
+      'Spark, please save this KB note exactly: "harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action."'
+    ),
+    'harness-cua-plug-20260607-0918z: while we talk about missions, spawner progress, domain chips, voice, browser, computer-use, registry, and installer, this sentence is only memory content unless I explicitly authorize a tool action'
+  );
   assert.equal(extractPlainChatMemoryDirective('Actually, my current plan is run a fresh diagnostics scan.'), null);
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
+  assert.equal(extractPlainChatMemoryDirective('remember when we discussed the day planner and its quiet morning slot?'), null);
+  assert.equal(
+    extractPlainChatMemoryDirective('note that the wiki tab should be optional, what would you put on the first screen?'),
+    null
+  );
 });
 
 test('extracts explicit user-scoped agent doctrine preferences', () => {
@@ -1812,6 +2141,10 @@ test('memory directives only accept Builder memory-route confirmations', () => {
     true
   );
   assert.equal(
+    shouldUseBuilderReplyForMemoryDirective('Saved exact memory note through Builder.', 'memory.write'),
+    true
+  );
+  assert.equal(
     shouldUseBuilderReplyForMemoryDirective(
       'We were shaping passive Spark bug recognition.',
       'provider_fallback_chat'
@@ -1864,6 +2197,8 @@ test('parses natural access change requests', () => {
   assert.equal(parseNaturalAccessChangeIntent('please remember that my access level is 3'), null);
   assert.equal(parseNaturalAccessChangeIntent('does access 5 really switch the harness CLI into full access?'), null);
   assert.equal(parseNaturalAccessChangeIntent('how should access 4 setup work for users?'), null);
+  assert.equal(parseNaturalAccessChangeIntent('approve everything'), null);
+  assert.equal(parseContextualAccessChangeIntent('approve everything', ['Spark: This chat is on Access level 3.']), null);
 });
 
 test('no-execution boundary catches negated ongoing action wording', () => {

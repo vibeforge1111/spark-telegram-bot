@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildTelegramTurnIntentEnvelope } from '../src/harnessContract';
@@ -60,6 +60,46 @@ function withLedgerPath<T>(fn: (filePath: string) => T): T {
     else process.env.SPARK_HARNESS_CORE_LEDGER = previousEnabled;
   }
 }
+
+test('defaults Harness Core ledger path under the shared gateway state dir', () => {
+  const previousPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  const previousStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+  const stateDir = mkdtempSync(path.join(os.tmpdir(), 'spark-harness-core-ledger-default-'));
+  delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  process.env.SPARK_GATEWAY_STATE_DIR = stateDir;
+  try {
+    assert.equal(
+      harnessCoreToolLedgerPath(),
+      path.join(stateDir, '.spark-harness-core-tool-ledger.jsonl')
+    );
+    assert.notEqual(path.dirname(harnessCoreToolLedgerPath()), process.cwd());
+  } finally {
+    if (previousPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = previousPath;
+    if (previousStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+    else process.env.SPARK_GATEWAY_STATE_DIR = previousStateDir;
+    rmSync(stateDir, { recursive: true, force: true });
+  }
+});
+
+test('defaults Harness Core ledger path under the bot state dir without env overrides', () => {
+  const previousPath = process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  const previousStateDir = process.env.SPARK_GATEWAY_STATE_DIR;
+  delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+  delete process.env.SPARK_GATEWAY_STATE_DIR;
+  try {
+    assert.equal(
+      harnessCoreToolLedgerPath(),
+      path.join(os.homedir(), '.spark', 'state', 'spark-telegram-bot', '.spark-harness-core-tool-ledger.jsonl')
+    );
+    assert.notEqual(path.dirname(harnessCoreToolLedgerPath()), process.cwd());
+  } finally {
+    if (previousPath === undefined) delete process.env.SPARK_HARNESS_CORE_LEDGER_PATH;
+    else process.env.SPARK_HARNESS_CORE_LEDGER_PATH = previousPath;
+    if (previousStateDir === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+    else process.env.SPARK_GATEWAY_STATE_DIR = previousStateDir;
+  }
+});
 
 test('records allowed Telegram Harness Core authorization ledgers', () => {
   withLedgerPath((filePath) => {

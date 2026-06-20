@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, resolveChatProviderConfig } from '../src/llm';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { buildClarificationMicrocopyPrompt, buildSparkChatSystemPrompt, codexExecArgs, isCodexProvider, loadSparkAgentKnowledgeBase, prepareSparkCodexHome, resolveChatProviderConfig, sanitizeCodexConfigForSpark } from '../src/llm';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -148,6 +151,10 @@ test('builds Codex exec args for non-git Spark workspaces', () => {
   assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt'), [
     'exec',
     '--skip-git-repo-check',
+    '-c',
+    'model_reasoning_effort="low"',
+    '-c',
+    'service_tier="fast"',
     '--model',
     'gpt-5.5',
     '--sandbox',
@@ -158,11 +165,11 @@ test('builds Codex exec args for non-git Spark workspaces', () => {
   ]);
 });
 
-test('passes explicit Codex reasoning effort and service tier', () => {
+test('passes supported explicit Codex reasoning effort and service tier', () => {
   const oldEffort = process.env.CODEX_REASONING_EFFORT;
   const oldTier = process.env.CODEX_SERVICE_TIER;
   process.env.CODEX_REASONING_EFFORT = 'high';
-  process.env.CODEX_SERVICE_TIER = 'priority';
+  process.env.CODEX_SERVICE_TIER = 'flex';
 
   try {
     assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt'), [
@@ -171,7 +178,7 @@ test('passes explicit Codex reasoning effort and service tier', () => {
       '-c',
       'model_reasoning_effort="high"',
       '-c',
-      'service_tier="priority"',
+      'service_tier="flex"',
       '--model',
       'gpt-5.5',
       '--sandbox',
@@ -191,6 +198,75 @@ test('passes explicit Codex reasoning effort and service tier', () => {
     } else {
       process.env.CODEX_SERVICE_TIER = oldTier;
     }
+  }
+});
+
+test('normalizes unsupported Codex service tier to fast', () => {
+  const oldTier = process.env.CODEX_SERVICE_TIER;
+  process.env.CODEX_SERVICE_TIER = 'priority';
+
+  try {
+    assert.deepEqual(codexExecArgs('gpt-5.5', '/tmp/last-message.txt').slice(0, 6), [
+      'exec',
+      '--skip-git-repo-check',
+      '-c',
+      'model_reasoning_effort="low"',
+      '-c',
+      'service_tier="fast"',
+    ]);
+  } finally {
+    if (oldTier === undefined) {
+      delete process.env.CODEX_SERVICE_TIER;
+    } else {
+      process.env.CODEX_SERVICE_TIER = oldTier;
+    }
+  }
+});
+
+test('sanitizes incompatible global Codex tuning before Spark subprocess use', () => {
+  const source = [
+    'model = "gpt-5.5"',
+    'model_reasoning_effort = "high"',
+    'service_tier = "default"',
+    '',
+    '[profiles.speed]',
+    'model_reasoning_effort = "xhigh"',
+    'service_tier = "flex"',
+    '',
+    '[profiles.old_priority]',
+    'service_tier = "priority"',
+    '',
+    '[projects.foo]',
+    'service_tier = "flex"'
+  ].join('\n');
+
+  const sanitized = sanitizeCodexConfigForSpark(source);
+  assert.match(sanitized, /model_reasoning_effort = "low"/);
+  assert.match(sanitized, /\[profiles\.speed\]\nmodel_reasoning_effort = "low"\nservice_tier = "flex"/);
+  assert.match(sanitized, /service_tier = "fast"/);
+  assert.match(sanitized, /\[profiles\.old_priority\]\nservice_tier = "fast"/);
+  assert.match(sanitized, /\[projects\.foo\]\nservice_tier = "flex"/);
+});
+
+test('prepares a temporary Spark Codex home only when inherited config needs sanitizing', () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-codex-home-test-'));
+  const sourceHome = path.join(tempRoot, 'source');
+  const parent = path.join(tempRoot, 'runtime');
+  mkdirSync(sourceHome, { recursive: true });
+  mkdirSync(parent, { recursive: true });
+  writeFileSync(path.join(sourceHome, 'config.toml'), 'model_reasoning_effort = "high"\nservice_tier = "default"\n', 'utf-8');
+  writeFileSync(path.join(sourceHome, 'auth.json'), '{"auth":"present"}', 'utf-8');
+
+  try {
+    const codexHome = prepareSparkCodexHome(parent, sourceHome);
+    assert.ok(codexHome);
+    assert.equal(
+      readFileSync(path.join(codexHome, 'config.toml'), 'utf-8').trim(),
+      'model_reasoning_effort = "low"\nservice_tier = "fast"'
+    );
+    assert.equal(readFileSync(path.join(codexHome, 'auth.json'), 'utf-8'), '{"auth":"present"}');
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
@@ -259,14 +335,16 @@ test('system prompt prioritizes local list references over older memory', () => 
   assert.match(prompt, /Do not offer to scaffold/);
 });
 
-test('system prompt reads the room without promoting style hints to memory', () => {
+test('system prompt reads the room with governed memory claims', () => {
   const prompt = buildSparkChatSystemPrompt('', '');
 
   assert.match(prompt, /Read the room/);
   assert.match(prompt, /repeating "go"/);
   assert.match(prompt, /frustrated, repair first/);
   assert.match(prompt, /corrects your tone, format, or answer/);
-  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
+  assert.match(prompt, /preferences can guide the current exchange immediately/);
+  assert.match(prompt, /governed memory owner before you claim it was saved/);
+  assert.match(prompt, /Do not describe the preference itself as saved, unsaved, durable, or non-durable/);
 });
 
 test('uses Claude Code print mode when Anthropic is selected for chat', () => {

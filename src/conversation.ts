@@ -22,13 +22,17 @@ export function parseTelegramUserIds(raw: string | undefined): number[] {
     .filter((id) => Number.isSafeInteger(id) && id > 0);
 }
 
-const ADMIN_IDS: number[] = parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+function currentAdminIds(): number[] {
+  return parseTelegramUserIds(process.env.ADMIN_TELEGRAM_IDS);
+}
 
-const ALLOWED_IDS: number[] = (
-  parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS)
-);
+function currentAllowedIds(): number[] {
+  return parseTelegramUserIds(process.env.ALLOWED_TELEGRAM_IDS || process.env.TELEGRAM_ALLOWED_USER_IDS);
+}
 
-const PUBLIC_CHAT_ENABLED = process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+function publicChatEnabled(): boolean {
+  return process.env.TELEGRAM_PUBLIC_CHAT_ENABLED === '1';
+}
 
 interface TelegramUser {
   id: number;
@@ -68,6 +72,11 @@ export interface ResolvedOptionReference {
 export interface RecentConversationTurn {
   role: 'user' | 'assistant';
   text: string;
+}
+
+export interface RecentMemoryDirective {
+  note: string;
+  sourceText: string;
 }
 
 const ORDINAL_WORDS: Record<string, number> = {
@@ -193,6 +202,23 @@ function isMemoryWriteTranscriptResidueLine(text: string): boolean {
   );
 }
 
+function extractRecentMemoryDirective(text: string): string | null {
+  const line = compactLine(text).replace(/^User:\s*/i, '').trim();
+  const memoryUpdate = line.match(/^memory update\s*:\s*(.+?)(?:\s+please\s+save\s+this\b.*)?$/i)?.[1]?.trim();
+  if (memoryUpdate) return userFacingMemoryContent(memoryUpdate);
+
+  const explicit = line.match(
+    /^(?:spark,?\s*)?(?:please\s+|can\s+you\s+|could\s+you\s+)?(?:remember|save|store)\s+(?:this|that|it)?\s*(?:as\s+[^:]{1,80})?\s*[:,-]?\s*(.+)$/i
+  )?.[1]?.trim();
+  if (!explicit) return null;
+
+  const cleaned = explicit
+    .replace(/\b(?:please\s+)?(?:save|store|remember)\s+(?:this|that|it)\b.*$/i, '')
+    .replace(/\bthis\s+turn\s+is\s+only\s+a\s+memory\s+update\b.*$/i, '')
+    .trim();
+  return cleaned ? userFacingMemoryContent(cleaned) : null;
+}
+
 function isContextualRecentLine(text: string): boolean {
   return !isPollutedInstructionMemoryLine(text) && !isMemoryWriteTranscriptResidueLine(text);
 }
@@ -306,15 +332,15 @@ export class ConversationMemory {
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
-    return ADMIN_IDS.includes(user.id);
+    return currentAdminIds().includes(user.id);
   }
 
   isAllowed(user: TelegramUser): boolean {
-    return PUBLIC_CHAT_ENABLED || this.isAdmin(user) || ALLOWED_IDS.includes(user.id);
+    return publicChatEnabled() || this.isAdmin(user) || currentAllowedIds().includes(user.id);
   }
 
   hasAnyOperatorConfigured(): boolean {
-    return ADMIN_IDS.length > 0 || ALLOWED_IDS.length > 0 || PUBLIC_CHAT_ENABLED;
+    return currentAdminIds().length > 0 || currentAllowedIds().length > 0 || publicChatEnabled();
   }
 
   private userKey(user: TelegramUser): number {
@@ -572,6 +598,15 @@ export class ConversationMemory {
         return { role: 'user' as const, text: (userMatch?.[1] || item).trim() };
       })
       .filter((turn) => turn.text.length > 0);
+  }
+
+  async getRecentMemoryDirectives(user: TelegramUser, limit: number = 8): Promise<RecentMemoryDirective[]> {
+    await this.ensureLoaded();
+    void user;
+    void limit;
+    // Raw "remember/save" turns are transcript residue until Builder/domain-chip memory accepts them.
+    // Telegram-local context can support conversation, but it must not masquerade as durable recall.
+    return [];
   }
 
   async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {

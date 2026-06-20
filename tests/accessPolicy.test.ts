@@ -83,14 +83,24 @@ async function main(): Promise<void> {
   await test('stores access profile per chat', async () => {
     resetJsonStateForTests();
     process.env.SPARK_GATEWAY_STATE_DIR = await mkdtemp(path.join(os.tmpdir(), 'spark-access-test-'));
+    const originalDefault = process.env.SPARK_AGENT_ACCESS_PROFILE;
+    delete process.env.SPARK_AGENT_ACCESS_PROFILE;
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), null);
-    assert.equal(await getSparkAccessProfile(123), 'developer');
-    await setSparkAccessProfile(123, 'agent');
+    try {
+      assert.equal(await getConfiguredSparkAccessProfile(123), null);
+      assert.equal(await getSparkAccessProfile(123), 'chat');
+      await setSparkAccessProfile(123, 'agent');
 
-    assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(123), 'agent');
-    assert.equal(await getSparkAccessProfile(456), 'developer');
+      assert.equal(await getConfiguredSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(123), 'agent');
+      assert.equal(await getSparkAccessProfile(456), 'chat');
+    } finally {
+      if (originalDefault === undefined) {
+        delete process.env.SPARK_AGENT_ACCESS_PROFILE;
+      } else {
+        process.env.SPARK_AGENT_ACCESS_PROFILE = originalDefault;
+      }
+    }
   });
 
   await test('allows environment override of default access profile', async () => {
@@ -155,7 +165,7 @@ async function main(): Promise<void> {
     assert.match(renderSparkAccessLevelGuide(), /Safety stays on/);
     assert.ok(renderSparkAccessStatus('operator').length < 760);
     assert.ok(renderSparkAccessStatus('operator').split('\n').length <= 16);
-    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 4/);
+    assert.match(renderSparkAccessOnboarding(), /Default right now: Access level 1/);
     assert.match(renderSparkAccessOnboarding('agent'), /Choose how much access this Telegram chat has/);
     assert.match(renderSparkAccessOnboarding('agent'), /Levels:/);
     assert.match(renderSparkAccessOnboarding('agent'), /4 - Workspace files and local debugging/);
@@ -394,7 +404,7 @@ async function main(): Promise<void> {
     assert.ok(missionCommand, 'expected /mission command handler to exist');
     assert.match(missionCommand[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
 
-    const naturalBoardRoute = indexSource.match(/const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent\(text, contextualTurns\);[\s\S]*?\n    const localSparkServiceAuthorization = isLocalSparkServiceRequest/);
+    const naturalBoardRoute = indexSource.match(/const spawnerBoardIntent = parseContextualSpawnerBoardNaturalIntent\(text, contextualTurns\);[\s\S]*?if \(spawnerBoardIntent && spawnerBoardAuthorization\) \{/);
     assert.ok(naturalBoardRoute, 'expected natural Spawner board route to exist');
     assert.match(naturalBoardRoute[0], /sparkAccessAllows\(accessProfile, 'spawner_build'\)/);
     assert.match(naturalBoardRoute[0], /renderSparkAccessDenial\(accessProfile, 'spawner_build'\)/);
@@ -430,17 +440,19 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('authority', handleAuthorityStatusCommand\)/);
     assert.match(indexSource, /bot\.command\('trace_repair', handleTraceRepairCommand\)/);
     assert.match(indexSource, /bot\.command\('memory_movement', handleMemoryMovementCommand\)/);
-    assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);
+    assert.match(indexSource, /export async function handleVoiceCommand\(ctx: any\): Promise<void> \{/);
+    assert.match(indexSource, /bot\.command\('voice', handleVoiceCommand\)/);
     assert.match(indexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
-    assert.match(indexSource, /replyViaBuilder\(ctx, voiceText, authorization\.legacyEnvelope\)/);
+    assert.match(indexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
     assert.doesNotMatch(indexSource, /spark\.getVoice\(\)/);
     const sparkSource = await readFile(path.join(__dirname, '..', 'src', 'spark.ts'), 'utf8');
     const distSparkSource = await readFile(path.join(__dirname, '..', 'dist', 'spark.js'), 'utf8');
     assert.doesNotMatch(sparkSource, /getVoice/);
     assert.doesNotMatch(distSparkSource, /getVoice/);
-    assert.match(distIndexSource, /bot\.command\('voice', async \(ctx\) => \{/);
+    assert.match(distIndexSource, /async function handleVoiceCommand\(ctx\) \{/);
+    assert.match(distIndexSource, /bot\.command\('voice', handleVoiceCommand\)/);
     assert.match(distIndexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);
-    assert.match(distIndexSource, /replyViaBuilder\(ctx, voiceText, authorization\.legacyEnvelope\)/);
+    assert.match(distIndexSource, /replyViaBuilder\([\s\S]{0,220}authorization\.legacyEnvelope,[\s\S]{0,120}bridgeTurnAuthorityFromAuthorization\(authorization\)/);
     assert.doesNotMatch(distIndexSource, /spark_1\.spark\.getVoice\(\)/);
     assert.match(indexSource, /AOC_CORE_ROUTE_KEYS/);
     assert.match(indexSource, /firstArg === 'core'/);

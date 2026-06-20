@@ -48,6 +48,8 @@ export function cleanupPendingDomainChipBuilds(now = Date.now()): number {
 export function isDomainChipPendingStart(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   return /^(?:go|start|run|build|create|make|ship|do it|build it|create it|make it|start it)$/i.test(normalized) ||
+    /^(?:please\s+)?(?:go ahead(?: and)?\s+)?(?:start|run|build|create|make|ship)\s+(?:it|this|that|the|this\s+domain[-\s]*chip|that\s+domain[-\s]*chip|the\s+domain[-\s]*chip|the\s+pending\s+domain[-\s]*chip)(?:\s+(?:now|with\b.*|using\b.*))?$/i.test(normalized) ||
+    /^(?:please\s+)?(?:go ahead(?: and)?\s+)?use\s+(?:the\s+)?(?:default|defaults|recommended\s+defaults)(?:\s+(?:for|on)\s+(?:it|this|that|this\s+domain[-\s]*chip|that\s+domain[-\s]*chip|the\s+domain[-\s]*chip))?$/i.test(normalized) ||
     isMissionExecutionConfirmation(text);
 }
 

@@ -32,10 +32,12 @@ function fakeCtx(
   replies: string[],
   mediaReplies: { voice: unknown[]; audio: unknown[] } = { voice: [], audio: [] }
 ) {
-  const message = { message_id: 9101, text };
+  const chat = { id: 8319079055, type: 'private' };
+  const from = { id: 8319079055, username: 'qa' };
+  const message = { message_id: 9101, text, chat, from };
   return {
-    chat: { id: 8319079055, type: 'private' },
-    from: { id: 8319079055, username: 'qa' },
+    chat,
+    from,
     message,
     update: { update_id: 9101, message },
     sendChatAction: async (_action: string) => {},
@@ -77,6 +79,209 @@ async function waitForJsonlRecord(filePath: string, predicate: (record: any) => 
     return [];
   }
 }
+
+test('Builder bridge handoff carries vnext envelope and governor decision', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  let capturedUpdate: any = null;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async (update: Record<string, unknown>) => {
+    capturedUpdate = update;
+    return {
+      used: true,
+      responseText: 'Bridge answer.',
+      decision: 'plain_chat',
+      bridgeMode: 'test',
+      routingDecision: 'plain_chat'
+    };
+  });
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx('Please answer with one brief neutral greeting.', replies));
+
+    assert.ok(capturedUpdate, 'Builder bridge should receive an update payload');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.message?.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.message?.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.tool_name, 'answer.compose');
+    assert.equal(replies.length, 1);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
+test('/voice command handoff carries voice Governor authority into Builder', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  let capturedUpdate: any = null;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async (update: Record<string, unknown>) => {
+    capturedUpdate = update;
+    return {
+      used: true,
+      responseText: 'Voice status ready.',
+      decision: 'voice.status',
+      bridgeMode: 'test',
+      routingDecision: 'voice.status'
+    };
+  });
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleVoiceCommand(fakeCtx('/voice status', replies));
+
+    assert.ok(capturedUpdate, 'Builder voice bridge should receive an update payload');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.message?.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.message?.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.tool_name, 'voice.status');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.capability_id, 'capability:spark-voice-comms:voice.status');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.proposed_actions?.[0]?.action_type, 'read');
+    assert.equal(capturedUpdate.governor_decision?.authorizations?.[0]?.restrictions?.network_allowed, false);
+    assert.deepEqual(replies, ['Voice status ready.']);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
+test('/voice onboard handoff carries write and network Governor authority into Builder', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  let capturedUpdate: any = null;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async (update: Record<string, unknown>) => {
+    capturedUpdate = update;
+    return {
+      used: true,
+      responseText: 'Voice onboard ready.',
+      decision: 'voice.onboard',
+      bridgeMode: 'test',
+      routingDecision: 'voice.onboard'
+    };
+  });
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleVoiceCommand(fakeCtx('/voice onboard local', replies));
+
+    assert.ok(capturedUpdate, 'Builder voice onboard bridge should receive an update payload');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.message?.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.message?.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.tool_name, 'voice.onboard');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.capability_id, 'capability:spark-voice-comms:voice.onboard');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.proposed_actions?.[0]?.action_type, 'external_api_call');
+    assert.equal(capturedUpdate.governor_decision?.authorizations?.[0]?.restrictions?.network_allowed, true);
+    assert.equal(capturedUpdate.governor_decision?.authorizations?.[0]?.restrictions?.write_allowed, true);
+    assert.deepEqual(replies, ['Voice onboard ready.']);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
+test('/voice self-test handoff carries the Builder diagnostic authority contract', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  let capturedUpdate: any = null;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async (update: Record<string, unknown>) => {
+    capturedUpdate = update;
+    return {
+      used: true,
+      responseText: 'Voice self-test completed.',
+      decision: 'voice.self_test.run',
+      bridgeMode: 'test',
+      routingDecision: 'voice.self_test.run'
+    };
+  });
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleVoiceCommand(fakeCtx('/voice self-test', replies));
+
+    assert.ok(capturedUpdate, 'Builder voice self-test bridge should receive an update payload');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.schema_version, 'turn-intent-envelope-vnext');
+    assert.equal(capturedUpdate.governor_decision?.schema_version, 'governor-decision-v1');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.tool_name, 'voice.self_test.run');
+    assert.equal(capturedUpdate.governor_decision?.tool_ledgers?.[0]?.capability_id, 'capability:spark-voice-comms:voice.self_test.run');
+    assert.equal(capturedUpdate.turn_intent_envelope_vnext?.proposed_actions?.[0]?.action_type, 'external_api_call');
+    assert.equal(capturedUpdate.governor_decision?.authorizations?.[0]?.restrictions?.network_allowed, true);
+    assert.equal(capturedUpdate.governor_decision?.authorizations?.[0]?.restrictions?.write_allowed, false);
+    assert.deepEqual(replies, ['Voice self-test completed.']);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
+test('/voice speak handoff allows authorized Builder voice media delivery', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+  const previousSparkHome = process.env.SPARK_HOME;
+  const tempSparkHome = mkdtempSync(path.join(os.tmpdir(), 'spark-voice-media-test-'));
+  process.env.SPARK_HOME = tempSparkHome;
+
+  const indexModule: any = await import('../src/index');
+  const mediaReplies = { voice: [] as unknown[], audio: [] as unknown[] };
+
+  indexModule.__setBuilderBridgeRunnerForTest(async () => ({
+    used: true,
+    responseText: 'Reading that exact text as a voice reply now.',
+    decision: 'voice.speak',
+    bridgeMode: 'test',
+    routingDecision: 'voice.speak',
+    voiceMedia: {
+      audioBase64: Buffer.from('synthetic-audio').toString('base64'),
+      mimeType: 'audio/ogg',
+      filename: 'reply.ogg',
+      voiceCompatible: true,
+      spokenText: 'hello'
+    }
+  }));
+
+  try {
+    const replies: string[] = [];
+    await indexModule.handleVoiceCommand(fakeCtx('/voice speak hello', replies, mediaReplies));
+
+    assert.equal(mediaReplies.voice.length, 1);
+    assert.deepEqual(mediaReplies.audio, []);
+    assert.deepEqual(replies, []);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    if (previousSparkHome === undefined) {
+      delete process.env.SPARK_HOME;
+    } else {
+      process.env.SPARK_HOME = previousSparkHome;
+    }
+    rmSync(tempSparkHome, { recursive: true, force: true });
+  }
+});
 
 test('no-execution meta action words bypass Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
@@ -289,6 +494,74 @@ test('quoted browser computer-use notes preserve governed quoted-boundary route 
     assert.equal(quotedRecord.executed_owner, 'spark-telegram-bot');
     assert.equal(quotedRecord.executed_action, 'plain_chat.quoted_example_boundary');
     assert.equal(quotedRecord.outcome, 'matched');
+  } finally {
+    llmModule.llm.chat = originalChat;
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    delete process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH;
+    delete process.env.SPARK_NATURAL_ROUTE_LEDGER;
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('source-attributed action reports compose a safe boundary reply without Builder detours', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+  process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-source-action-boundary-'));
+  const naturalRouteLedgerPath = path.join(tempRoot, 'natural-route-ledger.jsonl');
+  process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH = naturalRouteLedgerPath;
+
+  const indexModule: any = await import('../src/index');
+  const llmModule = await import('../src/llm');
+  const originalChat = llmModule.llm.chat;
+  let bridgeCalls = 0;
+  let llmCalls = 0;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async () => {
+    bridgeCalls += 1;
+    return {
+      used: true,
+      responseText: 'Delete tonight\'s schedule. Reply with: Confirm delete tonight\'s schedule.',
+      decision: 'schedule.delete',
+      bridgeMode: 'test',
+      routingDecision: 'schedule.delete'
+    };
+  });
+  llmModule.llm.chat = async () => {
+    llmCalls += 1;
+    return 'Confirm delete tonight\'s schedule.';
+  };
+
+  try {
+    const text = 'the doc says delete the schedule';
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(text, replies));
+
+    assert.equal(bridgeCalls, 0);
+    assert.equal(llmCalls, 0);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /source text/i);
+    assert.match(replies[0], /direct request/i);
+    assert.doesNotMatch(replies[0], /tonight/i);
+    assert.doesNotMatch(replies[0], /confirm delete/i);
+
+    const sourceBoundaryExecution = (record: any) => (
+      record.shadow_route === 'conversation.source_attributed_action_boundary' &&
+      record.executed_route === 'conversation.source_attributed_action_boundary'
+    );
+    const routeRecords = await waitForJsonlRecord(naturalRouteLedgerPath, sourceBoundaryExecution);
+    const sourceRecord = routeRecords.find(sourceBoundaryExecution);
+    assert.ok(
+      sourceRecord,
+      `source-attributed action wording must bind to governed source boundary; records=${JSON.stringify(routeRecords)}`
+    );
+    assert.equal(sourceRecord.executed_owner, 'spark-telegram-bot');
+    assert.equal(sourceRecord.executed_action, 'plain_chat.source_attributed_action_boundary');
+    assert.equal(sourceRecord.outcome, 'matched');
   } finally {
     llmModule.llm.chat = originalChat;
     indexModule.__setBuilderBridgeRunnerForTest(null);
