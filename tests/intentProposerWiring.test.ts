@@ -71,9 +71,9 @@ test('logger is fail-safe: an unwritable path does not throw', () => {
   });
 });
 
-test('completer returns "" (no network) when the provider is not openai_compat, and never throws', async () => {
+test('completer returns "" for an unsupported provider without throwing', async () => {
   const prev = process.env.SPARK_CHAT_LLM_PROVIDER;
-  process.env.SPARK_CHAT_LLM_PROVIDER = 'codex'; // resolves to kind 'codex' -> completer returns '' without any HTTP call
+  process.env.SPARK_CHAT_LLM_PROVIDER = 'unsupported-for-test';
   try {
     const out = await intentProposerProviderComplete({ system: 's', user: 'u' });
     assert.equal(out, '');

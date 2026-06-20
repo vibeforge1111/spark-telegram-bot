@@ -51,7 +51,13 @@ async function main(): Promise<void> {
       parseNaturalRecursiveProposalIntent('can we share Startup YC with the network review lane?'),
       { target: 'startup-yc', submit: true }
     );
+    assert.deepEqual(
+      parseNaturalRecursiveProposalIntent('propose an improvement to Spark Telegram memory source-lane handling so restart questions stay conversational'),
+      { target: 'ad-hoc:spark-telegram-memory-source-lane-handling', submit: false }
+    );
     assert.equal(parseNaturalRecursiveProposalIntent('what happened with crypto trading?'), null);
+    assert.equal(parseNaturalRecursiveProposalIntent('should we propose an improvement to Spark Telegram memory later?'), null);
+    assert.equal(parseNaturalRecursiveProposalIntent('the report says propose an improvement to Spark Telegram memory'), null);
   });
 
   await test('recursive command export renders help through command path', async () => {

@@ -41,6 +41,7 @@ export function clearPendingConfirm(key: string): void {
 }
 
 const CONFIRM_RE = /^(?:yes|yep|yeah|yup|ok|okay|do it|go ahead|confirm|confirmed|proceed|sure|please do|go for it)\b/i;
+const CONFIRM_ONLY_RE = /^(?:yes|yep|yeah|yup|ok|okay|do it|go ahead|confirm|confirmed|proceed|sure|please do|go for it)[\s.!?]*$/i;
 const NEGATE_RE = /\b(?:no|nope|don'?t|do not|cancel|stop|never|nah|abort)\b/i;
 
 // A fresh confirmation: starts with an affirmative and is not a negation. Deliberately strict so an
@@ -50,6 +51,13 @@ export function isConfirmText(text: string): boolean {
   if (!t) return false;
   if (NEGATE_RE.test(t)) return false;
   return CONFIRM_RE.test(t);
+}
+
+export function isConfirmationOnlyText(text: string): boolean {
+  const t = (text || '').trim();
+  if (!t) return false;
+  if (NEGATE_RE.test(t)) return false;
+  return CONFIRM_ONLY_RE.test(t);
 }
 
 // Decide whether a fresh turn consumes a staged confirm. Consumes ONLY when there is a pending and the
@@ -67,4 +75,12 @@ export function shouldConsumeConfirm(
 export function confirmPromptMessage(label: string): string {
   const safe = (label || 'that action').trim() || 'that action';
   return `That looks like a high-impact action: "${safe}". Reply "yes" to confirm and I will run it, or "no" to cancel.`;
+}
+
+export function noPendingConfirmationMessage(): string {
+  return [
+    'I do not see a pending action to confirm in this chat, so I did not run anything.',
+    '',
+    'If you were answering a normal question, send me the next detail and I will continue from there.'
+  ].join('\n');
 }

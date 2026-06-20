@@ -5,6 +5,9 @@ import { harnessExecutionAuthorityFailureReason } from './harnessExecutionAuthor
 
 const SPAWNER_UI_URL = resolveSpawnerUiUrl();
 const MISSING_EXECUTION_AUTHORITY_ERROR = 'Harness Core execution authority is required before schedule mutations.';
+export const SCHEDULE_OWNER_SYSTEM = 'spawner-ui';
+export const SCHEDULE_CREATE_TOOL = 'spawner.schedule.create';
+export const SCHEDULE_DELETE_TOOL = 'spawner.schedule.delete';
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -113,15 +116,15 @@ export async function createSchedule(input: {
   executionAuthority?: unknown;
 }): Promise<{ ok: boolean; schedule?: ScheduleRecord; error?: string }> {
   const authorityReason = harnessExecutionAuthorityFailureReason(input.executionAuthority, {
-    toolName: 'schedule.create',
-    ownerSystem: 'spark-intelligence-builder',
+    toolName: SCHEDULE_CREATE_TOOL,
+    ownerSystem: SCHEDULE_OWNER_SYSTEM,
     actionType: 'schedule'
   });
   if (authorityReason) {
     return { ok: false, error: `${MISSING_EXECUTION_AUTHORITY_ERROR} (${authorityReason})` };
   }
   try {
-    const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000));
+    const res = await axios.post(`${SPAWNER_UI_URL}/api/scheduled`, input, spawnerAxiosOptions(10000, {}, { mode: 'events' }));
     return { ok: Boolean(res.data?.ok), schedule: res.data?.schedule, error: res.data?.error };
   } catch (err: any) {
     return { ok: false, error: err?.response?.data?.error || err?.message || 'create failed' };
@@ -130,7 +133,7 @@ export async function createSchedule(input: {
 
 export async function listSchedules(): Promise<{ ok: boolean; schedules?: ScheduleRecord[]; error?: string }> {
   try {
-    const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000));
+    const res = await axios.get(`${SPAWNER_UI_URL}/api/scheduled`, spawnerAxiosOptions(10000, {}, { mode: 'events' }));
     return { ok: Boolean(res.data?.ok), schedules: res.data?.schedules || [], error: res.data?.error };
   } catch (err: any) {
     return { ok: false, error: err?.message || 'list failed' };
@@ -142,8 +145,8 @@ export async function deleteSchedule(
   options: { executionAuthority?: unknown } = {}
 ): Promise<{ ok: boolean; error?: string }> {
   const authorityReason = harnessExecutionAuthorityFailureReason(options.executionAuthority, {
-    toolName: 'schedule.delete',
-    ownerSystem: 'spark-intelligence-builder',
+    toolName: SCHEDULE_DELETE_TOOL,
+    ownerSystem: SCHEDULE_OWNER_SYSTEM,
     actionType: 'schedule'
   });
   if (authorityReason) {
@@ -152,7 +155,7 @@ export async function deleteSchedule(
   try {
     const res = await axios.delete(
       `${SPAWNER_UI_URL}/api/scheduled?id=${encodeURIComponent(id)}`,
-      spawnerAxiosOptions(10000, { data: { executionAuthority: options.executionAuthority } })
+      spawnerAxiosOptions(10000, { data: { executionAuthority: options.executionAuthority } }, { mode: 'events' })
     );
     return { ok: Boolean(res.data?.ok), error: res.data?.error };
   } catch (err: any) {

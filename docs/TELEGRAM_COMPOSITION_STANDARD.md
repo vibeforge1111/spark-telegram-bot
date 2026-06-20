@@ -67,6 +67,11 @@ Everything else belongs in Workspace, Canvas, Kanban, logs, traces, dashboards, 
 - Prefer one useful next move. Avoid command menus unless the user asked for options.
 - When a row already starts with a symbol or icon, do not prefix it with `-`, `1.`, or any other decoration.
 - Avoid database voice. Convert system nouns into human nouns unless the technical noun is the useful thing.
+- Keep memory/source lane labels out of normal acknowledgement prose. If the user
+  says a preference is "for this chat only" or "don't save that", answer like a
+  person: "Got it, I will use that while we keep talking." Do not describe the
+  preference itself as "unsaved", "non-durable", or "recent-context" unless the
+  user asks whether it was saved or the boundary matters for safety.
 - Prefer `ready`, `needs review`, `blocked`, `running`, `held steady`, `improved`, and `regressed` over internal lifecycle names.
 - Do not show normal internal state like `open`, `review clear`, `ready canvas`, or evidence counts unless they change what the user should think or do.
 - Let the absence of a warning mean clear.

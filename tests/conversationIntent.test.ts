@@ -130,6 +130,25 @@ test('routes collaborative mission wording to conversation instead of command he
   );
 });
 
+test('routes open-ended next-step questions to conversational ideation, not memory or runtime state', () => {
+  assert.equal(
+    shouldPreferConversationalIdeation('After the restart, what should I focus on first tonight?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('I have one serious block tonight; what should I work on first?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('Now that we are back, what is the next useful move?'),
+    true
+  );
+  assert.equal(
+    shouldPreferConversationalIdeation('is a restart needed right now?'),
+    false
+  );
+});
+
 test('keeps explicit build specs on the build path', () => {
   assert.equal(
     shouldPreferConversationalIdeation(
@@ -1411,6 +1430,17 @@ test('extracts natural recursive commands for QA Operator loops', () => {
       reason: 'Natural-language request to list recursive loops.'
     }
   );
+  assert.deepEqual(
+    parseNaturalRecursiveCommandIntent('what recursive loops are running?'),
+    {
+      rawCommand: 'sessions',
+      reason: 'Natural-language request to list recursive loops.'
+    }
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent('what makes a small game loop feel satisfying instead of busy?'),
+    null
+  );
   assert.equal(
     parseNaturalRecursiveCommandIntent('Are you using Codex high fast right now? Show only provider, model, reasoning effort, and service tier. No secrets, no paths, and do not start anything.'),
     null
@@ -2167,6 +2197,8 @@ test('parses natural access change requests', () => {
   assert.equal(parseNaturalAccessChangeIntent('please remember that my access level is 3'), null);
   assert.equal(parseNaturalAccessChangeIntent('does access 5 really switch the harness CLI into full access?'), null);
   assert.equal(parseNaturalAccessChangeIntent('how should access 4 setup work for users?'), null);
+  assert.equal(parseNaturalAccessChangeIntent('approve everything'), null);
+  assert.equal(parseContextualAccessChangeIntent('approve everything', ['Spark: This chat is on Access level 3.']), null);
 });
 
 test('no-execution boundary catches negated ongoing action wording', () => {

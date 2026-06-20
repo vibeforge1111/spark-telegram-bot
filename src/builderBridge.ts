@@ -153,6 +153,10 @@ export interface BuilderTelegramMemoryWriteInput {
   userId: number | string;
   chatId?: number | string;
   noteText: string;
+  memoryRole?: 'current_state' | 'structured_evidence' | 'raw_episode' | 'belief';
+  predicate?: string;
+  value?: string;
+  factName?: string;
   sessionId?: string;
   turnId?: string;
   governorDecision?: Record<string, unknown>;
@@ -171,6 +175,51 @@ export interface BuilderTelegramMemoryWriteResult {
   payload?: Record<string, unknown>;
   error?: string;
 }
+
+export interface BuilderTelegramMemoryDeleteInput {
+  userId: number | string;
+  chatId?: number | string;
+  targetText: string;
+  sessionId?: string;
+  turnId?: string;
+  governorDecision?: Record<string, unknown>;
+}
+
+export interface BuilderTelegramMemoryDeleteResult {
+  used: boolean;
+  status: string;
+  acceptedCount: number;
+  rejectedCount: number;
+  skippedCount: number;
+  abstained: boolean;
+  reason: string;
+  responseText: string;
+  bridgeMode: string;
+  payload?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface BuilderTelegramMemoryRecallInput {
+  userId: number | string;
+  chatId?: number | string;
+  queryText: string;
+  limit?: number;
+  sessionId?: string;
+  turnId?: string;
+  sourceKind?: string;
+}
+
+export interface BuilderTelegramMemoryRecallResult {
+  used: boolean;
+  status: string;
+  recordCount: number;
+  responseText: string;
+  bridgeMode: string;
+  payload?: Record<string, unknown>;
+  error?: string;
+}
+
+export type BuilderTelegramMemoryCapsuleRecallResult = BuilderTelegramMemoryRecallResult;
 
 export interface BuilderSelfAwarenessInput {
   userId: number | string;
@@ -230,6 +279,16 @@ export interface BuilderSourceUsedResult {
 }
 
 export interface BuilderRouteProbeResult {
+  replyText: string;
+  payload: Record<string, unknown>;
+}
+
+export interface BuilderBrowserPageSnapshotResult {
+  ok: boolean;
+  url: string;
+  title: string;
+  origin: string;
+  summary: string;
   replyText: string;
   payload: Record<string, unknown>;
 }
@@ -380,6 +439,9 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
     PYTHONPATH: existingPythonPath ? `${sourcePath}${path.delimiter}${existingPythonPath}` : sourcePath,
   };
   mergeEnvFile(env, path.join(config.builderHome, '.env'));
+  if (!env.SPARK_HOME?.trim()) {
+    env.SPARK_HOME = path.join(os.homedir(), '.spark');
+  }
   const profileBotToken = process.env.BOT_TOKEN?.trim();
   if (profileBotToken) {
     // Telegram file IDs are bot-scoped, so Builder must use the active runner profile token.
@@ -1261,6 +1323,227 @@ export function formatConversationColdMemoryContext(payload: unknown, maxChars =
     contextText: sourceCount > 0 ? lines.join('\n').trim() : '',
     sourceCount,
     sources,
+  };
+}
+
+const MEMORY_RECALL_STOPWORDS = new Set([
+  'about',
+  'anything',
+  'did',
+  'know',
+  'memory',
+  'me',
+  'my',
+  'please',
+  'recall',
+  'remember',
+  'saved',
+  'that',
+  'the',
+  'what',
+  'you'
+]);
+
+function memoryRecallTokens(text: string): string[] {
+  return Array.from(new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2 && !MEMORY_RECALL_STOPWORDS.has(token))
+  ));
+}
+
+function memoryRecordTimestamp(record: Record<string, unknown>): string {
+  return stringValue(record.timestamp) ||
+    stringValue(objectValue(record.metadata).created_at) ||
+    stringValue(objectValue(record.metadata).document_time);
+}
+
+function memoryRecordValue(record: Record<string, unknown>): string {
+  return stringValue(record.value) ||
+    stringValue(objectValue(record.metadata).value) ||
+    stringValue(record.text).replace(/^human:telegram:\d+\s+\S+\s+/i, '').trim();
+}
+
+function scoreMemoryRecordForQuery(query: string, record: Record<string, unknown>): number {
+  const queryTokens = memoryRecallTokens(query);
+  if (queryTokens.length === 0) {
+    return 1;
+  }
+  const haystack = [
+    memoryRecordValue(record),
+    stringValue(record.predicate),
+    stringValue(objectValue(record.metadata).entity_key),
+    stringValue(objectValue(record.metadata).domain_pack)
+  ].join(' ').toLowerCase();
+  return queryTokens.filter((token) => haystack.includes(token)).length;
+}
+
+function cleanMemoryRecallLine(value: string): string {
+  return value
+    .replace(/^I think\s+/i, '')
+    .replace(/^this session test code word:\s*/i, 'session test code word: ')
+    .replace(/[.!?]+$/g, '')
+    .trim();
+}
+
+export function formatBuilderTelegramMemoryRecall(payload: unknown, queryText: string, limit = 5): {
+  responseText: string;
+  recordCount: number;
+} {
+  const root = objectValue(payload);
+  const currentState = objectValue(root.current_state);
+  const records = arrayValue(currentState.records)
+    .map(objectValue)
+    .map((record, index) => ({
+      record,
+      index,
+      score: scoreMemoryRecordForQuery(queryText, record),
+      timestamp: memoryRecordTimestamp(record),
+    }))
+    .filter((item) => item.score > 0 && memoryRecordValue(item.record))
+    .sort((a, b) => (
+      b.score - a.score ||
+      b.timestamp.localeCompare(a.timestamp) ||
+      b.index - a.index
+    ))
+    .slice(0, Math.max(1, limit));
+
+  if (!records.length) {
+    return { responseText: '', recordCount: 0 };
+  }
+
+  const lines = records
+    .map((item) => cleanMemoryRecallLine(memoryRecordValue(item.record)))
+    .filter(Boolean)
+    .map((line) => `- ${line}`);
+
+  if (!lines.length) {
+    return { responseText: '', recordCount: 0 };
+  }
+
+  return {
+    recordCount: lines.length,
+    responseText: [
+      'From Builder/domain-chip memory, I have:',
+      '',
+      ...lines,
+      '',
+      'Source: current-state memory read through Builder.'
+    ].join('\n')
+  };
+}
+
+function capsuleRecallItemValue(item: Record<string, unknown>): string {
+  return stringValue(item.value) ||
+    stringValue(item.text).replace(/^human:telegram:\d+\s+\S+\s+/i, '').trim();
+}
+
+function capsuleRecallSourceLabel(sectionName: string, item: Record<string, unknown>): string {
+  const lane = stringValue(item.lane) || stringValue(item.source_class) || sectionName;
+  if (/recent|conversation/i.test(sectionName) || /evidence/i.test(lane)) {
+    return 'supporting evidence';
+  }
+  if (/event/i.test(lane)) {
+    return 'event';
+  }
+  if (/current/i.test(lane)) {
+    return 'current state';
+  }
+  return lane.replace(/_/g, ' ') || 'memory';
+}
+
+function memoryCapsuleHasOnlySupportWithoutAuthority(root: Record<string, unknown>): boolean {
+  const explanation = objectValue(root.answer_explanation);
+  const gatesRoot = objectValue(explanation.context_packet_promotion_gates) ||
+    objectValue(root.context_packet_promotion_gates) ||
+    objectValue(root.promotion_gates);
+  const gates = objectValue(gatesRoot.gates);
+  const swampGate = objectValue(gates.source_swamp_resistance);
+  const swampEvidence = objectValue(swampGate.evidence);
+  const status = stringValue(swampGate.status) || stringValue(gatesRoot.status);
+  const authorityCount = Number(swampEvidence.authority_count ?? NaN);
+  const supportingCount = Number(swampEvidence.supporting_count ?? NaN);
+  if (!/^(warn|fail)$/i.test(status)) return false;
+  return Number.isFinite(authorityCount) &&
+    Number.isFinite(supportingCount) &&
+    authorityCount <= 0 &&
+    supportingCount > 0;
+}
+
+export function formatBuilderTelegramMemoryCapsuleRecall(payload: unknown, queryText: string, limit = 5): {
+  responseText: string;
+  recordCount: number;
+} {
+  const root = objectValue(payload);
+  if (memoryCapsuleHasOnlySupportWithoutAuthority(root)) {
+    return { responseText: '', recordCount: 0 };
+  }
+  const packet = objectValue(root.context_packet);
+  const sections = arrayValue(packet.sections);
+  const records: Array<{
+    value: string;
+    source: string;
+    authority: string;
+    sectionIndex: number;
+    itemIndex: number;
+    score: number;
+  }> = [];
+  const seen = new Set<string>();
+
+  sections.forEach((sectionValue, sectionIndex) => {
+    const section = objectValue(sectionValue);
+    const sectionName = stringValue(section.section);
+    arrayValue(section.items).forEach((itemValue, itemIndex) => {
+      const item = objectValue(itemValue);
+      const value = cleanMemoryRecallLine(capsuleRecallItemValue(item));
+      if (!value) return;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      records.push({
+        value,
+        source: capsuleRecallSourceLabel(sectionName, item),
+        authority: stringValue(item.authority) || stringValue(section.authority),
+        sectionIndex,
+        itemIndex,
+        score: Number(item.score || scoreMemoryRecordForQuery(queryText, item) || 0)
+      });
+    });
+  });
+
+  const explicitAuthorities = records.map((item) => item.authority).filter(Boolean);
+  if (explicitAuthorities.length > 0 && explicitAuthorities.every((authority) => /^(supporting|supporting_not_authoritative)$/i.test(authority))) {
+    return { responseText: '', recordCount: 0 };
+  }
+  const answerRecords = explicitAuthorities.some((authority) => /^authority$/i.test(authority))
+    ? records.filter((item) => /^authority$/i.test(item.authority))
+    : records;
+
+  const selected = answerRecords
+    .filter((item) => item.value)
+    .sort((a, b) => (
+      a.sectionIndex - b.sectionIndex ||
+      b.score - a.score ||
+      a.itemIndex - b.itemIndex
+    ))
+    .slice(0, Math.max(1, limit));
+
+  if (!selected.length) {
+    return { responseText: '', recordCount: 0 };
+  }
+
+  return {
+    recordCount: selected.length,
+    responseText: [
+      'From Builder/domain-chip memory, I found:',
+      '',
+      ...selected.map((item) => `- ${item.value} (${item.source})`),
+      '',
+      'Source: source-aware memory capsule through Builder.'
+    ].join('\n')
   };
 }
 
@@ -2299,6 +2582,123 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
   };
 }
 
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function firstText(...values: unknown[]): string {
+  for (const value of values) {
+    const text = processOutputText(value).trim() || String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function parseBuilderJsonObject(text: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(text);
+    return objectRecord(parsed);
+  } catch {
+    return {};
+  }
+}
+
+function formatBrowserSnapshotReply(input: {
+  ok: boolean;
+  url: string;
+  title: string;
+  summary: string;
+}): string {
+  if (input.ok) {
+    return [
+      'Opened that through the governed browser lane.',
+      '',
+      `Title: ${input.title || 'unknown'}`,
+      `URL: ${input.url}`
+    ].join('\n');
+  }
+  return [
+    'I could not open that through the governed browser lane.',
+    '',
+    `Owner evidence: ${input.summary || 'browser owner returned no usable result'}`
+  ].join('\n');
+}
+
+export async function runBuilderBrowserPageSnapshot(input: { url: string }): Promise<BuilderBrowserPageSnapshotResult> {
+  const config = resolveBridgeConfig();
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    const summary = `Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`;
+    return {
+      ok: false,
+      url: input.url,
+      title: '',
+      origin: '',
+      summary,
+      replyText: formatBrowserSnapshotReply({ ok: false, url: input.url, title: '', summary }),
+      payload: {}
+    };
+  }
+
+  const args = [
+    'browser',
+    'page-snapshot',
+    '--home',
+    config.builderHome,
+    '--origin',
+    input.url,
+    '--json',
+  ];
+  let stdout = '';
+  let stderr = '';
+  let commandError: unknown = null;
+  try {
+    const result = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: selfAwarenessBridgeTimeoutMs(process.env, config.timeoutMs),
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    stdout = processOutputText(result.stdout);
+    stderr = processOutputText(result.stderr);
+  } catch (error) {
+    const execError = error as { stdout?: unknown; stderr?: unknown };
+    stdout = processOutputText(execError.stdout);
+    stderr = processOutputText(execError.stderr);
+    commandError = error;
+  }
+
+  const payload = parseBuilderJsonObject(stdout.trim());
+  const resultPayload = objectRecord(payload.result);
+  const visibleText = objectRecord(resultPayload.visible_text);
+  const errorPayload = objectRecord(payload.error);
+  const ok = !commandError && String(payload.status || '').toLowerCase() !== 'failed';
+  const title = String(resultPayload.title || '').trim();
+  const origin = String(resultPayload.origin || '').trim();
+  const summary = ok
+    ? String(visibleText.summary || payload.summary || '').trim()
+    : firstText(
+        errorPayload.message,
+        errorPayload.code,
+        stderr,
+        stdout,
+        commandError instanceof Error ? commandError.message : ''
+      ).slice(0, 500);
+  return {
+    ok,
+    url: input.url,
+    title,
+    origin,
+    summary,
+    replyText: formatBrowserSnapshotReply({ ok, url: input.url, title, summary }),
+    payload
+  };
+}
+
 export async function readLatestCapabilityProbeReceipt(
   capabilityKey: string
 ): Promise<BuilderCapabilityProbeReceipt | null> {
@@ -2934,6 +3334,19 @@ export async function runBuilderTelegramMemoryWrite(
       '--json',
     ];
 
+    if (input.memoryRole) {
+      args.push('--memory-role', input.memoryRole);
+    }
+    if (input.predicate) {
+      args.push('--predicate', input.predicate);
+    }
+    if (input.value) {
+      args.push('--value', input.value);
+    }
+    if (input.factName) {
+      args.push('--fact-name', input.factName);
+    }
+
     if (input.governorDecision) {
       const governorPath = path.join(tempDir, 'governor-decision.json');
       await writeFile(governorPath, JSON.stringify(input.governorDecision, null, 2), 'utf-8');
@@ -2980,6 +3393,323 @@ export async function runBuilderTelegramMemoryWrite(
       throw new Error(detail, { cause: error instanceof Error ? error : undefined });
     }
     console.warn('[BuilderBridge] Telegram memory writer unavailable:', detail);
+    return {
+      used: false,
+      status: 'error',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: detail,
+      responseText: '',
+      bridgeMode: config.mode,
+      error: detail,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+export async function runBuilderTelegramMemoryRecall(
+  input: BuilderTelegramMemoryRecallInput
+): Promise<BuilderTelegramMemoryRecallResult> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return {
+      used: false,
+      status: 'unavailable',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+    };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    const message = `Builder memory recall is unavailable. repo=${config.builderRepo} home=${config.builderHome}`;
+    if (config.mode === 'required') {
+      throw new Error(message);
+    }
+    return {
+      used: false,
+      status: 'unavailable',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+      error: message,
+    };
+  }
+
+  try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', [
+        'memory',
+        'inspect-human',
+        '--home',
+        config.builderHome,
+        '--human-id',
+        `human:telegram:${userId}`,
+        '--event-limit',
+        '12',
+        '--json',
+      ]),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: config.timeoutMs,
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Builder memory recall returned empty stdout. stderr=${redactText(stderr.trim())}`);
+    }
+    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const formatted = formatBuilderTelegramMemoryRecall(payload, input.queryText, input.limit || 5);
+    return {
+      used: formatted.recordCount > 0,
+      status: formatted.recordCount > 0 ? 'succeeded' : 'not_found',
+      recordCount: formatted.recordCount,
+      responseText: formatted.responseText,
+      bridgeMode: config.mode,
+      payload,
+    };
+  } catch (error) {
+    const detail = execFailureDetail(error);
+    if (config.mode === 'required') {
+      throw new Error(detail, { cause: error instanceof Error ? error : undefined });
+    }
+    console.warn('[BuilderBridge] Telegram memory recall unavailable:', detail);
+    return {
+      used: false,
+      status: 'error',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+      error: detail,
+    };
+  }
+}
+
+export async function runBuilderTelegramMemoryCapsuleRecall(
+  input: BuilderTelegramMemoryRecallInput
+): Promise<BuilderTelegramMemoryCapsuleRecallResult> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return {
+      used: false,
+      status: 'unavailable',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+    };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    const message = `Builder memory capsule recall is unavailable. repo=${config.builderRepo} home=${config.builderHome}`;
+    if (config.mode === 'required') {
+      throw new Error(message);
+    }
+    return {
+      used: false,
+      status: 'unavailable',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+      error: message,
+    };
+  }
+
+  try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const args = [
+      'memory',
+      'inspect-capsule',
+      '--home',
+      config.builderHome,
+      '--subject',
+      `human:telegram:${userId}`,
+      '--query',
+      input.queryText,
+      '--limit',
+      String(input.limit || 5),
+      '--json',
+    ];
+    const sessionId = input.sessionId || (
+      input.chatId === undefined
+        ? `telegram:${userId}`
+        : `telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}`
+    );
+    if (input.turnId) {
+      args.push(
+        '--governed-read-request-id',
+        input.turnId,
+        '--governed-read-session-id',
+        sessionId,
+        '--governed-read-human-id',
+        `human:telegram:${userId}`,
+        '--governed-read-source-kind',
+        input.sourceKind || 'telegram_runtime_memory_recall',
+        '--governed-read-user-message',
+        input.queryText
+      );
+    }
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: config.timeoutMs,
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Builder memory capsule recall returned empty stdout. stderr=${redactText(stderr.trim())}`);
+    }
+    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const formatted = formatBuilderTelegramMemoryCapsuleRecall(payload, input.queryText, input.limit || 5);
+    return {
+      used: formatted.recordCount > 0,
+      status: formatted.recordCount > 0 ? 'succeeded' : 'not_found',
+      recordCount: formatted.recordCount,
+      responseText: formatted.responseText,
+      bridgeMode: config.mode,
+      payload,
+    };
+  } catch (error) {
+    const detail = execFailureDetail(error);
+    if (config.mode === 'required') {
+      throw new Error(detail, { cause: error instanceof Error ? error : undefined });
+    }
+    console.warn('[BuilderBridge] Telegram memory capsule recall unavailable:', detail);
+    return {
+      used: false,
+      status: 'error',
+      recordCount: 0,
+      responseText: '',
+      bridgeMode: config.mode,
+      error: detail,
+    };
+  }
+}
+
+export async function runBuilderTelegramMemoryDelete(
+  input: BuilderTelegramMemoryDeleteInput
+): Promise<BuilderTelegramMemoryDeleteResult> {
+  const config = resolveBridgeConfig();
+  if (config.mode === 'off') {
+    return {
+      used: false,
+      status: 'unavailable',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: 'Builder bridge is off.',
+      responseText: '',
+      bridgeMode: '',
+    };
+  }
+
+  const bridgeAvailable = await ensureBridgeAvailable(config);
+  if (!bridgeAvailable) {
+    const message = `Builder memory deleter is unavailable. repo=${config.builderRepo} home=${config.builderHome}`;
+    if (config.mode === 'required') {
+      throw new Error(message);
+    }
+    return {
+      used: false,
+      status: 'unavailable',
+      acceptedCount: 0,
+      rejectedCount: 0,
+      skippedCount: 0,
+      abstained: false,
+      reason: message,
+      responseText: '',
+      bridgeMode: config.mode,
+    };
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-builder-memory-delete-'));
+  try {
+    const userId = assertTelegramIntegerId(input.userId, 'userId');
+    const sessionId = input.sessionId || (
+      input.chatId === undefined
+        ? `telegram:${userId}`
+        : `telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}`
+    );
+    const turnId = input.turnId || `telegram-memory-delete:${Date.now()}`;
+    const args = [
+      'memory',
+      'delete-telegram-note',
+      '--home',
+      config.builderHome,
+      '--human-id',
+      `human:telegram:${userId}`,
+      '--target-text',
+      input.targetText,
+      '--domain-pack',
+      'telegram_runtime',
+      '--session-id',
+      sessionId,
+      '--turn-id',
+      turnId,
+      '--actor-id',
+      'telegram_memory_direct_adapter',
+      '--json',
+    ];
+
+    if (input.governorDecision) {
+      const governorPath = path.join(tempDir, 'governor-decision.json');
+      await writeFile(governorPath, JSON.stringify(input.governorDecision, null, 2), 'utf-8');
+      args.push('--governor-decision-file', governorPath);
+    }
+
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', args),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: config.timeoutMs,
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Builder memory deleter returned empty stdout. stderr=${redactText(stderr.trim())}`);
+    }
+    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const acceptedCount = numericValue(payload.accepted_count);
+    const rejectedCount = numericValue(payload.rejected_count);
+    const skippedCount = numericValue(payload.skipped_count);
+    const status = stringValue(payload.status) || (acceptedCount > 0 ? 'succeeded' : 'failed');
+    const reason = stringValue(payload.reason);
+    return {
+      used: true,
+      status,
+      acceptedCount,
+      rejectedCount,
+      skippedCount,
+      abstained: Boolean(payload.abstained),
+      reason,
+      responseText: acceptedCount > 0
+        ? 'Forgot the matching saved memory through Builder/domain-chip memory.'
+        : 'I could not find a matching saved memory to forget.',
+      bridgeMode: config.mode,
+      payload,
+    };
+  } catch (error) {
+    const detail = execFailureDetail(error);
+    if (config.mode === 'required') {
+      throw new Error(detail, { cause: error instanceof Error ? error : undefined });
+    }
+    console.warn('[BuilderBridge] Telegram memory deleter unavailable:', detail);
     return {
       used: false,
       status: 'error',

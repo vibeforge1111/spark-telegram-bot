@@ -1,5 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import type { Telegraf } from 'telegraf';
 import {
   createHarnessCoreActionEnvelopeVNext,
@@ -804,6 +807,53 @@ function firstString(record: Record<string, unknown> | null, keys: string[]): st
   return null;
 }
 
+function spawnerUiOwnerStatePath(filename: string): string {
+  const explicitStateDir = process.env.SPARK_SPAWNER_UI_STATE_DIR?.trim();
+  if (explicitStateDir) return path.join(explicitStateDir, filename);
+  const sparkHome = process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
+  return path.join(sparkHome, 'state', 'spawner-ui', filename);
+}
+
+function protectedProviderSummaryPlaceholder(text: string): boolean {
+  const normalized = compactWhitespace(text).toLowerCase();
+  return /\bprovider\s+summary\b/.test(normalized) && /\brequires\b/.test(normalized) && /\b(?:control\s+)?auth(?:orization)?\b/.test(normalized);
+}
+
+function usableProviderText(record: Record<string, unknown> | null): string {
+  if (!record) return '';
+  const response = firstString(record, ['response', 'summary', 'result']);
+  if (response && !protectedProviderSummaryPlaceholder(response)) return response;
+
+  const responseSummary = firstString(record, ['responseSummary']);
+  const redacted = record.responseRedacted === true || typeof record.responseRedaction === 'string';
+  if (responseSummary && !redacted && !protectedProviderSummaryPlaceholder(responseSummary)) {
+    return responseSummary;
+  }
+  return '';
+}
+
+function selectCompletedProviderResult(results: Array<Record<string, unknown> | null>): Record<string, unknown> | null {
+  const records = results.filter((entry): entry is Record<string, unknown> => Boolean(entry));
+  return (
+    records.find((entry) => String(entry.status || '').toLowerCase() === 'completed' && usableProviderText(entry)) ||
+    records.find((entry) => usableProviderText(entry)) ||
+    null
+  );
+}
+
+async function readMissionProviderResultFromOwnerState(missionId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await readFile(spawnerUiOwnerStatePath('mission-provider-results.json'), 'utf-8');
+    const payload = asRecord(JSON.parse(raw));
+    const missions = asRecord(payload?.missions);
+    const entries = missions ? missions[missionId] : null;
+    const results = Array.isArray(entries) ? entries.map(asRecord) : [];
+    return selectCompletedProviderResult(results);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMissionCompletionSummary(
   missionId: string,
   options: MissionCompletionFetchOptions = {}
@@ -821,23 +871,26 @@ async function fetchMissionCompletionSummary(
         const payload = asRecord(await response.json());
         if (!payload) continue;
         const phase = typeof payload.phase === 'string' ? payload.phase.toLowerCase() : '';
-        const providerSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
-        const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
-        const completedProvider =
-          providerResults.find((entry) => String(entry?.status || '').toLowerCase() === 'completed') ||
-          providerResults.find((entry) => typeof entry?.summary === 'string' && entry.summary.trim());
-        const resultSummary = completedProvider && typeof completedProvider.summary === 'string'
-          ? completedProvider.summary.trim()
+        if (phase !== 'completed') continue;
+        const rawProviderSummary = typeof payload.providerSummary === 'string' ? payload.providerSummary.trim() : '';
+        const providerSummary = rawProviderSummary && !protectedProviderSummaryPlaceholder(rawProviderSummary)
+          ? rawProviderSummary
           : '';
-        const responseText = providerSummary || resultSummary;
-        if (phase !== 'completed' || !responseText) continue;
+        const providerResults = Array.isArray(payload.providerResults) ? payload.providerResults.map(asRecord).filter(Boolean) : [];
+        const completedProvider = selectCompletedProviderResult(providerResults);
+        const localProvider = providerSummary || usableProviderText(completedProvider)
+          ? null
+          : await readMissionProviderResultFromOwnerState(missionId);
+        const responseText = providerSummary || usableProviderText(completedProvider) || usableProviderText(localProvider);
+        if (!responseText) continue;
 
         const projectLineage = asRecord(payload.projectLineage);
         const projectPath = firstString(projectLineage, ['projectPath', 'project_path']);
         const previewUrl = firstString(projectLineage, ['previewUrl', 'preview_url']);
         const openLink = await readyProjectOpenLink(previewUrl, projectPath);
-        const providerLabel = completedProvider && typeof completedProvider.providerId === 'string'
-          ? completedProvider.providerId
+        const providerRecord = completedProvider || localProvider;
+        const providerLabel = providerRecord && typeof providerRecord.providerId === 'string'
+          ? providerRecord.providerId
           : 'provider';
         return {
           providerLabel,
@@ -1033,6 +1086,14 @@ function clipText(text: string, maxLength: number): string {
 function looksLikeCompletionReport(text: string): boolean {
   return /(?:^|\n)\s*(?:commit pushed|what changed|changed|verification|validation|remaining|working tree)\s*:/i.test(text) ||
     /\b(?:committed and pushed|pushed to github|origin\/main|working tree is clean)\b/i.test(text);
+}
+
+function looksLikeSourceGroundedBrief(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  const numberedFindings = (normalized.match(/(?:^|\n)\s*\d+\.\s+/g) || []).length;
+  const urls = (normalized.match(/https?:\/\/\S+/g) || []).length;
+  return urls >= 1 && (numberedFindings >= 2 || /\bsource(?:s)?\s*:/i.test(normalized));
 }
 
 function detailedCompletionReportText(text: string): string {
@@ -1624,7 +1685,7 @@ export function formatProviderCompletionForTelegram(input: {
       : voiceLine(completionKind, `${input.missionId}:${provider}:freeform`)
     ];
     const failureLines = completionKind === 'failed' ? freeformFailureLines(input.response) : [];
-    if (completionKind === 'completed' && looksLikeCompletionReport(clean) && !openLink) {
+    if (completionKind === 'completed' && (looksLikeCompletionReport(clean) || looksLikeSourceGroundedBrief(clean)) && !openLink) {
       return compactTelegramBlocks(lines[0], detailedCompletionReportText(cleanWithoutProvider));
     }
     if (failureLines.length > 0) {
@@ -1990,8 +2051,11 @@ export async function sendFetchedCompletionSummaryForTests(
   return sendFetchedCompletionSummary(bot, chatId, subscription, event, verbosity, completion);
 }
 
-export function fetchMissionCompletionSummaryForTests(missionId: string): Promise<MissionCompletionSummary | null> {
-  return fetchMissionCompletionSummary(missionId);
+export function fetchMissionCompletionSummaryForTests(
+  missionId: string,
+  options?: MissionCompletionFetchOptions
+): Promise<MissionCompletionSummary | null> {
+  return fetchMissionCompletionSummary(missionId, options);
 }
 
 export function formatCompletionSummaryDeliveryFailureLogForTests(missionId: string, error: unknown): string {

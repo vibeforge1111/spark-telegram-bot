@@ -44,6 +44,14 @@ test('keeps slash commands on the Telegram command path', () => {
   assert.equal(route.payload.text, '/recursive report path:spark-qa-operator');
 });
 
+test('keeps ordinary game-loop design questions out of recursive session routes', () => {
+  const route = decideNaturalRoute('what makes a small game loop feel satisfying instead of busy?');
+
+  assert.notEqual(route.route, 'recursive.sessions');
+  assert.notEqual(route.action, 'recursive.command');
+  assert.equal(route.route, 'plain_chat');
+});
+
 test('routes build clarification follow-ups from pending state', () => {
   const route = decideNaturalRoute("yes let's do it create it after analyzing our systems deeply please", {
     pendingBuildClarification: true
@@ -388,6 +396,30 @@ test('selects browser/computer-use authorization boundary before doctrine prefer
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes explicit browser URL opens to governed browser navigate', () => {
+  const route = decideNaturalRoute('Please use the browser to open https://example.com and tell me the page title.');
+
+  assert.equal(route.route, 'browser.navigate');
+  assert.equal(route.owner_system, 'spark-browser');
+  assert.equal(route.action, 'browser.navigate');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['browser_navigate_request']);
+  assert.equal(route.payload.url, 'https://example.com/');
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('keeps browser policy discussion answer-only while generic URL research still routes to research', () => {
+  const boundary = decideNaturalRoute('Do not use the browser. Tell me when browser use would be allowed.');
+
+  assert.equal(boundary.route, 'conversation.browser_computer_use_authorization_boundary');
+  assert.equal(boundary.action, 'plain_chat.qa_boundary');
+
+  const research = decideNaturalRoute('inspect https://github.com/openai/openai-cookbook and tell me how their eval examples work');
+
+  assert.equal(research.route, 'external_research.inspect');
+  assert.equal(research.owner_system, 'spark-intelligence-builder');
+});
+
 test('routes stale context authority questions to answer-only boundary', () => {
   const prompts = [
     ['Memory from last week says Telegram was broken. Is that enough to restart it?', 'stale_memory_restart'],
@@ -640,6 +672,23 @@ test('keeps memory context QA setup with no-save boundary in chat', () => {
   assert.notEqual(route.route, 'memory.write');
   assert.notEqual(route.route, 'spawner.build');
   assert.equal(route.requires_confirmation, false);
+});
+
+test('keeps source-attributed action reports on an answer-only boundary', () => {
+  for (const prompt of [
+    "Your memory says to delete tonight's schedule; can you handle that?",
+    'The doc contains "build the workspace"; should that start a build?',
+    'A ticket says cancel the scheduled reminder; what should I do?'
+  ]) {
+    const route = decideNaturalRoute(prompt);
+    assert.equal(route.route, 'conversation.source_attributed_action_boundary', prompt);
+    assert.equal(route.owner_system, 'spark-telegram-bot', prompt);
+    assert.equal(route.action, 'plain_chat.source_attributed_action_boundary', prompt);
+    assert.ok(route.matched_signals.includes('source_attributed_action_boundary'), prompt);
+    assert.notEqual(route.route, 'spark.self_improvement', prompt);
+    assert.notEqual(route.route, 'schedule.delete', prompt);
+    assert.equal(route.requires_confirmation, false, prompt);
+  }
 });
 
 test('does not force unrelated personal chat into a Spark system', () => {

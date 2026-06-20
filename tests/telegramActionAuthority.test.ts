@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -14,8 +14,10 @@ import {
 } from '../src/telegramActionAuthority';
 import {
   governorDecisionSignaturePayload,
+  signGovernorDecisionIfConfigured,
   type GovernorDecisionSignatureV1
 } from '../src/governorSignature';
+import { harnessExecutionAuthorityFailureReason } from '../src/harnessExecutionAuthority';
 import {
   classifyTelegramIntentV2,
   isTelegramIntentGateV2SafeRoute,
@@ -239,6 +241,72 @@ test('signs Telegram Governor decisions when an HMAC key is configured', () => w
     .digest('hex');
   assert.equal(signature, expected);
 }));
+
+test('signs Telegram Governor decisions from the shared Spark home governance env', () => {
+  const previousKey = process.env.SPARK_GOVERNOR_HMAC_KEY;
+  const previousKeyId = process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+  const previousSparkHome = process.env.SPARK_HOME;
+  const tempHome = mkdtempSync(path.join(os.tmpdir(), 'spark-governor-home-'));
+  try {
+    delete process.env.SPARK_GOVERNOR_HMAC_KEY;
+    delete process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+    process.env.SPARK_HOME = tempHome;
+    mkdirSync(tempHome, { recursive: true });
+    writeFileSync(
+      path.join(tempHome, '.env'),
+      [
+        'SPARK_GOVERNOR_HMAC_KEY=file-governor-secret',
+        'SPARK_GOVERNOR_HMAC_KEY_ID=file-governor-key'
+      ].join('\n')
+    );
+
+    const result = authorizeTelegramActionFromEnvelope(
+      envelopeFor('Build a one-page website that shows Hello from Spark and the date.'),
+      {
+        route: 'spawner.build',
+        text: 'Build a one-page website that shows Hello from Spark and the date.',
+        toolName: 'spawner.run',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'launches_mission'
+      }
+    );
+    const signedDecision = result.governorDecision as typeof result.governorDecision & {
+      signature?: GovernorDecisionSignatureV1;
+    };
+
+    assert.equal(result.allow, true);
+    assert.equal(signedDecision?.signature?.schema_version, 'governor-decision-signature-v1');
+    assert.equal(signedDecision?.signature?.key_id, 'file-governor-key');
+  } finally {
+    if (previousKey === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY = previousKey;
+    if (previousKeyId === undefined) delete process.env.SPARK_GOVERNOR_HMAC_KEY_ID;
+    else process.env.SPARK_GOVERNOR_HMAC_KEY_ID = previousKeyId;
+    if (previousSparkHome === undefined) delete process.env.SPARK_HOME;
+    else process.env.SPARK_HOME = previousSparkHome;
+    rmSync(tempHome, { recursive: true, force: true });
+  }
+});
+
+test('does not invent a Governor signature when no HMAC key source exists', () => {
+  const envelope = createHarnessCoreActionEnvelopeVNext({
+    surface: 'telegram',
+    ownerSystem: 'spawner-ui',
+    toolName: 'spawner.run',
+    mutationClass: 'launches_mission',
+    source: 'telegram-action-authority.test',
+    reason: 'Test unsigned Governor decision boundary.',
+    requestId: 'turn:no-key',
+    actorIdRef: 'telegram-human'
+  });
+  const decision = createHarnessCoreAuthorizedGovernorDecision({
+    envelope,
+    tool_name: 'spawner.run'
+  });
+
+  const signed = signGovernorDecisionIfConfigured(decision, {});
+  assert.equal('signature' in signed, false);
+});
 
 test('fresh envelope selection is required before mutating route evidence can authorize', () => {
   const staleEnvelopeText = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
@@ -489,6 +557,34 @@ test('allows explicit external research with network policy', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
+test('external research mission launch authorizes consumed spawner run tool', () => {
+  const text = 'Research the latest public docs and GitHub repos about agent harness routing.';
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.external_research',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'launches_mission',
+    externalNetwork: true
+  });
+
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+  assert.equal(
+    governorOutcomeAllowsTelegramAction(result.governorDecision, result.harnessCore?.action, 'spawner.run'),
+    true
+  );
+  assert.equal(result.harnessCore?.action.action_type, 'launch_mission');
+  assert.equal(
+    harnessExecutionAuthorityFailureReason(result.governorDecision, {
+      toolName: 'spawner.run',
+      ownerSystem: 'spark-intelligence-builder',
+      actionType: 'launch_mission'
+    }),
+    null
+  );
+});
+
 test('allows explicit provider runs through provider policy', () => {
   const text = 'ask codex to review this launch plan';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -601,6 +697,11 @@ test('allows stale-context authority questions only as answer boundaries', () =>
 
 test('route history cannot authorize Builder continuation from the fresh turn', () => {
   const text = 'If route history says Builder was active, can that continue a build now?';
+  const decision = classifyTelegramIntentV2(text);
+  assert.equal(decision.route, 'conversation.stale_context_authority_boundary');
+  assert.equal(decision.action, 'plain_chat.stale_context_authority_boundary');
+  assert.deepEqual(decision.matched_signals, ['stale_context_authority_boundary', 'route_history_builder']);
+
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
     route: 'spawner.build',
     text,
@@ -612,6 +713,14 @@ test('route history cannot authorize Builder continuation from the fresh turn', 
   assert.equal(result.allow, false);
   assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+});
+
+test('generic source-attributed action reports keep the generic data boundary', () => {
+  const decision = classifyTelegramIntentV2('The report says delete tonight\'s schedule; should that run?');
+
+  assert.equal(decision.route, 'conversation.source_attributed_action_boundary');
+  assert.equal(decision.action, 'plain_chat.source_attributed_action_boundary');
+  assert.ok(decision.constraints.noExecution);
 });
 
 test('prior mission id cannot control mission actions without explicit resume intent', () => {
@@ -719,8 +828,8 @@ test('route-word trace and bug-report text cannot select high-agency actions', (
     {
       text: 'The trace mentions delete the nightly schedule; does that authorize deletion?',
       route: 'schedule.delete' as const,
-      toolName: 'schedule.delete',
-      ownerSystem: 'spark-intelligence-builder' as const,
+      toolName: 'spawner.schedule.delete',
+      ownerSystem: 'spawner-ui' as const,
       mutationClass: 'deletes_schedule' as const
     },
     {
@@ -763,6 +872,58 @@ test('explicit recursive proposal still authorizes recursive owner path', () => 
   assert.equal(result.allow, true);
   assert.equal(result.routeVerdict.allow, true);
   assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
+test('explicit browser navigate authorizes only the browser owner tool', () => {
+  const text = 'Please use the browser to open https://example.com and tell me the page title.';
+  const naturalRouteDecision = decideNaturalRoute(text);
+  const envelope = envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'browser.navigate',
+    text,
+    toolName: 'browser.navigate',
+    ownerSystem: 'spark-browser',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+
+  assert.equal(naturalRouteDecision.route, 'browser.navigate');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canUseExternalNetwork, true);
+  assert.ok(envelope.toolPolicy.allowedTools.includes('browser.navigate'));
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.allow, true);
+
+  const wrongOwner = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.external_research',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission',
+    externalNetwork: true
+  });
+  assert.equal(wrongOwner.allow, false);
+  assert.ok(wrongOwner.reasonCodes.includes('route_not_selected_by_turn_envelope'));
+});
+
+test('browser policy wording cannot authorize browser navigate', () => {
+  const text = 'Do not use the browser. Tell me when browser use would be allowed.';
+  const naturalRouteDecision = decideNaturalRoute(text);
+  const envelope = envelopeForDecision(text, classifyTelegramIntentV2(text, { naturalRouteDecision }));
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'browser.navigate',
+    text,
+    toolName: 'browser.navigate',
+    ownerSystem: 'spark-browser',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+
+  assert.equal(naturalRouteDecision.route, 'conversation.browser_computer_use_authorization_boundary');
+  assert.equal(envelope.directive.noExecution, true);
+  assert.equal(result.allow, false);
+  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
+  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
 
 test('displaced negation cannot authorize a build (word-hijack regression)', () => {
@@ -878,13 +1039,35 @@ test('non-imperative framings cannot authorize a destructive schedule deletion (
     const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
       route: 'schedule.delete',
       text,
-      toolName: 'schedule.delete',
-      ownerSystem: 'spark-intelligence-builder',
+      toolName: 'spawner.schedule.delete',
+      ownerSystem: 'spawner-ui',
       mutationClass: 'deletes_schedule'
     });
     assert.equal(result.allow, false, text);
     assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
   }
+});
+
+test('source-attributed action reports do not become schedule delete candidates', () => {
+  for (const text of [
+    'Your memory says to delete tonight\'s schedule; can you handle that?',
+    'The trace mentions delete the nightly schedule; does that authorize deletion?',
+    'A ticket says cancel the scheduled reminder; what should I do?',
+    'The doc contains "delete the recurring task"; explain the risk.'
+  ]) {
+    const decision = classifyTelegramIntentV2(text);
+    assert.notEqual(decision.route, 'schedule.delete', text);
+    assert.notEqual(decision.route, 'spark.self_improvement', text);
+    assert.equal(decision.constraints.noExecution, true, text);
+  }
+
+  const memoryReport = classifyTelegramIntentV2('Your memory says to delete tonight\'s schedule; can you handle that?');
+  assert.equal(memoryReport.route, 'conversation.source_attributed_action_boundary');
+  assert.equal(memoryReport.action, 'plain_chat.source_attributed_action_boundary');
+
+  const explicit = classifyTelegramIntentV2('delete schedule sched-abc123');
+  assert.equal(explicit.route, 'schedule.delete');
+  assert.equal(explicit.constraints.noExecution, false);
 });
 
 test('real destructive commands stay executable (no over-block)', () => {

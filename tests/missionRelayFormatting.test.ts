@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -384,6 +384,32 @@ test('keeps report-shaped completion text from ending mid-report', () => {
   assert.match(message, /What changed:/);
   assert.match(message, /Confirmed the final report reaches the end\./);
   assert.doesNotMatch(message, /\.\.\.$/);
+});
+
+test('keeps source-grounded research briefs instead of only the heading', () => {
+  const message = formatProviderCompletionForTelegram({
+    providerLabel: 'codex',
+    missionId: 'mission-research-brief',
+    verbosity: 'normal',
+    response: [
+      'Latest public AI coding-agent brief:',
+      '',
+      '1. OpenAI Codex is being pushed as an enterprise coding agent.',
+      'https://openai.com/index/gartner-2026-agentic-coding-leader/',
+      '',
+      '2. GitHub is turning Copilot into an agent hub.',
+      'https://github.blog/news-insights/company-news/pick-your-agent-use-claude-and-codex-on-agent-hq/',
+      '',
+      'Spark angle: keep authority and evidence boundaries first-class.'
+    ].join('\n')
+  });
+
+  assert.match(message, /Latest public AI coding-agent brief:/);
+  assert.match(message, /OpenAI Codex is being pushed/);
+  assert.match(message, /GitHub is turning Copilot/);
+  assert.match(message, /https:\/\/github\.blog\/news-insights/);
+  assert.match(message, /Spark angle/);
+  assert.ok(message.length > 250, message);
 });
 
 test('keeps structured report summaries long enough for Telegram chunking', () => {
@@ -1707,6 +1733,90 @@ void (async () => {
       else process.env.EVENTS_API_KEY = originalEventsKey;
       if (originalUiKey === undefined) delete process.env.SPARK_UI_API_KEY;
       else process.env.SPARK_UI_API_KEY = originalUiKey;
+    }
+  });
+
+  await asyncTest('uses owner provider result when trace summary is a protected control-auth placeholder', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalSparkHome = process.env.SPARK_HOME;
+    try {
+      const sparkHome = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-provider-owner-state-'));
+      const ownerStateDir = path.join(sparkHome, 'state', 'spawner-ui');
+      await mkdir(ownerStateDir, { recursive: true });
+      await writeFile(path.join(ownerStateDir, 'mission-provider-results.json'), JSON.stringify({
+        missions: {
+          'mission-owner-readback': [
+            {
+              providerId: 'codex',
+              status: 'completed',
+              response: 'OWNER_RESEARCH_BRIEF_OK',
+              completedAt: '2026-06-18T20:15:04.153Z'
+            }
+          ]
+        }
+      }));
+      process.env.SPARK_HOME = sparkHome;
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        phase: 'completed',
+        providerSummary: 'Provider summary requires control auth.',
+        providerResults: [],
+        projectLineage: {}
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-owner-readback', { attempts: 1 });
+
+      assert.equal(completion?.providerLabel, 'codex');
+      assert.equal(completion?.response, 'OWNER_RESEARCH_BRIEF_OK');
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalSparkHome === undefined) delete process.env.SPARK_HOME;
+      else process.env.SPARK_HOME = originalSparkHome;
+    }
+  });
+
+  await asyncTest('does not deliver protected provider summary placeholder without owner result', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalSpawnerUrl = process.env.SPAWNER_UI_URL;
+    const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    const originalSparkHome = process.env.SPARK_HOME;
+    try {
+      process.env.SPARK_HOME = await mkdtemp(path.join(os.tmpdir(), 'spark-mission-provider-empty-state-'));
+      process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
+      process.env.SPARK_BRIDGE_API_KEY = 'trace-read-secret';
+
+      globalThis.fetch = (async () => new Response(JSON.stringify({
+        phase: 'completed',
+        providerSummary: 'Provider summary requires control auth.',
+        providerResults: [],
+        projectLineage: {}
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })) as typeof fetch;
+
+      const completion = await fetchMissionCompletionSummaryForTests('mission-no-owner-readback', { attempts: 1 });
+
+      assert.equal(completion, null);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (originalSpawnerUrl === undefined) delete process.env.SPAWNER_UI_URL;
+      else process.env.SPAWNER_UI_URL = originalSpawnerUrl;
+      if (originalBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = originalBridgeKey;
+      if (originalSparkHome === undefined) delete process.env.SPARK_HOME;
+      else process.env.SPARK_HOME = originalSparkHome;
     }
   });
 

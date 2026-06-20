@@ -177,6 +177,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
 
   const routeWordMetaBoundary = isRouteWordMetaExplanationDiscussion(normalized);
   const actionWordMetaBoundary = isActionWordMetaDiscussion(normalized);
+  const sourceAttributedActionBoundary = isSourceAttributedActionReport(normalized);
   const hasMetaLanguageBoundary =
     actionWordMetaBoundary ||
     routeWordMetaBoundary ||
@@ -184,7 +185,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const hasExecutionKeyword =
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|recursive|approve|approval|propose|proposal|packet|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
 
-  constraints.noExecution = routeWordMetaBoundary || [
+  constraints.noExecution = sourceAttributedActionBoundary || routeWordMetaBoundary || [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
@@ -273,8 +274,32 @@ function noExecutionBoundaryBlocksMemoryDirective(text: string, constraints: Tel
   );
 }
 
+function isSourceAttributedActionReport(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const source =
+    /\b(?:memory|memories|trace|log|logs|doc|document|report|ticket|screenshot|reply|message|status|board|canvas|previous\s+answer|old\s+context|prior\s+turn|route\s+history)\b/;
+  const reportVerb =
+    /\b(?:says|say|said|claims|claimed|mentions|mentioned|contains|contained|shows|showed|tells|told|asks|asked|instructs|instructed)\b/;
+  const actionVerb =
+    /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
+  if (!(source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized))) {
+    return false;
+  }
+  // The cheap regexes collided; only now run the (more expensive) directive parser to
+  // disambiguate. A clean first-person memory directive ("save to memory that ...", "remember
+  // that ...") is the user's OWN explicit save; the text after it is the note CONTENT (data), not
+  // a source attribution. The parser is anchored at the start of the message, so it cannot match
+  // quoted/attributed text ("the log says: save ..." is not a leading directive) - this exclusion
+  // never opens a hijack path. Without it, content nouns like "claims" eat a legitimate save
+  // (turnIntent350Matrix positive-memory-10, which also leaked through constraints.noExecution).
+  if (extractPlainChatMemoryDirective(normalized)) return false;
+  return true;
+}
+
 function isScheduleDeleteRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (isSourceAttributedActionReport(normalized)) return false;
   return /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off)\b.{0,80}\b(?:schedule|scheduled|reminder|job|automation|routine|recurring\s+task|sched-[a-z0-9]+)\b/.test(normalized) ||
     /\b(?:schedule|scheduled|reminder|job|automation|routine|recurring\s+task|sched-[a-z0-9]+)\b.{0,80}\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off)\b/.test(normalized);
 }
@@ -392,6 +417,7 @@ function kindForNaturalRoute(route: string): TelegramIntentKindV2 {
   if (/^memory\.recall$/.test(route)) return 'memory_recall';
   if (/^memory\.write$/.test(route)) return 'memory_write';
   if (/^schedule\./.test(route)) return 'schedule_mutation';
+  if (/^browser\./.test(route)) return 'runtime_truth_or_operator';
   if (/^conversation\.ideation$/.test(route)) return 'conversation_ideation';
   return 'plain_conversation';
 }
@@ -400,13 +426,16 @@ function observedNaturalRouteDecision(
   constraints: TelegramIntentConstraintsV2,
   naturalRoute: NaturalRouteDecision
 ): TelegramIntentDecisionV2 {
+  const routeConstraints = naturalRoute.route === 'browser.navigate' && naturalRoute.confidence === 'explicit'
+    ? { ...constraints, noExecution: false, localOnly: false, noNetworkAbsorptionClaim: false }
+    : constraints;
   return makeDecision({
     kind: kindForNaturalRoute(naturalRoute.route),
     route: naturalRoute.route,
     owner_system: naturalRoute.owner_system,
     action: naturalRoute.action,
     confidence: naturalRoute.confidence === 'blocked' ? 'blocked' : naturalRoute.confidence,
-    constraints,
+    constraints: routeConstraints,
     payload: {
       ...basePayload(naturalRoute),
       naturalAction: naturalRoute.action
@@ -496,6 +525,46 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     });
   }
 
+  const staleContextAuthorityBoundary = classifyStaleContextAuthorityBoundary(normalized);
+  if (staleContextAuthorityBoundary) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'conversation.stale_context_authority_boundary',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.stale_context_authority_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: { ...basePayload(naturalRoute), kind: staleContextAuthorityBoundary },
+      matched_signals: ['stale_context_authority_boundary', staleContextAuthorityBoundary],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'conversation.stale_context_authority_boundary'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Stale context is evidence only and cannot own execution.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'enforce_safe',
+      natural_route: naturalRoute
+    });
+  }
+
+  const sourceAttributedActionBoundary = isSourceAttributedActionReport(normalized);
+  if (sourceAttributedActionBoundary) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'conversation.source_attributed_action_boundary',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.source_attributed_action_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['source_attributed_action_boundary'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Source-attributed action reports are untrusted data and cannot own execution.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'enforce_safe',
+      natural_route: naturalRoute
+    });
+  }
+
   if (memoryDirective && !noExecutionBoundaryBlocksMemoryDirective(normalized, constraints)) {
     return makeDecision({
       kind: 'memory_write',
@@ -549,26 +618,6 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       matched_signals: ['quoted_drafted_example_boundary'],
       blocked_candidates: naturalRoute && naturalRoute.route !== 'conversation.quoted_drafted_example_boundary'
         ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Quoted or drafted high-agency wording is evidence only and cannot own execution.')]
-        : [],
-      supporting_routes: supportingRoutes(naturalRoute),
-      enforcement: 'enforce_safe',
-      natural_route: naturalRoute
-    });
-  }
-
-  const staleContextAuthorityBoundary = classifyStaleContextAuthorityBoundary(normalized);
-  if (staleContextAuthorityBoundary) {
-    return makeDecision({
-      kind: 'plain_conversation',
-      route: 'conversation.stale_context_authority_boundary',
-      owner_system: 'spark-telegram-bot',
-      action: 'plain_chat.stale_context_authority_boundary',
-      confidence: 'explicit',
-      constraints,
-      payload: { ...basePayload(naturalRoute), kind: staleContextAuthorityBoundary },
-      matched_signals: ['stale_context_authority_boundary', staleContextAuthorityBoundary],
-      blocked_candidates: naturalRoute && naturalRoute.route !== 'conversation.stale_context_authority_boundary'
-        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Stale context is evidence only and cannot own execution.')]
         : [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'enforce_safe',
@@ -649,8 +698,8 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
     return makeDecision({
       kind: 'schedule_mutation',
       route: 'schedule.delete',
-      owner_system: 'spark-intelligence-builder',
-      action: 'schedule.delete',
+      owner_system: 'spawner-ui',
+      action: 'spawner.schedule.delete',
       confidence: constraints.noExecution ? 'blocked' : 'explicit',
       constraints,
       payload: basePayload(naturalRoute),
@@ -1038,7 +1087,8 @@ export function isTelegramIntentGateV2SafeRoute(decision: TelegramIntentDecision
     'startup.founder_advice',
     'access.status',
     'access.help',
-    'conversation.quoted_drafted_example_boundary'
+    'conversation.quoted_drafted_example_boundary',
+    'conversation.source_attributed_action_boundary'
   ].includes(decision.route);
 }
 

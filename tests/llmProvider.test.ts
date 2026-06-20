@@ -227,11 +227,14 @@ test('sanitizes incompatible global Codex tuning before Spark subprocess use', (
   const source = [
     'model = "gpt-5.5"',
     'model_reasoning_effort = "high"',
-    'service_tier = "priority"',
+    'service_tier = "default"',
     '',
     '[profiles.speed]',
     'model_reasoning_effort = "xhigh"',
     'service_tier = "flex"',
+    '',
+    '[profiles.old_priority]',
+    'service_tier = "priority"',
     '',
     '[projects.foo]',
     'service_tier = "flex"'
@@ -241,6 +244,7 @@ test('sanitizes incompatible global Codex tuning before Spark subprocess use', (
   assert.match(sanitized, /model_reasoning_effort = "low"/);
   assert.match(sanitized, /\[profiles\.speed\]\nmodel_reasoning_effort = "low"\nservice_tier = "flex"/);
   assert.match(sanitized, /service_tier = "fast"/);
+  assert.match(sanitized, /\[profiles\.old_priority\]\nservice_tier = "fast"/);
   assert.match(sanitized, /\[projects\.foo\]\nservice_tier = "flex"/);
 });
 
@@ -250,7 +254,7 @@ test('prepares a temporary Spark Codex home only when inherited config needs san
   const parent = path.join(tempRoot, 'runtime');
   mkdirSync(sourceHome, { recursive: true });
   mkdirSync(parent, { recursive: true });
-  writeFileSync(path.join(sourceHome, 'config.toml'), 'model_reasoning_effort = "high"\nservice_tier = "priority"\n', 'utf-8');
+  writeFileSync(path.join(sourceHome, 'config.toml'), 'model_reasoning_effort = "high"\nservice_tier = "default"\n', 'utf-8');
   writeFileSync(path.join(sourceHome, 'auth.json'), '{"auth":"present"}', 'utf-8');
 
   try {
@@ -331,14 +335,16 @@ test('system prompt prioritizes local list references over older memory', () => 
   assert.match(prompt, /Do not offer to scaffold/);
 });
 
-test('system prompt reads the room without promoting style hints to memory', () => {
+test('system prompt reads the room with governed memory claims', () => {
   const prompt = buildSparkChatSystemPrompt('', '');
 
   assert.match(prompt, /Read the room/);
   assert.match(prompt, /repeating "go"/);
   assert.match(prompt, /frustrated, repair first/);
   assert.match(prompt, /corrects your tone, format, or answer/);
-  assert.match(prompt, /Style hints are turn guidance, not durable memory/);
+  assert.match(prompt, /preferences can guide the current exchange immediately/);
+  assert.match(prompt, /governed memory owner before you claim it was saved/);
+  assert.match(prompt, /Do not describe the preference itself as saved, unsaved, durable, or non-durable/);
 });
 
 test('uses Claude Code print mode when Anthropic is selected for chat', () => {

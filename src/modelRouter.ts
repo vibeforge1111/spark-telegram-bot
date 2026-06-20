@@ -27,35 +27,50 @@ export interface ModelRouteDecision {
 // authorizes. Reads are not here - they dispatch freely.
 export const CONFIRM_ROUTES = new Set<string>([
   'access.change',
-  'spawner.build',
   'schedule.delete',
-  'domain_chip.create',
-  'recursive.proposal',
-  'creator.mission'
+  'recursive.proposal'
 ]);
 
 // Pure-conversation routes: the model says "this is not a command." -> chat. This is what makes a
 // separate anti-hijack veto unnecessary - the router never sends these to a tool.
 export const CHAT_ROUTES = new Set<string>([
+  'conversation.ideation',
   'plain_chat',
   'abstain'
 ]);
 
 export interface ModelRouteOptions {
   dispatchMin?: number;        // confidence required to act on an action route
+  readDispatchMin?: number;    // confidence required for local read routes
   confirmRoutes?: Set<string>;
   chatRoutes?: Set<string>;
+  localReadRoutes?: Set<string>;
 }
 
 export const DEFAULT_DISPATCH_MIN_CONFIDENCE = 0.75;
+export const DEFAULT_READ_DISPATCH_MIN_CONFIDENCE = 0.65;
+
+// Local owner-backed reads are allowed to use a lower confidence floor than
+// mutations because the deterministic kernel still proves the read authority
+// and side effects remain blocked. External-network reads are deliberately not
+// here; uncertainty around those should still fall back to chat.
+export const LOCAL_READ_ROUTES = new Set<string>([
+  'access.status',
+  'memory.recall',
+  'spawner.board',
+  'spark.read_only_state',
+  'spark_wiki.answer'
+]);
 
 export function decideModelRoute(
   proposal: IntentProposal | null,
   opts: ModelRouteOptions = {}
 ): ModelRouteDecision {
   const dispatchMin = opts.dispatchMin ?? DEFAULT_DISPATCH_MIN_CONFIDENCE;
+  const readDispatchMin = opts.readDispatchMin ?? DEFAULT_READ_DISPATCH_MIN_CONFIDENCE;
   const confirmRoutes = opts.confirmRoutes ?? CONFIRM_ROUTES;
   const chatRoutes = opts.chatRoutes ?? CHAT_ROUTES;
+  const localReadRoutes = opts.localReadRoutes ?? LOCAL_READ_ROUTES;
 
   // No model opinion (provider down / unparseable) or explicit abstain -> chat. Fail-safe: the router
   // never fabricates an action it could not read. (A high-blast action attempted via a down provider
@@ -69,6 +84,12 @@ export function decideModelRoute(
   // The model read it as conversation (or a hijack it correctly refused to treat as a command).
   if (chatRoutes.has(top.route)) {
     return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'model_routed_to_chat' };
+  }
+  if (localReadRoutes.has(top.route)) {
+    if (top.confidence < readDispatchMin) {
+      return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_read_dispatch_confidence' };
+    }
+    return { mode: 'dispatch', route: top.route, confidence: top.confidence, reason: 'model_routed_to_local_read' };
   }
   // It looks like an action but the model is not confident enough to act -> chat (clarify in prose).
   if (top.confidence < dispatchMin) {

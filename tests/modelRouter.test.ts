@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { decideModelRoute, CONFIRM_ROUTES, CHAT_ROUTES } from '../src/modelRouter';
+import { decideModelRoute, CONFIRM_ROUTES, CHAT_ROUTES, LOCAL_READ_ROUTES } from '../src/modelRouter';
 import type { IntentProposal } from '../src/intentProposerShadow';
 
 const registered: Array<[string, () => void]> = [];
@@ -15,21 +15,42 @@ test('a confident low-blast action DISPATCHES (tools fire)', () => {
   assert.equal(d.route, 'diagnostics.scan');
 });
 
-test('a read route DISPATCHES freely (no confirm)', () => {
-  for (const route of ['memory.write', 'model.switch']) {
+test('a confident normal action DISPATCHES after the action confidence bar', () => {
+  for (const route of ['memory.write', 'model.switch', 'browser.navigate']) {
     assert.equal(decideModelRoute(prop(route, 0.9)).mode, 'dispatch', route);
   }
 });
 
-test('high-blast-radius mutations CONFIRM before executing', () => {
-  for (const route of ['access.change', 'spawner.build', 'schedule.delete']) {
+test('local owner-backed reads DISPATCH at the read confidence bar', () => {
+  for (const route of ['memory.recall', 'spark.read_only_state', 'spark_wiki.answer', 'spawner.board', 'access.status']) {
+    const d = decideModelRoute(prop(route, 0.72));
+    assert.equal(d.mode, 'dispatch', route);
+    assert.equal(d.reason, 'model_routed_to_local_read', route);
+  }
+});
+
+test('low-confidence mutations and external reads still CHAT', () => {
+  assert.equal(decideModelRoute(prop('schedule.create', 0.72)).mode, 'chat');
+  assert.equal(decideModelRoute(prop('browser.navigate', 0.72)).mode, 'chat');
+  assert.equal(decideModelRoute(prop('browser.navigate', 0.72)).reason, 'below_dispatch_confidence');
+});
+
+test('truly destructive/irreversible mutations CONFIRM before executing', () => {
+  for (const route of ['access.change', 'schedule.delete', 'recursive.proposal']) {
     assert.equal(decideModelRoute(prop(route, 0.99)).mode, 'confirm', route);
+  }
+});
+
+test('builds/chips/creator-missions DISPATCH directly (start on request, no confirm friction)', () => {
+  for (const route of ['spawner.build', 'domain_chip.create', 'creator.mission']) {
+    assert.equal(decideModelRoute(prop(route, 0.99)).mode, 'dispatch', route);
   }
 });
 
 test('a hijack the model read as chat -> CHAT (no separate veto needed)', () => {
   // this is the whole point: the model never routes a hijack to an action, so there is nothing to veto
   assert.equal(decideModelRoute(prop('plain_chat', 0.96)).mode, 'chat');
+  assert.equal(decideModelRoute(prop('conversation.ideation', 0.91)).mode, 'chat');
 });
 
 test('abstain and no-opinion -> CHAT (fail-safe, never invents an action)', () => {
@@ -49,11 +70,16 @@ test('confidence bar is configurable', () => {
   assert.equal(decideModelRoute(prop('diagnostics.scan', 0.95), { dispatchMin: 0.9 }).mode, 'dispatch');
 });
 
-test('invariants: confirm routes are high-blast, chat routes are non-actions', () => {
+test('invariants: confirm routes are the destructive/irreversible set, chat routes are non-actions', () => {
   assert.ok(CONFIRM_ROUTES.has('access.change'));
-  assert.ok(CONFIRM_ROUTES.has('spawner.build'));
+  assert.ok(CONFIRM_ROUTES.has('schedule.delete'));
+  assert.ok(!CONFIRM_ROUTES.has('spawner.build')); // builds start on request now (friction dropped)
   assert.ok(CHAT_ROUTES.has('plain_chat'));
+  assert.ok(CHAT_ROUTES.has('conversation.ideation'));
   assert.ok(CHAT_ROUTES.has('abstain'));
+  assert.ok(LOCAL_READ_ROUTES.has('memory.recall'));
+  assert.ok(LOCAL_READ_ROUTES.has('spark.read_only_state'));
+  assert.ok(!LOCAL_READ_ROUTES.has('browser.navigate'));
   assert.ok(!CONFIRM_ROUTES.has('diagnostics.scan'));
 });
 

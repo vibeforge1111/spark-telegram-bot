@@ -36,8 +36,10 @@ export type DeterministicRouteId =
   | 'media.image'
   | 'media.voice'
   | 'voice.command'
+  | 'browser.navigate'
   | 'memory.write'
   | 'memory.delete'
+  | 'memory.recall'
   | 'model.switch'
   | 'schedule.create'
   | 'schedule.delete'
@@ -55,6 +57,7 @@ export type DeterministicRouteId =
   | 'conversation.builder_chat'
   | 'conversation.local_chat'
   | 'conversation.quoted_drafted_example_boundary'
+  | 'conversation.source_attributed_action_boundary'
   | 'conversation.stale_context_authority_boundary'
   | 'conversation.ideation'
   | 'domain_chip.pending';

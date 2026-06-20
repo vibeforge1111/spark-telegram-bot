@@ -65,6 +65,7 @@ export type NaturalRouteOwnerSystem =
   | 'spark-character'
   | 'spawner-ui'
   | 'spark-cli'
+  | 'spark-browser'
   | 'domain-chip'
   | 'none';
 
@@ -122,6 +123,18 @@ function noRoute(text: string, blockedBy: string[] = ['no_matching_route']): Nat
     blocked_by: blockedBy,
     requires_confirmation: false
   });
+}
+
+function isSourceAttributedActionReport(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const source =
+    /\b(?:memory|memories|trace|log|logs|doc|document|report|ticket|screenshot|reply|message|status|board|canvas|previous\s+answer|old\s+context|prior\s+turn|route\s+history)\b/;
+  const reportVerb =
+    /\b(?:says|say|said|claims|claimed|mentions|mentioned|contains|contained|shows|showed|tells|told|asks|asked|instructs|instructed)\b/;
+  const actionVerb =
+    /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
+  return source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized);
 }
 
 function hasRecentContext(context: NaturalRouteDecisionContext): boolean {
@@ -278,6 +291,28 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   return null;
 }
 
+function extractBrowserNavigateUrl(text: string): string | null {
+  const match = text.match(/\bhttps?:\/\/[^\s<>()\[\]{}"']+/i);
+  if (!match) return null;
+  const candidate = match[0].replace(/[.,;:!?]+$/g, '');
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function isBrowserNavigateRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || !extractBrowserNavigateUrl(text)) return false;
+  const asksBrowser =
+    /\b(?:use|open|run|call|drive|check|inspect|visit|load)\b.{0,80}\b(?:browser|browser-use|computer[-\s]*use)\b/.test(normalized) ||
+    /\b(?:browser|browser-use|computer[-\s]*use)\b.{0,80}\b(?:open|visit|load|inspect|check)\b/.test(normalized);
+  const asksPageFact = /\b(?:title|page|visible|text|what\s+does\s+it\s+say|tell\s+me)\b/.test(normalized);
+  return asksBrowser || (/\b(?:open|visit|load)\b/.test(normalized) && asksPageFact);
+}
+
 function isHarnessArchitectureChatQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
@@ -411,6 +446,20 @@ export function decideNaturalRoute(
       context_source: 'latest_message',
       matched_signals: ['mission_routing_failure_class'],
       blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isSourceAttributedActionReport(normalized)) {
+    return decision({
+      route: 'conversation.source_attributed_action_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'plain_chat.source_attributed_action_boundary',
+      payload: {},
+      context_source: 'latest_message',
+      matched_signals: ['source_attributed_action_boundary'],
+      blocked_by: ['source_attributed_action_report'],
       requires_confirmation: false
     });
   }
@@ -962,6 +1011,21 @@ export function decideNaturalRoute(
       payload: {},
       context_source: context.localSparkContext ? 'hot_recent_turns' : 'latest_message',
       matched_signals: ['local_spark_service_request'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const browserUrl = extractBrowserNavigateUrl(normalized);
+  if (browserUrl && isBrowserNavigateRequest(normalized)) {
+    return decision({
+      route: 'browser.navigate',
+      owner_system: 'spark-browser',
+      confidence: 'explicit',
+      action: 'browser.navigate',
+      payload: { url: browserUrl },
+      context_source: 'latest_message',
+      matched_signals: ['browser_navigate_request'],
       blocked_by: [],
       requires_confirmation: false
     });

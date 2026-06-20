@@ -162,6 +162,8 @@ test('bug hunt: no-execution boundaries outrank build and mission words', () => 
 
 test('bug hunt: pending domain-chip drafts only accept explicit confirmation or chip-shaping direction', () => {
   assert.equal(isDomainChipPendingDirection('go'), true);
+  assert.equal(isDomainChipPendingDirection('go ahead and start that domain chip with the recommended defaults'), true);
+  assert.equal(isDomainChipPendingDirection('please use the recommended defaults for that domain chip'), true);
   assert.equal(isDomainChipPendingDirection('yes'), false);
   assert.equal(isDomainChipPendingDirection('yes create it'), true);
   assert.equal(isDomainChipPendingDirection('names with rationale and usage angle, make the vibe surreal'), true);
@@ -179,6 +181,10 @@ test('bug hunt: pending domain-chip draft state lives behind evidence adapter', 
 
   assert.match(indexSource, /telegramPendingDomainChipEvidence/);
   assert.match(indexSource, /getPendingDomainChipBuild/);
+  assert.ok(
+    indexSource.indexOf('pendingDomainChipKeyForRouter') < indexSource.indexOf('if (modelRouterPrimary)'),
+    'pending domain-chip followups must be handled before generic model-router confirmation/chat handling'
+  );
   assert.doesNotMatch(indexSource, /const pendingDomainChipBuilds = new Map/);
   assert.doesNotMatch(indexSource, /export function isDomainChipPendingDirection/);
   assert.match(adapterSource, /const domainChipBuilds = new Map/);
@@ -487,6 +493,10 @@ test('bug hunt: canvas task details stay available as an explicit follow-up', ()
 });
 
 test('bug hunt: casual next-step questions do not recall stale canvas plans', () => {
+  assert.equal(
+    isLatestCanvasPlanQuestion('Quick reset check: after the restart, what was the little project I said I was sketching tonight, and what constraint did I put on the next step?'),
+    false
+  );
   assert.equal(
     isLatestCanvasPlanQuestion('What’s the smallest useful next step here? Keep it natural, short paragraphs, and use bullets only if they help.'),
     false

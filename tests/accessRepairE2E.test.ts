@@ -198,8 +198,16 @@ async function runAccessRepairScenario(input: {
   process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;
 
   const spawnerCalls: Array<{ url: string; body: unknown }> = [];
+  // The model router and memory proposer issue LLM completion calls through axios.post (z.ai,
+  // anthropic, ollama). Those are not Spawner missions. Count only non-LLM POSTs so this measures
+  // "did access repair launch a mission?", not "did any HTTP POST fire?". A real Spawner/mission
+  // POST still gets counted, so the no-mission assertions stay honest.
+  const isLlmCompletionPost = (url: string): boolean =>
+    /\/(chat\/completions|v1\/messages|api\/(chat|generate))(\?|$)/i.test(url);
   (axios as any).post = async (url: string, body: unknown) => {
-    spawnerCalls.push({ url, body });
+    if (!isLlmCompletionPost(String(url))) {
+      spawnerCalls.push({ url, body });
+    }
     return { data: { success: true, missionId: 'should-not-exist' } };
   };
   (axios as any).get = async () => ({ data: { success: true } });

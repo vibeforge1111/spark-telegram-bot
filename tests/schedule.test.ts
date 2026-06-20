@@ -4,7 +4,7 @@ import {
   createHarnessCoreActionEnvelopeVNext,
   createHarnessCoreAuthorizedGovernorDecision
 } from '@spark/harness-core';
-import { createSchedule, deleteSchedule } from '../src/schedule';
+import { createSchedule, deleteSchedule, SCHEDULE_CREATE_TOOL, SCHEDULE_DELETE_TOOL, SCHEDULE_OWNER_SYSTEM } from '../src/schedule';
 import type { SparkHarnessMutationClass } from '../src/harnessContract';
 
 type AsyncTest = () => Promise<void> | void;
@@ -29,11 +29,12 @@ function restoreAxios(): void {
 
 function fakeExecutionAuthority(
   toolName: string,
-  mutationClass: SparkHarnessMutationClass
+  mutationClass: SparkHarnessMutationClass,
+  ownerSystem = SCHEDULE_OWNER_SYSTEM
 ): unknown {
   const envelope = createHarnessCoreActionEnvelopeVNext({
     surface: 'telegram',
-    ownerSystem: 'spark-intelligence-builder',
+    ownerSystem,
     toolName,
     mutationClass,
     source: 'schedule.test',
@@ -47,7 +48,7 @@ function fakeExecutionAuthority(
 async function run(): Promise<void> {
   await test('createSchedule forwards Governor authority to Spawner', async () => {
     restoreAxios();
-    const executionAuthority = fakeExecutionAuthority('schedule.create', 'creates_schedule');
+    const executionAuthority = fakeExecutionAuthority(SCHEDULE_CREATE_TOOL, 'creates_schedule');
     let capturedBody: any = null;
     (axios as any).post = async (_url: string, body: unknown) => {
       capturedBody = body;
@@ -116,7 +117,28 @@ async function run(): Promise<void> {
       action: 'mission',
       payload: { goal: 'status' },
       chatId: '123',
-      executionAuthority: fakeExecutionAuthority('schedule.delete', 'deletes_schedule')
+      executionAuthority: fakeExecutionAuthority(SCHEDULE_DELETE_TOOL, 'deletes_schedule')
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.error || '', /governor_missing_matching_authorization/);
+    assert.equal(postCalled, false);
+  });
+
+  await test('createSchedule rejects legacy Builder schedule authority before network', async () => {
+    restoreAxios();
+    let postCalled = false;
+    (axios as any).post = async () => {
+      postCalled = true;
+      return { data: { ok: true } };
+    };
+
+    const result = await createSchedule({
+      cron: '*/5 * * * *',
+      action: 'mission',
+      payload: { goal: 'status' },
+      chatId: '123',
+      executionAuthority: fakeExecutionAuthority('schedule.create', 'creates_schedule', 'spark-intelligence-builder')
     });
 
     assert.equal(result.ok, false);
@@ -137,7 +159,7 @@ async function run(): Promise<void> {
       action: 'mission',
       payload: { goal: 'status' },
       chatId: '123',
-      executionAuthority: fakeExecutionAuthority('schedule.create', 'read_only')
+      executionAuthority: fakeExecutionAuthority(SCHEDULE_CREATE_TOOL, 'read_only')
     });
 
     assert.equal(result.ok, false);
@@ -147,7 +169,7 @@ async function run(): Promise<void> {
 
   await test('deleteSchedule forwards Governor authority in DELETE config data', async () => {
     restoreAxios();
-    const executionAuthority = fakeExecutionAuthority('schedule.delete', 'deletes_schedule');
+    const executionAuthority = fakeExecutionAuthority(SCHEDULE_DELETE_TOOL, 'deletes_schedule');
     let capturedOptions: any = null;
     (axios as any).delete = async (_url: string, options: unknown) => {
       capturedOptions = options;
@@ -158,6 +180,55 @@ async function run(): Promise<void> {
 
     assert.equal(result.ok, true);
     assert.equal(capturedOptions.data.executionAuthority, executionAuthority);
+  });
+
+  await test('schedule mutations use Scheduled control auth rather than bridge auth', async () => {
+    restoreAxios();
+    const previousEventsKey = process.env.EVENTS_API_KEY;
+    const previousBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
+    process.env.EVENTS_API_KEY = 'events-secret';
+    process.env.SPARK_BRIDGE_API_KEY = 'bridge-secret';
+    const executionAuthority = fakeExecutionAuthority(SCHEDULE_CREATE_TOOL, 'creates_schedule');
+    let capturedOptions: any = null;
+    (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
+      capturedOptions = options;
+      return {
+        data: {
+          ok: true,
+          schedule: {
+            id: 'sched-auth',
+            cron: '*/5 * * * *',
+            action: 'mission',
+            payload: { goal: 'status' },
+            chatId: '123',
+            createdAt: '2026-06-04T00:00:00.000Z',
+            lastFiredAt: null,
+            nextFireAt: null,
+            fireCount: 0,
+            lastStatus: null,
+            enabled: true
+          }
+        }
+      };
+    };
+
+    try {
+      const result = await createSchedule({
+        cron: '*/5 * * * *',
+        action: 'mission',
+        payload: { goal: 'status' },
+        chatId: '123',
+        executionAuthority
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(capturedOptions?.headers?.['x-api-key'], 'events-secret');
+    } finally {
+      if (previousEventsKey === undefined) delete process.env.EVENTS_API_KEY;
+      else process.env.EVENTS_API_KEY = previousEventsKey;
+      if (previousBridgeKey === undefined) delete process.env.SPARK_BRIDGE_API_KEY;
+      else process.env.SPARK_BRIDGE_API_KEY = previousBridgeKey;
+    }
   });
 
   await test('deleteSchedule fails closed before network when authority is missing', async () => {

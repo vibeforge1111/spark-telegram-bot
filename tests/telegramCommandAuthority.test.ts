@@ -103,20 +103,20 @@ test('slash schedule create and delete commands authorize distinct schedule tool
     text: '/schedule "*/5 * * * *" mission summarize deployment health',
     commandName: 'schedule',
     route: 'schedule.create',
-    toolName: 'schedule.create',
-    ownerSystem: 'spark-intelligence-builder',
+    toolName: 'spawner.schedule.create',
+    ownerSystem: 'spawner-ui',
     mutationClass: 'creates_schedule',
-    action: 'schedule.create',
+    action: 'spawner.schedule.create',
     kind: 'schedule_mutation'
   });
   const remove = commandAuth({
     text: '/schedules delete sched-abc123',
     commandName: 'schedules',
     route: 'schedule.delete',
-    toolName: 'schedule.delete',
-    ownerSystem: 'spark-intelligence-builder',
+    toolName: 'spawner.schedule.delete',
+    ownerSystem: 'spawner-ui',
     mutationClass: 'deletes_schedule',
-    action: 'schedule.delete',
+    action: 'spawner.schedule.delete',
     kind: 'schedule_mutation'
   });
 
@@ -131,10 +131,10 @@ test('slash schedule command blocks contradictory no-schedule text', () => {
     text: '/schedule "*/5 * * * *" mission summarize deployment health but do not schedule anything',
     commandName: 'schedule',
     route: 'schedule.create',
-    toolName: 'schedule.create',
-    ownerSystem: 'spark-intelligence-builder',
+    toolName: 'spawner.schedule.create',
+    ownerSystem: 'spawner-ui',
     mutationClass: 'creates_schedule',
-    action: 'schedule.create',
+    action: 'spawner.schedule.create',
     kind: 'schedule_mutation'
   });
 
@@ -453,7 +453,7 @@ test('self improvement and model switch commands authorize through command envel
   assert.equal(modelStatus.governorDecision?.tool_ledgers[0]?.tool_name, 'model.status');
 });
 
-test('voice commands authorize exact status, speak, and setup hook tools through command envelopes', () => {
+test('voice commands authorize exact status, diagnostics, self-test, speak, and setup hook tools through command envelopes', () => {
   const status = commandAuth({
     text: '/voice status',
     commandName: 'voice',
@@ -462,6 +462,28 @@ test('voice commands authorize exact status, speak, and setup hook tools through
     ownerSystem: 'spark-voice-comms',
     mutationClass: 'read_only',
     action: 'voice.status',
+    kind: 'runtime_truth_or_operator',
+    externalNetwork: false
+  });
+  const doctor = commandAuth({
+    text: '/voice doctor',
+    commandName: 'voice',
+    route: 'voice.command',
+    toolName: 'voice.diagnostics.run',
+    ownerSystem: 'spark-voice-comms',
+    mutationClass: 'read_only',
+    action: 'voice.diagnostics.run',
+    kind: 'runtime_truth_or_operator',
+    externalNetwork: false
+  });
+  const selfTest = commandAuth({
+    text: '/voice self-test',
+    commandName: 'voice',
+    route: 'voice.command',
+    toolName: 'voice.self_test.run',
+    ownerSystem: 'spark-voice-comms',
+    mutationClass: 'external_network',
+    action: 'voice.self_test.run',
     kind: 'runtime_truth_or_operator',
     externalNetwork: true
   });
@@ -489,14 +511,50 @@ test('voice commands authorize exact status, speak, and setup hook tools through
   });
 
   assert.equal(status.allow, true);
+  assert.equal(doctor.allow, true);
+  assert.equal(selfTest.allow, true);
   assert.equal(speak.allow, true);
   assert.equal(setup.allow, true);
+  assert.equal(doctor.governorDecision?.tool_ledgers[0]?.tool_name, 'voice.diagnostics.run');
+  assert.equal(selfTest.governorDecision?.tool_ledgers[0]?.tool_name, 'voice.self_test.run');
   assert.equal(speak.legacyEnvelope?.selectedIntent.ownerSystem, 'spark-voice-comms');
   assert.equal(speak.legacyEnvelope?.selectedIntent.action, 'voice.speak');
   assert.equal(speak.governorDecision?.tool_ledgers[0]?.tool_name, 'voice.speak');
+  assert.equal(setup.harnessCore?.action.action_type, 'external_api_call');
   assert.equal(status.harnessCore?.authorization.restrictions.write_allowed, false);
   assert.equal(speak.harnessCore?.authorization.restrictions.network_allowed, true);
   assert.equal(setup.harnessCore?.authorization.restrictions.write_allowed, true);
+});
+
+test('voice speak treats voice-note wording as payload while preserving no-network boundary', () => {
+  const speakVoiceNote = commandAuth({
+    text: '/voice speak Hello from Spark voice QA. Please send this as a short voice note.',
+    commandName: 'voice',
+    route: 'voice.command',
+    toolName: 'voice.speak',
+    ownerSystem: 'spark-voice-comms',
+    mutationClass: 'external_network',
+    action: 'voice.speak',
+    kind: 'runtime_truth_or_operator',
+    externalNetwork: true
+  });
+  const noNetworkTrap = commandAuth({
+    text: '/voice speak Hello from Spark voice QA without network.',
+    commandName: 'voice',
+    route: 'voice.command',
+    toolName: 'voice.speak',
+    ownerSystem: 'spark-voice-comms',
+    mutationClass: 'external_network',
+    action: 'voice.speak',
+    kind: 'runtime_truth_or_operator',
+    externalNetwork: true
+  });
+
+  assert.equal(speakVoiceNote.allow, true);
+  assert.equal(speakVoiceNote.legacyEnvelope?.directive.noExecution, false);
+  assert.equal(speakVoiceNote.harnessCore?.authorization.restrictions.network_allowed, true);
+  assert.equal(noNetworkTrap.allow, false);
+  assert.ok(noNetworkTrap.reasonCodes.includes('external_network_not_authorized'));
 });
 
 test('route probe commands authorize through command envelopes', () => {

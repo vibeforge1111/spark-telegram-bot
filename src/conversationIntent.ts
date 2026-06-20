@@ -31,6 +31,15 @@ const COLLABORATIVE_IDEA_PATTERNS = [
   /\b(?:nfts?|token|tokens|buybacks?|launch|hype)\b.*\b(?:structure|strategy|plan)\b/i
 ];
 
+const OPEN_ENDED_NEXT_STEP_IDEATION_PATTERNS = [
+  /\bwhat\s+should\s+i\s+(?:focus\s+on|work\s+on|do|try|pick|choose)(?:\s+(?:first|next|tonight|today|now))?\b/i,
+  /\bwhat\s+should\s+we\s+(?:focus\s+on|work\s+on|do|try|pick|choose)(?:\s+(?:first|next|tonight|today|now))?\b/i,
+  /\bwhat\s+(?:is|'s)\s+(?:the\s+)?(?:next|best|smallest|right)\s+(?:\w+\s+){0,3}(?:move|step|thing\s+to\s+do|focus)\b/i,
+  /\bwhere\s+should\s+i\s+(?:start|begin|put\s+my\s+attention)\b/i,
+  /\bwhere\s+should\s+we\s+(?:start|begin|put\s+our\s+attention)\b/i,
+  /\bi\s+have\s+(?:one|a|an|\d+)\s+.+\b(?:block|window|slot|hour|minutes?)\b.*\bwhat\s+should\s+i\s+(?:focus\s+on|work\s+on|do|try)\b/i
+];
+
 const HARD_EXECUTION_PATTERNS = [
   /^\s*\/(?:run|build|mission)\b/i,
   /\b(?:build|create|make|ship|scaffold|generate)\s+(?:this\s+)?(?:at|in|into)\s+[A-Z]:[\\/]/i,
@@ -58,7 +67,9 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) {
     return false;
   }
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
   const mentionsDomainChipArtifact = /\bdomain[-\s]*chip[-\w]*\b/i.test(trimmed);
+  const asksOpenEndedNextStep = OPEN_ENDED_NEXT_STEP_IDEATION_PATTERNS.some((pattern) => pattern.test(trimmed));
   const designOnlyNoExecution =
     isNoExecutionBoundary(trimmed) &&
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|mission|spawner|schedule|loop|chip|route|memory|wiki|access|publish|deploy|remember|draft|canvas|browser|computer-use|computer\s+use|restart)\b/i.test(trimmed) &&
@@ -66,6 +77,7 @@ export function shouldPreferConversationalIdeation(text: string): boolean {
   return (
     hasLocalOptionReference(trimmed) ||
     mentionsDomainChipArtifact ||
+    asksOpenEndedNextStep ||
     designOnlyNoExecution ||
     isAccessSandboxRouteDesignDiscussion(trimmed) ||
     COLLABORATIVE_IDEA_PATTERNS.some((pattern) => pattern.test(trimmed))
@@ -1084,8 +1096,8 @@ export function parseNaturalRecursiveCommandIntent(text: string, context: Natura
     };
   }
 
-  if (/\b(?:show|list|what|which|get|give\s+me)\b.*\b(?:recursive\s+)?(?:loops?|sessions?|runs)\b/i.test(normalized) ||
-      /\b(?:what|which)\s+(?:loops?|runs)\s+(?:are|do)\s+(?:open|running|available|we\s+have)\b/i.test(normalized)) {
+  if (/\b(?:show|list|get|give\s+me)\b.*\b(?:recursive\s+)?(?:loops?|sessions?|runs)\b/i.test(normalized) ||
+      /\b(?:what|which)\s+(?:recursive\s+)?(?:loops?|runs|sessions?)\s+(?:are|do)\s+(?:open|running|available|we\s+have|exist)\b/i.test(normalized)) {
     return {
       rawCommand: 'sessions',
       reason: 'Natural-language request to list recursive loops.'
@@ -1373,14 +1385,20 @@ export function isBuildContextRecallQuestion(text: string): boolean {
     if (words.length < 2 || words.length > 5) return false;
     return words.filter((word) => /^[A-Z][A-Za-z0-9'-]{2,}$/.test(word)).length >= 2;
   })();
-  return (
+  const looksLikeBuildContextRecall =
     /\b(?:do\s+you\s+)?remember\b.*\b(?:build|building|built|making|project|chip|mission)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:did|have)\s+(?:you|we)\s+(?:just\s+)?(?:build|make|create|ship)\b/.test(normalized) ||
     /\bwhat\b.*\b(?:were|was)\s+we\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
     /\bwe\s+were\s+(?:gonna|going\s+to|about\s+to)\s+(?:build|make|create)\b/.test(normalized) ||
     (!asksForwardPlanning && asksWhereConversationWas && hasNamedContinuityTarget) ||
-    (!asksForwardPlanning && (asksWhereConversationWas || asksProjectDirection) && continuitySubject.test(normalized))
-  );
+    (!asksForwardPlanning && (asksWhereConversationWas || asksProjectDirection) && continuitySubject.test(normalized));
+  if (!looksLikeBuildContextRecall) return false;
+  // Only when the recall heuristic fired do we run the directive parser: exclude an explicit
+  // first-person save ("remember this: ...", "save to memory: ...") whose note content (e.g.
+  // "mission updates") tripped the regex above. The anchored parser cannot match a recall
+  // question, so this never swallows a genuine recall (conversationSmoke save-preference).
+  if (extractPlainChatMemoryDirective(text)) return false;
+  return true;
 }
 
 const BUILD_CONTEXT_SUBJECT_STOPWORDS = new Set([

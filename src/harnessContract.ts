@@ -214,7 +214,13 @@ function sourceForDecision(decision: TelegramIntentDecisionV2): SparkHarnessInte
 }
 
 function routeLooksExternal(route: string): boolean {
-  return /(?:research|web|publish|deploy|ship|external|x_post|media\.|voice\.command)/i.test(route);
+  return /(?:research|web|publish|deploy|ship|external|x_post|media\.|voice\.command|browser\.navigate)/i.test(route);
+}
+
+function routeOwnsMetaLikePayload(decision: TelegramIntentDecisionV2, normalizedText = ''): boolean {
+  return decision.route === 'voice.command' &&
+    decision.action === 'voice.speak' &&
+    /^\/voice\s+(?:speak|ask|answer)\b/i.test(normalizedText);
 }
 
 function routeLooksMetaLanguage(decision: TelegramIntentDecisionV2, normalizedText = ''): boolean {
@@ -222,8 +228,21 @@ function routeLooksMetaLanguage(decision: TelegramIntentDecisionV2, normalizedTe
     decision.matched_signals.some((signal) => /meta|quoted|no_execution_boundary/i.test(signal)) ||
     decision.blocked_candidates.some((candidate) => /quoted|meta|\bword\b|\bwords\b/i.test(candidate.reason));
   if (structuredMeta) return true;
+  if (routeOwnsMetaLikePayload(decision, normalizedText)) return false;
+  if (decision.route === 'memory.write' && decision.kind === 'memory_write' && !/["“”]/.test(normalizedText)) return false;
   if (decision.route === 'spawner.build' && decision.confidence === 'explicit') return false;
   return /\b(?:mentioning|just mentioning|only mentioning|thinking\s+about|keywords?|the\s+word|words?\s+alone|word\s+here|words\s+here|phrases?|quoted|qa\s+fixture|sample\s+text|old\s+mission\s+context|stale\s+context\s+trigger|route\s+history|pending\s+state|voice\s+(?:transcript|note)|transcripts?\s+must\s+become\s+fresh\s+intent|diagnostic\s+only|do\s+not\s+route|do\s+not\s+use\s+external\s+network|what\s+policy\s+would\s+be\s+required|no\s+tool\s+call|not a request|not an instruction|not a command)\b/i.test(normalizedText);
+}
+
+function memoryDeleteLooksSourceAttributed(decision: TelegramIntentDecisionV2, normalizedText = ''): boolean {
+  if (decision.route !== 'memory.delete') return false;
+  if (decision.enforcement === 'blocked') return false;
+  const sourceNoun = String.raw`(?:memory|memories|saved\s+memory|saved\s+memories|note|notes|doc|document|wiki|log|logs|trace|traces|transcript|screenshot|report|source|data|previous\s+(?:answer|reply)|system|policy|instruction|message)`;
+  const saysVerb = String.raw`(?:says?|said|tells?|told|claims?|claimed|instructs?|instructed|asks?|asked|wants?|wanted|requires?|required|suggests?|suggested)`;
+  const deleteVerb = String.raw`(?:delete|forget|remove|erase|wipe|clear|archive|drop)`;
+  const sourceSaysDelete = new RegExp(String.raw`\b(?:your|my|the|a|an|saved\s+)?${sourceNoun}\b.{0,40}\b${saysVerb}\b.{0,100}\b${deleteVerb}\b`, 'i');
+  const deleteBecauseSourceSays = new RegExp(String.raw`\b${deleteVerb}\b.{0,100}\b(?:because|since|as)\b.{0,60}\b(?:your|my|the|a|an|saved\s+)?${sourceNoun}\b.{0,40}\b${saysVerb}\b`, 'i');
+  return sourceSaysDelete.test(normalizedText) || deleteBecauseSourceSays.test(normalizedText);
 }
 
 function modeForDecision(
@@ -319,6 +338,7 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'spark.reflect') tools.push('spark.reflect');
   if (decision.route === 'mission_updates.preference') tools.push('mission_updates.preference');
   if (decision.route === 'model.switch') tools.push('model.switch', 'model.status');
+  if (decision.route === 'browser.navigate') tools.push('browser.navigate', 'browser.page.snapshot', 'browser.tab.wait', 'builder.telegram_bridge');
   if (decision.route === 'media.image') tools.push('telegram.media.image', 'builder.telegram_bridge');
   if (decision.route === 'media.voice') tools.push('telegram.media.voice', 'builder.telegram_bridge');
   if (decision.route === 'voice.command') {
@@ -329,6 +349,8 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
       'voice.onboard',
       'voice.install',
       'voice.transcribe',
+      'voice.diagnostics.run',
+      'voice.self_test.run',
       'builder.telegram_bridge'
     );
   }
@@ -380,10 +402,10 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'pending_task.recovery') tools.push('pending_task.recovery');
   if (policy.canMutateFiles) tools.push('spawner.files');
   if (policy.canCreateChip) tools.push('domain_chip.create');
-  if (policy.canCreateSchedule) tools.push('schedule.create');
-  if (policy.canDeleteSchedule) tools.push('schedule.delete');
+  if (policy.canCreateSchedule) tools.push('schedule.create', 'spawner.schedule.create');
+  if (policy.canDeleteSchedule) tools.push('schedule.delete', 'spawner.schedule.delete');
   if (policy.canPublish) tools.push('publish.run');
-  if (policy.canUseExternalNetwork) tools.push('external.fetch');
+  if (policy.canUseExternalNetwork && decision.route !== 'browser.navigate') tools.push('external.fetch');
   return Array.from(new Set(tools));
 }
 
@@ -402,6 +424,8 @@ function deniedToolsForDecision(
       'domain_chip.create',
       'schedule.create',
       'schedule.delete',
+      'spawner.schedule.create',
+      'spawner.schedule.delete',
       'publish.run',
       'external.fetch',
       'provider.run',
@@ -411,6 +435,9 @@ function deniedToolsForDecision(
       'operator.safe_action',
       'route.probe',
       'browser.use',
+      'browser.navigate',
+      'browser.page.snapshot',
+      'browser.tab.wait',
       'computer.use',
       'diagnostics.scan',
       'spark.self_improvement',
@@ -426,6 +453,8 @@ function deniedToolsForDecision(
       'voice.onboard',
       'voice.install',
       'voice.transcribe',
+      'voice.diagnostics.run',
+      'voice.self_test.run',
       'builder.telegram_bridge',
       'mission_updates.preference',
       'sparkqa.run',
@@ -448,8 +477,19 @@ function deniedToolsForDecision(
   if (!policy.canPublish) denied.add('publish.run');
   if (!policy.canUseExternalNetwork) denied.add('external.fetch');
   if (!policy.canUseExternalNetwork) denied.add('provider.run');
-  if (!policy.canCreateSchedule) denied.add('schedule.create');
-  if (!policy.canDeleteSchedule) denied.add('schedule.delete');
+  if (decision.route !== 'browser.navigate' || !policy.canUseExternalNetwork) {
+    denied.add('browser.navigate');
+    denied.add('browser.page.snapshot');
+    denied.add('browser.tab.wait');
+  }
+  if (!policy.canCreateSchedule) {
+    denied.add('schedule.create');
+    denied.add('spawner.schedule.create');
+  }
+  if (!policy.canDeleteSchedule) {
+    denied.add('schedule.delete');
+    denied.add('spawner.schedule.delete');
+  }
   return Array.from(denied);
 }
 
@@ -477,12 +517,18 @@ function defaultRuntimeOwnership(): RuntimeOwnershipV1 {
 
 function defaultThreatDefense(
   decision: TelegramIntentDecisionV2,
-  options: { noExecutionBoundary?: boolean; scopedNoExecutionBoundary?: boolean; metaLanguageBoundary?: boolean } = {}
+  options: {
+    noExecutionBoundary?: boolean;
+    scopedNoExecutionBoundary?: boolean;
+    metaLanguageBoundary?: boolean;
+    sourceAttributedMemoryDeleteBoundary?: boolean;
+  } = {}
 ): ThreatDefenseV1 {
   const reasonCodes = ['fresh_user_turn_is_authority'];
   const noExecutionBoundary = options.noExecutionBoundary ?? decision.constraints.noExecution;
   if (noExecutionBoundary) reasonCodes.push('no_execution_boundary');
   if (options.scopedNoExecutionBoundary) reasonCodes.push('scoped_no_execution_boundary');
+  if (options.sourceAttributedMemoryDeleteBoundary) reasonCodes.push('source_attributed_memory_delete_boundary');
   if (decision.constraints.localOnly) reasonCodes.push('local_only_boundary');
   if (options.metaLanguageBoundary || routeLooksMetaLanguage(decision)) reasonCodes.push('meta_language_boundary');
   return {
@@ -520,7 +566,11 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
   const normalized = normalizeText(input.text);
   const quotedOrMetaLanguage = routeLooksMetaLanguage(input.decision, normalized);
   const scopedNoExecutionBoundary = isScopedMemoryWriteWithNegativeConstraints(input.decision, normalized);
-  const noExecution = (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) || (quotedOrMetaLanguage && !scopedNoExecutionBoundary);
+  const sourceAttributedMemoryDeleteBoundary = memoryDeleteLooksSourceAttributed(input.decision, normalized);
+  const noExecution =
+    sourceAttributedMemoryDeleteBoundary ||
+    (input.decision.constraints.noExecution && !scopedNoExecutionBoundary) ||
+    (quotedOrMetaLanguage && !scopedNoExecutionBoundary);
   const executionPolicy = executionPolicyForDecision(input.decision, { noExecutionBoundary: noExecution });
   const mutationClassesAllowed = mutationClassesForPolicy(executionPolicy);
   const sessionKey = [
@@ -610,7 +660,12 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
           stopRule: 'Stop on no-execution, local-only conflict, or failed promotion gate.'
         }
       : undefined,
-    threatDefense: defaultThreatDefense(input.decision, { noExecutionBoundary: noExecution, scopedNoExecutionBoundary, metaLanguageBoundary: quotedOrMetaLanguage }),
+    threatDefense: defaultThreatDefense(input.decision, {
+      noExecutionBoundary: noExecution,
+      scopedNoExecutionBoundary,
+      sourceAttributedMemoryDeleteBoundary,
+      metaLanguageBoundary: quotedOrMetaLanguage
+    }),
     executionPolicy,
     consumedBy: []
   };

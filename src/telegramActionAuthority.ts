@@ -69,6 +69,7 @@ const ROUTE_ALIASES: Record<string, string[]> = {
   ],
   'spawner.local_service': ['local_service.clarify', 'local_service.open'],
   'spawner.external_research': ['external_research.inspect'],
+  'browser.navigate': ['browser.page.snapshot', 'browser.tab.wait'],
   'spark.wiki': ['spark_wiki.promote', 'spark_wiki.status', 'spark_wiki.inventory', 'spark_wiki.query', 'spark_wiki.answer'],
 };
 
@@ -161,7 +162,13 @@ export function authorizeTelegramActionFromEnvelope(
         tool_name: input.toolName,
         action_type: harnessCore.action.action_type,
         action_id: harnessCore.action.action_id,
-        allow_read_only: harnessCore.action.action_type === 'read',
+        // A non-mutating action is a permitted read even when its action_type is a network read
+        // (external_api_call), e.g. media analysis via an external vision/transcription API. Gate
+        // on mutationClass so the read_only governor outcome is accepted only for reads, never for
+        // a real mutation (which must reach an execute outcome instead).
+        allow_read_only: harnessCore.action.action_type === 'read'
+          || input.mutationClass === 'read_only'
+          || input.mutationClass === 'none',
         require_pre_execution_ledger: true
       })
     : null;

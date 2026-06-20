@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   pendingConfirmKey, stagePendingConfirm, getPendingConfirm, clearPendingConfirm,
-  isConfirmText, shouldConsumeConfirm, confirmPromptMessage
+  isConfirmText, isConfirmationOnlyText, shouldConsumeConfirm, confirmPromptMessage,
+  noPendingConfirmationMessage
 } from '../src/modelRouterConfirm';
 
 const registered: Array<[string, () => void]> = [];
@@ -10,6 +11,19 @@ function test(name: string, fn: () => void): void { registered.push([name, fn]);
 test('isConfirmText: affirmatives yes, negations and arbitrary text no', () => {
   for (const t of ['yes', 'yes do it', 'go ahead', 'confirm', 'ok', 'sure', 'proceed']) assert.equal(isConfirmText(t), true, t);
   for (const t of ['no', "don't", 'cancel', 'stop', 'change my access to operator', 'what is the weather', '']) assert.equal(isConfirmText(t), false, t);
+});
+
+test('isConfirmationOnlyText: catches no-pending confirmation shapes without swallowing explicit commands', () => {
+  for (const t of ['yes', 'yes.', 'go ahead', 'do it', 'confirm', 'please do']) assert.equal(isConfirmationOnlyText(t), true, t);
+  for (const t of [
+    'yes, change my access to operator',
+    'yes create it after analyzing the system',
+    'ok, translate this sentence',
+    'sure, what changed?',
+    'no'
+  ]) {
+    assert.equal(isConfirmationOnlyText(t), false, t);
+  }
 });
 
 test('stage/get/clear pending, with TTL expiry', () => {
@@ -37,6 +51,13 @@ test('confirm prompt names the action, no em dash', () => {
   const m = confirmPromptMessage('change access to operator');
   assert.match(m, /change access to operator/);
   assert.ok(!m.includes('—'));
+});
+
+test('no pending confirmation reply states no execution without pretending a confirmation landed', () => {
+  const m = noPendingConfirmationMessage();
+  assert.match(m, /pending action/i);
+  assert.match(m, /did not run anything/i);
+  assert.doesNotMatch(m, /confirmed/i);
 });
 
 void (async () => {

@@ -602,16 +602,11 @@ export class ConversationMemory {
 
   async getRecentMemoryDirectives(user: TelegramUser, limit: number = 8): Promise<RecentMemoryDirective[]> {
     await this.ensureLoaded();
-    const key = this.userKey(user);
-    const recent = this.recentByUser.get(key) || [];
-    return recent
-      .filter((item) => /^User:\s*/i.test(item))
-      .map((item) => {
-        const note = extractRecentMemoryDirective(item);
-        return note ? { note, sourceText: item.replace(/^User:\s*/i, '').trim() } : null;
-      })
-      .filter((item): item is RecentMemoryDirective => item !== null)
-      .slice(-Math.max(1, limit));
+    void user;
+    void limit;
+    // Raw "remember/save" turns are transcript residue until Builder/domain-chip memory accepts them.
+    // Telegram-local context can support conversation, but it must not masquerade as durable recall.
+    return [];
   }
 
   async resolveRecentOptionReference(user: TelegramUser, text: string): Promise<ResolvedOptionReference | null> {

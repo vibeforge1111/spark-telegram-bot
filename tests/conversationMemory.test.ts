@@ -98,9 +98,7 @@ async function main(): Promise<void> {
     assert.deepEqual(recentTurns.map((turn) => turn.text), [
       'Memory is degraded, so I could not confirm that write.'
     ]);
-    assert.deepEqual(recentMemoryDirectives.map((item) => item.note), [
-      'my preferred mission updates are concise and outcome-focused'
-    ]);
+    assert.deepEqual(recentMemoryDirectives, []);
     assert.deepEqual(frame.hotTurns.map((turn) => turn.text), [
       'Memory is degraded, so I could not confirm that write.'
     ]);

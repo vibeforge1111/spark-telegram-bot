@@ -5,6 +5,8 @@ import {
   buildBuilderAocPreflightCommands,
   compactColdMemoryQuery,
   formatAgentBlackBoxReply,
+  formatBuilderTelegramMemoryCapsuleRecall,
+  formatBuilderTelegramMemoryRecall,
   formatConversationColdMemoryContext,
   formatDiagnosticsScanReply,
   formatMemoryInPlaySummary,
@@ -74,6 +76,181 @@ test('compacts large cold memory queries before invoking Builder memory', () => 
   assert.ok(query.length <= 120);
   assert.match(query, /\[truncated\]$/);
   assert.doesNotMatch(query, /\n/);
+});
+
+test('formats Builder-backed Telegram memory recall from current-state records', () => {
+  const formatted = formatBuilderTelegramMemoryRecall({
+    current_state: {
+      records: [
+        {
+          value: 'I think your tiny desk plant is named Sol',
+          timestamp: '2026-06-16T19:17:41.629109+00:00',
+          predicate: 'belief.telegram.evidence_your_tiny_desk',
+        },
+        {
+          value: 'I prefer concise answers',
+          timestamp: '2026-06-19T07:26:33.523521+00:00',
+          predicate: 'evidence.telegram.telegram_runtime',
+        },
+      ],
+    },
+  }, 'what do you remember about me?', 2);
+
+  assert.equal(formatted.recordCount, 2);
+  assert.match(formatted.responseText, /From Builder\/domain-chip memory/);
+  assert.ok(
+    formatted.responseText.indexOf('- I prefer concise answers') <
+      formatted.responseText.indexOf('- your tiny desk plant is named Sol'),
+    'broad recall should prefer the newest current-state evidence'
+  );
+  assert.match(formatted.responseText, /Source: current-state memory read through Builder/);
+});
+
+test('formats Builder-backed source-aware memory capsule recall from evidence lanes', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    context_packet: {
+      sections: [
+        {
+          section: 'recent_conversation',
+          items: [
+            {
+              lane: 'evidence',
+              score: 66,
+              predicate: 'raw_turn',
+              value: 'Small context for tonight: I am sketching a Quartz Lantern garden timer, and I prefer the next step to stay under 20 minutes.',
+            },
+          ],
+        },
+        {
+          section: 'relevant_events',
+          items: [
+            {
+              lane: 'events',
+              score: 72,
+              predicate: 'profile.current_constraint',
+              value: 'focus window starts after 12:05am; I need the next step to stay small enough to finish',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what was the little project I said I was sketching tonight, and what constraint did I put on the next step?', 3);
+
+  assert.equal(formatted.recordCount, 2);
+  assert.ok(
+    formatted.responseText.indexOf('Quartz Lantern garden timer') <
+      formatted.responseText.indexOf('focus window starts after 12:05am'),
+    'capsule section order should keep direct recent evidence ahead of older related events'
+  );
+  assert.match(formatted.responseText, /supporting evidence/);
+  assert.match(formatted.responseText, /Source: source-aware memory capsule through Builder/);
+});
+
+test('does not present support-only warned memory capsule packets as saved memory', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    answer_explanation: {
+      context_packet_promotion_gates: {
+        status: 'warn',
+        gates: {
+          source_swamp_resistance: {
+            status: 'warn',
+            evidence: {
+              authority_count: 0,
+              supporting_count: 3,
+            },
+          },
+        },
+      },
+    },
+    context_packet: {
+      sections: [
+        {
+          section: 'relevant_events',
+          items: [
+            {
+              lane: 'events',
+              score: 64,
+              predicate: 'profile.current_mission',
+              value: 'building a pantry label printer this week',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about my update style?', 3);
+
+  assert.equal(formatted.recordCount, 0);
+  assert.equal(formatted.responseText, '');
+});
+
+test('does not present explicitly support-only memory capsule packets as saved memory', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    promotion_gates: {
+      status: 'pass',
+    },
+    context_packet: {
+      sections: [
+        {
+          section: 'compiled_project_knowledge',
+          authority: 'supporting',
+          items: [
+            {
+              lane: 'wiki_packets',
+              score: 52,
+              authority: 'supporting',
+              predicate: 'knowledge.packet',
+              value: 'Evidence Index',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about my update style?', 3);
+
+  assert.equal(formatted.recordCount, 0);
+  assert.equal(formatted.responseText, '');
+});
+
+test('formats source-aware memory capsule recall from authority items without support residue', () => {
+  const formatted = formatBuilderTelegramMemoryCapsuleRecall({
+    context_packet: {
+      sections: [
+        {
+          section: 'active_current_state',
+          authority: 'authority',
+          items: [
+            {
+              lane: 'current_state_scan',
+              source_class: 'current_state',
+              authority: 'authority',
+              score: 106,
+              predicate: 'profile.current_low_stakes_test_fact',
+              value: 'Pocket phrase Blue Cedar belongs to the Garden Loom demo.',
+            },
+          ],
+        },
+        {
+          section: 'relevant_events',
+          authority: 'supporting',
+          items: [
+            {
+              lane: 'events',
+              source_class: 'event',
+              authority: 'supporting',
+              score: 63,
+              predicate: 'profile.current_project',
+              value: 'a Blue Dock scheduler with boat slips and tide windows',
+            },
+          ],
+        },
+      ],
+    },
+  }, 'what do you remember about Blue Cedar?', 5);
+
+  assert.equal(formatted.recordCount, 1);
+  assert.match(formatted.responseText, /Pocket phrase Blue Cedar belongs to the Garden Loom demo/);
+  assert.doesNotMatch(formatted.responseText, /Blue Dock scheduler/);
+  assert.match(formatted.responseText, /\(current state\)/);
 });
 
 test('formats route probe replies with evidence boundary', () => {

@@ -17,6 +17,7 @@ test('taxonomy is well-formed: unique routes, non-empty descriptions, includes a
   assert.equal(new Set(routes).size, routes.length, 'route ids must be unique');
   assert.ok(routes.includes('abstain'), 'abstain must be an option');
   assert.ok(routes.includes('plain_chat'), 'plain_chat must be an option');
+  assert.ok(routes.includes('conversation.ideation'), 'conversation.ideation must be an option');
   for (const r of INTENT_PROPOSER_TAXONOMY) {
     assert.ok(r.useWhen.trim().length > 0, `${r.route} useWhen`);
     assert.ok(r.doNotUseWhen.trim().length > 0, `${r.route} doNotUseWhen`);
@@ -30,6 +31,56 @@ test('prompt includes the user text, the strict-JSON instruction, and the route 
   assert.match(system, /Read ONLY the user/);
   assert.match(system, /spawner\.build/);
   assert.match(system, /abstain/);
+});
+
+test('memory delete route contract covers natural forget phrasing and adjacent traps', () => {
+  const descriptor = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'memory.delete');
+  assert.ok(descriptor);
+  assert.match(descriptor!.useWhen, /forget that I prefer X/);
+  assert.match(descriptor!.useWhen, /stop remembering my X/);
+  assert.match(descriptor!.doNotUseWhen, /don't forget to build X/);
+  assert.match(descriptor!.doNotUseWhen, /memory says to delete the schedule/);
+});
+
+test('recursive proposal route contract covers natural Spark improvement proposals and traps', () => {
+  const descriptor = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'recursive.proposal');
+  assert.ok(descriptor);
+  assert.match(descriptor!.useWhen, /propose an improvement to a Spark subsystem/);
+  assert.match(descriptor!.doNotUseWhen, /quote/);
+  assert.match(descriptor!.doNotUseWhen, /without asking Spark to prepare/);
+});
+
+test('voice command route contract covers natural status checks and adjacent traps', () => {
+  const descriptor = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'voice.command');
+  assert.ok(descriptor);
+  assert.equal(descriptor!.mutating, false);
+  assert.match(descriptor!.useWhen, /check live voice readiness/);
+  assert.match(descriptor!.useWhen, /voice replies/);
+  assert.match(descriptor!.doNotUseWhen, /translate/);
+  assert.match(descriptor!.doNotUseWhen, /voice UX\/design/);
+  assert.match(descriptor!.doNotUseWhen, /install\/configure\/enable\/speak/);
+});
+
+test('memory recall and Spark state route contracts separate user project context from system state', () => {
+  const recall = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'memory.recall');
+  const state = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'spark.read_only_state');
+  const ideation = INTENT_PROPOSER_TAXONOMY.find((r) => r.route === 'conversation.ideation');
+  assert.ok(recall);
+  assert.ok(state);
+  assert.ok(ideation);
+  assert.match(recall!.useWhen, /what Spark remembers/);
+  assert.match(recall!.useWhen, /what is saved/);
+  assert.match(recall!.useWhen, /what was discussed or decided earlier/);
+  assert.match(recall!.doNotUseWhen, /provider\/diagnostic state/);
+  assert.match(recall!.doNotUseWhen, /open-ended planning\/advice question/);
+  assert.match(recall!.doNotUseWhen, /what to focus on/);
+  assert.match(state!.useWhen, /provider\/runtime\/access diagnostics/);
+  assert.match(state!.doNotUseWhen, /user's project\/task context/);
+  assert.match(state!.doNotUseWhen, /blocker/);
+  assert.match(ideation!.useWhen, /choose a next step/);
+  assert.match(ideation!.useWhen, /decide what to focus on/);
+  assert.match(ideation!.doNotUseWhen, /what was remembered\/saved\/discussed earlier/);
+  assert.match(ideation!.doNotUseWhen, /runtime\/provider\/access status/);
 });
 
 test('parser accepts clean JSON, clamps confidence, sorts by confidence', () => {

@@ -223,12 +223,12 @@ async function main(): Promise<void> {
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Provider runtime truth/);
-    assert.match(replies[0], /fresh `spark providers status`, not memory/);
-    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /builder: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /memory: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /mission: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /I did not change provider settings\./);
+    assert.match(replies[0], /Provider roles are configured and readable right now\./);
+    assert.match(replies[0], /provider status owner, not memory/);
+    assert.match(replies[0], /Roles returned OK: chat, builder, memory, mission\./);
+    assert.doesNotMatch(replies[0], /codex \(gpt-5\.5\)|reasoning=low|service[_ ]tier=fast|auth=codex/i);
+    assert.match(replies[0], /I did not change provider settings/);
+    assert.match(replies[0], /ask for raw details/i);
     assert.doesNotMatch(replies[0], /QA pass first|Add failing regressions|I will not start a mission/i);
     assert.deepEqual(extras[0]?.__sparkTraceContext, {
       turnId: 'telegram-update:1',
@@ -259,13 +259,92 @@ async function main(): Promise<void> {
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Provider runtime truth/);
-    assert.match(replies[0], /fresh `spark providers status`, not memory/);
-    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /mission: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /Provider roles are configured and readable right now\./);
+    assert.match(replies[0], /Roles returned OK: chat, builder, memory, mission\./);
+    assert.doesNotMatch(replies[0], /codex \(gpt-5\.5\)|reasoning=low|service[_ ]tier=fast|auth=codex/i);
     assert.deepEqual(extras[0]?.__sparkTraceContext, {
       turnId: 'telegram-update:1',
       telegramUpdateId: 1,
       route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('launch readiness evidence question stays local read-only instead of web research', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Can you quickly tell me what is still not proven for launch readiness right now? Please do not start or change anything; just answer from current QA evidence.', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /(?:public-release blocker|generated public-release gates|cannot prove)/i);
+    assert.doesNotMatch(replies[0], /I need live web evidence|checking the web/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.public_release_blockers',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('restart-needed natural status question stays local read-only instead of web research', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('is a restart needed right now?', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /restart/i);
+    assert.doesNotMatch(replies[0], /I need live web evidence|checking the web/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.restart_needed',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('restart-needed CLI failures stay compact without local command leakage', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    const failingRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-runtime-status-failing-cli-'));
+    const failingCli = writeFailingSparkCliStub(failingRoot);
+    const priorPath = process.env.PATH || '';
+    const priorHome = process.env.SPARK_HOME;
+    const priorGateway = process.env.SPARK_GATEWAY_STATE_DIR;
+    process.env.PATH = `${path.dirname(failingCli)}${path.delimiter}${priorPath}`;
+    process.env.SPARK_HOME = failingRoot;
+    process.env.SPARK_GATEWAY_STATE_DIR = failingRoot;
+    try {
+      await indexModule.handleTextMessage(fakeCtx('is a restart needed right now?', replies, extras));
+    } finally {
+      process.env.PATH = priorPath;
+      if (priorHome === undefined) delete process.env.SPARK_HOME;
+      else process.env.SPARK_HOME = priorHome;
+      if (priorGateway === undefined) delete process.env.SPARK_GATEWAY_STATE_DIR;
+      else process.env.SPARK_GATEWAY_STATE_DIR = priorGateway;
+      try {
+        rmSync(failingRoot, { recursive: true, force: true });
+      } catch {
+        // Windows can briefly hold the stub after spawn; temp cleanup is best effort.
+      }
+    }
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Restart verdict: unproven from this Telegram runtime\./);
+    assert.match(replies[0], /Fresh live-status check was unavailable/);
+    assert.match(replies[0], /Next move: run `spark live status` locally/);
+    assert.doesNotMatch(replies[0], /spark\.cmd|Command failed|cmd\.exe|[A-Z]:\\/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.restart_needed',
       command: 'read_only_state',
       replyKind: 'read_only_state'
     });
@@ -280,9 +359,51 @@ async function main(): Promise<void> {
 
     assert.equal(replies.length, 1);
     assert.match(replies[0], /Provider runtime truth/);
-    assert.match(replies[0], /fresh `spark providers status`, not memory/);
-    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
-    assert.match(replies[0], /builder: codex \(gpt-5\.5\), reasoning=low, service_tier=fast/i);
+    assert.match(replies[0], /Provider roles are configured and readable right now\./);
+    assert.match(replies[0], /Roles returned OK: chat, builder, memory, mission\./);
+    assert.doesNotMatch(replies[0], /codex \(gpt-5\.5\)|reasoning=low|service[_ ]tier=fast|auth=codex/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('explicit raw provider detail request can include model and tier values', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Provider truth QA raw details: which provider, model, reasoning effort, and service tier are active for chat, builder, memory, and mission right now? Do not change anything.', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Provider runtime truth/);
+    assert.match(replies[0], /Fresh provider status is readable right now\./);
+    assert.match(replies[0], /chat: codex \(gpt-5\.5\), reasoning=low, service tier=fast/i);
+    assert.match(replies[0], /builder: codex \(gpt-5\.5\), reasoning=low, service tier=fast/i);
+    assert.deepEqual(extras[0]?.__sparkTraceContext, {
+      turnId: 'telegram-update:1',
+      telegramUpdateId: 1,
+      route: 'spark.read_only_state.provider_runtime_config',
+      command: 'read_only_state',
+      replyKind: 'read_only_state'
+    });
+  });
+
+  await test('negated raw provider wording keeps provider status compact', async () => {
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+
+    await indexModule.handleTextMessage(fakeCtx('Provider status check: are chat and builder configured and readable right now? Verdict first, no raw IDs, and do not change anything.', replies, extras));
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Provider runtime truth/);
+    assert.match(replies[0], /Provider roles are configured and readable right now\./);
+    assert.match(replies[0], /Roles returned OK: chat, builder, memory, mission\./);
+    assert.doesNotMatch(replies[0], /codex \(gpt-5\.5\)|reasoning=low|service[_ ]tier=fast|auth=codex/i);
     assert.deepEqual(extras[0]?.__sparkTraceContext, {
       turnId: 'telegram-update:1',
       telegramUpdateId: 1,
@@ -320,7 +441,8 @@ async function main(): Promise<void> {
     }
 
     assert.equal(replies.length, 1);
-    assert.equal(replies[0], 'Route words can be discussed without becoming fresh owner-state reads.');
+    assert.match(replies[0], /(?:evidence for understanding|Route words can be discussed)/i);
+    assert.doesNotMatch(replies[0], /Provider runtime truth|Current evidence reports/i);
     assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.registry_drift');
     assert.equal(extras[0]?.__sparkTraceContext?.missionId, undefined);
   });
