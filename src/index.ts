@@ -5192,11 +5192,9 @@ bot.catch((err, ctx) => {
 
 // Rate limit middleware
 bot.use(async (ctx, next) => {
-  const userId = ctx.from?.id;
-  if (userId) {
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
-      return; // Rate limited
-    }
+  const userId = ctx.from?.id ?? -Math.abs(ctx.chat?.id ?? 0);
+  if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
+    return; // Rate limited
   }
   return next();
 });
