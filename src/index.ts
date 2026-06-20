@@ -5820,23 +5820,18 @@ async function buildBrowserProofQuestionAnswer(query: string): Promise<string> {
   try {
     const receipt = await readLatestCapabilityProbeReceipt('spark_browser');
     if (!receipt) {
-      return telegramHtmlFromEvidenceReply(await composeGovernedEvidenceAnswer(
-        {
-          kind: 'browser_use_availability',
-          userText: query,
-          evidence: {
-            latest_probe_receipt: null,
-            browser_opened_this_turn: false,
-            browser_tool_called_this_turn: false,
-            proof_scope: 'unproven_without_fresh_probe'
-          },
-          claimBoundary: 'Answer from current probe evidence only. This turn must not claim browser use, clicks, screenshots, cookies, or page access.'
-        },
-        fallback,
-        (reply) => /browser/i.test(reply) &&
-          /(?:probe|proof|prove|evidence)/i.test(reply) &&
-          /(?:not|no|without|unproven)/i.test(reply)
-      ));
+      // Reached only when the owner status CLI read threw above (e.g. spark unavailable) AND there
+      // is no capability probe receipt: zero evidence that browser-use is ready. Answer
+      // deterministically - you cannot prove readiness you cannot check - instead of composing from
+      // an empty evidence set, which fails claim-boundary validation in evidence-free environments
+      // (CI has no spark CLI) and leaves no honest "not proven ready" answer.
+      return telegramBlocks(
+        telegramHtmlBold('Browser-use is not currently proven ready.'),
+        'Owner status: <code>unreadable</code>.',
+        'Why: Spark could not read owner browser-use status and found no recent probe receipt.',
+        'Next: Run spark browser-use probe to create a fresh proof receipt.',
+        'I did not open a browser from this Telegram turn.'
+      );
     }
 
     const status = receipt.status.toLowerCase();

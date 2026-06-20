@@ -9,6 +9,16 @@ const VENDOR_ROOT = path.join(REPO_ROOT, 'vendor', 'harness-core');
 const MANIFEST_PATH = path.join(VENDOR_ROOT, 'CHECKSUMS.json');
 const WRITE = process.argv.includes('--write');
 
+// Normalize text files to LF before hashing so the manifest is stable across
+// Windows (CRLF on checkout) and Linux CI (LF). Binary files (with NUL bytes)
+// are hashed as-is. This makes verify:vendor platform-independent; without it
+// every file mismatches on CI because CHECKSUMS.json was written on a CRLF tree.
+function comparableBytes(abs) {
+	const raw = fs.readFileSync(abs);
+	if (raw.includes(0)) return raw;
+	return Buffer.from(raw.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8');
+}
+
 function walk(dir) {
 	const entries = fs.readdirSync(dir, { withFileTypes: true })
 		.sort((a, b) => a.name.localeCompare(b.name));
@@ -20,7 +30,7 @@ function walk(dir) {
 		if (entry.isDirectory()) {
 			files.push(...walk(abs));
 		} else if (entry.isFile()) {
-			const bytes = fs.readFileSync(abs);
+			const bytes = comparableBytes(abs);
 			files.push({
 				path: rel,
 				sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
