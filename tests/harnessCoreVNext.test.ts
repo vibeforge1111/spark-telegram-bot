@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { buildTelegramTurnIntentEnvelope, type ToolAuthorizationResult } from '../src/harnessContract';
 import {
   authorizeHarnessCoreTelegramAction,
+  buildHarnessCoreAction,
   buildTurnIntentEnvelopeVNextFromTelegram,
   recordHarnessCoreToolLedger,
   type HarnessCoreActionInput
@@ -57,6 +58,71 @@ function readOnlyStateEnvelopeFor(text: string) {
 }
 
 const allowedLegacy: ToolAuthorizationResult = { verdict: 'allowed', reasonCodes: [] };
+
+test('stamps raw Telegram update ids as route-scoped Harness Core turn ids', () => {
+  const text = 'What did I say I should focus on next?';
+  const legacyEnvelope = buildTelegramTurnIntentEnvelope({
+    text,
+    decision: classifyTelegramIntentV2(text),
+    userRef: 'user:qa',
+    chatRef: 'chat:qa',
+    accessProfile: 'admin',
+    conversationKind: 'dm',
+    turnId: 'telegram-update:452998900',
+    traceId: 'trace:telegram-update:452998900'
+  });
+  const action: HarnessCoreActionInput = {
+    route: 'memory.recall',
+    text,
+    toolName: 'memory.read',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'read_only'
+  };
+
+  const vnext = buildTurnIntentEnvelopeVNextFromTelegram(legacyEnvelope, action, true);
+  const expectedTurnId = 'turn:telegram:memory.recall:telegram-update:452998900';
+  assert.equal(vnext.turn_id, expectedTurnId);
+  assert.equal(vnext.proposed_actions[0]?.action_id.startsWith(`action:${expectedTurnId}`), true);
+
+  const ledger = recordHarnessCoreToolLedger({
+    envelope: vnext,
+    action: vnext.proposed_actions[0]!,
+    authorization: authorizeHarnessCoreTelegramAction(legacyEnvelope, action, allowedLegacy, true).authorization,
+    toolName: 'memory.read',
+    status: 'success',
+    summary: 'Memory read completed for the route-scoped turn.'
+  });
+  assert.equal(ledger.turn_id, expectedTurnId);
+});
+
+test('preserves already route-scoped Telegram Harness Core turn ids', () => {
+  const text = 'Read the current memory state for this project.';
+  const canonicalTurnId = 'turn:telegram:memory.recall:telegram-update:452998901';
+  const legacyEnvelope = buildTelegramTurnIntentEnvelope({
+    text,
+    decision: classifyTelegramIntentV2(text),
+    userRef: 'user:qa',
+    chatRef: 'chat:qa',
+    accessProfile: 'admin',
+    conversationKind: 'dm',
+    turnId: canonicalTurnId,
+    traceId: 'trace:telegram-update:452998901'
+  });
+  const action: HarnessCoreActionInput = {
+    route: 'memory.recall',
+    text,
+    toolName: 'memory.read',
+    ownerSystem: 'domain-chip-memory',
+    mutationClass: 'read_only'
+  };
+
+  const vnext = buildTurnIntentEnvelopeVNextFromTelegram(legacyEnvelope, action, true);
+  const proposedAction = buildHarnessCoreAction(action, canonicalTurnId);
+
+  assert.equal(vnext.turn_id, canonicalTurnId);
+  assert.equal(proposedAction.action_id.startsWith(`action:${canonicalTurnId}`), true);
+  assert.doesNotMatch(vnext.turn_id, /turn:telegram:memory\.recall:turn:telegram/);
+});
 
 test('converts meta action-word turns into chat-only Harness Core envelopes', () => {
   const text = 'I am mentioning build, publish, deploy, schedule, chip, and memory as trigger examples. Do not run anything.';

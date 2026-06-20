@@ -127,6 +127,16 @@ function hasNonImperativeExecution(normalized: string): boolean {
   return hedge.test(normalized);
 }
 
+function isTextTransformActionBoundary(normalized: string): boolean {
+  const actionVerb = new RegExp(`\\b${EXECUTION_VERB_GROUP}\\b`);
+  if (!actionVerb.test(normalized)) return false;
+  const transformLead = /^(?:please\s+)?(?:translate|rewrite|rephrase|paraphrase|summari[sz]e|render|convert|quote|say)\b/;
+  const payloadDelimiter = /[:"]/.test(normalized) ||
+    /(?:^|\s)'[^']{0,120}'(?:\s|$)/.test(normalized);
+  if (transformLead.test(normalized) && payloadDelimiter) return true;
+  return /^(?:how\s+(?:do|would|should|can|could)\s+(?:i|we|you|one)\s+(?:say|write|phrase|translate)|what(?:'s| is)\s+(?:the\s+)?(?:best\s+way\s+to\s+say|translation\s+of|spanish\s+for|french\s+for|german\s+for|portuguese\s+for|arabic\s+for))\b/.test(normalized);
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text
     .replace(/[‘’‚‛′]/g, "'")
@@ -178,6 +188,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const routeWordMetaBoundary = isRouteWordMetaExplanationDiscussion(normalized);
   const actionWordMetaBoundary = isActionWordMetaDiscussion(normalized);
   const sourceAttributedActionBoundary = isSourceAttributedActionReport(normalized);
+  const textTransformActionBoundary = isTextTransformActionBoundary(normalized);
   const hasMetaLanguageBoundary =
     actionWordMetaBoundary ||
     routeWordMetaBoundary ||
@@ -185,7 +196,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const hasExecutionKeyword =
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|recursive|approve|approval|propose|proposal|packet|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
 
-  constraints.noExecution = sourceAttributedActionBoundary || routeWordMetaBoundary || [
+  constraints.noExecution = textTransformActionBoundary || sourceAttributedActionBoundary || routeWordMetaBoundary || [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
@@ -558,6 +569,25 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       matched_signals: ['source_attributed_action_boundary'],
       blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
         ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Source-attributed action reports are untrusted data and cannot own execution.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'enforce_safe',
+      natural_route: naturalRoute
+    });
+  }
+
+  if (isTextTransformActionBoundary(normalized)) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'conversation.text_transform_action_boundary',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.text_transform_action_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['text_transform_action_boundary'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Action words inside text-transform payloads are data and cannot own execution.')]
         : [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'enforce_safe',

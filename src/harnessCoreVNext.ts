@@ -74,6 +74,12 @@ function safeId(prefix: string, raw: string): string {
   return safeHarnessCoreId(prefix, raw);
 }
 
+function routeScopedTelegramTurnId(route: string, turnId: string): string {
+  const rawTurnId = String(turnId || '').trim();
+  if (rawTurnId.startsWith('turn:telegram:')) return rawTurnId;
+  return safeId('turn', `telegram:${route}:${rawTurnId || 'unknown'}`);
+}
+
 function confidenceValue(envelope: TurnIntentEnvelopeV1): number {
   switch (envelope.selectedIntent.confidence) {
     case 'explicit':
@@ -205,6 +211,7 @@ function routeEvidence(envelope: TurnIntentEnvelopeV1): HarnessCoreEvidenceRef[]
 export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: string): HarnessCoreProposedAction {
   const actionType = actionTypeForTelegramAction(input);
   const riskTier = riskTierForAction(input);
+  const canonicalTurnId = routeScopedTelegramTurnId(input.route, turnId);
   const actionEnvelope = alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
     surface: 'telegram',
     ownerSystem: String(input.ownerSystem || 'spark-telegram-bot'),
@@ -213,6 +220,7 @@ export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: st
     source: input.route,
     reason: `Telegram proposed ${actionType} via ${input.toolName} for route ${input.route}.`,
     requestId: turnId,
+    turnId: canonicalTurnId,
     actorIdRef: 'telegram-human',
     target: input.route,
     riskTier,
@@ -231,6 +239,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
   const riskTier = action ? riskTierForAction(action) : envelope.executionPolicy.canLaunchMission ? 'medium' : 'none';
   const move = moveForEnvelope(envelope, action, legacyAllowed, riskTier);
   const actionType = action ? actionTypeForTelegramAction(action) : null;
+  const canonicalActionTurnId = action ? routeScopedTelegramTurnId(action.route, envelope.turnId) : null;
   const actionEnvelope = action && actionType && !move.startsWith('chat_')
     ? alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
         surface: 'telegram',
@@ -240,6 +249,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
         source: action.route,
         reason: `Telegram proposed ${actionType} via ${action.toolName} for route ${action.route}.`,
         requestId: envelope.turnId,
+        turnId: canonicalActionTurnId || undefined,
         actorIdRef: envelope.user.userRef,
         target: action.route,
         confidence: confidenceValue(envelope),

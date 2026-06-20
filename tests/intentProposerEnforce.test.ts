@@ -7,7 +7,7 @@ import {
   proposerVetoConfirmMessage,
   NON_MUTATING_PROPOSER_ROUTES
 } from '../src/intentProposerEnforce';
-import type { IntentProposal } from '../src/intentProposerShadow';
+import { INTENT_PROPOSER_TAXONOMY, type IntentProposal } from '../src/intentProposerShadow';
 
 const registered: Array<[string, () => void]> = [];
 function test(name: string, fn: () => void): void { registered.push([name, fn]); }
@@ -110,9 +110,19 @@ test('VETO honors a custom confidence bar', () => {
 test('VETO non-mutating set covers the no-action routes and reads, not the mutations', () => {
   assert.ok(NON_MUTATING_PROPOSER_ROUTES.has('plain_chat'));
   assert.ok(NON_MUTATING_PROPOSER_ROUTES.has('spark.read_only_state'));
+  assert.ok(NON_MUTATING_PROPOSER_ROUTES.has('memory.recall'));
   for (const route of NO_ACTION_ROUTES) assert.ok(NON_MUTATING_PROPOSER_ROUTES.has(route), route);
+  for (const route of INTENT_PROPOSER_TAXONOMY.filter((item) => !item.mutating)) {
+    assert.ok(NON_MUTATING_PROPOSER_ROUTES.has(route.route), route.route);
+  }
   assert.ok(!NON_MUTATING_PROPOSER_ROUTES.has('spawner.build'));
   assert.ok(!NON_MUTATING_PROPOSER_ROUTES.has('access.change'));
+});
+
+test('VETO fires when a mutation-permitted past-reference question is read as memory recall', () => {
+  const d = decideProposerVeto(prop('memory.recall', 0.92));
+  assert.equal(d.veto, true);
+  assert.equal(d.route, 'memory.recall');
 });
 
 test('veto confirm message names the action and gives an explicit go-ahead, no em dash', () => {

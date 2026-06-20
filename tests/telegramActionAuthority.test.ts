@@ -1033,7 +1033,9 @@ test('non-imperative framings cannot authorize a destructive schedule deletion (
     'should i delete the scheduled job',
     'you said cancel the scheduled reminder',
     'dont delete the scheduled job',
-    'what if we drop the scheduled job'
+    'what if we drop the scheduled job',
+    'translate to spanish: delete the schedule',
+    'rewrite "delete the schedule" as a softer sentence'
   ]) {
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
     const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -1046,6 +1048,10 @@ test('non-imperative framings cannot authorize a destructive schedule deletion (
     assert.equal(result.allow, false, text);
     assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
   }
+
+  const transformDecision = classifyTelegramIntentV2('translate to spanish: delete the schedule');
+  assert.equal(transformDecision.route, 'conversation.text_transform_action_boundary');
+  assert.equal(transformDecision.action, 'plain_chat.text_transform_action_boundary');
 });
 
 test('source-attributed action reports do not become schedule delete candidates', () => {

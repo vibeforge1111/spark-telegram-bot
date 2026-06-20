@@ -70,6 +70,33 @@ test('confidence bar is configurable', () => {
   assert.equal(decideModelRoute(prop('diagnostics.scan', 0.95), { dispatchMin: 0.9 }).mode, 'dispatch');
 });
 
+test('route-owner text boundaries demote descriptive frames before dispatch', () => {
+  const diagnostics = decideModelRoute(prop('diagnostics.scan', 0.95), {
+    text: 'Actually, my current plan is run a fresh diagnostics scan.'
+  });
+  assert.equal(diagnostics.mode, 'chat');
+  assert.equal(diagnostics.reason, 'fresh_text_not_diagnostics_scan_request');
+
+  const memory = decideModelRoute(prop('memory.write', 0.95), {
+    text: 'my current plan is to run a diagnostics scan'
+  });
+  assert.equal(memory.mode, 'chat');
+  assert.equal(memory.reason, 'fresh_text_not_memory_write_request');
+});
+
+test('route-owner text boundaries still allow explicit fresh requests', () => {
+  assert.equal(
+    decideModelRoute(prop('diagnostics.scan', 0.95), { text: 'run a fresh diagnostics scan' }).mode,
+    'dispatch'
+  );
+  assert.equal(
+    decideModelRoute(prop('memory.write', 0.95), {
+      text: 'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
+    }).mode,
+    'dispatch'
+  );
+});
+
 test('invariants: confirm routes are the destructive/irreversible set, chat routes are non-actions', () => {
   assert.ok(CONFIRM_ROUTES.has('access.change'));
   assert.ok(CONFIRM_ROUTES.has('schedule.delete'));

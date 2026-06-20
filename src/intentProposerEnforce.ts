@@ -14,7 +14,7 @@
 // user turn through the deterministic kernel. This is pure and unit-tested; the live handler wiring
 // is env-gated (SPARK_INTENT_PROPOSER_ENFORCE) and applied only on chat-bound turns.
 
-import type { IntentProposal } from './intentProposerShadow';
+import { INTENT_PROPOSER_TAXONOMY, type IntentProposal } from './intentProposerShadow';
 
 // Routes where the bot would otherwise just talk (no tool). Only these are eligible for a nudge.
 export const NO_ACTION_ROUTES = new Set<string>([
@@ -78,9 +78,7 @@ export interface EnforcementDecision {
 // one of these on a mutation-permitted turn, the permitted mutation is wrong.
 export const NON_MUTATING_PROPOSER_ROUTES = new Set<string>([
   ...NO_ACTION_ROUTES,
-  'spawner.board',
-  'spark.read_only_state',
-  'spark_wiki.answer',
+  ...INTENT_PROPOSER_TAXONOMY.filter((route) => !route.mutating).map((route) => route.route),
   'abstain'
 ]);
 

@@ -10499,7 +10499,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           naturalRouteShadow?.route || telegramIntentGateV2.route,
           intentProposerProviderComplete
         );
-        routeDecision = decideModelRoute(modelRouteProposal);
+        routeDecision = decideModelRoute(modelRouteProposal, { text });
         if (
           routeDecision.mode === 'dispatch' &&
           (routeDecision.route === 'memory.recall' || routeDecision.route === 'spark.read_only_state') &&

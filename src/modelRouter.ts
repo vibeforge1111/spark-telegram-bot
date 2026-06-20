@@ -11,6 +11,7 @@
 // proposes, the kernel disposes. Pure + unit-tested; fail-safe (no model opinion -> chat, never invents
 // an action).
 
+import { extractPlainChatMemoryDirective, isDiagnosticsScanRequest } from './conversationIntent';
 import type { IntentProposal } from './intentProposerShadow';
 
 export type RouteMode = 'dispatch' | 'confirm' | 'chat';
@@ -45,6 +46,7 @@ export interface ModelRouteOptions {
   confirmRoutes?: Set<string>;
   chatRoutes?: Set<string>;
   localReadRoutes?: Set<string>;
+  text?: string;
 }
 
 export const DEFAULT_DISPATCH_MIN_CONFIDENCE = 0.75;
@@ -61,6 +63,25 @@ export const LOCAL_READ_ROUTES = new Set<string>([
   'spark.read_only_state',
   'spark_wiki.answer'
 ]);
+
+function routeTextBoundary(route: string, text?: string): ModelRouteDecision | null {
+  if (!text) return null;
+  if (route === 'diagnostics.scan' && !isDiagnosticsScanRequest(text)) {
+    return {
+      mode: 'chat',
+      route,
+      reason: 'fresh_text_not_diagnostics_scan_request'
+    };
+  }
+  if (route === 'memory.write' && !extractPlainChatMemoryDirective(text)) {
+    return {
+      mode: 'chat',
+      route,
+      reason: 'fresh_text_not_memory_write_request'
+    };
+  }
+  return null;
+}
 
 export function decideModelRoute(
   proposal: IntentProposal | null,
@@ -91,6 +112,8 @@ export function decideModelRoute(
     }
     return { mode: 'dispatch', route: top.route, confidence: top.confidence, reason: 'model_routed_to_local_read' };
   }
+  const textBoundary = routeTextBoundary(top.route, opts.text);
+  if (textBoundary) return { ...textBoundary, confidence: top.confidence };
   // It looks like an action but the model is not confident enough to act -> chat (clarify in prose).
   if (top.confidence < dispatchMin) {
     return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_dispatch_confidence' };
