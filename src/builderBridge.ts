@@ -3334,18 +3334,13 @@ export async function runBuilderTelegramMemoryWrite(
       '--json',
     ];
 
-    if (input.memoryRole) {
-      args.push('--memory-role', input.memoryRole);
-    }
-    if (input.predicate) {
-      args.push('--predicate', input.predicate);
-    }
-    if (input.value) {
-      args.push('--value', input.value);
-    }
-    if (input.factName) {
-      args.push('--fact-name', input.factName);
-    }
+    // The Builder's `memory write-telegram-note` derives the memory role/predicate itself from the
+    // note text (handle_memory_write_telegram_note -> result.memory_role). It does NOT accept
+    // --memory-role/--predicate/--value/--fact-name; passing them makes argparse exit with
+    // "unrecognized arguments" and drops the whole capture (observed live on @SparkRecursive
+    // 2026-06-20). The typed proposer fields are advisory only and must not be forwarded to
+    // write-telegram-note. (input.memoryRole/predicate/value/factName are kept on the type for
+    // telemetry/future use, but the Builder owns typed classification from --text.)
 
     if (input.governorDecision) {
       const governorPath = path.join(tempDir, 'governor-decision.json');
@@ -3538,25 +3533,11 @@ export async function runBuilderTelegramMemoryCapsuleRecall(
       String(input.limit || 5),
       '--json',
     ];
-    const sessionId = input.sessionId || (
-      input.chatId === undefined
-        ? `telegram:${userId}`
-        : `telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}`
-    );
-    if (input.turnId) {
-      args.push(
-        '--governed-read-request-id',
-        input.turnId,
-        '--governed-read-session-id',
-        sessionId,
-        '--governed-read-human-id',
-        `human:telegram:${userId}`,
-        '--governed-read-source-kind',
-        input.sourceKind || 'telegram_runtime_memory_recall',
-        '--governed-read-user-message',
-        input.queryText
-      );
-    }
+    // The Builder's `memory inspect-capsule` accepts --subject/--query/--limit/--json but NOT the
+    // --governed-read-* audit flags; sending them makes argparse exit with "unrecognized arguments",
+    // so the recall threw and fell through to a cascade (observed live on @SparkRecursive 2026-06-20).
+    // The audited-governed-read feature needs the matching Builder CLI args (follow-up); until then,
+    // recall through the supported inspect-capsule args so the primary recall path works directly.
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
       pythonModuleInvocation(config, 'spark_intelligence.cli', args),
