@@ -2063,7 +2063,12 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   if (!trimmedStdout) {
     throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
   }
-  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  let parsed: BuilderDiagnosticsScanJson;
+  try {
+    parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  } catch {
+    throw new Error(`Diagnostics scan returned invalid JSON. stdout=${trimmedStdout.slice(0, 200)}`);
+  }
   return {
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
@@ -2114,7 +2119,12 @@ export async function runBuilderSelfAwarenessStatus(
   if (!trimmedStdout) {
     throw new Error(`Builder self-awareness returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Builder self-awareness returned invalid JSON. stdout=${trimmedStdout.slice(0, 200)}`);
+  }
   if (input.currentMessage) {
     payload.current_message = input.currentMessage;
   }
