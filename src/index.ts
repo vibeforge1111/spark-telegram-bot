@@ -342,6 +342,7 @@ import {
 } from './conversationIntent';
 import {
   decideNaturalRoute,
+  parseNaturalModelSwitchIntent,
   type NaturalRouteDecision,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
@@ -11105,14 +11106,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             // provider (so a vague "switch model" gets the cascade's guide instead of a wrong switch).
             routeId: 'model.switch',
             run: async (d) => {
-              const lower = d.text.toLowerCase();
-              const role = normalizeModelRole(/\bmission\b/.test(lower) ? 'mission' : 'agent');
-              let provider: ReturnType<typeof normalizeModelProvider> = null;
-              for (const word of lower.split(/\s+/).filter(Boolean)) {
-                const p = normalizeModelProvider(word);
-                if (p) { provider = p; break; }
-              }
-              if (!role || !provider) return false;
+              const modelSwitch = parseNaturalModelSwitchIntent(d.text);
+              if (!modelSwitch) return false;
+              const { role, provider } = modelSwitch;
               const env = telegramActionEnvelope(d.turnIntentEnvelope, {
                 route: 'model.switch', ownerSystem: 'spark-telegram-bot', action: 'model.switch', kind: 'runtime_truth_or_operator', mutationClass: 'writes_files'
               });

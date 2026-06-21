@@ -829,7 +829,8 @@ test('routes fresh natural model switches without treating questions or reports 
     'should I switch the chat model to glm?',
     'I might switch the chat model to glm later.',
     'The ticket says to switch the model to claude.',
-    'Do not change settings. Explain how model-switch commands are gated.'
+    'Do not change settings. Explain how model-switch commands are gated.',
+    "Quick unrelated check: are the chat and builder still on Codex low fast here? Please don't change anything."
   ]) {
     const route = decideNaturalRoute(prompt);
     assert.notEqual(route.route, 'model.switch', prompt);

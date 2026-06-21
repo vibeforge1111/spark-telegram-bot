@@ -361,7 +361,7 @@ function extractNaturalModelSwitchProvider(text: string): ReturnType<typeof norm
   return null;
 }
 
-function parseNaturalModelSwitchIntent(text: string): { role: NonNullable<ReturnType<typeof normalizeModelRole>>; provider: NonNullable<ReturnType<typeof normalizeModelProvider>> } | null {
+export function parseNaturalModelSwitchIntent(text: string): { role: NonNullable<ReturnType<typeof normalizeModelRole>>; provider: NonNullable<ReturnType<typeof normalizeModelProvider>> } | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized || isNoExecutionBoundary(normalized)) return null;
   if (/\b(?:should\s+(?:i|we|you)|do\s+you\s+think|would\s+it|whether|how\s+(?:do|would|should)|what\s+(?:is|are|would|should)|why)\b/.test(normalized)) return null;
@@ -380,10 +380,10 @@ function parseNaturalModelSwitchIntent(text: string): { role: NonNullable<Return
   if (!role) return null;
 
   const switchShape =
-    /\b(?:switch|change|set|route|move)\b.{0,90}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b/.test(normalized) ||
-    /\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b.{0,90}\b(?:switch|change|set|route|move)\b/.test(normalized);
+    /\b(?:switch|change|set|route|move)\b.{0,90}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b.{0,90}(?:anthropic|claude|codex|glm|hugging\s+face|huggingface|lm\s+studio|lmstudio|minimax|ollama|openai|openrouter|zai)\b/.test(normalized) ||
+    /\b(?:switch|change|set|route|move)\b.{0,90}(?:anthropic|claude|codex|glm|hugging\s+face|huggingface|lm\s+studio|lmstudio|minimax|ollama|openai|openrouter|zai)\b.{0,90}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b/.test(normalized);
   const useShape =
-    /\buse\b.{0,70}\b(?:for|as)\b.{0,40}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner)\b/.test(normalized);
+    /\buse\b.{0,70}(?:anthropic|claude|codex|glm|hugging\s+face|huggingface|lm\s+studio|lmstudio|minimax|ollama|openai|openrouter|zai)\b.{0,70}\b(?:for|as)\b.{0,40}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner)\b/.test(normalized);
   if (!switchShape && !useShape) return null;
 
   return { role, provider };
