@@ -557,6 +557,21 @@ test('allows explicit external research with network policy', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
+test('allows explicit external research over public examples', () => {
+  const text = 'Study current public examples of agent retry policies.';
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.external_research',
+    text,
+    toolName: 'external.fetch',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
 test('external research mission launch authorizes consumed spawner run tool', () => {
   const text = 'Research the latest public docs and GitHub repos about agent harness routing.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -990,6 +1005,23 @@ test('question and hypothetical frames cannot authorize a build (word-hijack reg
     assert.equal(decision.constraints.noExecution, true, text);
     assert.notEqual(decision.route, 'domain_chip.create', text);
   }
+});
+
+test('hypothetical human action discussions do not depend on no-execution demotion', () => {
+  const text = 'What would break if a customer asked Spark to run a launch from Telegram?';
+  const decision = classifyTelegramIntentV2(text);
+  assert.equal(decision.constraints.noExecution, false);
+  assert.notEqual(decision.route, 'spawner.build');
+
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(result.allow, false);
+  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
 });
 
 test('polite imperatives still authorize a real build (no over-block)', () => {

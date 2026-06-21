@@ -2860,7 +2860,7 @@ export function isExternalResearchRequest(text: string): boolean {
     /\b(?:openclaw|hermes)\b/.test(normalized) && /\b(?:docs?|documentation|repos?|repositories|github|codebase|source\s+code)\b/.test(normalized);
   const externalSource =
     /\b(?:today|latest|current|now|recent|web|internet|online|github|repos?|repositories|docs?|documentation|source\s+code)\b/.test(normalized) ||
-    /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data)\b/.test(normalized);
+    /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data|examples?|case\s+studies)\b/.test(normalized);
   const acquisitionVerb = /\b(?:research|look\s+(?:up|into|at)|search|find|fetch|pull\s+up)\b/.test(normalized);
   const comparisonVerb = /\b(?:compare|study|inspect|analy[sz]e|review)\b/.test(normalized);
   const hasExternalTarget =
@@ -2869,7 +2869,7 @@ export function isExternalResearchRequest(text: string): boolean {
     (comparisonVerb && (
       explicitExternalTarget ||
       /\b(?:web|internet|online|github|repos?|repositories|docs?|documentation|source\s+code)\b/.test(normalized) ||
-      /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data)\b/.test(normalized)
+      /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data|examples?|case\s+studies)\b/.test(normalized)
     ));
   if (!hasExternalTarget) return false;
   if (shouldPreferConversationalIdeation(text)) return false;
