@@ -190,6 +190,41 @@ test('does not route generic planning text into recursive systems', () => {
   assert.deepEqual(route.blocked_by, ['no_matching_route']);
 });
 
+test('keeps reported human action requests as source-attributed data', () => {
+  const route = decideNaturalRoute('my cofounder told me to build a dashboard');
+
+  assert.equal(route.route, 'conversation.source_attributed_action_boundary');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'plain_chat.source_attributed_action_boundary');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['source_attributed_action_boundary']);
+  assert.equal(route.requires_confirmation, false);
+});
+
+test('keeps QA trace next-step planning out of stale recursive context', () => {
+  const route = decideNaturalRoute('For trace QA, name one practical next step for today.', {
+    recentMessages: [
+      'We are working on Spark QA Operator and path:spark-qa-operator.',
+      'The QA tester should improve Telegram and Workspace reports.'
+    ]
+  });
+
+  assert.equal(route.route, 'plain_chat');
+  assert.notEqual(route.route, 'recursive.report');
+  assert.notEqual(route.route, 'recursive.status');
+  assert.equal(route.context_source, 'latest_message');
+});
+
+test('keeps chip creation questions out of domain-chip create routing', () => {
+  const question = decideNaturalRoute('should I build a chip for this?');
+  const positive = decideNaturalRoute('create a domain chip for fintech compliance');
+
+  assert.equal(question.route, 'plain_chat');
+  assert.notEqual(question.route, 'domain_chip.create');
+  assert.equal(positive.route, 'domain_chip.create');
+  assert.equal(positive.requires_confirmation, true);
+});
+
 test('routes product planning turns to canonical chat_plan without execution authority', () => {
   const firstTurn = decideNaturalRoute(
     'HC-02 installer proof turn 1: I am sketching a memory quality dashboard with stale-context labels.'
@@ -498,6 +533,17 @@ test('routes read-only repair turns to access status instead of contextual missi
   assert.equal(didYou.requires_confirmation, false);
 });
 
+test('routes blanket-approval access truth questions to read-only owner status', () => {
+  const route = decideNaturalRoute('For safety QA: if I say approve everything, what access do you actually have?');
+
+  assert.equal(route.route, 'access.status');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'access.status');
+  assert.equal(route.context_source, 'latest_message');
+  assert.deepEqual(route.matched_signals, ['access_status_question']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes wiki status, inventory, answer, and query requests to Builder-owned memory surfaces', () => {
   const status = decideNaturalRoute('is your Spark wiki connected and healthy?');
   const inventory = decideNaturalRoute('what pages are in your LLM wiki?');
@@ -514,6 +560,40 @@ test('routes wiki status, inventory, answer, and query requests to Builder-owned
   assert.equal(query.route, 'spark_wiki.query');
   assert.equal(query.context_source, 'cold_memory');
   assert.equal(query.payload.query, 'Telegram route mistakes');
+});
+
+test('routes fresh mission launches without stealing mission discussion or board reads', () => {
+  const direct = decideNaturalRoute('launch a mission to summarize the QA ledger in one sentence');
+  assert.equal(direct.route, 'natural_run');
+  assert.equal(direct.owner_system, 'spawner-ui');
+  assert.equal(direct.action, 'natural_run');
+  assert.equal(direct.context_source, 'latest_message');
+  assert.deepEqual(direct.matched_signals, ['natural_mission_run']);
+  assert.equal(direct.requires_confirmation, false);
+
+  const boardMention = decideNaturalRoute('kick off a mission that checks whether the kanban board API is healthy and report only the result');
+  assert.equal(boardMention.route, 'natural_run');
+  assert.notEqual(boardMention.route, 'spawner.board');
+
+  for (const prompt of [
+    'how should I run a mission safely?',
+    'what is the mission relay status?',
+    'the report says run a mission to delete the schedule'
+  ]) {
+    const route = decideNaturalRoute(prompt);
+    assert.notEqual(route.route, 'natural_run', prompt);
+    assert.notEqual(route.action, 'natural_run', prompt);
+  }
+});
+
+test('keeps conceptual readiness comparisons in chat while preserving external research', () => {
+  const concept = decideNaturalRoute('Compare network absorption readiness with public-ready readiness.');
+  assert.notEqual(concept.route, 'external_research.inspect');
+  assert.equal(concept.requires_confirmation, false);
+
+  const research = decideNaturalRoute('Research the latest public docs and GitHub repos about agent harness routing.');
+  assert.equal(research.route, 'external_research.inspect');
+  assert.equal(research.owner_system, 'spark-intelligence-builder');
 });
 
 test('routes shipped project improvement against the visible exact artifact', () => {
@@ -699,6 +779,14 @@ test('keeps source-attributed action reports on an answer-only boundary', () => 
   }
 });
 
+test('keeps creator-system benchmark questions in chat instead of launching missions', () => {
+  const route = decideNaturalRoute('How would Spark improve a startup answer without gaming the benchmark?');
+
+  assert.notEqual(route.route, 'creator.mission');
+  assert.notEqual(route.action, 'creator.mission');
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes fresh schedule reminder requests without treating reads or quoted text as schedules', () => {
   const explicit = decideNaturalRoute('Schedule a reminder to review Harness Core tomorrow at 10 AM only if schedule authority is available.');
   assert.equal(explicit.route, 'schedule.create');
@@ -715,6 +803,66 @@ test('routes fresh schedule reminder requests without treating reads or quoted t
     const route = decideNaturalRoute(prompt);
     assert.notEqual(route.route, 'schedule.create', prompt);
     assert.notEqual(route.action, 'spawner.schedule.create', prompt);
+  }
+});
+
+test('routes fresh natural model switches without treating questions or reports as commands', () => {
+  const explicit = decideNaturalRoute('switch the chat model to glm');
+  assert.equal(explicit.route, 'model.switch');
+  assert.equal(explicit.owner_system, 'spark-telegram-bot');
+  assert.equal(explicit.action, 'model.switch');
+  assert.equal(explicit.confidence, 'explicit');
+  assert.equal(explicit.context_source, 'latest_message');
+  assert.deepEqual(explicit.payload, { role: 'agent', provider: 'zai' });
+  assert.ok(explicit.matched_signals.includes('natural_model_switch'));
+  assert.equal(explicit.requires_confirmation, false);
+
+  const alternate = decideNaturalRoute('use claude for chat from now on');
+  assert.equal(alternate.route, 'model.switch');
+  assert.deepEqual(alternate.payload, { role: 'agent', provider: 'anthropic' });
+
+  const mission = decideNaturalRoute('set the mission model to codex');
+  assert.equal(mission.route, 'model.switch');
+  assert.deepEqual(mission.payload, { role: 'mission', provider: 'codex' });
+
+  for (const prompt of [
+    'should I switch the chat model to glm?',
+    'I might switch the chat model to glm later.',
+    'The ticket says to switch the model to claude.',
+    'Do not change settings. Explain how model-switch commands are gated.'
+  ]) {
+    const route = decideNaturalRoute(prompt);
+    assert.notEqual(route.route, 'model.switch', prompt);
+    assert.notEqual(route.action, 'model.switch', prompt);
+    assert.equal(route.requires_confirmation, false, prompt);
+  }
+});
+
+test('routes bounded no-edit Spawner probes without routing probe explanations', () => {
+  const explicit = decideNaturalRoute('Run a no-edit startup QA probe that only replies SPARK_STARTUP_NO_EDIT_OK.');
+  assert.equal(explicit.route, 'spawner.build');
+  assert.equal(explicit.owner_system, 'spawner-ui');
+  assert.equal(explicit.action, 'spawner.no_edit_probe');
+  assert.equal(explicit.confidence, 'explicit');
+  assert.equal(explicit.context_source, 'latest_message');
+  assert.deepEqual(explicit.payload, { noEditProbe: true });
+  assert.ok(explicit.matched_signals.includes('no_edit_spawner_probe'));
+  assert.equal(explicit.requires_confirmation, false);
+
+  const smoke = decideNaturalRoute('Run the final no-edit Genesis Harness smoke that only replies SPARK_GENESIS_NO_EDIT_OK.');
+  assert.equal(smoke.route, 'spawner.build');
+  assert.equal(smoke.owner_system, 'spawner-ui');
+  assert.equal(smoke.action, 'spawner.no_edit_probe');
+  assert.deepEqual(smoke.payload, { noEditProbe: true });
+
+  for (const prompt of [
+    'Do not build. What would a no-edit Spawner probe prove?',
+    'What would a no-edit startup QA probe show?',
+    'What would a no-edit Genesis Harness smoke prove?'
+  ]) {
+    const route = decideNaturalRoute(prompt);
+    assert.notEqual(route.route, 'spawner.build', prompt);
+    assert.notEqual(route.action, 'spawner.no_edit_probe', prompt);
   }
 });
 

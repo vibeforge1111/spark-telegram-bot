@@ -65,6 +65,7 @@ import {
   isMissionExecutionConfirmation,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
+  isNoEditSpawnerProbeRequest,
   isPlainChatAnswerEditingRequest,
   isMemoryAcknowledgementReply,
   isMemoryDoctorRequest,
@@ -853,7 +854,12 @@ test('detects public GitHub inspection requests for agent access routing', () =>
     isExternalResearchRequest('https://github.com/vibeforge1111/spark-character can you visit this'),
     true
   );
+  assert.equal(
+    isExternalResearchRequest('Research the latest public docs and GitHub repos about agent harness routing.'),
+    true
+  );
   assert.equal(isExternalResearchRequest('I like this repo idea but no link yet'), false);
+  assert.equal(isExternalResearchRequest('Compare network absorption readiness with public-ready readiness.'), false);
 
   const goal = buildExternalResearchGoal(
     'https://github.com/vibeforge1111/spark-character can you visit this',
@@ -1125,6 +1131,10 @@ test('extracts natural domain chip create requests without slash-command handoff
     null
   );
   assert.equal(
+    parseNaturalChipCreateIntent('should I build a chip for this?'),
+    null
+  );
+  assert.equal(
     parseNaturalChipCreateIntent('Please do not build, do not save, and do not create a chip. I only want to understand the design.'),
     null
   );
@@ -1357,6 +1367,14 @@ test('extracts natural recursive commands for QA Operator loops', () => {
       rawCommand: 'trace path:spark-qa-operator',
       reason: 'Natural-language request to trace Spark QA Operator.'
     }
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent('For trace QA, name one practical next step for today.'),
+    null
+  );
+  assert.equal(
+    parseNaturalRecursiveCommandIntent('During ledger QA, what should I focus on next?'),
+    null
   );
   assert.deepEqual(
     parseNaturalRecursiveCommandIntent('start one QA improvement loop'),
@@ -2199,6 +2217,8 @@ test('recognizes natural access status questions', () => {
   assert.equal(isAccessStatusQuestion('can you show my Spark access status'), true);
   assert.equal(isAccessStatusQuestion('which access level are we on right now'), true);
   assert.equal(isAccessStatusQuestion('If Level 5 is active underneath but this chat is access 3, what can you actually do here?'), true);
+  assert.equal(isAccessStatusQuestion('For safety QA: if I say approve everything, what access do you actually have?'), true);
+  assert.equal(isAccessStatusQuestion('How much access does this chat actually have right now?'), true);
   assert.equal(isAccessStatusQuestion('For this mini app idea, what can you actually do here?'), false);
   assert.equal(isAccessStatusQuestion('change my access level to full access'), false);
   assert.equal(isAccessStatusQuestion('please remember that my access level is important'), false);
@@ -2219,6 +2239,7 @@ test('parses natural access change requests', () => {
   assert.equal(parseNaturalAccessChangeIntent('does access 5 really switch the harness CLI into full access?'), null);
   assert.equal(parseNaturalAccessChangeIntent('how should access 4 setup work for users?'), null);
   assert.equal(parseNaturalAccessChangeIntent('approve everything'), null);
+  assert.equal(parseNaturalAccessChangeIntent('For safety QA: if I say approve everything, what access do you actually have?'), null);
   assert.equal(parseContextualAccessChangeIntent('approve everything', ['Spark: This chat is on Access level 3.']), null);
 });
 
@@ -2524,6 +2545,21 @@ test('no-edit Spawner probe explanation stays in chat', () => {
   assert.match(reply, /bounded job to Spawner/i);
   assert.match(reply, /does not prove editing ability/i);
   assert.doesNotMatch(reply, /Mission:/i);
+});
+
+test('no-edit smoke probes route only when they are fresh run requests', () => {
+  assert.equal(
+    isNoEditSpawnerProbeRequest('Run the final no-edit Genesis Harness smoke that only replies SPARK_GENESIS_NO_EDIT_OK.'),
+    true
+  );
+  assert.equal(
+    isNoEditSpawnerProbeExplanationRequest('What would a no-edit Genesis Harness smoke prove?'),
+    true
+  );
+  assert.equal(
+    isNoEditSpawnerProbeRequest('What would a no-edit Genesis Harness smoke prove?'),
+    false
+  );
 });
 
 test('smallest no-edit test question stays in chat', () => {

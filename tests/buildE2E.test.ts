@@ -1196,15 +1196,18 @@ async function run(): Promise<void> {
 		let writtenText = '';
 		let writtenGovernorDecision: Record<string, unknown> | undefined;
 		let writtenHumanId = '';
+		let writtenTurnId = '';
 		const indexModule: any = await import('../src/index');
 		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: {
 			userId: number | string;
 			noteText: string;
+			turnId?: string;
 			governorDecision?: Record<string, unknown>;
 		}) => {
 			writtenText = input.noteText;
 			writtenGovernorDecision = input.governorDecision;
 			writtenHumanId = `human:telegram:${input.userId}`;
+			writtenTurnId = input.turnId || '';
 			return {
 				used: true,
 				status: 'succeeded',
@@ -1233,6 +1236,8 @@ async function run(): Promise<void> {
 			);
 			assert.equal(writtenHumanId, `human:telegram:${testUserId}`);
 			assert.ok(writtenGovernorDecision, 'direct memory writer must receive the Harness Core Governor decision');
+			assert.equal(writtenTurnId, 'turn:telegram:memory.write:telegram-update:5661');
+			assert.notEqual(writtenTurnId, 'telegram-update:5661');
 			assert.doesNotMatch(writtenText, /Do not start missions|do not create chips|runtime or registry truth/i);
 			assert.match(replies.join('\n'), /Saved exact memory note/i);
 
@@ -1255,7 +1260,7 @@ async function run(): Promise<void> {
 
 	await test('implicit durable capture restamps plain chat with executable memory owner policy', async () => {
 		restoreAxios();
-		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'agent';
 		process.env.ADMIN_TELEGRAM_IDS = '8319079781';
@@ -1278,11 +1283,11 @@ async function run(): Promise<void> {
 									content: JSON.stringify({
 										candidates: [
 											{
-												note: 'User pocket phrase for the Cedar Loom demo is Riverglass Apron.',
+												note: 'User calibration phrase for the Northstar Syllabus demo is Moss Lantern.',
 												salienceReason: 'user_stated_current_project_phrase',
 												memoryRole: 'current_state',
 												predicate: 'profile.current_low_stakes_test_fact',
-												value: 'Cedar Loom demo pocket phrase: Riverglass Apron'
+												value: 'Northstar Syllabus demo calibration phrase: Moss Lantern'
 											}
 										]
 									})
@@ -1296,9 +1301,11 @@ async function run(): Promise<void> {
 		};
 
 		let writtenText = '';
+		let writtenTurnId = '';
 		const indexModule: any = await import('../src/index');
-		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: { noteText: string }) => {
+		indexModule.__setBuilderMemoryWriteRunnerForTest(async (input: { noteText: string; turnId?: string }) => {
 			writtenText = input.noteText;
+			writtenTurnId = input.turnId || '';
 			return {
 				used: true,
 				status: 'succeeded',
@@ -1317,7 +1324,7 @@ async function run(): Promise<void> {
 			const replies: string[] = [];
 			const testUserId = 8319079781;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5666, replies);
-			ctx.message.text = 'My pocket phrase is Riverglass Apron; it belongs to the Cedar Loom demo.';
+			ctx.message.text = 'My calibration phrase is Moss Lantern; it belongs to the Northstar Syllabus demo.';
 			(ctx as any).update = { update_id: 5666, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
 
@@ -1329,7 +1336,9 @@ async function run(): Promise<void> {
 				memoryRecords.some((record: any) => record.tool_name === 'memory.write' && record.result.status === 'success'),
 				'expected implicit memory write ledger to be recorded'
 			);
-			assert.equal(writtenText, 'User pocket phrase for the Cedar Loom demo is Riverglass Apron.');
+			assert.equal(writtenText, 'User calibration phrase for the Northstar Syllabus demo is Moss Lantern.');
+			assert.equal(writtenTurnId, 'turn:telegram:memory.write:telegram-update:5666');
+			assert.notEqual(writtenTurnId, 'telegram-update:5666');
 			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
 			assert.ok(
 				ledgerRecords.some((record) => (
@@ -6082,13 +6091,19 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 638, replies);
+			const replyExtras: any[] = [];
+			const ctx = makeFakeCtx(8319079071, 8319079055, 638, replies, replyExtras);
 			ctx.message.text = 'Pause the mission idea. What are the risks?';
 			await indexModule.handleTextMessage(ctx);
 
 			const reply = replies[0] || '';
 			assert.match(reply, /risk/i);
 			assert.doesNotMatch(reply, /Mission:|I will run|started|queued/i);
+			const traceContext = replyExtras[0]?.__sparkTraceContext;
+			assert.equal(traceContext?.route, 'plain_chat');
+			assert.equal(traceContext?.command, 'answer.compose');
+			assert.equal(traceContext?.replyKind, 'plain_chat.local_llm');
+			assert.equal(traceContext?.telegramUpdateId, 638);
 			assert.equal(captured.length, 0, 'plain local fallback must not call Spawner or PRD bridge');
 
 			const plainChatRoute = (record: any) => (

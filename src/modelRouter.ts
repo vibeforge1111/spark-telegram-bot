@@ -77,21 +77,36 @@ export const DEFAULT_READ_DISPATCH_MIN_CONFIDENCE = 0.65;
 // here; uncertainty around those should still fall back to chat.
 export const LOCAL_READ_ROUTES = new Set<string>([
   'access.status',
+  'build_context.recall',
   'memory.recall',
   'spawner.board',
   'spark.read_only_state',
-  'spark_wiki.answer'
+  'spark_wiki.answer',
+  'spark_wiki.inventory',
+  'spark_wiki.query',
+  'spark_wiki.status'
 ]);
 
 // Deterministic owner routes that have already been parsed from the latest user turn
 // and have governed tool contracts. These may survive proposer abstention, but only
 // when the source is fresh and explicit. Broad build/mission routes stay model-gated.
 export const FRESH_DETERMINISTIC_DISPATCH_ROUTES = new Set<string>([
+  'access.change',
+  'build_context.recall',
   'diagnostics.followup_test',
+  'external_research.inspect',
   'memory.write',
+  'memory.recall',
   'mission_updates.preference',
+  'model.switch',
+  'natural_run',
   'operator.safe_action',
   'schedule.create',
+  'spawner.board',
+  'spark_wiki.answer',
+  'spark_wiki.inventory',
+  'spark_wiki.query',
+  'spark_wiki.status',
   'spark_wiki.promote'
 ]);
 
@@ -115,8 +130,20 @@ const NO_MODEL_FALLBACK_PREVIEW_ROUTES = new Set<string>([
   'sparkqa.pause'
 ]);
 
+const FRESH_DETERMINISTIC_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
+  ['access.change', new Set(['hot_recent_turns'])],
+  ['build_context.recall', new Set(['hot_recent_turns'])],
+  ['memory.recall', new Set(['cold_memory', 'hot_recent_turns'])],
+  ['spark_wiki.answer', new Set(['cold_memory'])],
+  ['spark_wiki.query', new Set(['cold_memory'])]
+]);
+
 const NO_MODEL_FALLBACK_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
+  ['build_context.recall', new Set(['hot_recent_turns'])],
   ['creator.mission', new Set(['hot_recent_turns'])],
+  ['memory.recall', new Set(['cold_memory', 'hot_recent_turns'])],
+  ['spark_wiki.answer', new Set(['cold_memory'])],
+  ['spark_wiki.query', new Set(['cold_memory'])],
   ['sparkqa.pause', new Set(['hot_recent_turns'])]
 ]);
 
@@ -130,6 +157,13 @@ function isNonOperatorAccessChange(route: string, payload: Record<string, unknow
 function routeTextBoundary(route: string, text?: string): ModelRouteDecision | null {
   if (!text) return null;
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!LOCAL_READ_ROUTES.has(route) && isQuestionFramedActionDiscussion(normalized)) {
+    return {
+      mode: 'chat',
+      route: 'plain_chat',
+      reason: 'fresh_text_is_action_discussion_question'
+    };
+  }
   if (route === 'diagnostics.scan' && !isDiagnosticsScanRequest(text)) {
     return {
       mode: 'chat',
@@ -178,6 +212,20 @@ function isScheduleReadRequest(normalized: string): boolean {
   return /\b(?:show|list|view|display|see|check|read|what(?:'s|\s+is|\s+are)?|which|current|active|existing)\b/.test(normalized);
 }
 
+function isQuestionFramedActionDiscussion(normalized: string): boolean {
+  if (!normalized) return false;
+  const explicitRequest =
+    /^(?:please\s+|go\s+ahead(?:\s+and)?\s+|actually\s+|now\s+)?(?:build|create|make|run|start|launch|execute|delete|cancel|remove|schedule|switch|change|set|remember|forget|research|open)\b/.test(normalized) ||
+    /^(?:can|could|would)\s+you\s+(?:please\s+)?(?:build|create|make|run|start|launch|execute|delete|cancel|remove|schedule|switch|change|set|remember|forget|research|open)\b/.test(normalized);
+  if (explicitRequest) return false;
+  return (
+    /^(?:how|why|what|when|whether)\b/.test(normalized) ||
+    /^(?:should|would)\s+(?:i|we|you|spark|it|that|this)\b/.test(normalized) ||
+    /^what\s+if\b/.test(normalized) ||
+    /^(?:is|are|do|does|did)\b.{0,90}\b(?:good\s+idea|safe|allowed|possible|should|would|could|happen)\b/.test(normalized)
+  );
+}
+
 function freshDeterministicDecision(
   deterministicRoute: DeterministicOwnerRoute | null | undefined,
   confirmRoutes: Set<string>,
@@ -193,6 +241,7 @@ function freshDeterministicDecision(
   const mutationReferent = deterministicRoute.mutationReferent || deterministicRoute.mutation_referent || 'fresh_turn';
   const requiresConfirmation = Boolean(deterministicRoute.requiresConfirmation ?? deterministicRoute.requires_confirmation);
   const routeAllowedContextSources = routeContextSources.get(route);
+  const allowedByPayload = route === 'spawner.build' && deterministicRoute.payload?.noEditProbe === true;
   if (!allowedContextSources.has(contextSource) && !routeAllowedContextSources?.has(contextSource)) return null;
   const isRouteScopedContextual = deterministicRoute.confidence === 'contextual' && routeAllowedContextSources?.has(contextSource);
   if (deterministicRoute.confidence !== 'explicit' && !isRouteScopedContextual) return null;
@@ -201,7 +250,7 @@ function freshDeterministicDecision(
   if ((requiresConfirmation && !bypassConfirmation) || (confirmRoutes.has(route) && !bypassConfirmation)) {
     return null;
   }
-  if (!allowedRoutes.has(route)) {
+  if (!allowedRoutes.has(route) && !allowedByPayload) {
     return null;
   }
   return {
@@ -220,7 +269,14 @@ export function decideModelRoute(
   const confirmRoutes = opts.confirmRoutes ?? CONFIRM_ROUTES;
   const chatRoutes = opts.chatRoutes ?? CHAT_ROUTES;
   const localReadRoutes = opts.localReadRoutes ?? LOCAL_READ_ROUTES;
-  const deterministicDecision = freshDeterministicDecision(opts.deterministicRoute, confirmRoutes);
+  const deterministicDecision = freshDeterministicDecision(
+    opts.deterministicRoute,
+    confirmRoutes,
+    FRESH_DETERMINISTIC_DISPATCH_ROUTES,
+    new Set(['latest_message']),
+    new Set(),
+    FRESH_DETERMINISTIC_ROUTE_CONTEXT_SOURCES
+  );
   const noModelFallbackDecision = freshDeterministicDecision(
     opts.deterministicRoute,
     confirmRoutes,

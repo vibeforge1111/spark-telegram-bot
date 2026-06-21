@@ -29,6 +29,7 @@ import {
   isMissionRoutingFailureClassQuestion,
   isNoExecutionBoundary,
   isNoExecutionExplanationPrompt,
+  isNoEditSpawnerProbeRequest,
   isPublicationApprovalBoundaryQuestion,
   isQuotedDraftedExampleBoundary,
   isProjectImprovementRequest,
@@ -53,6 +54,7 @@ import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
 import type { DeterministicRouteId } from './routeTypes';
+import { normalizeModelProvider, normalizeModelRole } from './modelSwitch';
 import { parseSafeOperatorAction } from './operatorActions';
 import type { ShippedProjectContext } from './shippedProjectContext';
 import { isPendingClarificationFollowup as isPendingBuildClarificationFollowup } from './telegramPendingBuildEvidence';
@@ -130,11 +132,13 @@ function isSourceAttributedActionReport(text: string): boolean {
   if (!normalized) return false;
   const source =
     /\b(?:memory|memories|trace|log|logs|doc|document|report|ticket|screenshot|reply|message|status|board|canvas|previous\s+answer|old\s+context|prior\s+turn|route\s+history)\b/;
+  const humanReportedSource =
+    /\b(?:my|our|the|a|an)\s+[a-z][a-z-]{1,32}\s+(?:says|say|said|claims|claimed|mentions|mentioned|tells|told|asks|asked|instructs|instructed|recommended|recommends)\b/;
   const reportVerb =
     /\b(?:says|say|said|claims|claimed|mentions|mentioned|contains|contained|shows|showed|tells|told|asks|asked|instructs|instructed)\b/;
   const actionVerb =
     /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
-  return source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized);
+  return ((source.test(normalized) && reportVerb.test(normalized)) || humanReportedSource.test(normalized)) && actionVerb.test(normalized);
 }
 
 function isScheduleReadRequest(text: string): boolean {
@@ -213,6 +217,20 @@ function isReadoutOnlyFollowup(text: string): boolean {
   const asksForReadout = /\b(?:where\s+did\s+we\s+land|where\s+are\s+we|readout|status|report|summary|what\s+changed|how\s+did\s+(?:it|that)\s+go)\b/.test(normalized);
   const asksForAction = /\b(?:make|build|create|prepare|plan|scaffold|generate|wire|connect|standardize|improve|upgrade|expand|turn|run|start)\b/.test(normalized);
   return asksForReadout && !asksForAction;
+}
+
+function isActionDiscussionQuestion(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const explicitRequest =
+    /^(?:please\s+|go\s+ahead(?:\s+and)?\s+|actually\s+)?(?:build|create|make|run|start|launch|execute|prepare|stage|scaffold|generate|update)\b/.test(normalized) ||
+    /^(?:can|could|would)\s+you\s+(?:please\s+)?(?:build|create|make|run|start|launch|execute|prepare|stage|scaffold|generate|update)\b/.test(normalized);
+  if (explicitRequest) return false;
+  return (
+    /^(?:how|why|what|when|whether)\b/.test(normalized) ||
+    /^(?:should|would)\s+(?:i|we|you|spark|it|that|this)\b/.test(normalized) ||
+    /^what\s+if\b/.test(normalized)
+  );
 }
 
 function isCreatorLoopDomainChipPhrase(text: string, recentCreatorLoopContext: boolean): boolean {
@@ -313,6 +331,62 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   }
 
   return null;
+}
+
+function parseNaturalMissionRun(text: string): { providers: string[]; goal: string } | null {
+  const trimmed = text.trim();
+  const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || isNoExecutionBoundary(normalized) || isActionDiscussionQuestion(normalized)) return null;
+  const match = trimmed.match(/^(?:please\s+)?(?:run|start|launch|kick\s+off|queue|execute)\s+(?:(?:a|an|the|final)\s+)?(?:(?:spawner|spark)\s+)?(?:mission|task|job)\b(?:\s+(.+))?$/i);
+  if (!match) return null;
+  const goal = (match[1] || '')
+    .replace(/^(?:to|that|which|for|and)\s+/i, '')
+    .trim();
+  if (goal.length < 3) return null;
+  return { providers: ['default'], goal };
+}
+
+function extractNaturalModelSwitchProvider(text: string): ReturnType<typeof normalizeModelProvider> {
+  const tokens = text
+    .toLowerCase()
+    .replace(/[^a-z0-9.\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  for (let span = 3; span >= 1; span -= 1) {
+    for (let index = 0; index <= tokens.length - span; index += 1) {
+      const provider = normalizeModelProvider(tokens.slice(index, index + span).join(' '));
+      if (provider) return provider;
+    }
+  }
+  return null;
+}
+
+function parseNaturalModelSwitchIntent(text: string): { role: NonNullable<ReturnType<typeof normalizeModelRole>>; provider: NonNullable<ReturnType<typeof normalizeModelProvider>> } | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || isNoExecutionBoundary(normalized)) return null;
+  if (/\b(?:should\s+(?:i|we|you)|do\s+you\s+think|would\s+it|whether|how\s+(?:do|would|should)|what\s+(?:is|are|would|should)|why)\b/.test(normalized)) return null;
+  if (/\b(?:might|may|maybe|considering|thinking\s+about|not\s+sure)\b.{0,80}\b(?:switch|change|set|use|route|move)\b/.test(normalized)) return null;
+  if (/\b(?:not|never)\b.{0,40}\b(?:switch|change|set|use|route|move)\b.{0,80}\b(?:model|provider|chat|agent|mission|builder|spawner)\b/.test(normalized)) return null;
+
+  const provider = extractNaturalModelSwitchProvider(normalized);
+  if (!provider) return null;
+
+  const roleToken = /\b(?:mission|missions|build|builder|spawner)\b/.test(normalized)
+    ? 'mission'
+    : /\b(?:chat|agent|brain|default|model|provider)\b/.test(normalized)
+      ? 'agent'
+      : null;
+  const role = normalizeModelRole(roleToken);
+  if (!role) return null;
+
+  const switchShape =
+    /\b(?:switch|change|set|route|move)\b.{0,90}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b/.test(normalized) ||
+    /\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner|model|provider)\b.{0,90}\b(?:switch|change|set|route|move)\b/.test(normalized);
+  const useShape =
+    /\buse\b.{0,70}\b(?:for|as)\b.{0,40}\b(?:chat|agent|brain|default|mission|missions|build|builder|spawner)\b/.test(normalized);
+  if (!switchShape && !useShape) return null;
+
+  return { role, provider };
 }
 
 function extractBrowserNavigateUrl(text: string): string | null {
@@ -500,7 +574,9 @@ export function decideNaturalRoute(
   const conversationalIdeation = shouldPreferConversationalIdeation(normalized);
   const earlyCreatorMission = isReadoutOnlyFollowup(normalized)
     ? null
-    : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
+    : isActionDiscussionQuestion(normalized)
+      ? null
+      : parseNaturalCreatorMissionIntent(normalized, { recentMessages });
   const recentCreatorLoopContext = recentMessages.some((message) => (
     /\b(?:creator\s+(?:mission|system|run)|speciali[sz]ation\s+path|benchmark\s+pack|autoloop|startup[-\s]+yc|domain[-\s]*chip.*(?:path|benchmark|autoloop)|recursive\s+loop)\b/i.test(message)
   ));
@@ -689,6 +765,19 @@ export function decideNaturalRoute(
       requires_confirmation: false
     });
   }
+  if (isNoEditSpawnerProbeRequest(normalized)) {
+    return decision({
+      route: 'spawner.build',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.no_edit_probe',
+      payload: { noEditProbe: true },
+      context_source: 'latest_message',
+      matched_signals: ['no_edit_spawner_probe'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
   if (chipBrief && (!earlyCreatorMission || !creatorArtifactBundle)) {
     return decision({
       route: 'domain_chip.create',
@@ -769,6 +858,21 @@ export function decideNaturalRoute(
       payload: {},
       context_source: 'latest_message',
       matched_signals: ['access_help_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const modelSwitch = parseNaturalModelSwitchIntent(normalized);
+  if (modelSwitch) {
+    return decision({
+      route: 'model.switch',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'model.switch',
+      payload: { ...modelSwitch },
+      context_source: 'latest_message',
+      matched_signals: ['natural_model_switch'],
       blocked_by: [],
       requires_confirmation: false
     });
@@ -1020,6 +1124,21 @@ export function decideNaturalRoute(
       payload: {},
       context_source: hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
       matched_signals: ['diagnostic_followup_test_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const missionRun = parseNaturalMissionRun(normalized);
+  if (missionRun) {
+    return decision({
+      route: 'natural_run',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'natural_run',
+      payload: { ...missionRun },
+      context_source: 'latest_message',
+      matched_signals: ['natural_mission_run'],
       blocked_by: [],
       requires_confirmation: false
     });

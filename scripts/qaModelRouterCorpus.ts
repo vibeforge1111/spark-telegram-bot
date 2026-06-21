@@ -113,7 +113,8 @@ async function main(): Promise<void> {
           confidence: natural.confidence,
           context_source: natural.context_source,
           mutation_referent: 'fresh_turn',
-          requires_confirmation: natural.requires_confirmation
+          requires_confirmation: natural.requires_confirmation,
+          payload: natural.payload
         } : null
       });
       // A LEAK is an actual hijack-to-ACTION: a mutating route DISPATCHED (executed). mode=confirm asks

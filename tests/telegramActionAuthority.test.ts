@@ -946,17 +946,25 @@ test('displaced negation cannot authorize a build (word-hijack regression)', () 
 test('reported-speech recall cannot authorize a build (word-hijack regression)', () => {
   // Proven 2026-06-16: "earlier you said create..." is a question about a past statement,
   // not a fresh command, but routed to spawner.build at explicit confidence before the fix.
-  const text = 'earlier you said create the dashboard, was that the right call?';
-  assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true);
-  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
-    route: 'spawner.build',
-    text,
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    mutationClass: 'launches_mission'
-  });
-  assert.equal(result.allow, false);
-  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+  for (const text of [
+    'earlier you said create the dashboard, was that the right call?',
+    'my cofounder told me to build a dashboard'
+  ]) {
+    const decision = classifyTelegramIntentV2(text);
+    assert.equal(decision.constraints.noExecution, true, text);
+    if (/cofounder/.test(text)) {
+      assert.equal(decision.route, 'conversation.source_attributed_action_boundary');
+    }
+    const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+      route: 'spawner.build',
+      text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+    assert.equal(result.allow, false, text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
 });
 
 test('negation-inversion phrasings still authorize a real build (no over-block)', () => {
@@ -971,13 +979,16 @@ test('question and hypothetical frames cannot authorize a build (word-hijack reg
   // They ask ABOUT building, they do not command it.
   for (const text of [
     'should i build the chip?',
+    'should i build a chip for this?',
     'how do i build a chip?',
     'what if we build the dashboard?',
     'why did the build fail?',
     'we might build a chip later',
     'remind me how to build a chip'
   ]) {
-    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+    const decision = classifyTelegramIntentV2(text);
+    assert.equal(decision.constraints.noExecution, true, text);
+    assert.notEqual(decision.route, 'domain_chip.create', text);
   }
 });
 

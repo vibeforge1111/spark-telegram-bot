@@ -70,7 +70,7 @@ const NEGATION_INVERSION_GROUP = '(?:forget|hesitate|worry|be\\s+afraid|be\\s+sh
 // "try and deploy") than a clause break, so stopping on it would let displaced negations through.
 const CLAUSE_BREAK_LOOKAHEAD = '(?!(?:so|but|then|therefore|thus|also)\\b)';
 const REPORTED_FRAME_GROUP =
-  "(?:you said|you mentioned|you told me|earlier you|they (?:said|stated|told me)|i said|we said|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error|team|owner|customer|client)s?\\s+(?:say|says|said|reported|stated|insisted|wrote|recommended)|was that|did (?:you|we))";
+  "(?:you said|you mentioned|you told me|earlier you|they (?:said|stated|told me)|i said|we said|(?:my|our|the|a|an)\\s+[a-z][a-z-]{1,32}\\s+(?:said|told|asked|instructed|recommended)|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error|team|owner|customer|client)s?\\s+(?:say|says|said|reported|stated|insisted|wrote|recommended)|was that|did (?:you|we))";
 
 // Quote / bracket / emphasis glyphs glued to a verb ("build", `deploy`, (build), *build*, ""build"")
 // broke the \bVERB\b adjacency the three frame detectors below rely on, so a quoted verb
@@ -290,11 +290,13 @@ function isSourceAttributedActionReport(text: string): boolean {
   if (!normalized) return false;
   const source =
     /\b(?:memory|memories|trace|log|logs|doc|document|report|ticket|screenshot|reply|message|status|board|canvas|previous\s+answer|old\s+context|prior\s+turn|route\s+history)\b/;
+  const humanReportedSource =
+    /\b(?:my|our|the|a|an)\s+[a-z][a-z-]{1,32}\s+(?:says|say|said|claims|claimed|mentions|mentioned|tells|told|asks|asked|instructs|instructed|recommended|recommends)\b/;
   const reportVerb =
     /\b(?:says|say|said|claims|claimed|mentions|mentioned|contains|contained|shows|showed|tells|told|asks|asked|instructs|instructed)\b/;
   const actionVerb =
     /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
-  if (!(source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized))) {
+  if (!(((source.test(normalized) && reportVerb.test(normalized)) || humanReportedSource.test(normalized)) && actionVerb.test(normalized))) {
     return false;
   }
   // The cheap regexes collided; only now run the (more expensive) directive parser to
@@ -317,6 +319,9 @@ function isScheduleDeleteRequest(text: string): boolean {
 
 function isDomainChipCreateRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (hasNonImperativeExecution(stripGlueGlyphs(normalized)) || isSourceAttributedActionReport(normalized)) {
+    return false;
+  }
   return /\b(?:build|create|make|scaffold|generate)\b.{0,80}\b(?:domain[-\s]*chip|chip)\b/.test(normalized) ||
     /^(?:please\s+)?(?:domain[-\s]*chip|chip)\s+(?:for|that|which|to)\b/.test(normalized);
 }

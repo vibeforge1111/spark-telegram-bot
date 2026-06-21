@@ -88,6 +88,106 @@ test('fresh deterministic owner routes survive proposer abstention without reviv
   assert.equal(schedule.route, 'schedule.create');
   assert.equal(schedule.reason, 'fresh_deterministic_owner_route');
 
+  const modelSwitch = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'switch the chat model to glm',
+    deterministicRoute: {
+      route: 'model.switch',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      payload: { role: 'agent', provider: 'zai' }
+    }
+  });
+  assert.equal(modelSwitch.mode, 'dispatch');
+  assert.equal(modelSwitch.route, 'model.switch');
+  assert.equal(modelSwitch.reason, 'fresh_deterministic_owner_route');
+
+  const externalResearch = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'Fetch current external research on harnesses.',
+    deterministicRoute: {
+      route: 'external_research.inspect',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(externalResearch.mode, 'dispatch');
+  assert.equal(externalResearch.route, 'external_research.inspect');
+  assert.equal(externalResearch.reason, 'fresh_deterministic_owner_route');
+
+  const buildContext = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'what project are we working on and what evidence do you have?',
+    deterministicRoute: {
+      route: 'build_context.recall',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(buildContext.mode, 'dispatch');
+  assert.equal(buildContext.route, 'build_context.recall');
+  assert.equal(buildContext.reason, 'fresh_deterministic_owner_route');
+
+  const memoryRecall = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'What is the session code word I asked you to remember?',
+    deterministicRoute: {
+      route: 'memory.recall',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(memoryRecall.mode, 'dispatch');
+  assert.equal(memoryRecall.route, 'memory.recall');
+
+  const wikiInventory = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'what pages are in your LLM wiki?',
+    deterministicRoute: {
+      route: 'spark_wiki.inventory',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(wikiInventory.mode, 'dispatch');
+  assert.equal(wikiInventory.route, 'spark_wiki.inventory');
+
+  const wikiAnswer = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'answer from your wiki how should route tracing work?',
+    deterministicRoute: {
+      route: 'spark_wiki.answer',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(wikiAnswer.mode, 'dispatch');
+  assert.equal(wikiAnswer.route, 'spark_wiki.answer');
+
+  const wikiAnswerNoModel = decideModelRoute(null, {
+    text: 'answer from your wiki how should route tracing work?',
+    deterministicRoute: {
+      route: 'spark_wiki.answer',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(wikiAnswerNoModel.mode, 'dispatch');
+  assert.equal(wikiAnswerNoModel.route, 'spark_wiki.answer');
+
+  const naturalMission = decideModelRoute(prop('plain_chat', 0.88), {
+    text: 'launch a mission to summarize the QA ledger in one sentence',
+    deterministicRoute: {
+      route: 'natural_run',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(naturalMission.mode, 'dispatch');
+  assert.equal(naturalMission.route, 'natural_run');
+
   assert.equal(
     decideModelRoute(prop('plain_chat', 0.9), {
       text: 'build is mentioned in this bug report',
@@ -219,6 +319,33 @@ test('no model opinion can fall back to a fresh domain-chip preview owner route'
   assert.equal(access.mode, 'chat');
 });
 
+test('no model opinion can fall back to a scoped no-edit Spawner probe without broadening builds', () => {
+  const probe = decideModelRoute(prop('plain_chat', 0.91), {
+    text: 'Run a no-edit startup QA probe that only replies SPARK_STARTUP_NO_EDIT_OK.',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      payload: { noEditProbe: true }
+    }
+  });
+  assert.equal(probe.mode, 'dispatch');
+  assert.equal(probe.route, 'spawner.build');
+  assert.equal(probe.reason, 'fresh_deterministic_owner_route');
+
+  const broadBuild = decideModelRoute(prop('plain_chat', 0.91), {
+    text: 'build a generic dashboard',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(broadBuild.mode, 'chat');
+});
+
 test('no model opinion can fall back to a scoped creator mission follow-up route', () => {
   const decision = decideModelRoute(null, {
     text: 'create or update the domain chip',
@@ -274,7 +401,7 @@ test('no model opinion can fall back to a scoped Spark QA pause owner route', ()
 });
 
 test('no model opinion can fall back to non-operator access changes only', () => {
-  const lower = decideModelRoute(null, {
+  const lower = decideModelRoute(prop('plain_chat', 0.9), {
     text: 'Change my access level to three please',
     deterministicRoute: {
       route: 'access.change',
@@ -287,7 +414,20 @@ test('no model opinion can fall back to non-operator access changes only', () =>
   assert.equal(lower.mode, 'dispatch');
   assert.equal(lower.route, 'access.change');
 
-  const operator = decideModelRoute(null, {
+  const contextualLower = decideModelRoute(prop('plain_chat', 0.9), {
+    text: 'Change it to 4',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      payload: { level: '4' }
+    }
+  });
+  assert.equal(contextualLower.mode, 'dispatch');
+  assert.equal(contextualLower.route, 'access.change');
+
+  const operator = decideModelRoute(prop('plain_chat', 0.9), {
     text: 'Change my access level to five please',
     deterministicRoute: {
       route: 'access.change',
@@ -338,6 +478,26 @@ test('local option references are referents, not fresh action authority', () => 
     assert.equal(decision.route, 'conversation.ideation', text);
     assert.equal(decision.reason, 'fresh_text_is_local_option_reference', text);
   }
+});
+
+test('question-shaped mutation proposals stay chat unless they are explicit requests', () => {
+  const discussion = decideModelRoute(prop('creator.mission', 0.93), {
+    text: 'How would Spark improve a startup answer without gaming the benchmark?'
+  });
+  assert.equal(discussion.mode, 'chat');
+  assert.equal(discussion.reason, 'fresh_text_is_action_discussion_question');
+
+  const request = decideModelRoute(prop('spawner.build', 0.93), {
+    text: 'can you build me a compact launch dashboard?'
+  });
+  assert.equal(request.mode, 'dispatch');
+  assert.equal(request.route, 'spawner.build');
+
+  const researchQuestion = decideModelRoute(prop('external_research.inspect', 0.93), {
+    text: 'How should we research current harnesses?'
+  });
+  assert.equal(researchQuestion.mode, 'chat');
+  assert.equal(researchQuestion.reason, 'fresh_text_is_action_discussion_question');
 });
 
 test('low-confidence mutations and external reads still CHAT', () => {
@@ -428,7 +588,10 @@ test('invariants: confirm routes are the destructive/irreversible set, chat rout
   assert.ok(CHAT_ROUTES.has('conversation.ideation'));
   assert.ok(CHAT_ROUTES.has('abstain'));
   assert.ok(LOCAL_READ_ROUTES.has('memory.recall'));
+  assert.ok(LOCAL_READ_ROUTES.has('build_context.recall'));
   assert.ok(LOCAL_READ_ROUTES.has('spark.read_only_state'));
+  assert.ok(LOCAL_READ_ROUTES.has('spark_wiki.inventory'));
+  assert.ok(LOCAL_READ_ROUTES.has('spark_wiki.status'));
   assert.ok(!LOCAL_READ_ROUTES.has('browser.navigate'));
   assert.ok(!CONFIRM_ROUTES.has('diagnostics.scan'));
 });
