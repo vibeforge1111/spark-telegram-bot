@@ -175,6 +175,10 @@
     "suite": "context_window",
     "risk": "safe",
     "prompt": "Change it to 4",
+    "turns": [
+      "Change my access level to three please",
+      "Change it to 4"
+    ],
     "expectedRoute": "contextual_access_change",
     "expectedOutcome": "Uses the immediately prior access context and sets this chat to Level 4."
   },
@@ -191,6 +195,10 @@
     "suite": "context_window",
     "risk": "safe",
     "prompt": "Let's do the second one",
+    "turns": [
+      "Give me three build ideas for a memory dashboard",
+      "Let's do the second one"
+    ],
     "expectedRoute": "contextual_list_reference",
     "expectedOutcome": "Continues with the second memory-dashboard idea. Must not change access level to 2."
   },
@@ -207,6 +215,10 @@
     "suite": "context_window",
     "risk": "safe",
     "prompt": "What is the session test code word I asked you to remember?",
+    "turns": [
+      "Please remember this session test code word: aurora mango.",
+      "What is the session test code word I asked you to remember?"
+    ],
     "expectedRoute": "contextual_memory_recall",
     "expectedOutcome": "Answers aurora mango from same-session context or durable memory."
   },
@@ -223,6 +235,10 @@
     "suite": "context_window",
     "risk": "safe",
     "prompt": "Let's do two",
+    "turns": [
+      "I am choosing between: 1. recall audit board 2. memory timeline explorer 3. live stress-test panel",
+      "Let's do two"
+    ],
     "expectedRoute": "contextual_list_reference",
     "expectedOutcome": "Selects memory timeline explorer from the earlier list. Must not change access level to 2."
   },

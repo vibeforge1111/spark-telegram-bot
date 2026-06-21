@@ -29,6 +29,119 @@ test('local owner-backed reads DISPATCH at the read confidence bar', () => {
   }
 });
 
+test('open-ended next-step ideation demotes misclassified local reads before dispatch', () => {
+  for (const route of ['memory.recall', 'spark.read_only_state']) {
+    const decision = decideModelRoute(prop(route, 0.91), {
+      text: 'after that restart, what should I focus on?'
+    });
+    assert.equal(decision.mode, 'chat', route);
+    assert.equal(decision.route, 'conversation.ideation', route);
+    assert.equal(decision.reason, 'fresh_text_is_open_ended_ideation', route);
+  }
+
+  assert.equal(
+    decideModelRoute(prop('spark.read_only_state', 0.91), { text: 'is a restart needed right now?' }).mode,
+    'dispatch'
+  );
+  assert.equal(
+    decideModelRoute(prop('memory.recall', 0.91), { text: 'What did I say I should focus on next?' }).mode,
+    'dispatch'
+  );
+});
+
+test('fresh deterministic owner routes survive proposer abstention without reviving broad build routes', () => {
+  const preference = decideModelRoute(prop('memory.write', 0.7, true), {
+    text: 'make mission updates verbose',
+    deterministicRoute: {
+      route: 'mission_updates.preference',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(preference.mode, 'dispatch');
+  assert.equal(preference.route, 'mission_updates.preference');
+  assert.equal(preference.reason, 'fresh_deterministic_owner_route');
+
+  const operator = decideModelRoute(prop('plain_chat', 0.85), {
+    text: 'Check whether C:\\Users\\USER\\Desktop exists and list the first five folders.',
+    deterministicRoute: {
+      route: 'operator.safe_action',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(operator.mode, 'dispatch');
+  assert.equal(operator.route, 'operator.safe_action');
+
+  const schedule = decideModelRoute(prop('plain_chat', 0.86), {
+    text: 'Schedule a reminder to review Harness Core tomorrow at 10 AM only if schedule authority is available.',
+    deterministicRoute: {
+      route: 'schedule.create',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(schedule.mode, 'dispatch');
+  assert.equal(schedule.route, 'schedule.create');
+  assert.equal(schedule.reason, 'fresh_deterministic_owner_route');
+
+  assert.equal(
+    decideModelRoute(prop('plain_chat', 0.9), {
+      text: 'build is mentioned in this bug report',
+      deterministicRoute: {
+        route: 'spawner.build',
+        confidence: 'explicit',
+        context_source: 'latest_message',
+        mutation_referent: 'fresh_turn'
+      }
+    }).mode,
+    'chat'
+  );
+});
+
+test('deterministic owner fallback rejects stale, contextual, and confirmation-required authority', () => {
+  for (const deterministicRoute of [
+    {
+      route: 'memory.write',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn'
+    },
+    {
+      route: 'memory.write',
+      confidence: 'contextual',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    },
+    {
+      route: 'spark_wiki.promote',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  ]) {
+    const decision = decideModelRoute(prop('plain_chat', 0.96), {
+      text: 'save the quoted note from that old report',
+      deterministicRoute
+    });
+    assert.equal(decision.mode, 'chat');
+    assert.equal(decision.reason, 'model_routed_to_chat');
+  }
+});
+
+test('local option references are referents, not fresh action authority', () => {
+  for (const text of ["Let's do the second one", "Let's do two"]) {
+    const decision = decideModelRoute(prop('spawner.build', 0.92), { text });
+    assert.equal(decision.mode, 'chat', text);
+    assert.equal(decision.route, 'conversation.ideation', text);
+    assert.equal(decision.reason, 'fresh_text_is_local_option_reference', text);
+  }
+});
+
 test('low-confidence mutations and external reads still CHAT', () => {
   assert.equal(decideModelRoute(prop('schedule.create', 0.72)).mode, 'chat');
   assert.equal(decideModelRoute(prop('browser.navigate', 0.72)).mode, 'chat');
@@ -84,6 +197,14 @@ test('route-owner text boundaries demote descriptive frames before dispatch', ()
   assert.equal(memory.reason, 'fresh_text_not_memory_write_request');
 });
 
+test('route-owner text boundaries demote schedule read requests before create dispatch', () => {
+  for (const text of ['Show my current schedules.', 'list the scheduled jobs I have right now']) {
+    const decision = decideModelRoute(prop('schedule.create', 0.95), { text });
+    assert.equal(decision.mode, 'chat', text);
+    assert.equal(decision.reason, 'fresh_text_is_schedule_read_request', text);
+  }
+});
+
 test('route-owner text boundaries still allow explicit fresh requests', () => {
   assert.equal(
     decideModelRoute(prop('diagnostics.scan', 0.95), { text: 'run a fresh diagnostics scan' }).mode,
@@ -93,6 +214,10 @@ test('route-owner text boundaries still allow explicit fresh requests', () => {
     decideModelRoute(prop('memory.write', 0.95), {
       text: 'Memory update: my current plan is Neon Harbor Telegram memory test. Please save this as my current plan.'
     }).mode,
+    'dispatch'
+  );
+  assert.equal(
+    decideModelRoute(prop('schedule.create', 0.95), { text: 'schedule a daily summary at 9am' }).mode,
     'dispatch'
   );
 });

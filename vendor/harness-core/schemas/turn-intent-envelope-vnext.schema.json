@@ -51,9 +51,9 @@
             { "type": "null" }
           ]
         },
-        "stale_state_used_as_authority": { "type": "boolean", "const": false },
-        "memory_used_as_instruction": { "type": "boolean", "const": false },
-        "pending_state_used_as_authority": { "type": "boolean", "const": false }
+        "stale_state_used_as_authority": { "type": "boolean" },
+        "memory_used_as_instruction": { "type": "boolean" },
+        "pending_state_used_as_authority": { "type": "boolean" }
       }
     },
     "evidence": {

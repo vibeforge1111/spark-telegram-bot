@@ -1909,8 +1909,14 @@ export function isProtectedMissionCancelPronounIntent(text: string, recentMessag
 
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  const asksAboutTesting =
+    /\b(?:how|what|why|when|should|would|could)\b.{0,80}\b(?:test|verify|check)\b/.test(normalized) ||
+    /\b(?:test|verify|check)\b.{0,80}\b(?:plan|strategy|approach|criteria|evidence)\b/.test(normalized);
   if (/\b(?:mission|build|spawner)\b.{0,60}\b(?:again|rerun|re-run|retry|restart)\b/.test(normalized) ||
       /\b(?:again|rerun|re-run|retry|restart)\b.{0,60}\b(?:mission|build|spawner)\b/.test(normalized)) {
+    return false;
+  }
+  if (asksAboutTesting) {
     return false;
   }
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
@@ -1927,6 +1933,13 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   }
   if (isAccessSandboxRouteDesignDiscussion(normalized)) {
     return false;
+  }
+  const explicitTestVerb = /\b(?:test|try|check|verify|kick\s+the\s+tires)\b/.test(normalized);
+  const relaySurface =
+    /\b(?:telegram\s+(?:to\s+)?spawner\s+relay|spawner\s+relay|mission\s+relay|relay\s+updates?|kanban\s+updates?|board\s+updates?)\b/.test(normalized) ||
+    (/\btelegram\b/.test(normalized) && /\bspawner\b/.test(normalized) && /\b(?:relay|kanban|board|updates?)\b/.test(normalized));
+  if (explicitTestVerb && relaySurface) {
+    return true;
   }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
@@ -2468,7 +2481,12 @@ export function isAccessStatusQuestion(text: string): boolean {
     return false;
   }
 
+  const asksAccessCapabilityTruth =
+    /\b(?:what\s+can\s+you\s+(?:actually\s+)?do|what\s+are\s+you\s+allowed\s+to\s+do|what\s+is\s+(?:actually\s+)?allowed|effective\s+access|allows?|does\s+not\s+allow|doesn'?t\s+allow)\b/.test(normalized) &&
+    /\b(?:spark\s+access|access\s+(?:level|profile|status)|chat\s+(?:is|at|on)\s+access|level\s*[1-5]|level\s+(?:one|two|three|four|five)|permissions?|level\s*5)\b/.test(normalized);
+
   return (
+    asksAccessCapabilityTruth ||
     /\bwhat'?s\s+(?:my|this\s+chat'?s|our)?\s*(?:spark\s+)?access\s+(?:level|profile|status)\b/.test(normalized) ||
     /\b(?:what|which)\s+(?:is|are|'?s)?\s*(?:my|this\s+chat'?s|our)?\s*spark\s+access\s+(?:level|profile|status)\b/.test(normalized) ||
     /\b(?:what|which)\s+(?:access\s+)?level\s+(?:am\s+i|are\s+we|is\s+this\s+chat)\s+(?:on|at|using)\b/.test(normalized) ||
@@ -2496,9 +2514,12 @@ export function parseNaturalAccessChangeIntent(text: string): string | null {
   const hasExplicitAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\bpermissions?\b/i.test(normalized);
   const hasStrongAccessChangePhrase = (
     /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade)\s+(?:my|our|me|us|this\s+chat'?s?|the\s+chat'?s?|spark)?\s*(?:spark\s+)?access\b/i.test(normalized) ||
-    /\b(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)\s+(?:to|as|into|onto)\s+(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer|agent|builder|chat)\b/i.test(normalized)
+    /\b(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat)\s+(?:to|as|into|onto)\s+(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer|agent|builder|chat)\b/i.test(normalized)
   );
-  const startsAsDirectAccessChange = /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)?\s*(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized);
+  const startsAsDirectAccessChange = (
+    /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat)\s+(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized) ||
+    /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:my|our|this\s+chat'?s?|the\s+chat'?s?|spark\s+)?(?:spark\s+)?access\s+(?:to|as|into|onto|level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized)
+  );
   if (!(hasExplicitAccessTarget && hasStrongAccessChangePhrase) && !startsAsDirectAccessChange) {
     return null;
   }
@@ -3321,7 +3342,9 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
   if (
     /\b(?:do\s+you\s+)?remember\s+(?:when|how|what|where|why)\b/.test(normalized) ||
-    /\bremember\s+(?:the\s+time|we|you|i)\b/.test(normalized)
+    /\bremember\s+(?:the\s+time|we|you|i)\b/.test(normalized) ||
+    /\b(?:the\s+word\s+)?remember\s+(?:is|means|as|just|only)\b/.test(normalized) ||
+    /\b(?:word|phrase|trigger\s+word)\s+remember\b/.test(normalized)
   ) {
     return null;
   }
@@ -3342,6 +3365,8 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
     /^(?:.+?\b)?(?:save|store|remember)\s+(?:exactly\s+)?(?:one\s+)?(?:kb\s+)?(?:memory\s+)?(?:write|note)\s*[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
     /^(?:please\s+)?save\s+to\s+memory\s+that\s+(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+(?:a\s+)?(?:note|memory|preference)\s+only\s+if\s+(?:it\s+is|it's|that\s+is|that's|memory\s+is|saving\s+is)?\s*allowed\s*[:,-]\s*(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+this\s+(?:note|memory|preference)\s+only\s+if\s+(?:it\s+is|it's|that\s+is|that's|memory\s+is|saving\s+is)?\s*allowed\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:for\s+later|note\s+for\s+later)\s*[,:-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?store\s+this\s+for\s+later\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?save\s+this\s+preference\s*[:,-]\s*(.+?)[.!?]?$/i,

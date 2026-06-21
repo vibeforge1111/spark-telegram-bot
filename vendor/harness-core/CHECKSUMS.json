@@ -149,8 +149,8 @@
     },
     {
       "path": "schemas/turn-intent-envelope-vnext.schema.json",
-      "sha256": "7346b3525cb17aa8e5f7a260436963d3d0ea2b3e3fc7453729e462fb5e89bc71",
-      "bytes": 8149
+      "sha256": "f86dd0b51412a3907d1ec6728c4ec3396b7bf246eb051aca476294a7de4f1e24",
+      "bytes": 8101
     },
     {
       "path": "SOURCE_MANIFEST.md",
@@ -164,18 +164,18 @@
     },
     {
       "path": "ts-dist/index.d.ts",
-      "sha256": "e0c1a638f1fc49ea86686123834acef2db4f84291e085e45680cf9b59c8e4767",
-      "bytes": 32932
+      "sha256": "02a21ff0883114744b763a72c61ec7249ab54a6ae9ad1859109cd518dafce4d0",
+      "bytes": 33061
     },
     {
       "path": "ts-dist/index.js",
-      "sha256": "0b86f0571ccc0859fd906b4e28d310dcc3b9dd9bb5c9fb0652db7fc74ad56bb9",
-      "bytes": 76494
+      "sha256": "49653fe5f96797d41ecaaf5b0822222f5035c9f8595ee64fe7f0ce9c447790bb",
+      "bytes": 76599
     },
     {
       "path": "ts-dist-esm/index.mjs",
-      "sha256": "0a07c2ae4dcffbc38ecfffb69e3da81f468b4fd3eccc89075c740f6476738b5f",
-      "bytes": 73529
+      "sha256": "d6c28afda4bb51de3444205b776664f1a41538ccecb4a8ef85320785dd5571c2",
+      "bytes": 73634
     },
     {
       "path": "tsconfig.esm.json",

@@ -137,6 +137,30 @@ function isSourceAttributedActionReport(text: string): boolean {
   return source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized);
 }
 
+function isScheduleReadRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const mentionsSchedule = /\b(?:schedule|schedules|scheduled\s+(?:jobs?|tasks?|reminders?|automations?)|recurring\s+(?:jobs?|tasks?|reminders?|automations?))\b/.test(normalized);
+  if (!mentionsSchedule) return false;
+  return /\b(?:show|list|view|display|see|check|read|what(?:'s|\s+is|\s+are)?|which|current|active|existing)\b/.test(normalized);
+}
+
+function parseNaturalScheduleCreateIntent(text: string): { text: string } | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  if (isNoExecutionBoundary(normalized) || isScheduleReadRequest(normalized)) return null;
+  if (/\b(?:delete|cancel|remove|drop|disable|stop)\b.{0,80}\b(?:schedule|scheduled|reminder|job|task|automation)\b/.test(normalized)) return null;
+  const freshScheduleImperative =
+    /\b(?:schedule|set\s+up|create|add)\b.{0,80}\b(?:reminder|scheduled\s+(?:job|task|automation)|schedule|task|automation)\b/.test(normalized) ||
+    /\bremind\s+me\b/.test(normalized);
+  if (!freshScheduleImperative) return null;
+  const hasTimeOrCadence =
+    /\b(?:today|tomorrow|tonight|daily|weekly|monthly|every|weekday|weekend|morning|afternoon|evening|noon|midnight)\b/.test(normalized) ||
+    /\b(?:at|by|around|on|in)\s+(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d+\s+(?:minutes?|hours?|days?|weeks?))\b/.test(normalized) ||
+    /"\s*[^"]+\s+"\s+(?:mission|loop)\b/i.test(text);
+  if (!hasTimeOrCadence) return null;
+  return { text };
+}
+
 function hasRecentContext(context: NaturalRouteDecisionContext): boolean {
   return Boolean(context.recentMessages?.some((message) => message.trim()));
 }
@@ -651,6 +675,20 @@ export function decideNaturalRoute(
       requires_confirmation: false
     });
   }
+  const scheduleCreate = parseNaturalScheduleCreateIntent(normalized);
+  if (scheduleCreate) {
+    return decision({
+      route: 'schedule.create',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.schedule.create',
+      payload: { ...scheduleCreate },
+      context_source: 'latest_message',
+      matched_signals: ['natural_schedule_create'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
   if (chipBrief && (!earlyCreatorMission || !creatorArtifactBundle)) {
     return decision({
       route: 'domain_chip.create',
@@ -973,6 +1011,20 @@ export function decideNaturalRoute(
     });
   }
 
+  if (isDiagnosticFollowupTestQuestion(normalized)) {
+    return decision({
+      route: 'diagnostics.followup_test',
+      owner_system: 'spark-intelligence-builder',
+      confidence: hasRecentContext(context) ? 'contextual' : 'explicit',
+      action: 'diagnostics.followup_test',
+      payload: {},
+      context_source: hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
+      matched_signals: ['diagnostic_followup_test_question'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
   const spawnerBoard = parseSpawnerBoardNaturalIntent(normalized);
   if (spawnerBoard) {
     return decision({
@@ -1069,20 +1121,6 @@ export function decideNaturalRoute(
       payload: { providers: providerRun.providers, goal: providerRun.goal },
       context_source: 'latest_message',
       matched_signals: ['natural_provider_run'],
-      blocked_by: [],
-      requires_confirmation: false
-    });
-  }
-
-  if (isDiagnosticFollowupTestQuestion(normalized)) {
-    return decision({
-      route: 'diagnostics.followup_test',
-      owner_system: 'spark-intelligence-builder',
-      confidence: 'contextual',
-      action: 'diagnostics.followup_test',
-      payload: {},
-      context_source: hasRecentContext(context) ? 'hot_recent_turns' : 'latest_message',
-      matched_signals: ['diagnostic_followup_test_question'],
       blocked_by: [],
       requires_confirmation: false
     });

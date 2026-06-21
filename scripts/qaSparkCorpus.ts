@@ -28,7 +28,11 @@ if (!process.env.ZAI_API_KEY) {
 process.env.SPARK_INTENT_PROPOSER_ATTEMPTS = '5';
 process.env.SPARK_INTENT_PROPOSER_DEADLINE_MS = '30000';
 // Ensure the proposer uses GLM directly (the dedicated openai_compat path), not a codex fallback.
-delete process.env.SPARK_INTENT_PROPOSER_BASE_URL;
+if (process.env.ZAI_API_KEY) {
+  process.env.SPARK_INTENT_PROPOSER_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
+  process.env.SPARK_INTENT_PROPOSER_API_KEY = process.env.ZAI_API_KEY;
+  process.env.SPARK_INTENT_PROPOSER_MODEL = 'glm-5.1';
+}
 
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
@@ -104,7 +108,16 @@ async function decide(text: string): Promise<{ final: Final; gateRoute: string; 
   const gateRoute = decision.route || naturalRoute?.route || 'unknown';
   const { proposal } = await runIntentProposerShadow(text, naturalRoute?.route || decision.route, intentProposerProviderComplete);
   const propTop = proposal?.candidates[0]?.route || 'null';
-  const modelRoute = decideModelRoute(proposal, { text });
+  const modelRoute = decideModelRoute(proposal, {
+    text,
+    deterministicRoute: naturalRoute ? {
+      route: naturalRoute.route,
+      confidence: naturalRoute.confidence,
+      context_source: naturalRoute.context_source,
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: naturalRoute.requires_confirmation
+    } : null
+  });
   if (modelRoute.mode === 'chat') return { final: 'NO_MUTATION', gateRoute, prop: propTop };
   if (modelRoute.mode === 'confirm') return { final: 'ASK_CONFIRM', gateRoute: modelRoute.route || gateRoute, prop: propTop };
   if (modelRoute.mode === 'dispatch') {

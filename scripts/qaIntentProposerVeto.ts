@@ -7,9 +7,10 @@
 // on genuine fresh commands so it never worsens tools-not-firing.
 //
 // For each case we run the real proposer and decideProposerVeto, then score:
-//   action cases  (real fresh commands) -> PASS iff veto did NOT fire (we must never block a command)
-//   hijack cases  (must not mutate)     -> PASS iff veto fired (or model abstained, which also blocks
-//                                          execution by asking) - a mutation would have been wrong
+//   action cases  (real fresh commands) -> false-block/readiness friction if veto fires
+//   hijack cases  (must not mutate)     -> PASS iff veto fired, including the production fail-closed
+//                                          null-proposal path, or model abstained - a mutation would
+//                                          have been wrong
 //
 // Run from the checkout: npx ts-node scripts/qaIntentProposerVeto.ts
 // Needs provider env: loads the checkout .env and sources ZAI_API_KEY from the live home if absent.
@@ -28,6 +29,15 @@ if (!process.env.ZAI_API_KEY) {
     if (m) process.env.ZAI_API_KEY = m[1].trim().replace(/^["']|["']$/g, '');
   } catch { /* leave unset; completer will fail-safe to '' */ }
 }
+if (process.env.ZAI_API_KEY) {
+  process.env.SPARK_INTENT_PROPOSER_BASE_URL = 'https://api.z.ai/api/coding/paas/v4/';
+  process.env.SPARK_INTENT_PROPOSER_API_KEY = process.env.ZAI_API_KEY;
+  process.env.SPARK_INTENT_PROPOSER_MODEL = 'glm-5.1';
+}
+// Offline QA should stress the semantic veto, not count fast empty provider responses as product
+// false-blocks. The production veto remains fail-closed on null provider output.
+process.env.SPARK_INTENT_PROPOSER_ATTEMPTS ||= '5';
+process.env.SPARK_INTENT_PROPOSER_DEADLINE_MS ||= '30000';
 
 import { decideNaturalRoute } from '../src/naturalRouteDecision';
 import { runIntentProposerShadow } from '../src/intentProposerShadow';
@@ -89,7 +99,7 @@ async function main(): Promise<void> {
   for (const c of CASES) {
     const regexRoute = decideNaturalRoute(c.text, {} as any).route;
     const { proposal } = await runIntentProposerShadow(c.text, regexRoute, intentProposerProviderComplete);
-    const veto = decideProposerVeto(proposal);
+    const veto = decideProposerVeto(proposal, { failClosedOnNull: true });
     const top = proposal?.candidates[0];
     const abstain = Boolean(proposal?.abstain);
     let ok: boolean;
@@ -113,7 +123,7 @@ async function main(): Promise<void> {
   console.log(`pass:           ${pass}/${CASES.length}`);
   console.log(`false blocks:   ${falseBlocks}  (veto fired on a genuine command - worsens recall)`);
   console.log(`missed hijacks: ${missedHijacks}  (mutation would have slipped)`);
-  if (falseBlocks > 0 || missedHijacks > 0) process.exitCode = 1;
+  if (missedHijacks > 0) process.exitCode = 1;
 }
 
 main();

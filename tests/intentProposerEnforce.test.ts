@@ -123,6 +123,8 @@ test('VETO fires when a mutation-permitted past-reference question is read as me
   const d = decideProposerVeto(prop('memory.recall', 0.92));
   assert.equal(d.veto, true);
   assert.equal(d.route, 'memory.recall');
+  assert.equal(decideProposerVeto(prop('memory.recall', 0.72)).veto, true);
+  assert.equal(decideProposerVeto(prop('memory.recall', 0.68)).veto, false);
 });
 
 test('veto confirm message names the action and gives an explicit go-ahead, no em dash', () => {

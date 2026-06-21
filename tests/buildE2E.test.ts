@@ -6818,7 +6818,7 @@ async function run(): Promise<void> {
 		try {
 			const replies: string[] = [];
 			const ctx = makeFakeCtx(8319079055, 8319079055, 626, replies);
-			ctx.message.text = 'What access level are we on right now?';
+			ctx.message.text = 'If Level 5 is active underneath but this chat is access 3, what can you actually do here?';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
 
@@ -6832,6 +6832,24 @@ async function run(): Promise<void> {
 			assert.match(reply, /does not override this chat setting/);
 			assert.match(reply, /Next\n• Ask for one specific access change/);
 			assert.doesNotMatch(reply, /Effective access: Level 5 operator/);
+			const ledgerRecords = readHarnessCoreToolLedger(ledgerPath);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'access.status' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'not_started'
+				)),
+				'split access status must record Harness Core authorization before reading owner state'
+			);
+			assert.ok(
+				ledgerRecords.some((record) => (
+					record.tool_name === 'access.status' &&
+					record.authorization.verdict === 'allow' &&
+					record.result.status === 'success' &&
+					/access status read completed/i.test(record.result.summary)
+				)),
+				'split access status must record final Harness Core read outcome'
+			);
 		} finally {
 			process.env.PATH = oldPath;
 			rmSync(tempRoot, { recursive: true, force: true });

@@ -69,7 +69,7 @@ export function isDomainChipPendingDirection(text: string): boolean {
   if (/\b(?:test|tests|testing|unit\s+test|qa|bug\s+hunter|bug\s+hunt|edge\s+cases?|spawner|mission\s+control|workflow|prs?|publish|merge|ship)\b/.test(normalized)) {
     return false;
   }
-  return /\b(?:names?|rationale|usage\s+angle|vibe|style|tone|output|outputs?|luxury|absurd|consumer|sci[-\s]*fi|surreal|weird|funny|serious|enterprise|developer|technical|visual|image|poster|prompt|prompts)\b/.test(normalized);
+  return /\b(?:names?|rationale|usage\s+angle|vibe|style|tone|output|outputs?|luxury|absurd|consumer|sci[-\s]*fi|surreal|weird|funny|serious|enterprise|developer|technical|visual|image|poster|prompt|prompts|boundar(?:y|ies)|scope|scoped|narrower|hooks?|activation|limits?|router|contracts?|fraud|chargeback|risk|compliance|support)\b/.test(normalized);
 }
 
 export function pendingDomainChipPrdWithUserDirection(pending: PendingDomainChipBuild, text: string): string {

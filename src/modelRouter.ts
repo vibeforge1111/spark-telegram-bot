@@ -11,7 +11,13 @@
 // proposes, the kernel disposes. Pure + unit-tested; fail-safe (no model opinion -> chat, never invents
 // an action).
 
-import { extractPlainChatMemoryDirective, isDiagnosticsScanRequest } from './conversationIntent';
+import {
+  extractPlainChatMemoryDirective,
+  hasLocalOptionReference,
+  isDiagnosticsScanRequest,
+  isUserMemoryRecallQuestion,
+  shouldPreferConversationalIdeation
+} from './conversationIntent';
 import type { IntentProposal } from './intentProposerShadow';
 
 export type RouteMode = 'dispatch' | 'confirm' | 'chat';
@@ -21,6 +27,17 @@ export interface ModelRouteDecision {
   route?: string;
   confidence?: number;
   reason: string;
+}
+
+export interface DeterministicOwnerRoute {
+  route?: string | null;
+  confidence?: string | null;
+  contextSource?: string | null;
+  context_source?: string | null;
+  mutationReferent?: string | null;
+  mutation_referent?: string | null;
+  requiresConfirmation?: boolean | null;
+  requires_confirmation?: boolean | null;
 }
 
 // High-blast-radius mutations: always confirm before executing even when the model is confident
@@ -47,6 +64,7 @@ export interface ModelRouteOptions {
   chatRoutes?: Set<string>;
   localReadRoutes?: Set<string>;
   text?: string;
+  deterministicRoute?: DeterministicOwnerRoute | null;
 }
 
 export const DEFAULT_DISPATCH_MIN_CONFIDENCE = 0.75;
@@ -64,8 +82,21 @@ export const LOCAL_READ_ROUTES = new Set<string>([
   'spark_wiki.answer'
 ]);
 
+// Deterministic owner routes that have already been parsed from the latest user turn
+// and have governed tool contracts. These may survive proposer abstention, but only
+// when the source is fresh and explicit. Broad build/mission routes stay model-gated.
+export const FRESH_DETERMINISTIC_DISPATCH_ROUTES = new Set<string>([
+  'diagnostics.followup_test',
+  'memory.write',
+  'mission_updates.preference',
+  'operator.safe_action',
+  'schedule.create',
+  'spark_wiki.promote'
+]);
+
 function routeTextBoundary(route: string, text?: string): ModelRouteDecision | null {
   if (!text) return null;
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (route === 'diagnostics.scan' && !isDiagnosticsScanRequest(text)) {
     return {
       mode: 'chat',
@@ -80,7 +111,64 @@ function routeTextBoundary(route: string, text?: string): ModelRouteDecision | n
       reason: 'fresh_text_not_memory_write_request'
     };
   }
+  if (route === 'schedule.create' && isScheduleReadRequest(normalized)) {
+    return {
+      mode: 'chat',
+      route,
+      reason: 'fresh_text_is_schedule_read_request'
+    };
+  }
+  if (
+    (route === 'memory.recall' || route === 'spark.read_only_state') &&
+    shouldPreferConversationalIdeation(text) &&
+    !isUserMemoryRecallQuestion(text)
+  ) {
+    return {
+      mode: 'chat',
+      route: 'conversation.ideation',
+      reason: 'fresh_text_is_open_ended_ideation'
+    };
+  }
+  if (!LOCAL_READ_ROUTES.has(route) && hasLocalOptionReference(text)) {
+    return {
+      mode: 'chat',
+      route: 'conversation.ideation',
+      reason: 'fresh_text_is_local_option_reference'
+    };
+  }
   return null;
+}
+
+function isScheduleReadRequest(normalized: string): boolean {
+  const mentionsSchedule = /\b(?:schedule|schedules|scheduled\s+(?:jobs?|tasks?|reminders?|automations?)|recurring\s+(?:jobs?|tasks?|reminders?|automations?))\b/.test(normalized);
+  if (!mentionsSchedule) return false;
+  return /\b(?:show|list|view|display|see|check|read|what(?:'s|\s+is|\s+are)?|which|current|active|existing)\b/.test(normalized);
+}
+
+function freshDeterministicDecision(
+  deterministicRoute: DeterministicOwnerRoute | null | undefined,
+  confirmRoutes: Set<string>
+): ModelRouteDecision | null {
+  if (!deterministicRoute) return null;
+  const route = deterministicRoute.route || null;
+  if (!route) return null;
+  const contextSource = deterministicRoute.contextSource || deterministicRoute.context_source || 'latest_message';
+  const mutationReferent = deterministicRoute.mutationReferent || deterministicRoute.mutation_referent || 'fresh_turn';
+  const requiresConfirmation = Boolean(deterministicRoute.requiresConfirmation ?? deterministicRoute.requires_confirmation);
+  if (deterministicRoute.confidence !== 'explicit') return null;
+  if (contextSource !== 'latest_message') return null;
+  if (mutationReferent !== 'fresh_turn') return null;
+  if (requiresConfirmation || confirmRoutes.has(route)) {
+    return null;
+  }
+  if (!FRESH_DETERMINISTIC_DISPATCH_ROUTES.has(route)) {
+    return null;
+  }
+  return {
+    mode: 'dispatch',
+    route,
+    reason: 'fresh_deterministic_owner_route'
+  };
 }
 
 export function decideModelRoute(
@@ -92,31 +180,32 @@ export function decideModelRoute(
   const confirmRoutes = opts.confirmRoutes ?? CONFIRM_ROUTES;
   const chatRoutes = opts.chatRoutes ?? CHAT_ROUTES;
   const localReadRoutes = opts.localReadRoutes ?? LOCAL_READ_ROUTES;
+  const deterministicDecision = freshDeterministicDecision(opts.deterministicRoute, confirmRoutes);
 
   // No model opinion (provider down / unparseable) or explicit abstain -> chat. Fail-safe: the router
   // never fabricates an action it could not read. (A high-blast action attempted via a down provider
   // would simply not route; the user can restate it - safe, not silently executed.)
-  if (!proposal) return { mode: 'chat', reason: 'no_model_opinion' };
-  if (proposal.abstain) return { mode: 'chat', reason: 'model_abstained' };
+  if (!proposal) return deterministicDecision || { mode: 'chat', reason: 'no_model_opinion' };
+  if (proposal.abstain) return deterministicDecision || { mode: 'chat', reason: 'model_abstained' };
 
   const top = proposal.candidates[0];
-  if (!top) return { mode: 'chat', reason: 'no_candidate' };
+  if (!top) return deterministicDecision || { mode: 'chat', reason: 'no_candidate' };
 
   // The model read it as conversation (or a hijack it correctly refused to treat as a command).
   if (chatRoutes.has(top.route)) {
-    return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'model_routed_to_chat' };
+    return deterministicDecision || { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'model_routed_to_chat' };
   }
+  const textBoundary = routeTextBoundary(top.route, opts.text);
+  if (textBoundary) return deterministicDecision || { ...textBoundary, confidence: top.confidence };
   if (localReadRoutes.has(top.route)) {
     if (top.confidence < readDispatchMin) {
-      return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_read_dispatch_confidence' };
+      return deterministicDecision || { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_read_dispatch_confidence' };
     }
     return { mode: 'dispatch', route: top.route, confidence: top.confidence, reason: 'model_routed_to_local_read' };
   }
-  const textBoundary = routeTextBoundary(top.route, opts.text);
-  if (textBoundary) return { ...textBoundary, confidence: top.confidence };
   // It looks like an action but the model is not confident enough to act -> chat (clarify in prose).
   if (top.confidence < dispatchMin) {
-    return { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_dispatch_confidence' };
+    return deterministicDecision || { mode: 'chat', route: top.route, confidence: top.confidence, reason: 'below_dispatch_confidence' };
   }
   // High-blast-radius mutation -> one explicit confirm before the kernel executes it.
   if (confirmRoutes.has(top.route)) {

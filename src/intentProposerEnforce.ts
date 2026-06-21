@@ -87,6 +87,13 @@ export const NON_MUTATING_PROPOSER_ROUTES = new Set<string>([
 // are never touched.
 export const DEFAULT_VETO_MIN_CONFIDENCE = 0.8;
 
+const VETO_ROUTE_MIN_CONFIDENCE: Record<string, number> = {
+  // A memory-recall reading on a mutation-permitted turn means the model sees a continuity/source-lane
+  // question, not fresh execution authority. Treat that disagreement as "ask before acting" even when
+  // the live proposer is less confident than the generic veto bar.
+  'memory.recall': 0.7
+};
+
 export interface VetoDecision {
   veto: boolean;
   route?: string;
@@ -116,7 +123,8 @@ export function decideProposerVeto(
   if (!top) return { veto: false };
   // The model also thinks this is an action -> trust the gate, never block a real command.
   if (!nonMutating.has(top.route)) return { veto: false };
-  if (top.confidence < minConfidence) return { veto: false };
+  const routeMinConfidence = VETO_ROUTE_MIN_CONFIDENCE[top.route] ?? minConfidence;
+  if (top.confidence < routeMinConfidence) return { veto: false };
   return { veto: true, route: top.route, confidence: top.confidence, reason: 'semantic_proposer_veto' };
 }
 

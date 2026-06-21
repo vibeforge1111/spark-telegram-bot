@@ -467,7 +467,15 @@ test('routes contextual access changes only after access-focused turns', () => {
   assert.equal(route.context_source, 'hot_recent_turns');
   assert.equal(route.payload.level, '4');
 
+  const pronounRoute = decideNaturalRoute('Change it to 4', { recentMessages });
+  assert.equal(pronounRoute.route, 'access.change');
+  assert.equal(pronounRoute.owner_system, 'spark-telegram-bot');
+  assert.equal(pronounRoute.confidence, 'contextual');
+  assert.equal(pronounRoute.context_source, 'hot_recent_turns');
+  assert.equal(pronounRoute.payload.level, '4');
+
   assert.equal(decideNaturalRoute('4', { recentMessages: ['User: I like the fourth design'] }).route, 'plain_chat');
+  assert.equal(decideNaturalRoute('Change it to 4', { recentMessages: ['User: I like the fourth design'] }).route, 'plain_chat');
 });
 
 test('routes read-only repair turns to access status instead of contextual missions', () => {
@@ -691,6 +699,25 @@ test('keeps source-attributed action reports on an answer-only boundary', () => 
   }
 });
 
+test('routes fresh schedule reminder requests without treating reads or quoted text as schedules', () => {
+  const explicit = decideNaturalRoute('Schedule a reminder to review Harness Core tomorrow at 10 AM only if schedule authority is available.');
+  assert.equal(explicit.route, 'schedule.create');
+  assert.equal(explicit.owner_system, 'spawner-ui');
+  assert.equal(explicit.action, 'spawner.schedule.create');
+  assert.equal(explicit.confidence, 'explicit');
+  assert.equal(explicit.context_source, 'latest_message');
+  assert.ok(explicit.matched_signals.includes('natural_schedule_create'));
+
+  for (const prompt of [
+    'Show my current schedules.',
+    'I need wording for "schedule a run tomorrow" in a policy doc.'
+  ]) {
+    const route = decideNaturalRoute(prompt);
+    assert.notEqual(route.route, 'schedule.create', prompt);
+    assert.notEqual(route.action, 'spawner.schedule.create', prompt);
+  }
+});
+
 test('does not force unrelated personal chat into a Spark system', () => {
   const route = decideNaturalRoute("what's a nice lunch idea?");
 
@@ -743,6 +770,30 @@ test('routes pure mission update preferences before generic make/build parsing',
 
   assert.equal(route.route, 'mission_updates.preference');
   assert.equal(route.owner_system, 'spark-telegram-bot');
+});
+
+test('routes governed relay verification requests without catching test-design discussion', () => {
+  const route = decideNaturalRoute('verify the Telegram relay to Spawner and say whether the board receives updates');
+
+  assert.equal(route.route, 'diagnostics.followup_test');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.context_source, 'latest_message');
+
+  const trap = decideNaturalRoute('explain how the Telegram relay to Spawner should be tested before launch');
+  assert.notEqual(trap.route, 'diagnostics.followup_test');
+  assert.notEqual(trap.action, 'diagnostics.followup_test');
+});
+
+test('routes conditional allowed memory notes through memory authority only', () => {
+  const route = decideNaturalRoute('Save this as a note only if it is allowed: onboarding replies should cite evidence.');
+
+  assert.equal(route.route, 'memory.write');
+  assert.equal(route.owner_system, 'spark-intelligence-builder');
+  assert.equal(route.payload.directive, 'onboarding replies should cite evidence');
+
+  const trap = decideNaturalRoute('Do not save this as a note even if allowed: founder scoring needs examples.');
+  assert.notEqual(trap.route, 'memory.write');
 });
 
 test('routes user memory recall questions away from build-context recall', () => {

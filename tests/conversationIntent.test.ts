@@ -614,6 +614,14 @@ test('keeps memory quality dashboard scoping in conversation instead of board re
 
 test('answers diagnostic follow-up testing questions from mission context', () => {
   assert.equal(isDiagnosticFollowupTestQuestion('lets test it'), true);
+  assert.equal(
+    isDiagnosticFollowupTestQuestion('verify the Telegram relay to Spawner and say whether the board receives updates'),
+    true
+  );
+  assert.equal(
+    isDiagnosticFollowupTestQuestion('explain how the Telegram relay to Spawner should be tested before launch'),
+    false
+  );
   const reply = buildDiagnosticFollowupTestReply(
     'Completed Spawner mission spark-123. Result: Built the first-pass Spark Diagnostic Agent with `spark-intelligence diagnostics scan`.'
   );
@@ -950,6 +958,7 @@ test('keeps build flow language from becoming access changes', () => {
   assert.equal(parseNaturalAccessChangeIntent('set this chat to full access'), 'full access');
   assert.equal(parseNaturalAccessChangeIntent('set this chat to level 5'), '5');
   assert.equal(parseNaturalAccessChangeIntent('switch Spark access to sandboxed local'), 'sandboxed local');
+  assert.equal(parseNaturalAccessChangeIntent('Change it to 4'), null);
   assert.equal(
     parseNaturalAccessChangeIntent('let us build the appointment system with full access to the project brief'),
     null
@@ -2000,6 +2009,14 @@ test('extracts explicit plain-chat memory directives', () => {
     'Neon Harbor Telegram memory test'
   );
   assert.equal(
+    extractPlainChatMemoryDirective('Save this as a note only if it is allowed: onboarding replies should cite evidence.'),
+    'onboarding replies should cite evidence'
+  );
+  assert.equal(
+    extractPlainChatMemoryDirective('Do not save this as a note even if allowed: founder scoring needs examples.'),
+    null
+  );
+  assert.equal(
     extractPlainChatMemoryDirective(
       'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0752: Native Telegram Desktop CUA canary proved Harness Core may authorize a scoped memory.write from fresh owner intent, and Builder/domain-chip memory must persist only that approved note while missions, chips, browser/computer-use, registry, and runtime changes stay outside this request." This turn is only a memory update.'
     ),
@@ -2015,6 +2032,8 @@ test('extracts explicit plain-chat memory directives', () => {
   assert.equal(extractPlainChatMemoryDirective('what do you remember about me'), null);
   assert.equal(extractPlainChatMemoryDirective('do you have memory right now'), null);
   assert.equal(extractPlainChatMemoryDirective('remember when we discussed the day planner and its quiet morning slot?'), null);
+  assert.equal(extractPlainChatMemoryDirective('Remember is just a trigger word in this sentence.'), null);
+  assert.equal(extractPlainChatMemoryDirective('The word remember should not save anything by itself.'), null);
   assert.equal(
     extractPlainChatMemoryDirective('note that the wiki tab should be optional, what would you put on the first screen?'),
     null
@@ -2179,6 +2198,8 @@ test('recognizes natural access status questions', () => {
   assert.equal(isAccessStatusQuestion("What's my access level right now?"), true);
   assert.equal(isAccessStatusQuestion('can you show my Spark access status'), true);
   assert.equal(isAccessStatusQuestion('which access level are we on right now'), true);
+  assert.equal(isAccessStatusQuestion('If Level 5 is active underneath but this chat is access 3, what can you actually do here?'), true);
+  assert.equal(isAccessStatusQuestion('For this mini app idea, what can you actually do here?'), false);
   assert.equal(isAccessStatusQuestion('change my access level to full access'), false);
   assert.equal(isAccessStatusQuestion('please remember that my access level is important'), false);
 });

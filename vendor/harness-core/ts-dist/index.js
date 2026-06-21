@@ -400,9 +400,9 @@ function createHarnessCoreActionEnvelopeVNext(input) {
         freshness: {
             fresh_user_intent_present: actorKind === 'human',
             fresh_user_intent_ref: actorKind === 'human' ? authorityEvidence : null,
-            stale_state_used_as_authority: false,
-            memory_used_as_instruction: false,
-            pending_state_used_as_authority: false
+            stale_state_used_as_authority: Boolean(input.staleStateUsedAsAuthority),
+            memory_used_as_instruction: Boolean(input.memoryUsedAsInstruction),
+            pending_state_used_as_authority: Boolean(input.pendingStateUsedAsAuthority)
         },
         evidence,
         action_authority: {

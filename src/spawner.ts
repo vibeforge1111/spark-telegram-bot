@@ -34,7 +34,11 @@ interface RunGoalResult {
   success: boolean;
   missionId?: string;
   requestId?: string;
+  traceRef?: string;
   providers?: string[];
+  missionControlAccess?: unknown;
+  authorityVerdict?: unknown;
+  authority?: unknown;
   error?: string;
 }
 
@@ -584,10 +588,8 @@ function missionTraceUrl(missionId: string, baseUrl = spawnerPublicUrl()): strin
 
 function missionInspectionLines(missionId: string, baseUrl = spawnerPublicUrl()): string[] {
   return [
-    'Inspect',
-    `• Detail: ${missionDetailUrl(missionId, baseUrl)}`,
-    `• Board: ${missionScopedBoardUrl(missionId, baseUrl)}`,
-    `• Trace: ${missionTraceUrl(missionId, baseUrl)}`
+    'Next',
+    `• Open board: ${missionScopedBoardUrl(missionId, baseUrl)}`
   ];
 }
 
@@ -1304,7 +1306,11 @@ export const spawner = {
         success: Boolean(res.data?.success),
         missionId: res.data?.missionId,
         requestId: res.data?.requestId,
-        providers: Array.isArray(res.data?.providers) ? res.data.providers : []
+        traceRef: typeof res.data?.traceRef === 'string' ? res.data.traceRef : undefined,
+        providers: Array.isArray(res.data?.providers) ? res.data.providers : [],
+        missionControlAccess: res.data?.missionControlAccess,
+        authorityVerdict: res.data?.authorityVerdict,
+        authority: res.data?.authority
       };
     } catch (err: any) {
       return {
@@ -2079,9 +2085,8 @@ export const spawner = {
             '',
             `A newer related Mission Control item is ${statusWord(newerRelated.status)}: ${missionTitle(newerRelated)}.`,
             '',
-            'Inspect',
-            `â€¢ Preview: ${openLink}`,
-            `â€¢ Board: ${missionScopedBoardUrl(newerRelated.missionId)}`
+            'Next',
+            `â€¢ Open board: ${missionScopedBoardUrl(newerRelated.missionId)}`
           ].join('\n')
         };
       }

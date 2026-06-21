@@ -889,7 +889,7 @@ type TelegramStatusCard = {
 };
 
 function formatTelegramStatusCard(card: TelegramStatusCard): string {
-  const lines: string[] = [card.title, '', card.verdict];
+  const lines: string[] = [sentenceWithPeriod(card.verdict), '', card.title];
   const facts = (card.facts || []).filter(Boolean).slice(0, 2);
   const why = (card.why || []).filter(Boolean).slice(0, 2);
 
@@ -3348,7 +3348,8 @@ function telegramBranchActionAuthorityDecision(
     action: input.action || input.route,
     kind: input.kind,
     confidence: input.confidence,
-    mutationClass: input.mutationClass
+    mutationClass: input.mutationClass,
+    noExecution: false
   });
   return telegramActionAuthorityDecision(actionEnvelope, input);
 }
@@ -3363,11 +3364,38 @@ function branchActionCanPromoteFromEvidence(
   authorization: TelegramActionAuthorityResult,
   input: TelegramActionAuthorityInput & { confidence?: TelegramIntentDecisionV2['confidence'] }
 ): boolean {
-  if (input.mutationClass !== 'none' && input.mutationClass !== 'read_only') return false;
   if (!authorization.routeVerdict.allow) return false;
+  if (input.mutationClass !== 'none' && input.mutationClass !== 'read_only') return false;
   if (authorization.routeVerdict.confidence === 'explicit') return true;
   if (input.confidence !== 'contextual') return false;
   return CONTEXTUAL_BRANCH_PROMOTION_REASONS.has(authorization.routeVerdict.reason);
+}
+
+function pendingClarificationActionAuthorityDecision(
+  baseEnvelope: TurnIntentEnvelopeV1,
+  input: TelegramActionAuthorityInput & {
+    action?: string;
+    kind?: TelegramIntentDecisionV2['kind'];
+    confidence?: TelegramIntentDecisionV2['confidence'];
+  }
+): TelegramActionAuthorityResult {
+  const selectedEnvelope = telegramActionEnvelope(baseEnvelope, {
+    route: 'spawner.pending_clarification',
+    ownerSystem: 'spawner-ui',
+    action: 'spawner.clarification_reply',
+    kind: input.kind || 'build_or_spawner',
+    confidence: 'explicit',
+    mutationClass: 'launches_mission',
+    noExecution: false,
+    selectedBy: 'telegram_pending_build_clarification',
+    matchedSignal: 'fresh_pending_build_clarification_reply'
+  });
+  return telegramActionAuthorityDecision(selectedEnvelope, {
+    ...input,
+    route: 'spawner.pending_clarification',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
 }
 
 function telegramBranchActionAuthorityAllowed(
@@ -7842,7 +7870,7 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
     mutationClass: 'launches_mission',
     action: 'spawner.pending_domain_chip_build',
     kind: 'creator_or_domain_chip',
-    confidence: 'contextual',
+    confidence: 'explicit',
     selectedBy: 'telegram_pending_domain_chip',
     matchedSignal: 'fresh_pending_domain_chip_direction'
   };
@@ -10494,12 +10522,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         clearPendingConfirm(confirmKey);
         routeDecision = { mode: 'dispatch', route: confirmConsume.route, reason: 'confirmed_pending' };
       } else {
+        const recentTurnsForModelRouter = await conversation.getRecentTurns(user, 8).catch(() => []);
+        const recentMessagesForModelRouter = recentTurnsForModelRouter
+          .map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`)
+          .filter((line: string) => line.trim().length > 0);
         const { proposal: modelRouteProposal } = await runIntentProposerShadow(
           text,
           naturalRouteShadow?.route || telegramIntentGateV2.route,
-          intentProposerProviderComplete
+          intentProposerProviderComplete,
+          undefined,
+          { recentMessages: recentMessagesForModelRouter }
         );
-        routeDecision = decideModelRoute(modelRouteProposal, { text });
+        routeDecision = decideModelRoute(modelRouteProposal, {
+          text,
+          deterministicRoute: naturalRouteShadow ? {
+            route: naturalRouteShadow.route,
+            confidence: naturalRouteShadow.confidence,
+            context_source: naturalRouteShadow.context_source,
+            mutation_referent: 'fresh_turn',
+            requires_confirmation: naturalRouteShadow.requires_confirmation
+          } : null
+        });
         if (
           routeDecision.mode === 'dispatch' &&
           (routeDecision.route === 'memory.recall' || routeDecision.route === 'spark.read_only_state') &&
@@ -12344,7 +12387,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ? pendingBuildClarificationForMessage(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), text)
     : null;
   const activePendingClarificationAuthorization = activePendingClarification && isPendingClarificationFollowup(text)
-    ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+    ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.pending_clarification',
         text,
         toolName: 'spawner.run',
@@ -12352,7 +12395,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         mutationClass: 'launches_mission',
         action: 'spawner.clarification_reply',
         kind: 'build_or_spawner',
-        confidence: 'contextual'
+        confidence: 'explicit'
       })
     : null;
   if (activePendingClarificationAuthorization?.allow) {
@@ -12847,7 +12890,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    const earlyClarificationAuthorization = pendingClarification && isPendingClarificationFollowup(text)
-	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+	      ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.pending_clarification',
 	          text,
 	          toolName: 'spawner.run',
@@ -12855,7 +12898,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	          mutationClass: 'launches_mission',
 	          action: 'spawner.clarification_reply',
 	          kind: 'build_or_spawner',
-	          confidence: 'contextual'
+	          confidence: 'explicit'
 	        })
 	      : null;
 	    if (earlyClarificationAuthorization?.allow) {
@@ -13033,7 +13076,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    const clarificationAuthorization = pendingClarification && !buildIntent
-	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+	      ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.pending_clarification',
 	          text,
 	          toolName: 'spawner.run',
@@ -13041,7 +13084,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	          mutationClass: 'launches_mission',
 	          action: 'spawner.clarification_reply',
 	          kind: 'build_or_spawner',
-	          confidence: 'contextual'
+	          confidence: 'explicit'
 	        })
 	      : null;
 	    if (clarificationAuthorization?.allow) {
