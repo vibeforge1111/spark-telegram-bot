@@ -1,3 +1,4 @@
+import { safeJsonParse } from './safeJson';
 import fs from 'node:fs';
 import {
   decideNaturalRoute,
@@ -135,7 +136,7 @@ export function parseConversationSmokeScenarios(value: unknown): ConversationSmo
 }
 
 export function readConversationSmokeScenarios(filePath: string): ConversationSmokeScenario[] {
-  return parseConversationSmokeScenarios(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  return parseConversationSmokeScenarios(safeJsonParse(fs.readFileSync(filePath, 'utf8'), [], 'conversation-smoke'));
 }
 
 export function runConversationSmokeScenarios(scenarios: ConversationSmokeScenario[]): ConversationSmokeSummary {
