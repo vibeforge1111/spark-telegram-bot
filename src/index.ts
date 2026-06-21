@@ -10536,11 +10536,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         routeDecision = decideModelRoute(modelRouteProposal, {
           text,
           deterministicRoute: naturalRouteShadow ? {
-            route: naturalRouteShadow.route,
-            confidence: naturalRouteShadow.confidence,
+            route: telegramIntentGateV2.route,
+            confidence: telegramIntentGateV2.confidence || naturalRouteShadow.confidence,
             context_source: naturalRouteShadow.context_source,
             mutation_referent: 'fresh_turn',
-            requires_confirmation: naturalRouteShadow.requires_confirmation
+            requires_confirmation: naturalRouteShadow.requires_confirmation,
+            payload: naturalRouteShadow.payload
           } : null
         });
         if (
@@ -11037,6 +11038,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             run: async (d) => {
               const parsed = parseNaturalCreatorMissionIntent(d.text, []);
               if (!parsed) return false;
+              if (parsed.artifactLabel === 'benchmark pack') return false;
               const env = telegramActionEnvelope(d.turnIntentEnvelope, {
                 route: 'creator.mission', ownerSystem: 'spawner-ui', action: 'creator.mission.plan', kind: 'creator_or_domain_chip', mutationClass: 'creates_chip'
               });

@@ -102,6 +102,204 @@ test('fresh deterministic owner routes survive proposer abstention without reviv
   );
 });
 
+test('no model opinion can fall back to a fresh explicit build owner route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'Create a Spark live status dashboard with cards for Telegram and Spawner.',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'spawner.build');
+  assert.equal(decision.reason, 'fresh_deterministic_owner_route');
+
+  const quoted = decideModelRoute(prop('plain_chat', 0.9), {
+    text: 'the doc says build a dashboard',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(quoted.mode, 'chat');
+});
+
+test('no model opinion can fall back to a fresh exact-artifact build owner route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'Build this at C:\\Users\\USER\\Desktop\\recipe-timer: a tiny kitchen timer for developers.',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'visible_exact_artifact',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'spawner.build');
+  assert.equal(decision.reason, 'fresh_deterministic_owner_route');
+
+  const stale = decideModelRoute(null, {
+    text: 'Build that same timer now.',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(stale.mode, 'chat');
+
+  const quoted = decideModelRoute(prop('plain_chat', 0.92), {
+    text: 'The README says: build this at C:\\Users\\USER\\Desktop\\recipe-timer.',
+    deterministicRoute: {
+      route: 'spawner.build',
+      confidence: 'explicit',
+      context_source: 'visible_exact_artifact',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(quoted.mode, 'chat');
+});
+
+test('no model opinion can fall back to a fresh Spark QA proof owner route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'show Spark QA Operator benchmark score',
+    deterministicRoute: {
+      route: 'sparkqa.run',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'sparkqa.run');
+  assert.equal(decision.reason, 'fresh_deterministic_owner_route');
+
+  const reported = decideModelRoute(prop('plain_chat', 0.94), {
+    text: 'The report says: show Spark QA Operator benchmark score.',
+    deterministicRoute: {
+      route: 'sparkqa.run',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn'
+    }
+  });
+  assert.equal(reported.mode, 'chat');
+});
+
+test('no model opinion can fall back to a fresh domain-chip preview owner route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'create a payments risk domain chip for launch readiness',
+    deterministicRoute: {
+      route: 'domain_chip.create',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'domain_chip.create');
+  assert.equal(decision.reason, 'fresh_deterministic_owner_route');
+
+  const access = decideModelRoute(null, {
+    text: 'change my access to operator',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(access.mode, 'chat');
+});
+
+test('no model opinion can fall back to a scoped creator mission follow-up route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'create or update the domain chip',
+    deterministicRoute: {
+      route: 'creator.mission',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'creator.mission');
+
+  const stale = decideModelRoute(null, {
+    text: 'create or update the domain chip',
+    deterministicRoute: {
+      route: 'creator.mission',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(stale.mode, 'chat');
+});
+
+test('no model opinion can fall back to a scoped Spark QA pause owner route', () => {
+  const decision = decideModelRoute(null, {
+    text: 'pause the Spark QA Operator loop; do not keep running more rounds',
+    deterministicRoute: {
+      route: 'sparkqa.pause',
+      confidence: 'explicit',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(decision.mode, 'dispatch');
+  assert.equal(decision.route, 'sparkqa.pause');
+
+  const stale = decideModelRoute(null, {
+    text: 'pause that old QA loop',
+    deterministicRoute: {
+      route: 'sparkqa.pause',
+      confidence: 'explicit',
+      context_source: 'cold_memory',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(stale.mode, 'chat');
+});
+
+test('no model opinion can fall back to non-operator access changes only', () => {
+  const lower = decideModelRoute(null, {
+    text: 'Change my access level to three please',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      payload: { level: '3' }
+    }
+  });
+  assert.equal(lower.mode, 'dispatch');
+  assert.equal(lower.route, 'access.change');
+
+  const operator = decideModelRoute(null, {
+    text: 'Change my access level to five please',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      payload: { level: '5' }
+    }
+  });
+  assert.equal(operator.mode, 'chat');
+});
+
 test('deterministic owner fallback rejects stale, contextual, and confirmation-required authority', () => {
   for (const deterministicRoute of [
     {

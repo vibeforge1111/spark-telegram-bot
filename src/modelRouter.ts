@@ -8,8 +8,8 @@
 // Input: the model's IntentProposal (from the existing proposer, which reads ONLY the fresh user turn;
 // memory/quoted/tool text is data, never a command). Output: dispatch | confirm | chat. Any dispatch
 // still goes through the deterministic authority kernel (envelope -> Governor -> ledger) - the model
-// proposes, the kernel disposes. Pure + unit-tested; fail-safe (no model opinion -> chat, never invents
-// an action).
+// proposes, the kernel disposes. Pure + unit-tested; fail-safe unless a fresh deterministic owner
+// route already parsed from the latest user turn can carry the fallback without using stale text.
 
 import {
   extractPlainChatMemoryDirective,
@@ -38,6 +38,7 @@ export interface DeterministicOwnerRoute {
   mutation_referent?: string | null;
   requiresConfirmation?: boolean | null;
   requires_confirmation?: boolean | null;
+  payload?: Record<string, unknown> | null;
 }
 
 // High-blast-radius mutations: always confirm before executing even when the model is confident
@@ -94,6 +95,38 @@ export const FRESH_DETERMINISTIC_DISPATCH_ROUTES = new Set<string>([
   'spark_wiki.promote'
 ]);
 
+// If the model provider is unavailable and gives no opinion at all, let a small
+// set of owner-parsed fresh routes survive so provider health cannot turn clear
+// commands into unrelated chat. A model route to plain_chat still wins below,
+// so quoted/reported text and source-boundary hijacks stay inert.
+const NO_MODEL_FALLBACK_DETERMINISTIC_ROUTES = new Set<string>([
+  ...FRESH_DETERMINISTIC_DISPATCH_ROUTES,
+  'creator.mission',
+  'domain_chip.create',
+  'access.change',
+  'spawner.build',
+  'sparkqa.pause',
+  'sparkqa.run'
+]);
+
+const NO_MODEL_FALLBACK_PREVIEW_ROUTES = new Set<string>([
+  'creator.mission',
+  'domain_chip.create',
+  'sparkqa.pause'
+]);
+
+const NO_MODEL_FALLBACK_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
+  ['creator.mission', new Set(['hot_recent_turns'])],
+  ['sparkqa.pause', new Set(['hot_recent_turns'])]
+]);
+
+function isNonOperatorAccessChange(route: string, payload: Record<string, unknown> | null | undefined): boolean {
+  if (route !== 'access.change') return false;
+  const level = String(payload?.level || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!level) return false;
+  return !['5', 'five', 'operator', 'full access', 'level 5', 'access 5'].includes(level);
+}
+
 function routeTextBoundary(route: string, text?: string): ModelRouteDecision | null {
   if (!text) return null;
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -147,7 +180,11 @@ function isScheduleReadRequest(normalized: string): boolean {
 
 function freshDeterministicDecision(
   deterministicRoute: DeterministicOwnerRoute | null | undefined,
-  confirmRoutes: Set<string>
+  confirmRoutes: Set<string>,
+  allowedRoutes: Set<string> = FRESH_DETERMINISTIC_DISPATCH_ROUTES,
+  allowedContextSources: Set<string> = new Set(['latest_message']),
+  confirmationBypassRoutes: Set<string> = new Set(),
+  routeContextSources: Map<string, Set<string>> = new Map()
 ): ModelRouteDecision | null {
   if (!deterministicRoute) return null;
   const route = deterministicRoute.route || null;
@@ -155,13 +192,16 @@ function freshDeterministicDecision(
   const contextSource = deterministicRoute.contextSource || deterministicRoute.context_source || 'latest_message';
   const mutationReferent = deterministicRoute.mutationReferent || deterministicRoute.mutation_referent || 'fresh_turn';
   const requiresConfirmation = Boolean(deterministicRoute.requiresConfirmation ?? deterministicRoute.requires_confirmation);
-  if (deterministicRoute.confidence !== 'explicit') return null;
-  if (contextSource !== 'latest_message') return null;
+  const routeAllowedContextSources = routeContextSources.get(route);
+  if (!allowedContextSources.has(contextSource) && !routeAllowedContextSources?.has(contextSource)) return null;
+  const isRouteScopedContextual = deterministicRoute.confidence === 'contextual' && routeAllowedContextSources?.has(contextSource);
+  if (deterministicRoute.confidence !== 'explicit' && !isRouteScopedContextual) return null;
   if (mutationReferent !== 'fresh_turn') return null;
-  if (requiresConfirmation || confirmRoutes.has(route)) {
+  const bypassConfirmation = confirmationBypassRoutes.has(route) || isNonOperatorAccessChange(route, deterministicRoute.payload);
+  if ((requiresConfirmation && !bypassConfirmation) || (confirmRoutes.has(route) && !bypassConfirmation)) {
     return null;
   }
-  if (!FRESH_DETERMINISTIC_DISPATCH_ROUTES.has(route)) {
+  if (!allowedRoutes.has(route)) {
     return null;
   }
   return {
@@ -181,11 +221,19 @@ export function decideModelRoute(
   const chatRoutes = opts.chatRoutes ?? CHAT_ROUTES;
   const localReadRoutes = opts.localReadRoutes ?? LOCAL_READ_ROUTES;
   const deterministicDecision = freshDeterministicDecision(opts.deterministicRoute, confirmRoutes);
+  const noModelFallbackDecision = freshDeterministicDecision(
+    opts.deterministicRoute,
+    confirmRoutes,
+    NO_MODEL_FALLBACK_DETERMINISTIC_ROUTES,
+    new Set(['latest_message', 'visible_exact_artifact']),
+    NO_MODEL_FALLBACK_PREVIEW_ROUTES,
+    NO_MODEL_FALLBACK_ROUTE_CONTEXT_SOURCES
+  );
 
   // No model opinion (provider down / unparseable) or explicit abstain -> chat. Fail-safe: the router
   // never fabricates an action it could not read. (A high-blast action attempted via a down provider
   // would simply not route; the user can restate it - safe, not silently executed.)
-  if (!proposal) return deterministicDecision || { mode: 'chat', reason: 'no_model_opinion' };
+  if (!proposal) return noModelFallbackDecision || { mode: 'chat', reason: 'no_model_opinion' };
   if (proposal.abstain) return deterministicDecision || { mode: 'chat', reason: 'model_abstained' };
 
   const top = proposal.candidates[0];
