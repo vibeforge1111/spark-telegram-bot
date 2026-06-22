@@ -24,7 +24,7 @@ const ENV_SECRET_ASSIGNMENT =
 const JSON_SECRET_FIELD =
   /(["']?[A-Za-z0-9_]*(?:api[_-]?key|token|secret|password|private[_-]?key)["']?\s*:\s*["'])([^"']+)(["'])/gi;
 const AUTH_HEADER = /\b(Authorization\s*:\s*Bearer\s+)([A-Za-z0-9._~+/=-]{12,})/gi;
-const DATABASE_URL = /\b((?:postgres|postgresql|mysql|mongodb|redis):\/\/)([^@\s]+)@/gi;
+const DATABASE_URL = /\b((?:postgres|postgresql|mysql|mongodb|redis):\/\/)[^@\s]+(@)/gi;
 
 let consoleRedactionInstalled = false;
 
@@ -49,7 +49,7 @@ export function redactText(input: string): string {
     return `${prefix}${maskSecret(secret)}${suffix}`;
   });
   out = out.replace(AUTH_HEADER, (_match, prefix: string, secret: string) => `${prefix}${maskSecret(secret)}`);
-  out = out.replace(DATABASE_URL, (_match, prefix: string) => `${prefix}***@`);
+  out = out.replace(DATABASE_URL, '$1***$2');
   return out;
 }
 
