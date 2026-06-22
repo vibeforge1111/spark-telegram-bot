@@ -401,6 +401,19 @@ test('no model opinion can fall back to a scoped Spark QA pause owner route', ()
 });
 
 test('no model opinion can fall back to non-operator access changes only', () => {
+  const contextualLowerWithoutModel = decideModelRoute(null, {
+    text: 'Actually make it four',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      payload: { level: '4' }
+    }
+  });
+  assert.equal(contextualLowerWithoutModel.mode, 'dispatch');
+  assert.equal(contextualLowerWithoutModel.route, 'access.change');
+
   const lower = decideModelRoute(prop('plain_chat', 0.9), {
     text: 'Change my access level to three please',
     deterministicRoute: {
@@ -438,6 +451,18 @@ test('no model opinion can fall back to non-operator access changes only', () =>
     }
   });
   assert.equal(operator.mode, 'chat');
+
+  const contextualOperatorWithoutModel = decideModelRoute(null, {
+    text: 'Actually make it five',
+    deterministicRoute: {
+      route: 'access.change',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      payload: { level: '5' }
+    }
+  });
+  assert.equal(contextualOperatorWithoutModel.mode, 'chat');
 });
 
 test('deterministic owner fallback rejects stale, contextual, and confirmation-required authority', () => {

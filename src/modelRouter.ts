@@ -139,6 +139,7 @@ const FRESH_DETERMINISTIC_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
 ]);
 
 const NO_MODEL_FALLBACK_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
+  ['access.change', new Set(['hot_recent_turns'])],
   ['build_context.recall', new Set(['hot_recent_turns'])],
   ['creator.mission', new Set(['hot_recent_turns'])],
   ['memory.recall', new Set(['cold_memory', 'hot_recent_turns'])],
