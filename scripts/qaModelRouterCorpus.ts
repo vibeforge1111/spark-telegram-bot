@@ -30,6 +30,7 @@ import { buildTelegramTurnIntentEnvelope } from '../src/harnessContract';
 import { runIntentProposerShadow } from '../src/intentProposerShadow';
 import { intentProposerProviderComplete } from '../src/intentProposerCompleter';
 import { decideModelRoute } from '../src/modelRouter';
+import { noActionExpected, type Case } from './qaModelRouterScorer';
 
 // Routes that actually mutate/act (dispatching one of these on a no-action prompt = a hijack LEAK).
 // Reads (read_only_state, spark_wiki.*, spawner.board, memory.recall, access.status) are NOT here.
@@ -39,20 +40,8 @@ const MUTATING = new Set<string>([
   'external_research.inspect', 'recursive.proposal', 'creator.mission'
 ]);
 
-interface Case { id: string; suite: string; risk: string; prompt: string; expectedRoute: string; expectedOutcome: string }
-
 function load(file: string): Case[] {
   return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'ops', file), 'utf8'));
-}
-
-function noActionExpected(c: Case): boolean {
-  const er = (c.expectedRoute || '').toLowerCase();
-  // chat/read/ideation/self-awareness routes are NOT actions - the model staying conversational on
-  // them is correct, not a drop.
-  if (er.startsWith('chat') || er.startsWith('conversation') || er === 'plain_chat'
-    || er.includes('self_awareness') || er.includes('ideation') || er.includes('think')
-    || er.includes('clarify') || er.includes('boundary') || er.includes('refus')) return true;
-  return /\bmust not\b|\bdo not\b|\bdon'?t\b|\bnever\b/i.test(c.expectedOutcome || '');
 }
 
 async function main(): Promise<void> {
