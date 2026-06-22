@@ -98,6 +98,20 @@ test('routes live Harness authority build briefs as Spawner builds, not architec
   assert.deepEqual(route.matched_signals, ['build_intent']);
 });
 
+test('keeps hyphenated ship/readiness report questions out of build routing', () => {
+  const route = decideNaturalRoute(
+    'Ship-readiness verdict? Verdict first, two facts, one next move. No raw IDs. Do not change anything.'
+  );
+
+  assert.notEqual(route.route, 'spawner.build');
+  assert.notEqual(route.action, 'spawner.build');
+  assert.equal(route.requires_confirmation, false);
+
+  const positive = decideNaturalRoute('Ship a tiny local status dashboard with a README and one smoke test.');
+  assert.equal(positive.route, 'spawner.build');
+  assert.equal(positive.action, 'spawner.build');
+});
+
 test('routes concrete build briefs with incidental chip and QA nouns as Spawner builds', () => {
   const route = decideNaturalRoute(
     'Build a compact local Harness Authority Drift Lab app with Spawner. It should help tonight by tracking fresh-intent authority checks, Spawner mission progress, memory and KB QA notes, domain-chip QA notes, registry/runtime drift, rollback steps, and Telegram proof results. Include a concise README, one smoke test, and a simple local UI. Build it now.'
