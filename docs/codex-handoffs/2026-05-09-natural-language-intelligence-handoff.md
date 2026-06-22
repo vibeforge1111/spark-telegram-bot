@@ -213,7 +213,7 @@ Smoke test live parser in test mode as needed:
 ```powershell
 $env:SPARK_BOT_TEST_MODE='1'
 $env:BOT_TOKEN='0:test'
-$env:ADMIN_TELEGRAM_IDS='8319079055'
+$env:ADMIN_TELEGRAM_IDS='1000000001'
 node -e "(async()=>{const mod=await import('./dist/index.js'); console.log(mod.parseNaturalRecursiveCommandIntent('where did we land?', { recentMessages: ['Spark recursive loops', 'Spark QA Operator - path:spark-qa-operator'] }));})()"
 ```
 

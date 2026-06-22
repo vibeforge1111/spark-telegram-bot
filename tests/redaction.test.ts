@@ -67,9 +67,9 @@ test('redacts Error values for logs', () => {
 });
 
 test('redacts stable Telegram identifiers without raw IDs', () => {
-  const ref = redactIdentifier(8319079055, 'user');
+  const ref = redactIdentifier(1000000001, 'user');
   assert.match(ref, /^user_[a-f0-9]{16}$/);
-  assert.equal(redactIdentifier(8319079055, 'user'), ref);
-  assert(!ref.includes('8319079055'));
+  assert.equal(redactIdentifier(1000000001, 'user'), ref);
+  assert(!ref.includes('1000000001'));
   assert.equal(redactIdentifier(null, 'user'), 'unknown');
 });

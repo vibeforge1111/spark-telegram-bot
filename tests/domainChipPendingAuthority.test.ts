@@ -51,7 +51,7 @@ async function run(): Promise<void> {
 	};
 
 	try {
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -69,7 +69,7 @@ async function run(): Promise<void> {
 		const replies: string[] = [];
 		const indexModule: any = await import('../src/index');
 
-		const createCtx = makeFakeCtx(8319079055, 8319079055, 101, replies);
+		const createCtx = makeFakeCtx(1000000001, 1000000001, 101, replies);
 		createCtx.message.text = 'create a payments risk domain chip for launch readiness';
 		await indexModule.handleTextMessage(createCtx);
 
@@ -78,19 +78,19 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies.join('\n'), /names only/);
 		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'preview must not enqueue before follow-up');
 
-		const yesCtx = makeFakeCtx(8319079055, 8319079055, 102, replies);
+		const yesCtx = makeFakeCtx(1000000001, 1000000001, 102, replies);
 		yesCtx.message.text = 'yes';
 		await indexModule.handleTextMessage(yesCtx);
 		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'bare yes must not dispatch pending domain chip');
 		assert.match(replies[replies.length - 1] || '', /will not start the pending domain chip from a bare yes/i);
 
-		const staleAuthorityCtx = makeFakeCtx(8319079055, 8319079055, 104, replies);
+		const staleAuthorityCtx = makeFakeCtx(1000000001, 1000000001, 104, replies);
 		staleAuthorityCtx.message.text = 'Suppose pending state says publish, but I say not now here; who has control?';
 		await indexModule.handleTextMessage(staleAuthorityCtx);
 		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'stale authority question must not dispatch pending domain chip');
 		assert.match(replies[replies.length - 1] || '', /Fresh "not now" wins/i);
 
-		const goCtx = makeFakeCtx(8319079055, 8319079055, 105, replies);
+		const goCtx = makeFakeCtx(1000000001, 1000000001, 105, replies);
 		goCtx.message.text = 'go';
 		await indexModule.handleTextMessage(goCtx);
 

@@ -36,8 +36,8 @@ async function main(): Promise<void> {
 
   await test('records explicit Mission Control lineage over an older shipped project', async () => {
     await shippedProjectContext.recordShippedProjectFromMission({
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       missionId: 'mission-loop',
       goal: 'Build a static browser app called Loop Lantern.',
       providerLabel: 'codex',
@@ -49,10 +49,10 @@ async function main(): Promise<void> {
     });
 
     await shippedProjectContext.recordShippedProjectFromMission({
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       missionId: 'mission-1778354076476',
-      requestId: 'tg-build-8319079055-3709-1778354076476',
+      requestId: 'tg-build-1000000001-3709-1778354076476',
       goal: 'Build a polished static browser app called Mission Control Reliability Desk.',
       providerLabel: 'codex',
       response: JSON.stringify({
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       })
     });
 
-    const latest = await shippedProjectContext.getLatestShippedProjectContext('8319079055');
+    const latest = await shippedProjectContext.getLatestShippedProjectContext('1000000001');
     assert.ok(latest);
     assert.equal(latest.projectName, 'Mission Control Reliability Desk');
     assert.equal(latest.projectPath, 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk');

@@ -392,9 +392,9 @@ async function run(): Promise<void> {
 	applyDeterministicProviderDefaults();
 
 	await test('getTierForUser: admin always pro', () => {
-		process.env.ADMIN_TELEGRAM_IDS = '1278511160,8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1278511160,1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
-		assert.equal(getTierForUser(8319079055), 'pro');
+		assert.equal(getTierForUser(1000000001), 'pro');
 		assert.equal(getTierForUser('1278511160'), 'pro');
 		restoreEnv();
 	});
@@ -514,7 +514,7 @@ async function run(): Promise<void> {
 		});
 
 		const audit = indexModule.buildNodeOutboundAuditRecord(
-			8319079055,
+			1000000001,
 			'Canvas is ready for Trace Proof.',
 			new Date('2026-06-16T00:00:00.000Z'),
 			extra.__sparkTraceContext
@@ -561,7 +561,7 @@ async function run(): Promise<void> {
 
 	await test('build intent posts tier + relay + chatId to /api/prd-bridge/write', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -581,7 +581,7 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const replyExtras: any[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 555, replies, replyExtras);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 555, replies, replyExtras);
 
 		let caughtError: unknown = null;
 		try {
@@ -605,9 +605,9 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.tier, 'pro', 'admin user should resolve to pro tier');
 		assert.equal(typeof writeCall!.body.requestId, 'string');
 		assert.match(writeCall!.body.requestId, /^tg-build-/);
-		assert.doesNotMatch(writeCall!.body.requestId, /8319079055/);
-		assert.equal(writeCall!.body.chatId, '8319079055');
-		assert.equal(writeCall!.body.userId, '8319079055');
+		assert.doesNotMatch(writeCall!.body.requestId, /1000000001/);
+		assert.equal(writeCall!.body.chatId, '1000000001');
+		assert.equal(writeCall!.body.userId, '1000000001');
 		assert.equal(writeCall!.body.buildMode, 'direct');
 		assert.equal(writeCall!.body.capabilityProposalPacket, undefined);
 		assertSpawnerPrdWriteAuthority(writeCall!.body.executionAuthority, writeCall!.body.requestId);
@@ -638,8 +638,8 @@ async function run(): Promise<void> {
 		const subscriptionDuringPost = registryDuringPost.find((entry) => entry.missionId === missionId);
 		assert.ok(subscriptionDuringPost, 'PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'PRD build mission should be registered for Telegram relay progress');
-		assert.equal(subscription.chatId, '8319079055');
-		assert.equal(subscription.userId, '8319079055');
+		assert.equal(subscription.chatId, '1000000001');
+		assert.equal(subscription.userId, '1000000001');
 		assert.equal(subscription.requestId, writeCall!.body.requestId);
 		assert.equal(subscription.traceRef, writeCall!.body.traceRef);
 
@@ -649,7 +649,7 @@ async function run(): Promise<void> {
 
 	await test('build intent surfaces Spawner authority refusal reason codes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -680,7 +680,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 559, replies);
 		const result = await callHandleBuildIntent({
 			ctx,
 			prd: 'Build a governed PRD refusal smoke test.',
@@ -703,7 +703,7 @@ async function run(): Promise<void> {
 
 	await test('natural live-status product build reaches PRD bridge instead of health answer', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -721,7 +721,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 556, replies);
 		ctx.message.text = 'Create a Spark live status dashboard with cards for Telegram, Spawner, registry pins, and rollback proof.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -739,7 +739,7 @@ async function run(): Promise<void> {
 
 	await test('build intent fails closed before PRD bridge when authority is missing', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -751,7 +751,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 556, replies);
 		const result = await callHandleBuildIntent({
 			ctx,
 			prd: 'Build a B2B SaaS with subscription billing.',
@@ -772,7 +772,7 @@ async function run(): Promise<void> {
 
 	await test('build intent rejects wrong-tool Governor authority before PRD bridge', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -784,7 +784,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 557, replies);
 		const result = await callHandleBuildIntent({
 			ctx,
 			prd: 'Build a B2B SaaS with subscription billing.',
@@ -804,7 +804,7 @@ async function run(): Promise<void> {
 
 	await test('build intent rejects read-only Governor authority before PRD bridge', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -816,7 +816,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 558, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 558, replies);
 		const result = await callHandleBuildIntent({
 			ctx,
 			prd: 'Build a B2B SaaS with subscription billing.',
@@ -836,7 +836,7 @@ async function run(): Promise<void> {
 
 	await test('fast build intent tells PRD bridge to skip heavyweight planning', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -849,7 +849,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 556, replies);
 		await callHandleBuildIntent({
 			ctx,
 			prd: 'Build a one-screen emoji ergonomics smoke page with saved favorites and responsive checks.',
@@ -872,7 +872,7 @@ async function run(): Promise<void> {
 
 	await test('local build intent does not enqueue when Telegram runner is read-only', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -891,7 +891,7 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const replyExtras: any[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies, replyExtras);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 557, replies, replyExtras);
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleBuildIntent(
 			ctx,
@@ -913,7 +913,7 @@ async function run(): Promise<void> {
 
 	await test('/run build requests route to PRD bridge instead of simple Spark run', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -935,7 +935,7 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const replyExtras: any[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies, replyExtras);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 556, replies, replyExtras);
 		const indexModule: any = await import('../src/index');
 		const executionAuthority = fakeGovernorExecutionAuthority();
 
@@ -975,7 +975,7 @@ async function run(): Promise<void> {
 
 	await test('/run non-build requests still use the simple Spark run path', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -993,7 +993,7 @@ async function run(): Promise<void> {
 
 		const replies: string[] = [];
 		const replyExtras: any[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies, replyExtras);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 557, replies, replyExtras);
 		const indexModule: any = await import('../src/index');
 		const executionAuthority = fakeGovernorExecutionAuthority();
 
@@ -1009,7 +1009,7 @@ async function run(): Promise<void> {
 		const runCall = captured.find((c) => c.url.includes('/api/spark/run'));
 		assert.ok(runCall, 'expected non-build /run to POST to /api/spark/run');
 		assert.match(runCall!.body.requestId, /^tg-run-/);
-		assert.doesNotMatch(runCall!.body.requestId, /8319079055/);
+		assert.doesNotMatch(runCall!.body.requestId, /1000000001/);
 		assert.equal(runCall!.body.traceRef, `trace:telegram-run:${runCall!.body.requestId}`);
 		assert.equal(runCall!.body.executionAuthority, executionAuthority);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'non-build /run should not use the PRD bridge');
@@ -1028,7 +1028,7 @@ async function run(): Promise<void> {
 
 	await test('/run exact reply probes with negated file creation stay on simple Spark run path', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -1045,7 +1045,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 558, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 558, replies);
 		const indexModule: any = await import('../src/index');
 		const executionAuthority = fakeGovernorExecutionAuthority();
 
@@ -1069,7 +1069,7 @@ async function run(): Promise<void> {
 
 	await test('build intent keeps going when the prompt also changes update preferences', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -1087,7 +1087,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 561, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 561, replies);
 		ctx.message.text = [
 			'Save mission updates as verbose and include both links.',
 			'Build this at C:\\Users\\USER\\Desktop\\terminal-chef-clock: a playful clock for terminal devs who cook.',
@@ -1122,7 +1122,7 @@ async function run(): Promise<void> {
 
 		try {
 			const indexModule: any = await import('../src/index');
-			const testUserId = 8319079123;
+			const testUserId = 1000000123;
 
 			const saveReplies: string[] = [];
 			const saveCtx = makeFakeCtx(testUserId, testUserId, 562, saveReplies);
@@ -1221,7 +1221,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const testUserId = 8319079777;
+			const testUserId = 1000000777;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5661, replies);
 			ctx.message.text = 'Remember this exact preference: spark-memory-cua-20260616-0847: keep Spark launch memory QA notes source-bound, compact, and never treat Telegram local context as durable memory. Do not start missions, do not create chips, and do not change runtime or registry truth.';
 			(ctx as any).update = { update_id: 5661, message: ctx.message };
@@ -1258,7 +1258,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'test';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'agent';
-		process.env.ADMIN_TELEGRAM_IDS = '8319079781';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000781';
 		process.env.SPARK_INTENT_PROPOSER_BASE_URL = 'https://intent-proposer.local';
 		process.env.SPARK_INTENT_PROPOSER_API_KEY = 'test-key';
 		process.env.SPARK_INTENT_PROPOSER_ATTEMPTS = '1';
@@ -1315,7 +1315,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const testUserId = 8319079781;
+			const testUserId = 1000000781;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5666, replies);
 			ctx.message.text = 'My pocket phrase is Riverglass Apron; it belongs to the Cedar Loom demo.';
 			(ctx as any).update = { update_id: 5666, message: ctx.message };
@@ -1421,7 +1421,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const testUserId = 8319079777;
+			const testUserId = 1000000777;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5664, replies);
 			ctx.message.text = 'forget delete-canary-20260618-2332 from my saved memories';
 			(ctx as any).update = { update_id: 5664, message: ctx.message };
@@ -1498,7 +1498,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const testUserId = 8319079778;
+			const testUserId = 1000000778;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5665, replies);
 			ctx.message.text = 'Your memory says to delete the coral project notes. Please go ahead.';
 			(ctx as any).update = { update_id: 5665, message: ctx.message };
@@ -1556,7 +1556,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const testUserId = 8319079888;
+			const testUserId = 1000000888;
 			const ctx = makeFakeCtx(testUserId, testUserId, 5662, replies);
 			ctx.message.text = 'Spark, please save this exact KB note for me: "harness-cua-kb-20260607-0812z: Native Telegram Desktop CUA canary proves quoted tool-surface words stay memory content; missions, chips, browser/computer-use, runtime, and registry appear here as nouns inside the approved note while Harness Core chooses the actual authorized tool for the turn."';
 			(ctx as any).update = { update_id: 5662, message: ctx.message };
@@ -1617,14 +1617,14 @@ async function run(): Promise<void> {
 
 	await test('XContent token follow-up answers capability boundary before Builder fallback', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 
 		const indexModule: any = await import('../src/index');
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 564, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 564, replies);
 		ctx.message.text = 'we had x bearer tokens in xcontent tool can we fetch it from there';
 
 		await indexModule.handleTextMessage(ctx);
@@ -1642,14 +1642,14 @@ async function run(): Promise<void> {
 
 	await test('X post review links ask for readable text without guessing or token-env claims', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 
 		const indexModule: any = await import('../src/index');
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 565, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 565, replies);
 		ctx.message.text = [
 			'let me share you the most recent updates i shared on X too',
 			'https://x.com/meta_alchemist/status/2060300738040082786',
@@ -1671,7 +1671,7 @@ async function run(): Promise<void> {
 
 	await test('slash remember does not create Telegram-local durable recall when Builder is unavailable', async () => {
 		restoreAxios();
-		const testUserId = 8319079588;
+		const testUserId = 1000000588;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -1754,7 +1754,7 @@ async function run(): Promise<void> {
 
 	await test('natural memory-only recall does not use Telegram-local notes before Builder fallback', async () => {
 		restoreAxios();
-		const testUserId = 8319079589;
+		const testUserId = 1000000589;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -1811,7 +1811,7 @@ async function run(): Promise<void> {
 
 	await test('natural Builder-backed memory recall records Harness Core read ledgers', async () => {
 		restoreAxios();
-		const testUserId = 8319079591;
+		const testUserId = 1000000591;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_MODEL_ROUTER = '0';
@@ -1873,7 +1873,7 @@ async function run(): Promise<void> {
 
 	await test('natural Builder-backed memory recall reports clean not-found without degraded-memory claim', async () => {
 		restoreAxios();
-		const testUserId = 8319079592;
+		const testUserId = 1000000592;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_MODEL_ROUTER = '0';
@@ -1924,7 +1924,7 @@ async function run(): Promise<void> {
 
 	await test('memory doctor evidence includes user turns from final Builder replies', async () => {
 		restoreAxios();
-		const testUserId = 8319079564;
+		const testUserId = 1000000564;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -1980,7 +1980,7 @@ async function run(): Promise<void> {
 
 	await test('memory doctor replaces Builder tool detours with local evidence fallback', async () => {
 		restoreAxios();
-		const testUserId = 8319079566;
+		const testUserId = 1000000566;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2032,7 +2032,7 @@ async function run(): Promise<void> {
 
 	await test('memory doctor blankness requests bypass pending-task recovery', async () => {
 		restoreAxios();
-		const testUserId = 8319079565;
+		const testUserId = 1000000565;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2106,7 +2106,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
 		delete process.env.SPARK_HARNESS_CORE_LEDGER;
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
-		const testUserId = 8319079911;
+		const testUserId = 1000000911;
 		const user = { id: testUserId, username: 'pending-ledger-test' };
 
 		try {
@@ -2151,7 +2151,7 @@ async function run(): Promise<void> {
 
 	await test('final-answer gate audit preserves Builder trace ids for suppressed replies', async () => {
 		restoreAxios();
-		const testUserId = 8319079570;
+		const testUserId = 1000000570;
 		const indexModule: any = await import('../src/index');
 		const record = indexModule.buildFinalAnswerGateSuppressionRecord({
 			chatId: testUserId,
@@ -2187,7 +2187,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 564, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 564, replies);
 		ctx.message.text = 'all your chips work, right?';
 		const indexModule: any = await import('../src/index');
 
@@ -2211,7 +2211,7 @@ async function run(): Promise<void> {
 
 	await test('natural recursive proof questions execute status path before Builder fallback', async () => {
 		restoreAxios();
-		const testUserId = 8319079055;
+		const testUserId = 1000000001;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2282,7 +2282,7 @@ async function run(): Promise<void> {
 
 	await test('natural benchmark score questions run Spark QA autoloop proof before Builder fallback', async () => {
 		restoreAxios();
-		const testUserId = 8319079055;
+		const testUserId = 1000000001;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2350,7 +2350,7 @@ async function run(): Promise<void> {
 
 	await test('benchmark score route blocks level-10 promotion when case evidence is clean but comparison gates are missing', async () => {
 		restoreAxios();
-		const testUserId = 8319079055;
+		const testUserId = 1000000001;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2496,7 +2496,7 @@ async function run(): Promise<void> {
 
 	await test('benchmark score no-run wording refuses cached scores before local service fallback', async () => {
 		restoreAxios();
-		const testUserId = 8319079055;
+		const testUserId = 1000000001;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -2526,7 +2526,7 @@ async function run(): Promise<void> {
 
 	await test('domain chip creation can use the build PRD bridge contract', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2547,7 +2547,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 559, replies);
 		const executionAuthority = fakeGovernorExecutionAuthority();
 		await indexModule.handleBuildIntent(
 			ctx,
@@ -2585,7 +2585,7 @@ async function run(): Promise<void> {
 
 	await test('detailed build briefs with numbered lane lists still start a mission', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2603,7 +2603,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 560, replies);
 		ctx.message.text = [
 			'Hey Spark, let’s build a real project called Founder Signal Room.',
 			'Build it at C:\\Users\\USER\\Desktop\\founder-signal-room.',
@@ -2653,7 +2653,7 @@ async function run(): Promise<void> {
 
 	await test('domain chip pending go dispatches with Harness authority', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2668,7 +2668,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 563, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 563, replies);
 		ctx.message.text = 'create a payments risk domain chip for launch readiness';
 		const indexModule: any = await import('../src/index');
 
@@ -2676,7 +2676,7 @@ async function run(): Promise<void> {
 		assert.match(replies.join('\n'), /I can build this as domain-chip-payments-risk-domain-chip-for/);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'preview should not enqueue before go');
 
-		const goCtx = makeFakeCtx(8319079055, 8319079055, 564, replies);
+		const goCtx = makeFakeCtx(1000000001, 1000000001, 564, replies);
 		goCtx.message.text = 'go';
 		await indexModule.handleTextMessage(goCtx);
 
@@ -2691,7 +2691,7 @@ async function run(): Promise<void> {
 
 	await test('domain chip text route previews before creator or generic build routes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2706,7 +2706,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 562, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 562, replies);
 		ctx.message.text = 'build a domain-chip for Telegram memory routing';
 		const indexModule: any = await import('../src/index');
 
@@ -2723,7 +2723,7 @@ async function run(): Promise<void> {
 
 	await test('creator-loop domain chip follow-up stays on creator mission route', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2749,12 +2749,12 @@ async function run(): Promise<void> {
 
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 		await conversationModule.conversation.remember(
-			{ id: 8319079055, username: 'cem' },
+			{ id: 1000000001, username: 'cem' },
 			'We are shaping a Startup YC specialization path with domain chip, benchmark pack, autoloop, and shareable insight packet.'
 		);
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 563, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 563, replies);
 		ctx.message.text = 'create or update the domain chip';
 		const indexModule: any = await import('../src/index');
 
@@ -2770,7 +2770,7 @@ async function run(): Promise<void> {
 
 	await test('explicit Spark QA benchmark pack creation is not swallowed by bug-hunt chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2795,7 +2795,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 5632, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 5632, replies);
 		ctx.message.text = 'create a level 10 benchmark pack for Spark QA Operator that tests stale scores, wrong Workspace evidence, route drift, natural-language context hijack, no-op loops, and private review boundary mistakes';
 		const indexModule: any = await import('../src/index');
 
@@ -2830,7 +2830,7 @@ async function run(): Promise<void> {
 
 	await test('benchmark pack creation asks for specialization path and level before staging', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2845,7 +2845,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 5632, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 5632, replies);
 		ctx.message.text = 'create a benchmark pack';
 		const indexModule: any = await import('../src/index');
 
@@ -2863,7 +2863,7 @@ async function run(): Promise<void> {
 
 	await test('benchmark pack creation asks for level when path is known', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -2878,7 +2878,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 5632, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 5632, replies);
 		ctx.message.text = 'create benchmarks for Spark QA Operator';
 		const indexModule: any = await import('../src/index');
 
@@ -2896,7 +2896,7 @@ async function run(): Promise<void> {
 
 	await test('browser proof health questions use runtime probe before recursive context', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
@@ -2926,12 +2926,12 @@ async function run(): Promise<void> {
 		try {
 			const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 			await conversationModule.conversation.remember(
-				{ id: 8319079055, username: 'cem' },
+				{ id: 1000000001, username: 'cem' },
 				'Spark QA Operator has benchmark-backed evidence for an improvement claim.'
 			);
 
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 5633, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 5633, replies);
 			ctx.message.text = 'Does this browser proof show the runtime is healthy?';
 			const indexModule: any = await import('../src/index');
 
@@ -2952,7 +2952,7 @@ async function run(): Promise<void> {
 
 	await test('browser and computer-use authorization question stays chat-only', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-tool-auth-boundary-'));
@@ -2965,7 +2965,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 614, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 614, replies);
 		ctx.message.text = 'When Spark talks about browser and computer-use in a build conversation, how should those capabilities be authorized?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -2986,7 +2986,7 @@ async function run(): Promise<void> {
 
 	await test('browser-use availability question is Harness Core read-only and does not open a browser', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-browser-use-availability-'));
@@ -3005,7 +3005,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 615, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 615, replies);
 		ctx.message.text = 'Tell me whether browser-use is currently available, but do not open a browser.';
 		const indexModule: any = await import('../src/index');
 		try {
@@ -3057,7 +3057,7 @@ async function run(): Promise<void> {
 
 	await test('stale context authority questions answer without mutating or resuming work', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-stale-context-authority-'));
@@ -3105,7 +3105,7 @@ async function run(): Promise<void> {
 		const replies: string[] = [];
 		const indexModule: any = await import('../src/index');
 		for (const [index, prompt] of prompts.entries()) {
-			const ctx = makeFakeCtx(8319079055, 8319079055, 616 + index, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 616 + index, replies);
 			ctx.message.text = prompt.text;
 			await indexModule.handleTextMessage(ctx);
 			const latestReply = replies[replies.length - 1] || '';
@@ -3137,7 +3137,7 @@ async function run(): Promise<void> {
 
 	await test('conversational ideation replies record Harness Core answer authority', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3161,7 +3161,7 @@ async function run(): Promise<void> {
 		try {
 			const replies: string[] = [];
 			const indexModule: any = await import('../src/index');
-			const ctx = makeFakeCtx(8319079055, 8319079055, 631, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 631, replies);
 			ctx.message.text = 'Actually stop; I only want to talk about the previous plan.';
 			await indexModule.handleTextMessage(ctx);
 
@@ -3196,7 +3196,7 @@ async function run(): Promise<void> {
 
 	await test('domain chip pending state ignores unrelated QA bug-hunt turns', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3211,7 +3211,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 853, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 853, replies);
 		ctx.message.text = 'build a domain-chip for Telegram memory routing';
 		const indexModule: any = await import('../src/index');
 
@@ -3219,7 +3219,7 @@ async function run(): Promise<void> {
 		assert.match(replies.join('\n'), /Before I start/);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'preview should not enqueue before confirmation');
 
-		const yesCtx = makeFakeCtx(8319079055, 8319079055, 854, replies);
+		const yesCtx = makeFakeCtx(1000000001, 1000000001, 854, replies);
 		yesCtx.message.text = 'yes';
 		await indexModule.handleTextMessage(yesCtx);
 
@@ -3229,7 +3229,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Mission:/);
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Spawned work/);
 
-		const qaCtx = makeFakeCtx(8319079055, 8319079055, 855, replies);
+		const qaCtx = makeFakeCtx(1000000001, 1000000001, 855, replies);
 		qaCtx.message.text = 'prepare a huge unit test and let us become bug hunters for Mission Control and Spawner workflow';
 		await indexModule.handleTextMessage(qaCtx);
 
@@ -3241,7 +3241,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies.join('\n'), /Starting domain-chip-/);
 		assert.doesNotMatch(replies.join('\n'), /Spawned work/);
 
-		const directionCtx = makeFakeCtx(8319079055, 8319079055, 856, replies);
+		const directionCtx = makeFakeCtx(1000000001, 1000000001, 856, replies);
 		directionCtx.message.text = 'names with rationale and usage angle, make the vibe surreal';
 		await indexModule.handleTextMessage(directionCtx);
 
@@ -3256,7 +3256,7 @@ async function run(): Promise<void> {
 
 		await test('creator loop template package route requires explicit recursive command', async () => {
 			restoreAxios();
-			const testUserId = 8319079055;
+			const testUserId = 1000000001;
 			process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 			process.env.BOT_DEFAULT_TIER = 'base';
 			process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
@@ -3503,7 +3503,7 @@ async function run(): Promise<void> {
 
 	await test('clarification replies are natural and project-specific', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3530,7 +3530,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 556, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 556, replies);
 
 		await callHandleBuildIntent({
 			ctx,
@@ -3556,7 +3556,7 @@ async function run(): Promise<void> {
 
 	await test('pending clarification accepts go as run-with-defaults', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3583,7 +3583,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 557, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 557, replies);
 		const executionAuthority = fakeGovernorExecutionAuthority();
 
 		await callHandleBuildIntent({
@@ -3595,7 +3595,7 @@ async function run(): Promise<void> {
 		});
 
 		const indexModule: any = await import('../src/index');
-		const goCtx = makeFakeCtx(8319079055, 8319079055, 558, replies);
+		const goCtx = makeFakeCtx(1000000001, 1000000001, 558, replies);
 		goCtx.message.text = 'go';
 		await indexModule.handleClarificationAnswers(goCtx, 'go');
 		assert.ok(!captured.some((c) => c.body?.forceDispatch === true), 'stale pending authority must not force-dispatch without fresh authorization');
@@ -3621,8 +3621,8 @@ async function run(): Promise<void> {
 		const subscriptionDuringPost = registryDuringClarifiedPost.find((entry) => entry.missionId === clarifiedMissionId);
 		assert.ok(subscriptionDuringPost, 'clarified PRD build mission should be registered before Spawner can emit callbacks');
 		assert.ok(subscription, 'clarified PRD build mission should be registered for Telegram relay progress');
-		assert.equal(subscription.chatId, '8319079055');
-		assert.equal(subscription.userId, '8319079055');
+		assert.equal(subscription.chatId, '1000000001');
+		assert.equal(subscription.userId, '1000000001');
 		assert.equal(subscription.requestId, dispatchCall!.body.requestId);
 
 		restoreAxios();
@@ -3631,7 +3631,7 @@ async function run(): Promise<void> {
 
 	await test('pending clarification answer selects Harness route before dispatch', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3654,7 +3654,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 559, replies);
 		await callHandleBuildIntent({
 			ctx,
 			prd: 'build a compact Harness authority proof dashboard',
@@ -3664,7 +3664,7 @@ async function run(): Promise<void> {
 		});
 
 		const indexModule: any = await import('../src/index');
-		const answerCtx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		const answerCtx = makeFakeCtx(1000000001, 1000000001, 560, replies);
 		answerCtx.message.text = 'go with proof metrics focused on Harness authority: governor decision, tool ledger, side-effect evidence, and visible progress';
 		await indexModule.handleTextMessage(answerCtx);
 
@@ -3680,7 +3680,7 @@ async function run(): Promise<void> {
 
 	await test('NFT strategy structure conversation does not start build preview', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3693,7 +3693,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { pending: false } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 598, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 598, replies);
 		ctx.message.text = 'yeah buybacks not for now actually, maybe later, i think we can earn it back from NFTs, if we do sell the NFTs via token, and create a nice structure for it to get hype right after the launch.';
 		const indexModule: any = await import('../src/index');
 
@@ -3703,7 +3703,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies.join('\n'), /Say "go" and I will start/i);
 		assert.doesNotMatch(replies.join('\n'), /Mission:/);
 
-		const allocationCtx = makeFakeCtx(8319079055, 8319079055, 599, replies);
+		const allocationCtx = makeFakeCtx(1000000001, 1000000001, 599, replies);
 		allocationCtx.message.text = [
 			'we already have a big community airdrop that we promised so it needs to be around 20% imo.',
 			'and team 10% makes sense',
@@ -3723,7 +3723,7 @@ async function run(): Promise<void> {
 
 	await test('pending clarification cancels on conversation-only boundary', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -3748,7 +3748,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 601, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 601, replies);
 		await callHandleBuildIntent({
 			ctx,
 			prd: 'create a nice structure for the NFT launch hype plan',
@@ -3757,7 +3757,7 @@ async function run(): Promise<void> {
 		});
 
 		const indexModule: any = await import('../src/index');
-		const noNeedCtx = makeFakeCtx(8319079055, 8319079055, 602, replies);
+		const noNeedCtx = makeFakeCtx(1000000001, 1000000001, 602, replies);
 		noNeedCtx.message.text = 'no need we can talk here';
 		await indexModule.handleTextMessage(noNeedCtx);
 
@@ -3766,7 +3766,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Mission:/);
 
 		const dispatchesAfterCancel = captured.filter((c) => c.body?.forceDispatch === true).length;
-		const goCtx = makeFakeCtx(8319079055, 8319079055, 603, replies);
+		const goCtx = makeFakeCtx(1000000001, 1000000001, 603, replies);
 		goCtx.message.text = 'go';
 		await indexModule.handleTextMessage(goCtx);
 		assert.equal(
@@ -3777,7 +3777,7 @@ async function run(): Promise<void> {
 		assert.match(replies[replies.length - 1] || '', /not seeing an active build or mission waiting/i);
 		assert.doesNotMatch(replies[replies.length - 1] || '', /Mission:/);
 
-		const provenanceCtx = makeFakeCtx(8319079055, 8319079055, 604, replies);
+		const provenanceCtx = makeFakeCtx(1000000001, 1000000001, 604, replies);
 		provenanceCtx.message.text = 'Did my last go create a Spawner mission? Answer from fresh mission history if you can. Do not start anything.';
 		await indexModule.handleTextMessage(provenanceCtx);
 		assert.equal(
@@ -3797,7 +3797,7 @@ async function run(): Promise<void> {
 
 	await test('specific QA mission provenance question answers in chat without spawning', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-route-gate-provenance-'));
@@ -3810,7 +3810,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 604, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 604, replies);
 		ctx.message.text = 'Did the route-gate QA prompt at 1:37 create a Spawner mission? Answer from fresh mission history if you can: yes or no, with the evidence. Do not start anything.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -3828,7 +3828,7 @@ async function run(): Promise<void> {
 
 	await test('H70 Thread QA golden-case request stays in chat without spawning', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-thread-qa-golden-case-'));
@@ -3841,7 +3841,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 605, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 605, replies);
 		ctx.message.text = 'Do not build anything. Turn the H70 Orbit Proof interruption into a golden Thread QA test case. Keep it natural and short.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -3860,7 +3860,7 @@ async function run(): Promise<void> {
 
 	await test('runtime truth priority answer stays short and conversational', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-runtime-truth-priority-'));
@@ -3879,7 +3879,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 		ctx.message.text = 'If memory says Spawner is down but spark live status says it is up, which source wins? Keep it natural and short.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -3927,7 +3927,7 @@ async function run(): Promise<void> {
 
 	await test('access capability drift answers effective capability before ideation fallback', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-access-capability-drift-'));
@@ -3940,7 +3940,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 		ctx.message.text = 'If access says operator but the runner is read-only, what can Spark really do right now?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -3963,7 +3963,7 @@ async function run(): Promise<void> {
 		const oldPath = process.env.PATH || '';
 		const statusPath = path.join(tempRoot, 'spark-access-status.json');
 		const callsPath = path.join(tempRoot, 'spark-calls.log');
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -3992,7 +3992,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 607, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 607, replies);
 			ctx.message.text = 'lets make it beyond read only then';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -4025,7 +4025,7 @@ async function run(): Promise<void> {
 		const oldPath = process.env.PATH || '';
 		const statusPath = path.join(tempRoot, 'spark-access-status.json');
 		const callsPath = path.join(tempRoot, 'spark-calls.log');
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4067,7 +4067,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 609, replies);
 			ctx.message.text = 'make it writable';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -4093,7 +4093,7 @@ async function run(): Promise<void> {
 
 	await test('workspace and wiki current-truth prompt keeps notes historical', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-workspace-wiki-freshness-'));
@@ -4106,7 +4106,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 		ctx.message.text = 'Use Workspace and Wiki to tell me what changed, but do not treat old notes as current truth.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4123,7 +4123,7 @@ async function run(): Promise<void> {
 
 	await test('latest QA run summary stays conversational without raw headings', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-qa-run-summary-'));
@@ -4158,7 +4158,7 @@ async function run(): Promise<void> {
 		}));
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 		ctx.message.text = 'Tell me what happened in the latest QA run without raw ids or report-card headings.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4171,7 +4171,7 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(reply, /Mission\n|Provider\n|Move\n|trace_id|\/Users\//);
 
 			const followupReplies: string[] = [];
-			const followupCtx = makeFakeCtx(8319079055, 8319079055, 606, followupReplies);
+			const followupCtx = makeFakeCtx(1000000001, 1000000001, 606, followupReplies);
 			followupCtx.message.text = 'what happened in the latest QA run?';
 			await indexModule.handleTextMessage(followupCtx);
 
@@ -4181,7 +4181,7 @@ async function run(): Promise<void> {
 			assert.doesNotMatch(followupReply, /Score\n|State\n|Move\n|Report\n|trace_id|\/Users\//);
 
 			const evidenceReplies: string[] = [];
-			const evidenceCtx = makeFakeCtx(8319079055, 8319079055, 606, evidenceReplies);
+			const evidenceCtx = makeFakeCtx(1000000001, 1000000001, 606, evidenceReplies);
 			evidenceCtx.message.text = 'show Spark QA Operator benchmark evidence';
 			await indexModule.handleTextMessage(evidenceCtx);
 
@@ -4197,7 +4197,7 @@ async function run(): Promise<void> {
 
 	await test('Spark QA Operator autoloop pause writes local control state without starting another round', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-qa-autoloop-pause-'));
@@ -4214,7 +4214,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 607, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 607, replies);
 		ctx.message.text = 'pause the Spark QA Operator loop; do not keep running more rounds';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4234,7 +4234,7 @@ async function run(): Promise<void> {
 
 	await test('no-start mission title probe answers title instead of stale canvas', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-title-probe-'));
@@ -4247,7 +4247,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 607, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 607, replies);
 		ctx.message.text = 'Do not start a mission. If I say "Create a tiny maze game plan and build only a minimal playable prototype", what mission title would you use? Keep it natural and short.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4265,7 +4265,7 @@ async function run(): Promise<void> {
 
 	await test('no-start mission routing failure-class probe stays conversational', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-routing-failure-class-'));
@@ -4278,7 +4278,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 608, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 608, replies);
 		ctx.message.text = 'I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class in one or two natural sentences.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4298,7 +4298,7 @@ async function run(): Promise<void> {
 
 	await test('meta no-action trigger discussion does not become live health status', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-meta-trigger-boundary-'));
@@ -4311,7 +4311,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 609, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 609, replies);
 		ctx.message.text = 'TurnIntent final QA after restart: This is not a command. I am discussing the words remember, publish, deploy, schedule, provider, and chip as examples of risky triggers. Do not save memory or publish anything. What should Spark do with this turn?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4329,7 +4329,7 @@ async function run(): Promise<void> {
 
 	await test('meta risky-word discussion does not become live health status', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-meta-risky-word-boundary-'));
@@ -4342,7 +4342,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 610, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 610, replies);
 		ctx.message.text = 'TurnIntent live QA 1/8: This is not a command. I am only discussing risky words: build, run, mission, remember, publish, deploy, schedule, provider, chip, restart. Do not start, save, publish, schedule, or restart anything. What should Spark do with this turn?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4360,7 +4360,7 @@ async function run(): Promise<void> {
 
 	await test('startup architecture no-action discussion stays out of Builder detours', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-architecture-boundary-'));
@@ -4373,7 +4373,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 611, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 611, replies);
 		ctx.message.text = 'TurnIntent live QA 3/8: We are discussing the startup operator and self-improvement loop as product architecture, not asking you to launch a loop. Do not run, build, publish, schedule, save memory, or start a mission. In chat only, what boundary should Spark keep here?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4392,7 +4392,7 @@ async function run(): Promise<void> {
 
 	await test('startup operator no-launch advice answers in chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-operator-no-launch-'));
@@ -4405,7 +4405,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 612, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 612, replies);
 		ctx.message.text = 'For the startup operator, what is the next useful improvement to test? Do not launch anything.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4422,7 +4422,7 @@ async function run(): Promise<void> {
 
 	await test('startup loop readiness question answers readiness in chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-loop-readiness-'));
@@ -4435,7 +4435,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 613, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 613, replies);
 		ctx.message.text = 'Stay in chat and tell me whether the startup loop is ready.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4455,7 +4455,7 @@ async function run(): Promise<void> {
 
 	await test('natural startup operator usage question does not confirm a contextual mission', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-operator-natural-chat-'));
@@ -4467,7 +4467,7 @@ async function run(): Promise<void> {
 			return { data: { success: true } };
 		};
 
-		const user = { id: 8319079055, username: 'cem' };
+		const user = { id: 1000000001, username: 'cem' };
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 		await conversationModule.conversation.remember(
 			user,
@@ -4475,7 +4475,7 @@ async function run(): Promise<void> {
 		);
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 613, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 613, replies);
 		ctx.message.text = 'Should we use the startup operator more, and what would make that worthwhile?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -4492,7 +4492,7 @@ async function run(): Promise<void> {
 
 	await test('founder answer-quality planning does not attach Memory Doctor evidence', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4533,7 +4533,7 @@ async function run(): Promise<void> {
 			];
 			const replies: string[] = [];
 			for (const [index, prompt] of prompts.entries()) {
-				const ctx = makeFakeCtx(8319079055, 8319079055, 614 + index, replies);
+				const ctx = makeFakeCtx(1000000001, 1000000001, 614 + index, replies);
 				ctx.message.text = prompt;
 				(ctx as any).update = { update_id: 614 + index, message: ctx.message };
 				await indexModule.handleTextMessage(ctx);
@@ -4556,7 +4556,7 @@ async function run(): Promise<void> {
 
 	await test('memory context setup with no-save boundary rejects Memory Doctor detours', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4601,7 +4601,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 615, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 615, replies);
 			ctx.message.text = 'Memory/context QA: I am sketching a quiet note app called Tide Desk. The first screen has a calm inbox, a tiny priority slider, and one button called Clear next step. Keep this in the conversation for now; do not save memory and do not build anything.';
 			(ctx as any).update = { update_id: 615, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
@@ -4648,7 +4648,7 @@ async function run(): Promise<void> {
 
 	await test('post-restart focus question stays in conversational memory lane', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4689,7 +4689,7 @@ async function run(): Promise<void> {
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 618, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 618, replies);
 			ctx.message.text = 'After the restart, what should I focus on first tonight?';
 			(ctx as any).update = { update_id: 618, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
@@ -4713,7 +4713,7 @@ async function run(): Promise<void> {
 
 	await test('model-router demotes misclassified memory read for open-ended next-step planning', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4796,7 +4796,7 @@ async function run(): Promise<void> {
 			});
 
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 619, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 619, replies);
 			ctx.message.text = 'Now that we are back, what should I work on first tonight?';
 			(ctx as any).update = { update_id: 619, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
@@ -4841,7 +4841,7 @@ async function run(): Promise<void> {
 
 	await test('no-save chat setup suppresses unsupported saved-style Builder claims', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4886,7 +4886,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 616, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 616, replies);
 			ctx.message.text = "I am sketching a quiet planning app called Ember Porch. It opens with a soft inbox, three breathing slots, and one button called Settle. Let's just talk through it for now; don't save it or build anything yet.";
 			(ctx as any).update = { update_id: 616, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
@@ -4932,7 +4932,7 @@ async function run(): Promise<void> {
 
 	await test('chat-only project setup suppresses agent onboarding detours', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -4977,7 +4977,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 617, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 617, replies);
 			ctx.message.text = "I am sketching a quiet planning app called Willow Hearth. It opens with a tiny inbox, two settling slots, and one button called Breathe. Let's just talk through it for now; don't save it or build anything yet.";
 			(ctx as any).update = { update_id: 617, message: ctx.message };
 			await indexModule.handleTextMessage(ctx);
@@ -5020,7 +5020,7 @@ async function run(): Promise<void> {
 
 	await test('startup answer editing in chat does not become access or mission execution', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
@@ -5034,12 +5034,12 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const accessCtx = makeFakeCtx(8319079066, 8319079055, 615, replies);
+		const accessCtx = makeFakeCtx(1000000066, 1000000001, 615, replies);
 		accessCtx.message.text = 'Change my access level to three please';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(accessCtx);
 
-		const editCtx = makeFakeCtx(8319079066, 8319079055, 616, replies);
+		const editCtx = makeFakeCtx(1000000066, 1000000001, 616, replies);
 		editCtx.message.text = 'Improve this startup answer in chat only: "Keep nurturing the pilots and wait for stronger usage." Make it more operator-grade.';
 		await indexModule.handleTextMessage(editCtx);
 
@@ -5055,7 +5055,7 @@ async function run(): Promise<void> {
 
 	await test('startup answer pair scoring in chat does not become a loop', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-answer-score-chat-'));
@@ -5068,7 +5068,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079067, 8319079055, 617, replies);
+		const ctx = makeFakeCtx(1000000067, 1000000001, 617, replies);
 		ctx.message.text = 'Score this startup answer pair in chat only. Baseline: "keep nurturing." Candidate: "ask for paid commitment this week." Which is better and why? Do not run a loop.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5086,7 +5086,7 @@ async function run(): Promise<void> {
 
 	await test('startup answer canary in chat answers without launching tools', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-startup-answer-canary-chat-'));
@@ -5099,7 +5099,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079068, 8319079055, 618, replies);
+		const ctx = makeFakeCtx(1000000068, 1000000001, 618, replies);
 		ctx.message.text = 'Run a tiny startup answer canary in chat only: give one better answer to "12 pilots, 0 paid." Do not launch tools.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5117,7 +5117,7 @@ async function run(): Promise<void> {
 
 	await test('no-edit Spawner probe explanation answers before board or bridge routes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-no-edit-probe-explain-chat-'));
@@ -5130,7 +5130,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079069, 8319079055, 619, replies);
+		const ctx = makeFakeCtx(1000000069, 1000000001, 619, replies);
 		ctx.message.text = 'Do not build. What would a no-edit Spawner probe prove?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5148,7 +5148,7 @@ async function run(): Promise<void> {
 
 	await test('smallest no-edit test question answers before Builder bridge routes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-smallest-no-edit-test-chat-'));
@@ -5161,7 +5161,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079078, 8319079055, 628, replies);
+		const ctx = makeFakeCtx(1000000078, 1000000001, 628, replies);
 		ctx.message.text = 'No run yet; what would be the smallest no-edit test?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5180,7 +5180,7 @@ async function run(): Promise<void> {
 
 	await test('model switch gate explanation answers before Builder bridge routes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-model-switch-gate-chat-'));
@@ -5193,7 +5193,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079079, 8319079055, 629, replies);
+		const ctx = makeFakeCtx(1000000079, 1000000001, 629, replies);
 		ctx.message.text = 'Do not change settings. Explain how model-switch commands are gated.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5212,7 +5212,7 @@ async function run(): Promise<void> {
 
 	await test('read-only Spark state questions answer before Builder bridge routes', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-read-only-state-chat-'));
@@ -5446,7 +5446,7 @@ async function run(): Promise<void> {
 
 			for (const [index, item] of cases.entries()) {
 				const replies: string[] = [];
-				const ctx = makeFakeCtx(8319079080 + index, 8319079055, 630 + index, replies);
+				const ctx = makeFakeCtx(1000000080 + index, 1000000001, 630 + index, replies);
 				ctx.message.text = item.text;
 				await indexModule.handleTextMessage(ctx);
 				const reply = replies[0] || '';
@@ -5507,7 +5507,7 @@ async function run(): Promise<void> {
 
 	await test('provider fallback chat writes natural route execution evidence', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -5541,7 +5541,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079087, 8319079055, 637, replies);
+			const ctx = makeFakeCtx(1000000087, 1000000001, 637, replies);
 			ctx.message.text = 'no need we can talk here';
 			await indexModule.handleTextMessage(ctx);
 
@@ -5581,7 +5581,7 @@ async function run(): Promise<void> {
 
 	await test('provider fallback preserves canonical chat_plan route evidence', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -5615,7 +5615,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079087, 8319079055, 637, replies);
+			const ctx = makeFakeCtx(1000000087, 1000000001, 637, replies);
 			ctx.message.text = 'HC-02 installer proof turn 1: I am sketching a memory quality dashboard with stale-context labels.';
 			await indexModule.handleTextMessage(ctx);
 
@@ -5655,7 +5655,7 @@ async function run(): Promise<void> {
 
 	await test('mission-id product concept does not become Mission Control status', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-mission-id-product-boundary-'));
@@ -5668,7 +5668,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 613, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 613, replies);
 		ctx.message.text = 'We are discussing mission IDs as a product concept, not launching a mission. What should the UI show?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5685,7 +5685,7 @@ async function run(): Promise<void> {
 
 	await test('natural access lowering updates chat setting without running noninteractive Level 5 CLI action', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
@@ -5693,7 +5693,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079056, 8319079055, 614, replies);
+		const ctx = makeFakeCtx(1000000056, 1000000001, 614, replies);
 		ctx.message.text = 'Change my access level to three please';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5710,7 +5710,7 @@ async function run(): Promise<void> {
 
 	await test('access level documentation comparison stays product-rule chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
@@ -5724,7 +5724,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079070, 8319079055, 620, replies);
+		const ctx = makeFakeCtx(1000000070, 1000000001, 620, replies);
 		ctx.message.text = 'In docs, I am comparing access level 3 and access level 5. Do not change my access. What is the product rule?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5742,7 +5742,7 @@ async function run(): Promise<void> {
 
 	await test('no-build ideation gives requested three ideas', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-no-build-three-ideas-'));
@@ -5755,7 +5755,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 621, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 621, replies);
 		ctx.message.text = 'Give me three build ideas for founder onboarding. Do not build anything yet.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5775,7 +5775,7 @@ async function run(): Promise<void> {
 
 	await test('no-loop startup operator ideation gives requested three improvements', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-no-loop-three-improvements-'));
@@ -5788,7 +5788,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 622, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 622, replies);
 		ctx.message.text = 'Give me three startup operator improvements. Do not start a loop.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5808,7 +5808,7 @@ async function run(): Promise<void> {
 
 	await test('no-create chip word usage stays literal', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-chip-word-usage-'));
@@ -5821,7 +5821,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 623, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 623, replies);
 		ctx.message.text = 'Use the word chip in a sentence. Do not create a chip or domain chip.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5838,7 +5838,7 @@ async function run(): Promise<void> {
 
 	await test('taxonomy action-word labels do not infer contextual mission from recent Spark bug context', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-taxonomy-labels-no-mission-'));
@@ -5859,12 +5859,12 @@ async function run(): Promise<void> {
 
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
 		await conversationModule.conversation.remember(
-			{ id: 8319079072, username: 'cem' },
+			{ id: 1000000072, username: 'cem' },
 			'We are designing a Spark bug recognition domain chip with build, mission, and diagnostic agent context.'
 		);
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079072, 8319079055, 628, replies);
+		const ctx = makeFakeCtx(1000000072, 1000000001, 628, replies);
 		ctx.message.text = 'Memory, mission, build, and publish are just labels in this taxonomy.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -5884,7 +5884,7 @@ async function run(): Promise<void> {
 
 	await test('chat-only domain chip proposal stays useful without creating', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -5918,7 +5918,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 624, replies);
+			const ctx = makeFakeCtx(1000000071, 1000000001, 624, replies);
 			ctx.message.text = 'HC-09 installer proof: We are comparing domain-chip options for startup pricing objections; what proposal should we discuss first?';
 			await indexModule.handleTextMessage(ctx);
 
@@ -5961,7 +5961,7 @@ async function run(): Promise<void> {
 
 	await test('suppressed domain chip disambiguation preserves chat_plan route evidence', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -6000,7 +6000,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 625, replies);
+			const ctx = makeFakeCtx(1000000071, 1000000001, 625, replies);
 			ctx.message.text = 'HC-09 installer proof: We are comparing domain-chip options for startup pricing objections; what proposal should we discuss first?';
 			await indexModule.handleTextMessage(ctx);
 
@@ -6043,7 +6043,7 @@ async function run(): Promise<void> {
 
 	await test('plain local chat fallback records Harness Core answer authority', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -6082,7 +6082,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 638, replies);
+			const ctx = makeFakeCtx(1000000071, 1000000001, 638, replies);
 			ctx.message.text = 'Pause the mission idea. What are the risks?';
 			await indexModule.handleTextMessage(ctx);
 
@@ -6127,7 +6127,7 @@ async function run(): Promise<void> {
 
 	await test('Harness architecture questions ignore stale build wording through local answer boundary', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -6169,7 +6169,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 639, replies);
+			const ctx = makeFakeCtx(1000000071, 1000000001, 639, replies);
 			ctx.message.text = 'Ignore the pending build and answer this: what changed in the harness architecture?';
 			await indexModule.handleTextMessage(ctx);
 
@@ -6227,7 +6227,7 @@ async function run(): Promise<void> {
 
 	await test('previous route neutral summary bypasses Builder route residue through local answer boundary', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -6272,7 +6272,7 @@ async function run(): Promise<void> {
 			const indexModule: any = await import('../src/index');
 			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079071, 8319079055, 640, replies);
+			const ctx = makeFakeCtx(1000000071, 1000000001, 640, replies);
 			ctx.message.text = 'Do not continue the previous route. Give me a neutral summary.';
 			await indexModule.handleTextMessage(ctx);
 
@@ -6320,7 +6320,7 @@ async function run(): Promise<void> {
 
 	await test('schedule word in bug report stays schedule-specific chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-schedule-word-report-'));
@@ -6333,7 +6333,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 626, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 626, replies);
 		ctx.message.text = 'In this bug report, the word schedule appears as an example: schedule the launch. Do not schedule anything. What should Spark do?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -6351,7 +6351,7 @@ async function run(): Promise<void> {
 
 	await test('quoted customer schedule wording stays in chat without schedule menu', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-schedule-quote-report-'));
@@ -6364,7 +6364,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 627, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 627, replies);
 		ctx.message.text = 'A customer wrote "schedule the founder review" in a quote. How should Spark classify it?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -6382,7 +6382,7 @@ async function run(): Promise<void> {
 
 	await test('publish and deploy words in bug report stay release-specific chat', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-release-word-report-'));
@@ -6395,7 +6395,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079071, 8319079055, 627, replies);
+		const ctx = makeFakeCtx(1000000071, 1000000001, 627, replies);
 		ctx.message.text = 'Bug report: the words publish and deploy are examples here, not commands. Do not publish or deploy. What should Spark do?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -6413,7 +6413,7 @@ async function run(): Promise<void> {
 
 	await test('explicit slow no-edit Mission Control diagnostic routes through Spawner instead of live health', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -6441,7 +6441,7 @@ async function run(): Promise<void> {
 		(axios as any).get = async () => ({ data: { providers: [{ id: 'codex' }] } });
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 605, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 605, replies);
 		ctx.message.text = 'Run a deliberately slow no-edit Mission Control diagnostic through Spawner. It should only prove live running-state UI and reply with SPARK_E2E_SLOW_NO_EDIT_OK after waiting about 30 seconds. Do not create files, do not edit files, and share Canvas/Kanban/View Execution if it starts.';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -6475,7 +6475,7 @@ async function run(): Promise<void> {
 
 	await test('denied route probe commands record Governor denial ledgers without running tools', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -6496,7 +6496,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 630, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 630, replies);
 		ctx.message.text = '/probe browser but do not probe or test browser right now';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleAgentRouteProbeCommand(ctx);
@@ -6535,7 +6535,7 @@ async function run(): Promise<void> {
 
 	await test('natural Spawner board reads record Harness Core authorization and outcome ledgers', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_BOT_TEST_MODE = '1';
@@ -6579,7 +6579,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 		ctx.message.text = 'Which LLM took the latest Spawner job?';
 		const indexModule: any = await import('../src/index');
 		await indexModule.handleTextMessage(ctx);
@@ -6635,7 +6635,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-status-'));
 		const binDir = path.join(tempRoot, 'bin');
 		const oldPath = process.env.PATH || '';
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
@@ -6697,7 +6697,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 605, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 605, replies);
 			ctx.message.text = 'What access level are we on right now? Use fresh access status, and separate chat setting, effective CLI level, and runner writability. Do not change anything.';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -6745,7 +6745,7 @@ async function run(): Promise<void> {
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-access-split-state-'));
 		const binDir = path.join(tempRoot, 'bin');
 		const oldPath = process.env.PATH || '';
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'agent';
@@ -6817,7 +6817,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 626, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 626, replies);
 			ctx.message.text = 'What access level are we on right now?';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -6843,7 +6843,7 @@ async function run(): Promise<void> {
 	await test('blanket approval after access status does not elevate chat access', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-access-approve-trap-'));
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'agent';
@@ -6860,7 +6860,7 @@ async function run(): Promise<void> {
 			const replies: string[] = [];
 			const indexModule: any = await import('../src/index');
 			const accessPolicy = await import('../src/accessPolicy');
-			const ctx = makeFakeCtx(8319079055, 8319079055, 627, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 627, replies);
 			ctx.message.text = 'approve everything';
 			await indexModule.handleTextMessage(ctx);
 
@@ -6883,7 +6883,7 @@ async function run(): Promise<void> {
 	await test('natural access help records Harness Core authorization and outcome ledgers', async () => {
 		restoreAxios();
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-access-help-ledger-'));
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'operator';
@@ -6900,7 +6900,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 			ctx.message.text = 'What access tiers unlock local files? Explain access help without changing anything.';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -6940,7 +6940,7 @@ async function run(): Promise<void> {
 		const projectRoot = path.join(workspaceRoot, 'harness-ledger-project');
 		mkdirSync(projectRoot, { recursive: true });
 		writeFileSync(path.join(projectRoot, 'package.json'), JSON.stringify({ name: 'harness-ledger-project' }));
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
 		process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
@@ -6957,7 +6957,7 @@ async function run(): Promise<void> {
 
 		try {
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 607, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 607, replies);
 			ctx.message.text = '/workspaces';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleLocalWorkspaceInventory(ctx);
@@ -7002,7 +7002,7 @@ async function run(): Promise<void> {
 		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = ledgerPath;
 		delete process.env.SPARK_HARNESS_CORE_LEDGER;
 		const conversationModule = require('../src/conversation') as typeof import('../src/conversation');
-		const testUserId = 8319079055;
+		const testUserId = 1000000001;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
 		const user = { id: testUserId, username: 'diagnostic-followup-test' };
 
@@ -7061,7 +7061,7 @@ async function run(): Promise<void> {
 
 	await test('fresh live state answers disclose runtime source instead of memory', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-live-state-source-'));
@@ -7080,7 +7080,7 @@ async function run(): Promise<void> {
 			};
 
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 606, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 606, replies);
 			ctx.message.text = 'What is the current live state of Spark? Are you using fresh runtime state or memory? Keep it natural and short.';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -7102,7 +7102,7 @@ async function run(): Promise<void> {
 
 	await test('repair-needed current-status question answers from live status without repairing', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPARK_BOT_TEST_MODE = '1';
 		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-repair-status-no-action-'));
@@ -7127,7 +7127,7 @@ async function run(): Promise<void> {
 			};
 
 			const replies: string[] = [];
-			const ctx = makeFakeCtx(8319079055, 8319079055, 607, replies);
+			const ctx = makeFakeCtx(1000000001, 1000000001, 607, replies);
 			ctx.message.text = 'Do not repair anything. Is a repair needed from the current status?';
 			const indexModule: any = await import('../src/index');
 			await indexModule.handleTextMessage(ctx);
@@ -7188,7 +7188,7 @@ async function run(): Promise<void> {
 
 	await test('pending clarification keeps project title for pronoun-heavy build followup', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.SPAWNER_UI_URL = 'http://stub-spawner.test';
 		process.env.SPAWNER_UI_PUBLIC_URL = 'http://stub-spawner.test';
@@ -7211,7 +7211,7 @@ async function run(): Promise<void> {
 		};
 
 		const replies: string[] = [];
-		const ctx = makeFakeCtx(8319079055, 8319079055, 559, replies);
+		const ctx = makeFakeCtx(1000000001, 1000000001, 559, replies);
 		const executionAuthority = fakeGovernorExecutionAuthority();
 		await callHandleBuildIntent({
 			ctx,
@@ -7222,7 +7222,7 @@ async function run(): Promise<void> {
 		});
 
 		const indexModule: any = await import('../src/index');
-		const followupCtx = makeFakeCtx(8319079055, 8319079055, 560, replies);
+		const followupCtx = makeFakeCtx(1000000001, 1000000001, 560, replies);
 		followupCtx.message.text = "yes let's do it create it after analyzing our systems deeply please";
 		await indexModule.handleTextMessage(followupCtx);
 
@@ -7241,7 +7241,7 @@ async function run(): Promise<void> {
 
 	await test('build intent for non-admin uses default tier (base)', async () => {
 		restoreAxios();
-		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 		process.env.BOT_DEFAULT_TIER = 'base';
 		process.env.BOT_PRO_USER_IDS = '';
 

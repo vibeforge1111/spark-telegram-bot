@@ -44,7 +44,7 @@ void (async () => {
   await test('read-only media handlers do not persist local user memory', async () => {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-media-handler-memory-'));
     process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-    process.env.ADMIN_TELEGRAM_IDS = '8319079055,8319079056';
+    process.env.ADMIN_TELEGRAM_IDS = '1000000001,1000000056';
     process.env.SPARK_BOT_TEST_MODE = '1';
     process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
     process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
@@ -70,7 +70,7 @@ void (async () => {
     try {
       const imageReplies: string[] = [];
       const imageCtx = fakeMediaCtx({
-        userId: 8319079055,
+        userId: 1000000001,
         messageId: 9201,
         replies: imageReplies,
         message: {
@@ -88,7 +88,7 @@ void (async () => {
 
       const voiceReplies: string[] = [];
       const voiceCtx = fakeMediaCtx({
-        userId: 8319079056,
+        userId: 1000000056,
         messageId: 9202,
         replies: voiceReplies,
         message: {

@@ -10,7 +10,7 @@ function argValue(name: string): string | null {
 }
 
 function makeFakeCtx(prompt: string, replies: string[], replyExtras: unknown[]) {
-  const chatId = Number(argValue('--chat-id') || '8319079055');
+  const chatId = Number(argValue('--chat-id') || '1000000001');
   const messageId = Date.now();
   return {
     chat: { id: chatId },
@@ -90,7 +90,7 @@ async function main(): Promise<number> {
   process.env.TELEGRAM_SMOKE_MODE = '1';
   process.env.SPARK_BUILDER_BRIDGE_MODE = process.env.SPARK_BUILDER_BRIDGE_MODE || 'off';
   process.env.SPARK_AGENT_ACCESS_PROFILE = process.env.SPARK_AGENT_ACCESS_PROFILE || 'developer';
-  process.env.ADMIN_TELEGRAM_IDS = process.env.ADMIN_TELEGRAM_IDS || '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = process.env.ADMIN_TELEGRAM_IDS || '1000000001';
   process.env.SPAWNER_UI_URL = process.env.SPAWNER_UI_URL || 'http://127.0.0.1:3333';
   process.env.SPAWNER_UI_PUBLIC_URL = process.env.SPAWNER_UI_PUBLIC_URL || 'http://127.0.0.1:3333';
   process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO = repoRoot;

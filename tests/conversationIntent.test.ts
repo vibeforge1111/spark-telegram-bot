@@ -773,7 +773,7 @@ test('turns explicit contextual improvement requests into diagnostic integration
 
 test('turns natural shipped project feedback into an iteration mission', () => {
   const project = {
-    chatId: '8319079055',
+    chatId: '1000000001',
     userId: '1278511160',
     projectName: 'Founder Signal Room',
     projectPath: 'C:/Users/USER/Desktop/founder-signal-room',
@@ -803,7 +803,7 @@ test('turns natural shipped project feedback into an iteration mission', () => {
 
 test('does not treat preview link questions as project improvement requests', () => {
   const project = {
-    chatId: '8319079055',
+    chatId: '1000000001',
     userId: '1278511160',
     projectName: 'Founder Signal Room',
     projectPath: 'C:/Users/USER/Desktop/founder-signal-room',
@@ -820,7 +820,7 @@ test('does not treat preview link questions as project improvement requests', ()
 
 test('does not treat Spark memory and self-awareness diagnostics as latest project polish', () => {
   const project = {
-    chatId: '8319079055',
+    chatId: '1000000001',
     userId: '1278511160',
     projectName: 'Loop Lantern',
     projectPath: 'C:/Users/USER/Desktop/loop-lantern',

@@ -17,8 +17,8 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 }
 
 function fakeCtx(text: string, replies: string[], replyExtras: any[]): any {
-  const user = { id: 8319079055, is_bot: false, first_name: 'SpawnerTrace', username: 'spawner_trace' };
-  const chat = { id: 8319079055, type: 'private', first_name: 'SpawnerTrace', username: 'spawner_trace' };
+  const user = { id: 1000000001, is_bot: false, first_name: 'SpawnerTrace', username: 'spawner_trace' };
+  const chat = { id: 1000000001, type: 'private', first_name: 'SpawnerTrace', username: 'spawner_trace' };
   return {
     update: {
       update_id: 1,
@@ -61,8 +61,8 @@ const originalAxiosGet = axios.get;
 process.env.SPARK_SKIP_ENV_OVERRIDE = '1';
 process.env.SPARK_BOT_TEST_MODE = '1';
 process.env.BOT_TOKEN = '0:spawner-board-trace-test';
-process.env.ADMIN_TELEGRAM_IDS = '8319079055';
-process.env.ALLOWED_TELEGRAM_IDS = '8319079055';
+process.env.ADMIN_TELEGRAM_IDS = '1000000001';
+process.env.ALLOWED_TELEGRAM_IDS = '1000000001';
 process.env.SPARK_HOME = tempRoot;
 process.env.SPARK_GATEWAY_STATE_DIR = tempRoot;
 process.env.SPARK_AGENT_ACCESS_PROFILE = 'builder';

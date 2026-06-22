@@ -540,8 +540,8 @@ test('mission start update links the mission once through kanban', () => {
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a tiny board.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -597,8 +597,8 @@ test('suppresses late mission start after canvas tasks are already planned', () 
     },
     {
       missionId: 'mission-planned',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a cafe page.',
       createdAt: '2026-05-03T00:00:00Z'
@@ -619,8 +619,8 @@ test('verbose mission start does not paste the whole build brief', () => {
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build this at C:\\Users\\USER\\Desktop\\huge-project with many implementation details.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -642,8 +642,8 @@ test('verbose mission start does not paste the whole build brief', () => {
 test('normal verbosity suppresses task starts and noisy progress', () => {
   const subscription = {
     missionId: 'spark-123',
-    chatId: '8319079055',
-    userId: '8319079055',
+    chatId: '1000000001',
+    userId: '1000000001',
     requestId: 'tg-build-1',
     goal: 'Build a tiny board.',
     createdAt: '2026-04-26T00:00:00Z'
@@ -693,8 +693,8 @@ test('task pack starts stay quiet instead of announcing every future step', () =
     },
     {
       missionId: 'spark-pack',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-pack',
       goal: 'Build a sprite creator.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -773,8 +773,8 @@ test('task start labels stay suppressed instead of exposing node slugs', () => {
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a tiny board.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -797,8 +797,8 @@ test('verbose task completion messages stay compact and human readable', () => {
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a sprite creator.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -826,8 +826,8 @@ test('suppresses provider-only task completion chatter after the final result', 
     },
     {
       missionId: 'spark-no-edit',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-no-edit',
       goal: 'Run a no-edit Spawner proof.',
       createdAt: '2026-05-14T00:00:00Z'
@@ -857,8 +857,8 @@ test('task completion updates rotate as natural one-line progress', () => {
     },
     {
       missionId: 'spark-rotation',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-rotation',
       goal: 'Build a tiny page.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -888,8 +888,8 @@ test('fast-lane build-and-check completion reads like one natural action', () =>
     },
     {
       missionId: 'spark-fast-lane',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-fast-lane',
       goal: 'Build a tiny page.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -915,8 +915,8 @@ test('fast-lane build-and-check progress avoids duplicate working-on blocks', ()
     },
     {
       missionId: 'spark-fast-lane-progress',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-fast-lane-progress',
       goal: 'Build a tiny page.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -941,8 +941,8 @@ test('verbose progress turns useful relay summaries into readable Telegram updat
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a tiny board.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -972,8 +972,8 @@ test('verbose progress skips generic focus when the concrete change is clear', (
     },
     {
       missionId: 'spark-static',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-static',
       goal: 'Build a tiny static page.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -1019,8 +1019,8 @@ test('provider no-text placeholder with preview link becomes a clean handoff', (
 test('suppresses internal skill and dispatch chatter', () => {
   const subscription = {
     missionId: 'spark-123',
-    chatId: '8319079055',
-    userId: '8319079055',
+    chatId: '1000000001',
+    userId: '1000000001',
     requestId: 'tg-build-1',
     goal: 'Build a tiny board.',
     createdAt: '2026-04-26T00:00:00Z'
@@ -1061,8 +1061,8 @@ test('normal mission completion waits for the handoff summary', () => {
     },
     {
       missionId: 'spark-123',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-build-1',
       goal: 'Build a tiny board.',
       createdAt: '2026-04-26T00:00:00Z'
@@ -1420,8 +1420,8 @@ test('suppresses hosted preview generation progress in Telegram', () => {
     },
     {
       missionId: 'spark-preview',
-      chatId: '8319079055',
-      userId: '8319079055',
+      chatId: '1000000001',
+      userId: '1000000001',
       requestId: 'tg-preview-1',
       goal: 'Build a cafe page.',
       createdAt: '2026-05-03T00:00:00Z'
@@ -1569,8 +1569,8 @@ void (async () => {
       const missionId = `mission-no-build-correction-${Date.now()}`;
       await registerMissionRelay({
         missionId,
-        chatId: '8319079055',
-        userId: '8319079055',
+        chatId: '1000000001',
+        userId: '1000000001',
         requestId: 'tg-build-correction',
         goal: 'Accidental fast build',
         createdAt: new Date().toISOString(),
@@ -1578,7 +1578,7 @@ void (async () => {
         relayProfile: 'primary'
       });
 
-      const suppressed = await markLatestMissionRelayCancelledForChat('8319079055', '8319079055');
+      const suppressed = await markLatestMissionRelayCancelledForChat('1000000001', '1000000001');
       assert.equal(suppressed, missionId);
       assert.equal(shouldSuppressMissionHandoff(missionId), true);
     } finally {

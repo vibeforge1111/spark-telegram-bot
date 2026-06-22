@@ -203,7 +203,7 @@ Builder should always be able to emit this even if all streaming substeps are di
 ```json
 {
   "version": "spark.telegram.stream.v1",
-  "turn_id": "telegram:8319079055:1234",
+  "turn_id": "telegram:1000000001:1234",
   "seq": 4,
   "type": "final_text",
   "text": "Hey Cem.\n\nStill tracking the persistent memory quality evaluation as your active focus.",

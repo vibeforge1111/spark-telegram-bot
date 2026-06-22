@@ -204,14 +204,14 @@ test('parses Ubuntu target paths under configured project root', () => {
 
 test('parses macOS target paths under configured project root', () => {
   const originalRoot = process.env.SPARK_PROJECT_ROOT;
-  process.env.SPARK_PROJECT_ROOT = '/Users/leventcem/Desktop';
+  process.env.SPARK_PROJECT_ROOT = '/Users/example/Desktop';
   try {
     const intent = parseBuildIntent(
-      'create a playful dashboard at /Users/leventcem/Desktop/spark-mission-pets: called Spark Mission Pets with daily missions, streaks, localStorage, filters, and a README.'
+      'create a playful dashboard at /Users/example/Desktop/spark-mission-pets: called Spark Mission Pets with daily missions, streaks, localStorage, filters, and a README.'
     );
 
     assert.ok(intent);
-    assert.equal(intent.projectPath, '/Users/leventcem/Desktop/spark-mission-pets');
+    assert.equal(intent.projectPath, '/Users/example/Desktop/spark-mission-pets');
     assert.equal(intent.projectName, 'Spark Mission Pets');
     assert.match(intent.prd, /called Spark Mission Pets/);
     assert.doesNotMatch(intent.prd, /^create .* at \/Users/);

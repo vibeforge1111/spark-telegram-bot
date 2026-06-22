@@ -17,7 +17,7 @@ async function test(name: string, fn: () => Promise<void>): Promise<void> {
 
 async function main(): Promise<void> {
   await test('sanitizes delayed completion summary delivery failure logs', async () => {
-    const missionId = 'mission-raw-8319079055';
+    const missionId = 'mission-raw-1000000001';
     const secret = `sk-${'a'.repeat(30)}`;
     const line = formatCompletionSummaryDeliveryFailureLogForTests(
       missionId,

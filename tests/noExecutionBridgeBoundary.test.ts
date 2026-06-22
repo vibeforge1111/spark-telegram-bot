@@ -32,8 +32,8 @@ function fakeCtx(
   replies: string[],
   mediaReplies: { voice: unknown[]; audio: unknown[] } = { voice: [], audio: [] }
 ) {
-  const chat = { id: 8319079055, type: 'private' };
-  const from = { id: 8319079055, username: 'qa' };
+  const chat = { id: 1000000001, type: 'private' };
+  const from = { id: 1000000001, username: 'qa' };
   const message = { message_id: 9101, text, chat, from };
   return {
     chat,
@@ -82,7 +82,7 @@ async function waitForJsonlRecord(filePath: string, predicate: (record: any) => 
 
 test('Builder bridge handoff carries vnext envelope and governor decision', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -119,7 +119,7 @@ test('Builder bridge handoff carries vnext envelope and governor decision', asyn
 
 test('/voice command handoff carries voice Governor authority into Builder', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -159,7 +159,7 @@ test('/voice command handoff carries voice Governor authority into Builder', asy
 
 test('/voice onboard handoff carries write and network Governor authority into Builder', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -200,7 +200,7 @@ test('/voice onboard handoff carries write and network Governor authority into B
 
 test('/voice self-test handoff carries the Builder diagnostic authority contract', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -239,7 +239,7 @@ test('/voice self-test handoff carries the Builder diagnostic authority contract
 
 test('/voice speak handoff allows authorized Builder voice media delivery', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -285,7 +285,7 @@ test('/voice speak handoff allows authorized Builder voice media delivery', asyn
 
 test('no-execution meta action words bypass Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -326,7 +326,7 @@ test('no-execution meta action words bypass Builder bridge detours', async () =>
 
 test('quoted drafted high-agency examples compose answers without Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -374,7 +374,7 @@ test('quoted drafted high-agency examples compose answers without Builder bridge
 
 test('quoted publish wording preserves governed quoted-boundary route execution', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -437,7 +437,7 @@ test('quoted publish wording preserves governed quoted-boundary route execution'
 
 test('quoted browser computer-use notes preserve governed quoted-boundary route execution', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -505,7 +505,7 @@ test('quoted browser computer-use notes preserve governed quoted-boundary route 
 
 test('source-attributed action reports compose a safe boundary reply without Builder detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -573,7 +573,7 @@ test('source-attributed action reports compose a safe boundary reply without Bui
 
 test('publication approval-list boundary bypasses Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -609,7 +609,7 @@ test('publication approval-list boundary bypasses Builder bridge detours', async
 
 test('browser/computer-use authorization boundary bypasses Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -646,7 +646,7 @@ test('browser/computer-use authorization boundary bypasses Builder bridge detour
 
 test('old mission route bug boundary bypasses Builder bridge detours', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
@@ -682,7 +682,7 @@ test('old mission route bug boundary bypasses Builder bridge detours', async () 
 
 test('plain Builder replies drop voice media without delivery authorization', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.SPARK_BOT_TEST_MODE = '1';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';

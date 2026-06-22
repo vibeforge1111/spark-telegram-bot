@@ -22,8 +22,8 @@ test('renders redacted route telemetry without raw text or payload content', () 
     decision,
     phase: 'shadow',
     profile: 'spark agi',
-    userId: 8319079055,
-    chatId: 8319079055,
+    userId: 1000000001,
+    chatId: 1000000001,
     chatType: 'private',
     admin: true
   });
@@ -32,7 +32,7 @@ test('renders redacted route telemetry without raw text or payload content', () 
     line,
     /^\[NaturalRoute\] phase=shadow route=memory\.write owner=spark-intelligence-builder confidence=explicit context=latest_message confirm=false signals=plain_chat_memory_directive blocked=none profile=spark_agi user=user_[a-f0-9]{16} chat=chat_[a-f0-9]{16} chat_type=private admin=true$/
   );
-  assert.doesNotMatch(line, /8319079055/);
+  assert.doesNotMatch(line, /1000000001/);
   assert.doesNotMatch(line, /concise|Telegram replies|prefer/i);
 });
 
@@ -55,8 +55,8 @@ test('renders redacted execution comparison telemetry', () => {
     decision,
     phase: 'execute',
     profile: 'spark agi',
-    userId: 8319079055,
-    chatId: 8319079055,
+    userId: 1000000001,
+    chatId: 1000000001,
     chatType: 'private',
     admin: true,
     executedRoute: 'spawner.build',
@@ -69,7 +69,7 @@ test('renders redacted execution comparison telemetry', () => {
   assert.match(line, /route=spawner\.build/);
   assert.match(line, /executed=spawner\.build/);
   assert.match(line, /outcome=matched/);
-  assert.doesNotMatch(line, /8319079055/);
+  assert.doesNotMatch(line, /1000000001/);
   assert.doesNotMatch(line, /tiny timer app|spark-timer/i);
 });
 

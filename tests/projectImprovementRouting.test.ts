@@ -17,8 +17,8 @@ function test(name: string, fn: () => void): void {
 }
 
 const reliabilityDesk = {
-  chatId: '8319079055',
-  userId: '8319079055',
+  chatId: '1000000001',
+  userId: '1000000001',
   projectName: 'Mission Control Reliability Desk',
   projectPath: 'C:/Users/USER/.spark/workspaces/mission-1778354076476-mission-control-reliability-desk',
   previewUrl: 'http://127.0.0.1:3333/preview/reliability/index.html',

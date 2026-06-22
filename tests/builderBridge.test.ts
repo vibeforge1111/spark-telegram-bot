@@ -833,7 +833,7 @@ test('black-box bridge invokes Builder self black-box json route', () => {
 test('AOC preflight commands carry trace metadata without raw prompt or chat ids', () => {
   const commands = buildBuilderAocPreflightCommands(
     {
-      userId: '8319079055',
+      userId: '1000000001',
       chatId: '123456789',
       currentMessage: 'Create a secret private project prompt that must not be persisted.',
       requestId: 'tg-build-safe',
@@ -855,7 +855,7 @@ test('AOC preflight commands carry trace metadata without raw prompt or chat ids
   assert.ok(flat.includes('session:telegram:redacted'));
   assert.ok(flat.includes('human:telegram:redacted'));
   assert.doesNotMatch(flat.join('\n'), /secret private project prompt/);
-  assert.doesNotMatch(flat.join('\n'), /8319079055|123456789/);
+  assert.doesNotMatch(flat.join('\n'), /1000000001|123456789/);
 });
 
 test('formats self-improvement plan as probe-first actions', () => {

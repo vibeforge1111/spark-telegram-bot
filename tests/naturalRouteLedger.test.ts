@@ -33,8 +33,8 @@ async function run(): Promise<void> {
     const record = createNaturalRouteExecutionRecord({
       decision,
       profile: 'spark agi',
-      userId: 8319079055,
-      chatId: 8319079055,
+      userId: 1000000001,
+      chatId: 1000000001,
       chatType: 'private',
       admin: true,
       executedRoute: 'spawner.build',
@@ -52,7 +52,7 @@ async function run(): Promise<void> {
     assert.match(record.user_id, /^user_[a-f0-9]{16}$/);
     assert.match(record.chat_id, /^chat_[a-f0-9]{16}$/);
     assert.doesNotMatch(serialized, /tiny timer app|spark-timer|Desktop/i);
-    assert.doesNotMatch(serialized, /8319079055/);
+    assert.doesNotMatch(serialized, /1000000001/);
     assert.equal(Object.prototype.hasOwnProperty.call(record, 'payload'), false);
   });
 

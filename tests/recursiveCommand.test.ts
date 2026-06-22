@@ -6,7 +6,7 @@ import path from 'node:path';
 
 process.env.SPARK_BOT_TEST_MODE = '1';
 process.env.BOT_TOKEN = process.env.BOT_TOKEN || '0:telegram-recursive-command-test';
-process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+process.env.ADMIN_TELEGRAM_IDS = '1000000001';
 process.env.TELEGRAM_RELAY_SECRET = process.env.TELEGRAM_RELAY_SECRET || 'recursive-command-test-relay-secret-1234567890';
 
 async function test(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -23,8 +23,8 @@ function fakeCtx(text: string): any {
   const replies: string[] = [];
   return {
     replies,
-    from: { id: 8319079055 },
-    chat: { id: 8319079055 },
+    from: { id: 1000000001 },
+    chat: { id: 1000000001 },
     message: { text },
     reply: async (message: string) => {
       replies.push(message);

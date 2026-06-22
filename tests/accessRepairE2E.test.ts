@@ -188,7 +188,7 @@ async function runAccessRepairScenario(input: {
   }));
   const sparkCommand = writeSparkShim({ binDir, callsPath, statusPath, finalStatus });
 
-  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.ADMIN_TELEGRAM_IDS = '1000000001';
   process.env.BOT_DEFAULT_TIER = 'base';
   process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
   process.env.SPARK_BOT_TEST_MODE = '1';
@@ -215,9 +215,9 @@ async function runAccessRepairScenario(input: {
   try {
     const replies: string[] = [];
     const indexModule: any = loadFreshIndexModule();
-    await indexModule.handleTextMessage(fakeCtx(8319079055, 8319079055, 700, input.firstText, replies));
+    await indexModule.handleTextMessage(fakeCtx(1000000001, 1000000001, 700, input.firstText, replies));
     if (input.includeDidYou) {
-      await indexModule.handleTextMessage(fakeCtx(8319079055, 8319079055, 701, 'did you', replies));
+      await indexModule.handleTextMessage(fakeCtx(1000000001, 1000000001, 701, 'did you', replies));
     }
     const sparkCalls = existsSync(callsPath) ? readFileSync(callsPath, 'utf-8') : '';
     return { replies, sparkCalls, spawnerCalls };

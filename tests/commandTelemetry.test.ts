@@ -16,13 +16,13 @@ test('renders redacted command telemetry without message text', () => {
     command: '/diagnose',
     phase: 'replied',
     profile: 'spark-agi',
-    userId: 8319079055,
-    chatId: 8319079055,
+    userId: 1000000001,
+    chatId: 1000000001,
     chatType: 'private'
   });
 
   assert.match(line, /^\[Command\] command=\/diagnose phase=replied profile=spark-agi user=user_[a-f0-9]{16} chat=chat_[a-f0-9]{16} chat_type=private$/);
-  assert.doesNotMatch(line, /8319079055/);
+  assert.doesNotMatch(line, /1000000001/);
 });
 
 test('normalizes missing and spaced fields', () => {

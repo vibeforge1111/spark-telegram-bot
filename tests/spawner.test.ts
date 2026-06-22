@@ -856,7 +856,7 @@ async function run(): Promise<void> {
               artifact_id: 'spark-qa-operator-domain-chip-v1',
               status: 'failed',
               exit_code: null,
-              error: 'Repository path not found: /Users/alchemistab/.spark/modules/spawner-ui/domain-chip-spark-qa-operator'
+              error: 'Repository path not found: /Users/example/.spark/modules/spawner-ui/domain-chip-spark-qa-operator'
             }
           ]
         }
@@ -865,7 +865,7 @@ async function run(): Promise<void> {
     );
 
     assert.match(message, /required local artifact path is not available/);
-    assert.doesNotMatch(message, /\/Users\/alchemistab/);
+    assert.doesNotMatch(message, /\/Users\/example/);
     assert.doesNotMatch(message, /\.spark\/modules/);
   });
 
