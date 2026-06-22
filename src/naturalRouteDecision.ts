@@ -148,6 +148,18 @@ function isScheduleReadRequest(text: string): boolean {
   return /\b(?:show|list|view|display|see|check|read|what(?:'s|\s+is|\s+are)?|which|current|active|existing)\b/.test(normalized);
 }
 
+function isTextTransformActionBoundary(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const actionVerb = /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
+  if (!actionVerb.test(normalized)) return false;
+  const transformLead = /^(?:please\s+)?(?:translate|rewrite|rephrase|paraphrase|summari[sz]e|render|convert|quote|say)\b/;
+  const payloadDelimiter = /[:"]/.test(normalized) ||
+    /(?:^|\s)'[^']{0,120}'(?:\s|$)/.test(normalized);
+  if (transformLead.test(normalized) && payloadDelimiter) return true;
+  return /^(?:how\s+(?:do|would|should|can|could)\s+(?:i|we|you|one)\s+(?:say|write|phrase|translate)|what(?:'s| is)\s+(?:the\s+)?(?:best\s+way\s+to\s+say|translation\s+of|spanish\s+for|french\s+for|german\s+for|portuguese\s+for|arabic\s+for))\b/.test(normalized);
+}
+
 function parseNaturalScheduleCreateIntent(text: string): { text: string } | null {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
@@ -162,6 +174,25 @@ function parseNaturalScheduleCreateIntent(text: string): { text: string } | null
     /\b(?:at|by|around|on|in)\s+(?:\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d+\s+(?:minutes?|hours?|days?|weeks?))\b/.test(normalized) ||
     /"\s*[^"]+\s+"\s+(?:mission|loop)\b/i.test(text);
   if (!hasTimeOrCadence) return null;
+  return { text };
+}
+
+function parseNaturalScheduleDeleteIntent(text: string): { text: string } | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  if (
+    isNoExecutionBoundary(normalized) ||
+    isScheduleReadRequest(normalized) ||
+    isTextTransformActionBoundary(normalized) ||
+    isSourceAttributedActionReport(normalized)
+  ) {
+    return null;
+  }
+  const scheduleTarget = '(?:schedule|scheduled|reminder|job|automation|routine|recurring\\s+task|sched-[a-z0-9][a-z0-9_-]*)';
+  const deleteVerb = '(?:delete|cancel|remove|kill|stop|drop|disable|turn\\s+off)';
+  const verbThenTarget = new RegExp(`\\b${deleteVerb}\\b.{0,80}\\b${scheduleTarget}\\b`);
+  const targetThenVerb = new RegExp(`\\b${scheduleTarget}\\b.{0,80}\\b${deleteVerb}\\b`);
+  if (!verbThenTarget.test(normalized) && !targetThenVerb.test(normalized)) return null;
   return { text };
 }
 
@@ -763,6 +794,20 @@ export function decideNaturalRoute(
       matched_signals: ['natural_schedule_create'],
       blocked_by: [],
       requires_confirmation: false
+    });
+  }
+  const scheduleDelete = parseNaturalScheduleDeleteIntent(normalized);
+  if (scheduleDelete) {
+    return decision({
+      route: 'schedule.delete',
+      owner_system: 'spawner-ui',
+      confidence: 'explicit',
+      action: 'spawner.schedule.delete',
+      payload: { ...scheduleDelete },
+      context_source: 'latest_message',
+      matched_signals: ['natural_schedule_delete'],
+      blocked_by: [],
+      requires_confirmation: true
     });
   }
   if (isNoEditSpawnerProbeRequest(normalized)) {

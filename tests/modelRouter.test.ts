@@ -400,6 +400,35 @@ test('no model opinion can fall back to a scoped Spark QA pause owner route', ()
   assert.equal(stale.mode, 'chat');
 });
 
+test('no model opinion can stage explicit schedule delete confirmation only', () => {
+  const decision = decideModelRoute(null, {
+    text: 'please cancel the nightly schedule',
+    deterministicRoute: {
+      route: 'schedule.delete',
+      confidence: 'explicit',
+      context_source: 'latest_message',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true,
+      payload: { text: 'please cancel the nightly schedule' }
+    }
+  });
+  assert.equal(decision.mode, 'confirm');
+  assert.equal(decision.route, 'schedule.delete');
+  assert.equal(decision.reason, 'fresh_deterministic_owner_confirm_route');
+
+  const stale = decideModelRoute(null, {
+    text: 'please cancel the nightly schedule',
+    deterministicRoute: {
+      route: 'schedule.delete',
+      confidence: 'contextual',
+      context_source: 'hot_recent_turns',
+      mutation_referent: 'fresh_turn',
+      requires_confirmation: true
+    }
+  });
+  assert.equal(stale.mode, 'chat');
+});
+
 test('no model opinion can fall back to non-operator access changes only', () => {
   const contextualLowerWithoutModel = decideModelRoute(null, {
     text: 'Actually make it four',

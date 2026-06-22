@@ -796,13 +796,27 @@ test('routes fresh schedule reminder requests without treating reads or quoted t
   assert.equal(explicit.context_source, 'latest_message');
   assert.ok(explicit.matched_signals.includes('natural_schedule_create'));
 
+  const deleteRoute = decideNaturalRoute('Please cancel the nightly schedule before it runs.');
+  assert.equal(deleteRoute.route, 'schedule.delete');
+  assert.equal(deleteRoute.owner_system, 'spawner-ui');
+  assert.equal(deleteRoute.action, 'spawner.schedule.delete');
+  assert.equal(deleteRoute.confidence, 'explicit');
+  assert.equal(deleteRoute.context_source, 'latest_message');
+  assert.equal(deleteRoute.requires_confirmation, true);
+  assert.ok(deleteRoute.matched_signals.includes('natural_schedule_delete'));
+
   for (const prompt of [
     'Show my current schedules.',
-    'I need wording for "schedule a run tomorrow" in a policy doc.'
+    'I need wording for "schedule a run tomorrow" in a policy doc.',
+    'the doc says delete the schedule',
+    'translate to spanish: delete the schedule',
+    'do not delete the schedule, just explain how delete authority works'
   ]) {
     const route = decideNaturalRoute(prompt);
     assert.notEqual(route.route, 'schedule.create', prompt);
     assert.notEqual(route.action, 'spawner.schedule.create', prompt);
+    assert.notEqual(route.route, 'schedule.delete', prompt);
+    assert.notEqual(route.action, 'spawner.schedule.delete', prompt);
   }
 });
 

@@ -130,6 +130,10 @@ const NO_MODEL_FALLBACK_PREVIEW_ROUTES = new Set<string>([
   'sparkqa.pause'
 ]);
 
+const NO_MODEL_FALLBACK_CONFIRM_ROUTES = new Set<string>([
+  'schedule.delete'
+]);
+
 const FRESH_DETERMINISTIC_ROUTE_CONTEXT_SOURCES = new Map<string, Set<string>>([
   ['access.change', new Set(['hot_recent_turns'])],
   ['build_context.recall', new Set(['hot_recent_turns'])],
@@ -261,6 +265,26 @@ function freshDeterministicDecision(
   };
 }
 
+function freshDeterministicConfirmDecision(
+  deterministicRoute: DeterministicOwnerRoute | null | undefined,
+  confirmRoutes: Set<string>,
+  allowedConfirmRoutes: Set<string> = NO_MODEL_FALLBACK_CONFIRM_ROUTES
+): ModelRouteDecision | null {
+  if (!deterministicRoute) return null;
+  const route = deterministicRoute.route || null;
+  if (!route || !allowedConfirmRoutes.has(route) || !confirmRoutes.has(route)) return null;
+  const contextSource = deterministicRoute.contextSource || deterministicRoute.context_source || 'latest_message';
+  const mutationReferent = deterministicRoute.mutationReferent || deterministicRoute.mutation_referent || 'fresh_turn';
+  if (contextSource !== 'latest_message') return null;
+  if (deterministicRoute.confidence !== 'explicit') return null;
+  if (mutationReferent !== 'fresh_turn') return null;
+  return {
+    mode: 'confirm',
+    route,
+    reason: 'fresh_deterministic_owner_confirm_route'
+  };
+}
+
 export function decideModelRoute(
   proposal: IntentProposal | null,
   opts: ModelRouteOptions = {}
@@ -286,11 +310,14 @@ export function decideModelRoute(
     NO_MODEL_FALLBACK_PREVIEW_ROUTES,
     NO_MODEL_FALLBACK_ROUTE_CONTEXT_SOURCES
   );
+  const noModelFallbackConfirmDecision = freshDeterministicConfirmDecision(
+    opts.deterministicRoute,
+    confirmRoutes
+  );
 
-  // No model opinion (provider down / unparseable) or explicit abstain -> chat. Fail-safe: the router
-  // never fabricates an action it could not read. (A high-blast action attempted via a down provider
-  // would simply not route; the user can restate it - safe, not silently executed.)
-  if (!proposal) return noModelFallbackDecision || { mode: 'chat', reason: 'no_model_opinion' };
+  // No model opinion (provider down / unparseable) or explicit abstain -> chat by default.
+  // Allowlisted fresh owner routes may stage confirmation, but never execute without it.
+  if (!proposal) return noModelFallbackDecision || noModelFallbackConfirmDecision || { mode: 'chat', reason: 'no_model_opinion' };
   if (proposal.abstain) return deterministicDecision || { mode: 'chat', reason: 'model_abstained' };
 
   const top = proposal.candidates[0];
