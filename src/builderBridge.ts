@@ -2043,31 +2043,36 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
     throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
   }
 
-  const { stdout, stderr } = await execFileAsync(
-    config.pythonCommand,
-    pythonModuleInvocation(config, 'spark_intelligence.cli', [
-      'diagnostics',
-      'scan',
-      '--home',
-      config.builderHome,
-      '--json',
-    ]),
-    withHiddenWindows({
-      cwd: config.builderRepo,
-      env: pythonSourceEnv(config),
-      timeout: config.timeoutMs,
-      maxBuffer: 1024 * 1024,
-    })
-  );
-  const trimmedStdout = stdout.trim();
-  if (!trimmedStdout) {
-    throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      config.pythonCommand,
+      pythonModuleInvocation(config, 'spark_intelligence.cli', [
+        'diagnostics',
+        'scan',
+        '--home',
+        config.builderHome,
+        '--json',
+      ]),
+      withHiddenWindows({
+        cwd: config.builderRepo,
+        env: pythonSourceEnv(config),
+        timeout: config.timeoutMs,
+        maxBuffer: 1024 * 1024,
+      })
+    );
+    const trimmedStdout = stdout.trim();
+    if (!trimmedStdout) {
+      throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+    }
+    const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+    return {
+      replyText: formatDiagnosticsScanReply(parsed),
+      markdownPath: String(parsed.markdown_path || '').trim(),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Diagnostics scan failed: ${message}`);
   }
-  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
-  return {
-    replyText: formatDiagnosticsScanReply(parsed),
-    markdownPath: String(parsed.markdown_path || '').trim(),
-  };
 }
 
 export async function runBuilderSelfAwarenessStatus(
