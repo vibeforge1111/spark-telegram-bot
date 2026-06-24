@@ -6161,6 +6161,8 @@ function recordRouteConfidenceDispatchOutcome(input: {
   requestId: string;
   traceRef: string;
   policy?: string;
+  proofCapsule?: HarnessProofCapsuleV1;
+  proofRef?: string;
 }): void {
   const auditPath = process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH || path.join(
     os.homedir(),
@@ -6178,11 +6180,43 @@ function recordRouteConfidenceDispatchOutcome(input: {
     safe_reply_policy: input.policy || null,
     request_ref: redactedRef('request', input.requestId),
     trace_ref: redactedRef('trace', input.traceRef),
+    ...proofAuditFields(input.proofCapsule, input.proofRef),
     privacy: 'metadata_only'
   };
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
     .catch(() => {});
+}
+
+function buildRouteConfidenceProofCapsule(input: {
+  route: string;
+  requestId: string;
+  traceRef: string;
+  outcome: 'acted' | 'blocked' | 'failed_closed';
+  policy?: string;
+  authorization?: TelegramActionAuthorityResult | null;
+}): HarnessProofCapsuleV1 {
+  const acted = input.outcome === 'acted';
+  return buildTelegramDeliveryProofCapsule({
+    turnRef: input.traceRef || input.requestId,
+    route: input.route,
+    owner: 'spark-intelligence-builder',
+    tool: 'builder.route_confidence_gate',
+    mutationClass: 'read_only',
+    executionStatus: input.outcome === 'failed_closed' ? 'failed' : 'completed',
+    replyDelivered: false,
+    replyShape: 'none',
+    authorization: input.authorization,
+    authorityDecision: acted ? 'allowed' : 'blocked',
+    governorDecision: acted ? 'allow' : 'deny',
+    reasonSummary: acted
+      ? 'Route-confidence gate allowed this Telegram action route.'
+      : `Route-confidence gate did not allow this Telegram action route${input.policy ? `: ${input.policy}` : '.'}`,
+    joins: {
+      telegram: 'joined',
+      builder: 'joined'
+    }
+  });
 }
 
 export async function buildDispatchRouteConfidenceAllows(input: {
@@ -6194,6 +6228,7 @@ export async function buildDispatchRouteConfidenceAllows(input: {
   runnerPreflight: Awaited<ReturnType<typeof probeTelegramRunnerWritability>> | null;
   latestInstruction?: 'allow_execution' | 'no_execution';
   confirmationState?: 'not_required' | 'confirmed' | 'missing';
+  actionAuthorization?: TelegramActionAuthorityResult;
   gateRunner?: typeof runBuilderRouteConfidenceGate;
   spawnerAvailableProbe?: () => Promise<boolean>;
 }): Promise<boolean> {
@@ -6263,7 +6298,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         outcome: 'acted',
         requestId: input.requestId,
         traceRef: input.traceRef,
-        policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined
+        policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined,
+        proofCapsule: buildRouteConfidenceProofCapsule({
+          route: 'spawner.build',
+          requestId: input.requestId,
+          traceRef: input.traceRef,
+          outcome: 'acted',
+          policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined,
+          authorization: input.actionAuthorization
+        })
       });
       return true;
     }
@@ -6284,7 +6327,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         outcome: 'acted',
         requestId: input.requestId,
         traceRef: input.traceRef,
-        policy: 'confirmed_local_compatibility_after_gate_ask'
+        policy: 'confirmed_local_compatibility_after_gate_ask',
+        proofCapsule: buildRouteConfidenceProofCapsule({
+          route: 'spawner.build',
+          requestId: input.requestId,
+          traceRef: input.traceRef,
+          outcome: 'acted',
+          policy: 'confirmed_local_compatibility_after_gate_ask',
+          authorization: input.actionAuthorization
+        })
       });
       return true;
     }
@@ -6294,7 +6345,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
       outcome: 'blocked',
       requestId: input.requestId,
       traceRef: input.traceRef,
-      policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined
+      policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined,
+      proofCapsule: buildRouteConfidenceProofCapsule({
+        route: 'spawner.build',
+        requestId: input.requestId,
+        traceRef: input.traceRef,
+        outcome: 'blocked',
+        policy: typeof gate.payload.safe_reply_policy === 'string' ? gate.payload.safe_reply_policy : undefined,
+        authorization: input.actionAuthorization
+      })
     });
     if (decision === 'explain') {
       await input.ctx.reply([
@@ -6332,7 +6391,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
         outcome: allowedByLocalCompatibility ? 'acted' : 'failed_closed',
         requestId: input.requestId,
         traceRef: input.traceRef,
-        policy: 'compat_builder_route_confidence_gate_missing'
+        policy: 'compat_builder_route_confidence_gate_missing',
+        proofCapsule: buildRouteConfidenceProofCapsule({
+          route: 'spawner.build',
+          requestId: input.requestId,
+          traceRef: input.traceRef,
+          outcome: allowedByLocalCompatibility ? 'acted' : 'failed_closed',
+          policy: 'compat_builder_route_confidence_gate_missing',
+          authorization: input.actionAuthorization
+        })
       });
       if (allowedByLocalCompatibility) {
         console.warn('[RouteConfidenceGate] Builder gate command is unavailable; using local compatibility gate for explicit build dispatch.');
@@ -6351,7 +6418,15 @@ export async function buildDispatchRouteConfidenceAllows(input: {
       outcome: 'failed_closed',
       requestId: input.requestId,
       traceRef: input.traceRef,
-      policy: 'fail_closed_gate_unavailable'
+      policy: 'fail_closed_gate_unavailable',
+      proofCapsule: buildRouteConfidenceProofCapsule({
+        route: 'spawner.build',
+        requestId: input.requestId,
+        traceRef: input.traceRef,
+        outcome: 'failed_closed',
+        policy: 'fail_closed_gate_unavailable',
+        authorization: input.actionAuthorization
+      })
     });
     console.warn('[RouteConfidenceGate] build dispatch failed closed:', redactText(error instanceof Error ? error.message : String(error)));
     await input.ctx.reply(renderSparkErrorReply(
@@ -6581,7 +6656,8 @@ export async function handleBuildIntent(
     requestId,
     traceRef,
     runnerPreflight,
-    confirmationState: options.confirmationState || 'not_required'
+    confirmationState: options.confirmationState || 'not_required',
+    actionAuthorization: options.actionAuthorization
   }))) {
     return { status: 'failure', summary: 'Build dispatch blocked by route-confidence gate.' };
   }

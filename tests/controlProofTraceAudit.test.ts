@@ -59,6 +59,13 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
       { text_kind: 'reply' },
       { request_id: 'req-2', trace_ref: 'trace-2' }
     ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spark-telegram-bot', 'route-confidence-audit.jsonl'), [
+      {
+        request_ref: 'request:sha256:abc123',
+        trace_ref: 'trace:sha256:def456',
+        proof_capsule: { schema: 'spark.harness_proof.v1' }
+      }
+    ]);
     writeJsonl(path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl'), [
       {
         requestId: 'req-1',
@@ -79,12 +86,16 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     });
     const finalAnswer = result.planes.find((plane) => plane.label === 'telegram_final_answer');
     const outbound = result.planes.find((plane) => plane.label === 'telegram_outbound');
+    const routeConfidence = result.planes.find((plane) => plane.label === 'telegram_route_confidence');
     const builder = result.planes.find((plane) => plane.label === 'builder_gateway');
     assert.equal(finalAnswer?.requestIdPresent, 2);
     assert.equal(finalAnswer?.traceRefPresent, 2);
     assert.equal(finalAnswer?.proofCapsulePresent, 1);
     assert.equal(finalAnswer?.rawPathLikeRows, 1);
     assert.equal(outbound?.requestIdMissing, 1);
+    assert.equal(routeConfidence?.requestIdPresent, 1);
+    assert.equal(routeConfidence?.traceRefPresent, 1);
+    assert.equal(routeConfidence?.proofCapsulePresent, 1);
     assert.equal(builder?.rawIdKeyRows, 1);
     assert.equal(builder?.policyReasonCodeRows, 1);
     assert.equal(result.gapCounts.missingTraceJoin > 0, true);

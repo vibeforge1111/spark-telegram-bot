@@ -41,7 +41,7 @@ Last-100-row summary where available:
 | --- | ---: | ---: | --- |
 | Telegram final-answer audit | 100/100 | 100/100 | 19 rows contain path-like refs. |
 | Telegram outbound audit | 7/100 | 7/100 | 93 rows lack request id and trace ref. |
-| Telegram route-confidence audit | 0/100 | 100/100 | Missing request ids by design or bug; needs classification. |
+| Telegram route-confidence audit | 100/100 | 100/100 | Uses redacted `request_ref` by design; proof capsules are wired for new rows, historical sampled rows still lack proof. |
 | Builder gateway trace | 100/100 | 100/100 | 100 rows contain raw id keys, 80 contain path-like refs, 5 contain policy reason-code text. |
 | Spawner PRD trace | 100/100 | 100/100 | 27 rows contain path-like refs. |
 | System trace index | present | present | Contains path-like refs and policy reason-code text. |
@@ -61,13 +61,13 @@ npm run control:proof:audit -- --json
 Current command summary after the first Telegram proof wire-in:
 
 - Missing evidence files: 0.
-- Missing trace joins: 5 planes.
+- Missing trace joins: 4 planes.
 - Missing proof capsules: 9 planes.
 - Raw ref leaks: 5 planes.
 - Robotic failure reason-code presence: 2 planes.
 - Stack-like leaks: 0 planes.
 
-The latest sampled Telegram final-answer plane now reports `proof 10/100`, up from `0/100` before the wire-in. Outbound, route-confidence, Builder, Spawner, memory, and voice planes still need proof coverage.
+The latest sampled Telegram final-answer plane now reports `proof 20/100`, up from `0/100` before the wire-in. Route-confidence request coverage is now classified as redacted-design coverage via `request_ref`. Outbound, Builder, Spawner, memory, and voice planes still need trace/proof coverage; historical route-confidence rows still show `proof 0/100` until new route-confidence events are recorded.
 
 ## Surface
 
@@ -132,7 +132,7 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 Continue wiring Harness proof capsule refs into the remaining Telegram/action audit rows.
 
-Reason: build/run acknowledgements and suppressed Builder final-answer rows now carry redacted proof capsules locally, but the audit still reports missing proof capsules across non-final-answer planes. The next durable move is to extend proof refs to outbound trace joins and route-confidence/action rows before building the visual proof panel.
+Reason: build/run acknowledgements, suppressed Builder final-answer rows, and new route-confidence/action rows now carry redacted proof capsules locally, but the audit still reports missing proof capsules across historical and non-final-answer planes. The next durable move is to extend outbound trace joins and proof coverage before building the visual proof panel.
 
 ## Gate To Start Goal Prompt
 
@@ -144,4 +144,5 @@ Reason: build/run acknowledgements and suppressed Builder final-answer rows now 
 - First implementation slice started: yes, minimum viable command/report added.
 - Second implementation slice started: yes, Harness proof capsule schema and fixtures added.
 - Third implementation slice started: yes, Telegram build/run acknowledgements and suppressed Builder final-answer rows now emit proof metadata.
-- Next implementation slice chosen: yes, extend proof refs to outbound trace joins and route-confidence/action rows.
+- Fourth implementation slice started: yes, route-confidence `request_ref` is classified as redacted join coverage and new route-confidence/action rows emit proof metadata.
+- Next implementation slice chosen: yes, extend outbound trace joins and proof coverage.

@@ -55,7 +55,7 @@ export interface ControlProofTraceAuditResult {
   gapCounts: ControlProofGapCounts;
 }
 
-const REQUEST_ID_KEYS = ['request_id', 'requestId', 'requestID'];
+const REQUEST_ID_KEYS = ['request_id', 'requestId', 'requestID', 'request_ref', 'requestRef'];
 const TRACE_REF_KEYS = ['trace_ref', 'traceRef', 'trace_id', 'traceId'];
 const PROOF_CAPSULE_KEYS = [
   'harness_proof',

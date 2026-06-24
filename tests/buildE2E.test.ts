@@ -55,6 +55,7 @@ const originalEnv = {
 	SPARK_HARNESS_CORE_LEDGER_PATH: process.env.SPARK_HARNESS_CORE_LEDGER_PATH,
 	SPARK_LLM_PROVIDER: process.env.SPARK_LLM_PROVIDER,
 	SPARK_SYSTEM_MAP_STATE_DIR: process.env.SPARK_SYSTEM_MAP_STATE_DIR,
+	SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH: process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH,
 	SPARK_ALLOW_IMPLICIT_LLM_PROVIDER: process.env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER,
 	SPARK_SWARM_BRIDGE_PYTHON: process.env.SPARK_SWARM_BRIDGE_PYTHON,
 	SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO: process.env.SPARK_SWARM_SPECIALIZATION_PATH_SPARK_QA_OPERATOR_REPO,
@@ -3648,6 +3649,9 @@ async function run(): Promise<void> {
 		restoreAxios();
 		restoreEnv();
 		delete process.env.SPARK_BOT_TEST_MODE;
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-route-confidence-proof-'));
+		const auditPath = path.join(tempRoot, 'route-confidence-audit.jsonl');
+		process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH = auditPath;
 
 		const replies: string[] = [];
 		const ctx = makeFakeCtx(8319079071, 8319079055, 625, replies);
@@ -3672,7 +3676,19 @@ async function run(): Promise<void> {
 
 		assert.equal(allowed, true);
 		assert.equal(replies.length, 0, 'confirmed go should not leak meta confirmation copy');
+		const auditText = await waitForFileText(auditPath);
+		const record = JSON.parse(auditText.trim().split('\n').at(-1)!);
+		assert.equal(record.schema_version, 'spark.telegram_route_confidence_audit.v1');
+		assert.equal(record.outcome, 'acted');
+		assert.match(record.request_ref, /^request:sha256:[a-f0-9]{16}$/);
+		assert.match(record.trace_ref, /^trace:sha256:[a-f0-9]{16}$/);
+		assert.equal(record.harness_proof_ref, record.proof_capsule.turnRef);
+		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
+		assert.equal(record.proof_capsule.reply.rawReasonsHidden, true);
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
+		assert.doesNotMatch(JSON.stringify(record), /req-confirmed-domain-chip|trace-confirmed-domain-chip|8319079055|8319079071/);
 
+		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();
 		restoreEnv();
 	});
