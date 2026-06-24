@@ -183,6 +183,62 @@ await test('low-information audio voice media replies are replaced with media fa
   }
 });
 
+await test('low-information voice note media replies are replaced with voice fallback proof', async () => {
+  restoreEnv();
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  const indexModule: any = await import('../src/index');
+  indexModule.__setBuilderBridgeRunnerForTest(async () => ({
+    used: true,
+    responseText: 'Working Memory',
+    requestId: 'builder-voice-request',
+    traceRef: 'builder-voice-trace',
+    decision: 'test',
+    bridgeMode: 'test',
+    routingDecision: 'researcher_advisory',
+    voiceMedia: {
+      audioBase64: Buffer.from('fake-audio').toString('base64'),
+      mimeType: 'audio/ogg',
+      filename: 'voice-reply-test.ogg',
+      voiceCompatible: true,
+      spokenText: 'Working Memory'
+    }
+  }));
+  try {
+    const replies: string[] = [];
+    const replyExtras: unknown[] = [];
+    let voiceDeliveries = 0;
+    const message = {
+      message_id: 634,
+      voice: {
+        file_id: 'private-voice-id',
+        mime_type: 'audio/ogg',
+        duration: 4
+      }
+    };
+    const ctx = makeFakeCtx(message, replies, replyExtras);
+    ctx.replyWithVoice = async () => {
+      voiceDeliveries += 1;
+      return {};
+    };
+
+    await indexModule.handleVoiceMessage(ctx);
+
+    const traceContext = (replyExtras[0] as any)?.__sparkTraceContext;
+    assert.equal(voiceDeliveries, 0);
+    assert.match(replies[0] || '', /did not return a transcription or media reply/i);
+    assert.doesNotMatch(replies[0] || '', /Working Memory|tool_denied_by_policy|harness_core/i);
+    assert.equal(traceContext?.route, 'media.voice_transcribe_or_boundary');
+    assert.equal(traceContext?.replyKind, 'builder_voice_fallback');
+    assert.equal(traceContext?.proofCapsule?.execution?.status, 'failed');
+    assert.equal(traceContext?.proofCapsule?.reply?.delivered, true);
+    assert.doesNotMatch(JSON.stringify(replyExtras[0]), /private-voice-id|8319079055/);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    restoreEnv();
+  }
+});
+
 await test('low-information image bridge replies are replaced with media fallback proof', async () => {
   restoreEnv();
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
