@@ -113,11 +113,14 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(routeConfidence?.requestIdPresent, 1);
     assert.equal(routeConfidence?.traceRefPresent, 1);
     assert.equal(routeConfidence?.proofCapsulePresent, 1);
+    assert.equal(routeConfidence?.proofRefPresent, 0);
     assert.equal(builder?.rawIdKeyRows, 1);
     assert.equal(builder?.policyReasonCodeRows, 1);
     assert.equal(voiceRuntime?.requestIdPresent, 1);
     assert.equal(voiceRuntime?.traceRefPresent, 1);
-    assert.equal(voiceRuntime?.proofCapsulePresent, 1);
+    assert.equal(voiceRuntime?.proofCoveragePresent, 1);
+    assert.equal(voiceRuntime?.proofCapsulePresent, 0);
+    assert.equal(voiceRuntime?.proofRefPresent, 1);
     assert.equal(result.gapCounts.missingTraceJoin > 0, true);
     assert.equal(result.gapCounts.rawRefLeak > 0, true);
     assert.equal(result.ok, false);
@@ -125,6 +128,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
 
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /telegram_final_answer/);
+    assert.match(report, /voice_runtime_state: .*proof 1\/1 .* proof_ref 1 .* proof_capsule 0/);
     assert.match(report, /Blocking status: blocking gaps found/);
     assert.match(report, /missing trace joins/);
     assert.doesNotMatch(report, /private-trace|123|tool_not_allowed_by_policy/);
@@ -159,7 +163,9 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
       generatedAt: '2026-06-24T00:00:00.000Z'
     });
     const plane = result.planes[0];
+    assert.equal(plane.proofCoveragePresent, 0);
     assert.equal(plane.proofCapsulePresent, 0);
+    assert.equal(plane.proofRefPresent, 0);
     assert.equal(plane.proofNotApplicable, 1);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
@@ -194,7 +200,9 @@ test('counts explicit missing Harness proof markers without treating them as pro
       generatedAt: '2026-06-24T00:00:00.000Z'
     });
     const plane = result.planes[0];
+    assert.equal(plane.proofCoveragePresent, 0);
     assert.equal(plane.proofCapsulePresent, 0);
+    assert.equal(plane.proofRefPresent, 0);
     assert.equal(plane.proofNotApplicable, 0);
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofCapsuleMissing, 1);
@@ -237,7 +245,9 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
       generatedAt: '2026-06-24T00:00:00.000Z'
     });
     const plane = result.planes[0];
+    assert.equal(plane.proofCoveragePresent, 1);
     assert.equal(plane.proofCapsulePresent, 1);
+    assert.equal(plane.proofRefPresent, 1);
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);

@@ -28,7 +28,9 @@ export interface ControlProofTracePlaneSummary {
   requestIdMissing: number;
   traceRefPresent: number;
   traceRefMissing: number;
+  proofCoveragePresent: number;
   proofCapsulePresent: number;
+  proofRefPresent: number;
   proofNotApplicable: number;
   proofGapMarked: number;
   proofCapsuleMissing: number;
@@ -65,7 +67,9 @@ const PROOF_CAPSULE_KEYS = [
   'harness_proof',
   'harnessProof',
   'proof_capsule',
-  'proofCapsule',
+  'proofCapsule'
+];
+const PROOF_REF_KEYS = [
   'harness_proof_ref',
   'harnessProofRef'
 ];
@@ -170,7 +174,9 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `- ${plane.label}: ${plane.sampledRows}/${plane.totalRows} sampled`,
         `request ${plane.requestIdPresent}/${plane.sampledRows}`,
         `trace ${plane.traceRefPresent}/${plane.sampledRows}`,
-        `proof ${plane.proofCapsulePresent}/${plane.sampledRows}`,
+        `proof ${plane.proofCoveragePresent}/${plane.sampledRows}`,
+        `proof_ref ${plane.proofRefPresent}`,
+        `proof_capsule ${plane.proofCapsulePresent}`,
         `proof_n/a ${plane.proofNotApplicable}`,
         `proof_gap ${plane.proofGapMarked}`,
         `raw_refs ${plane.rawPathLikeRows}`,
@@ -243,6 +249,8 @@ function summarizeRecords(
   let requestIdPresent = 0;
   let traceRefPresent = 0;
   let proofCapsulePresent = 0;
+  let proofRefPresent = 0;
+  let proofCoveredRows = 0;
   let proofNotApplicable = 0;
   let proofGapMarked = 0;
   let rawIdKeyRows = 0;
@@ -252,11 +260,18 @@ function summarizeRecords(
   for (const record of sampled) {
     if (hasAnyKey(record, REQUEST_ID_KEYS)) requestIdPresent += 1;
     if (hasAnyKey(record, TRACE_REF_KEYS)) traceRefPresent += 1;
-    const hasProof = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
+    const hasProofCapsule = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
+    const hasProofRef = hasAnyKey(record, PROOF_REF_KEYS);
     if (isProofGapMarkedRecord(record)) proofGapMarked += 1;
-    if (hasProof) {
+    if (hasProofCapsule || hasProofRef) {
+      proofCoveredRows += 1;
+    }
+    if (hasProofCapsule) {
       proofCapsulePresent += 1;
-    } else if (isProofNotApplicableRecord(record)) {
+    }
+    if (hasProofRef) {
+      proofRefPresent += 1;
+    } else if (!hasProofCapsule && isProofNotApplicableRecord(record)) {
       proofNotApplicable += 1;
     }
     if (hasKeyPattern(record, RAW_ID_KEY_PATTERN)) rawIdKeyRows += 1;
@@ -277,10 +292,12 @@ function summarizeRecords(
     requestIdMissing: sampled.length - requestIdPresent,
     traceRefPresent,
     traceRefMissing: sampled.length - traceRefPresent,
+    proofCoveragePresent: proofCoveredRows,
     proofCapsulePresent,
+    proofRefPresent,
     proofNotApplicable,
     proofGapMarked,
-    proofCapsuleMissing: Math.max(0, sampled.length - proofCapsulePresent - proofNotApplicable),
+    proofCapsuleMissing: Math.max(0, sampled.length - proofCoveredRows - proofNotApplicable),
     rawIdKeyRows,
     rawPathLikeRows,
     policyReasonCodeRows,
@@ -347,7 +364,9 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     requestIdMissing: 0,
     traceRefPresent: 0,
     traceRefMissing: 0,
+    proofCoveragePresent: 0,
     proofCapsulePresent: 0,
+    proofRefPresent: 0,
     proofNotApplicable: 0,
     proofGapMarked: 0,
     proofCapsuleMissing: 0,
