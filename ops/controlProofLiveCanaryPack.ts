@@ -176,7 +176,7 @@ function writeReleaseBundle(
   const summary = summarizeControlProofCanaryObservations(observations);
 
   writeFileSync(observationsPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
-  writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath })}\n`, 'utf8');
+  writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath, summaryPath })}\n`, 'utf8');
   writeFileSync(copyPastePath, `${formatControlProofCanaryCopyPaste(cases)}\n`, 'utf8');
   writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
   writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
@@ -224,7 +224,7 @@ function formatReleaseBundleReadme(paths: {
     '',
     '1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.',
     '2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.',
-    '3. Run the matching `--record-case` command from the run guide after each prompt.',
+    '3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.',
     '4. Re-run strict verification:',
     '',
     '```bash',
@@ -248,6 +248,7 @@ function main(): void {
   if (observationsPath && !hasFlag(args, 'run-guide')) {
     let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
     const recordCaseId = argValue(args, 'record-case');
+    const summaryOutPath = argValue(args, 'summary-out');
     if (recordCaseId) {
       observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));
       const outputPath = outPath || observationsPath;
@@ -255,6 +256,10 @@ function main(): void {
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
     const summary = summarizeControlProofCanaryObservations(observations);
+    if (summaryOutPath) {
+      writeFileSync(summaryOutPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
+      console.log(`Wrote control-proof observation summary: ${summaryOutPath}`);
+    }
     if (hasFlag(args, 'json')) {
       console.log(JSON.stringify(summary, null, 2));
     } else {

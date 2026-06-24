@@ -307,7 +307,7 @@ npm run control:proof:audit -- --sample 100
 
 `--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are tracked separately.
 
-Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary.
+Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary. Use `--summary-out` during bundle runs to refresh the bundle summary file after each recorded case.
 
 Use `--run-guide` for the operator-facing live pass: it pairs each Telegram prompt with the matching `--record-case` command template while keeping scoring expectations outside the Telegram copy block.
 

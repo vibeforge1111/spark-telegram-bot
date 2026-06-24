@@ -776,7 +776,7 @@ export function formatControlProofCanaryChecklist(cases: ControlProofCanaryCase[
 
 export function formatControlProofCanaryLiveRunGuide(
   cases: ControlProofCanaryCase[],
-  options: { observationsPath?: string } = {}
+  options: { observationsPath?: string; summaryPath?: string } = {}
 ): string {
   const observationsPath = options.observationsPath || 'outputs/live-canary-observations.json';
   const lines = [
@@ -799,7 +799,7 @@ export function formatControlProofCanaryLiveRunGuide(
     lines.push('');
     lines.push('Record command:');
     lines.push('```bash');
-    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef));
+    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef, options.summaryPath));
     lines.push('```');
     lines.push('');
     lines.push(`Expected route: ${entry.expectedRoute}`);
@@ -819,7 +819,8 @@ function formatControlProofCanaryRecordCommand(
   entry: ControlProofCanaryCase,
   observationsPath: string,
   replyFile: string,
-  screenshotRef: string
+  screenshotRef: string,
+  summaryPath?: string
 ): string {
   const args = [
     'npm run control:proof:canaries --',
@@ -844,6 +845,9 @@ function formatControlProofCanaryRecordCommand(
   ];
   if (entry.capture.screenshot) {
     args.push('--screenshot-ref', shellQuote(screenshotRef));
+  }
+  if (summaryPath) {
+    args.push('--summary-out', shellQuote(summaryPath));
   }
   return args.join(' ');
 }

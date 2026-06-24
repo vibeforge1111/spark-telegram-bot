@@ -461,6 +461,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const replyPath = resolve(tempRoot, 'reply.txt');
     writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
     const recordedPath = resolve(tempRoot, 'recorded.json');
+    const recordedSummaryPath = resolve(tempRoot, 'recorded-summary.md');
     const record = spawnSync(
       process.execPath,
       [
@@ -486,6 +487,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         'Harness Proof: Builder joined.',
         '--screenshot-ref',
         '/tmp/spark-recursive-builder.png',
+        '--summary-out',
+        recordedSummaryPath,
         '--user-confirmation',
         'Confirmed.'
       ],
@@ -493,10 +496,12 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(record.status, 0, record.stderr);
     assert.match(record.stdout, /Recorded control-proof observation for cp-builder-001/);
+    assert.match(record.stdout, /Wrote control-proof observation summary/);
     assert.match(record.stdout, /Release gate: ready/);
     const recorded = JSON.parse(readFileSync(recordedPath, 'utf8'));
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
+    assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
 
     const bundleDir = resolve(tempRoot, 'bundle');
     const releaseBundle = spawnSync(
@@ -522,8 +527,10 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summary/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
     assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);
