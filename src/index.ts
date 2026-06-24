@@ -333,6 +333,16 @@ import {
   type TurnIntentEnvelopeV1
 } from './harnessContract';
 import {
+  buildHarnessProofCapsule,
+  harnessProofCapsuleFromTurnIntentEnvelope,
+  type HarnessProofAuthorityDecision,
+  type HarnessProofCapsuleV1,
+  type HarnessProofExecutionStatus,
+  type HarnessProofGovernorDecision,
+  type HarnessProofJoinSummary,
+  type HarnessProofReplyShape
+} from './harnessProofCapsule';
+import {
   authorizeTelegramActionFromEnvelope,
   type TelegramActionAuthorityInput,
   type TelegramActionAuthorityResult
@@ -2484,6 +2494,25 @@ type NodeOutboundTraceContext = {
   requestId?: string;
   traceRef?: string;
   missionId?: string;
+  proofCapsule?: HarnessProofCapsuleV1;
+  proofRef?: string;
+};
+
+type TelegramDeliveryProofInput = {
+  turnRef: string;
+  route: string;
+  owner: string;
+  tool: string;
+  mutationClass: SparkHarnessMutationClass | 'unknown';
+  executionStatus: HarnessProofExecutionStatus;
+  replyDelivered: boolean;
+  replyShape: HarnessProofReplyShape;
+  authorization?: TelegramActionAuthorityResult | null;
+  envelope?: TurnIntentEnvelopeV1 | null;
+  authorityDecision?: HarnessProofAuthorityDecision;
+  governorDecision?: HarnessProofGovernorDecision;
+  reasonSummary?: string;
+  joins?: Partial<HarnessProofJoinSummary>;
 };
 
 function chatRef(chatId: unknown): string {
@@ -2516,6 +2545,102 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+function proofAuditFields(
+  proofCapsule?: HarnessProofCapsuleV1 | null,
+  proofRef?: string | null
+): Record<string, unknown> {
+  if (proofCapsule?.schema === 'spark.harness_proof.v1') {
+    return {
+      harness_proof_ref: proofCapsule.turnRef,
+      proof_capsule: proofCapsule
+    };
+  }
+  const ref = typeof proofRef === 'string' && proofRef.trim() ? proofRef.trim() : '';
+  return ref ? { harness_proof_ref: ref } : {};
+}
+
+function proofGovernorDecisionForAuthorization(
+  authorization: TelegramActionAuthorityResult | null | undefined,
+  authorityDecision: HarnessProofAuthorityDecision
+): HarnessProofGovernorDecision {
+  const raw = authorization?.governorDecision as Record<string, unknown> | null | undefined;
+  const decision = String(raw?.decision || raw?.outcome || raw?.verdict || '').toLowerCase();
+  if (decision.includes('deny') || decision.includes('block')) return 'deny';
+  if (decision.includes('read')) return 'read_only';
+  if (decision.includes('allow')) return 'allow';
+  if (authorization?.allow || authorityDecision === 'allowed') return 'allow';
+  if (authorityDecision === 'downgraded') return 'read_only';
+  return 'deny';
+}
+
+function buildTelegramDeliveryProofCapsule(input: TelegramDeliveryProofInput): HarnessProofCapsuleV1 {
+  const authorization = input.authorization || null;
+  const envelope = authorization?.legacyEnvelope || input.envelope || null;
+  const authorityDecision = input.authorityDecision || (authorization ? (authorization.allow ? 'allowed' : 'blocked') : 'allowed');
+  const governorDecision = input.governorDecision || proofGovernorDecisionForAuthorization(authorization, authorityDecision);
+  const governorVerified = Boolean(authorization?.governorDecision || !authorization) && governorDecision !== 'deny';
+
+  if (envelope) {
+    return harnessProofCapsuleFromTurnIntentEnvelope({
+      envelope,
+      authorityDecision,
+      governorDecision,
+      governorVerified,
+      executionStatus: input.executionStatus,
+      tool: input.tool,
+      mutationClass: input.mutationClass,
+      replyDelivered: input.replyDelivered,
+      replyShape: input.replyShape,
+      joins: input.joins,
+      reasonSummary: input.reasonSummary || (
+        authorityDecision === 'allowed'
+          ? 'Fresh Harness authority allowed this Telegram action.'
+          : 'Fresh Harness authority blocked this Telegram action.'
+      )
+    });
+  }
+
+  return buildHarnessProofCapsule({
+    turnRef: input.turnRef,
+    route: input.route,
+    owner: input.owner,
+    intent: {
+      kind: input.route,
+      confidence: authorityDecision === 'blocked' ? 'blocked' : 'explicit',
+      noExecution: authorityDecision !== 'allowed'
+    },
+    authority: {
+      decision: authorityDecision,
+      contract: 'machine_origin_policy',
+      riskTier: input.mutationClass === 'launches_mission'
+        ? 'execute'
+        : input.mutationClass === 'external_network'
+          ? 'external'
+          : input.mutationClass === 'read_only'
+            ? 'read'
+            : input.mutationClass === 'none'
+              ? 'none'
+              : 'write',
+      reasonSummary: input.reasonSummary || 'Telegram delivery carried redacted proof metadata.'
+    },
+    governor: {
+      decision: governorDecision,
+      verified: governorVerified
+    },
+    execution: {
+      status: input.executionStatus,
+      tool: input.tool,
+      mutationClass: input.mutationClass
+    },
+    reply: {
+      delivered: input.replyDelivered,
+      shape: input.replyShape,
+      rawReasonsHidden: true
+    },
+    joins: input.joins
+  });
+}
+
 export function buildNodeOutboundAuditRecord(
   chatId: unknown,
   deliveredText: unknown,
@@ -2543,6 +2668,7 @@ export function buildNodeOutboundAuditRecord(
     mission_id_present: Boolean(missionId),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...proofAuditFields(traceContext?.proofCapsule, traceContext?.proofRef),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
     ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
     ...(typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim() ? { reply_kind: traceContext.replyKind.trim() } : {})
@@ -2575,6 +2701,8 @@ type FinalAnswerGateSuppressionInput = {
   builderReply: string;
   requestId?: string;
   traceRef?: string;
+  proofCapsule?: HarnessProofCapsuleV1;
+  proofRef?: string;
   fallbackRoute: 'local_chat';
 };
 
@@ -2599,6 +2727,7 @@ export function buildFinalAnswerGateSuppressionRecord(
     builder_reply_preview: previewAuditText(input.builderReply, 180),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...proofAuditFields(input.proofCapsule, input.proofRef),
     fallback_route: input.fallbackRoute,
     latest_intent_preserved: true
   };
@@ -2619,6 +2748,8 @@ function recordCommandReplyDelivery(input: {
   replyKind: string;
   requestId?: string | null;
   traceRef?: string | null;
+  proofCapsule?: HarnessProofCapsuleV1;
+  proofRef?: string | null;
 }): void {
   const auditPath = finalAnswerGateAuditPath();
   const requestId = typeof input.requestId === 'string' && input.requestId.trim() ? input.requestId.trim() : null;
@@ -2631,7 +2762,8 @@ function recordCommandReplyDelivery(input: {
     command: input.command,
     reply_kind: input.replyKind,
     ...(requestId ? { request_id: requestId } : {}),
-    ...(traceRef ? { trace_ref: traceRef } : {})
+    ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...proofAuditFields(input.proofCapsule, input.proofRef)
   };
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
@@ -6262,6 +6394,7 @@ interface RunCommandOptions {
   missionName?: string;
   relayGoal?: string;
   executionAuthority?: unknown;
+  actionAuthorization?: TelegramActionAuthorityResult;
   onBuildDispatchResult?: (result: BuildIntentDispatchResult) => void;
 }
 
@@ -6296,7 +6429,8 @@ export async function handleRunCommand(
       buildIntent.buildModeReason,
       undefined,
       buildIntent.buildLane,
-      buildIntent.buildLaneReason
+      buildIntent.buildLaneReason,
+      { actionAuthorization: options.actionAuthorization }
     );
     options.onBuildDispatchResult?.(dispatch);
     return null;
@@ -6341,19 +6475,38 @@ export async function handleRunCommand(
     return null;
   }
 
+  const proofCapsule = buildTelegramDeliveryProofCapsule({
+    turnRef: traceRef || requestId,
+    route: 'spawner.run',
+    owner: 'spawner-ui',
+    tool: 'spawner.run',
+    mutationClass: 'launches_mission',
+    executionStatus: 'started',
+    replyDelivered: true,
+    replyShape: 'natural',
+    authorization: options.actionAuthorization,
+    authorityDecision: options.actionAuthorization ? undefined : 'allowed',
+    reasonSummary: 'Telegram mission acknowledgement followed authorized Spawner dispatch.',
+    joins: {
+      telegram: 'joined',
+      spawner: 'joined'
+    }
+  });
   await ctx.reply(humanAck(result.providers || providers), outboundTraceExtra({
     route: 'spawner',
     command: 'run',
     replyKind: 'mission_ack',
     requestId: result.requestId || requestId,
     traceRef,
-    missionId: result.missionId
+    missionId: result.missionId,
+    proofCapsule
   }));
   recordCommandReplyDelivery({
     command: 'run',
     replyKind: 'mission_ack',
     requestId: result.requestId || requestId,
-    traceRef
+    traceRef,
+    proofCapsule
   });
 
   await registerMissionRelay({
@@ -6379,7 +6532,10 @@ export async function handleBuildIntent(
   capabilityProposalPacket?: Record<string, unknown>,
   buildLane: BuildLane = buildLaneForMode(buildMode),
   buildLaneReason = 'Build lane inferred from build mode.',
-  options: { confirmationState?: 'not_required' | 'confirmed' | 'missing' } = {}
+  options: {
+    confirmationState?: 'not_required' | 'confirmed' | 'missing';
+    actionAuthorization?: TelegramActionAuthorityResult;
+  } = {}
 ): Promise<BuildIntentDispatchResult> {
   await safeSendChatAction(ctx, 'typing');
 
@@ -6502,6 +6658,23 @@ export async function handleBuildIntent(
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
+    const proofCapsule = buildTelegramDeliveryProofCapsule({
+      turnRef: traceRef || requestId,
+      route: 'spawner.build',
+      owner: 'spawner-ui',
+      tool: 'spawner.run',
+      mutationClass: 'launches_mission',
+      executionStatus: 'started',
+      replyDelivered: true,
+      replyShape: 'natural',
+      authorization: options.actionAuthorization,
+      authorityDecision: options.actionAuthorization ? undefined : 'allowed',
+      reasonSummary: 'Telegram build acknowledgement followed authorized Spawner PRD dispatch.',
+      joins: {
+        telegram: 'joined',
+        spawner: 'joined'
+      }
+    });
 
     await registerMissionRelay({
       missionId,
@@ -6528,13 +6701,15 @@ export async function handleBuildIntent(
       replyKind: 'build_ack',
       requestId,
       traceRef,
-      missionId
+      missionId,
+      proofCapsule
     }));
     recordCommandReplyDelivery({
       command: 'run',
       replyKind: 'build_ack',
       requestId,
-      traceRef
+      traceRef,
+      proofCapsule
     });
 
     if (process.env.SPARK_BOT_TEST_MODE === '1') {
@@ -6609,6 +6784,7 @@ for (const variant of RUN_VARIANTS) {
     const missionId = await handleRunCommand(ctx, goal, providers, undefined, {
       allowBuildIntent: variant.name === 'run',
       executionAuthority: authorization.governorDecision,
+      actionAuthorization: authorization,
       onBuildDispatchResult: (result) => {
         buildDispatchRef.current = result;
       }
@@ -8430,7 +8606,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       {
         missionName: 'Telegram Golden Path Probe',
         relayGoal: text,
-        executionAuthority: goldenPathAuthorization.governorDecision
+        executionAuthority: goldenPathAuthorization.governorDecision,
+        actionAuthorization: goldenPathAuthorization
       }
     );
     recordTelegramHarnessCoreExecution(goldenPathAuthorization, {
@@ -9025,15 +9202,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     const latestShippedProject = await getLatestShippedProjectContext(ctx.chat.id);
-    if (
-      isProjectImprovementRequest(text, latestShippedProject) &&
-      telegramActionAuthorityAllowed(turnIntentEnvelope, {
+    const projectImprovementAuthorization = isProjectImprovementRequest(text, latestShippedProject)
+      ? telegramActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.project_iteration',
         text,
         toolName: 'spawner.run',
         ownerSystem: 'spawner-ui',
         mutationClass: 'launches_mission'
       })
+      : null;
+    if (
+      isProjectImprovementRequest(text, latestShippedProject) &&
+      projectImprovementAuthorization?.allow
     ) {
       const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
       if (improvementGoal && latestShippedProject) {
@@ -9050,7 +9230,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           `${latestShippedProject.projectName} polish ${latestShippedProject.iteration + 1}`,
           latestShippedProject.projectPath,
           'advanced_prd',
-          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.'
+          'User gave feedback on the latest shipped project, so Spark is improving the existing app instead of starting a new one.',
+          undefined,
+          undefined,
+          undefined,
+          { actionAuthorization: projectImprovementAuthorization }
         );
         return;
       }
@@ -9096,7 +9280,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         buildIntent.buildModeReason,
         undefined,
         buildIntent.buildLane,
-        buildIntent.buildLaneReason
+        buildIntent.buildLaneReason,
+        { actionAuthorization: buildAuthorization }
       );
       recordTelegramHarnessCoreExecution(buildAuthorization, {
         toolName: 'spawner.run',
@@ -9151,13 +9336,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     const defaultBuild = inferDefaultBuildFromRecentScoping(text, recentMessages);
-    if (defaultBuild && telegramActionAuthorityAllowed(turnIntentEnvelope, {
-      route: 'spawner.default_build',
-      text,
-      toolName: 'spawner.run',
-      ownerSystem: 'spawner-ui',
-      mutationClass: 'launches_mission'
-    })) {
+    const defaultBuildAuthorization = defaultBuild
+      ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'spawner.default_build',
+        text,
+        toolName: 'spawner.run',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'launches_mission'
+      })
+      : null;
+    if (defaultBuild && defaultBuildAuthorization?.allow) {
       await conversation.remember(user, text).catch(() => {});
       await ctx.reply(`I will choose the default and start it: ${defaultBuild.projectName}.`);
       await handleBuildIntent(
@@ -9166,7 +9354,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         defaultBuild.projectName,
         null,
         'advanced_prd',
-        'User asked Spark to choose the recommended direction after collaborative scoping.'
+        'User asked Spark to choose the recommended direction after collaborative scoping.',
+        undefined,
+        undefined,
+        undefined,
+        { actionAuthorization: defaultBuildAuthorization }
       );
       return;
     }
@@ -9404,7 +9596,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         await conversation.remember(user, text).catch(() => {});
         const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()], undefined, {
           missionName: 'Spark Diagnostic Agent Integration',
-          executionAuthority: contextualImprovementAuthorization.governorDecision
+          executionAuthority: contextualImprovementAuthorization.governorDecision,
+          actionAuthorization: contextualImprovementAuthorization
         });
         recordTelegramHarnessCoreExecution(contextualImprovementAuthorization, {
           toolName: 'spawner.run',
@@ -9443,7 +9636,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       }
       await conversation.remember(user, text).catch(() => {});
       const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [missionDefaultProvider()], 'external_research', {
-        executionAuthority: externalResearchAuthorization.governorDecision
+        executionAuthority: externalResearchAuthorization.governorDecision,
+        actionAuthorization: externalResearchAuthorization
       });
       recordTelegramHarnessCoreExecution(externalResearchAuthorization, {
         toolName: 'external.fetch',
@@ -9473,7 +9667,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await conversation.remember(user, text).catch(() => {});
       const missionId = await handleRunCommand(ctx, inferredMission.goal, [missionDefaultProvider()], undefined, {
         missionName: inferredMission.missionName,
-        executionAuthority: inferredMissionAuthorization.governorDecision
+        executionAuthority: inferredMissionAuthorization.governorDecision,
+        actionAuthorization: inferredMissionAuthorization
       });
       recordTelegramHarnessCoreExecution(inferredMissionAuthorization, {
         toolName: 'spawner.run',
@@ -9520,15 +9715,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
     // Single-provider run intent: "minimax, draft...", "ask claude to...", "all models: ..."
     const intent = parseNaturalRunIntent(text);
-    if (intent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
-      route: 'natural_run',
-      text,
-      toolName: 'provider.run',
-      ownerSystem: 'spawner-ui',
-      mutationClass: 'external_network',
-      externalNetwork: true
-    })) {
-      await handleRunCommand(ctx, intent.goal, intent.providers);
+    const naturalRunAuthorization = intent
+      ? telegramActionAuthorityDecision(turnIntentEnvelope, {
+        route: 'natural_run',
+        text,
+        toolName: 'provider.run',
+        ownerSystem: 'spawner-ui',
+        mutationClass: 'external_network',
+        externalNetwork: true
+      })
+      : null;
+    if (intent && naturalRunAuthorization?.allow) {
+      await handleRunCommand(ctx, intent.goal, intent.providers, undefined, {
+        actionAuthorization: naturalRunAuthorization
+      });
       return;
     }
   }
@@ -9611,6 +9811,24 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         builderReply: builderReply.responseText,
         requestId: builderReply.requestId,
         traceRef: builderReply.traceRef,
+        proofCapsule: buildTelegramDeliveryProofCapsule({
+          turnRef: builderReply.traceRef || builderReply.requestId || turnIntentEnvelope.traceId,
+          route: 'plain_chat',
+          owner: 'spark-telegram-bot',
+          tool: 'answer.compose',
+          mutationClass: 'read_only',
+          executionStatus: 'blocked',
+          replyDelivered: false,
+          replyShape: 'none',
+          envelope: turnIntentEnvelope,
+          authorityDecision: 'blocked',
+          governorDecision: 'deny',
+          reasonSummary: 'Final-answer gate suppressed a Builder reply and fell back to local chat.',
+          joins: {
+            telegram: 'joined',
+            builder: builderReply.traceRef || builderReply.requestId ? 'joined' : 'missing'
+          }
+        }),
         fallbackRoute: 'local_chat'
       });
       console.warn(`[Bridge] ignored non-chat Builder reply routing=${builderReply.routingDecision}`);

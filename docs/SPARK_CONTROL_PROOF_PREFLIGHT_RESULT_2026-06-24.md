@@ -58,7 +58,7 @@ npm run control:proof:audit
 npm run control:proof:audit -- --json
 ```
 
-Current command summary:
+Current command summary after the first Telegram proof wire-in:
 
 - Missing evidence files: 0.
 - Missing trace joins: 5 planes.
@@ -67,7 +67,7 @@ Current command summary:
 - Robotic failure reason-code presence: 2 planes.
 - Stack-like leaks: 0 planes.
 
-The command confirms the next major structural gap: proof capsule coverage is currently absent from all sampled planes.
+The latest sampled Telegram final-answer plane now reports `proof 10/100`, up from `0/100` before the wire-in. Outbound, route-confidence, Builder, Spawner, memory, and voice planes still need proof coverage.
 
 ## Surface
 
@@ -130,9 +130,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Wire Harness proof capsule refs into Telegram/action audit rows.
+Continue wiring Harness proof capsule refs into the remaining Telegram/action audit rows.
 
-Reason: the Harness proof capsule schema and fixtures now exist, but the new audit command still reports `missingProofCapsule` for every sampled live plane. The next durable move is to write proof capsules or proof refs at the Telegram final-answer/action boundary before building the visual proof panel.
+Reason: build/run acknowledgements and suppressed Builder final-answer rows now carry redacted proof capsules locally, but the audit still reports missing proof capsules across non-final-answer planes. The next durable move is to extend proof refs to outbound trace joins and route-confidence/action rows before building the visual proof panel.
 
 ## Gate To Start Goal Prompt
 
@@ -143,4 +143,5 @@ Reason: the Harness proof capsule schema and fixtures now exist, but the new aud
 - First implementation slice chosen: yes, trace-continuity audit command/report.
 - First implementation slice started: yes, minimum viable command/report added.
 - Second implementation slice started: yes, Harness proof capsule schema and fixtures added.
-- Next implementation slice chosen: yes, attach proof capsules or proof refs to Telegram/action audit rows.
+- Third implementation slice started: yes, Telegram build/run acknowledgements and suppressed Builder final-answer rows now emit proof metadata.
+- Next implementation slice chosen: yes, extend proof refs to outbound trace joins and route-confidence/action rows.

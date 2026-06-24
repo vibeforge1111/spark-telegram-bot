@@ -23,6 +23,7 @@ import axios from 'axios';
 import { describeTier, getTierForUser } from '../src/userTier';
 import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
+import { buildHarnessProofCapsule } from '../src/harnessProofCapsule';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -85,6 +86,28 @@ interface CapturedCall {
 	body: any;
 }
 
+function assertTraceContextWithProof(traceContext: any, expected: Record<string, unknown>): void {
+	for (const [key, value] of Object.entries(expected)) {
+		assert.equal(traceContext?.[key], value, `trace context ${key}`);
+	}
+	assert.equal(traceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
+	assert.match(traceContext?.proofCapsule?.turnRef, /^turn:sha256:[a-f0-9]{16}$/);
+	assert.equal(traceContext?.proofCapsule?.reply?.rawReasonsHidden, true);
+	assert.doesNotMatch(JSON.stringify(traceContext.proofCapsule), /8319079055|tg-build-|tg-run-|trace:spawner-prd|trace:telegram-run/);
+}
+
+function assertOutboundAuditCarriesProof(indexModule: any, traceContext: any, chatId = 8319079055): void {
+	const record = indexModule.buildNodeOutboundAuditRecord(
+		chatId,
+		'Spark acknowledgement',
+		new Date('2026-06-24T00:00:00.000Z'),
+		traceContext
+	);
+	assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
+	assert.equal((record.proof_capsule as any)?.schema, 'spark.harness_proof.v1');
+	assert.doesNotMatch(JSON.stringify(record.proof_capsule), new RegExp(String(chatId)));
+}
+
 async function readMissionRelayRegistry(): Promise<any[]> {
 	const profile = (process.env.SPARK_TELEGRAM_PROFILE || 'primary').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
 	const port = Number(process.env.TELEGRAM_RELAY_PORT || 8788);
@@ -125,7 +148,7 @@ async function callHandleBuildIntent(opts: {
 	projectName: string;
 	buildMode: 'direct' | 'advanced_prd';
 	buildLane?: 'fast_direct' | 'direct' | 'advanced_prd';
-}): Promise<void> {
+}): Promise<any> {
 	process.env.SPARK_BOT_TEST_MODE = '1';
 	process.env.SPARK_CLARIFICATION_COPY_LLM = '0';
 	process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
@@ -137,6 +160,7 @@ async function callHandleBuildIntent(opts: {
 		throw new Error('handleBuildIntent not exported from src/index.ts — export it for E2E testing');
 	}
 	await indexModule.handleBuildIntent(opts.ctx, opts.prd, opts.projectName, null, opts.buildMode, 'test', undefined, opts.buildLane);
+	return indexModule;
 }
 
 async function run(): Promise<void> {
@@ -196,8 +220,9 @@ async function run(): Promise<void> {
 		const ctx = makeFakeCtx(8319079055, 8319079055, 555, replies, replyExtras);
 
 		let caughtError: unknown = null;
+		let indexModule: any = null;
 		try {
-			await callHandleBuildIntent({
+			indexModule = await callHandleBuildIntent({
 				ctx,
 				prd: 'Build a B2B SaaS with subscription billing.',
 				projectName: 'saas-billing-test',
@@ -234,7 +259,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(replies[0] || '', /Paired surfaces/);
 		assert.doesNotMatch(replies[0] || '', /Canvas:/);
 		assert.doesNotMatch(replies[0] || '', /Mission board/);
-		assert.deepEqual(replyExtras[0]?.__sparkTraceContext, {
+		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
 			replyKind: 'build_ack',
@@ -242,6 +267,7 @@ async function run(): Promise<void> {
 			traceRef: writeCall!.body.traceRef,
 			missionId
 		});
+		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext);
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === missionId);
 		assert.ok(subscription, 'PRD build mission should be registered for Telegram relay progress');
@@ -377,7 +403,7 @@ async function run(): Promise<void> {
 		assert.equal(writeCall!.body.buildLane, 'fast_direct');
 		assert.equal(writeCall!.body.options.fastLane, true);
 		const buildMissionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
-		assert.deepEqual(replyExtras[0]?.__sparkTraceContext, {
+		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
 			replyKind: 'build_ack',
@@ -385,6 +411,7 @@ async function run(): Promise<void> {
 			traceRef: writeCall!.body.traceRef,
 			missionId: buildMissionId
 		});
+		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext);
 
 		restoreAxios();
 		restoreEnv();
@@ -428,7 +455,7 @@ async function run(): Promise<void> {
 		assert.doesNotMatch(runCall!.body.requestId, /8319079055/);
 		assert.equal(runCall!.body.traceRef, `trace:telegram-run:${runCall!.body.requestId}`);
 		assert.ok(!captured.some((c) => c.url.includes('/api/prd-bridge/write')), 'non-build /run should not use the PRD bridge');
-		assert.deepEqual(replyExtras[0]?.__sparkTraceContext, {
+		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
 			replyKind: 'mission_ack',
@@ -436,6 +463,7 @@ async function run(): Promise<void> {
 			traceRef: runCall!.body.traceRef,
 			missionId: 'spark-simple-run-test'
 		});
+		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext);
 
 		restoreAxios();
 		restoreEnv();
@@ -892,6 +920,22 @@ async function run(): Promise<void> {
 		restoreAxios();
 		const testUserId = 8319079570;
 		const indexModule: any = await import('../src/index');
+		const proofCapsule = buildHarnessProofCapsule({
+			turnRef: 'trace:req-final-gate',
+			route: 'plain_chat',
+			owner: 'spark-telegram-bot',
+			intent: { kind: 'plain_chat', confidence: 'explicit', noExecution: true },
+			authority: {
+				decision: 'blocked',
+				contract: 'spark.turn_intent.v1',
+				riskTier: 'read',
+				reasonSummary: 'Suppressed Builder reply and used local chat fallback.'
+			},
+			governor: { decision: 'deny', verified: true },
+			execution: { status: 'blocked', tool: 'answer.compose', mutationClass: 'read_only' },
+			reply: { delivered: false, shape: 'none', rawReasonsHidden: true },
+			joins: { telegram: 'joined', builder: 'joined' }
+		});
 		const record = indexModule.buildFinalAnswerGateSuppressionRecord({
 			chatId: testUserId,
 			userId: testUserId,
@@ -901,12 +945,15 @@ async function run(): Promise<void> {
 			builderReply: 'Noted: saved.',
 			requestId: 'req-final-gate',
 			traceRef: 'trace:req-final-gate',
+			proofCapsule,
 			fallbackRoute: 'local_chat'
 		}, new Date('2026-05-25T00:00:00.000Z'));
 
 		assert.equal(record.outcome, 'suppressed_builder_reply');
 		assert.equal(record.request_id, 'req-final-gate');
 		assert.equal(record.trace_ref, 'trace:req-final-gate');
+		assert.equal(record.harness_proof_ref, proofCapsule.turnRef);
+		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
 		assert.equal(record.builder_reply_preview, 'Noted: saved.');
 		assert.equal(record.chat_id_present, true);
 		assert.equal(record.user_id_present, true);
@@ -915,6 +962,7 @@ async function run(): Promise<void> {
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'chat_id'), false);
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'user_id'), false);
 		assert.doesNotMatch(JSON.stringify(record), new RegExp(String(testUserId)));
+		assert.doesNotMatch(JSON.stringify(record.proof_capsule), /req-final-gate/);
 		restoreAxios();
 		restoreEnv();
 	});
