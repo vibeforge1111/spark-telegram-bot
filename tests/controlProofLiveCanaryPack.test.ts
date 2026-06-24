@@ -8,6 +8,7 @@ import {
   buildControlProofCanaryObservationTemplate,
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
+  formatControlProofCanaryCoverage,
   formatControlProofCanaryCopyPaste,
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
@@ -160,6 +161,20 @@ test('checklist output includes proof, side-effect, visual, authority, and mutat
   assert.match(checklist, /Observed side effects:/);
   assert.match(checklist, /Observed proof join:/);
   assert.match(checklist, /Screenshot\/user confirmation:/);
+});
+
+test('coverage output summarizes categories, action risk, and mutation classes', () => {
+  const coverage = formatControlProofCanaryCoverage(CONTROL_PROOF_LIVE_CANARY_CASES);
+
+  assert.match(coverage, /Control-Proof Canary Coverage/);
+  assert.match(coverage, /Cases: 27/);
+  assert.match(coverage, /Intentional action cases: 4/);
+  assert.match(coverage, /Manual media cases: 4/);
+  assert.match(coverage, /- mission: 1/);
+  assert.match(coverage, /- streaming: 1/);
+  assert.match(coverage, /- rich_messages: 1/);
+  assert.match(coverage, /- launches_mission: 1/);
+  assert.match(coverage, /- confirmation_required_or_allowed:/);
 });
 
 test('live run guide pairs Telegram prompts with record commands', () => {
@@ -440,6 +455,21 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.match(runGuide.stdout, /--record-case cp-builder-001/);
   assert.doesNotMatch(runGuide.stdout, /Unexpected token|ENOENT/);
 
+  const coverage = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--include-actions',
+      '--coverage'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(coverage.status, 0, coverage.stderr);
+  assert.match(coverage.stdout, /Cases: 27/);
+  assert.match(coverage.stdout, /Intentional action cases: 4/);
+
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
   try {
     const outTemplatePath = resolve(tempRoot, 'template.json');
@@ -562,13 +592,16 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const bundledGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
     const bundledSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
     const bundledReadmePath = resolve(bundleDir, 'README.md');
+    const bundledCoveragePath = resolve(bundleDir, 'live-canary-coverage.md');
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summary/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
+    assert.match(readFileSync(bundledCoveragePath, 'utf8'), /Cases: 1/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
     assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);

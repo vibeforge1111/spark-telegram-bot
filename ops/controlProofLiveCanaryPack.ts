@@ -4,6 +4,7 @@ import {
   buildControlProofCanaryObservationTemplate,
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
+  formatControlProofCanaryCoverage,
   formatControlProofCanaryCopyPaste,
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
@@ -42,6 +43,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --list',
     '  npm run control:proof:canaries -- --copy-paste',
     '  npm run control:proof:canaries -- --checklist',
+    '  npm run control:proof:canaries -- --coverage',
     '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
     '  npm run control:proof:canaries -- --json',
@@ -167,6 +169,7 @@ function writeReleaseBundle(
   const runGuidePath = join(outDir, 'live-canary-run-guide.md');
   const copyPastePath = join(outDir, 'live-canary-copy-paste.md');
   const checklistPath = join(outDir, 'live-canary-checklist.md');
+  const coveragePath = join(outDir, 'live-canary-coverage.md');
   const summaryPath = join(outDir, 'live-canary-summary.md');
   const readmePath = join(outDir, 'README.md');
   const template = buildControlProofCanaryObservationTemplate(cases);
@@ -179,12 +182,14 @@ function writeReleaseBundle(
   writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath, summaryPath })}\n`, 'utf8');
   writeFileSync(copyPastePath, `${formatControlProofCanaryCopyPaste(cases)}\n`, 'utf8');
   writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
+  writeFileSync(coveragePath, `${formatControlProofCanaryCoverage(cases)}\n`, 'utf8');
   writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
   writeFileSync(readmePath, formatReleaseBundleReadme({
     observationsPath,
     runGuidePath,
     copyPastePath,
     checklistPath,
+    coveragePath,
     summaryPath
   }), 'utf8');
 
@@ -195,6 +200,7 @@ function writeReleaseBundle(
     `- run guide: ${runGuidePath}`,
     `- copy-paste prompts: ${copyPastePath}`,
     `- checklist: ${checklistPath}`,
+    `- coverage: ${coveragePath}`,
     `- summary: ${summaryPath}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`
   ].join('\n'));
@@ -205,6 +211,7 @@ function formatReleaseBundleReadme(paths: {
   runGuidePath: string;
   copyPastePath: string;
   checklistPath: string;
+  coveragePath: string;
   summaryPath: string;
 }): string {
   return [
@@ -218,6 +225,7 @@ function formatReleaseBundleReadme(paths: {
     `- Run guide: ${paths.runGuidePath}`,
     `- Copy-paste prompts: ${paths.copyPastePath}`,
     `- Checklist: ${paths.checklistPath}`,
+    `- Coverage: ${paths.coveragePath}`,
     `- Current summary: ${paths.summaryPath}`,
     '',
     '## Run Order',
@@ -317,6 +325,11 @@ function main(): void {
 
   if (hasFlag(args, 'copy-paste')) {
     console.log(formatControlProofCanaryCopyPaste(selected));
+    return;
+  }
+
+  if (hasFlag(args, 'coverage')) {
+    console.log(formatControlProofCanaryCoverage(selected));
     return;
   }
 

@@ -774,6 +774,50 @@ export function formatControlProofCanaryChecklist(cases: ControlProofCanaryCase[
   return lines.join('\n').trimEnd();
 }
 
+export function formatControlProofCanaryCoverage(cases: ControlProofCanaryCase[]): string {
+  const categoryCounts = countBy(cases, (entry) => entry.category);
+  const riskCounts = countBy(cases, (entry) => entry.risk);
+  const mutationCounts = countBy(cases, (entry) => entry.expectedMutationClass);
+  const authorityCounts = countBy(cases, (entry) => entry.expectedAuthority);
+  const actionCases = cases.filter((entry) => entry.risk === 'intentional_action');
+  const manualMediaCases = cases.filter((entry) => entry.risk === 'manual_media');
+  const lines = [
+    `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Canary Coverage`,
+    '',
+    `Cases: ${cases.length}`,
+    `Intentional action cases: ${actionCases.length}`,
+    `Manual media cases: ${manualMediaCases.length}`,
+    '',
+    'Categories:',
+    ...formatCounts(categoryCounts),
+    '',
+    'Risk:',
+    ...formatCounts(riskCounts),
+    '',
+    'Mutation classes:',
+    ...formatCounts(mutationCounts),
+    '',
+    'Authority expectations:',
+    ...formatCounts(authorityCounts)
+  ];
+  return lines.join('\n').trimEnd();
+}
+
+function countBy<T>(items: T[], keyFor: (item: T) => string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = keyFor(item);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return counts;
+}
+
+function formatCounts(counts: Map<string, number>): string[] {
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, count]) => `- ${key}: ${count}`);
+}
+
 export function formatControlProofCanaryLiveRunGuide(
   cases: ControlProofCanaryCase[],
   options: { observationsPath?: string; summaryPath?: string } = {}
