@@ -1128,6 +1128,20 @@ async function run(): Promise<void> {
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
 		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
 
+		const traceReplies: string[] = [];
+		const traceReplyExtras: any[] = [];
+		const traceCtx = makeFakeCtx(8319079055, 8319079055, 626, traceReplies, traceReplyExtras);
+		traceCtx.message.text = '/proof trace:raw-proof-command';
+		await indexModule.handleHarnessProofCommand(traceCtx);
+
+		assert.match(traceReplies[0] || '', /Harness Proof/);
+		assert.match(traceReplies[0] || '', /Authority: allowed/);
+		assert.match(traceReplies[0] || '', /Trace ref: trace:sha256:/);
+		assert.doesNotMatch(traceReplies.join('\n'), /raw-request-proof-command|trace:raw-proof-command|tool_not_allowed_by_policy|\/Users\/example/);
+		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.route, 'proof.inspect');
+		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
+		assert.equal(traceReplyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
+
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();
 		restoreEnv();

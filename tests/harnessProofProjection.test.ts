@@ -180,3 +180,64 @@ test('reports ref-only Builder evidence when the proof capsule is missing', () =
     assert.doesNotMatch(projection.panel, /raw-request|trace:builder-raw|\/Users\/example/);
   });
 });
+
+test('reports trace-only evidence with an explicit proof gap marker', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:spawner-prd:mission-proof-gap';
+    writeJsonl(path.join(sparkHome, 'state', 'spawner-ui', 'prd-auto-trace.jsonl'), [
+      {
+        requestId: 'raw-request-proof-gap',
+        traceRef,
+        proofStatus: 'missing_harness_proof',
+        resultArtifact: '/Users/example/private/spawner.json'
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      traceRef
+    });
+
+    assert.equal(projection.ok, false);
+    assert.equal(projection.requestedTraceRef, traceRef);
+    assert.equal(projection.foundRef, null);
+    assert.match(projection.panel, /Status: proof capsule missing/);
+    assert.match(projection.panel, /Evidence proof gaps: Spawner trace/);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'proof_gap');
+    assert.doesNotMatch(projection.panel, /mission-proof-gap|raw-request-proof-gap|\/Users\/example/);
+  });
+});
+
+test('finds a proof capsule by trace ref and preserves proof-gap evidence joins', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:spawner-prd:mission-with-proof';
+    const latest = proofCapsule('turn:latest');
+    writeJsonl(path.join(sparkHome, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl'), [
+      {
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
+      }
+    ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spawner-ui', 'prd-auto-trace.jsonl'), [
+      {
+        requestId: 'raw-request-with-proof',
+        traceRef,
+        proofStatus: 'missing_harness_proof',
+        resultArtifact: '/Users/example/private/spawner.json'
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      traceRef
+    });
+
+    assert.equal(projection.ok, true);
+    assert.equal(projection.foundRef, latest.turnRef);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'telegram_final_answer')?.status, 'joined');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'proof_gap');
+    assert.match(projection.panel, /Evidence proof gaps: Spawner trace/);
+    assert.doesNotMatch(projection.panel, /mission-with-proof|raw-request-with-proof|\/Users\/example/);
+  });
+});

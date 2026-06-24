@@ -17,6 +17,7 @@ function usage(): string {
     'Usage:',
     '  npx ts-node ops/harnessProofPanel.ts --latest',
     '  npx ts-node ops/harnessProofPanel.ts --ref turn:sha256:<hash>',
+    '  npx ts-node ops/harnessProofPanel.ts --trace trace:sha256:<hash>',
     '  npx ts-node ops/harnessProofPanel.ts --spark-home /path/to/.spark',
     '  npx ts-node ops/harnessProofPanel.ts --json',
     '  npx ts-node ops/harnessProofPanel.ts --strict',
@@ -32,9 +33,11 @@ function main(): void {
     return;
   }
   const proofRef = argValue(args, 'ref');
+  const traceRef = argValue(args, 'trace');
   const projection = projectHarnessProof({
     sparkHome: argValue(args, 'spark-home') || undefined,
-    proofRef: proofRef || undefined
+    proofRef: proofRef || undefined,
+    traceRef: traceRef || undefined
   });
   if (hasFlag(args, 'json')) {
     console.log(JSON.stringify(projection, null, 2));

@@ -4571,29 +4571,38 @@ export function proofRefFromCommandText(text: string): string | undefined {
   return raw.split(/\s+/)[0];
 }
 
+export function proofLookupFromCommandText(text: string): { proofRef?: string; traceRef?: string; help?: boolean } {
+  const value = proofRefFromCommandText(text);
+  if (!value) return {};
+  if (value === 'help') return { help: true };
+  if (/^trace:/i.test(value)) return { traceRef: value };
+  return { proofRef: value };
+}
+
 export async function handleHarnessProofCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
   const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
-  const proofRef = proofRefFromCommandText(text);
-  if (proofRef === 'help') {
+  const lookup = proofLookupFromCommandText(text);
+  if (lookup.help) {
     await ctx.reply([
       'Harness Proof',
       'Usage: /proof',
       'Usage: /proof turn:sha256:<hash>',
+      'Usage: /proof trace:sha256:<hash>',
       '',
       'This is inspect-only. It reads redacted proof metadata and does not execute a route.'
     ].join('\n'));
     return;
   }
-  const projection = projectHarnessProof({ proofRef });
+  const projection = projectHarnessProof({ proofRef: lookup.proofRef, traceRef: lookup.traceRef });
   const requestId = redactedProofRef('proof-command', `${text}:${Date.now()}`);
   await ctx.reply(projection.panel, outboundTraceExtra({
     route: 'proof.inspect',
     command: 'proof',
     replyKind: projection.ok ? 'proof_panel' : 'proof_missing',
     requestId,
-    traceRef: redactedProofRef('proof-trace', proofRef || projection.foundRef || requestId),
+    traceRef: redactedProofRef('proof-trace', lookup.traceRef || lookup.proofRef || projection.foundRef || requestId),
     ...(projection.foundRef ? { proofRef: projection.foundRef } : {})
   }));
 }

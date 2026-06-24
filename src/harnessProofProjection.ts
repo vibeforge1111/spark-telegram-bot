@@ -5,6 +5,7 @@ import {
   type ControlProofEvidenceFile
 } from './controlProofTraceAudit';
 import {
+  redactedProofRef,
   summarizeHarnessProofCapsule,
   validateHarnessProofCapsuleV1,
   type HarnessProofCapsuleV1
@@ -13,10 +14,11 @@ import {
 export interface HarnessProofProjectionOptions {
   sparkHome?: string;
   proofRef?: string;
+  traceRef?: string;
   evidenceFiles?: ControlProofEvidenceFile[];
 }
 
-export type HarnessProofEvidenceJoinStatus = 'joined' | 'missing';
+export type HarnessProofEvidenceJoinStatus = 'joined' | 'missing' | 'proof_gap';
 
 export interface HarnessProofEvidenceJoin {
   plane: string;
@@ -28,6 +30,7 @@ export interface HarnessProofProjection {
   ok: boolean;
   generatedAt: string;
   requestedRef: string | null;
+  requestedTraceRef: string | null;
   foundRef: string | null;
   plane: string | null;
   panel: string;
@@ -37,6 +40,7 @@ export interface HarnessProofProjection {
 
 const PROOF_CAPSULE_KEYS = ['proof_capsule', 'proofCapsule', 'harness_proof', 'harnessProof'];
 const PROOF_REF_KEYS = ['harness_proof_ref', 'harnessProofRef'];
+const TRACE_REF_KEYS = ['trace_ref', 'traceRef', 'trace_id', 'traceId'];
 const PANEL_EVIDENCE_PLANES = new Set([
   'telegram_final_answer',
   'telegram_outbound',
@@ -60,13 +64,17 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
   const sparkHome = options.sparkHome || defaultSparkHome();
   const evidenceFiles = options.evidenceFiles || defaultControlProofEvidenceFiles(sparkHome);
   const requestedRef = cleanRef(options.proofRef);
-  const match = findHarnessProofCapsule(evidenceFiles, requestedRef);
+  const requestedTraceRef = cleanRef(options.traceRef);
+  const match = findHarnessProofCapsule(evidenceFiles, requestedRef, requestedTraceRef);
   if (!match) {
-    const evidenceJoins = requestedRef ? summarizeEvidenceJoins(evidenceFiles, requestedRef) : [];
-    const hasJoinedEvidence = evidenceJoins.some((join) => join.status === 'joined');
+    const evidenceJoins = requestedRef || requestedTraceRef
+      ? summarizeEvidenceJoins(evidenceFiles, requestedRef || null, requestedTraceRef || null)
+      : [];
+    const hasJoinedEvidence = evidenceJoins.some((join) => join.status === 'joined' || join.status === 'proof_gap');
     const panel = [
       'Harness Proof',
-      requestedRef ? `Proof ref: ${requestedRef}` : 'Proof ref: latest',
+      requestedRef ? `Proof ref: ${displayRef('turn', requestedRef)}` : 'Proof ref: latest',
+      ...(requestedTraceRef ? [`Trace ref: ${displayRef('trace', requestedTraceRef)}`] : []),
       hasJoinedEvidence ? 'Status: proof capsule missing' : 'Status: not found',
       'Gaps: proof capsule missing from sampled evidence',
       ...(hasJoinedEvidence ? [renderEvidenceJoinSummary(evidenceJoins)] : [])
@@ -75,16 +83,18 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
       ok: false,
       generatedAt: new Date().toISOString(),
       requestedRef,
+      requestedTraceRef,
       foundRef: null,
       plane: null,
       panel,
       ...(hasJoinedEvidence ? { evidenceJoins } : {})
     };
   }
-  const evidenceJoins = summarizeEvidenceJoins(evidenceFiles, match.capsule.turnRef);
+  const evidenceJoins = summarizeEvidenceJoins(evidenceFiles, match.capsule.turnRef, requestedTraceRef || match.traceRef || null);
   const panel = [
     summarizeHarnessProofCapsule(match.capsule),
     `Proof ref: ${match.capsule.turnRef}`,
+    ...(requestedTraceRef ? [`Trace ref: ${displayRef('trace', requestedTraceRef)}`] : []),
     `Plane: ${match.plane}`,
     renderEvidenceJoinSummary(evidenceJoins)
   ].join('\n');
@@ -92,6 +102,7 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
     ok: true,
     generatedAt: new Date().toISOString(),
     requestedRef,
+    requestedTraceRef,
     foundRef: match.capsule.turnRef,
     plane: match.plane,
     panel,
@@ -102,17 +113,20 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
 
 function findHarnessProofCapsule(
   evidenceFiles: ControlProofEvidenceFile[],
-  requestedRef: string | null
-): { plane: string; capsule: HarnessProofCapsuleV1 } | null {
+  requestedRef: string | null,
+  requestedTraceRef: string | null
+): { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null } | null {
   for (const file of evidenceFiles) {
     const records = readEvidenceRecordsNewestFirst(file);
     for (const record of records) {
       const capsule = extractHarnessProofCapsule(record);
       if (!capsule) continue;
       if (requestedRef && !recordMatchesProofRef(capsule, requestedRef)) continue;
+      if (!requestedRef && requestedTraceRef && !recordContainsTraceRef(record, requestedTraceRef)) continue;
       return {
         plane: file.label,
-        capsule
+        capsule,
+        traceRef: requestedTraceRef
       };
     }
   }
@@ -121,11 +135,20 @@ function findHarnessProofCapsule(
 
 function summarizeEvidenceJoins(
   evidenceFiles: ControlProofEvidenceFile[],
-  proofRef: string
+  proofRef: string | null,
+  traceRef: string | null = null
 ): HarnessProofEvidenceJoin[] {
   return evidenceFiles.map((file) => {
     const records = readEvidenceRecordsNewestFirst(file);
-    const status = records.some((record) => recordContainsProofRef(record, proofRef)) ? 'joined' : 'missing';
+    const proofJoined = proofRef ? records.some((record) => recordContainsProofRef(record, proofRef)) : false;
+    const traceRecords = traceRef ? records.filter((record) => recordContainsTraceRef(record, traceRef)) : [];
+    const traceJoined = traceRecords.length > 0;
+    const proofGap = traceRecords.some(isProofGapMarkedRecord);
+    const status: HarnessProofEvidenceJoinStatus = proofJoined || (traceJoined && !proofGap)
+      ? 'joined'
+      : proofGap
+        ? 'proof_gap'
+        : 'missing';
     return {
       plane: file.label,
       displayName: EVIDENCE_PLANE_DISPLAY_NAMES[file.label] || file.label,
@@ -137,9 +160,11 @@ function summarizeEvidenceJoins(
 function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
   const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined');
   const joined = visibleJoins.filter((join) => join.status === 'joined').map((join) => join.displayName);
+  const proofGaps = visibleJoins.filter((join) => join.status === 'proof_gap').map((join) => join.displayName);
   const missing = visibleJoins.filter((join) => join.status === 'missing').map((join) => join.displayName);
   return [
     `Evidence joined: ${joined.length ? joined.join(', ') : 'none'}`,
+    `Evidence proof gaps: ${proofGaps.length ? proofGaps.join(', ') : 'none'}`,
     `Evidence missing: ${missing.length ? missing.join(', ') : 'none'}`
   ].join('\n');
 }
@@ -190,7 +215,15 @@ function recordContainsProofRef(record: unknown, requestedRef: string): boolean 
   return recordHasProofRefKey(record, requestedRef);
 }
 
+function recordContainsTraceRef(record: unknown, requestedRef: string): boolean {
+  return recordHasKeyValue(record, TRACE_REF_KEYS, requestedRef);
+}
+
 function recordHasProofRefKey(record: unknown, requestedRef: string): boolean {
+  return recordHasKeyValue(record, PROOF_REF_KEYS, requestedRef);
+}
+
+function recordHasKeyValue(record: unknown, keys: string[], requestedRef: string): boolean {
   const queue: unknown[] = [record];
   while (queue.length > 0) {
     const current = queue.shift();
@@ -201,7 +234,34 @@ function recordHasProofRefKey(record: unknown, requestedRef: string): boolean {
     }
     const obj = current as Record<string, unknown>;
     for (const [key, value] of Object.entries(obj)) {
-      if (PROOF_REF_KEYS.includes(key) && value === requestedRef) return true;
+      if (keys.includes(key) && value === requestedRef) return true;
+      if (value && typeof value === 'object') queue.push(value);
+    }
+  }
+  return false;
+}
+
+function isProofGapMarkedRecord(record: unknown): boolean {
+  return recordHasProofGapKey(record, /^(proof_status|proofStatus|proof_storage|proofStorage)$/);
+}
+
+function recordHasProofGapKey(record: unknown, keyPattern: RegExp): boolean {
+  const queue: unknown[] = [record];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    for (const [key, value] of Object.entries(current as Record<string, unknown>)) {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (
+        keyPattern.test(key) &&
+        (normalized === 'missing_harness_proof' || normalized === 'missing_harness_authority')
+      ) {
+        return true;
+      }
       if (value && typeof value === 'object') queue.push(value);
     }
   }
@@ -211,4 +271,11 @@ function recordHasProofRefKey(record: unknown, requestedRef: string): boolean {
 function cleanRef(value: string | null | undefined): string | null {
   const ref = String(value || '').trim();
   return ref || null;
+}
+
+function displayRef(label: 'turn' | 'trace', value: string): string {
+  const ref = cleanRef(value);
+  if (!ref) return 'latest';
+  if (new RegExp(`^${label}:sha256:[a-f0-9]{16}$`).test(ref)) return ref;
+  return redactedProofRef(label, ref);
 }
