@@ -24,6 +24,12 @@ export interface TelegramCommandActionAuthorityInput extends TelegramActionAutho
 
 function commandExecutionStopBoundary(text: string, action = ''): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const accessChangeAction = /^access\.change/.test(action);
+  const stopsAccessChange =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|raise|lower|enable|disable)\b.{0,40}\baccess\b/.test(normalized) ||
+    /\b(?:no|not)\s+access\s+change(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+  const setupOnlyAccessBoundary = accessChangeAction && !stopsAccessChange &&
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:run|start|launch|execute|prepare|configure|setup|set\s+up|repair)\b.{0,80}\b(?:repair|setup|set\s+up|workspace|local)\b/.test(normalized);
   const stopsExecution =
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:run|start|launch|execute|queue|dispatch|kick\s+off|schedule|change|set|switch|raise|lower|enable|disable|promote|improve|upgrade|fix|repair|reflect|process|probe|test|check|install|configure|setup|set\s+up|onboard|prepare|connect)\b/.test(normalized) ||
     /\b(?:no|not)\s+(?:run|execution|launch|schedule|scheduling|access\s+change|setup|set\s+up|onboarding|installing|configuration|enable|disable|reflection|processing|probing|testing|checking)(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
@@ -41,7 +47,7 @@ function commandExecutionStopBoundary(text: string, action = ''): boolean {
     stopsCreation ||
     stopsMemoryWrite ||
     stopsPlanning ||
-    (stopsExecution && !(planOnlyAction && !stopsPlanning))
+    (stopsExecution && !(planOnlyAction && !stopsPlanning) && !setupOnlyAccessBoundary)
   );
 }
 

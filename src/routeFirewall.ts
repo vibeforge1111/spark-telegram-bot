@@ -302,6 +302,11 @@ function isNoExecutionBoundary(normalized: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function isAccessChangeStopBoundary(normalized: string): boolean {
+  return /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|raise|lower|enable|disable)\b.{0,40}\baccess\b/.test(normalized) ||
+    /\b(?:no|not)\s+access\s+change(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+}
+
 function hasExecutionStopBoundary(normalized: string): boolean {
   return [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
@@ -456,28 +461,20 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
     return { allow: true, reason: 'explicit_recursive_proposal', confidence: 'explicit' };
   }
 
+  if (route === 'access.change' && isExplicitAccessChange(normalized)) {
+    if (isAccessChangeStopBoundary(normalized)) {
+      return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
+    }
+    return { allow: true, reason: 'explicit_access_change', confidence: 'explicit' };
+  }
   if (isNoExecutionBoundary(normalized) && INTERRUPTIVE_ROUTES.has(route)) {
     return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
   }
-
-  if (route === 'spawner.build' && isConcreteProjectBuild(normalized)) {
-    return { allow: true, reason: 'concrete_project_build', confidence: 'explicit' };
-  }
-  if (route === 'spawner.build' && isExplicitSpawnerNoEditMission(normalized)) {
-    return { allow: true, reason: 'explicit_spawner_no_edit_mission', confidence: 'explicit' };
-  }
-  if (route === 'spawner.build' && isMissionPreferenceLike(normalized)) {
-    return { allow: false, reason: 'mission_preference_not_build', confidence: 'blocked' };
-  }
-  if (isBoundedOperatorProbe(normalized) && MISSION_OR_BUILD_ROUTES.has(route)) {
-    return { allow: false, reason: 'operator_probe_competing_route', confidence: 'blocked' };
-  }
-  if (route === 'spawner.build' && !isConcreteProjectBuild(normalized)) {
-    return { allow: false, reason: 'plain_chat_protected', confidence: 'blocked' };
-  }
-  if (route === 'access.change' && isExplicitAccessChange(normalized)) {
-    return { allow: true, reason: 'explicit_access_change', confidence: 'explicit' };
-  }
+  if (route === 'spawner.build' && isConcreteProjectBuild(normalized)) return { allow: true, reason: 'concrete_project_build', confidence: 'explicit' };
+  if (route === 'spawner.build' && isExplicitSpawnerNoEditMission(normalized)) return { allow: true, reason: 'explicit_spawner_no_edit_mission', confidence: 'explicit' };
+  if (route === 'spawner.build' && isMissionPreferenceLike(normalized)) return { allow: false, reason: 'mission_preference_not_build', confidence: 'blocked' };
+  if (isBoundedOperatorProbe(normalized) && MISSION_OR_BUILD_ROUTES.has(route)) return { allow: false, reason: 'operator_probe_competing_route', confidence: 'blocked' };
+  if (route === 'spawner.build' && !isConcreteProjectBuild(normalized)) return { allow: false, reason: 'plain_chat_protected', confidence: 'blocked' };
   if (route === 'diagnostics.scan' && isExplicitDiagnosticRun(normalized)) {
     return { allow: true, reason: 'explicit_diagnostics_run', confidence: 'explicit' };
   }

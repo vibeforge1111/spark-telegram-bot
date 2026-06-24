@@ -189,6 +189,19 @@ test('allows explicit no-edit Mission Control diagnostics through Spawner', () =
   assert.equal(verdict.confidence, 'explicit');
 });
 
+test('allows access setting changes while blocking only local repair setup', () => {
+  const verdict = evaluateDeterministicRoute(
+    'access.change',
+    'Change my access level to three please, but do not run any local repair setup.'
+  );
+  assert.equal(verdict.allow, true);
+  assert.equal(verdict.reason, 'explicit_access_change');
+
+  const stop = evaluateDeterministicRoute('access.change', 'Change my access level to 4 but do not change access yet');
+  assert.equal(stop.allow, false);
+  assert.equal(stop.reason, 'no_execution_boundary');
+});
+
 test('uses the firewall as a broad route-arbitration smoke matrix', () => {
   const cases: Array<{
     name: string;

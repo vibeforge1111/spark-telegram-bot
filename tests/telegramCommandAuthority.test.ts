@@ -175,6 +175,22 @@ test('slash access changes block contradictory no-change text', () => {
   assert.ok(result.reasonCodes.includes('no_execution_boundary'));
 });
 
+test('slash access changes allow repair setup bans as constraints', () => {
+  const result = commandAuth({
+    text: '/access 3 but do not run local repair setup',
+    commandName: 'access',
+    route: 'access.change',
+    toolName: 'access.change',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files',
+    action: 'access.change',
+    kind: 'access_help'
+  });
+
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
 test('access action commands and callbacks authorize operator tools', () => {
   const doctor = commandAuth({
     text: '/docker_doctor',
