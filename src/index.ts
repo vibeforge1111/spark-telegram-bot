@@ -6710,6 +6710,23 @@ export async function handleBuildIntent(
   const requestId = opaqueTelegramRequestId('tg-build');
   const missionId = missionIdFromTelegramBuildRequest(requestId);
   const traceRef = spawnerPrdTraceRef(missionId);
+  const proofCapsule = buildTelegramDeliveryProofCapsule({
+    turnRef: traceRef || requestId,
+    route: 'spawner.build',
+    owner: 'spawner-ui',
+    tool: 'spawner.run',
+    mutationClass: 'launches_mission',
+    executionStatus: 'started',
+    replyDelivered: true,
+    replyShape: 'natural',
+    authorization: options.actionAuthorization,
+    authorityDecision: options.actionAuthorization ? undefined : 'allowed',
+    reasonSummary: 'Telegram build acknowledgement followed authorized Spawner PRD dispatch.',
+    joins: {
+      telegram: 'joined',
+      spawner: 'joined'
+    }
+  });
   await recordBuilderAocPreflightForRun({
     ctx,
     requestId,
@@ -6753,6 +6770,7 @@ export async function handleBuildIntent(
         buildLaneReason,
         chatId: String(chatId),
         userId: String(ctx.from.id),
+        harnessProofRef: proofCapsule.turnRef,
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
@@ -6803,23 +6821,6 @@ export async function handleBuildIntent(
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, requestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
-    const proofCapsule = buildTelegramDeliveryProofCapsule({
-      turnRef: traceRef || requestId,
-      route: 'spawner.build',
-      owner: 'spawner-ui',
-      tool: 'spawner.run',
-      mutationClass: 'launches_mission',
-      executionStatus: 'started',
-      replyDelivered: true,
-      replyShape: 'natural',
-      authorization: options.actionAuthorization,
-      authorityDecision: options.actionAuthorization ? undefined : 'allowed',
-      reasonSummary: 'Telegram build acknowledgement followed authorized Spawner PRD dispatch.',
-      joins: {
-        telegram: 'joined',
-        spawner: 'joined'
-      }
-    });
 
     await registerMissionRelay({
       missionId,

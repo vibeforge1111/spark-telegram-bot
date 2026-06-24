@@ -256,6 +256,7 @@ async function run(): Promise<void> {
 		assert.equal(typeof writeCall!.body.options, 'object');
 		const missionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(writeCall!.body.traceRef, `trace:spawner-prd:${missionId}`);
+		assert.match(writeCall!.body.harnessProofRef, /^turn:sha256:[a-f0-9]{16}$/);
 		assert.doesNotMatch(replies[0] || '', new RegExp(`Mission: ${missionId}`));
 		assert.match(replies[0] || '', /🛠️ Setting up SaaS Billing Test as a direct build\./);
 		assert.match(replies[0] || '', /Canvas next\./);
@@ -271,6 +272,7 @@ async function run(): Promise<void> {
 			traceRef: writeCall!.body.traceRef,
 			missionId
 		});
+		assert.equal(writeCall!.body.harnessProofRef, replyExtras[0]?.__sparkTraceContext?.proofCapsule?.turnRef);
 		assertOutboundAuditCarriesProof(indexModule, replyExtras[0]?.__sparkTraceContext);
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === missionId);
