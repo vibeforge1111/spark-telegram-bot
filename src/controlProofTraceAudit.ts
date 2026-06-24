@@ -29,6 +29,7 @@ export interface ControlProofTracePlaneSummary {
   traceRefPresent: number;
   traceRefMissing: number;
   proofCapsulePresent: number;
+  proofNotApplicable: number;
   proofCapsuleMissing: number;
   rawIdKeyRows: number;
   rawPathLikeRows: number;
@@ -164,6 +165,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `request ${plane.requestIdPresent}/${plane.sampledRows}`,
         `trace ${plane.traceRefPresent}/${plane.sampledRows}`,
         `proof ${plane.proofCapsulePresent}/${plane.sampledRows}`,
+        `proof_n/a ${plane.proofNotApplicable}`,
         `raw_refs ${plane.rawPathLikeRows}`,
         `raw_id_keys ${plane.rawIdKeyRows}`,
         `reason_codes ${plane.policyReasonCodeRows}`,
@@ -233,6 +235,7 @@ function summarizeRecords(
   let requestIdPresent = 0;
   let traceRefPresent = 0;
   let proofCapsulePresent = 0;
+  let proofNotApplicable = 0;
   let rawIdKeyRows = 0;
   let rawPathLikeRows = 0;
   let policyReasonCodeRows = 0;
@@ -240,7 +243,12 @@ function summarizeRecords(
   for (const record of sampled) {
     if (hasAnyKey(record, REQUEST_ID_KEYS)) requestIdPresent += 1;
     if (hasAnyKey(record, TRACE_REF_KEYS)) traceRefPresent += 1;
-    if (hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record)) proofCapsulePresent += 1;
+    const hasProof = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
+    if (hasProof) {
+      proofCapsulePresent += 1;
+    } else if (isProofNotApplicableRecord(record)) {
+      proofNotApplicable += 1;
+    }
     if (hasKeyPattern(record, RAW_ID_KEY_PATTERN)) rawIdKeyRows += 1;
     const raw = safeStringify(record);
     if (RAW_PATH_PATTERN.test(raw)) rawPathLikeRows += 1;
@@ -260,7 +268,8 @@ function summarizeRecords(
     traceRefPresent,
     traceRefMissing: sampled.length - traceRefPresent,
     proofCapsulePresent,
-    proofCapsuleMissing: sampled.length - proofCapsulePresent,
+    proofNotApplicable,
+    proofCapsuleMissing: Math.max(0, sampled.length - proofCapsulePresent - proofNotApplicable),
     rawIdKeyRows,
     rawPathLikeRows,
     policyReasonCodeRows,
@@ -276,6 +285,13 @@ function isHarnessProofCapsuleRecord(value: unknown): boolean {
     !Array.isArray(value) &&
     (value as Record<string, unknown>).schema === 'spark.harness_proof.v1'
   );
+}
+
+function isProofNotApplicableRecord(value: unknown): boolean {
+  return hasKeyValue(value, /^(proof_status|proofStatus|proof_storage|proofStorage)$/, (entry) => {
+    const normalized = String(entry || '').trim().toLowerCase();
+    return normalized === 'not_execution_proof' || normalized === 'not_applicable';
+  });
 }
 
 function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlProofGapCounts {
@@ -302,6 +318,7 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     traceRefPresent: 0,
     traceRefMissing: 0,
     proofCapsulePresent: 0,
+    proofNotApplicable: 0,
     proofCapsuleMissing: 0,
     rawIdKeyRows: 0,
     rawPathLikeRows: 0,
@@ -318,6 +335,23 @@ function hasAnyKey(value: unknown, keys: string[]): boolean {
 
 function hasKeyPattern(value: unknown, pattern: RegExp): boolean {
   return walkObjects(value, (entryKey) => pattern.test(entryKey));
+}
+
+function hasKeyValue(value: unknown, keyPattern: RegExp, predicate: (value: unknown) => boolean): boolean {
+  const queue: unknown[] = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    for (const [key, child] of Object.entries(current as Record<string, unknown>)) {
+      if (keyPattern.test(key) && predicate(child)) return true;
+      if (child && typeof child === 'object') queue.push(child);
+    }
+  }
+  return false;
 }
 
 function walkObjects(value: unknown, predicate: (key: string) => boolean): boolean {

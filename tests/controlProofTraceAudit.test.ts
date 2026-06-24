@@ -104,6 +104,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(finalAnswer?.requestIdPresent, 2);
     assert.equal(finalAnswer?.traceRefPresent, 2);
     assert.equal(finalAnswer?.proofCapsulePresent, 1);
+    assert.equal(finalAnswer?.proofNotApplicable, 0);
     assert.equal(finalAnswer?.rawPathLikeRows, 1);
     assert.equal(outbound?.requestIdMissing, 1);
     assert.equal(routeConfidence?.requestIdPresent, 1);
@@ -122,6 +123,43 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.match(report, /telegram_final_answer/);
     assert.match(report, /missing trace joins/);
     assert.doesNotMatch(report, /private-trace|123|tool_not_allowed_by_policy/);
+  });
+});
+
+test('treats explicit non-execution continuity as proof not applicable', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'non_execution_system_map',
+        filePath: path.join(sparkHome, 'non-execution-system-map.json'),
+        kind: 'json' as const
+      }
+    ];
+    writeJson(evidenceFiles[0].filePath, {
+      schema_version: 'spark.system_map.non_execution.v1',
+      request_ref: 'request:sha256:abcdef1234567890',
+      trace_ref: 'trace:sha256:abcdef1234567890',
+      authority: 'observability_non_authoritative',
+      trace_continuity: {
+        proof_status: 'not_execution_proof',
+        proof_storage: 'missing',
+        raw_audio_exported: false,
+        raw_memory_exported: false
+      }
+    });
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofCapsulePresent, 0);
+    assert.equal(plane.proofNotApplicable, 1);
+    assert.equal(plane.proofCapsuleMissing, 0);
+    assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.ok, true);
+    assert.match(formatControlProofTraceAuditReport(result), /proof_n\/a 1/);
   });
 });
 
