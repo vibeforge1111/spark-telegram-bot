@@ -204,6 +204,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
 test('live run guide pairs Telegram prompts with record commands', () => {
   const guide = formatControlProofCanaryLiveRunGuide([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!,
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
   ], { observationsPath: '/tmp/live-canary-observations.json' });
 
@@ -214,6 +215,7 @@ test('live run guide pairs Telegram prompts with record commands', () => {
   assert.match(guide, /--observations '\/tmp\/live-canary-observations\.json' --record-case cp-builder-001/);
   assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
   assert.match(guide, /--mission-started <true\|false\|unknown>/);
+  assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
   assert.match(guide, /--screenshot-ref '\/tmp\/cp-streaming-001\.png'/);
   assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
 });
@@ -394,6 +396,16 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     userConfirmation: 'User confirmed Telegram access reply rendered once.'
   };
 
+  const unobservedExtraMutations = summarizeControlProofCanaryObservations(template);
+  assert.equal(unobservedExtraMutations.readyForRelease, false);
+  assert.deepEqual(unobservedExtraMutations.cases[0].missingCaptures, ['side_effects_unobserved']);
+
+  template.cases[0].observed.sideEffects.filesChanged = false;
+  template.cases[0].observed.sideEffects.memoryWritten = false;
+  template.cases[0].observed.sideEffects.missionStarted = false;
+  template.cases[0].observed.sideEffects.externalNetworkCalled = false;
+  template.cases[0].observed.sideEffects.providerChanged = false;
+  template.cases[0].observed.sideEffects.mediaHandled = false;
   const cleanAction = summarizeControlProofCanaryObservations(template);
   assert.equal(cleanAction.readyForRelease, true);
   assert.deepEqual(cleanAction.cases[0].missingCaptures, []);
@@ -744,6 +756,61 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
+
+    const accessTemplate = withControlProofCanaryRuntimeEvidence(
+      buildControlProofCanaryObservationTemplate([
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
+      ], { generatedAt: '2026-06-24T00:00:00.000Z' }),
+      {
+        sparkLiveStatus: 'Spark Live healthy.',
+        providerStatus: 'Provider ping OK.',
+        runtimeSync: 'runtime in sync.',
+        controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+        notes: null
+      }
+    );
+    const accessObservationsPath = resolve(tempRoot, 'access-observations.json');
+    const accessRecordedPath = resolve(tempRoot, 'access-recorded.json');
+    const accessReplyPath = resolve(tempRoot, 'access-reply.txt');
+    writeFileSync(accessObservationsPath, JSON.stringify(accessTemplate, null, 2), 'utf8');
+    writeFileSync(accessReplyPath, 'Access is set to level three; I did not run repair setup.\n', 'utf8');
+    const recordAccess = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        accessObservationsPath,
+        '--out',
+        accessRecordedPath,
+        '--record-case',
+        'cp-access-002',
+        '--verdict',
+        'pass',
+        '--reply-file',
+        accessReplyPath,
+        '--access-changed',
+        'true',
+        '--no-other-side-effects',
+        '--side-effects-notes',
+        'Access changed; no other mutation observed.',
+        '--proof-join',
+        'Access change joined with redacted proof ref.',
+        '--proof-panel-file',
+        proofPanelPath,
+        '--screenshot-ref',
+        '/tmp/spark-recursive-access.png',
+        '--user-confirmation',
+        'Confirmed in SparkRecursive_bot.'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(recordAccess.status, 0, recordAccess.stderr);
+    assert.match(recordAccess.stdout, /Release gate: ready/);
+    const recordedAccess = JSON.parse(readFileSync(accessRecordedPath, 'utf8'));
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.accessChanged, true);
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.missionStarted, false);
+    assert.equal(recordedAccess.cases[0].observed.sideEffects.filesChanged, false);
 
     const bundleDir = resolve(tempRoot, 'bundle');
     const releaseBundle = spawnSync(

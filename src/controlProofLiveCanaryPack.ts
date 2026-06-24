@@ -935,6 +935,9 @@ function formatControlProofCanaryRecordCommand(
     '--proof-join',
     shellQuote('<proof join observed, or missing proof>')
   ];
+  if (requiresFullNoOtherMutationProof(entry.expectedMutationClass)) {
+    args.push('--no-other-side-effects');
+  }
   if (entry.capture.proofPanel) {
     args.push('--proof-panel', shellQuote('<proof panel text, or not shown>'));
   }
@@ -1207,12 +1210,24 @@ function userConfirmationCaptureIssues(value: string | null | undefined): string
 
 type ControlProofObservedSideEffects = ControlProofCanaryObservationCase['observed']['sideEffects'];
 type ControlProofSideEffectKey = keyof Omit<ControlProofObservedSideEffects, 'notes'>;
+const CONTROL_PROOF_SIDE_EFFECT_KEYS: ControlProofSideEffectKey[] = [
+  'filesChanged',
+  'memoryWritten',
+  'missionStarted',
+  'externalNetworkCalled',
+  'accessChanged',
+  'providerChanged',
+  'mediaHandled'
+];
 
 function sideEffectCaptureIssues(entry: ControlProofCanaryObservationCase): string[] {
   const sideEffects = entry.observed.sideEffects;
   const expectedKey = sideEffectKeyForMutationClass(entry.expected.mutationClass);
   const issues: string[] = [];
   if (sideEffects[expectedKey] === null) issues.push('side_effects');
+  if (requiresFullNoOtherMutationProof(entry.expected.mutationClass) && hasUnobservedUnexpectedMutations(sideEffects, expectedKey)) {
+    issues.push('side_effects_unobserved');
+  }
   if (isUnexpectedMutationObserved(entry.expected.mutationClass, sideEffects)) issues.push('side_effects_unexpected_mutation');
   return issues;
 }
@@ -1235,16 +1250,18 @@ function isUnexpectedMutationObserved(
   const expectedKey = mutationClass === 'none' || mutationClass === 'read_only'
     ? null
     : sideEffectKeyForMutationClass(mutationClass);
-  const mutationKeys: ControlProofSideEffectKey[] = [
-    'filesChanged',
-    'memoryWritten',
-    'missionStarted',
-    'externalNetworkCalled',
-    'accessChanged',
-    'providerChanged',
-    'mediaHandled'
-  ];
-  return mutationKeys.some((key) => key !== expectedKey && sideEffects[key] === true);
+  return CONTROL_PROOF_SIDE_EFFECT_KEYS.some((key) => key !== expectedKey && sideEffects[key] === true);
+}
+
+function hasUnobservedUnexpectedMutations(
+  sideEffects: ControlProofObservedSideEffects,
+  expectedKey: ControlProofSideEffectKey
+): boolean {
+  return CONTROL_PROOF_SIDE_EFFECT_KEYS.some((key) => key !== expectedKey && sideEffects[key] === null);
+}
+
+function requiresFullNoOtherMutationProof(mutationClass: ControlProofCanaryMutationClass): boolean {
+  return mutationClass !== 'none' && mutationClass !== 'read_only';
 }
 
 function proofPanelCaptureIssues(value: string | null | undefined): string[] {

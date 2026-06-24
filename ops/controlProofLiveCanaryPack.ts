@@ -13,6 +13,7 @@ import {
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
   type ControlProofCanaryObservationUpdate,
+  type ControlProofCanaryMutationClass,
   type ControlProofCanaryVerdict
 } from '../src/controlProofLiveCanaryPack';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -54,7 +55,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
-    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
     '  npm run control:proof:canaries -- --category streaming --list',
@@ -81,9 +82,41 @@ function optionalBooleanArg(args: string[], name: string): boolean | null | unde
   throw new Error(`Invalid boolean for --${name}: ${value}`);
 }
 
+type ControlProofSideEffectFlagName =
+  | 'files-changed'
+  | 'memory-written'
+  | 'mission-started'
+  | 'external-network-called'
+  | 'access-changed'
+  | 'provider-changed'
+  | 'media-handled';
+
+const CONTROL_PROOF_SIDE_EFFECT_FLAGS: ControlProofSideEffectFlagName[] = [
+  'files-changed',
+  'memory-written',
+  'mission-started',
+  'external-network-called',
+  'access-changed',
+  'provider-changed',
+  'media-handled'
+];
+
+function sideEffectFlagForMutationClass(mutationClass: ControlProofCanaryMutationClass): ControlProofSideEffectFlagName | null {
+  if (mutationClass === 'writes_files') return 'files-changed';
+  if (mutationClass === 'writes_memory') return 'memory-written';
+  if (mutationClass === 'launches_mission') return 'mission-started';
+  if (mutationClass === 'external_network') return 'external-network-called';
+  if (mutationClass === 'updates_access_setting') return 'access-changed';
+  if (mutationClass === 'switches_provider') return 'provider-changed';
+  if (mutationClass === 'media_read') return 'media-handled';
+  return null;
+}
+
 function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservationUpdate {
   const id = argValue(args, 'record-case');
   if (!id) throw new Error('--record-case requires a case id.');
+  const canary = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === id);
+  if (!canary) throw new Error(`Unknown control-proof canary id: ${id}`);
   const verdict = argValue(args, 'verdict');
   const sideEffects = {
     filesChanged: optionalBooleanArg(args, 'files-changed'),
@@ -95,6 +128,15 @@ function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservatio
     mediaHandled: optionalBooleanArg(args, 'media-handled'),
     notes: readTextArg(args, 'side-effects-notes')
   };
+  if (hasFlag(args, 'no-other-side-effects')) {
+    const expectedFlag = sideEffectFlagForMutationClass(canary.expectedMutationClass);
+    for (const flag of CONTROL_PROOF_SIDE_EFFECT_FLAGS) {
+      if (flag !== expectedFlag && optionalBooleanArg(args, flag) === undefined) {
+        const key = flag.replace(/-([a-z])/g, (_, char: string) => char.toUpperCase()) as keyof typeof sideEffects;
+        sideEffects[key] = false as never;
+      }
+    }
+  }
   return {
     id,
     verdict: verdict ? verdict as ControlProofCanaryVerdict : undefined,
