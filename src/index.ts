@@ -5083,7 +5083,7 @@ function authorizeMemoryRecallCommand(ctx: any, text: string): TelegramActionAut
 }
 
 export async function handleRememberCommand(ctx: any): Promise<void> {
-  const text = ctx.message.text.replace('/remember', '').trim();
+  const text = ctx.message.text.replace(/^\/remember(?:@\w+)?\s*/i, '').trim();
 
   if (!text) {
     return ctx.reply('Usage: /remember <something to remember>');
@@ -5119,7 +5119,7 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
 }
 
 export async function handleRecallCommand(ctx: any): Promise<void> {
-  const query = ctx.message.text.replace('/recall', '').trim();
+  const query = ctx.message.text.replace(/^\/recall(?:@\w+)?\s*/i, '').trim();
 
   if (!query) {
     return ctx.reply('Usage: /recall <topic to recall>');
@@ -9088,7 +9088,7 @@ bot.command('board', async (ctx) => {
 bot.command('creator', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/creator', '').trim();
+  const raw = ctx.message.text.replace(/^\/creator(?:@\w+)?\s*/i, '').trim();
   const control = parseCreatorMissionControlCommand(raw);
   const parsed = control ? null : parseCreatorPlanCommand(raw);
   if (!control && !parsed) {
@@ -9252,7 +9252,7 @@ bot.command('chip', async (ctx) => {
 bot.command('loop', async (ctx) => {
   if (!requireAdmin(ctx)) return;
 
-  const raw = ctx.message.text.replace('/loop', '').trim();
+  const raw = ctx.message.text.replace(/^\/loop(?:@\w+)?\s*/i, '').trim();
   const parts = raw.split(/\s+/).filter(Boolean);
   const chipKey = parts[0];
   const rounds = Math.max(1, Math.min(10, Number.parseInt(parts[1] ?? '3', 10) || 3));
