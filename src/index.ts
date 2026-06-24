@@ -2704,8 +2704,8 @@ function builderReplyTraceContext(
     route: proofCapsule.route,
     command: 'builder_bridge',
     replyKind,
-    requestId: builderReply.requestId || envelope.turnId,
-    traceRef: builderReply.traceRef || envelope.traceId,
+    requestId: builderReply.requestId ? redactedProofRef('request', builderReply.requestId) : envelope.turnId,
+    traceRef: builderReply.traceRef ? redactedProofRef('trace', builderReply.traceRef) : envelope.traceId,
     proofCapsule
   };
 }

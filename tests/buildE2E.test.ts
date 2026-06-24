@@ -1208,8 +1208,8 @@ async function run(): Promise<void> {
 			assert.equal((capturedBridgePayload as any)?.harnessProofRef, (capturedBridgePayload as any)?.harness_proof_ref);
 			assert.match(String((capturedBridgePayload as any)?.harnessProofRef || ''), /^turn:sha256:[a-f0-9]{16}$/);
 			assert.match(replies.join('\n'), /Audio transcription is ready/);
-			assert.equal(replyExtras[0]?.__sparkTraceContext?.requestId, 'builder-audio-request');
-			assert.equal(replyExtras[0]?.__sparkTraceContext?.traceRef, 'builder-audio-trace');
+			assert.match(replyExtras[0]?.__sparkTraceContext?.requestId, /^request:sha256:[a-f0-9]{16}$/);
+			assert.match(replyExtras[0]?.__sparkTraceContext?.traceRef, /^trace:sha256:[a-f0-9]{16}$/);
 			assert.equal(replyExtras[0]?.__sparkTraceContext?.replyKind, 'builder_audio_reply');
 			assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
 			assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.execution?.tool, 'media.audio.transcribe');
@@ -3339,8 +3339,8 @@ async function run(): Promise<void> {
 			assert.equal(bridgePayload.message?.spark_harness?.proofRef, bridgePayload.harnessProofRef);
 			assert.doesNotMatch(JSON.stringify(bridgePayload), /proof_capsule|spark\.harness_proof\.v1/);
 			const traceContext = replyExtras[0]?.__sparkTraceContext;
-			assert.equal(traceContext?.requestId, 'sim:proof-bridge');
-			assert.equal(traceContext?.traceRef, 'trace:builder-proof-bridge');
+			assert.match(traceContext?.requestId || '', /^request:sha256:[a-f0-9]{16}$/);
+			assert.match(traceContext?.traceRef || '', /^trace:sha256:[a-f0-9]{16}$/);
 			assert.equal(traceContext?.proofCapsule?.turnRef, bridgePayload.harnessProofRef);
 			assert.equal(traceContext?.proofCapsule?.reply?.delivered, true);
 			assert.equal(traceContext?.proofCapsule?.joins?.builder, 'joined');
