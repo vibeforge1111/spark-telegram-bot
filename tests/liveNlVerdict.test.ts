@@ -112,7 +112,7 @@ test('derives Harness Core mutation and authority fields from legacy NL cases', 
       risk: 'safe',
       prompt: 'I am mentioning build and mission, but do not start anything.',
       expectedRoute: 'conversation',
-      expectedOutcome: 'Explains without launching work.'
+      expectedOutcome: 'Explains without launching work. Must not save this as memory.'
     }
   ]);
 
@@ -130,6 +130,7 @@ test('derives Harness Core mutation and authority fields from legacy NL cases', 
   );
   assert.equal(deriveLiveNlHarnessCoreMapping(accessCase).expectedMutationClass, 'updates_access_setting');
   assert.equal(deriveLiveNlHarnessCoreMapping(missionCase).expectedMutationClass, 'launches_mission');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).expectedMutationClass, 'none');
   assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).expectedAuthority, 'blocked_without_authority');
   assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).recommendedUse, 'promote_after_refurbish');
 });

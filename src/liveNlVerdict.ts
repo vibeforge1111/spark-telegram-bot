@@ -202,9 +202,19 @@ function liveNlHarnessHaystack(entry: LiveNlCommandCase): string {
   ].join(' ').toLowerCase();
 }
 
+function liveNlPromptRouteHaystack(entry: LiveNlCommandCase): string {
+  return [
+    entry.suite,
+    entry.risk,
+    entry.expectedRoute,
+    entry.prompt,
+    ...(entry.turns || [])
+  ].join(' ').toLowerCase();
+}
+
 function deriveLiveNlMutationClass(entry: LiveNlCommandCase): LiveNlHarnessCoreMutationClass {
   const route = entry.expectedRoute.toLowerCase();
-  const text = liveNlHarnessHaystack(entry);
+  const text = liveNlPromptRouteHaystack(entry);
 
   if (entry.risk === 'mission' || /(?:slash_run|natural_run|launch_mission|diagnostic_followup_or_mission)/.test(route)) {
     return 'launches_mission';
