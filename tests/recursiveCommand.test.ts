@@ -40,7 +40,11 @@ function fakeCtx(text: string): any {
 }
 
 async function main(): Promise<void> {
-  const { handleRecursiveCommand, parseNaturalRecursiveProposalIntent } = await import('../src/index');
+  const {
+    handleRecursiveCommand,
+    parseNaturalRecursiveProposalIntent,
+    renderTelegramStreamingEnvWithUpdates
+  } = await import('../src/index');
 
   await test('natural recursive proposal intent keeps command language human', async () => {
     assert.deepEqual(
@@ -75,6 +79,29 @@ async function main(): Promise<void> {
     const wrapperBlock = source.slice(wrapperStart, wrapperEnd);
     assert.match(wrapperBlock, /replayTelegramDraftPreview\(ctx,\s*ctx\.telegram as any,\s*chunk\)/);
     assert.match(wrapperBlock, /sendTelegramRichMessage\(ctx\.telegram as any,\s*ctx\.chat\?\.id,\s*chunk,\s*cleanExtra\)/);
+  });
+
+  await test('streaming config persistence preserves profile env files', async () => {
+    const next = renderTelegramStreamingEnvWithUpdates(
+      [
+        'SPARK_TELEGRAM_PROFILE=sparkqa-bot',
+        'SPARK_TELEGRAM_CHAT_STREAMING=0',
+        'TELEGRAM_RELAY_PORT=8791'
+      ].join('\n'),
+      [
+        { key: 'SPARK_TELEGRAM_CHAT_STREAMING', value: '1' },
+        { key: 'SPARK_TELEGRAM_RICH_MESSAGES', value: '1' },
+        { key: 'SPARK_TELEGRAM_DRAFT_METHOD', value: 'rich' }
+      ]
+    );
+
+    assert.match(next, /SPARK_TELEGRAM_PROFILE=sparkqa-bot/);
+    assert.match(next, /SPARK_TELEGRAM_CHAT_STREAMING=1/);
+    assert.match(next, /SPARK_TELEGRAM_RICH_MESSAGES=1/);
+    assert.match(next, /SPARK_TELEGRAM_DRAFT_METHOD=rich/);
+    assert.match(next, /TELEGRAM_RELAY_PORT=8791/);
+    assert.doesNotMatch(next, /SPARK_TELEGRAM_CHAT_STREAMING=0/);
+    assert.equal(next.endsWith('\n'), true);
   });
 
   await test('recursive async start paths record final Harness Core ledgers', async () => {

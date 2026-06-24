@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
 import { execFile } from 'node:child_process';
-import { appendFile, mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
@@ -48,7 +48,9 @@ import {
   parseTelegramStreamingConfigText,
   replayTelegramDraftPreview,
   renderTelegramStreamingConfigStatus,
-  sendTelegramRichMessage
+  sendTelegramRichMessage,
+  type TelegramStreamingConfigKey,
+  type TelegramStreamingConfigSet
 } from './telegramDraft';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
@@ -1833,6 +1835,59 @@ function activeTelegramProfile(): string {
   }
 }
 
+function sparkHomeDir(): string {
+  const configured = process.env.SPARK_HOME?.trim();
+  return configured || path.join(os.homedir(), '.spark');
+}
+
+function telegramProfileEnvPaths(profile = activeTelegramProfile()): string[] {
+  const root = path.join(sparkHomeDir(), 'config', 'modules');
+  const normalized = profile && profile !== 'unknown' ? profile : 'primary';
+  const paths = normalized === 'primary'
+    ? [
+        path.join(root, 'spark-telegram-bot.env'),
+        path.join(root, 'spark-telegram-bot.primary.env')
+      ]
+    : [
+        path.join(root, `spark-telegram-bot.${normalized}.env`)
+      ];
+  return [...new Set(paths)];
+}
+
+export function renderTelegramStreamingEnvWithUpdates(existing: string, updates: TelegramStreamingConfigSet[]): string {
+  const updateMap = new Map(updates.map((update) => [update.key, update.value]));
+  const seen = new Set<string>();
+  const lines = existing ? existing.split(/\r?\n/) : [];
+  const next = lines.map((line) => {
+    const match = line.match(/^([A-Z0-9_]+)=/);
+    const key = match?.[1] as TelegramStreamingConfigKey | undefined;
+    if (!key || !updateMap.has(key)) return line;
+    seen.add(key);
+    return `${key}=${updateMap.get(key)}`;
+  });
+  for (const update of updates) {
+    if (!seen.has(update.key)) next.push(`${update.key}=${update.value}`);
+  }
+  return next.join('\n').replace(/\n*$/, '\n');
+}
+
+async function persistTelegramStreamingConfig(updates: TelegramStreamingConfigSet[]): Promise<string[]> {
+  if (!updates.length) return [];
+  const written: string[] = [];
+  for (const filePath of telegramProfileEnvPaths()) {
+    let existing = '';
+    try {
+      existing = await readFile(filePath, 'utf-8');
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') throw error;
+      await mkdir(path.dirname(filePath), { recursive: true });
+    }
+    await writeFile(filePath, renderTelegramStreamingEnvWithUpdates(existing, updates), 'utf-8');
+    written.push(filePath);
+  }
+  return written;
+}
+
 async function recordNaturalRouteShadow(ctx: any, text: string): Promise<NaturalRouteDecision | null> {
   try {
     return decideNaturalRoute(text, {
@@ -3451,14 +3506,27 @@ async function handleTelegramStreamingCommand(ctx: any): Promise<void> {
     await ctx.reply('Use /streaming, /streaming on, /streaming off, /streaming interval 500, /streaming rich on, /streaming rich_messages off, or /streaming preview off.');
     return;
   }
+  const updates: TelegramStreamingConfigSet[] = [];
   if (action.kind === 'set') {
     process.env[action.key] = action.value;
+    updates.push({ key: action.key, value: action.value });
   } else if (action.kind === 'set_many') {
     for (const update of action.values) {
       process.env[update.key] = update.value;
+      updates.push(update);
     }
   }
-  await ctx.reply(renderTelegramStreamingConfigStatus());
+  let persistenceNote = '';
+  if (updates.length) {
+    try {
+      await persistTelegramStreamingConfig(updates);
+      persistenceNote = `Saved for ${activeTelegramProfile()} profile.`;
+    } catch (error) {
+      const detail = redactText(error instanceof Error ? error.message : String(error));
+      persistenceNote = `Runtime updated, but I could not save the profile env: ${detail}`;
+    }
+  }
+  await ctx.reply([renderTelegramStreamingConfigStatus(), persistenceNote].filter(Boolean).join('\n\n'));
 }
 
 bot.command('streaming', handleTelegramStreamingCommand);
