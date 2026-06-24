@@ -80,6 +80,12 @@ It renders the latest or requested redacted Harness proof capsule without printi
 
 The panel source now also reports redacted evidence-plane joins. Current historical Builder/Spawner rows without a proof ref stay marked missing. Future Spawner PRD rows now carry `harnessProofRef` from Telegram build dispatch; future text/image/voice Builder gateway rows now carry and preserve a valid `harnessProofRef`. If a requested proof ref appears only in a trace row and no capsule is available yet, the panel now says `Status: proof capsule missing` while showing the joined evidence plane. Joined rows do not expose raw request ids, local paths, or reason codes in the proof panel.
 
+Update after continuity repairs:
+
+- Spawner PRD trace, Builder gateway trace, route-confidence, and turn-bound outbound delivery rows now use explicit legacy gap capsules for historical rows that cannot be joined to fresh Harness authority.
+- Telegram outbound delivery-local rows remain `not_execution_proof`; synthetic request/trace refs for those rows must not be promoted into execution proof gaps.
+- Latest sampled audit now reports no missing trace joins and no raw ref/reason-code leaks. Remaining proof gaps are visible `proof_gap` rows, not silent missing metadata.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.

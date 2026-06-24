@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { redactedProofRef, type HarnessProofCapsuleV1 } from './harnessProofCapsule';
+import { buildHarnessProofCapsule, redactedProofRef, type HarnessProofCapsuleV1 } from './harnessProofCapsule';
 
 export interface OutboundTraceRepairOptions {
   outboundPath?: string;
@@ -150,7 +150,15 @@ function repairOutboundRecord(
   const repairedRequestId = stringField(repaired, 'request_id') || stringField(repaired, 'requestId');
   const repairedTraceRef = stringField(repaired, 'trace_ref') || stringField(repaired, 'traceRef') || stringField(repaired, 'trace_id') || stringField(repaired, 'traceId');
   const requestRef = stringField(repaired, 'request_ref') || stringField(repaired, 'requestRef');
-  const hasRealContext = Boolean(repairedRequestId || repairedTraceRef);
+  const traceContextScope = stringField(repaired, 'trace_context_scope') || stringField(repaired, 'traceContextScope');
+  const traceContextPresent = typeof repaired.trace_context_present === 'boolean'
+    ? repaired.trace_context_present
+    : typeof repaired.traceContextPresent === 'boolean'
+      ? repaired.traceContextPresent
+      : undefined;
+  const hasRealContext = Boolean(repairedRequestId || repairedTraceRef) &&
+    traceContextScope !== 'delivery_local' &&
+    traceContextPresent !== false;
   const hasAnyRequest = Boolean(repairedRequestId || requestRef);
   const hasAnyTrace = Boolean(repairedTraceRef);
 
@@ -161,16 +169,18 @@ function repairOutboundRecord(
     repaired.trace_ref = redactedProofRef('trace', repairSeed(repaired));
   }
 
-  if (!hasProof(repaired) && !isProofMarked(repaired)) {
-    if (hasRealContext) {
-      repaired.proof_status = 'missing_harness_proof';
-      repaired.proof_storage = 'missing';
-      proofGapMarked = true;
-    } else {
+  if (!hasProof(repaired) && hasRealContext) {
+    const gapCapsule = buildLegacyOutboundGapCapsule(repaired);
+    repaired.harness_proof_ref = gapCapsule.turnRef;
+    repaired.proof_capsule = gapCapsule;
+    repaired.proof_status = 'missing_harness_authority';
+    repaired.proof_storage = 'legacy_gap_capsule';
+    repaired.proof_join_source = 'telegram_outbound_legacy_repair';
+    proofGapMarked = true;
+  } else if (!hasProof(repaired) && !isProofMarked(repaired)) {
       repaired.proof_status = 'not_execution_proof';
       repaired.proof_storage = 'not_applicable';
       deliveryLocalMarked = true;
-    }
   }
 
   if (!stringField(repaired, 'trace_context_scope')) {
@@ -195,6 +205,57 @@ function repairOutboundRecord(
     proofJoined,
     proofGapMarked
   };
+}
+
+function buildLegacyOutboundGapCapsule(record: Record<string, unknown>): HarnessProofCapsuleV1 {
+  const route = stringField(record, 'route') || stringField(record, 'reply_kind') || stringField(record, 'replyKind') || 'telegram.outbound';
+  const command = stringField(record, 'command');
+  const seed = [
+    stringField(record, 'request_id') || stringField(record, 'requestId'),
+    stringField(record, 'trace_ref') || stringField(record, 'traceRef') || stringField(record, 'trace_id') || stringField(record, 'traceId'),
+    stringField(record, 'event'),
+    stringField(record, 'ts'),
+    route,
+    command
+  ].filter(Boolean).join(':') || repairSeed(record);
+  return buildHarnessProofCapsule({
+    turnRef: seed,
+    route,
+    owner: 'spark-telegram-bot',
+    intent: {
+      kind: route,
+      confidence: 'contextual',
+      noExecution: false
+    },
+    authority: {
+      decision: 'downgraded',
+      contract: 'none',
+      riskTier: 'external',
+      reasonSummary: 'Historical outbound delivery row has turn trace context, but no matching final-answer Harness proof could be joined. Treat as inspectable proof gap, not authorization.'
+    },
+    governor: {
+      decision: 'not_applicable',
+      verified: false
+    },
+    execution: {
+      status: 'completed',
+      tool: 'telegram.outbound_delivery',
+      mutationClass: 'external_network'
+    },
+    reply: {
+      delivered: true,
+      shape: 'natural',
+      rawReasonsHidden: true
+    },
+    joins: {
+      telegram: 'joined',
+      builder: 'not_applicable',
+      spawner: 'not_applicable',
+      provider: 'not_applicable',
+      memory: 'not_applicable',
+      voice: 'not_applicable'
+    }
+  });
 }
 
 function readProofIndex(finalAnswerPath: string): ProofIndex {

@@ -149,9 +149,15 @@ test('repairs outbound rows by joining final-answer proof without fabricating de
     assert.equal(rows[1].harness_proof_ref, capsule.turnRef);
     assert.deepEqual(rows[1].proof_capsule, capsule);
     assert.equal(rows[1].proof_join_source, 'telegram_final_answer');
-    assert.equal(rows[2].proof_status, 'missing_harness_proof');
-    assert.equal(rows[2].proof_storage, 'missing');
-    assert.equal(Object.prototype.hasOwnProperty.call(rows[2], 'proof_capsule'), false);
+    assert.equal(rows[2].harness_proof_ref, (rows[2].proof_capsule as any).turnRef);
+    assert.equal(rows[2].proof_status, 'missing_harness_authority');
+    assert.equal(rows[2].proof_storage, 'legacy_gap_capsule');
+    assert.equal(rows[2].proof_join_source, 'telegram_outbound_legacy_repair');
+    assert.equal((rows[2].proof_capsule as any).schema, 'spark.harness_proof.v1');
+    assert.equal((rows[2].proof_capsule as any).authority.contract, 'none');
+    assert.equal((rows[2].proof_capsule as any).governor.verified, false);
+    assert.equal((rows[2].proof_capsule as any).execution.tool, 'telegram.outbound_delivery');
+    assert.equal((rows[2].proof_capsule as any).reply.delivered, true);
     assert.doesNotMatch(JSON.stringify(rows), /raw message body|8319079055/);
   });
 });
@@ -183,6 +189,43 @@ test('dry-run reports repairs without rewriting outbound audit', () => {
     assert.equal(result.changedRows, 1);
     assert.equal(result.dryRun, true);
     assert.equal(after, before);
+  });
+});
+
+test('keeps delivery-local synthetic refs out of legacy proof gaps', () => {
+  withTempRoot((root) => {
+    const outboundPath = path.join(root, 'node-outbound-audit.jsonl');
+    const finalAnswerPath = path.join(root, 'final-answer-gate-audit.jsonl');
+    writeJsonl(finalAnswerPath, []);
+    writeJsonl(outboundPath, [
+      {
+        ts: '2026-06-24T00:00:00.000Z',
+        event: 'telegram_node_delivered',
+        privacy: 'metadata_only',
+        chat_ref: 'chat:sha256:aaa',
+        text_length: 42,
+        request_ref: 'request:sha256:abcdef1234567890',
+        trace_ref: 'trace:sha256:abcdef1234567890',
+        proof_status: 'not_execution_proof',
+        proof_storage: 'not_applicable',
+        trace_context_scope: 'delivery_local',
+        trace_context_present: false
+      }
+    ]);
+
+    const result = repairOutboundTraceAudit({
+      outboundPath,
+      finalAnswerPath,
+      backup: false
+    });
+    const rows = readJsonl(outboundPath);
+
+    assert.equal(result.deliveryLocalMarked, 0);
+    assert.equal(result.proofGapMarked, 0);
+    assert.equal(result.changedRows, 0);
+    assert.equal(rows[0].proof_status, 'not_execution_proof');
+    assert.equal(rows[0].proof_storage, 'not_applicable');
+    assert.equal(Object.prototype.hasOwnProperty.call(rows[0], 'proof_capsule'), false);
   });
 });
 
