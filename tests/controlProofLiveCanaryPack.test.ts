@@ -518,7 +518,11 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const bundledObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
     const bundledGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
     const bundledSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    const bundledReadmePath = resolve(bundleDir, 'README.md');
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
+    assert.match(releaseBundle.stdout, /README:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);

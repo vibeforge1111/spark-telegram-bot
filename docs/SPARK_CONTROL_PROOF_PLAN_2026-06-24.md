@@ -311,7 +311,7 @@ Use `--record-case` after each live Telegram prompt to write the observed reply,
 
 Use `--run-guide` for the operator-facing live pass: it pairs each Telegram prompt with the matching `--record-case` command template while keeping scoring expectations outside the Telegram copy block.
 
-Use `--release-bundle --out-dir <dir> --collect-runtime-evidence` to write the full live-pass folder in one step: observation packet, run guide, copy-paste prompt sheet, checklist, and initial summary.
+Use `--release-bundle --out-dir <dir> --collect-runtime-evidence` to write the full live-pass folder in one step: README, observation packet, run guide, copy-paste prompt sheet, checklist, and initial summary.
 
 Refurbishment helper for old NL cases:
 

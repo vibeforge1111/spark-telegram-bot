@@ -168,6 +168,7 @@ function writeReleaseBundle(
   const copyPastePath = join(outDir, 'live-canary-copy-paste.md');
   const checklistPath = join(outDir, 'live-canary-checklist.md');
   const summaryPath = join(outDir, 'live-canary-summary.md');
+  const readmePath = join(outDir, 'README.md');
   const template = buildControlProofCanaryObservationTemplate(cases);
   const observations = collectEvidence
     ? withControlProofCanaryRuntimeEvidence(template, collectRuntimeEvidence())
@@ -179,9 +180,17 @@ function writeReleaseBundle(
   writeFileSync(copyPastePath, `${formatControlProofCanaryCopyPaste(cases)}\n`, 'utf8');
   writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
   writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
+  writeFileSync(readmePath, formatReleaseBundleReadme({
+    observationsPath,
+    runGuidePath,
+    copyPastePath,
+    checklistPath,
+    summaryPath
+  }), 'utf8');
 
   console.log([
     `Wrote control-proof live canary bundle: ${outDir}`,
+    `- README: ${readmePath}`,
     `- observations: ${observationsPath}`,
     `- run guide: ${runGuidePath}`,
     `- copy-paste prompts: ${copyPastePath}`,
@@ -189,6 +198,42 @@ function writeReleaseBundle(
     `- summary: ${summaryPath}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`
   ].join('\n'));
+}
+
+function formatReleaseBundleReadme(paths: {
+  observationsPath: string;
+  runGuidePath: string;
+  copyPastePath: string;
+  checklistPath: string;
+  summaryPath: string;
+}): string {
+  return [
+    '# SparkRecursive_bot Control-Proof Live Canary Bundle',
+    '',
+    'This folder is the live Telegram release packet. It starts not ready until each selected case has a recorded verdict and required captures.',
+    '',
+    '## Files',
+    '',
+    `- Observation packet: ${paths.observationsPath}`,
+    `- Run guide: ${paths.runGuidePath}`,
+    `- Copy-paste prompts: ${paths.copyPastePath}`,
+    `- Checklist: ${paths.checklistPath}`,
+    `- Current summary: ${paths.summaryPath}`,
+    '',
+    '## Run Order',
+    '',
+    '1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.',
+    '2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.',
+    '3. Run the matching `--record-case` command from the run guide after each prompt.',
+    '4. Re-run strict verification:',
+    '',
+    '```bash',
+    `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --strict`,
+    '```',
+    '',
+    'The release gate is ready only when strict verification reports every selected case as pass with required captures present.',
+    ''
+  ].join('\n');
 }
 
 function main(): void {
