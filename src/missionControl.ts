@@ -31,7 +31,7 @@ function truncate(value: string, maxLength: number): string {
 }
 
 function randomId(): string {
-  return Math.random().toString(36).slice(2, 8);
+  return require('crypto').randomBytes(4).toString('hex');
 }
 
 function missionControlDisabled(): boolean {
