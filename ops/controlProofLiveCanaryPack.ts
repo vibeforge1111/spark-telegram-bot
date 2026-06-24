@@ -2,10 +2,13 @@ import {
   CONTROL_PROOF_CANARY_TARGET,
   CONTROL_PROOF_LIVE_CANARY_CASES,
   buildControlProofCanaryObservationTemplate,
+  formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
-  selectControlProofCanaryCases
+  selectControlProofCanaryCases,
+  summarizeControlProofCanaryObservations
 } from '../src/controlProofLiveCanaryPack';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 function argValue(args: string[], name: string): string | null {
   const index = args.indexOf(`--${name}`);
@@ -33,6 +36,8 @@ function usage(): string {
     '  npm run control:proof:canaries -- --checklist',
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
+    '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
     '  npm run control:proof:canaries -- --category streaming --list',
@@ -48,6 +53,22 @@ function main(): void {
     console.log(usage());
     return;
   }
+  const outPath = argValue(args, 'out');
+
+  const observationsPath = argValue(args, 'observations');
+  if (observationsPath) {
+    const observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
+    const summary = summarizeControlProofCanaryObservations(observations);
+    if (hasFlag(args, 'json')) {
+      console.log(JSON.stringify(summary, null, 2));
+    } else {
+      console.log(formatControlProofCanaryObservationSummary(summary).trimEnd());
+    }
+    if (!summary.readyForRelease && hasFlag(args, 'strict')) {
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   const selected = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
     caseId: argValue(args, 'case'),
@@ -61,12 +82,24 @@ function main(): void {
   }
 
   if (hasFlag(args, 'json')) {
-    console.log(JSON.stringify({ target: CONTROL_PROOF_CANARY_TARGET, cases: selected }, null, 2));
+    const output = JSON.stringify({ target: CONTROL_PROOF_CANARY_TARGET, cases: selected }, null, 2);
+    if (outPath) {
+      writeFileSync(outPath, `${output}\n`, 'utf8');
+      console.log(`Wrote control-proof canaries: ${outPath}`);
+    } else {
+      console.log(output);
+    }
     return;
   }
 
   if (hasFlag(args, 'observation-template')) {
-    console.log(JSON.stringify(buildControlProofCanaryObservationTemplate(selected), null, 2));
+    const output = JSON.stringify(buildControlProofCanaryObservationTemplate(selected), null, 2);
+    if (outPath) {
+      writeFileSync(outPath, `${output}\n`, 'utf8');
+      console.log(`Wrote control-proof observation template: ${outPath}`);
+    } else {
+      console.log(output);
+    }
     return;
   }
 

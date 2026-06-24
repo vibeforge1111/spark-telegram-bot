@@ -287,6 +287,8 @@ npm run control:proof:canaries -- --list
 npm run control:proof:canaries -- --copy-paste
 npm run control:proof:canaries -- --checklist
 npm run control:proof:canaries -- --json
+npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
 ```
 
 Refurbishment helper for old NL cases:
@@ -373,7 +375,8 @@ Then send one photo with a caption.
 - Positive action prompts either execute with proof or ask for confirmation.
 - Streaming shows one draft path and one final answer.
 - Raw policy reason codes do not appear in normal chat.
-- Each canary records pass/fail, observed reply, and side effects.
+- Each canary records pass/fail, observed reply, side effects, proof join, and screenshot/user confirmation when required.
+- The observations report says `Release gate: ready` only when every selected case passed and all required captures are present.
 
 ## Suggested Work Order
 

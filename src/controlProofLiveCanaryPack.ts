@@ -117,6 +117,21 @@ export interface ControlProofCanaryObservationCase {
   };
 }
 
+export interface ControlProofCanaryObservationCaseSummary {
+  id: string;
+  verdict: ControlProofCanaryVerdict;
+  missingCaptures: string[];
+}
+
+export interface ControlProofCanaryObservationSummary {
+  target: string;
+  generatedAt: string;
+  totalCases: number;
+  verdictCounts: Record<ControlProofCanaryVerdict, number>;
+  readyForRelease: boolean;
+  cases: ControlProofCanaryObservationCaseSummary[];
+}
+
 export const CONTROL_PROOF_CANARY_TARGET = 'SparkRecursive_bot';
 export const CONTROL_PROOF_CANARY_VERDICTS: ControlProofCanaryVerdict[] =
   ['pass', 'fail', 'blocked', 'needs-retest', 'untested'];
@@ -775,4 +790,83 @@ export function buildControlProofCanaryObservationTemplate(
       }
     }))
   };
+}
+
+function missingCapturesForCase(entry: ControlProofCanaryObservationCase): string[] {
+  if (entry.observed.verdict === 'untested') return ['verdict'];
+  const missing: string[] = [];
+  const capture = entry.expected.capture;
+  if (capture.observedReply && !String(entry.observed.reply || '').trim()) missing.push('observed_reply');
+  if (capture.sideEffects && !hasSideEffectObservation(entry.observed.sideEffects)) missing.push('side_effects');
+  if (capture.proofPanel && !String(entry.observed.proofPanel || '').trim()) missing.push('proof_panel');
+  if (capture.screenshot && entry.observed.screenshotRefs.length === 0) missing.push('screenshot');
+  if (capture.userConfirmation && !String(entry.observed.userConfirmation || '').trim()) missing.push('user_confirmation');
+  return missing;
+}
+
+function hasSideEffectObservation(sideEffects: ControlProofCanaryObservationCase['observed']['sideEffects']): boolean {
+  return [
+    sideEffects.filesChanged,
+    sideEffects.memoryWritten,
+    sideEffects.missionStarted,
+    sideEffects.externalNetworkCalled,
+    sideEffects.accessChanged,
+    sideEffects.providerChanged,
+    sideEffects.mediaHandled
+  ].some((value) => value !== null) || Boolean(String(sideEffects.notes || '').trim());
+}
+
+export function summarizeControlProofCanaryObservations(
+  observations: ControlProofCanaryObservationTemplate
+): ControlProofCanaryObservationSummary {
+  if (observations.target !== CONTROL_PROOF_CANARY_TARGET) {
+    throw new Error(`Unexpected canary target: ${observations.target}`);
+  }
+  const knownCaseIds = new Set(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => entry.id));
+  const verdictValues = new Set(CONTROL_PROOF_CANARY_VERDICTS);
+  const verdictCounts = Object.fromEntries(CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => [verdict, 0])) as Record<ControlProofCanaryVerdict, number>;
+  const cases = observations.cases.map((entry) => {
+    if (!knownCaseIds.has(entry.id)) throw new Error(`Unknown observed canary id: ${entry.id}`);
+    if (!verdictValues.has(entry.observed.verdict)) throw new Error(`Invalid verdict for ${entry.id}: ${entry.observed.verdict}`);
+    verdictCounts[entry.observed.verdict] += 1;
+    return {
+      id: entry.id,
+      verdict: entry.observed.verdict,
+      missingCaptures: missingCapturesForCase(entry)
+    };
+  });
+  const readyForRelease = cases.length > 0 && cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
+  return {
+    target: observations.target,
+    generatedAt: observations.generatedAt,
+    totalCases: observations.cases.length,
+    verdictCounts,
+    readyForRelease,
+    cases
+  };
+}
+
+export function formatControlProofCanaryObservationSummary(summary: ControlProofCanaryObservationSummary): string {
+  const lines = [
+    `# ${summary.target} Control-Proof Canary Evidence Summary`,
+    '',
+    `Generated: ${summary.generatedAt}`,
+    `Cases: ${summary.totalCases}`,
+    `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
+    '',
+    'Verdicts:',
+    ...CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => `- ${verdict}: ${summary.verdictCounts[verdict]}`),
+    ''
+  ];
+  const attention = summary.cases.filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0);
+  if (attention.length === 0) {
+    lines.push('All selected canaries passed with required captures present.');
+  } else {
+    lines.push('Cases needing attention:');
+    for (const entry of attention) {
+      const missing = entry.missingCaptures.length ? `; missing ${entry.missingCaptures.join(', ')}` : '';
+      lines.push(`- ${entry.id}: ${entry.verdict}${missing}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
 }

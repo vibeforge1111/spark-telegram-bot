@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import {
   CONTROL_PROOF_LIVE_CANARY_CASES,
   buildControlProofCanaryObservationTemplate,
+  formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
   selectControlProofCanaryCases,
+  summarizeControlProofCanaryObservations,
   type ControlProofCanaryCategory
 } from '../src/controlProofLiveCanaryPack';
 
@@ -168,6 +172,38 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.cases[0].observed.userConfirmation, null);
 });
 
+test('observation summary requires pass verdicts and all requested capture evidence', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      missionStarted: false,
+      notes: 'No mission or mutation observed.'
+    },
+    proofJoin: 'Builder gateway joined with redacted proof ref.',
+    proofPanel: 'Harness Proof: Builder joined.',
+    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    userConfirmation: 'User confirmed Telegram reply rendered once.'
+  };
+
+  const summary = summarizeControlProofCanaryObservations(template);
+  assert.equal(summary.readyForRelease, true);
+  assert.equal(summary.verdictCounts.pass, 1);
+  assert.deepEqual(summary.cases[0].missingCaptures, []);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
+
+  template.cases[0].observed.screenshotRefs = [];
+  const missing = summarizeControlProofCanaryObservations(template);
+  assert.equal(missing.readyForRelease, false);
+  assert.deepEqual(missing.cases[0].missingCaptures, ['screenshot']);
+  assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
+});
+
 test('control-proof canary CLI lists and exports selected cases', () => {
   const list = spawnSync(
     process.execPath,
@@ -222,4 +258,56 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(observed.cases[0].expected.route, 'builder_gateway.plain_chat');
   assert.equal(observed.cases[0].observed.verdict, 'untested');
   assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
+
+  const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
+  try {
+    const outTemplatePath = resolve(tempRoot, 'template.json');
+    const outTemplate = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--observation-template',
+        '--out',
+        outTemplatePath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(outTemplate.status, 0, outTemplate.stderr);
+    assert.match(outTemplate.stdout, /Wrote control-proof observation template/);
+    assert.equal(JSON.parse(readFileSync(outTemplatePath, 'utf8')).cases[0].id, 'cp-builder-001');
+
+    observed.cases[0].observed = {
+      ...observed.cases[0].observed,
+      verdict: 'pass',
+      reply: 'Route confidence means Spark is justified in taking this route now.',
+      sideEffects: {
+        ...observed.cases[0].observed.sideEffects,
+        missionStarted: false,
+        notes: 'No mutation observed.'
+      },
+      proofJoin: 'Builder joined.',
+      proofPanel: 'Harness Proof: Builder joined.',
+      screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+      userConfirmation: 'Confirmed.'
+    };
+    const observationsPath = resolve(tempRoot, 'observations.json');
+    writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
+    const summary = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(summary.status, 0, summary.stderr);
+    assert.match(summary.stdout, /Release gate: ready/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 });
