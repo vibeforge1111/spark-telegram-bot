@@ -1137,7 +1137,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "I can turn this into Spark Proof Tile.\n\nRecommended starting point: Build a proof tile that shows claim, evidence, verification status, and remembered review notes.\n\nSay \"go\" to start, or steer one thing first: Who needs to trust the proof first: builders, reviewers, or end users?",
+        "reply": "I can turn this into Spark Proof Tile.\n\nRecommended starting point: Build a focused proof tile that records claims, evidence links, verification status, and session memory locally.\n\nSay \"go\" to start, or steer one thing first: Should v1 optimize for builders validating work or users reviewing trust evidence?",
         "sideEffects": {
           "filesChanged": true,
           "memoryWritten": false,
@@ -1146,14 +1146,15 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Spawner stayed in confirmation/clarification mode: PRD bridge/trace state was written for the clarification gate, but no mission/build dispatch, project file edit, publish, deploy, push, provider switch, access change, external network action, memory write, or media handling was observed."
+          "notes": "Spawner stayed in confirmation/clarification mode: no mission/build dispatch, project file edit, publish, deploy, push, provider switch, access change, external network action, memory write, or media handling was observed."
         },
-        "proofJoin": "Latest /proof panel showed Harness Proof Intent spawner.build with joined Telegram outbound evidence. Spawner trace was honestly absent from the proof panel because this turn asked for confirmation rather than starting execution; local trace files showed clarification/request state only.",
-        "proofPanel": "Harness Proof Intent: spawner.build Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:1091f12f7d79891 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "proofJoin": "Latest /proof panel showed Harness Proof Intent spawner.build with joined Telegram outbound evidence. Spawner trace was honestly absent from the proof panel because this turn asked for confirmation rather than starting execution.",
+        "proofPanel": "Harness Proof Intent: spawner.build Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3f48226867f7aa35 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-spawner-002-final-reply-2.png"
+          "/tmp/cp-spawner-002-live-reply-2.png",
+          "/tmp/cp-spawner-002-live-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart via Peekaboo screenshots: reply stayed on local-only build confirmation and /proof rendered spawner.build.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: reply stayed on local-only build confirmation and /proof rendered spawner.build without claiming Spawner execution.",
         "notes": "Initial live attempt was hijacked by browser proof wording. Fixed local-only publication constraints in 23881bb and concrete build clarification proof routing in 2701a56. Final live retest asked for confirmation without publishing/deploying/pushing and proof showed spawner.build."
       }
     },

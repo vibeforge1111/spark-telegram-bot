@@ -213,6 +213,8 @@ Live recapture of `cp-web-002` on 2026-06-24 confirmed tiny current-web checks s
 
 Live recapture of `cp-spawner-001` on 2026-06-24 confirmed project-design wording stays ideation-only when build is withheld: Spark asked the first two product questions without writing a PRD bridge or launching a mission, and `/proof` showed `spawner_build.ideation_boundary` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 7 to 6.
 
+Live recapture of `cp-spawner-002` on 2026-06-24 confirmed local-only build wording stays behind the Spawner confirmation gate: Spark shaped the Spark Proof Tile idea without dispatching a mission, publishing, deploying, pushing, or editing project files, and `/proof` showed `spawner.build` with joined Telegram evidence plus an honest absence of Spawner execution evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 6 to 5.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
