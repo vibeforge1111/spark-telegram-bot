@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import {
@@ -396,6 +396,88 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(strictSummary.status, 1);
     assert.match(strictSummary.stdout, /Packet evidence missing: control_proof_audit/);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime evidence collection keeps the audit tail needed for strict validation', () => {
+  const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-runtime-evidence-'));
+  try {
+    const binRoot = resolve(tempRoot, 'bin');
+    const outTemplatePath = resolve(tempRoot, 'observations.json');
+    mkdirSync(binRoot);
+    const sparkPath = resolve(binRoot, 'spark');
+    const npmPath = resolve(binRoot, 'npm');
+    writeFileSync(sparkPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; exit 0; fi',
+      'if [ "$1 $2 $3" = "providers test --role" ]; then echo "chat provider PING_OK"; exit 0; fi',
+      'echo "unexpected spark args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    writeFileSync(npmPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:audit" ]; then',
+      '  i=0',
+      '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
+      '  echo "Gap counts:"',
+      '  echo "- missing evidence: 0"',
+      '  echo "- missing trace joins: 0"',
+      '  echo "- missing proof capsules: 0"',
+      '  echo "- legacy proof gaps: 4"',
+      '  echo "- raw ref leaks: 0"',
+      '  echo "- robotic failure reasons: 0"',
+      '  echo "- stack-like leaks: 0"',
+      '  exit 0',
+      'fi',
+      'echo "unexpected npm args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    chmodSync(sparkPath, 0o755);
+    chmodSync(npmPath, 0o755);
+
+    const collected = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--observation-template',
+        '--collect-runtime-evidence',
+        '--out',
+        outTemplatePath
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(collected.status, 0, collected.stderr);
+    const observed = JSON.parse(readFileSync(outTemplatePath, 'utf8'));
+    assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
+    assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
+
+    observed.cases[0].observed = {
+      ...observed.cases[0].observed,
+      verdict: 'pass',
+      reply: 'Route confidence means Spark is justified in taking this route now.',
+      sideEffects: {
+        ...observed.cases[0].observed.sideEffects,
+        missionStarted: false,
+        notes: 'No mutation observed.'
+      },
+      proofJoin: 'Builder joined.',
+      proofPanel: 'Harness Proof: Builder joined.',
+      screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+      userConfirmation: 'Confirmed.'
+    };
+    const summary = summarizeControlProofCanaryObservations(observed);
+    assert.equal(summary.readyForRelease, true);
+    assert.deepEqual(summary.invalidPacketEvidence, []);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
