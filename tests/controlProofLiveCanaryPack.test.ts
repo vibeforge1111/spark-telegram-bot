@@ -377,6 +377,10 @@ test('observation summary requires pass verdicts and all requested capture evide
   const staleProofPanelAuditCount = summarizeControlProofCanaryObservations(template);
   assert.equal(staleProofPanelAuditCount.readyForRelease, false);
   assert.deepEqual(staleProofPanelAuditCount.cases[0].missingCaptures, ['proof_panel_legacy_gap_stale']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelAuditCount),
+    /Attention summary:\n- proof_panel_legacy_gap_stale: 1 case/
+  );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;

@@ -167,6 +167,8 @@ Canary release summaries print the runtime evidence collection timestamp separat
 
 Proof-panel captures in canary packets must agree with the fresh runtime audit legacy-gap count. If a saved Telegram proof panel still says an older legacy-gap total, the packet needs a new live proof-panel capture before it can claim release readiness.
 
+Canary release summaries group repeated capture failures before listing individual cases. A shared stale-proof issue should be visible as one count, then the affected case ids can guide recapture.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

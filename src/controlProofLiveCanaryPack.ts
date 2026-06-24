@@ -1446,6 +1446,14 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   if (attention.length === 0) {
     lines.push('All selected canaries passed with required captures present.');
   } else {
+    const missingCounts = summarizeMissingCaptureCounts(attention);
+    if (missingCounts.length > 0) {
+      lines.push('Attention summary:');
+      for (const [issue, count] of missingCounts) {
+        lines.push(`- ${issue}: ${count} ${count === 1 ? 'case' : 'cases'}`);
+      }
+      lines.push('');
+    }
     lines.push('Cases needing attention:');
     for (const entry of attention) {
       const missing = entry.missingCaptures.length ? `; missing ${entry.missingCaptures.join(', ')}` : '';
@@ -1453,4 +1461,18 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     }
   }
   return `${lines.join('\n')}\n`;
+}
+
+function summarizeMissingCaptureCounts(
+  cases: ControlProofCanaryObservationCaseSummary[]
+): Array<[string, number]> {
+  const counts = new Map<string, number>();
+  for (const entry of cases) {
+    for (const issue of entry.missingCaptures) {
+      counts.set(issue, (counts.get(issue) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries()).sort((left, right) =>
+    right[1] - left[1] || left[0].localeCompare(right[0])
+  );
 }
