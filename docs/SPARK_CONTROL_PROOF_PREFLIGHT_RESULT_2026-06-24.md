@@ -86,6 +86,7 @@ Update after continuity repairs:
 - Telegram outbound delivery-local rows remain `not_execution_proof`; synthetic request/trace refs for those rows must not be promoted into execution proof gaps.
 - Latest sampled audit now reports no missing trace joins and no raw ref/reason-code leaks. Remaining proof gaps are visible `proof_gap` rows, not silent missing metadata.
 - The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible and inspectable; it does not mean the capsule is silently absent.
+- Use `npm run control:proof:audit -- --sample 100 --blocking-strict` for the current blocking gate. It allows explicit legacy proof-gap capsules but fails silent missing proof/control evidence or leaks.
 
 ## Surface
 

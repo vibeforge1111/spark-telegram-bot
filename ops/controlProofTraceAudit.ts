@@ -23,8 +23,10 @@ function usage(): string {
     '  npx ts-node ops/controlProofTraceAudit.ts --sample 100',
     '  npx ts-node ops/controlProofTraceAudit.ts --spark-home /path/to/.spark',
     '  npx ts-node ops/controlProofTraceAudit.ts --strict',
+    '  npx ts-node ops/controlProofTraceAudit.ts --blocking-strict',
     '',
-    'Summarizes trace join coverage and raw-ref risks without printing raw trace rows.'
+    'Summarizes trace join coverage and raw-ref risks without printing raw trace rows.',
+    '--strict fails on any visible gap. --blocking-strict allows explicit legacy proof gaps but fails silent or leaking gaps.'
   ].join('\n');
 }
 
@@ -49,6 +51,8 @@ function main(): void {
     console.log(formatControlProofTraceAuditReport(result).trimEnd());
   }
   if (!result.ok && hasFlag(args, 'strict')) {
+    process.exitCode = 1;
+  } else if (!result.blockingOk && hasFlag(args, 'blocking-strict')) {
     process.exitCode = 1;
   }
 }

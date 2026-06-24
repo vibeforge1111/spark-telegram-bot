@@ -51,6 +51,7 @@ export interface ControlProofGapCounts {
 
 export interface ControlProofTraceAuditResult {
   ok: boolean;
+  blockingOk: boolean;
   generatedAt: string;
   sampleSize: number;
   sparkHome: string;
@@ -135,8 +136,10 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
   const planes = evidenceFiles.map((file) => summarizeEvidenceFile(file, sampleSize));
   const gapCounts = summarizeGapCounts(planes);
   const ok = Object.values(gapCounts).every((count) => count === 0);
+  const blockingOk = releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
   return {
     ok,
+    blockingOk,
     generatedAt: options.generatedAt || new Date().toISOString(),
     sampleSize,
     sparkHome,
@@ -153,6 +156,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `Sample size: ${result.sampleSize}`,
     '',
     result.ok ? 'Status: clean' : 'Status: gaps found',
+    result.blockingOk ? 'Blocking status: clean' : 'Blocking status: blocking gaps found',
     '',
     'Planes:'
   ];
@@ -318,6 +322,17 @@ function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlPro
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
     stackLikeLeak: planes.filter((plane) => plane.stackLikeRows > 0).length
   };
+}
+
+function releaseBlockingGapCounts(gapCounts: ControlProofGapCounts): number[] {
+  return [
+    gapCounts.missingEvidence,
+    gapCounts.missingTraceJoin,
+    gapCounts.missingProofCapsule,
+    gapCounts.rawRefLeak,
+    gapCounts.roboticFailureReply,
+    gapCounts.stackLikeLeak
+  ];
 }
 
 function emptySummary(file: ControlProofEvidenceFile, missing: boolean): ControlProofTracePlaneSummary {

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   auditControlProofTraceContinuity,
+  defaultControlProofEvidenceFiles,
   formatControlProofTraceAuditReport
 } from '../src/controlProofTraceAudit';
 
@@ -119,9 +121,11 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(result.gapCounts.missingTraceJoin > 0, true);
     assert.equal(result.gapCounts.rawRefLeak > 0, true);
     assert.equal(result.ok, false);
+    assert.equal(result.blockingOk, false);
 
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /telegram_final_answer/);
+    assert.match(report, /Blocking status: blocking gaps found/);
     assert.match(report, /missing trace joins/);
     assert.doesNotMatch(report, /private-trace|123|tool_not_allowed_by_policy/);
   });
@@ -161,6 +165,7 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.legacyProofGap, 0);
     assert.equal(result.ok, true);
+    assert.equal(result.blockingOk, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof_n\/a 1/);
   });
 });
@@ -196,6 +201,7 @@ test('counts explicit missing Harness proof markers without treating them as pro
     assert.equal(result.gapCounts.missingProofCapsule, 1);
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.ok, false);
+    assert.equal(result.blockingOk, false);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
   });
@@ -237,8 +243,10 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.ok, false);
+    assert.equal(result.blockingOk, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
   });
 });
@@ -264,7 +272,78 @@ test('reports clean when every configured plane is joined and redacted', () => {
       generatedAt: '2026-06-24T00:00:00.000Z'
     });
     assert.equal(result.ok, true);
+    assert.equal(result.blockingOk, true);
     assert.equal(result.gapCounts.missingTraceJoin, 0);
     assert.equal(result.gapCounts.rawRefLeak, 0);
+  });
+});
+
+test('blocking strict CLI allows visible legacy proof gaps but strict still fails them', () => {
+  withTempSparkHome((sparkHome) => {
+    for (const file of defaultControlProofEvidenceFiles(sparkHome)) {
+      if (file.label === 'telegram_route_confidence') continue;
+      const row = {
+        request_ref: 'request:sha256:nonexecution',
+        trace_ref: 'trace:sha256:nonexecution',
+        proof_status: 'not_execution_proof'
+      };
+      if (file.kind === 'jsonl') {
+        writeJsonl(file.filePath, [row]);
+      } else {
+        writeJson(file.filePath, row);
+      }
+    }
+    writeJsonl(path.join(sparkHome, 'state', 'spark-telegram-bot', 'route-confidence-audit.jsonl'), [
+      {
+        request_ref: 'request:sha256:abcdef1234567890',
+        trace_ref: 'trace:sha256:abcdef1234567890',
+        harness_proof_ref: 'turn:sha256:abcdef1234567890',
+        proof_status: 'missing_harness_authority',
+        proof_storage: 'legacy_gap_capsule',
+        proof_capsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: 'turn:sha256:abcdef1234567890',
+          route: 'legacy.route_confidence',
+          owner: 'spark-telegram-bot',
+          intent: { kind: 'chat', confidence: 'heuristic', noExecution: true },
+          authority: { decision: 'denied', contract: 'none', riskTier: 'none', reasonSummary: 'legacy authority gap' },
+          governor: { decision: 'deny', verified: false },
+          execution: { status: 'not_started', mutationClass: 'none' },
+          reply: { delivered: false, shape: 'none', rawReasonsHidden: true },
+          joins: { telegram: 'joined' }
+        }
+      }
+    ]);
+
+    const blockingStrict = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--blocking-strict'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(blockingStrict.status, 0, blockingStrict.stderr);
+    assert.match(blockingStrict.stdout, /Status: gaps found/);
+    assert.match(blockingStrict.stdout, /Blocking status: clean/);
+    assert.match(blockingStrict.stdout, /legacy proof gaps: 1/);
+
+    const absoluteStrict = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--strict'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(absoluteStrict.status, 1);
+    assert.match(absoluteStrict.stdout, /Status: gaps found/);
+    assert.match(absoluteStrict.stdout, /Blocking status: clean/);
   });
 });
