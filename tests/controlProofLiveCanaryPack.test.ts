@@ -292,6 +292,18 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
 
   template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  template.cases[0].observed.sideEffects.missionStarted = null;
+  template.cases[0].observed.sideEffects.notes = 'No mission or mutation observed.';
+  const sideEffectNotesOnly = summarizeControlProofCanaryObservations(template);
+  assert.equal(sideEffectNotesOnly.readyForRelease, false);
+  assert.deepEqual(sideEffectNotesOnly.cases[0].missingCaptures, ['side_effects']);
+
+  template.cases[0].observed.sideEffects.missionStarted = true;
+  const unexpectedMutation = summarizeControlProofCanaryObservations(template);
+  assert.equal(unexpectedMutation.readyForRelease, false);
+  assert.deepEqual(unexpectedMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
+
+  template.cases[0].observed.sideEffects.missionStarted = false;
   template.cases[0].observed.proofPanel = 'Harness Proof\nEvidence joined: Telegram final';
   const malformedProofPanel = summarizeControlProofCanaryObservations(template);
   assert.equal(malformedProofPanel.readyForRelease, false);

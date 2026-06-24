@@ -1152,12 +1152,51 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   const missing: string[] = [];
   const capture = entry.expected.capture;
   if (capture.observedReply && !hasCapturedText(entry.observed.reply)) missing.push('observed_reply');
-  if (capture.sideEffects && !hasSideEffectObservation(entry.observed.sideEffects)) missing.push('side_effects');
+  if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
   if (!hasCapturedText(entry.observed.proofJoin)) missing.push('proof_join');
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
   if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
   if (capture.userConfirmation && !hasCapturedText(entry.observed.userConfirmation)) missing.push('user_confirmation');
   return missing;
+}
+
+type ControlProofObservedSideEffects = ControlProofCanaryObservationCase['observed']['sideEffects'];
+type ControlProofSideEffectKey = keyof Omit<ControlProofObservedSideEffects, 'notes'>;
+
+function sideEffectCaptureIssues(entry: ControlProofCanaryObservationCase): string[] {
+  const sideEffects = entry.observed.sideEffects;
+  const expectedKey = sideEffectKeyForMutationClass(entry.expected.mutationClass);
+  const issues: string[] = [];
+  if (sideEffects[expectedKey] === null) issues.push('side_effects');
+  if (isUnexpectedMutationObserved(entry.expected.mutationClass, sideEffects)) issues.push('side_effects_unexpected_mutation');
+  return issues;
+}
+
+function sideEffectKeyForMutationClass(mutationClass: ControlProofCanaryMutationClass): ControlProofSideEffectKey {
+  if (mutationClass === 'writes_files') return 'filesChanged';
+  if (mutationClass === 'writes_memory') return 'memoryWritten';
+  if (mutationClass === 'launches_mission') return 'missionStarted';
+  if (mutationClass === 'external_network') return 'externalNetworkCalled';
+  if (mutationClass === 'updates_access_setting') return 'accessChanged';
+  if (mutationClass === 'switches_provider') return 'providerChanged';
+  if (mutationClass === 'media_read') return 'mediaHandled';
+  return 'missionStarted';
+}
+
+function isUnexpectedMutationObserved(
+  mutationClass: ControlProofCanaryMutationClass,
+  sideEffects: ControlProofObservedSideEffects
+): boolean {
+  if (mutationClass !== 'none' && mutationClass !== 'read_only') return false;
+  return Boolean(
+    sideEffects.filesChanged ||
+    sideEffects.memoryWritten ||
+    sideEffects.missionStarted ||
+    sideEffects.externalNetworkCalled ||
+    sideEffects.accessChanged ||
+    sideEffects.providerChanged ||
+    sideEffects.mediaHandled
+  );
 }
 
 function proofPanelCaptureIssues(value: string | null | undefined): string[] {
@@ -1182,18 +1221,6 @@ function hasCapturedText(value: string | null | undefined): boolean {
 
 function hasCapturedRefs(values: string[]): boolean {
   return values.some((value) => hasCapturedText(value));
-}
-
-function hasSideEffectObservation(sideEffects: ControlProofCanaryObservationCase['observed']['sideEffects']): boolean {
-  return [
-    sideEffects.filesChanged,
-    sideEffects.memoryWritten,
-    sideEffects.missionStarted,
-    sideEffects.externalNetworkCalled,
-    sideEffects.accessChanged,
-    sideEffects.providerChanged,
-    sideEffects.mediaHandled
-  ].some((value) => value !== null) || hasCapturedText(sideEffects.notes);
 }
 
 export function summarizeControlProofCanaryObservations(
