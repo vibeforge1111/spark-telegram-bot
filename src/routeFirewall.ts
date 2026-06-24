@@ -304,7 +304,7 @@ function isNoExecutionBoundary(normalized: string): boolean {
 
 function hasExecutionStopBoundary(normalized: string): boolean {
   return [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make)\s+(?:yet|for\s+now|anything|something|new\s+work|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|it|this|that)\b/,
     /\b(?:no need|not needed|not now|not for now|maybe later|hold off|pause|cancel|stop|never mind|nevermind)\b/,
@@ -314,7 +314,8 @@ function hasExecutionStopBoundary(normalized: string): boolean {
 
 function hasPublicationOnlyBoundary(normalized: string): boolean {
   return (
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|ship|deploy)\b/.test(normalized) ||
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|ship|deploy|push)\b/.test(normalized) ||
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|ship|deploy|push)\b.{0,80}\b(?:publish|share|ship|deploy|push)\b/.test(normalized) ||
     /\b(?:private|local only|local-only|keep it local|do not claim public|don't claim public|no public|not public|network[-\s]*absorbable\s+false)\b/.test(normalized)
   ) && !hasExecutionStopBoundary(normalized);
 }

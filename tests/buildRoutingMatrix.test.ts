@@ -79,6 +79,9 @@ test('mixed preference and access wording still reaches the builder', () => {
   assert.ok(mazePrototypeIntent);
   assert.equal(mazePrototypeIntent.projectName, 'Tiny Maze Game');
   assert.equal(evaluateDeterministicRoute('spawner.build', mazePrototypePrompt).allow, true);
+  const localProofPagePrompt = 'Build a local-only static proof page called Spark Proof Tile. Do not publish, deploy, or push anything.';
+  assert.equal(parseBuildIntent(localProofPagePrompt)?.projectName, 'Spark Proof Tile');
+  assert.equal(evaluateDeterministicRoute('spawner.build', localProofPagePrompt).reason, 'concrete_project_build_local_only');
 
   const updatePrompt = `Use verbose updates and build a Three.js world tree called Spark World Tree.
 

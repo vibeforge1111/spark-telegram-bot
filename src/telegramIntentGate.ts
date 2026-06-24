@@ -68,8 +68,8 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   }
 
   constraints.noPublish = [
-    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship)\b/,
-    /\bno\s+(?:publish|publication|sharing|deployment|shipping)\b/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:publish|share|deploy|ship|push)\b/,
+    /\bno\s+(?:publish|publication|sharing|deployment|shipping|push)\b/,
     /\bpublish\s+nothing\b/,
     /\bprivate(?:ly)?\s+first\b/
   ].some((pattern) => pattern.test(normalized));
@@ -97,6 +97,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   constraints.localOnly = constraints.noPublish ||
     /\blocal[-\s]*only\b/.test(normalized) ||
     /\bprivate(?:ly)?\s+(?:first|only)\b/.test(normalized);
+  if (constraints.noExecution && constraints.noPublish && isExplicitSpawnerBuildRequest(normalized)) {
+    constraints.noExecution = false;
+  }
 
   return constraints;
 }
@@ -142,7 +145,7 @@ function isExplicitSpawnerBuildRequest(text: string): boolean {
   if (!normalized || isDomainChipCreateRequest(normalized) || isScheduleDeleteRequest(normalized)) return false;
   if (isExplicitSpawnerNoEditMissionRequest(normalized)) return true;
   const buildVerb = /\b(?:build|create|make|scaffold|generate)\b/.test(normalized);
-  const productNoun = /\b(?:project|app|website|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform)\b/.test(normalized);
+  const productNoun = /\b(?:project|app|website|site|page|dashboard|tool|game|canvas|kanban|workflow|product|prototype|platform)\b/.test(normalized);
   return (
     (buildVerb && productNoun) ||
     /\b(?:let'?s|lets|please)\s+build\b/.test(normalized) ||

@@ -65,6 +65,28 @@ test('allows explicit project build only when route and envelope both authorize 
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
+test('keeps local-only publication bans as build constraints', () => {
+  const text = 'Build a local-only static proof page called Spark Proof Tile. Do not publish, deploy, or push anything.';
+  const decision = classifyTelegramIntentV2(text);
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+
+  assert.equal(decision.route, 'spawner.build');
+  assert.equal(decision.constraints.noPublish, true);
+  assert.equal(decision.constraints.localOnly, true);
+  assert.equal(envelope.selectedIntent.action, 'spawner.build');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'concrete_project_build_local_only');
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
 test('final Telegram action boundary never treats prepare as execution authority', () => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

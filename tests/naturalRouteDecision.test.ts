@@ -64,6 +64,11 @@ test('gives explicit project builds first refusal before utility routes', () => 
   assert.equal(route.context_source, 'visible_exact_artifact');
   assert.equal(route.payload.hasProjectPath, true);
   assert.equal(route.requires_confirmation, false);
+
+  const localProofPageRoute = decideNaturalRoute('Build a local-only static proof page called Spark Proof Tile. Do not publish, deploy, or push anything.');
+  assert.equal(localProofPageRoute.route, 'spawner.build');
+  assert.equal(localProofPageRoute.payload.projectName, 'Spark Proof Tile');
+  assert.equal(localProofPageRoute.requires_confirmation, false);
 });
 
 test('routes contextual recursive report follow-ups from hot recent turns', () => {
