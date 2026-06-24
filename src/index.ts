@@ -2648,6 +2648,26 @@ export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): N
   };
 }
 
+export function buildDefaultTurnOutboundTraceContext(ctx: any): NodeOutboundTraceContext | null {
+  const message = ctx?.message && typeof ctx.message === 'object' ? ctx.message as Record<string, unknown> : null;
+  const text = typeof message?.text === 'string'
+    ? message.text
+    : typeof message?.caption === 'string'
+      ? message.caption
+      : '';
+  if (!text.trim()) return null;
+  const decision = classifyTelegramIntentV2(text);
+  const envelope = buildTelegramTurnIntentEnvelope({
+    text,
+    decision,
+    userRef: userRef(ctx?.from?.id),
+    chatRef: chatRef(ctx?.chat?.id),
+    accessProfile: conversation.isAdmin(ctx?.from) ? 'admin' : 'standard',
+    conversationKind: ctx?.chat?.type === 'private' ? 'dm' : ctx?.chat?.type === 'group' || ctx?.chat?.type === 'supergroup' ? 'group' : 'unknown'
+  });
+  return buildTurnOutboundTraceContext(envelope);
+}
+
 function buildBuilderGatewayProofCapsule(input: {
   envelope: TurnIntentEnvelopeV1;
   builderReply?: Awaited<ReturnType<typeof runBuilderTelegramBridge>> | null;
@@ -3013,6 +3033,12 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
 }) as typeof bot.telegram.sendMessage;
 
 bot.use(async (ctx, next) => {
+  if (!getTurnOutboundTraceContext(ctx)) {
+    const defaultTraceContext = buildDefaultTurnOutboundTraceContext(ctx);
+    if (defaultTraceContext) {
+      setTurnOutboundTraceContext(ctx, defaultTraceContext);
+    }
+  }
   const originalReply = ctx.reply.bind(ctx);
   ctx.reply = (async (text: any, extra?: any) => {
     const traceContext = extractOutboundTraceContext(extra) || getTurnOutboundTraceContext(ctx);

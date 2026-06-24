@@ -1016,6 +1016,37 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('default outbound trace context covers slash command replies', async () => {
+		restoreAxios();
+		const indexModule: any = await import('../src/index');
+		const traceContext = indexModule.buildDefaultTurnOutboundTraceContext({
+			from: { id: 8319079055 },
+			chat: { id: 8319079055, type: 'private' },
+			message: { text: '/streaming' }
+		});
+		const record = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'Streaming is on.',
+			new Date('2026-06-24T00:00:00.000Z'),
+			traceContext
+		);
+
+		assert.equal(record.trace_context_present, true);
+		assert.match(String(record.request_id), /^turn_/);
+		assert.match(String(record.trace_ref), /^trace_/);
+		assert.equal(record.route, 'telegram_command');
+		assert.equal(record.command, 'telegram');
+		assert.equal(record.reply_kind, 'execute_reply');
+		assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
+		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
+		assert.equal(record.proof_capsule.execution.tool, 'answer.compose');
+		assert.equal(record.proof_capsule.execution.mutationClass, 'read_only');
+		assert.equal(record.proof_capsule.reply.delivered, true);
+		assert.doesNotMatch(JSON.stringify(record), /8319079055|Streaming is on/);
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('outbound audit creates delivery-local refs when no turn context is available', async () => {
 		restoreAxios();
 		const indexModule: any = await import('../src/index');
