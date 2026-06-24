@@ -3063,6 +3063,64 @@ async function run(): Promise<void> {
 		}
 	});
 
+	await test('text Builder handoff carries redacted Harness proof ref and delivery context', async () => {
+		restoreAxios();
+		const testUserId = 8319079590;
+		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
+		process.env.SPARK_BUILDER_BRIDGE_MODE = 'off';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		const capturedBridgePayloads: Record<string, unknown>[] = [];
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			capturedBridgePayloads.push(updatePayload);
+			return {
+				used: true,
+				responseText: 'Route confidence is evidence-backed route selection.',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'plain_chat',
+				requestId: 'sim:proof-bridge',
+				traceRef: 'trace:builder-proof-bridge'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const replyExtras: any[] = [];
+			const ctx = makeFakeCtx(testUserId, testUserId, 5660, replies, replyExtras);
+			ctx.message.text = 'what is route confidence in one sentence';
+			(ctx as any).update = { update_id: 5660, message: ctx.message };
+
+			await indexModule.handleTextMessage(ctx);
+
+			const bridgePayload = capturedBridgePayloads[0] as any;
+			assert.ok(bridgePayload, 'expected Telegram to call Builder bridge');
+			assert.match(bridgePayload.harnessProofRef, /^turn:sha256:[a-f0-9]{16}$/);
+			assert.equal(bridgePayload.harness_proof_ref, bridgePayload.harnessProofRef);
+			assert.equal(bridgePayload.message?.harnessProofRef, bridgePayload.harnessProofRef);
+			assert.equal(bridgePayload.message?.spark_harness?.proofRef, bridgePayload.harnessProofRef);
+			assert.doesNotMatch(JSON.stringify(bridgePayload), /proof_capsule|spark\.harness_proof\.v1/);
+			const traceContext = replyExtras[0]?.__sparkTraceContext;
+			assert.equal(traceContext?.requestId, 'sim:proof-bridge');
+			assert.equal(traceContext?.traceRef, 'trace:builder-proof-bridge');
+			assert.equal(traceContext?.proofCapsule?.turnRef, bridgePayload.harnessProofRef);
+			assert.equal(traceContext?.proofCapsule?.reply?.delivered, true);
+			assert.equal(traceContext?.proofCapsule?.joins?.builder, 'joined');
+			assert.match(replies.join('\n'), /Route confidence is evidence-backed route selection/);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('startup answer editing in chat does not become access or mission execution', async () => {
 		restoreAxios();
 		process.env.ADMIN_TELEGRAM_IDS = '8319079055';

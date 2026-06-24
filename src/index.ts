@@ -2489,6 +2489,7 @@ function previewAuditText(text: string, limit = 240): string {
 
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 const TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT = Symbol.for('spark.telegram.turnOutboundTraceContext');
+const HARNESS_PROOF_REF_PATTERN = /^turn:sha256:[a-f0-9]{16}$/;
 
 type NodeOutboundTraceContext = {
   route?: string;
@@ -2548,6 +2549,37 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+function isHarnessProofRef(value: unknown): value is string {
+  return typeof value === 'string' && HARNESS_PROOF_REF_PATTERN.test(value.trim());
+}
+
+function attachBuilderHarnessProofRef(
+  update: Record<string, unknown>,
+  proofCapsule?: HarnessProofCapsuleV1 | null
+): Record<string, unknown> {
+  if (!isHarnessProofRef(proofCapsule?.turnRef)) {
+    return update;
+  }
+  const proofRef = proofCapsule.turnRef;
+  update.harnessProofRef = proofRef;
+  update.harness_proof_ref = proofRef;
+  const messagePayload = update.message;
+  if (messagePayload && typeof messagePayload === 'object') {
+    const messageRecord = messagePayload as Record<string, unknown>;
+    messageRecord.harnessProofRef = proofRef;
+    messageRecord.harness_proof_ref = proofRef;
+    const existingSparkHarness = messageRecord.spark_harness && typeof messageRecord.spark_harness === 'object'
+      ? messageRecord.spark_harness as Record<string, unknown>
+      : {};
+    messageRecord.spark_harness = {
+      ...existingSparkHarness,
+      proofRef,
+      harnessProofRef: proofRef
+    };
+  }
+  return update;
+}
+
 export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): NodeOutboundTraceContext {
   return {
     route: envelope.selectedIntent.action || envelope.selectedIntent.kind,
@@ -2555,6 +2587,55 @@ export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): N
     replyKind: envelope.directive.mode === 'answer' ? 'natural_reply' : `${envelope.directive.mode}_reply`,
     requestId: envelope.turnId,
     traceRef: envelope.traceId
+  };
+}
+
+function buildBuilderGatewayProofCapsule(input: {
+  envelope: TurnIntentEnvelopeV1;
+  builderReply?: Awaited<ReturnType<typeof runBuilderTelegramBridge>> | null;
+  executionStatus: HarnessProofExecutionStatus;
+  replyDelivered: boolean;
+  replyShape: HarnessProofReplyShape;
+  authorityDecision?: HarnessProofAuthorityDecision;
+  governorDecision?: HarnessProofGovernorDecision;
+  reasonSummary: string;
+}): HarnessProofCapsuleV1 {
+  const envelope = input.envelope;
+  const selectedTool = envelope.selectedIntent.action || envelope.selectedIntent.kind || 'answer.compose';
+  const builderJoined = input.builderReply?.traceRef || input.builderReply?.requestId ? 'joined' : 'missing';
+  return buildTelegramDeliveryProofCapsule({
+    turnRef: envelope.traceId || envelope.turnId,
+    route: envelope.selectedIntent.kind || selectedTool,
+    owner: envelope.selectedIntent.ownerSystem || 'spark-intelligence-builder',
+    tool: selectedTool,
+    mutationClass: 'read_only',
+    executionStatus: input.executionStatus,
+    replyDelivered: input.replyDelivered,
+    replyShape: input.replyShape,
+    envelope,
+    authorityDecision: input.authorityDecision || 'allowed',
+    governorDecision: input.governorDecision || 'read_only',
+    reasonSummary: input.reasonSummary,
+    joins: {
+      telegram: 'joined',
+      builder: builderJoined
+    }
+  });
+}
+
+function builderReplyTraceContext(
+  envelope: TurnIntentEnvelopeV1,
+  builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>,
+  proofCapsule: HarnessProofCapsuleV1,
+  replyKind: string
+): NodeOutboundTraceContext {
+  return {
+    route: proofCapsule.route,
+    command: 'builder_bridge',
+    replyKind,
+    requestId: builderReply.requestId || envelope.turnId,
+    traceRef: builderReply.traceRef || envelope.traceId,
+    proofCapsule
   };
 }
 
@@ -3086,7 +3167,8 @@ function requireAdmin(ctx: any): boolean {
 
 function withSparkTurnIntentEnvelope(
   update: Record<string, unknown>,
-  envelope: TurnIntentEnvelopeV1
+  envelope: TurnIntentEnvelopeV1,
+  proofCapsule?: HarnessProofCapsuleV1 | null
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
   cloned.spark_turn_intent = envelope;
@@ -3094,13 +3176,14 @@ function withSparkTurnIntentEnvelope(
   if (messagePayload && typeof messagePayload === 'object') {
     (messagePayload as Record<string, unknown>).spark_turn_intent = envelope;
   }
-  return cloned;
+  return attachBuilderHarnessProofRef(cloned, proofCapsule);
 }
 
 function buildUpdateWithText(
   update: Record<string, unknown>,
   text: string,
-  envelope?: TurnIntentEnvelopeV1
+  envelope?: TurnIntentEnvelopeV1,
+  proofCapsule?: HarnessProofCapsuleV1 | null
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
   const messagePayload = cloned.message;
@@ -3112,7 +3195,7 @@ function buildUpdateWithText(
     cloned.spark_turn_intent = envelope;
     (messagePayload as Record<string, unknown>).spark_turn_intent = envelope;
   }
-  return cloned;
+  return attachBuilderHarnessProofRef(cloned, proofCapsule);
 }
 
 function shouldBypassBuilderBridgeForTurnIntent(
@@ -3132,7 +3215,16 @@ async function replyViaBuilder(ctx: any, text: string, envelope?: TurnIntentEnve
   if (user) {
     await conversation.remember(user, text).catch(() => {});
   }
-  const builderReply = await builderBridgeRunner(buildUpdateWithText(ctx.update as Record<string, unknown>, text, envelope));
+  const handoffProofCapsule = envelope
+    ? buildBuilderGatewayProofCapsule({
+        envelope,
+        executionStatus: 'started',
+        replyDelivered: false,
+        replyShape: 'none',
+        reasonSummary: 'Telegram handed this turn to Builder gateway with fresh Harness authority.'
+      })
+    : null;
+  const builderReply = await builderBridgeRunner(buildUpdateWithText(ctx.update as Record<string, unknown>, text, envelope, handoffProofCapsule));
   if (!builderReply.used || builderReply.bridgeMode === 'bridge_error') {
     return false;
   }
@@ -3140,20 +3232,42 @@ async function replyViaBuilder(ctx: any, text: string, envelope?: TurnIntentEnve
     return false;
   }
   const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
-  await deliverBuilderReply(ctx, { ...builderReply, responseText });
+  const deliveryProofCapsule = envelope
+    ? buildBuilderGatewayProofCapsule({
+        envelope,
+        builderReply,
+        executionStatus: 'completed',
+        replyDelivered: true,
+        replyShape: 'natural',
+        reasonSummary: 'Builder gateway reply was delivered to Telegram.'
+      })
+    : null;
+  await deliverBuilderReply(
+    ctx,
+    { ...builderReply, responseText },
+    envelope && deliveryProofCapsule ? builderReplyTraceContext(envelope, builderReply, deliveryProofCapsule, 'builder_reply') : undefined
+  );
   if (user && responseText) {
     await conversation.rememberAssistantReply(user, responseText).catch(() => {});
   }
   return true;
 }
 
-async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>): Promise<void> {
+async function deliverBuilderReply(
+  ctx: any,
+  builderReply: Awaited<ReturnType<typeof runBuilderTelegramBridge>>,
+  traceContext?: NodeOutboundTraceContext
+): Promise<void> {
   if (builderReply.voiceMedia) {
-    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText);
+    await sendBuilderVoiceMedia(ctx, builderReply.voiceMedia, builderReply.responseText, traceContext);
     return;
   }
   if (builderReply.responseText) {
-    await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
+    await replyWithSanitizedTelegramText(
+      ctx,
+      builderReply.responseText,
+      traceContext ? outboundTraceExtra(traceContext) : undefined
+    );
   }
 }
 
@@ -3198,7 +3312,8 @@ function voiceRuntimeStatePath(): string {
 async function sendBuilderVoiceMedia(
   ctx: any,
   voiceMedia: NonNullable<Awaited<ReturnType<typeof runBuilderTelegramBridge>>['voiceMedia']>,
-  fallbackText = ''
+  fallbackText = '',
+  traceContext?: NodeOutboundTraceContext
 ): Promise<void> {
   const audioBuffer = Buffer.from(voiceMedia.audioBase64, 'base64');
   const inputFile = {
@@ -3218,6 +3333,9 @@ async function sendBuilderVoiceMedia(
   } else {
     telegramResult = await ctx.replyWithAudio(inputFile, options);
     sendMethod = 'sendAudio';
+  }
+  if (traceContext) {
+    recordNodeOutboundDelivery(ctx.chat?.id, caption || fallbackText || voiceMedia.spokenText || '[builder voice reply]', traceContext);
   }
   await writeTelegramVoiceBridgeRuntimeState(
     voiceRuntimeStatePath(),
@@ -9909,15 +10027,27 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       telegramIntentGateV2,
       naturalRouteShadow
     );
+    const builderHandoffProofCapsule = buildBuilderGatewayProofCapsule({
+      envelope: turnIntentEnvelope,
+      executionStatus: 'started',
+      replyDelivered: false,
+      replyShape: 'none',
+      reasonSummary: 'Telegram handed this turn to Builder gateway with fresh Harness authority.'
+    });
     if (!hasFreshRuntimeTruth && !bypassBuilderBridge) {
       try {
         const bridgeUpdate = memoryDoctorEvidenceTurns.length > 0
           ? buildUpdateWithText(
               ctx.update as unknown as Record<string, unknown>,
               buildMemoryDoctorEvidencePrompt(text, memoryDoctorEvidenceTurns),
-              turnIntentEnvelope
+              turnIntentEnvelope,
+              builderHandoffProofCapsule
             )
-          : withSparkTurnIntentEnvelope(ctx.update as unknown as Record<string, unknown>, turnIntentEnvelope);
+          : withSparkTurnIntentEnvelope(
+              ctx.update as unknown as Record<string, unknown>,
+              turnIntentEnvelope,
+              builderHandoffProofCapsule
+            );
         builderReply = await builderBridgeRunner(bridgeUpdate);
       } catch (bridgeError) {
         bridgeFailed = true;
@@ -9943,7 +10073,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         : builderReplySuppressionReason(builderReply.responseText, builderReply.routingDecision);
       if (!suppressionReason && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
         const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
-        await deliverBuilderReply(ctx, { ...builderReply, responseText });
+        const deliveryProofCapsule = buildBuilderGatewayProofCapsule({
+          envelope: turnIntentEnvelope,
+          builderReply,
+          executionStatus: 'completed',
+          replyDelivered: true,
+          replyShape: 'natural',
+          reasonSummary: 'Builder gateway reply was delivered to Telegram.'
+        });
+        await deliverBuilderReply(
+          ctx,
+          { ...builderReply, responseText },
+          builderReplyTraceContext(turnIntentEnvelope, builderReply, deliveryProofCapsule, 'builder_reply')
+        );
         if (responseText) {
           await conversation.rememberAssistantReply(user, responseText).catch(() => {});
         }
@@ -9958,23 +10100,15 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         builderReply: builderReply.responseText,
         requestId: builderReply.requestId,
         traceRef: builderReply.traceRef,
-        proofCapsule: buildTelegramDeliveryProofCapsule({
-          turnRef: builderReply.traceRef || builderReply.requestId || turnIntentEnvelope.traceId,
-          route: 'plain_chat',
-          owner: 'spark-telegram-bot',
-          tool: 'answer.compose',
-          mutationClass: 'read_only',
+        proofCapsule: buildBuilderGatewayProofCapsule({
+          envelope: turnIntentEnvelope,
+          builderReply,
           executionStatus: 'blocked',
           replyDelivered: false,
           replyShape: 'none',
-          envelope: turnIntentEnvelope,
           authorityDecision: 'blocked',
           governorDecision: 'deny',
-          reasonSummary: 'Final-answer gate suppressed a Builder reply and fell back to local chat.',
-          joins: {
-            telegram: 'joined',
-            builder: builderReply.traceRef || builderReply.requestId ? 'joined' : 'missing'
-          }
+          reasonSummary: 'Final-answer gate suppressed a Builder reply and fell back to local chat.'
         }),
         fallbackRoute: 'local_chat'
       });
@@ -10072,12 +10206,24 @@ export async function handleImageMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const bridgeUpdate = imageMessageHasCaption(ctx.message)
-      ? ctx.update as unknown as Record<string, unknown>
-      : buildContextualImageUpdate(
-          ctx.update as unknown as Record<string, unknown>,
-          await conversation.getRecentMessages(user, 6).catch(() => [])
-        );
+    const bridgeHandoffProofCapsule = authorization.legacyEnvelope
+      ? buildBuilderGatewayProofCapsule({
+          envelope: authorization.legacyEnvelope,
+          executionStatus: 'started',
+          replyDelivered: false,
+          replyShape: 'none',
+          reasonSummary: 'Telegram image input was handed to Builder gateway with fresh Harness authority.'
+        })
+      : null;
+    const bridgeUpdate = attachBuilderHarnessProofRef(
+      imageMessageHasCaption(ctx.message)
+        ? JSON.parse(JSON.stringify(ctx.update as unknown as Record<string, unknown>)) as Record<string, unknown>
+        : buildContextualImageUpdate(
+            ctx.update as unknown as Record<string, unknown>,
+            await conversation.getRecentMessages(user, 6).catch(() => [])
+          ),
+      bridgeHandoffProofCapsule
+    );
     const builderReply = await builderBridgeRunner(bridgeUpdate);
     console.log(`[ImageBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
 
@@ -10087,7 +10233,23 @@ export async function handleImageMessage(ctx: any): Promise<void> {
         status: 'success',
         summary: 'Telegram image input was routed through Builder media analysis.'
       });
-      await ctx.reply(builderReply.responseText);
+      const deliveryProofCapsule = authorization.legacyEnvelope
+        ? buildBuilderGatewayProofCapsule({
+            envelope: authorization.legacyEnvelope,
+            builderReply,
+            executionStatus: 'completed',
+            replyDelivered: true,
+            replyShape: 'natural',
+            reasonSummary: 'Builder image analysis reply was delivered to Telegram.'
+          })
+        : null;
+      await deliverBuilderReply(
+        ctx,
+        builderReply,
+        authorization.legacyEnvelope && deliveryProofCapsule
+          ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, 'builder_image_reply')
+          : undefined
+      );
       await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
       return;
     }
@@ -10143,7 +10305,16 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
   await safeSendChatAction(ctx, 'typing');
 
   try {
-    const bridgeUpdate = await buildVoiceBridgeUpdate(ctx);
+    const bridgeHandoffProofCapsule = authorization.legacyEnvelope
+      ? buildBuilderGatewayProofCapsule({
+          envelope: authorization.legacyEnvelope,
+          executionStatus: 'started',
+          replyDelivered: false,
+          replyShape: 'none',
+          reasonSummary: 'Telegram voice input was handed to Builder gateway with fresh Harness authority.'
+        })
+      : null;
+    const bridgeUpdate = attachBuilderHarnessProofRef(await buildVoiceBridgeUpdate(ctx), bridgeHandoffProofCapsule);
     const mediaReadyAt = Date.now();
     const builderReply = await builderBridgeRunner(bridgeUpdate);
     const builderReadyAt = Date.now();
@@ -10158,7 +10329,23 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
         status: 'success',
         summary: 'Telegram voice input was routed through Builder voice media handling.'
       });
-      await deliverBuilderReply(ctx, builderReply);
+      const deliveryProofCapsule = authorization.legacyEnvelope
+        ? buildBuilderGatewayProofCapsule({
+            envelope: authorization.legacyEnvelope,
+            builderReply,
+            executionStatus: 'completed',
+            replyDelivered: true,
+            replyShape: builderReply.voiceMedia ? 'card' : 'natural',
+            reasonSummary: 'Builder voice reply was delivered to Telegram.'
+          })
+        : null;
+      await deliverBuilderReply(
+        ctx,
+        builderReply,
+        authorization.legacyEnvelope && deliveryProofCapsule
+          ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, 'builder_voice_reply')
+          : undefined
+      );
       const deliveredAt = Date.now();
       console.log(
         `[VoiceBridgeTiming] user=${userRef(ctx.from?.id)} remember_ms=${rememberedAt - startedAt} media_ms=${mediaReadyAt - rememberedAt} builder_ms=${builderReadyAt - mediaReadyAt} deliver_ms=${deliveredAt - builderReadyAt} total_ms=${deliveredAt - startedAt}`
