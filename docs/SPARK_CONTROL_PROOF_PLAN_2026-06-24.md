@@ -207,6 +207,8 @@ Live recapture of `cp-model-001` on 2026-06-24 confirmed model-switch explanatio
 
 Live recapture of `cp-model-002` on 2026-06-24 confirmed the mission-provider switch boundary stays narrow: Spark proved the mission provider was already Codex, left the chat provider unchanged, did not start a mission or edit files, and `/proof` showed `model_switch.mission_provider` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 10 to 9.
 
+Live recapture of `cp-web-001` on 2026-06-24 confirmed the external research boundary stays read-only when browsing is withheld: Spark named the fresh-source requirement without making a network call or presenting memory as current docs, and `/proof` showed `external_research.boundary` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 9 to 8.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
