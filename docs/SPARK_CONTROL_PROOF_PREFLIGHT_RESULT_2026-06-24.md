@@ -121,7 +121,7 @@ Docs are now organized around:
 - `SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`
 - `SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
 
-Docs drift scan found mostly intentional new-rule references. One older handoff still says current-state memory is authoritative over wiki/old conversation for mutable facts. That should be marked as historical wording and updated to the new phrasing: memory is evidence, fresh runtime state wins for mutable facts, and Harness Core decides action.
+Docs drift scan found mostly intentional new-rule references. The older handoff that said current-state memory is authoritative over wiki/old conversation for mutable facts now carries a current control-proof note: memory is evidence, fresh runtime state wins for mutable facts, and Harness Core decides action.
 
 ## Gap Register
 
@@ -139,9 +139,6 @@ Docs drift scan found mostly intentional new-rule references. One older handoff 
 
 - `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
   - Durable slice: audit registry pins versus running module versions before claiming release readiness.
-
-- `stale_doc_rule`: one old handoff still uses "memory authoritative" wording.
-  - Durable slice: add a historical note pointing to the control-proof docs index and current Harness wording.
 
 ## First Slice Completed
 

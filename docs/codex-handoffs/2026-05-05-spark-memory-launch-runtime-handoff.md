@@ -296,6 +296,7 @@ Current state:
 Goals:
 - Finish launch-quality Telegram memory/self-awareness probing.
 - Keep current-state memory authoritative over wiki/old conversation for mutable facts.
+  - Current control-proof note, 2026-06-24: this is historical wording. Memory is evidence, not permission; fresh runtime state wins for mutable facts, and Harness Core decides whether any action is authorized. See `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`.
 - Keep wiki supporting_not_authoritative.
 - Keep Graphiti/sidecar advisory until evals pass.
 - Preserve all untracked WIP/artifacts unless explicitly told to clean them.
