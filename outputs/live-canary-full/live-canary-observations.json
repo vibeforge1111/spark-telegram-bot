@@ -824,23 +824,26 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Done - I changed this chat setting to Access level 3. I lowered this Telegram chat setting. The Level 5 service lane may still be enabled underneath until an interactive terminal runs spark access disable-level5 and Spark Live restarts.",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": true,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Access setting changed to Level 3. No local repair setup ran; no mission, file edit, memory write, provider switch, external network call, or media handling was observed."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
-        "notes": null
+        "proofJoin": "Latest /proof panel showed Harness Proof Intent access.level_change with Telegram outbound proof capsule joined; audit blocking clean; no raw ids/reason codes/paths were visible.",
+        "proofPanel": "Harness Proof Intent: access.level_change Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:ce10bf5953e28afa Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "screenshotRefs": [
+          "/tmp/cp-access-002-prooflabel-reply.png",
+          "/tmp/cp-access-002-prooflabel-proof.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart via Peekaboo screenshots: access-level request changed the chat to Level 3, did not run local repair setup, and /proof rendered access.level_change.",
+        "notes": "Initial live attempt safely refused but fell back to plain_conversation. Fixed setup-only access boundary handling in 2ef8767 and 797a8fb, then named natural access changes as access.level_change in fd9737e before retesting."
       }
     },
     {
