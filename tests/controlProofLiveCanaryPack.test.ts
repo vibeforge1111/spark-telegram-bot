@@ -158,6 +158,8 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.target, 'SparkRecursive_bot');
   assert.equal(template.generatedAt, '2026-06-24T00:00:00.000Z');
   assert.deepEqual(template.verdictValues, ['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
+  assert.equal(template.evidence.sparkLiveStatus, null);
+  assert.equal(template.evidence.controlProofAudit, null);
   assert.equal(template.cases[0].id, 'cp-builder-001');
   assert.deepEqual(template.cases[0].sourceRefs, [
     { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
@@ -176,6 +178,13 @@ test('observation summary requires pass verdicts and all requested capture evide
   const template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.evidence = {
+    sparkLiveStatus: 'Spark Live healthy: primary and sparkqa-bot running.',
+    providerStatus: 'chat provider ping OK.',
+    runtimeSync: 'runtime in sync.',
+    controlProofAudit: 'missing evidence 0, missing trace joins 0, missing proof capsules 0, legacy proof gaps 4.',
+    notes: null
+  };
   template.cases[0].observed = {
     ...template.cases[0].observed,
     verdict: 'pass',
@@ -194,6 +203,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   const summary = summarizeControlProofCanaryObservations(template);
   assert.equal(summary.readyForRelease, true);
   assert.equal(summary.verdictCounts.pass, 1);
+  assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
 
@@ -202,6 +212,13 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(missing.readyForRelease, false);
   assert.deepEqual(missing.cases[0].missingCaptures, ['screenshot']);
   assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
+
+  template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  template.evidence.controlProofAudit = null;
+  const missingPacketEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingPacketEvidence.readyForRelease, false);
+  assert.deepEqual(missingPacketEvidence.missingPacketEvidence, ['control_proof_audit']);
+  assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
 });
 
 test('control-proof canary CLI lists and exports selected cases', () => {
@@ -293,6 +310,13 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       screenshotRefs: ['/tmp/spark-recursive-builder.png'],
       userConfirmation: 'Confirmed.'
     };
+    observed.evidence = {
+      sparkLiveStatus: 'Spark Live healthy.',
+      providerStatus: 'Provider ping OK.',
+      runtimeSync: 'runtime in sync.',
+      controlProofAudit: 'audit has no missing evidence, trace joins, or proof capsules.',
+      notes: null
+    };
     const observationsPath = resolve(tempRoot, 'observations.json');
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
     const summary = spawnSync(
@@ -307,6 +331,22 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(summary.status, 0, summary.stderr);
     assert.match(summary.stdout, /Release gate: ready/);
+
+    observed.evidence.controlProofAudit = null;
+    writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
+    const strictSummary = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--strict'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(strictSummary.status, 1);
+    assert.match(strictSummary.stdout, /Packet evidence missing: control_proof_audit/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -77,6 +77,13 @@ export interface ControlProofCanaryObservationTemplate {
   target: string;
   generatedAt: string;
   verdictValues: ControlProofCanaryVerdict[];
+  evidence: {
+    sparkLiveStatus: string | null;
+    providerStatus: string | null;
+    runtimeSync: string | null;
+    controlProofAudit: string | null;
+    notes: string | null;
+  };
   cases: ControlProofCanaryObservationCase[];
 }
 
@@ -129,6 +136,7 @@ export interface ControlProofCanaryObservationSummary {
   totalCases: number;
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
+  missingPacketEvidence: string[];
   cases: ControlProofCanaryObservationCaseSummary[];
 }
 
@@ -753,6 +761,13 @@ export function buildControlProofCanaryObservationTemplate(
     target: CONTROL_PROOF_CANARY_TARGET,
     generatedAt: options.generatedAt || new Date().toISOString(),
     verdictValues: CONTROL_PROOF_CANARY_VERDICTS,
+    evidence: {
+      sparkLiveStatus: null,
+      providerStatus: null,
+      runtimeSync: null,
+      controlProofAudit: null,
+      notes: null
+    },
     cases: cases.map((entry) => ({
       id: entry.id,
       category: entry.category,
@@ -790,6 +805,21 @@ export function buildControlProofCanaryObservationTemplate(
       }
     }))
   };
+}
+
+function missingPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {
+  const evidence = observations.evidence || {
+    sparkLiveStatus: null,
+    providerStatus: null,
+    runtimeSync: null,
+    controlProofAudit: null
+  };
+  const missing: string[] = [];
+  if (!String(evidence.sparkLiveStatus || '').trim()) missing.push('spark_live_status');
+  if (!String(evidence.providerStatus || '').trim()) missing.push('provider_status');
+  if (!String(evidence.runtimeSync || '').trim()) missing.push('runtime_sync');
+  if (!String(evidence.controlProofAudit || '').trim()) missing.push('control_proof_audit');
+  return missing;
 }
 
 function missingCapturesForCase(entry: ControlProofCanaryObservationCase): string[] {
@@ -835,13 +865,15 @@ export function summarizeControlProofCanaryObservations(
       missingCaptures: missingCapturesForCase(entry)
     };
   });
-  const readyForRelease = cases.length > 0 && cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
+  const missingEvidence = missingPacketEvidence(observations);
+  const readyForRelease = cases.length > 0 && missingEvidence.length === 0 && cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease,
+    missingPacketEvidence: missingEvidence,
     cases
   };
 }
@@ -858,6 +890,9 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     ...CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => `- ${verdict}: ${summary.verdictCounts[verdict]}`),
     ''
   ];
+  if (summary.missingPacketEvidence.length > 0) {
+    lines.push(`Packet evidence missing: ${summary.missingPacketEvidence.join(', ')}`, '');
+  }
   const attention = summary.cases.filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0);
   if (attention.length === 0) {
     lines.push('All selected canaries passed with required captures present.');

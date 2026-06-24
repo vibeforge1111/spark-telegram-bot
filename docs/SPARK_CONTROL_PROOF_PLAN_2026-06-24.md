@@ -289,6 +289,16 @@ npm run control:proof:canaries -- --checklist
 npm run control:proof:canaries -- --json
 npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict
+```
+
+Fill the observation packet's top-level evidence fields from:
+
+```bash
+spark live status
+spark providers test --role chat
+npm run sync:check
+npm run control:proof:audit -- --sample 100
 ```
 
 Refurbishment helper for old NL cases:
