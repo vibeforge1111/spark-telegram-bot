@@ -287,6 +287,7 @@ npm run control:proof:canaries -- --list
 npm run control:proof:canaries -- --copy-paste
 npm run control:proof:canaries -- --checklist
 npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json
+npm run control:proof:canaries -- --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence
 npm run control:proof:canaries -- --json
 npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json
@@ -309,6 +310,8 @@ npm run control:proof:audit -- --sample 100
 Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary.
 
 Use `--run-guide` for the operator-facing live pass: it pairs each Telegram prompt with the matching `--record-case` command template while keeping scoring expectations outside the Telegram copy block.
+
+Use `--release-bundle --out-dir <dir> --collect-runtime-evidence` to write the full live-pass folder in one step: observation packet, run guide, copy-paste prompt sheet, checklist, and initial summary.
 
 Refurbishment helper for old NL cases:
 

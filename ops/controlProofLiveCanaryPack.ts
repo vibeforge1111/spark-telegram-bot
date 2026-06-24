@@ -13,9 +13,10 @@ import {
   type ControlProofCanaryObservationUpdate,
   type ControlProofCanaryVerdict
 } from '../src/controlProofLiveCanaryPack';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 function argValue(args: string[], name: string): string | null {
   const index = args.indexOf(`--${name}`);
@@ -42,6 +43,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --copy-paste',
     '  npm run control:proof:canaries -- --checklist',
     '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
+    '  npm run control:proof:canaries -- --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
@@ -155,6 +157,40 @@ function summarizeCommandResult(
   ].join('\n');
 }
 
+function writeReleaseBundle(
+  cases: typeof CONTROL_PROOF_LIVE_CANARY_CASES,
+  outDir: string,
+  collectEvidence: boolean
+): void {
+  mkdirSync(outDir, { recursive: true });
+  const observationsPath = join(outDir, 'live-canary-observations.json');
+  const runGuidePath = join(outDir, 'live-canary-run-guide.md');
+  const copyPastePath = join(outDir, 'live-canary-copy-paste.md');
+  const checklistPath = join(outDir, 'live-canary-checklist.md');
+  const summaryPath = join(outDir, 'live-canary-summary.md');
+  const template = buildControlProofCanaryObservationTemplate(cases);
+  const observations = collectEvidence
+    ? withControlProofCanaryRuntimeEvidence(template, collectRuntimeEvidence())
+    : template;
+  const summary = summarizeControlProofCanaryObservations(observations);
+
+  writeFileSync(observationsPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
+  writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath })}\n`, 'utf8');
+  writeFileSync(copyPastePath, `${formatControlProofCanaryCopyPaste(cases)}\n`, 'utf8');
+  writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
+  writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
+
+  console.log([
+    `Wrote control-proof live canary bundle: ${outDir}`,
+    `- observations: ${observationsPath}`,
+    `- run guide: ${runGuidePath}`,
+    `- copy-paste prompts: ${copyPastePath}`,
+    `- checklist: ${checklistPath}`,
+    `- summary: ${summaryPath}`,
+    `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`
+  ].join('\n'));
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   if (hasFlag(args, 'help') || args.length === 0) {
@@ -194,6 +230,13 @@ function main(): void {
 
   if (selected.length === 0) {
     throw new Error('No matching control-proof canary cases.');
+  }
+
+  if (hasFlag(args, 'release-bundle')) {
+    const outDir = argValue(args, 'out-dir');
+    if (!outDir) throw new Error('--release-bundle requires --out-dir.');
+    writeReleaseBundle(selected, outDir, hasFlag(args, 'collect-runtime-evidence'));
+    return;
   }
 
   if (hasFlag(args, 'json')) {

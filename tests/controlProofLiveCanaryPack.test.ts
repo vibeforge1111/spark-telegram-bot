@@ -498,6 +498,32 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
 
+    const bundleDir = resolve(tempRoot, 'bundle');
+    const releaseBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--case',
+        'cp-builder-001',
+        '--release-bundle',
+        '--out-dir',
+        bundleDir
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(releaseBundle.status, 0, releaseBundle.stderr);
+    assert.match(releaseBundle.stdout, /Wrote control-proof live canary bundle/);
+    assert.match(releaseBundle.stdout, /Release gate: not ready/);
+    const bundledObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
+    const bundledGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
+    const bundledSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
+    assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
+    assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
+    assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);
+
     observed.evidence.controlProofAudit = null;
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
     const strictSummary = spawnSync(
@@ -517,6 +543,10 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     rmSync(tempRoot, { recursive: true, force: true });
   }
 });
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 test('runtime evidence collection keeps the audit tail needed for strict validation', () => {
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-runtime-evidence-'));
