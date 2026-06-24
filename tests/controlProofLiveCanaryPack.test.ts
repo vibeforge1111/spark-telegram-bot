@@ -1065,6 +1065,38 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
 
+    const staleObservations = buildControlProofCanaryObservationTemplate([
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+    ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+    staleObservations.evidence.controlProofAudit = 'old audit without current gap plane details';
+    staleObservations.cases[0].observed.reply = 'preserve this recorded reply';
+    const stalePath = resolve(tempRoot, 'stale-observations.json');
+    const refreshedPath = resolve(tempRoot, 'refreshed-observations.json');
+    writeFileSync(stalePath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    const refreshed = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        stalePath,
+        '--out',
+        refreshedPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refreshed.status, 0, refreshed.stderr);
+    assert.match(refreshed.stdout, /Refreshed control-proof runtime evidence/);
+    const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
+    assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
+    assert.equal(refreshedObserved.cases[0].observed.reply, 'preserve this recorded reply');
+
     observed.cases[0].observed = {
       ...observed.cases[0].observed,
       verdict: 'pass',

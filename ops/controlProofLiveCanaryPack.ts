@@ -56,6 +56,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --refresh-runtime-evidence',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
@@ -336,6 +337,13 @@ function main(): void {
     const recordCaseId = argValue(args, 'record-case');
     const summaryOutPath = argValue(args, 'summary-out');
     const releaseCheck = hasFlag(args, 'release-check');
+    const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
+    if (refreshRuntimeEvidence) {
+      observations = withControlProofCanaryRuntimeEvidence(observations, collectRuntimeEvidence());
+      const outputPath = outPath || observationsPath;
+      writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
+      console.log(`Refreshed control-proof runtime evidence: ${outputPath}`);
+    }
     if (recordCaseId) {
       observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));
       const outputPath = outPath || observationsPath;
