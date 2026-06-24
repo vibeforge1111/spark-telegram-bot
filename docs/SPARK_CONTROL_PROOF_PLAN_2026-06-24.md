@@ -223,7 +223,7 @@ Live recapture of `cp-media-002` on 2026-06-24 confirmed captioned photo handlin
 
 Live recapture of `cp-audio-001` on 2026-06-24 confirmed audio-file handling stays on the audio authority path: Spark transcribed the evidence-only M4A without executing audio instructions or leaking Telegram file ids, and `/proof` showed `media.audio_transcribe_or_boundary` with joined Telegram, Builder, and Voice runtime evidence plus `Latest proof gaps: none`, reducing stale proof-panel blockers from 2 to 1.
 
-`cp-voice-001` remains the final stale proof-panel blocker and must be closed with a real Telegram voice-note gesture saying "route confidence check only. Do not start anything." Local attempts with accessibility click, synthetic mouse hold, Peekaboo drag, and audio-file upload did not produce a trusted voice-note turn, so audio-file proof must not be substituted for this voice route.
+Live recapture of `cp-voice-001` confirmed the voice-note boundary with a real Telegram voice-note gesture saying "route confidence check only. Do not start anything.": Spark routed it to `media.voice_transcribe_or_boundary`, kept it read-only, returned the friendly voice-unavailable handoff without raw runtime leakage, and the refreshed proof panel for the saved voice proof ref now matches the current fresh-strict audit legacy-gap count, reducing stale proof-panel blockers from 1 to 0. Audio-file proof remains separate and must not be substituted for this voice route.
 
 ### Acceptance
 

@@ -1,9 +1,9 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
 Generated: 2026-06-24T14:52:20.669Z
-Runtime evidence collected: 2026-06-24T20:39:56.545Z
+Runtime evidence collected: 2026-06-24T23:44:56.368Z
 Cases: 27
-Release gate: not ready
+Release gate: ready
 
 Verdicts:
 - pass: 27
@@ -12,11 +12,4 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Attention summary:
-- proof_panel_legacy_gap_stale: 1 case
-
-Recapture hint:
-- Refresh /proof panel captures for: cp-voice-001
-
-Cases needing attention:
-- cp-voice-001: pass; missing proof_panel_legacy_gap_stale
+All selected canaries passed with required captures present.
