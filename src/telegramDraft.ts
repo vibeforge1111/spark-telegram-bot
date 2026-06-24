@@ -6,7 +6,7 @@ export interface TelegramDraftApi {
 }
 
 export interface TelegramDraftStreamer {
-  push(text: string): Promise<void>;
+  push(text: string): Promise<boolean>;
 }
 
 export type TelegramDraftTransport = 'rich' | 'legacy';
@@ -301,22 +301,24 @@ export function createTelegramDraftStreamer(
   let disabled = false;
 
   return {
-    async push(text: string): Promise<void> {
-      if (disabled) return;
+    async push(text: string): Promise<boolean> {
+      if (disabled) return false;
       const draftText = prepareTelegramDraftText(text);
-      if (!draftText || draftText === lastText) return;
+      if (!draftText || draftText === lastText) return false;
 
       const now = Date.now();
-      if (lastSentAt && now - lastSentAt < intervalMs) return;
+      if (lastSentAt && now - lastSentAt < intervalMs) return false;
 
       try {
         await sendTelegramDraftUpdate(api, chatId, draftId, draftText, env);
         lastSentAt = now;
         lastText = draftText;
+        return true;
       } catch (error) {
         disabled = true;
         const detail = error instanceof Error ? error.message : String(error);
         console.warn(`[TelegramDraft] disabled after draft update failure: ${detail}`);
+        return false;
       }
     },
   };

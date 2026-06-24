@@ -77,8 +77,22 @@ async function main(): Promise<void> {
     assert.notEqual(wrapperStart, -1);
     assert.notEqual(wrapperEnd, -1);
     const wrapperBlock = source.slice(wrapperStart, wrapperEnd);
+    assert.match(wrapperBlock, /telegramDraftStreamAlreadyStarted\(ctx\)/);
     assert.match(wrapperBlock, /replayTelegramDraftPreview\(ctx,\s*ctx\.telegram as any,\s*chunk\)/);
     assert.match(wrapperBlock, /sendTelegramRichMessage\(ctx\.telegram as any,\s*ctx\.chat\?\.id,\s*chunk,\s*cleanExtra\)/);
+  });
+
+  await test('streamed chat replies do not replay a second draft preview at final send', async () => {
+    const source = readFileSync(path.join(process.cwd(), 'src', 'index.ts'), 'utf-8');
+    assert.match(source, /if \(await draftStreamer\.push\(partial\)\) \{\s*markTelegramDraftStreamStarted\(ctx\);/);
+
+    const deliveryStart = source.indexOf('async function deliverBuilderReply');
+    const deliveryEnd = source.indexOf('function isTelegramMessageTooLongError', deliveryStart);
+    assert.notEqual(deliveryStart, -1);
+    assert.notEqual(deliveryEnd, -1);
+    const deliveryBlock = source.slice(deliveryStart, deliveryEnd);
+    assert.doesNotMatch(deliveryBlock, /replayTelegramDraftPreview/);
+    assert.match(deliveryBlock, /replyWithSanitizedTelegramText\(ctx,\s*builderReply\.responseText\)/);
   });
 
   await test('streaming config persistence preserves profile env files', async () => {

@@ -262,8 +262,9 @@ async function run(): Promise<void> {
     );
 
     assert.ok(streamer);
-    await streamer.push('Hel');
-    await streamer.push('Hello **Spark**');
+    assert.equal(await streamer.push('Hel'), true);
+    assert.equal(await streamer.push('Hel'), false);
+    assert.equal(await streamer.push('Hello **Spark**'), true);
 
     assert.equal(calls.length, 2);
     assert.equal(calls[0].method, 'sendRichMessageDraft');
@@ -286,8 +287,8 @@ async function run(): Promise<void> {
     );
 
     assert.ok(streamer);
-    await streamer.push('First');
-    await streamer.push('Second');
+    assert.equal(await streamer.push('First'), true);
+    assert.equal(await streamer.push('Second'), false);
 
     assert.equal(calls.length, 1);
     assert.equal((calls[0].rich_message as any).markdown, 'First');

@@ -2640,6 +2640,26 @@ function recordCommandReplyDelivery(input: {
     });
 }
 
+const TELEGRAM_DRAFT_STREAM_STARTED = Symbol.for('spark.telegram.draftStreamStarted');
+
+function markTelegramDraftStreamStarted(ctx: any): void {
+  if (!ctx || typeof ctx !== 'object') return;
+  try {
+    Object.defineProperty(ctx, TELEGRAM_DRAFT_STREAM_STARTED, {
+      configurable: true,
+      enumerable: false,
+      value: true,
+      writable: true
+    });
+  } catch {
+    ctx[TELEGRAM_DRAFT_STREAM_STARTED] = true;
+  }
+}
+
+function telegramDraftStreamAlreadyStarted(ctx: any): boolean {
+  return Boolean(ctx && typeof ctx === 'object' && ctx[TELEGRAM_DRAFT_STREAM_STARTED]);
+}
+
 // Outbound sanitizer: wrap bot.telegram.sendMessage so every Telegram
 // reply (ctx.reply, ctx.telegram.sendMessage, bot.telegram.sendMessage)
 // runs through the deterministic voice rules before delivery. Persona
@@ -2684,7 +2704,9 @@ bot.use(async (ctx, next) => {
     const chunks = sanitizeAndSplitTelegramText(text);
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
-      await replayTelegramDraftPreview(ctx, ctx.telegram as any, chunk);
+      if (!telegramDraftStreamAlreadyStarted(ctx)) {
+        await replayTelegramDraftPreview(ctx, ctx.telegram as any, chunk);
+      }
       const richReply = await sendTelegramRichMessage(ctx.telegram as any, ctx.chat?.id, chunk, cleanExtra);
       lastReply = richReply
         ? richReply as Awaited<ReturnType<typeof originalReply>>
@@ -2966,7 +2988,6 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     return;
   }
   if (builderReply.responseText) {
-    await replayTelegramDraftPreview(ctx, bot.telegram as any, builderReply.responseText);
     await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
   }
 }
@@ -9619,7 +9640,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const draftStreamer = createTelegramDraftStreamer(ctx, bot.telegram as any);
     const response = applyPlainWordsSurfaceRequest(
       text,
-      await llm.chatStream(chatPrompt, systemContext, memories, draftStreamer ? (partial) => draftStreamer.push(partial) : undefined)
+      await llm.chatStream(chatPrompt, systemContext, memories, draftStreamer
+        ? async (partial) => {
+            if (await draftStreamer.push(partial)) {
+              markTelegramDraftStreamStarted(ctx);
+            }
+          }
+        : undefined)
     );
 
     if (isLowInformationLlmReply(response)) {
