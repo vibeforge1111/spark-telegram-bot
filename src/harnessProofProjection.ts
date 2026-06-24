@@ -47,6 +47,8 @@ export interface HarnessProofAuditSummary {
   blockingOk: boolean;
   legacyProofGapPlanes: number;
   legacyProofGapPlaneLabels: string[];
+  latestProofGapPlanes: number;
+  latestProofGapPlaneLabels: string[];
   missingEvidencePlanes: number;
   missingTraceJoinPlanes: number;
   missingProofCapsulePlanes: number;
@@ -146,6 +148,10 @@ function summarizeCurrentAudit(
     blockingOk: result.blockingOk,
     legacyProofGapPlanes: result.gapCounts.legacyProofGap,
     legacyProofGapPlaneLabels: result.gapPlanes.legacyProofGap.map(displayNameForEvidencePlane),
+    latestProofGapPlanes: result.planes.filter((plane) => !plane.missing && plane.latestProofGapMarked).length,
+    latestProofGapPlaneLabels: result.planes
+      .filter((plane) => !plane.missing && plane.latestProofGapMarked)
+      .map((plane) => displayNameForEvidencePlane(plane.label)),
     missingEvidencePlanes: result.gapCounts.missingEvidence,
     missingTraceJoinPlanes: result.gapCounts.missingTraceJoin,
     missingProofCapsulePlanes: result.gapCounts.missingProofCapsule,
@@ -159,9 +165,13 @@ function renderAuditSummary(audit: HarnessProofAuditSummary): string {
   const legacyGapDetail = audit.legacyProofGapPlaneLabels.length > 0
     ? ` (${audit.legacyProofGapPlaneLabels.join(', ')})`
     : '';
+  const latestGapDetail = audit.latestProofGapPlaneLabels.length > 0
+    ? audit.latestProofGapPlaneLabels.join(', ')
+    : 'none';
   return [
     `Audit blocking: ${audit.blockingOk ? 'clean' : 'gaps found'}`,
-    `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}${legacyGapDetail}`
+    `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}${legacyGapDetail}`,
+    `Latest proof gaps: ${latestGapDetail}`
   ].join('\n');
 }
 

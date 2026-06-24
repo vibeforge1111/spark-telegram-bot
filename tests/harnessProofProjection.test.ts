@@ -266,6 +266,12 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
         proof_status: 'missing_harness_authority',
         proof_storage: 'legacy_gap_capsule',
         proof_capsule: latest
+      },
+      {
+        request_ref: 'request:sha256:latest-clean',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
       }
     ]);
 
@@ -283,8 +289,11 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
     assert.equal(projection.audit?.blockingOk, true);
     assert.equal(projection.audit?.legacyProofGapPlanes, 1);
     assert.deepEqual(projection.audit?.legacyProofGapPlaneLabels, ['Spawner trace']);
+    assert.equal(projection.audit?.latestProofGapPlanes, 0);
+    assert.deepEqual(projection.audit?.latestProofGapPlaneLabels, []);
     assert.match(projection.panel, /Audit blocking: clean/);
     assert.match(projection.panel, /Legacy proof gaps visible: 1 \(Spawner trace\)/);
+    assert.match(projection.panel, /Latest proof gaps: none/);
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof capsules: .*Spawner trace/);
