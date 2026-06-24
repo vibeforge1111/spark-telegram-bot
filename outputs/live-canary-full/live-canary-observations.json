@@ -334,22 +334,25 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Spark Recursive\n✅ Spark is healthy right now.\nI'm using fresh runtime state here, not memory.\nLive loop • Spawner: reachable. • Telegram: polling. • Mission Control: ready.\nNo repair action needed right now.\nReceived at 7:45 PM",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Read-only live-state inspection; no mission, build, file edit, memory write, provider switch, media handling, repair, or external network action observed."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "proofJoin": "Latest /proof panel joined Telegram outbound proof capsule with intent fresh_state.live_status; reply disclosed fresh runtime state rather than memory.",
+        "proofPanel": "Spark Recursive\nHarness Proof Intent: fresh_state.live_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:d7d8fa60a21801e9 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 7:45 PM",
+        "screenshotRefs": [
+          "/tmp/cp-authority-002-reply.png",
+          "/tmp/cp-authority-002-proof.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots; proof panel shows fresh_state.live_status.",
         "notes": null
       }
     },
