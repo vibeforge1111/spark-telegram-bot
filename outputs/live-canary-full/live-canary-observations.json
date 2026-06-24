@@ -1424,15 +1424,15 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": true,
-          "notes": "Audio was transcribed through the media.audio authority path and returned a bounded transcript fallback after the downstream bridge produced a low-information reply. No execution, mission, build, provider switch, or raw Telegram file id was observed."
+          "notes": "Audio file was transcribed through the media.audio authority path and returned a bounded transcript. No execution, mission, build, provider switch, access change, memory write, project file edit, or raw Telegram file id was observed."
         },
-        "proofJoin": "telegram joined, builder joined; audit blocking clean; proof route media.audio_transcribe_or_boundary; latest response preview is the transcript fallback with no raw id leaks.",
-        "proofPanel": "Harness Proof Intent: media.audio_transcribe_or_boundary Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as card Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:8eddc5497a8d4709 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "proofJoin": "Latest /proof panel showed Harness Proof Intent media.audio_transcribe_or_boundary with Telegram outbound, Builder gateway, and Voice runtime evidence joined; no raw file ids, local paths, provider internals, or stack traces visible.",
+        "proofPanel": "Harness Proof Intent: media.audio_transcribe_or_boundary Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as card Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:cfce4a522d02ce09 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway, Voice runtime Evidence proof refs: Telegram outbound, Builder gateway, Voice runtime Evidence proof capsules: Telegram outbound, Builder gateway, Voice runtime Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-audio-001-after-media-tools-fix.png",
-          "/tmp/cp-audio-001-transcript-fallback-live.png"
+          "/tmp/cp-audio-001-live-reply.png",
+          "/tmp/cp-audio-001-live-proof.png"
         ],
-        "userConfirmation": "Observed live in SparkRecursive_bot on 2026-06-24 22:50 GST after Builder commit c567df2 and Telegram bot commit ef47111.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: M4A audio file was transcribed safely and /proof rendered media.audio_transcribe_or_boundary with joined evidence.",
         "notes": "Primary bot log for request telegram:749543853 showed mode=external_configured, routing=researcher_advisory, textLen=115, hasVoice=true, and delivered voice-reply-81c4b391.wav with captionChars=115. Control-proof audit was blocking-clean with only legacy proof gaps visible."
       }
     }

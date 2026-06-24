@@ -13,11 +13,10 @@ Verdicts:
 - untested: 0
 
 Attention summary:
-- proof_panel_legacy_gap_stale: 2 cases
+- proof_panel_legacy_gap_stale: 1 case
 
 Recapture hint:
-- Refresh /proof panel captures for: cp-voice-001, cp-audio-001
+- Refresh /proof panel captures for: cp-voice-001
 
 Cases needing attention:
 - cp-voice-001: pass; missing proof_panel_legacy_gap_stale
-- cp-audio-001: pass; missing proof_panel_legacy_gap_stale
