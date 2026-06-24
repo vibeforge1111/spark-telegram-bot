@@ -10,6 +10,8 @@ export interface TelegramDraftStreamer {
 }
 
 export type TelegramDraftTransport = 'rich' | 'legacy';
+export type TelegramFinalTransport = 'rich' | 'legacy_fallback' | 'disabled' | 'none';
+export type TelegramObservedDraftTransport = 'rich' | 'legacy' | 'legacy_fallback' | 'failed' | 'none';
 
 export type TelegramStreamingConfigKey =
   | 'SPARK_TELEGRAM_CHAT_STREAMING'
@@ -28,8 +30,31 @@ export type TelegramStreamingConfigAction =
   | ({ kind: 'set' } & TelegramStreamingConfigSet)
   | { kind: 'set_many'; values: TelegramStreamingConfigSet[] };
 
+export interface TelegramLiveChatTelemetrySnapshot {
+  richMessageDeliveries: number;
+  richMessageFallbacks: number;
+  richDraftDeliveries: number;
+  legacyDraftDeliveries: number;
+  legacyDraftFallbacks: number;
+  draftFailures: number;
+  lastFinalTransport: TelegramFinalTransport;
+  lastDraftTransport: TelegramObservedDraftTransport;
+  lastUpdatedAt: string | null;
+}
+
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
+const liveChatTelemetry: TelegramLiveChatTelemetrySnapshot = {
+  richMessageDeliveries: 0,
+  richMessageFallbacks: 0,
+  richDraftDeliveries: 0,
+  legacyDraftDeliveries: 0,
+  legacyDraftFallbacks: 0,
+  draftFailures: 0,
+  lastFinalTransport: 'none',
+  lastDraftTransport: 'none',
+  lastUpdatedAt: null
+};
 
 export function telegramDraftStreamingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.SPARK_TELEGRAM_CHAT_STREAMING !== '0';
@@ -45,6 +70,22 @@ export function telegramRichDraftsEnabled(env: NodeJS.ProcessEnv = process.env):
 
 export function telegramRichMessagesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.SPARK_TELEGRAM_RICH_MESSAGES !== '0';
+}
+
+export function telegramLiveChatTelemetrySnapshot(): TelegramLiveChatTelemetrySnapshot {
+  return { ...liveChatTelemetry };
+}
+
+export function resetTelegramLiveChatTelemetryForTests(): void {
+  liveChatTelemetry.richMessageDeliveries = 0;
+  liveChatTelemetry.richMessageFallbacks = 0;
+  liveChatTelemetry.richDraftDeliveries = 0;
+  liveChatTelemetry.legacyDraftDeliveries = 0;
+  liveChatTelemetry.legacyDraftFallbacks = 0;
+  liveChatTelemetry.draftFailures = 0;
+  liveChatTelemetry.lastFinalTransport = 'none';
+  liveChatTelemetry.lastDraftTransport = 'none';
+  liveChatTelemetry.lastUpdatedAt = null;
 }
 
 export function telegramDraftsSupportedForContext(ctx: any, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -114,6 +155,7 @@ export async function sendTelegramDraftUpdate(
       draft_id: draftId,
       text,
     });
+    recordDraftTransport('legacy');
     return 'legacy';
   }
 
@@ -123,14 +165,19 @@ export async function sendTelegramDraftUpdate(
       draft_id: draftId,
       rich_message: buildTelegramRichTextPayload(text),
     });
+    recordDraftTransport('rich');
     return 'rich';
   } catch (error) {
-    if (env.SPARK_TELEGRAM_DRAFT_LEGACY_FALLBACK === '0') throw error;
+    if (env.SPARK_TELEGRAM_DRAFT_LEGACY_FALLBACK === '0') {
+      recordDraftTransport('failed');
+      throw error;
+    }
     await api.callApi('sendMessageDraft', {
       chat_id: chatId,
       draft_id: draftId,
       text,
     });
+    recordDraftTransport('legacy_fallback');
     return 'legacy';
   }
 }
@@ -172,11 +219,17 @@ export async function sendTelegramRichMessage(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<unknown | null> {
   if (!api?.callApi || chatId === undefined || chatId === null || !telegramRichMessagesEnabled(env)) {
+    if (api?.callApi && chatId !== undefined && chatId !== null && !telegramRichMessagesEnabled(env)) {
+      recordFinalTransport('disabled');
+    }
     return null;
   }
   try {
-    return await api.callApi('sendRichMessage', buildTelegramRichMessagePayload(chatId, text, extra));
+    const delivery = await api.callApi('sendRichMessage', buildTelegramRichMessagePayload(chatId, text, extra));
+    recordFinalTransport('rich');
+    return delivery;
   } catch {
+    recordFinalTransport('legacy_fallback');
     return null;
   }
 }
@@ -282,6 +335,8 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
     `Full-reply preview: ${previewFullReplies ? 'on' : 'off'}`,
     `Draft interval: ${interval}ms`,
     '',
+    ...renderTelegramLiveChatTelemetryLines(),
+    '',
     'Private chats only. Builder-routed replies are final-only until Builder stream events are wired.'
   ].join('\n');
 }
@@ -322,4 +377,48 @@ export function createTelegramDraftStreamer(
       }
     },
   };
+}
+
+function recordFinalTransport(transport: TelegramFinalTransport): void {
+  liveChatTelemetry.lastFinalTransport = transport;
+  liveChatTelemetry.lastUpdatedAt = new Date().toISOString();
+  if (transport === 'rich') liveChatTelemetry.richMessageDeliveries += 1;
+  if (transport === 'legacy_fallback') liveChatTelemetry.richMessageFallbacks += 1;
+}
+
+function recordDraftTransport(transport: TelegramObservedDraftTransport): void {
+  liveChatTelemetry.lastDraftTransport = transport;
+  liveChatTelemetry.lastUpdatedAt = new Date().toISOString();
+  if (transport === 'rich') liveChatTelemetry.richDraftDeliveries += 1;
+  if (transport === 'legacy') liveChatTelemetry.legacyDraftDeliveries += 1;
+  if (transport === 'legacy_fallback') liveChatTelemetry.legacyDraftFallbacks += 1;
+  if (transport === 'failed') liveChatTelemetry.draftFailures += 1;
+}
+
+function renderTelegramLiveChatTelemetryLines(): string[] {
+  const snapshot = telegramLiveChatTelemetrySnapshot();
+  const observed = snapshot.lastFinalTransport !== 'none' || snapshot.lastDraftTransport !== 'none';
+  if (!observed) {
+    return ['Process telemetry: no rich/draft delivery attempt observed since start.'];
+  }
+  return [
+    'Process telemetry:',
+    `Final transport observed: ${formatFinalTransport(snapshot.lastFinalTransport)} (${snapshot.richMessageDeliveries} rich, ${snapshot.richMessageFallbacks} fallback)`,
+    `Draft transport observed: ${formatDraftTransport(snapshot.lastDraftTransport)} (${snapshot.richDraftDeliveries} rich, ${snapshot.legacyDraftDeliveries} legacy, ${snapshot.legacyDraftFallbacks} rich fallback, ${snapshot.draftFailures} failed)`
+  ];
+}
+
+function formatFinalTransport(transport: TelegramFinalTransport): string {
+  if (transport === 'rich') return 'rich';
+  if (transport === 'legacy_fallback') return 'legacy fallback';
+  if (transport === 'disabled') return 'disabled';
+  return 'none';
+}
+
+function formatDraftTransport(transport: TelegramObservedDraftTransport): string {
+  if (transport === 'rich') return 'rich';
+  if (transport === 'legacy') return 'legacy';
+  if (transport === 'legacy_fallback') return 'legacy fallback';
+  if (transport === 'failed') return 'failed';
+  return 'none';
 }

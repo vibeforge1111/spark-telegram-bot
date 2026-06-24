@@ -504,6 +504,7 @@ Remove from default:
 Exit criteria:
 
 - `/streaming` reports streaming, rich messages, rich draft transport, and full-reply preview on
+- `/streaming` also reports process telemetry for observed final and draft transports, so "configured on" is not mistaken for "rich path succeeded"
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
 - direct `sendRichMessage` and `sendRichMessageDraft` smoke pass for the active profile, or clearly fall back to `sendMessage` / `sendMessageDraft`
@@ -601,7 +602,7 @@ These should adjust route policy and cadence, not override safety boundaries.
 - Add draft aggregator and route policy.
 - Wire only normal chat first.
 - Keep `runBuilderTelegramBridge` as fallback.
-- Expand `/streaming` status with last-turn telemetry.
+- Expand `/streaming` status with last-turn telemetry. Minimum process-level transport telemetry now shows whether final rich messages and rich draft updates have succeeded, fallen back, failed, or not yet been exercised since the bot process started.
 - Add tests for:
   - first draft on status event
   - accumulated model deltas

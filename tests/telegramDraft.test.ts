@@ -4,6 +4,7 @@ import {
   createTelegramDraftStreamer,
   parseTelegramStreamingConfigText,
   prepareTelegramDraftText,
+  resetTelegramLiveChatTelemetryForTests,
   replayTelegramDraftPreview,
   renderTelegramStreamingConfigStatus,
   sendTelegramRichMessage,
@@ -18,6 +19,7 @@ import {
 type AsyncTest = () => Promise<void> | void;
 
 async function test(name: string, fn: AsyncTest): Promise<void> {
+  resetTelegramLiveChatTelemetryForTests();
   try {
     await fn();
     console.log(`ok - ${name}`);
@@ -105,7 +107,69 @@ async function run(): Promise<void> {
     assert.match(status, /Draft transport: rich/);
     assert.match(status, /Full-reply preview: on/);
     assert.match(status, /Draft interval: 700ms/);
+    assert.match(status, /Process telemetry: no rich\/draft delivery attempt observed since start/);
     assert.match(status, /Private chats only/);
+  });
+
+  await test('streaming status reports observed rich final and draft transports', async () => {
+    await sendTelegramRichMessage(
+      {
+        async callApi() {
+          return { message_id: 7 };
+        },
+      },
+      42,
+      'Hello Spark',
+      null,
+      {}
+    );
+    await sendTelegramDraftUpdate(
+      {
+        async callApi() {
+          return {};
+        },
+      },
+      42,
+      1001,
+      'Hello Spark',
+      {}
+    );
+
+    const status = renderTelegramStreamingConfigStatus({});
+    assert.match(status, /Process telemetry:/);
+    assert.match(status, /Final transport observed: rich \(1 rich, 0 fallback\)/);
+    assert.match(status, /Draft transport observed: rich \(1 rich, 0 legacy, 0 rich fallback, 0 failed\)/);
+  });
+
+  await test('streaming status reports rich fallback without exposing raw API errors', async () => {
+    await sendTelegramRichMessage(
+      {
+        async callApi() {
+          throw new Error('sendRichMessage unavailable at /Users/example/private');
+        },
+      },
+      42,
+      'Hello Spark',
+      null,
+      {}
+    );
+    await sendTelegramDraftUpdate(
+      {
+        async callApi(method) {
+          if (method === 'sendRichMessageDraft') throw new Error('sendRichMessageDraft unavailable');
+          return {};
+        },
+      },
+      42,
+      1001,
+      'Hello Spark',
+      {}
+    );
+
+    const status = renderTelegramStreamingConfigStatus({});
+    assert.match(status, /Final transport observed: legacy fallback \(0 rich, 1 fallback\)/);
+    assert.match(status, /Draft transport observed: legacy fallback \(0 rich, 0 legacy, 1 rich fallback, 0 failed\)/);
+    assert.doesNotMatch(status, /sendRichMessage unavailable|\/Users\/example/);
   });
 
   await test('sends Telegram drafts through Rich Message drafts by default', async () => {
