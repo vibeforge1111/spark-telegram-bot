@@ -113,7 +113,7 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
     ['spark_live_status', 'spark', ['live', 'status']],
     ['provider_status', 'spark', ['providers', 'test', '--role', 'chat']],
     ['runtime_sync', 'npm', ['run', 'sync:check']],
-    ['control_proof_audit', 'npm', ['run', 'control:proof:audit', '--', '--sample', '100']]
+    ['control_proof_audit', 'npm', ['run', 'control:proof:audit', '--', '--sample', '100', '--blocking-strict']]
   ]);
 }
 

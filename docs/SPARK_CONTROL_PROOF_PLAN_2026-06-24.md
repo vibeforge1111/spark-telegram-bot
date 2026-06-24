@@ -299,7 +299,7 @@ npm run control:proof:canaries -- --observations outputs/live-canary-observation
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --release-check
 ```
 
-Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. If that is unavailable, fill the observation packet's top-level evidence fields from:
+Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. Runtime collection uses audit `--blocking-strict`, so silent proof/control gaps fail collection while explicit legacy proof-gap capsules remain visible. If automatic collection is unavailable, fill the observation packet's top-level evidence fields from:
 
 ```bash
 spark live status

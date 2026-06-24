@@ -711,8 +711,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '#!/bin/sh',
       'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
       'if [ "$1 $2" = "run control:proof:audit" ]; then',
+      '  case " $* " in *" --blocking-strict "*) ;; *) echo "missing --blocking-strict" >&2; exit 1;; esac',
       '  i=0',
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
+      '  echo "Blocking status: clean"',
       '  echo "Gap counts:"',
       '  echo "- missing evidence: 0"',
       '  echo "- missing trace joins: 0"',
@@ -750,6 +752,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.equal(collected.status, 0, collected.stderr);
     const observed = JSON.parse(readFileSync(outTemplatePath, 'utf8'));
     assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
+    assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
 
     observed.cases[0].observed = {
