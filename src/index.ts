@@ -2672,10 +2672,11 @@ function buildBuilderGatewayProofCapsule(input: {
 }): HarnessProofCapsuleV1 {
   const envelope = input.envelope;
   const selectedTool = envelope.selectedIntent.action || envelope.selectedIntent.kind || 'answer.compose';
+  const proofRoute = selectedTool === 'media.image.analyze' ? 'media.image_analyze_or_boundary' : selectedTool === 'media.voice.transcribe' ? 'media.voice_transcribe_or_boundary' : selectedTool === 'media.audio.transcribe' ? 'media.audio_transcribe_or_boundary' : envelope.selectedIntent.kind || selectedTool;
   const builderJoined = input.builderReply?.traceRef || input.builderReply?.requestId ? 'joined' : 'missing';
   return buildTelegramDeliveryProofCapsule({
     turnRef: envelope.traceId || envelope.turnId,
-    route: envelope.selectedIntent.kind || selectedTool,
+    route: proofRoute,
     owner: envelope.selectedIntent.ownerSystem || 'spark-intelligence-builder',
     tool: selectedTool,
     mutationClass: 'read_only',
@@ -10315,8 +10316,7 @@ export async function handleImageMessage(ctx: any): Promise<void> {
     );
     const builderReply = await builderBridgeRunner(bridgeUpdate);
     console.log(`[ImageBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
-
-    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText) {
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText && !isLowInformationLlmReply(builderReply.responseText)) {
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'telegram.media.image',
         status: 'success',
@@ -10342,14 +10342,14 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
       return;
     }
-
-    const fallback = 'I received the image, but Spark did not return an image analysis. Run `/diagnose`, then ask the operator to run `spark-intelligence auth verify-image-input --live --json`.';
+    const fallback = 'I received the image and kept it evidence-only, but Spark did not return a usable visual description. I will not pretend I inspected pixels, and I did not execute anything from the image.';
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'telegram.media.image',
       status: 'failure',
       summary: 'Telegram image input did not receive a usable Builder media response.'
     });
-    await ctx.reply(fallback);
+    const fallbackProofCapsule = authorization.legacyEnvelope ? buildBuilderGatewayProofCapsule({ envelope: authorization.legacyEnvelope, builderReply, executionStatus: 'failed', replyDelivered: true, replyShape: 'natural', authorityDecision: 'downgraded', reasonSummary: 'Telegram image analysis returned no usable visual description.' }) : null;
+    await ctx.reply(fallback, authorization.legacyEnvelope && fallbackProofCapsule ? outboundTraceExtra(builderReplyTraceContext(authorization.legacyEnvelope, builderReply, fallbackProofCapsule, 'builder_image_fallback')) : undefined);
     await conversation.recordInterruptedTask(user, {
       message: imageMemoryText,
       failure: `Builder image bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
@@ -10417,8 +10417,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       ? ` voiceTiming=${JSON.stringify(builderReply.voiceTiming)}`
       : '';
     console.log(`[VoiceBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}${voiceTiming}`);
-
-    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.voiceMedia || (builderReply.responseText && !isLowInformationLlmReply(builderReply.responseText)))) {
       recordTelegramHarnessCoreExecution(authorization, {
         toolName,
         status: 'success',
@@ -10457,7 +10456,8 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       status: 'failure',
       summary: `Telegram ${mediaKind} input did not receive a usable Builder media response.`
     });
-    await ctx.reply(fallback);
+    const fallbackProofCapsule = authorization.legacyEnvelope ? buildBuilderGatewayProofCapsule({ envelope: authorization.legacyEnvelope, builderReply, executionStatus: 'failed', replyDelivered: true, replyShape: 'natural', authorityDecision: 'downgraded', reasonSummary: `Telegram ${mediaKind} handling returned no usable media reply.` }) : null;
+    await ctx.reply(fallback, authorization.legacyEnvelope && fallbackProofCapsule ? outboundTraceExtra(builderReplyTraceContext(authorization.legacyEnvelope, builderReply, fallbackProofCapsule, `builder_${mediaKind}_fallback`)) : undefined);
     await conversation.recordInterruptedTask(user, {
       message: mediaMemoryText,
       failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
