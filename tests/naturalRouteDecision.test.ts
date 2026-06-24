@@ -209,6 +209,19 @@ test('routes natural mission-provider switches while preserving chat provider', 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes no-mission current web checks to external research clarification', () => {
+  const route = decideNaturalRoute(
+    'Do a tiny current web check for Spark agent website availability and summarize one finding. Do not start a mission.'
+  );
+
+  assert.equal(route.route, 'external_research.direct_or_clarify');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'external_research.clarify');
+  assert.equal(route.payload.reason, 'mission_blocked');
+  assert.deepEqual(route.matched_signals, ['external_research_request', 'no_mission_boundary']);
+  assert.equal(route.requires_confirmation, true);
+});
+
 test('routes read-only repair turns to access status instead of contextual missions', () => {
   const recentMessages = [
     'User: how are you Spark',

@@ -44,6 +44,7 @@ import type {
   NaturalRecursiveCommandTarget
 } from './conversationIntent';
 import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
+import { externalResearchNoMissionClarification } from './externalResearchBoundary';
 import { parseSafeOperatorAction } from './operatorActions';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
@@ -784,6 +785,20 @@ export function decideNaturalRoute(
       matched_signals: ['local_spark_service_request'],
       blocked_by: [],
       requires_confirmation: false
+    });
+  }
+
+  if (externalResearchNoMissionClarification(normalized)) {
+    return decision({
+      route: 'external_research.direct_or_clarify',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'external_research.clarify',
+      payload: { reason: 'mission_blocked' },
+      context_source: 'latest_message',
+      matched_signals: ['external_research_request', 'no_mission_boundary'],
+      blocked_by: [],
+      requires_confirmation: true
     });
   }
 

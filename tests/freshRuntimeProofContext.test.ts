@@ -196,6 +196,17 @@ async function run(): Promise<void> {
     restoreEnv();
   });
 
+  await test('external research no-mission clarification proof uses direct-or-clarify route', async () => {
+    restoreEnv();
+    prepareEnv();
+    await assertTraceRoute(
+      'Do a tiny current web check for Spark agent website availability and summarize one finding. Do not start a mission.',
+      'external_research.direct_or_clarify',
+      /will not start a mission/i
+    );
+    restoreEnv();
+  });
+
   await test('builder memory diagnostic boundary proof uses builder route', async () => {
     restoreEnv();
     prepareEnv();
