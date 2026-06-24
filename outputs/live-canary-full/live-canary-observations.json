@@ -384,7 +384,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nHarness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:08b29d90ede45ddd Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 6:48 PM",
+        "reply": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -393,14 +393,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Inspect-only proof panel; no mission, file, memory, access, provider, media, or network mutation observed."
+          "notes": "No new mission or mutation observed; proof inspection only."
         },
-        "proofJoin": "Telegram outbound proof panel joined with proof ref, proof capsule, and clean blocking audit; known legacy proof gaps remain visible.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:08b29d90ede45ddd Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 6:48 PM",
+        "proofJoin": "Live /proof joined the Telegram outbound proof capsule with no latest proof gaps and no execution mutation.",
+        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-proof-001-after-fix-retest.png"
+          "/tmp/cp-proof-001-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot after runtime restart at commit 1d66e2e.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and screenshot /tmp/cp-proof-001-proof.png.",
         "notes": null
       }
     },

@@ -177,6 +177,8 @@ The stale-proof run guide prioritizes the safe starter canaries first when they 
 
 Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
+Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel capture: `/proof` in SparkRecursive_bot showed a read-only, no-mutation Telegram proof panel with `Latest proof gaps: none`, reducing stale proof-panel blockers from 24 to 23.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
