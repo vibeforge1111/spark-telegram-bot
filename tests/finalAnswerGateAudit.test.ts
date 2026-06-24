@@ -63,3 +63,38 @@ test('final-answer suppression audit keeps safe trace refs stable', async () => 
 
   assert.equal(record.trace_ref, 'trace:req-final-gate');
 });
+
+test('final-answer suppression audit derives a trace ref from proof capsules', async () => {
+  const indexModule: any = await import('../src/index');
+  const proofCapsule = buildHarnessProofCapsule({
+    turnRef: 'turn:sha256:proofonlytrace',
+    route: 'model_switch.mission_provider',
+    owner: 'spark-telegram-bot',
+    intent: { kind: 'model_switch.mission_provider', confidence: 'explicit', noExecution: false },
+    authority: {
+      decision: 'blocked',
+      contract: 'spark.turn_intent.v1',
+      riskTier: 'write',
+      reasonSummary: 'Final-answer gate suppressed a Builder reply and used local chat fallback.'
+    },
+    governor: { decision: 'deny', verified: true },
+    execution: { status: 'blocked', tool: 'model.switch', mutationClass: 'read_only' },
+    reply: { delivered: false, shape: 'none', rawReasonsHidden: true },
+    joins: { telegram: 'joined', builder: 'joined' }
+  });
+
+  const record = indexModule.buildFinalAnswerGateSuppressionRecord({
+    chatId: 8319079055,
+    userId: 8319079055,
+    suppressionReason: 'route_menu',
+    builderRoutingDecision: 'disambiguation_shortcircuit',
+    builderBridgeMode: 'disambiguation_shortcircuit',
+    builderReply: 'Suppressed route menu.',
+    requestId: 'telegram:749543832',
+    proofCapsule,
+    fallbackRoute: 'local_chat'
+  }, new Date('2026-06-24T17:28:16.000Z'));
+
+  assert.match(String(record.trace_ref), /^trace:sha256:[a-f0-9]{16}$/);
+  assert.equal(record.harness_proof_ref, proofCapsule.turnRef);
+});

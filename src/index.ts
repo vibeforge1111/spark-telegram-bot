@@ -2843,7 +2843,7 @@ export function buildFinalAnswerGateSuppressionRecord(
   now = new Date()
 ): Record<string, unknown> {
   const requestId = String(input.requestId || '').trim();
-  const traceRef = sanitizeFinalAnswerTraceRef(input.traceRef);
+  const traceRef = sanitizeFinalAnswerTraceRef(input.traceRef || input.proofCapsule?.turnRef);
   return {
     ts: now.toISOString(),
     event: 'final_answer_checked',
