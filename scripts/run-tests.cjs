@@ -25,6 +25,7 @@ const tests = [
   'tests/harnessProofNaturalRequest.test.ts',
   'tests/harnessProofProjection.test.ts',
   'tests/finalAnswerGateAudit.test.ts',
+  'tests/freshRuntimeProofContext.test.ts',
   'tests/harnessCoreVNext.test.ts',
   'tests/harnessCoreLedger.test.ts',
   'tests/legacyAuthorityInventory.test.ts',

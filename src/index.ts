@@ -2593,14 +2593,17 @@ function attachBuilderHarnessProofRef(
   return update;
 }
 
-export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): NodeOutboundTraceContext {
-  const route = envelope.selectedIntent.action || envelope.selectedIntent.kind;
+export function buildTurnOutboundTraceContext(
+  envelope: TurnIntentEnvelopeV1,
+  overrides: { route?: string; intentKind?: string; command?: string; replyKind?: string; reasonSummary?: string } = {}
+): NodeOutboundTraceContext {
+  const route = overrides.route || envelope.selectedIntent.action || envelope.selectedIntent.kind;
   const proofCapsule = buildHarnessProofCapsule({
     turnRef: envelope.traceId || envelope.turnId,
     route,
     owner: 'spark-telegram-bot',
     intent: {
-      kind: envelope.selectedIntent.kind,
+      kind: overrides.intentKind || envelope.selectedIntent.kind,
       confidence: envelope.selectedIntent.confidence,
       noExecution: envelope.directive.noExecution
     },
@@ -2608,9 +2611,9 @@ export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): N
       decision: envelope.directive.noExecution ? 'downgraded' : 'allowed',
       contract: envelope.schema,
       riskTier: 'read',
-      reasonSummary: envelope.directive.noExecution
+      reasonSummary: overrides.reasonSummary || (envelope.directive.noExecution
         ? 'Telegram delivered a no-execution conversational reply; no owner execution was authorized.'
-        : 'Telegram delivered a conversational reply with Harness turn context; no owner execution proof is claimed.'
+        : 'Telegram delivered a conversational reply with Harness turn context; no owner execution proof is claimed.')
     },
     governor: {
       decision: 'read_only',
@@ -2637,8 +2640,8 @@ export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): N
   });
   return {
     route,
-    command: envelope.surface,
-    replyKind: envelope.directive.mode === 'answer' ? 'natural_reply' : `${envelope.directive.mode}_reply`,
+    command: overrides.command || envelope.surface,
+    replyKind: overrides.replyKind || (envelope.directive.mode === 'answer' ? 'natural_reply' : `${envelope.directive.mode}_reply`),
     requestId: envelope.turnId,
     traceRef: envelope.traceId,
     proofCapsule
@@ -8820,10 +8823,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    return;
 	  }
 
-	  if (!earlyBuildIntent && shouldAnswerRuntimeTruthPriority(text)) {
-	    await conversation.remember(user, text).catch(() => {});
-	    const reply = renderRuntimeTruthPriorityAnswer();
-	    await ctx.reply(reply);
+		  if (!earlyBuildIntent && shouldAnswerRuntimeTruthPriority(text)) {
+		    await conversation.remember(user, text).catch(() => {});
+		    const reply = renderRuntimeTruthPriorityAnswer();
+		    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+		      route: 'fresh_state.authority_answer',
+		      intentKind: 'fresh_state.authority_answer',
+		      command: 'telegram_runtime_truth_priority',
+		      reasonSummary: 'Telegram answered source-priority from fresh runtime truth; no owner execution was authorized.'
+		    });
+		    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_runtime_truth_priority', [
       {
         source: 'current_user_message',
@@ -8969,10 +8978,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
-  if (!earlyBuildIntent && shouldAnswerAuthoritativeRuntimeStatus(text)) {
-    await conversation.remember(user, text).catch(() => {});
-    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
-    await ctx.reply(reply);
+	  if (!earlyBuildIntent && shouldAnswerAuthoritativeRuntimeStatus(text)) {
+	    await conversation.remember(user, text).catch(() => {});
+	    const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
+	    const route = isRepairNeededStatusQuestion(text.toLowerCase().replace(/\s+/g, ' ').trim())
+	      ? 'fresh_state.read_only_repair_status'
+	      : 'fresh_state.live_status';
+	    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+	      route,
+	      intentKind: route,
+	      command: 'telegram_live_state_answer',
+	      reasonSummary: 'Telegram answered from fresh Spark runtime state; no repair or owner execution was authorized.'
+	    });
+	    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
