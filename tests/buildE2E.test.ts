@@ -112,6 +112,20 @@ function assertOutboundAuditCarriesProof(indexModule: any, traceContext: any, ch
 	assert.doesNotMatch(JSON.stringify(record.proof_capsule), new RegExp(String(chatId)));
 }
 
+function assertRouteConfidenceAuditProof(record: any, expected: { outcome: string; decision: string; rawRequestId: string; rawTraceRef: string }): void {
+	assert.equal(record.schema_version, 'spark.telegram_route_confidence_audit.v1');
+	assert.equal(record.outcome, expected.outcome);
+	assert.equal(record.decision, expected.decision);
+	assert.match(record.request_ref, /^request:sha256:[a-f0-9]{16}$/);
+	assert.match(record.trace_ref, /^trace:sha256:[a-f0-9]{16}$/);
+	assert.equal(record.harness_proof_ref, record.proof_capsule.turnRef);
+	assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
+	assert.equal(record.proof_capsule.reply.rawReasonsHidden, true);
+	assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
+	assert.equal(Object.prototype.hasOwnProperty.call(record, 'traceRef'), false);
+	assert.doesNotMatch(JSON.stringify(record), new RegExp(`${expected.rawRequestId}|${expected.rawTraceRef}|8319079055|8319079071`));
+}
+
 async function readMissionRelayRegistry(): Promise<any[]> {
 	const profile = (process.env.SPARK_TELEGRAM_PROFILE || 'primary').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'default';
 	const port = Number(process.env.TELEGRAM_RELAY_PORT || 8788);
@@ -3896,6 +3910,98 @@ async function run(): Promise<void> {
 		assert.equal(record.proof_capsule.reply.rawReasonsHidden, true);
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
 		assert.doesNotMatch(JSON.stringify(record), /req-confirmed-domain-chip|trace-confirmed-domain-chip|8319079055|8319079071/);
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('blocked route-confidence dispatch writes redacted proof capsule', async () => {
+		restoreAxios();
+		restoreEnv();
+		delete process.env.SPARK_BOT_TEST_MODE;
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-route-confidence-blocked-proof-'));
+		const auditPath = path.join(tempRoot, 'route-confidence-audit.jsonl');
+		process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH = auditPath;
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079071, 8319079055, 626, replies);
+		const indexModule: any = await import('../src/index');
+		const allowed = await indexModule.buildDispatchRouteConfidenceAllows({
+			ctx,
+			accessRequirement: 'spawner_build',
+			prd: '# External Launch\n\nPublish this to production.',
+			requestId: 'req-blocked-route-confidence',
+			traceRef: 'trace-blocked-route-confidence',
+			runnerPreflight: { runnerWritable: 'yes' },
+			confirmationState: 'missing',
+			spawnerAvailableProbe: async () => true,
+			gateRunner: async () => ({
+				payload: {
+					decision: 'refuse',
+					human_next_action: 'Ask for a safer local-only build scope before starting.',
+					safe_reply_policy: 'refuse'
+				}
+			})
+		});
+
+		assert.equal(allowed, false);
+		assert.match(replies.join('\n'), /cannot start that build safely/i);
+		const auditText = await waitForFileText(auditPath);
+		const record = JSON.parse(auditText.trim().split('\n').at(-1)!);
+		assertRouteConfidenceAuditProof(record, {
+			outcome: 'blocked',
+			decision: 'refuse',
+			rawRequestId: 'req-blocked-route-confidence',
+			rawTraceRef: 'trace-blocked-route-confidence'
+		});
+		assert.equal(record.proof_capsule.authority.decision, 'blocked');
+		assert.equal(record.proof_capsule.governor.decision, 'deny');
+
+		rmSync(tempRoot, { recursive: true, force: true });
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('failed-closed route-confidence dispatch writes redacted proof capsule', async () => {
+		restoreAxios();
+		restoreEnv();
+		delete process.env.SPARK_BOT_TEST_MODE;
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-route-confidence-failed-proof-'));
+		const auditPath = path.join(tempRoot, 'route-confidence-audit.jsonl');
+		process.env.SPARK_TELEGRAM_ROUTE_CONFIDENCE_AUDIT_PATH = auditPath;
+
+		const replies: string[] = [];
+		const ctx = makeFakeCtx(8319079071, 8319079055, 627, replies);
+		const indexModule: any = await import('../src/index');
+		const allowed = await indexModule.buildDispatchRouteConfidenceAllows({
+			ctx,
+			accessRequirement: 'spawner_build',
+			prd: '# Local Build\n\nPrepare a local-only package.',
+			requestId: 'req-failed-route-confidence',
+			traceRef: 'trace-failed-route-confidence',
+			runnerPreflight: { runnerWritable: 'yes' },
+			latestInstruction: 'no_execution',
+			confirmationState: 'confirmed',
+			spawnerAvailableProbe: async () => true,
+			gateRunner: async () => {
+				throw new Error("spark-intelligence self: error: argument self_command: invalid choice: 'route-confidence-gate'");
+			}
+		});
+
+		assert.equal(allowed, false);
+		assert.match(replies.join('\n'), /cannot prove the route gate/i);
+		const auditText = await waitForFileText(auditPath);
+		const record = JSON.parse(auditText.trim().split('\n').at(-1)!);
+		assertRouteConfidenceAuditProof(record, {
+			outcome: 'failed_closed',
+			decision: 'unavailable',
+			rawRequestId: 'req-failed-route-confidence',
+			rawTraceRef: 'trace-failed-route-confidence'
+		});
+		assert.equal(record.proof_capsule.execution.status, 'failed');
+		assert.equal(record.proof_capsule.authority.decision, 'blocked');
+		assert.equal(record.proof_capsule.governor.decision, 'deny');
 
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();
