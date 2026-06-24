@@ -368,6 +368,42 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
 });
 
+test('observation summary rejects unrelated mutations on action cases', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: 'Spark Live healthy.',
+    providerStatus: 'Provider ping OK.',
+    runtimeSync: 'runtime in sync.',
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Access is set to level three; I did not run repair setup.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      accessChanged: true,
+      notes: 'Access changed; no other mutation observed.'
+    },
+    proofJoin: 'Access change joined with redacted proof ref.',
+    proofPanel: CLEAN_PROOF_PANEL,
+    screenshotRefs: ['/tmp/spark-recursive-access.png'],
+    userConfirmation: 'User confirmed Telegram access reply rendered once.'
+  };
+
+  const cleanAction = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanAction.readyForRelease, true);
+  assert.deepEqual(cleanAction.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.sideEffects.missionStarted = true;
+  const unexpectedActionMutation = summarizeControlProofCanaryObservations(template);
+  assert.equal(unexpectedActionMutation.readyForRelease, false);
+  assert.deepEqual(unexpectedActionMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
+});
+
 test('observation summary rejects dirty runtime evidence even when packet fields are filled', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!

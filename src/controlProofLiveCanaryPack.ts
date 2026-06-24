@@ -1232,16 +1232,19 @@ function isUnexpectedMutationObserved(
   mutationClass: ControlProofCanaryMutationClass,
   sideEffects: ControlProofObservedSideEffects
 ): boolean {
-  if (mutationClass !== 'none' && mutationClass !== 'read_only') return false;
-  return Boolean(
-    sideEffects.filesChanged ||
-    sideEffects.memoryWritten ||
-    sideEffects.missionStarted ||
-    sideEffects.externalNetworkCalled ||
-    sideEffects.accessChanged ||
-    sideEffects.providerChanged ||
-    sideEffects.mediaHandled
-  );
+  const expectedKey = mutationClass === 'none' || mutationClass === 'read_only'
+    ? null
+    : sideEffectKeyForMutationClass(mutationClass);
+  const mutationKeys: ControlProofSideEffectKey[] = [
+    'filesChanged',
+    'memoryWritten',
+    'missionStarted',
+    'externalNetworkCalled',
+    'accessChanged',
+    'providerChanged',
+    'mediaHandled'
+  ];
+  return mutationKeys.some((key) => key !== expectedKey && sideEffects[key] === true);
 }
 
 function proofPanelCaptureIssues(value: string | null | undefined): string[] {
