@@ -839,6 +839,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         proofPanelPath,
         '--screenshot-ref',
         '/tmp/spark-recursive-builder.png',
+        '--screenshot-ref',
+        '/tmp/spark-recursive-builder-proof.png',
         '--summary-out',
         recordedSummaryPath,
         '--user-confirmation',
@@ -853,6 +855,10 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const recorded = JSON.parse(readFileSync(recordedPath, 'utf8'));
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
+    assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [
+      '/tmp/spark-recursive-builder.png',
+      '/tmp/spark-recursive-builder-proof.png'
+    ]);
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
 
     const accessTemplate = withControlProofCanaryRuntimeEvidence(

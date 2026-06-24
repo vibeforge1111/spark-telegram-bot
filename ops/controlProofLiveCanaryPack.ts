@@ -32,9 +32,11 @@ function hasFlag(args: string[], name: string): boolean {
 }
 
 function argList(args: string[], name: string): string[] {
-  const value = argValue(args, name);
-  if (!value) return [];
-  return value.split(',').map((entry) => entry.trim()).filter(Boolean);
+  const values: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === `--${name}` && args[index + 1]) values.push(args[index + 1]);
+  }
+  return values.flatMap((value) => value.split(',').map((entry) => entry.trim()).filter(Boolean));
 }
 
 function usage(): string {
@@ -118,6 +120,7 @@ function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservatio
   const canary = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === id);
   if (!canary) throw new Error(`Unknown control-proof canary id: ${id}`);
   const verdict = argValue(args, 'verdict');
+  const screenshotRefs = argList(args, 'screenshot-ref');
   const sideEffects = {
     filesChanged: optionalBooleanArg(args, 'files-changed'),
     memoryWritten: optionalBooleanArg(args, 'memory-written'),
@@ -143,7 +146,7 @@ function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservatio
     reply: readTextArg(args, 'reply'),
     proofJoin: readTextArg(args, 'proof-join'),
     proofPanel: readTextArg(args, 'proof-panel'),
-    screenshotRefs: argValue(args, 'screenshot-ref') !== null ? argList(args, 'screenshot-ref') : undefined,
+    screenshotRefs: screenshotRefs.length > 0 ? screenshotRefs : undefined,
     userConfirmation: readTextArg(args, 'user-confirmation'),
     notes: readTextArg(args, 'notes'),
     sideEffects: Object.fromEntries(Object.entries(sideEffects).filter(([, value]) => value !== undefined))
