@@ -173,6 +173,17 @@ async function run(): Promise<void> {
       restoreEnv();
     }
   });
+
+  await test('model switch boundary explanation proof uses model route', async () => {
+    restoreEnv();
+    prepareEnv();
+    await assertTraceRoute(
+      'Explain why a model switch needs confirmation without showing raw policy reasons.',
+      'model_switch.boundary_explanation',
+      /settings mutations|explicit `\/model` request/i
+    );
+    restoreEnv();
+  });
 }
 
 run().catch((error) => {

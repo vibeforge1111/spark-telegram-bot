@@ -2637,10 +2637,10 @@ export function isModelSwitchGateExplanationRequest(text: string): boolean {
     /\b(?:provider|model)\s+(?:switch|switching|change|commands?)\b/.test(normalized) ||
     /\b\/model\b/.test(normalized);
   const asksGate =
-    /\b(?:gate|gated|gating|authorize|authorized|authorization|authority|permission|allowed|guarded)\b/.test(normalized) ||
+    /\b(?:gate|gated|gating|authorize|authorized|authorization|authority|permission|allowed|guarded|confirm|confirmation)\b/.test(normalized) ||
     /\b(?:how|when|what)\b.*\b(?:change|switch|mutate|settings?|config)\b/.test(normalized);
   const chatOnly =
-    isNoExecutionBoundary(normalized) ||
+    isNoExecutionBoundary(normalized) || /\bexplain\b.*\b(?:why|without|confirmation|confirm)\b/.test(normalized) ||
     /\b(?:do not|don't|dont|no need to)\s+(?:change|switch|mutate|update|write)\s+(?:settings?|config|providers?|models?)\b/.test(normalized);
   return mentionsModelSwitch && asksGate && chatOnly;
 }
