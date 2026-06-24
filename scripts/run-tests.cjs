@@ -28,6 +28,7 @@ const tests = [
   'tests/telegramActionAuthority.test.ts',
   'tests/telegramCommandAuthority.test.ts',
   'tests/telegramMediaAuthority.test.ts',
+  'tests/telegramMediaEnvelope.test.ts',
   'tests/controlProofTraceAudit.test.ts',
   'tests/controlProofLiveCanaryPack.test.ts',
   'tests/runtimeFreshness.test.ts',

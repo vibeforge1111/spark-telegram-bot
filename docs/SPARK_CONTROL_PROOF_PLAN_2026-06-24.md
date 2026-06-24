@@ -245,9 +245,16 @@ Make photos, documents, voice, and audio enter Spark through typed media envelop
 }
 ```
 
+Initial implementation:
+
+- `src/telegramMediaEnvelope.ts` builds `spark.media_turn.v1` envelopes for photo, captioned photo, document, voice, audio, and unsupported media.
+- Image and voice/audio Builder handoffs now attach the envelope at the update and message level.
+- Unsupported non-image document uploads get a human evidence-boundary reply instead of silently disappearing or executing from file content.
+- The envelope redacts file ids and filenames, records only safe metadata such as media kind, caption presence, MIME family, and evidence-only policy.
+
 ### Deliverables
 
-1. Media normalization fixtures for photo, captioned photo, document, voice, and unsupported media.
+1. Media normalization fixtures for photo, captioned photo, document, voice, audio, and unsupported media. Initial fixtures added in `tests/telegramMediaEnvelope.test.ts`.
 2. Builder bridge acceptance for typed media envelopes.
 3. Human replies for unsupported or permission-blocked media.
 4. Trace rows that join media handling to final answer without storing raw media in proof capsules.
@@ -372,7 +379,7 @@ Then send one photo with a caption.
 8. Carry redacted request/trace/proof refs into future Telegram voice runtime state rows without storing raw audio or transcript bodies.
 9. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
 10. Repair Telegram failure language using fixtures from recent bad replies.
-11. Add media envelope fixtures and photo normalization.
+11. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates.
 12. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
 13. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
 

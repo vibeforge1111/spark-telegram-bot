@@ -1,3 +1,5 @@
+import { attachTelegramMediaTurnEnvelope } from './telegramMediaEnvelope';
+
 export function isTelegramImageMessage(message: any): boolean {
   if (!message || typeof message !== 'object') {
     return false;
@@ -31,7 +33,7 @@ export function buildContextualImageUpdate(
   update: Record<string, unknown>,
   recentMessages: string[]
 ): Record<string, unknown> {
-  const cloned = JSON.parse(JSON.stringify(update)) as Record<string, unknown>;
+  const cloned = attachTelegramMediaTurnEnvelope(update);
   const message = cloned.message;
   if (!message || typeof message !== 'object') {
     return cloned;

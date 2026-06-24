@@ -51,6 +51,8 @@ test('adds recent context as caption for captionless image updates', () => {
   const caption = (enriched.message as any).caption;
   assert.match(caption, /shared this image without a caption/);
   assert.match(caption, /can you inspect the next screenshot/);
+  assert.equal((enriched.message as any).spark_media_turn.schema, 'spark.media_turn.v1');
+  assert.equal((enriched.message as any).spark_media_turn.media_kind, 'photo');
   assert.equal((update.message as any).caption, undefined);
 });
 

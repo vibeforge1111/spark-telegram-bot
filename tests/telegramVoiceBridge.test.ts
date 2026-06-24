@@ -53,14 +53,17 @@ test('downloads Telegram voice bytes through the active runner context', async (
   );
 
   const message = enriched.message as any;
+  assert.equal(message.spark_media_turn.schema, 'spark.media_turn.v1');
+  assert.equal(message.spark_media_turn.media_kind, 'voice');
   assert.equal(message.spark_media.audio_base64, Buffer.from('voice-bytes').toString('base64'));
   assert.equal(message.spark_media.mime_type, 'audio/ogg');
   assert.equal(message.spark_media.filename, 'telegram-voice.ogg');
   assert.equal(message.spark_media.source, 'telegram_runner_download');
   assert.equal((update.message as any).spark_media, undefined);
+  assert.equal((update.message as any).spark_media_turn, undefined);
 });
 
-test('leaves the update unchanged when Telegram download is unavailable', async () => {
+test('keeps the media envelope when Telegram download is unavailable', async () => {
   const update = {
     update_id: 11,
     message: {
@@ -85,5 +88,8 @@ test('leaves the update unchanged when Telegram download is unavailable', async 
     }
   );
 
-  assert.equal(enriched, update);
+  assert.notEqual(enriched, update);
+  assert.equal((enriched.message as any).spark_media, undefined);
+  assert.equal((enriched.message as any).spark_media_turn.schema, 'spark.media_turn.v1');
+  assert.equal((enriched.message as any).spark_media_turn.media_kind, 'voice');
 });

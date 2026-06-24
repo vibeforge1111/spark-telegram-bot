@@ -390,6 +390,10 @@ import {
   telegramImageMemoryText
 } from './telegramImageBridge';
 import {
+  attachTelegramMediaTurnEnvelope,
+  renderUnsupportedTelegramMediaReply
+} from './telegramMediaEnvelope';
+import {
   buildMemoryDoctorEvidencePrompt,
   isMemoryDoctorBridgeDetourReply,
   renderMemoryDoctorEvidenceFallback,
@@ -10223,12 +10227,14 @@ export async function handleImageMessage(ctx: any): Promise<void> {
         })
       : null;
     const bridgeUpdate = attachBuilderHarnessProofRef(
-      imageMessageHasCaption(ctx.message)
-        ? JSON.parse(JSON.stringify(ctx.update as unknown as Record<string, unknown>)) as Record<string, unknown>
-        : buildContextualImageUpdate(
+      attachTelegramMediaTurnEnvelope(
+        imageMessageHasCaption(ctx.message)
+          ? JSON.parse(JSON.stringify(ctx.update as unknown as Record<string, unknown>)) as Record<string, unknown>
+          : buildContextualImageUpdate(
             ctx.update as unknown as Record<string, unknown>,
             await conversation.getRecentMessages(user, 6).catch(() => [])
-          ),
+          )
+      ),
       bridgeHandoffProofCapsule
     );
     const builderReply = await builderBridgeRunner(bridgeUpdate);
@@ -10396,6 +10402,7 @@ bot.on(message('text'), handleTextMessage);
 bot.on(message('photo'), handleImageMessage);
 bot.on(message('document'), async (ctx) => {
   if (!isTelegramImageMessage(ctx.message)) {
+    await ctx.reply(renderUnsupportedTelegramMediaReply());
     return;
   }
   await handleImageMessage(ctx);

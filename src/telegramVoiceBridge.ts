@@ -1,4 +1,5 @@
 import { redactText } from './redaction';
+import { attachTelegramMediaTurnEnvelope } from './telegramMediaEnvelope';
 
 const DEFAULT_VOICE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -40,10 +41,12 @@ export async function buildVoiceBridgeUpdate(
   if (!media) {
     return update;
   }
+  const envelopedUpdate = attachTelegramMediaTurnEnvelope(update);
+  const envelopedMessage = objectValue(envelopedUpdate.message) || message;
 
   const fileId = String(media.file_id || '').trim();
   if (!fileId || !ctx?.telegram?.getFileLink) {
-    return update;
+    return envelopedUpdate;
   }
 
   try {
@@ -69,9 +72,9 @@ export async function buildVoiceBridgeUpdate(
     const downloadMs = Date.now() - startedAt;
     console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
     return {
-      ...update,
+      ...envelopedUpdate,
       message: {
-        ...message,
+        ...envelopedMessage,
         spark_media: {
           audio_base64: audioBuffer.toString('base64'),
           filename,
@@ -85,6 +88,6 @@ export async function buildVoiceBridgeUpdate(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[VoiceBridge] runner media download unavailable: ${redactText(detail)}`);
-    return update;
+    return envelopedUpdate;
   }
 }
