@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { resolveSpawnerUiUrl } from './spawnerUrl';
 import { parsePositiveIntegerEnvValue } from './timeoutConfig';
 
@@ -30,8 +31,8 @@ function truncate(value: string, maxLength: number): string {
   return clean.length > maxLength ? `${clean.slice(0, Math.max(0, maxLength - 3)).trim()}...` : clean;
 }
 
-function randomId(): string {
-  return Math.random().toString(36).slice(2, 8);
+export function randomId(): string {
+  return randomBytes(4).toString('hex');
 }
 
 function missionControlDisabled(): boolean {
@@ -90,6 +91,11 @@ async function defaultPostJson(url: string, payload: MissionControlEvent): Promi
       const body = await response.text().catch(() => '');
       throw new Error(`Mission Control HTTP ${response.status}: ${body.slice(0, 200)}`);
     }
+    // Drain the success body so the underlying connection can return to the
+    // keep-alive pool. Mission Control posts fire on every task lifecycle
+    // step; an undrained body kept the socket pending until garbage
+    // collection, which slowly exhausted the undici dispatcher pool.
+    await response.body?.cancel().catch(() => undefined);
   } finally {
     clearTimeout(timeout);
   }
