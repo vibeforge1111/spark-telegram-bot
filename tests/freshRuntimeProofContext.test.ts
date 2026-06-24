@@ -184,6 +184,17 @@ async function run(): Promise<void> {
     );
     restoreEnv();
   });
+
+  await test('external research no-browse boundary proof uses research route', async () => {
+    restoreEnv();
+    prepareEnv();
+    await assertTraceRoute(
+      'Can you research the current OpenAI model docs? Do not browse yet; tell me what permission/source boundary applies.',
+      'external_research.boundary',
+      /no external network call/i
+    );
+    restoreEnv();
+  });
 }
 
 run().catch((error) => {

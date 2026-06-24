@@ -239,13 +239,10 @@ import { resolveMissionDefaultProvider } from './providerRouting';
 import {
   buildIdeationFallbackReply,
   buildNoExecutionIdeationReply,
-  buildIdeationSystemHint,
-  buildContextualImprovementGoal,
-  buildProjectImprovementGoal,
-  buildDiagnosticFollowupTestReply,
+  buildIdeationSystemHint, buildContextualImprovementGoal,
+  buildProjectImprovementGoal, buildDiagnosticFollowupTestReply,
   buildExternalResearchGoal,
-  buildLocalSparkServiceClarificationReply,
-  buildLocalSparkServiceReply,
+  buildLocalSparkServiceClarificationReply, buildLocalSparkServiceReply,
   buildMemoryBridgeUnavailableReply,
   buildRecentBuildContextReply,
   extractSparkSelfImprovementGoal,
@@ -382,6 +379,7 @@ import {
   renderModelStatus,
   switchModelRoute
 } from './modelSwitch';
+import { renderExternalResearchBoundaryReply } from './externalResearchBoundary';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
 import {
   buildContextualImageUpdate,
@@ -8692,6 +8690,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     return;
   }
 
+  const externalResearchBoundaryAnswer = !earlyBuildIntent ? renderExternalResearchBoundaryReply(text) : '';
+  if (externalResearchBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.external_research_boundary', 'spark-telegram-bot', 'external_research.boundary'); await ctx.reply(externalResearchBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'external_research.boundary', intentKind: 'external_research.boundary', command: 'telegram_external_research_boundary', reasonSummary: 'Telegram explained the external research source boundary; no external network action was authorized.' }))); await conversation.rememberAssistantReply(user, externalResearchBoundaryAnswer).catch(() => {}); return; }
   const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     await conversation.remember(user, text).catch(() => {});
