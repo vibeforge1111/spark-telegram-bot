@@ -291,6 +291,16 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(missing.cases[0].missingCaptures, ['screenshot']);
   assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
 
+  template.cases[0].observed.screenshotRefs = ['Telegram screenshot captured'];
+  const vagueScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(vagueScreenshotRef.readyForRelease, false);
+  assert.deepEqual(vagueScreenshotRef.cases[0].missingCaptures, ['screenshot_ref']);
+
+  template.cases[0].observed.screenshotRefs = ['telegram-screenshot: file_id hidden'];
+  const rawScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawScreenshotRef.readyForRelease, false);
+  assert.deepEqual(rawScreenshotRef.cases[0].missingCaptures, ['screenshot_raw_leak']);
+
   template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
   template.cases[0].observed.sideEffects.missionStarted = null;
   template.cases[0].observed.sideEffects.notes = 'No mission or mutation observed.';

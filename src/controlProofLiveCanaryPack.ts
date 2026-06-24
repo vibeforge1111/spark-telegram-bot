@@ -1155,7 +1155,7 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
   missing.push(...proofJoinCaptureIssues(entry));
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
-  if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
+  if (capture.screenshot) missing.push(...screenshotCaptureIssues(entry.observed.screenshotRefs));
   if (capture.userConfirmation) missing.push(...userConfirmationCaptureIssues(entry.observed.userConfirmation));
   return missing;
 }
@@ -1244,8 +1244,22 @@ function hasCapturedText(value: string | null | undefined): boolean {
   return Boolean(text) && !/^<[^>]+>$/.test(text);
 }
 
-function hasCapturedRefs(values: string[]): boolean {
-  return values.some((value) => hasCapturedText(value));
+function screenshotCaptureIssues(values: string[]): string[] {
+  const captured = values.map((value) => value.trim()).filter((value) => hasCapturedText(value));
+  if (captured.length === 0) return ['screenshot'];
+  const issues: string[] = [];
+  if (!captured.some((value) => isPlausibleScreenshotRef(value))) issues.push('screenshot_ref');
+  if (captured.some((value) => screenshotRefLeaksRawInternals(value))) issues.push('screenshot_raw_leak');
+  return issues;
+}
+
+function isPlausibleScreenshotRef(value: string): boolean {
+  return /\.(?:png|jpe?g|webp)$/i.test(value) || /^(?:screenshot|telegram-screenshot|peekaboo):/i.test(value);
+}
+
+function screenshotRefLeaksRawInternals(value: string): boolean {
+  return /\b(?:BOT_TOKEN|TELEGRAM_BOT_TOKEN|file_id|chat_id|user_id)\b/i.test(value) ||
+    /\b[A-Za-z0-9_-]{48,}\b/.test(value);
 }
 
 export function summarizeControlProofCanaryObservations(
