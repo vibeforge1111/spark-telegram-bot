@@ -9,6 +9,7 @@ import {
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
+  recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
@@ -270,6 +271,46 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
 });
 
+test('observation recorder updates one case while preserving packet evidence', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: 'Spark Live healthy.',
+    providerStatus: 'Provider ping OK.',
+    runtimeSync: 'runtime in sync.',
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: 'Collected locally.'
+  });
+
+  const recorded = recordControlProofCanaryObservation(template, {
+    id: 'cp-builder-001',
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      missionStarted: false,
+      notes: 'No mission or mutation observed.'
+    },
+    proofJoin: 'Builder gateway joined with redacted proof ref.',
+    proofPanel: 'Harness Proof: Builder joined.',
+    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    userConfirmation: 'User confirmed Telegram reply rendered once.'
+  });
+
+  assert.equal(recorded.evidence.notes, 'Collected locally.');
+  assert.equal(recorded.cases[0].observed.verdict, 'pass');
+  assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
+  assert.deepEqual(recorded.cases[0].observed.screenshotRefs, ['/tmp/spark-recursive-builder.png']);
+  assert.equal(summarizeControlProofCanaryObservations(recorded).readyForRelease, true);
+
+  const partiallyUpdated = recordControlProofCanaryObservation(recorded, {
+    id: 'cp-builder-001',
+    notes: 'Retested after runtime sync.'
+  });
+  assert.deepEqual(partiallyUpdated.cases[0].observed.screenshotRefs, ['/tmp/spark-recursive-builder.png']);
+  assert.equal(partiallyUpdated.cases[0].observed.notes, 'Retested after runtime sync.');
+});
+
 test('control-proof canary CLI lists and exports selected cases', () => {
   const list = spawnSync(
     process.execPath,
@@ -380,6 +421,46 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(summary.status, 0, summary.stderr);
     assert.match(summary.stdout, /Release gate: ready/);
+
+    const replyPath = resolve(tempRoot, 'reply.txt');
+    writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
+    const recordedPath = resolve(tempRoot, 'recorded.json');
+    const record = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--out',
+        recordedPath,
+        '--record-case',
+        'cp-builder-001',
+        '--verdict',
+        'pass',
+        '--reply-file',
+        replyPath,
+        '--mission-started',
+        'false',
+        '--side-effects-notes',
+        'No mutation observed.',
+        '--proof-join',
+        'Builder joined.',
+        '--proof-panel',
+        'Harness Proof: Builder joined.',
+        '--screenshot-ref',
+        '/tmp/spark-recursive-builder.png',
+        '--user-confirmation',
+        'Confirmed.'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(record.status, 0, record.stderr);
+    assert.match(record.stdout, /Recorded control-proof observation for cp-builder-001/);
+    assert.match(record.stdout, /Release gate: ready/);
+    const recorded = JSON.parse(readFileSync(recordedPath, 'utf8'));
+    assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
+    assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
 
     observed.evidence.controlProofAudit = null;
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');

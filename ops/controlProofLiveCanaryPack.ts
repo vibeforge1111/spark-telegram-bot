@@ -5,9 +5,12 @@ import {
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
+  recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
   summarizeControlProofCanaryObservations,
-  withControlProofCanaryRuntimeEvidence
+  withControlProofCanaryRuntimeEvidence,
+  type ControlProofCanaryObservationUpdate,
+  type ControlProofCanaryVerdict
 } from '../src/controlProofLiveCanaryPack';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -42,6 +45,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
     '  npm run control:proof:canaries -- --category streaming --list',
@@ -49,6 +53,50 @@ function usage(): string {
     '',
     'Default selection excludes intentional live actions. Explicit --case/--cases can select them.'
   ].join('\n');
+}
+
+function readTextArg(args: string[], name: string): string | undefined {
+  const inline = argValue(args, name);
+  if (inline !== null) return inline;
+  const filePath = argValue(args, `${name}-file`);
+  if (filePath !== null) return readFileSync(filePath, 'utf8');
+  return undefined;
+}
+
+function optionalBooleanArg(args: string[], name: string): boolean | null | undefined {
+  const value = argValue(args, name);
+  if (value === null) return undefined;
+  if (/^(true|yes|1)$/i.test(value)) return true;
+  if (/^(false|no|0)$/i.test(value)) return false;
+  if (/^(null|unknown|n\/a)$/i.test(value)) return null;
+  throw new Error(`Invalid boolean for --${name}: ${value}`);
+}
+
+function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservationUpdate {
+  const id = argValue(args, 'record-case');
+  if (!id) throw new Error('--record-case requires a case id.');
+  const verdict = argValue(args, 'verdict');
+  const sideEffects = {
+    filesChanged: optionalBooleanArg(args, 'files-changed'),
+    memoryWritten: optionalBooleanArg(args, 'memory-written'),
+    missionStarted: optionalBooleanArg(args, 'mission-started'),
+    externalNetworkCalled: optionalBooleanArg(args, 'external-network-called'),
+    accessChanged: optionalBooleanArg(args, 'access-changed'),
+    providerChanged: optionalBooleanArg(args, 'provider-changed'),
+    mediaHandled: optionalBooleanArg(args, 'media-handled'),
+    notes: readTextArg(args, 'side-effects-notes')
+  };
+  return {
+    id,
+    verdict: verdict ? verdict as ControlProofCanaryVerdict : undefined,
+    reply: readTextArg(args, 'reply'),
+    proofJoin: readTextArg(args, 'proof-join'),
+    proofPanel: readTextArg(args, 'proof-panel'),
+    screenshotRefs: argValue(args, 'screenshot-ref') !== null ? argList(args, 'screenshot-ref') : undefined,
+    userConfirmation: readTextArg(args, 'user-confirmation'),
+    notes: readTextArg(args, 'notes'),
+    sideEffects: Object.fromEntries(Object.entries(sideEffects).filter(([, value]) => value !== undefined))
+  };
 }
 
 function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromCommands> {
@@ -115,7 +163,14 @@ function main(): void {
 
   const observationsPath = argValue(args, 'observations');
   if (observationsPath) {
-    const observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
+    let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
+    const recordCaseId = argValue(args, 'record-case');
+    if (recordCaseId) {
+      observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));
+      const outputPath = outPath || observationsPath;
+      writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
+      console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
+    }
     const summary = summarizeControlProofCanaryObservations(observations);
     if (hasFlag(args, 'json')) {
       console.log(JSON.stringify(summary, null, 2));

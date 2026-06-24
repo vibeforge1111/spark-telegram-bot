@@ -138,6 +138,18 @@ export interface ControlProofCanaryObservationCaseSummary {
   missingCaptures: string[];
 }
 
+export interface ControlProofCanaryObservationUpdate {
+  id: string;
+  verdict?: ControlProofCanaryVerdict;
+  reply?: string | null;
+  proofJoin?: string | null;
+  proofPanel?: string | null;
+  screenshotRefs?: string[];
+  userConfirmation?: string | null;
+  notes?: string | null;
+  sideEffects?: Partial<ControlProofCanaryObservationCase['observed']['sideEffects']>;
+}
+
 export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
@@ -830,6 +842,52 @@ export function withControlProofCanaryRuntimeEvidence(
       notes: evidence.notes || observations.evidence.notes || null
     }
   };
+}
+
+export function recordControlProofCanaryObservation(
+  observations: ControlProofCanaryObservationTemplate,
+  update: ControlProofCanaryObservationUpdate
+): ControlProofCanaryObservationTemplate {
+  if (observations.target !== CONTROL_PROOF_CANARY_TARGET) {
+    throw new Error(`Unexpected canary target: ${observations.target}`);
+  }
+  if (update.verdict && !CONTROL_PROOF_CANARY_VERDICTS.includes(update.verdict)) {
+    throw new Error(`Invalid verdict for ${update.id}: ${update.verdict}`);
+  }
+  let found = false;
+  const cases = observations.cases.map((entry) => {
+    if (entry.id !== update.id) return entry;
+    found = true;
+    return {
+      ...entry,
+      observed: {
+        ...entry.observed,
+        verdict: update.verdict ?? entry.observed.verdict,
+        reply: update.reply !== undefined ? textOrNull(update.reply) : entry.observed.reply,
+        sideEffects: {
+          ...entry.observed.sideEffects,
+          ...(update.sideEffects || {})
+        },
+        proofJoin: update.proofJoin !== undefined ? textOrNull(update.proofJoin) : entry.observed.proofJoin,
+        proofPanel: update.proofPanel !== undefined ? textOrNull(update.proofPanel) : entry.observed.proofPanel,
+        screenshotRefs: update.screenshotRefs !== undefined
+          ? update.screenshotRefs.map((ref) => ref.trim()).filter(Boolean)
+          : entry.observed.screenshotRefs,
+        userConfirmation: update.userConfirmation !== undefined ? textOrNull(update.userConfirmation) : entry.observed.userConfirmation,
+        notes: update.notes !== undefined ? textOrNull(update.notes) : entry.observed.notes
+      }
+    };
+  });
+  if (!found) throw new Error(`Unknown observed canary id: ${update.id}`);
+  return {
+    ...observations,
+    cases
+  };
+}
+
+function textOrNull(value: string | null | undefined): string | null {
+  const text = String(value || '').trim();
+  return text || null;
 }
 
 function missingPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {

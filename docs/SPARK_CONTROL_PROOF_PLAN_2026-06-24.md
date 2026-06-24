@@ -290,6 +290,7 @@ npm run control:proof:canaries -- --json
 npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --side-effects-notes "No mutation observed." --proof-join "Builder joined." --proof-panel "Harness Proof: Builder joined." --screenshot-ref /tmp/case.png --user-confirmation "Confirmed in SparkRecursive_bot."
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict
 ```
 
@@ -303,6 +304,8 @@ npm run control:proof:audit -- --sample 100
 ```
 
 `--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are tracked separately.
+
+Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary.
 
 Refurbishment helper for old NL cases:
 
