@@ -183,6 +183,8 @@ Live recapture of `cp-noaction-001` on 2026-06-24 confirmed build/mission wordin
 
 Live recapture of `cp-noaction-002` on 2026-06-24 confirmed mission-routing bug language stayed chat-only: Spark explained the route-hijack failure class without launching a mission, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 22 to 21.
 
+Live recapture of `cp-noaction-003` on 2026-06-24 confirmed the compact "no need we can talk here" boundary stayed conversational: Spark did not proceed with a pending build, mission, or creator action, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 21 to 20.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
