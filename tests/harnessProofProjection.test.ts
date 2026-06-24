@@ -68,6 +68,21 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
         proof_capsule: latest
       }
     ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl'), [
+      {
+        request_id: 'raw-request-latest',
+        trace_ref: 'trace:builder-raw',
+        reason: 'tool_not_allowed_by_policy',
+        artifact_path: '/Users/example/private/builder.log'
+      }
+    ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spawner-ui', 'prd-auto-trace.jsonl'), [
+      {
+        requestId: 'raw-request-latest',
+        traceRef: 'trace:spawner-raw',
+        resultArtifact: '/Users/example/private/spawner.json'
+      }
+    ]);
 
     const projection = projectHarnessProof({
       sparkHome,
@@ -79,7 +94,50 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.equal(projection.plane, 'telegram_final_answer');
     assert.match(projection.panel, /Harness Proof/);
     assert.match(projection.panel, /Gaps: builder/);
-    assert.doesNotMatch(projection.panel, /raw-request|tool_not_allowed_by_policy|\/Users\/example/);
+    assert.match(projection.panel, /Evidence joined: Telegram final/);
+    assert.match(projection.panel, /Evidence missing: .*Builder gateway/);
+    assert.match(projection.panel, /Evidence missing: .*Spawner trace/);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'missing');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'missing');
+    assert.doesNotMatch(projection.panel, /raw-request|tool_not_allowed_by_policy|\/Users\/example|trace:builder-raw|trace:spawner-raw/);
+  });
+});
+
+test('marks future Builder and Spawner rows joined when they carry a redacted proof ref', () => {
+  withTempSparkHome((sparkHome) => {
+    const latest = proofCapsule('turn:latest');
+    writeJsonl(path.join(sparkHome, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl'), [
+      {
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
+      }
+    ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl'), [
+      {
+        request_id: 'raw-request-latest',
+        nested: { harness_proof_ref: latest.turnRef },
+        artifact_path: '/Users/example/private/builder.log'
+      }
+    ]);
+    writeJsonl(path.join(sparkHome, 'state', 'spawner-ui', 'prd-auto-trace.jsonl'), [
+      {
+        requestId: 'raw-request-latest',
+        harnessProofRef: latest.turnRef,
+        resultArtifact: '/Users/example/private/spawner.json'
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      proofRef: latest.turnRef
+    });
+
+    assert.equal(projection.ok, true);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'joined');
+    assert.match(projection.panel, /Evidence joined: .*Builder gateway/);
+    assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
+    assert.doesNotMatch(projection.panel, /raw-request|\/Users\/example/);
   });
 });
 

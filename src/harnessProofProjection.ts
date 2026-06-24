@@ -16,6 +16,14 @@ export interface HarnessProofProjectionOptions {
   evidenceFiles?: ControlProofEvidenceFile[];
 }
 
+export type HarnessProofEvidenceJoinStatus = 'joined' | 'missing';
+
+export interface HarnessProofEvidenceJoin {
+  plane: string;
+  displayName: string;
+  status: HarnessProofEvidenceJoinStatus;
+}
+
 export interface HarnessProofProjection {
   ok: boolean;
   generatedAt: string;
@@ -23,11 +31,30 @@ export interface HarnessProofProjection {
   foundRef: string | null;
   plane: string | null;
   panel: string;
+  evidenceJoins?: HarnessProofEvidenceJoin[];
   capsule?: HarnessProofCapsuleV1;
 }
 
 const PROOF_CAPSULE_KEYS = ['proof_capsule', 'proofCapsule', 'harness_proof', 'harnessProof'];
 const PROOF_REF_KEYS = ['harness_proof_ref', 'harnessProofRef'];
+const PANEL_EVIDENCE_PLANES = new Set([
+  'telegram_final_answer',
+  'telegram_outbound',
+  'telegram_route_confidence',
+  'builder_gateway',
+  'spawner_prd_trace'
+]);
+const EVIDENCE_PLANE_DISPLAY_NAMES: Record<string, string> = {
+  telegram_final_answer: 'Telegram final',
+  telegram_outbound: 'Telegram outbound',
+  telegram_route_confidence: 'Route confidence',
+  builder_gateway: 'Builder gateway',
+  spawner_prd_trace: 'Spawner trace',
+  system_trace_index: 'System trace index',
+  memory_movement_index: 'Memory movement',
+  voice_surface_view: 'Voice surface',
+  voice_runtime_state: 'Voice runtime'
+};
 
 export function projectHarnessProof(options: HarnessProofProjectionOptions = {}): HarnessProofProjection {
   const sparkHome = options.sparkHome || defaultSparkHome();
@@ -50,10 +77,12 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
       panel
     };
   }
+  const evidenceJoins = summarizeEvidenceJoins(evidenceFiles, match.capsule.turnRef);
   const panel = [
     summarizeHarnessProofCapsule(match.capsule),
     `Proof ref: ${match.capsule.turnRef}`,
-    `Plane: ${match.plane}`
+    `Plane: ${match.plane}`,
+    renderEvidenceJoinSummary(evidenceJoins)
   ].join('\n');
   return {
     ok: true,
@@ -62,6 +91,7 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
     foundRef: match.capsule.turnRef,
     plane: match.plane,
     panel,
+    evidenceJoins,
     capsule: match.capsule
   };
 }
@@ -75,7 +105,7 @@ function findHarnessProofCapsule(
     for (const record of records) {
       const capsule = extractHarnessProofCapsule(record);
       if (!capsule) continue;
-      if (requestedRef && !recordMatchesProofRef(record, capsule, requestedRef)) continue;
+      if (requestedRef && !recordMatchesProofRef(capsule, requestedRef)) continue;
       return {
         plane: file.label,
         capsule
@@ -83,6 +113,31 @@ function findHarnessProofCapsule(
     }
   }
   return null;
+}
+
+function summarizeEvidenceJoins(
+  evidenceFiles: ControlProofEvidenceFile[],
+  proofRef: string
+): HarnessProofEvidenceJoin[] {
+  return evidenceFiles.map((file) => {
+    const records = readEvidenceRecordsNewestFirst(file);
+    const status = records.some((record) => recordContainsProofRef(record, proofRef)) ? 'joined' : 'missing';
+    return {
+      plane: file.label,
+      displayName: EVIDENCE_PLANE_DISPLAY_NAMES[file.label] || file.label,
+      status
+    };
+  });
+}
+
+function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
+  const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined');
+  const joined = visibleJoins.filter((join) => join.status === 'joined').map((join) => join.displayName);
+  const missing = visibleJoins.filter((join) => join.status === 'missing').map((join) => join.displayName);
+  return [
+    `Evidence joined: ${joined.length ? joined.join(', ') : 'none'}`,
+    `Evidence missing: ${missing.length ? missing.join(', ') : 'none'}`
+  ].join('\n');
 }
 
 function readEvidenceRecordsNewestFirst(file: ControlProofEvidenceFile): unknown[] {
@@ -121,11 +176,32 @@ function extractHarnessProofCapsule(record: unknown): HarnessProofCapsuleV1 | nu
   return null;
 }
 
-function recordMatchesProofRef(record: unknown, capsule: HarnessProofCapsuleV1, requestedRef: string): boolean {
-  if (capsule.turnRef === requestedRef) return true;
-  if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
-  const obj = record as Record<string, unknown>;
-  return PROOF_REF_KEYS.some((key) => obj[key] === requestedRef);
+function recordMatchesProofRef(capsule: HarnessProofCapsuleV1, requestedRef: string): boolean {
+  return capsule.turnRef === requestedRef;
+}
+
+function recordContainsProofRef(record: unknown, requestedRef: string): boolean {
+  const capsule = extractHarnessProofCapsule(record);
+  if (capsule?.turnRef === requestedRef) return true;
+  return recordHasProofRefKey(record, requestedRef);
+}
+
+function recordHasProofRefKey(record: unknown, requestedRef: string): boolean {
+  const queue: unknown[] = [record];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    const obj = current as Record<string, unknown>;
+    for (const [key, value] of Object.entries(obj)) {
+      if (PROOF_REF_KEYS.includes(key) && value === requestedRef) return true;
+      if (value && typeof value === 'object') queue.push(value);
+    }
+  }
+  return false;
 }
 
 function cleanRef(value: string | null | undefined): string | null {

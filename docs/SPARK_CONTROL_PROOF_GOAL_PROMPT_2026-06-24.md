@@ -1,7 +1,7 @@
 # Spark Control Proof Goal Prompt
 
 Date: 2026-06-24
-Status: renewed execution prompt after preflight, trace audit, and proof-capsule schema
+Status: renewed execution prompt after preflight, proof-panel work, and streaming fix
 
 Use after:
 
@@ -9,11 +9,12 @@ Use after:
 - `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
 
 ```text
-Goal: Continue Spark control-proof implementation from the 2026-06-24 preflight. Make authority, execution, trace joins, Telegram replies, media, and proof durable and inspectable. Work step by step. Do not "save the day" with one-off patches. Prefer long-term contracts, repeatable proof, focused tests, and live confirmation.
+Goal: Continue Spark control-proof and Telegram usability work from the 2026-06-24 preflight. Make streaming, rich messages, authority, execution, trace joins, media, and proof durable, inspectable, and pleasant for future Spark users. Work step by step. Do not "save the day" with one-off patches. Prefer long-term contracts, repeatable proof, focused tests, and live confirmation.
 
-Known completed groundwork:
-- Docs index, preflight audit, plan, trace-audit command, and `spark.harness_proof.v1` schema/tests exist.
-- Current audit gaps: missing trace joins 5, missing proof capsules 9, raw-ref leaks 5, robotic reason-code surfaces 2, missing evidence 0, stack-like leaks 0.
+Known completed baseline:
+- Docs index, preflight audit, plan, trace-audit command, `spark.harness_proof.v1`, outbound trace inheritance, panel CLI, and Telegram `/proof` exist.
+- Streaming itself works and the double-preview bug is fixed. Rich messages and streaming should become Spark's default posture only through audited config/runtime paths, tests, and live SparkRecursive_bot proof.
+- Current gaps are mostly proof visibility and historical evidence shape: Builder/Spawner proof refs, memory/voice request+trace+proof, outbound coverage, raw-ref risk, and robotic reason-code surfaces.
 
 Operating rules:
 - Harness Core is authority. Tracing proves what happened; tracing never grants permission.
@@ -24,36 +25,29 @@ Operating rules:
 - Add failing proof before fixes when possible. Keep changes narrow, commit often, and run the relevant test ladder before live claims.
 - Do not push/open PRs until local proof is clean and the user confirms live Telegram behavior, unless asked for a draft.
 
-Step 1: Wire proof capsules into live audit rows
-- Start at the Telegram final-answer/action boundary. Attach a redacted Harness proof capsule or stable proof ref to rows that can lead to user-visible action.
-- Keep internal trace storage if needed, but proof projections must consume redacted metadata.
-- Test that action-capable turns emit proof metadata and no-action turns cannot masquerade as approved execution.
-- Re-run `npm run control:proof:audit`; reduce missing proof coverage from the current baseline without hiding gaps.
+Step 1: Proof panel evidence joins
+- Extend `/proof` and the panel CLI with redacted evidence-plane joins for Telegram, Builder, and Spawner.
+- Show joined/missing proof coverage without raw ids, paths, prompts, stack traces, provider internals, or reason codes.
+- Test future rows with proof refs and historical rows without them so the panel is honest.
 
-Step 2: Trace continuity repair
-- Make Telegram outbound audit inherit request id and trace ref from final reply/action context.
-- Classify route-confidence missing request ids as design or bug, then fix/document it.
-- Add optional shared trace refs to memory and voice events without storing raw memory evidence or raw audio in proof capsules.
+Step 2: Streaming and rich-message defaults
+- Audit the exact config/runtime path used by SparkRecursive_bot, not just helper commands that claim the flags are on.
+- Make streaming and rich messages default through a durable source of truth, with migration/fallback behavior documented.
+- Test the top-level Telegram path for streamed edits, final message collapse, rich formatting, and no duplicate previews.
 
-Step 3: Redacted proof projection and panel
-- Build a compact Harness Proof projection from one trace/proof ref.
-- Show intent, authority, Governor, execution status, reply delivered, trace joins, and gaps.
-- Keep it inspect-only. Ordinary Telegram replies stay conversational and only use cards for dense status/raw details.
-
-Step 4: Telegram surface repair
-- Replace policy-shaped failures with human replies. Example: "Memory diagnostics did not run from that turn. Ask directly and I will check the trace."
-- Separate access level from runtime capability.
-- Collapse repeated fallback loops into one useful recovery line.
+Step 3: Telegram surface repair
+- Keep normal replies warm and short; use compact cards only for `/status`, `/diagnose`, `/proof`, raw details, and dense multi-system summaries.
+- Replace policy-shaped failures with helpful human replies.
 - Test that ordinary replies do not expose raw reason codes, Mission/Provider/Move headings, local paths, or stack traces.
 
-Step 5: Non-text input path
-- Add typed media envelopes for photo, captioned photo, document, voice, audio, and unsupported media.
-- Route media as evidence-only unless fresh Harness authority allows a stronger action.
-- Ensure image/photo turns no longer fail as unsupported payloads before claiming support.
+Step 4: Media and richer composition
+- Add typed envelopes for photo, captioned photo, document, voice, audio, and unsupported media.
+- Route media as evidence-only unless fresh Harness authority allows action.
+- Ensure images/photos and richer Telegram compositions are represented cleanly before claiming support.
 
-Step 6: Live canary suite
-- Create a 20-30 prompt live pack for SparkRecursive_bot covering no-action, build, mission, memory, access, web/research, model switch, media, streaming, and proof inspection.
-- Record expected route, observed reply, side effects, proof join, pass/fail, and screenshot/user confirmation when needed.
+Step 5: Live canary suite
+- Create a 20-30 prompt live pack for SparkRecursive_bot covering no-action, build, mission, memory, access, web/research, model switch, media, streaming, rich messages, and proof inspection.
+- Record expected route, observed reply, side effects, proof join, pass/fail, and screenshot/user confirmation where useful.
 
 Release gate:
 - Focused tests for each route changed.

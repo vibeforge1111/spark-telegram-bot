@@ -78,6 +78,8 @@ npm run control:proof:panel -- --ref turn:sha256:<hash>
 
 It renders the latest or requested redacted Harness proof capsule without printing raw trace rows. Telegram source also has an inspect-only `/proof` command that uses the same panel; live confirmation is still required after deployment/runtime sync.
 
+The panel source now also reports redacted evidence-plane joins. Current historical Builder/Spawner rows without a proof ref stay marked missing, while future Builder/Spawner rows that carry `harness_proof_ref` or `harnessProofRef` join without exposing raw request ids, local paths, or reason codes.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -141,7 +143,7 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 Continue wiring Harness proof capsule refs into the remaining Telegram/action audit rows.
 
-Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, and default outbound text replies now carry or inherit redacted proof/trace metadata locally. A local proof panel command and inspect-only `/proof` Telegram command exist. The next durable move is to extend Builder/Spawner proof projection into that panel and then live-confirm `/proof` in SparkRecursive_bot.
+Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, and default outbound text replies now carry or inherit redacted proof/trace metadata locally. A local proof panel command and inspect-only `/proof` Telegram command exist, and the panel now distinguishes proof-ref joins from missing historical Builder/Spawner evidence. The next durable move is to wire Builder/Spawner producers to emit proof refs consistently, then live-confirm `/proof` in SparkRecursive_bot.
 
 ## Gate To Start Goal Prompt
 
@@ -157,4 +159,5 @@ Reason: build/run acknowledgements, suppressed Builder final-answer rows, new ro
 - Fifth implementation slice started: yes, ordinary outbound text replies inherit turn-level request/trace context in source; live audit evidence will update after new runtime rows.
 - Sixth implementation slice started: yes, local redacted Harness Proof panel command added.
 - Seventh implementation slice started: yes, inspect-only Telegram `/proof` command added in source and tested locally.
-- Next implementation slice chosen: yes, extend Builder/Spawner proof projection into the panel and live-confirm `/proof` in SparkRecursive_bot.
+- Eighth implementation slice started: yes, local panel projection now reports redacted evidence-plane joins for Telegram, Builder, and Spawner proof refs.
+- Next implementation slice chosen: yes, wire Builder/Spawner producers to emit proof refs consistently and live-confirm `/proof` in SparkRecursive_bot.
