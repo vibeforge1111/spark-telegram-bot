@@ -190,6 +190,10 @@ function summarizeCommandResult(
   const output = [stdout, stderr, error ? error.message : '']
     .join('\n')
     .replaceAll(homedir(), '<home>')
+    .replace(/\/var\/folders\/[^\s)]+/g, '<tmp>')
+    .replace(/\b([A-Za-z0-9_-]+)@\d{3,6}\b/g, '$1@<redacted-port>')
+    .replace(/\bpid=\d+\b/gi, 'pid=<redacted-pid>')
+    .replace(/\b(?:https?:\/\/)?(?:127\.0\.0\.1|localhost):\d{2,6}\b/g, '<local-url>')
     .replace(/\b\d{8,}\b/g, '<redacted-number>')
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
     .replace(/\s+\n/g, '\n')

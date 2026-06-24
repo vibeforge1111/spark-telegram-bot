@@ -999,7 +999,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const npmPath = resolve(binRoot, 'npm');
     writeFileSync(sparkPath, [
       '#!/bin/sh',
-      'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; exit 0; fi',
+      'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; echo "Relay runtime: OK (primary@8789 pid=86802 polling=active)"; echo "Board: http://127.0.0.1:3333/kanban"; exit 0; fi',
       'if [ "$1 $2 $3" = "providers test --role" ]; then echo "chat provider PING_OK"; exit 0; fi',
       'echo "unexpected spark args: $*" >&2',
       'exit 1'
@@ -1051,6 +1051,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
     assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
+    assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
+    assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
+    assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
 
     observed.cases[0].observed = {
       ...observed.cases[0].observed,

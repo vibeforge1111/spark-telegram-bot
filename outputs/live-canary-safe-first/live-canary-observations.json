@@ -1,0 +1,207 @@
+{
+  "target": "SparkRecursive_bot",
+  "generatedAt": "2026-06-24T14:13:08.303Z",
+  "verdictValues": [
+    "pass",
+    "fail",
+    "blocked",
+    "needs-retest",
+    "untested"
+  ],
+  "evidence": {
+    "sparkLiveStatus": "$ spark live status\nexit=0\nSpark Live\nOne surface for Telegram, Mission Control, memory, and provider routing.\n[OK] Spark Live is ready.\nLLM roles: chat=codex, builder=codex, memory=codex, mission=codex\nTelegram profiles: 2 running, 0 stopped\n[OK] spawner-ui: Spawner UI live health OK: HTTP 200\n[OK] spark-telegram-bot: Relay runtime: OK (primary@<redacted-port> pid=<redacted-pid> polling=active)\n[OK] spark-intelligence-builder: Spark runtime core is importable.\n[OK] domain-chip-memory: 5 normalized contracts | 4 official adapters | 1 shadow adapters\n[OK] spark-researcher: memory backend=local | documents=2 | manifest_present=True\n[OK] spark-character: persona_score=1.00\nUseful:\n  spark live start\n  spark live restart\n  spark live logs",
+    "providerStatus": "$ spark providers test --role chat\nexit=0\nSpark provider test\n[OK] chat -> codex (gpt-5.5): PING_OK",
+    "runtimeSync": "$ npm run sync:check\nexit=0\n> spark-telegram-bot@1.0.0 sync:check\n> node scripts/sync-runtime.cjs --check\n[check] runtime in sync.",
+    "controlProofAudit": "$ npm run control:proof:audit -- --sample 100 --blocking-strict\nexit=0\n> spark-telegram-bot@1.0.0 control:proof:audit\n> ts-node ops/controlProofTraceAudit.ts --sample 100 --blocking-strict\nControl-proof trace continuity audit\nGenerated: 2026-06-24T14:13:16.422Z\nSpark home: <home>/.spark\nSample size: 100\nStatus: gaps found\nBlocking status: clean\nPlanes:\n- telegram_final_answer: 100/6342 sampled | request 100/100 | trace 100/100 | proof 100/100 | proof_ref 100 | proof_capsule 100 | proof_n/a 0 | proof_gap 0 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- telegram_outbound: 100/1443 sampled | request 100/100 | trace 100/100 | proof 12/100 | proof_ref 12 | proof_capsule 12 | proof_n/a 88 | proof_gap 12 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- telegram_route_confidence: 100/142 sampled | request 100/100 | trace 100/100 | proof 100/100 | proof_ref 100 | proof_capsule 100 | proof_n/a 0 | proof_gap 100 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- builder_gateway: 100/481 sampled | request 100/100 | trace 100/100 | proof 100/100 | proof_ref 100 | proof_capsule 96 | proof_n/a 0 | proof_gap 96 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- spawner_prd_trace: 100/489 sampled | request 100/100 | trace 100/100 | proof 100/100 | proof_ref 100 | proof_capsule 100 | proof_n/a 0 | proof_gap 100 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- system_trace_index: 1/1 sampled | request 1/1 | trace 1/1 | proof 1/1 | proof_ref 1 | proof_capsule 1 | proof_n/a 0 | proof_gap 0 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- memory_movement_index: 1/1 sampled | request 1/1 | trace 1/1 | proof 0/1 | proof_ref 0 | proof_capsule 0 | proof_n/a 1 | proof_gap 0 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- voice_surface_view: 1/1 sampled | request 1/1 | trace 1/1 | proof 0/1 | proof_ref 0 | proof_capsule 0 | proof_n/a 1 | proof_gap 0 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\n- voice_runtime_state: 1/1 sampled | request 1/1 | trace 1/1 | proof 0/1 | proof_ref 0 | proof_capsule 0 | proof_n/a 1 | proof_gap 0 | raw_refs 0 | raw_id_keys 0 | reason_codes 0 | parse_errors 0\nGap counts:\n- missing evidence: 0\n- missing trace joins: 0\n- missing proof capsules: 0\n- legacy proof gaps: 4\n- raw ref leaks: 0\n- robotic failure reasons: 0\n- stack-like leaks: 0",
+    "notes": "Collected locally by control-proof canary CLI before live Telegram observation."
+  },
+  "cases": [
+    {
+      "id": "cp-builder-001",
+      "category": "builder",
+      "risk": "safe",
+      "sourceRefs": [
+        {
+          "catalog": "natural-language-live-commands.json",
+          "caseId": "memory-004",
+          "relationship": "derived_from"
+        }
+      ],
+      "prompt": "In one sentence, what does route confidence mean for Spark? Do not start anything.",
+      "expected": {
+        "authority": "read_only_allowed",
+        "mutationClass": "read_only",
+        "route": "builder_gateway.plain_chat",
+        "replyShape": "natural",
+        "sideEffect": "Builder may answer; no mission or mutation.",
+        "proofJoin": "Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.",
+        "passCriteria": [
+          "Reply answers the question rather than saying only a terse label.",
+          "Builder gateway proof coverage increases or a ref-only join is visible.",
+          "No raw Builder path or reason code leaks."
+        ],
+        "capture": {
+          "observedReply": true,
+          "sideEffects": true,
+          "proofPanel": true,
+          "screenshot": true,
+          "userConfirmation": true
+        }
+      },
+      "observed": {
+        "verdict": "untested",
+        "reply": null,
+        "sideEffects": {
+          "filesChanged": null,
+          "memoryWritten": null,
+          "missionStarted": null,
+          "externalNetworkCalled": null,
+          "accessChanged": null,
+          "providerChanged": null,
+          "mediaHandled": null,
+          "notes": null
+        },
+        "proofJoin": null,
+        "proofPanel": null,
+        "screenshotRefs": [],
+        "userConfirmation": null,
+        "notes": null
+      }
+    },
+    {
+      "id": "cp-proof-001",
+      "category": "proof",
+      "risk": "inspect_only",
+      "prompt": "Show me whether the last action has Harness proof, but do not run anything new.",
+      "expected": {
+        "authority": "read_only_allowed",
+        "mutationClass": "read_only",
+        "route": "proof.inspect",
+        "replyShape": "proof_panel",
+        "sideEffect": "No new action; only proof inspection.",
+        "proofJoin": "Proof panel shows joined and missing planes without raw ids.",
+        "passCriteria": [
+          "Reply uses compact proof panel shape.",
+          "Panel does not expose raw request ids, local paths, stack traces, prompts, or reason codes.",
+          "Missing evidence is named as a gap rather than hidden."
+        ],
+        "capture": {
+          "observedReply": true,
+          "sideEffects": true,
+          "proofPanel": true,
+          "screenshot": true,
+          "userConfirmation": true
+        }
+      },
+      "observed": {
+        "verdict": "untested",
+        "reply": null,
+        "sideEffects": {
+          "filesChanged": null,
+          "memoryWritten": null,
+          "missionStarted": null,
+          "externalNetworkCalled": null,
+          "accessChanged": null,
+          "providerChanged": null,
+          "mediaHandled": null,
+          "notes": null
+        },
+        "proofJoin": null,
+        "proofPanel": null,
+        "screenshotRefs": [],
+        "userConfirmation": null,
+        "notes": null
+      }
+    },
+    {
+      "id": "cp-streaming-001",
+      "category": "streaming",
+      "risk": "inspect_only",
+      "prompt": "/streaming",
+      "expected": {
+        "authority": "read_only_allowed",
+        "mutationClass": "read_only",
+        "route": "streaming.status",
+        "replyShape": "compact_card",
+        "sideEffect": "No setting changes.",
+        "proofJoin": "Command reply has Telegram trace context when delivered.",
+        "passCriteria": [
+          "Status reflects streaming and rich-message settings from runtime source.",
+          "No duplicate preview appears.",
+          "No raw env file paths or tokens appear."
+        ],
+        "capture": {
+          "observedReply": true,
+          "sideEffects": true,
+          "proofPanel": false,
+          "screenshot": true,
+          "userConfirmation": true
+        }
+      },
+      "observed": {
+        "verdict": "untested",
+        "reply": null,
+        "sideEffects": {
+          "filesChanged": null,
+          "memoryWritten": null,
+          "missionStarted": null,
+          "externalNetworkCalled": null,
+          "accessChanged": null,
+          "providerChanged": null,
+          "mediaHandled": null,
+          "notes": null
+        },
+        "proofJoin": null,
+        "proofPanel": null,
+        "screenshotRefs": [],
+        "userConfirmation": null,
+        "notes": null
+      }
+    },
+    {
+      "id": "cp-streaming-002",
+      "category": "rich_messages",
+      "risk": "inspect_only",
+      "prompt": "Give me a two-line rich-message check: bold one word and include one short code token. Do not run anything.",
+      "expected": {
+        "authority": "read_only_allowed",
+        "mutationClass": "read_only",
+        "route": "plain_chat.rich_message_render",
+        "replyShape": "natural",
+        "sideEffect": "No mutation.",
+        "proofJoin": "Telegram delivery audit should carry request/trace for the reply.",
+        "passCriteria": [
+          "Message renders cleanly in Telegram.",
+          "Formatting improves readability without becoming a dense card.",
+          "No duplicate streaming preview remains visible."
+        ],
+        "capture": {
+          "observedReply": true,
+          "sideEffects": true,
+          "proofPanel": false,
+          "screenshot": true,
+          "userConfirmation": true
+        }
+      },
+      "observed": {
+        "verdict": "untested",
+        "reply": null,
+        "sideEffects": {
+          "filesChanged": null,
+          "memoryWritten": null,
+          "missionStarted": null,
+          "externalNetworkCalled": null,
+          "accessChanged": null,
+          "providerChanged": null,
+          "mediaHandled": null,
+          "notes": null
+        },
+        "proofJoin": null,
+        "proofPanel": null,
+        "screenshotRefs": [],
+        "userConfirmation": null,
+        "notes": null
+      }
+    }
+  ]
+}
