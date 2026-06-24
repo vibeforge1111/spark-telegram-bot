@@ -12,7 +12,7 @@ Priority rule:
 First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or new features unless they directly close a measured control-proof gap.
 
 Baseline:
-- Latest fresh-strict audit has no missing evidence, trace joins, proof capsules, raw refs, raw id keys, reason-code leaks, or stack-like leaks. Remaining gaps are visible historical `proof_gap` rows plus live Telegram confirmation.
+- Latest fresh-strict audit has no missing evidence, trace joins, proof capsules, raw refs, raw id keys, reason-code leaks, or stack-like leaks. Remaining gaps are visible historical `proof_gap` rows only; full SparkRecursive_bot live canary confirmation is captured in `outputs/live-canary-full/live-canary-summary.md`.
 - `/proof`, proof panels, canary pack, NL Harness map, streaming/rich helpers, media envelopes, and non-execution evidence classification exist.
 - Keep NL suites as fast breadth/drift coverage; `nl:live` is not release proof.
 

@@ -94,6 +94,7 @@ Update after full live canary refresh:
 - The full pack has 27/27 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, and real voice-note boundary proof.
 - Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
 - Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
+- The earlier baseline notes about pending inbound Builder/Spawner/media/voice proof are superseded by the full live canary packet. Keep those notes as historical sequence, but use `outputs/live-canary-full/live-canary-summary.md` plus fresh-strict audit as the current proof state.
 
 ## Surface
 
@@ -124,26 +125,20 @@ Docs drift scan found mostly intentional new-rule references. One older handoff 
 
 ## Gap Register
 
-- `missing_trace_join`: Telegram outbound audit has only 7/100 request ids and trace refs.
-  - Durable slice: make outbound audit inherit trace context from final reply/action context, with tests for direct replies and routed replies.
+- `legacy_proof_gap`: historical route-confidence, Builder gateway, and Spawner trace rows remain visible as explicit legacy proof-gap capsules.
+  - Durable slice: keep these inspectable in audit and proof panels; do not relabel them as fresh authority or hide them from release packets.
 
-- `raw_ref_leak`: Telegram final-answer audit, Builder gateway trace, Spawner PRD trace, system trace index, and memory movement index contain path-like refs.
-  - Durable slice: introduce one redacted trace-ref formatter for user-facing proof surfaces, then migrate proof-panel rendering through it.
+- `release_packet_integrity`: live canary packets must carry current, complete runtime evidence.
+  - Durable slice: release packets now reject stale runtime evidence, truncated control-proof audit bodies, non-clean blocking status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
 
-- `raw_ref_leak`: Builder gateway trace contains raw id keys in 100/100 sampled rows.
-  - Durable slice: distinguish internal trace storage from user-facing proof projection. Keep internal rows if needed, but proof panel must consume a redacted projection.
+- `media_payload_gap`: photo, captioned photo, audio-file, and real voice-note boundaries are live-proven as evidence-only routes.
+  - Durable slice: keep richer document handling beyond metadata separate from the proven media boundary claims; do not promote document bodies or raw media into proof capsules.
 
-- `robotic_failure_reply`: Builder gateway trace contains policy reason-code text in 5/100 sampled rows.
-  - Durable slice: add a copy map from internal reason classes to natural Telegram failure replies and tests that ordinary replies never show raw reason codes.
-
-- `missing_trace_join`: original preflight found memory movement and voice runtime surfaces did not carry request id or trace ref.
-  - Durable slice: memory movement now carries redacted request/trace continuity and stays `not_execution_proof`; voice runtime state carries redacted refs as a non-execution surface. Continue keeping raw memory evidence and raw audio out of proof capsules.
+- `non_execution_evidence`: memory movement, voice surface, and voice runtime evidence stay explicitly separated from execution proof.
+  - Durable slice: keep these planes joined/redacted where useful, but continue marking them `not_execution_proof` or non-execution so they cannot authorize actions.
 
 - `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
   - Durable slice: audit registry pins versus running module versions before claiming release readiness.
-
-- `media_payload_gap`: photo/image and document/file routes are not yet live-proven through typed media envelopes.
-  - Durable slice: local Telegram envelope fixtures, Telegram handoff attachment, unsupported-document boundary replies, and Builder gateway acceptance now exist. Remaining work is live SparkRecursive_bot media canary proof and richer document handling beyond metadata.
 
 - `stale_doc_rule`: one old handoff still uses "memory authoritative" wording.
   - Durable slice: add a historical note pointing to the control-proof docs index and current Harness wording.
