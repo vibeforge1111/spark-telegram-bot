@@ -95,6 +95,8 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.match(projection.panel, /Harness Proof/);
     assert.match(projection.panel, /Gaps: builder/);
     assert.match(projection.panel, /Evidence joined: Telegram final/);
+    assert.match(projection.panel, /Evidence proof refs: Telegram final/);
+    assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
     assert.match(projection.panel, /Evidence missing: .*Builder gateway/);
     assert.match(projection.panel, /Evidence missing: .*Spawner trace/);
     assert.match(projection.panel, /Audit blocking: gaps found/);
@@ -137,8 +139,15 @@ test('marks future Builder and Spawner rows joined when they carry a redacted pr
     assert.equal(projection.ok, true);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'joined');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofRefJoined, true);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofCapsuleJoined, false);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.proofRefJoined, true);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.proofCapsuleJoined, false);
     assert.match(projection.panel, /Evidence joined: .*Builder gateway/);
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence proof refs: .*Builder gateway/);
+    assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
     assert.match(projection.panel, /Audit blocking: gaps found/);
     assert.doesNotMatch(projection.panel, /raw-request|\/Users\/example/);
   });
@@ -185,6 +194,8 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
     assert.match(projection.panel, /Audit blocking: clean/);
     assert.match(projection.panel, /Legacy proof gaps visible: 1/);
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence proof capsules: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof gaps: none/);
     assert.doesNotMatch(projection.panel, /legacyvisible|request:sha256:latest/);
   });
@@ -224,8 +235,12 @@ test('reports ref-only Builder evidence when the proof capsule is missing', () =
     assert.equal(projection.foundRef, null);
     assert.match(projection.panel, /Status: proof capsule missing/);
     assert.match(projection.panel, /Evidence joined: Builder gateway/);
+    assert.match(projection.panel, /Evidence proof refs: Builder gateway/);
+    assert.match(projection.panel, /Evidence proof capsules: none/);
     assert.match(projection.panel, /Evidence missing: .*Telegram final/);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofRefJoined, true);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofCapsuleJoined, false);
     assert.doesNotMatch(projection.panel, /raw-request|trace:builder-raw|\/Users\/example/);
   });
 });
@@ -254,6 +269,34 @@ test('reports trace-only evidence with an explicit proof gap marker', () => {
     assert.match(projection.panel, /Evidence proof gaps: Spawner trace/);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'proof_gap');
     assert.doesNotMatch(projection.panel, /mission-proof-gap|raw-request-proof-gap|\/Users\/example/);
+  });
+});
+
+test('reports trace-only joins separately from proof refs', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:builder:trace-only';
+    writeJsonl(path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl'), [
+      {
+        requestId: 'raw-request-trace-only',
+        traceRef,
+        artifact_path: '/Users/example/private/builder.log'
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      traceRef
+    });
+
+    assert.equal(projection.ok, false);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.traceJoined, true);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofRefJoined, false);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofCapsuleJoined, false);
+    assert.match(projection.panel, /Evidence trace-only: Builder gateway/);
+    assert.match(projection.panel, /Evidence proof refs: none/);
+    assert.match(projection.panel, /Evidence proof capsules: none/);
+    assert.doesNotMatch(projection.panel, /raw-request-trace-only|\/Users\/example/);
   });
 });
 

@@ -25,6 +25,9 @@ export interface HarnessProofEvidenceJoin {
   plane: string;
   displayName: string;
   status: HarnessProofEvidenceJoinStatus;
+  proofRefJoined: boolean;
+  proofCapsuleJoined: boolean;
+  traceJoined: boolean;
 }
 
 export interface HarnessProofProjection {
@@ -182,7 +185,9 @@ function summarizeEvidenceJoins(
 ): HarnessProofEvidenceJoin[] {
   return evidenceFiles.map((file) => {
     const records = readEvidenceRecordsNewestFirst(file);
-    const proofJoined = proofRef ? records.some((record) => recordContainsProofRef(record, proofRef)) : false;
+    const proofRefJoined = proofRef ? records.some((record) => recordHasProofRefKey(record, proofRef)) : false;
+    const proofCapsuleJoined = proofRef ? records.some((record) => recordContainsProofCapsuleRef(record, proofRef)) : false;
+    const proofJoined = proofRefJoined || proofCapsuleJoined;
     const traceRecords = traceRef ? records.filter((record) => recordContainsTraceRef(record, traceRef)) : [];
     const traceJoined = traceRecords.length > 0;
     const proofGap = traceRecords.some(isProofGapMarkedRecord);
@@ -194,7 +199,10 @@ function summarizeEvidenceJoins(
     return {
       plane: file.label,
       displayName: EVIDENCE_PLANE_DISPLAY_NAMES[file.label] || file.label,
-      status
+      status,
+      proofRefJoined,
+      proofCapsuleJoined,
+      traceJoined
     };
   });
 }
@@ -202,10 +210,18 @@ function summarizeEvidenceJoins(
 function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
   const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined');
   const joined = visibleJoins.filter((join) => join.status === 'joined').map((join) => join.displayName);
+  const proofRefs = visibleJoins.filter((join) => join.proofRefJoined).map((join) => join.displayName);
+  const proofCapsules = visibleJoins.filter((join) => join.proofCapsuleJoined).map((join) => join.displayName);
+  const traceOnly = visibleJoins
+    .filter((join) => join.status === 'joined' && join.traceJoined && !join.proofRefJoined && !join.proofCapsuleJoined)
+    .map((join) => join.displayName);
   const proofGaps = visibleJoins.filter((join) => join.status === 'proof_gap').map((join) => join.displayName);
   const missing = visibleJoins.filter((join) => join.status === 'missing').map((join) => join.displayName);
   return [
     `Evidence joined: ${joined.length ? joined.join(', ') : 'none'}`,
+    `Evidence proof refs: ${proofRefs.length ? proofRefs.join(', ') : 'none'}`,
+    `Evidence proof capsules: ${proofCapsules.length ? proofCapsules.join(', ') : 'none'}`,
+    `Evidence trace-only: ${traceOnly.length ? traceOnly.join(', ') : 'none'}`,
     `Evidence proof gaps: ${proofGaps.length ? proofGaps.join(', ') : 'none'}`,
     `Evidence missing: ${missing.length ? missing.join(', ') : 'none'}`
   ].join('\n');
@@ -252,9 +268,13 @@ function recordMatchesProofRef(capsule: HarnessProofCapsuleV1, requestedRef: str
 }
 
 function recordContainsProofRef(record: unknown, requestedRef: string): boolean {
+  return recordContainsProofCapsuleRef(record, requestedRef) || recordHasProofRefKey(record, requestedRef);
+}
+
+function recordContainsProofCapsuleRef(record: unknown, requestedRef: string): boolean {
   const capsule = extractHarnessProofCapsule(record);
   if (capsule?.turnRef === requestedRef) return true;
-  return recordHasProofRefKey(record, requestedRef);
+  return false;
 }
 
 function recordContainsTraceRef(record: unknown, requestedRef: string): boolean {
