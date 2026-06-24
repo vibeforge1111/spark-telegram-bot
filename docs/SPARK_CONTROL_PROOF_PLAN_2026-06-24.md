@@ -288,11 +288,12 @@ npm run control:proof:canaries -- --copy-paste
 npm run control:proof:canaries -- --checklist
 npm run control:proof:canaries -- --json
 npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
+npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict
 ```
 
-Fill the observation packet's top-level evidence fields from:
+Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. If that is unavailable, fill the observation packet's top-level evidence fields from:
 
 ```bash
 spark live status

@@ -87,6 +87,14 @@ export interface ControlProofCanaryObservationTemplate {
   cases: ControlProofCanaryObservationCase[];
 }
 
+export interface ControlProofCanaryRuntimeEvidence {
+  sparkLiveStatus: string | null;
+  providerStatus: string | null;
+  runtimeSync: string | null;
+  controlProofAudit: string | null;
+  notes?: string | null;
+}
+
 export interface ControlProofCanaryObservationCase {
   id: string;
   category: ControlProofCanaryCategory;
@@ -804,6 +812,22 @@ export function buildControlProofCanaryObservationTemplate(
         notes: null
       }
     }))
+  };
+}
+
+export function withControlProofCanaryRuntimeEvidence(
+  observations: ControlProofCanaryObservationTemplate,
+  evidence: ControlProofCanaryRuntimeEvidence
+): ControlProofCanaryObservationTemplate {
+  return {
+    ...observations,
+    evidence: {
+      sparkLiveStatus: evidence.sparkLiveStatus,
+      providerStatus: evidence.providerStatus,
+      runtimeSync: evidence.runtimeSync,
+      controlProofAudit: evidence.controlProofAudit,
+      notes: evidence.notes || observations.evidence.notes || null
+    }
   };
 }
 

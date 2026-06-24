@@ -6,9 +6,12 @@ import {
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
   selectControlProofCanaryCases,
-  summarizeControlProofCanaryObservations
+  summarizeControlProofCanaryObservations,
+  withControlProofCanaryRuntimeEvidence
 } from '../src/controlProofLiveCanaryPack';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { homedir } from 'node:os';
 
 function argValue(args: string[], name: string): string | null {
   const index = args.indexOf(`--${name}`);
@@ -37,6 +40,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
+    '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
@@ -44,6 +48,58 @@ function usage(): string {
     '  npm run control:proof:canaries -- --include-actions --checklist',
     '',
     'Default selection excludes intentional live actions. Explicit --case/--cases can select them.'
+  ].join('\n');
+}
+
+function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromCommands> {
+  return collectRuntimeEvidenceFromCommands([
+    ['spark_live_status', 'spark', ['live', 'status']],
+    ['provider_status', 'spark', ['providers', 'test', '--role', 'chat']],
+    ['runtime_sync', 'npm', ['run', 'sync:check']],
+    ['control_proof_audit', 'npm', ['run', 'control:proof:audit', '--', '--sample', '100']]
+  ]);
+}
+
+function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]][]) {
+  const byLabel = new Map<string, string>();
+  for (const [label, command, args] of commands) {
+    const result = spawnSync(command, args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+      timeout: 30_000
+    });
+    byLabel.set(label, summarizeCommandResult(command, args, result.status, result.stdout, result.stderr, result.error));
+  }
+  return {
+    sparkLiveStatus: byLabel.get('spark_live_status') || null,
+    providerStatus: byLabel.get('provider_status') || null,
+    runtimeSync: byLabel.get('runtime_sync') || null,
+    controlProofAudit: byLabel.get('control_proof_audit') || null,
+    notes: 'Collected locally by control-proof canary CLI before live Telegram observation.'
+  };
+}
+
+function summarizeCommandResult(
+  command: string,
+  args: string[],
+  status: number | null,
+  stdout: string,
+  stderr: string,
+  error?: Error
+): string {
+  const output = [stdout, stderr, error ? error.message : '']
+    .join('\n')
+    .replaceAll(homedir(), '<home>')
+    .replace(/\b\d{8,}\b/g, '<redacted-number>')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
+    .replace(/\s+\n/g, '\n')
+    .trim();
+  const snippet = output.slice(0, 1600);
+  return [
+    `$ ${command} ${args.join(' ')}`,
+    `exit=${status === null ? 'unknown' : status}`,
+    snippet || '<no output>'
   ].join('\n');
 }
 
@@ -93,7 +149,11 @@ function main(): void {
   }
 
   if (hasFlag(args, 'observation-template')) {
-    const output = JSON.stringify(buildControlProofCanaryObservationTemplate(selected), null, 2);
+    const template = buildControlProofCanaryObservationTemplate(selected);
+    const withEvidence = hasFlag(args, 'collect-runtime-evidence')
+      ? withControlProofCanaryRuntimeEvidence(template, collectRuntimeEvidence())
+      : template;
+    const output = JSON.stringify(withEvidence, null, 2);
     if (outPath) {
       writeFileSync(outPath, `${output}\n`, 'utf8');
       console.log(`Wrote control-proof observation template: ${outPath}`);

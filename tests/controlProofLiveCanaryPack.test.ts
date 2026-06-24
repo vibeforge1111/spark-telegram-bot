@@ -11,6 +11,7 @@ import {
   formatControlProofCanaryCopyPaste,
   selectControlProofCanaryCases,
   summarizeControlProofCanaryObservations,
+  withControlProofCanaryRuntimeEvidence,
   type ControlProofCanaryCategory
 } from '../src/controlProofLiveCanaryPack';
 
@@ -175,16 +176,16 @@ test('observation template records expected fields and empty live observations',
 });
 
 test('observation summary requires pass verdicts and all requested capture evidence', () => {
-  const template = buildControlProofCanaryObservationTemplate([
+  let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
-  template.evidence = {
+  template = withControlProofCanaryRuntimeEvidence(template, {
     sparkLiveStatus: 'Spark Live healthy: primary and sparkqa-bot running.',
     providerStatus: 'chat provider ping OK.',
     runtimeSync: 'runtime in sync.',
     controlProofAudit: 'missing evidence 0, missing trace joins 0, missing proof capsules 0, legacy proof gaps 4.',
     notes: null
-  };
+  });
   template.cases[0].observed = {
     ...template.cases[0].observed,
     verdict: 'pass',
