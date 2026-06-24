@@ -83,6 +83,18 @@ export function resolveStatePath(filename: string): string {
   return path.join(stateDir || process.cwd(), filename);
 }
 
+export function closeJsonState(): void {
+  if (!db) return;
+  try {
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    db.close();
+  } catch {
+    // Best-effort cleanup
+  } finally {
+    db = null;
+  }
+}
+
 export function resetJsonStateForTests(): void {
   warnedStaleStateRows.clear();
   if (!db) return;

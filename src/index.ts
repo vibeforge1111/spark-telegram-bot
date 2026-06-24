@@ -57,7 +57,7 @@ import { pendingConfirmKey, getPendingConfirm, clearPendingConfirm, stagePending
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
-import { readJsonFile } from './jsonState';
+import { readJsonFile, closeJsonState } from './jsonState';
 import {
   formatCreatorMissionExecutionSummary,
   formatCreatorMissionStatusSummary,
@@ -14115,6 +14115,7 @@ bot.on(message('audio'), handleVoiceMessage);
 process.once('SIGINT', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  closeJsonState();
   if (pollingActive) {
     bot.stop('SIGINT');
   }
@@ -14122,6 +14123,7 @@ process.once('SIGINT', () => {
 process.once('SIGTERM', () => {
   console.log('Shutting down...');
   void releaseGatewayOwnership();
+  closeJsonState();
   if (pollingActive) {
     bot.stop('SIGTERM');
   }
