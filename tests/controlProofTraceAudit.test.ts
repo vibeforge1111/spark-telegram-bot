@@ -198,6 +198,46 @@ test('counts explicit missing Harness proof markers without treating them as pro
   });
 });
 
+test('counts legacy gap proof capsules as proof coverage and keeps the gap visible', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'telegram_route_confidence',
+        filePath: path.join(sparkHome, 'route-confidence-audit.jsonl'),
+        kind: 'jsonl' as const
+      }
+    ];
+    writeJsonl(evidenceFiles[0].filePath, [
+      {
+        request_ref: 'request:sha256:abcdef1234567890',
+        trace_ref: 'trace:sha256:abcdef1234567890',
+        harness_proof_ref: 'turn:sha256:abcdef1234567890',
+        proof_status: 'missing_harness_authority',
+        proof_storage: 'legacy_gap_capsule',
+        proof_capsule: {
+          schema: 'spark.harness_proof.v1',
+          authority: { contract: 'none' },
+          governor: { verified: false }
+        }
+      }
+    ]);
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofCapsulePresent, 1);
+    assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.proofCapsuleMissing, 0);
+    assert.equal(result.gapCounts.missingProofCapsule, 1);
+    assert.equal(result.ok, false);
+    assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
+    assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+  });
+});
+
 test('reports clean when every configured plane is joined and redacted', () => {
   withTempSparkHome((sparkHome) => {
     const joined = {

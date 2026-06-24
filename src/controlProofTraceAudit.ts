@@ -247,12 +247,11 @@ function summarizeRecords(
     if (hasAnyKey(record, REQUEST_ID_KEYS)) requestIdPresent += 1;
     if (hasAnyKey(record, TRACE_REF_KEYS)) traceRefPresent += 1;
     const hasProof = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
+    if (isProofGapMarkedRecord(record)) proofGapMarked += 1;
     if (hasProof) {
       proofCapsulePresent += 1;
     } else if (isProofNotApplicableRecord(record)) {
       proofNotApplicable += 1;
-    } else if (isProofGapMarkedRecord(record)) {
-      proofGapMarked += 1;
     }
     if (hasKeyPattern(record, RAW_ID_KEY_PATTERN)) rawIdKeyRows += 1;
     const raw = safeStringify(record);
@@ -311,7 +310,7 @@ function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlPro
   return {
     missingEvidence: planes.filter((plane) => plane.missing).length,
     missingTraceJoin: planes.filter((plane) => !plane.missing && (plane.requestIdMissing > 0 || plane.traceRefMissing > 0)).length,
-    missingProofCapsule: planes.filter((plane) => !plane.missing && plane.proofCapsuleMissing > 0).length,
+    missingProofCapsule: planes.filter((plane) => !plane.missing && (plane.proofCapsuleMissing > 0 || plane.proofGapMarked > 0)).length,
     rawRefLeak: planes.filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0).length,
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
     stackLikeLeak: planes.filter((plane) => plane.stackLikeRows > 0).length
