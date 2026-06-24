@@ -1454,6 +1454,14 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
       }
       lines.push('');
     }
+    const staleProofPanelCaseIds = attention
+      .filter((entry) => entry.missingCaptures.includes('proof_panel_legacy_gap_stale'))
+      .map((entry) => entry.id);
+    if (staleProofPanelCaseIds.length > 0) {
+      lines.push('Recapture hint:');
+      lines.push(`- Refresh /proof panel captures for: ${staleProofPanelCaseIds.join(', ')}`);
+      lines.push('');
+    }
     lines.push('Cases needing attention:');
     for (const entry of attention) {
       const missing = entry.missingCaptures.length ? `; missing ${entry.missingCaptures.join(', ')}` : '';

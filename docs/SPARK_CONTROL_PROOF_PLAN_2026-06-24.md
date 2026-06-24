@@ -169,6 +169,8 @@ Proof-panel captures in canary packets must agree with the fresh runtime audit l
 
 Canary release summaries group repeated capture failures before listing individual cases. A shared stale-proof issue should be visible as one count, then the affected case ids can guide recapture.
 
+When proof-panel captures are stale, the summary prints the case ids needing fresh `/proof` captures. Use those ids for a focused run-guide or `--record-case` pass rather than rerunning unrelated canaries.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

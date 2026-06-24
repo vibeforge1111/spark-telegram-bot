@@ -381,6 +381,10 @@ test('observation summary requires pass verdicts and all requested capture evide
     formatControlProofCanaryObservationSummary(staleProofPanelAuditCount),
     /Attention summary:\n- proof_panel_legacy_gap_stale: 1 case/
   );
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelAuditCount),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;
