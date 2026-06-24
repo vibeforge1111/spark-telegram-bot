@@ -271,17 +271,11 @@ async function run(): Promise<void> {
 		const missionId = `mission-${String(writeCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
 		assert.equal(writeCall!.body.traceRef, `trace:spawner-prd:${missionId}`);
 		assert.match(writeCall!.body.harnessProofRef, /^turn:sha256:[a-f0-9]{16}$/);
-		assert.equal(writeCall!.body.harnessProofCapsule?.schema, 'spark.harness_proof.v1');
-		assert.equal(writeCall!.body.harnessProofCapsule?.turnRef, writeCall!.body.harnessProofRef);
-		assert.equal(writeCall!.body.harnessProofCapsule?.reply?.rawReasonsHidden, true);
+		assert.deepEqual([writeCall!.body.harnessProofCapsule?.schema, writeCall!.body.harnessProofCapsule?.turnRef, writeCall!.body.harnessProofCapsule?.reply?.rawReasonsHidden], ['spark.harness_proof.v1', writeCall!.body.harnessProofRef, true]);
 		assert.doesNotMatch(JSON.stringify(writeCall!.body.harnessProofCapsule), /8319079055|tg-build-|trace:spawner-prd/);
 		assert.doesNotMatch(replies[0] || '', new RegExp(`Mission: ${missionId}`));
-		assert.match(replies[0] || '', /🛠️ Setting up SaaS Billing Test as a direct build\./);
-		assert.match(replies[0] || '', /Canvas next\./);
-		assert.doesNotMatch(replies[0] || '', /Spawned work/);
-		assert.doesNotMatch(replies[0] || '', /Paired surfaces/);
-		assert.doesNotMatch(replies[0] || '', /Canvas:/);
-		assert.doesNotMatch(replies[0] || '', /Mission board/);
+		assert.match(replies[0] || '', /🛠️ Setting up SaaS Billing Test as a direct build\./); assert.match(replies[0] || '', /Canvas next\./);
+		for (const pattern of [/Spawned work/, /Paired surfaces/, /Canvas:/, /Mission board/]) assert.doesNotMatch(replies[0] || '', pattern);
 		assertTraceContextWithProof(replyExtras[0]?.__sparkTraceContext, {
 			route: 'spawner',
 			command: 'run',
@@ -2408,31 +2402,21 @@ async function run(): Promise<void> {
 		const dispatchCall = captured.find((c) => c.body?.forceDispatch === true);
 		assert.ok(dispatchCall, 'expected go to force-dispatch pending clarification');
 		const clarifiedMissionId = `mission-${String(dispatchCall!.body.requestId).match(/(\d{10,})$/)?.[1]}`;
-		assert.equal(dispatchCall!.body.missionId, clarifiedMissionId);
-		assert.equal(dispatchCall!.body.traceRef, `trace:spawner-prd:${clarifiedMissionId}`);
+		assert.deepEqual([dispatchCall!.body.missionId, dispatchCall!.body.traceRef], [clarifiedMissionId, `trace:spawner-prd:${clarifiedMissionId}`]);
 		assert.match(dispatchCall!.body.harnessProofRef, /^turn:sha256:[a-f0-9]{16}$/);
-		assert.equal(dispatchCall!.body.harnessProofCapsule?.schema, 'spark.harness_proof.v1');
-		assert.equal(dispatchCall!.body.harnessProofCapsule?.turnRef, dispatchCall!.body.harnessProofRef);
-		assert.equal(dispatchCall!.body.harnessProofCapsule?.route, 'spawner.build');
+		assert.deepEqual([dispatchCall!.body.harnessProofCapsule?.schema, dispatchCall!.body.harnessProofCapsule?.turnRef, dispatchCall!.body.harnessProofCapsule?.route], ['spark.harness_proof.v1', dispatchCall!.body.harnessProofRef, 'spawner.build']);
 		assert.doesNotMatch(JSON.stringify(dispatchCall!.body.harnessProofCapsule), /8319079055|tg-build-|trace:spawner-prd/);
 		assert.doesNotMatch(dispatchCall!.body.content, /Answers: go/);
-		assert.match(replies.join('\n'), /Perfect, I will use the default direction/);
-		assert.doesNotMatch(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
+		assert.match(replies.join('\n'), /Perfect, I will use the default direction/); assert.doesNotMatch(replies.join('\n'), new RegExp(`Mission: ${clarifiedMissionId}`));
 		assert.match(replies.join('\n'), /🛠️ Setting up Maze Game as a planning canvas\./);
-		assert.doesNotMatch(replies.join('\n'), /Spawned work/);
-		assert.doesNotMatch(replies.join('\n'), /Canvas:/);
-		assert.doesNotMatch(replies.join('\n'), /Mission board/);
+		for (const pattern of [/Spawned work/, /Canvas:/, /Mission board/]) assert.doesNotMatch(replies.join('\n'), pattern);
 		const ackTrace = replyExtras.find((extra) => extra?.__sparkTraceContext?.requestId === dispatchCall!.body.requestId)?.__sparkTraceContext;
-		assert.equal(ackTrace?.traceRef, dispatchCall!.body.traceRef);
-		assert.equal(ackTrace?.missionId, clarifiedMissionId);
+		assert.deepEqual([ackTrace?.traceRef, ackTrace?.missionId], [dispatchCall!.body.traceRef, clarifiedMissionId]);
 		assert.deepEqual(ackTrace?.proofCapsule, dispatchCall!.body.harnessProofCapsule);
 		const registry = await readMissionRelayRegistry();
 		const subscription = registry.find((entry) => entry.missionId === clarifiedMissionId);
 		assert.ok(subscription, 'clarified PRD build mission should be registered for Telegram relay progress');
-		assert.equal(subscription.chatId, '8319079055');
-		assert.equal(subscription.userId, '8319079055');
-		assert.equal(subscription.requestId, dispatchCall!.body.requestId);
-		assert.equal(subscription.traceRef, dispatchCall!.body.traceRef);
+		assert.deepEqual([subscription.chatId, subscription.userId, subscription.requestId, subscription.traceRef], ['8319079055', '8319079055', dispatchCall!.body.requestId, dispatchCall!.body.traceRef]);
 
 		restoreAxios();
 		restoreEnv();

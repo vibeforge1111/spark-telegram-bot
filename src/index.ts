@@ -4669,22 +4669,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
   const projectName = pending.capabilityProposalPacket
     ? pending.projectName
     : polishBuildProjectName(pending.projectName);
-  const proofCapsule = buildTelegramDeliveryProofCapsule({
-    turnRef: traceRef || newRequestId,
-    route: 'spawner.build',
-    owner: 'spawner-ui',
-    tool: 'spawner.run',
-    mutationClass: 'launches_mission',
-    executionStatus: 'started',
-    replyDelivered: true,
-    replyShape: 'natural',
-    authorityDecision: 'allowed',
-    reasonSummary: 'Telegram clarified build acknowledgement followed authorized Spawner PRD dispatch.',
-    joins: {
-      telegram: 'joined',
-      spawner: 'joined'
-    }
-  });
+  const proofCapsule = buildTelegramDeliveryProofCapsule({ turnRef: traceRef || newRequestId, route: 'spawner.build', owner: 'spawner-ui', tool: 'spawner.run', mutationClass: 'launches_mission', executionStatus: 'started', replyDelivered: true, replyShape: 'natural', authorityDecision: 'allowed', reasonSummary: 'Telegram clarified build acknowledgement followed authorized Spawner PRD dispatch.', joins: { telegram: 'joined', spawner: 'joined' } });
   const prdContent = pending.projectPath
     ? `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\nTarget workspace/project path: \`${pending.projectPath}\`\n\n${enrichedPrd}`
     : `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\n\n${enrichedPrd}`;
@@ -4703,8 +4688,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
         buildLaneReason,
         chatId: String(ctx.chat.id),
         userId: String(ctx.from.id),
-        harnessProofRef: proofCapsule.turnRef,
-        harnessProofCapsule: proofCapsule,
+        harnessProofRef: proofCapsule.turnRef, harnessProofCapsule: proofCapsule,
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
@@ -4731,8 +4715,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
       missionId,
       chatId: String(ctx.chat.id),
       userId: String(ctx.from.id),
-      requestId: newRequestId,
-      traceRef,
+      requestId: newRequestId, traceRef,
       goal: projectName || pending.prd,
       createdAt: new Date().toISOString(),
       updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
@@ -4741,29 +4724,8 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
     const publicSpawnerUrl = process.env.SPAWNER_UI_PUBLIC_URL || spawnerUrl;
     const canvasUrl = projectCanvasUrl(publicSpawnerUrl, newRequestId, missionId);
     const kanbanUrl = missionBoardUrl(publicSpawnerUrl);
-    await ctx.reply(formatBuildMissionQueuedReply({
-      lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.',
-      projectName,
-      buildMode: pending.buildMode,
-      buildLane,
-      missionId,
-      kanbanUrl
-    }), outboundTraceExtra({
-      route: 'spawner',
-      command: 'clarify',
-      replyKind: 'build_ack',
-      requestId: newRequestId,
-      traceRef,
-      missionId,
-      proofCapsule
-    }));
-    recordCommandReplyDelivery({
-      command: 'clarify',
-      replyKind: 'build_ack',
-      requestId: newRequestId,
-      traceRef,
-      proofCapsule
-    });
+    await ctx.reply(formatBuildMissionQueuedReply({ lead: runWithDefaults ? 'Perfect, I will use the default direction.' : 'Got it, I will use that direction.', projectName, buildMode: pending.buildMode, buildLane, missionId, kanbanUrl }), outboundTraceExtra({ route: 'spawner', command: 'clarify', replyKind: 'build_ack', requestId: newRequestId, traceRef, missionId, proofCapsule }));
+    recordCommandReplyDelivery({ command: 'clarify', replyKind: 'build_ack', requestId: newRequestId, traceRef, proofCapsule });
     startPrdCanvasReadyNotifier({
       chatId: Number(ctx.chat.id),
       userId: Number(ctx.from.id),
@@ -6971,8 +6933,7 @@ export async function handleBuildIntent(
         buildLaneReason,
         chatId: String(chatId),
         userId: String(ctx.from.id),
-        harnessProofRef: proofCapsule.turnRef,
-        harnessProofCapsule: proofCapsule,
+        harnessProofRef: proofCapsule.turnRef, harnessProofCapsule: proofCapsule,
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
