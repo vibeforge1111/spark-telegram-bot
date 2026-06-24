@@ -165,6 +165,8 @@ Fresh-strict audit summaries now report `latest proof gaps` separately from hist
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 
+Proof-panel captures in canary packets must agree with the fresh runtime audit legacy-gap count. If a saved Telegram proof panel still says an older legacy-gap total, the packet needs a new live proof-panel capture before it can claim release readiness.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

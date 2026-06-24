@@ -372,6 +372,13 @@ test('observation summary requires pass verdicts and all requested capture evide
     'proof_panel_legacy_gap_status'
   ]);
 
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 4', 'legacy proof gaps: 3');
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
+  const staleProofPanelAuditCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleProofPanelAuditCount.readyForRelease, false);
+  assert.deepEqual(staleProofPanelAuditCount.cases[0].missingCaptures, ['proof_panel_legacy_gap_stale']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;
   const leakyProofPanel = summarizeControlProofCanaryObservations(template);
   assert.equal(leakyProofPanel.readyForRelease, false);

@@ -1199,14 +1199,17 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
   return invalid;
 }
 
-function missingCapturesForCase(entry: ControlProofCanaryObservationCase): string[] {
+function missingCapturesForCase(
+  entry: ControlProofCanaryObservationCase,
+  context: { runtimeLegacyProofGapCount: number | null }
+): string[] {
   if (entry.observed.verdict === 'untested') return ['verdict'];
   const missing: string[] = [];
   const capture = entry.expected.capture;
   if (capture.observedReply) missing.push(...observedReplyCaptureIssues(entry));
   if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
   missing.push(...proofJoinCaptureIssues(entry));
-  if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
+  if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel, context));
   if (capture.screenshot) missing.push(...screenshotCaptureIssues(entry.observed.screenshotRefs));
   if (capture.userConfirmation) missing.push(...userConfirmationCaptureIssues(entry.observed.userConfirmation));
   return missing;
@@ -1313,15 +1316,32 @@ function requiresFullNoOtherMutationProof(mutationClass: ControlProofCanaryMutat
   return mutationClass !== 'none' && mutationClass !== 'read_only';
 }
 
-function proofPanelCaptureIssues(value: string | null | undefined): string[] {
+function proofPanelCaptureIssues(
+  value: string | null | undefined,
+  context: { runtimeLegacyProofGapCount: number | null }
+): string[] {
   if (!hasCapturedText(value)) return ['proof_panel'];
   const text = String(value || '');
   const issues: string[] = [];
   if (!/Harness Proof/i.test(text)) issues.push('proof_panel_shape');
   if (!/Audit blocking:\s*(?:clean|gaps found)/i.test(text)) issues.push('proof_panel_audit_status');
-  if (!/Legacy proof gaps visible:\s*\d+/i.test(text)) issues.push('proof_panel_legacy_gap_status');
+  const legacyGapMatch = text.match(/Legacy proof gaps visible:\s*(\d+)/i);
+  if (!legacyGapMatch) {
+    issues.push('proof_panel_legacy_gap_status');
+  } else if (
+    context.runtimeLegacyProofGapCount !== null &&
+    Number(legacyGapMatch[1]) !== context.runtimeLegacyProofGapCount
+  ) {
+    issues.push('proof_panel_legacy_gap_stale');
+  }
   if (proofPanelLeaksRawInternals(text)) issues.push('proof_panel_raw_leak');
   return issues;
+}
+
+function runtimeLegacyProofGapCount(observations: ControlProofCanaryObservationTemplate): number | null {
+  const text = String(observations.evidence?.controlProofAudit || '');
+  const match = text.match(/(?:^|\n)-?\s*legacy proof gaps:\s*(\d+)(?:\n|$)/i);
+  return match ? Number(match[1]) : null;
 }
 
 function proofPanelLeaksRawInternals(value: string): boolean {
@@ -1362,6 +1382,7 @@ export function summarizeControlProofCanaryObservations(
   const verdictValues = new Set(CONTROL_PROOF_CANARY_VERDICTS);
   const verdictCounts = Object.fromEntries(CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => [verdict, 0])) as Record<ControlProofCanaryVerdict, number>;
   const seenCaseIds = new Set<string>();
+  const legacyGapCount = runtimeLegacyProofGapCount(observations);
   const cases = observations.cases.map((entry) => {
     if (!knownCaseIds.has(entry.id)) throw new Error(`Unknown observed canary id: ${entry.id}`);
     if (seenCaseIds.has(entry.id)) throw new Error(`Duplicate observed canary id: ${entry.id}`);
@@ -1371,7 +1392,7 @@ export function summarizeControlProofCanaryObservations(
     return {
       id: entry.id,
       verdict: entry.observed.verdict,
-      missingCaptures: missingCapturesForCase(entry)
+      missingCaptures: missingCapturesForCase(entry, { runtimeLegacyProofGapCount: legacyGapCount })
     };
   });
   const missingEvidence = missingPacketEvidence(observations);
