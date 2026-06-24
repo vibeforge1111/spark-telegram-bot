@@ -63,7 +63,7 @@ test('denied Telegram media analysis replies carry proof context', async () => {
     const traceContext = (replyExtras[0] as any)?.__sparkTraceContext;
     assert.match(replies[0] || '', /did not route that media/i);
     assert.doesNotMatch(replies[0] || '', /tool_denied_by_policy|governor|harness_core/i);
-    assert.equal(traceContext?.route, 'media.audio');
+    assert.equal(traceContext?.route, 'media.audio_transcribe_or_boundary');
     assert.equal(traceContext?.replyKind, 'media_authority_blocked');
     assert.equal(traceContext?.mediaTurn?.media_kind, 'audio');
     assert.equal(traceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');

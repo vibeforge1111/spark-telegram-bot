@@ -12,7 +12,7 @@ function test(name: string, fn: () => void): void {
 }
 
 function mediaAuth(input: {
-  route: 'media.image' | 'media.voice' | 'media.audio';
+  route: 'media.image_analyze_or_boundary' | 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary';
   text: string;
   toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
   action: string;
@@ -30,19 +30,19 @@ function mediaAuth(input: {
 
 test('media ingest allows read-only image, voice, and audio analysis without action authority leakage', () => {
   const image = mediaAuth({
-    route: 'media.image',
+    route: 'media.image_analyze_or_boundary',
     text: '[image] Read this startup dashboard screenshot and tell me what looks wrong.',
     toolName: 'telegram.media.image',
     action: 'media.image.analyze'
   });
   const voice = mediaAuth({
-    route: 'media.voice',
+    route: 'media.voice_transcribe_or_boundary',
     text: '[voice] transcribe this note and answer the startup question',
     toolName: 'telegram.media.voice',
     action: 'media.voice.transcribe'
   });
   const audio = mediaAuth({
-    route: 'media.audio',
+    route: 'media.audio_transcribe_or_boundary',
     text: '[audio] transcribe this audio file and answer the startup question',
     toolName: 'telegram.media.audio',
     action: 'media.audio.transcribe'
@@ -64,19 +64,19 @@ test('media ingest allows read-only image, voice, and audio analysis without act
 
 test('media ingest stop wording blocks the bridge before Builder receives media', () => {
   const image = mediaAuth({
-    route: 'media.image',
+    route: 'media.image_analyze_or_boundary',
     text: '[image] do not analyze this screenshot',
     toolName: 'telegram.media.image',
     action: 'media.image.analyze'
   });
   const voice = mediaAuth({
-    route: 'media.voice',
+    route: 'media.voice_transcribe_or_boundary',
     text: '[voice] no transcription right now',
     toolName: 'telegram.media.voice',
     action: 'media.voice.transcribe'
   });
   const audio = mediaAuth({
-    route: 'media.audio',
+    route: 'media.audio_transcribe_or_boundary',
     text: '[audio] no transcription right now',
     toolName: 'telegram.media.audio',
     action: 'media.audio.transcribe'

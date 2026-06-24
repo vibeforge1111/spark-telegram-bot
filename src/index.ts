@@ -2172,7 +2172,7 @@ function telegramCommandActionAuthorityDecision(
 function telegramMediaActionAuthorityDecision(
   ctx: any,
   input: {
-    route: 'media.image' | 'media.voice' | 'media.audio';
+    route: 'media.image_analyze_or_boundary' | 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary';
     text: string;
     toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
     action: string;
@@ -2211,7 +2211,7 @@ async function replyTelegramMediaAuthorityBlocked(
   ctx: any,
   authorization?: TelegramActionAuthorityResult | null,
   input?: {
-    route: 'media.image' | 'media.voice' | 'media.audio';
+    route: 'media.image_analyze_or_boundary' | 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary';
     toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
   }
 ): Promise<void> {
@@ -10276,14 +10276,14 @@ export async function handleImageMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const imageMemoryText = telegramImageMemoryText(ctx.message);
   const authorization = telegramMediaActionAuthorityDecision(ctx, {
-    route: 'media.image',
+    route: 'media.image_analyze_or_boundary',
     text: imageMemoryText,
     toolName: 'telegram.media.image',
     action: 'media.image.analyze'
   });
   if (!authorization.allow) {
     await replyTelegramMediaAuthorityBlocked(ctx, authorization, {
-      route: 'media.image',
+      route: 'media.image_analyze_or_boundary',
       toolName: 'telegram.media.image'
     });
     return;
@@ -10382,14 +10382,14 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
     : `[${mediaKind} message]`;
   const toolName = `telegram.media.${mediaKind}` as 'telegram.media.voice' | 'telegram.media.audio';
   const authorization = telegramMediaActionAuthorityDecision(ctx, {
-    route: `media.${mediaKind}` as 'media.voice' | 'media.audio',
+    route: (mediaKind === 'audio' ? 'media.audio_transcribe_or_boundary' : 'media.voice_transcribe_or_boundary') as 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary',
     text: mediaMemoryText,
     toolName,
     action: `media.${mediaKind}.transcribe`
   });
   if (!authorization.allow) {
     await replyTelegramMediaAuthorityBlocked(ctx, authorization, {
-      route: `media.${mediaKind}` as 'media.voice' | 'media.audio',
+      route: (mediaKind === 'audio' ? 'media.audio_transcribe_or_boundary' : 'media.voice_transcribe_or_boundary') as 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary',
       toolName
     });
     return;
@@ -10520,7 +10520,7 @@ export function buildBlockedTelegramMediaTraceContext(
   message: unknown,
   authorization: TelegramActionAuthorityResult | null | undefined,
   input: {
-    route: 'media.image' | 'media.voice' | 'media.audio';
+    route: 'media.image_analyze_or_boundary' | 'media.voice_transcribe_or_boundary' | 'media.audio_transcribe_or_boundary';
     toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
   }
 ): NodeOutboundTraceContext {
