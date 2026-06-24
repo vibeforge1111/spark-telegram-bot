@@ -25,6 +25,8 @@ Telegram voice delivery writes `spark.voice_runtime_state.v1` as metadata only. 
 
 The runtime state must not store raw audio, transcript bodies, provider secrets, or unmasked voice ids. `harness_proof_ref` is a redacted ref only; full proof capsules stay in the Telegram delivery/audit context and proof projection surfaces.
 
+When fresh Harness authority blocks a voice or audio media turn, the Telegram reply stays human and short. The delivery context still carries a redacted blocked Harness proof capsule with the typed `spark.media_turn.v1` envelope, so `/proof` can show that no media execution ran without exposing raw Telegram file ids, audio, or transcript bodies.
+
 ## Live Owners
 
 | Surface | Owner | Path | Notes |

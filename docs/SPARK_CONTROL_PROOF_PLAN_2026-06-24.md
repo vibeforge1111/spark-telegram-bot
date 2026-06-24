@@ -251,6 +251,7 @@ Initial implementation:
 - Image and voice/audio Builder handoffs now attach the envelope at the update and message level.
 - Builder gateway commit `35cd451` accepts `spark.media_turn.v1`, normalizes captioned photo/document turns, and preserves only cleaned media metadata in simulation detail and gateway trace.
 - Unsupported non-image document uploads get a human evidence-boundary reply instead of silently disappearing or executing from file content.
+- Permission-blocked image, voice, and audio turns now reply in plain language while carrying a redacted blocked Harness proof capsule in Telegram delivery context.
 - The envelope redacts file ids, filenames, and caption bodies. It records only safe metadata such as media kind, caption presence, MIME family, and evidence-only policy. The normal Telegram `message.caption` may still carry the user's caption to Builder for analysis, but `spark_media_turn` stays metadata-only for trace/proof projections.
 
 ### Deliverables
@@ -265,6 +266,7 @@ Initial implementation:
 - Image/photo turns no longer fail with "unsupported message payload".
 - Media reads are evidence-only unless fresh intent authorizes a higher action.
 - Telegram replies explain what happened in plain language.
+- Blocked media turns can be inspected as blocked proof, not as silent missing proof or successful execution.
 
 ## Track 5: Live Canary Suite
 
@@ -427,7 +429,7 @@ Then send one photo with a caption.
 9. Include audit blocking status in the redacted proof panel so `/proof` and `control:proof:panel` can show whether current silent proof/control gaps are clean while keeping legacy proof-gap capsules visible.
 10. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
 11. Repair Telegram failure language using fixtures from recent bad replies.
-12. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates; Builder acceptance added in `spark-intelligence-builder` commit `35cd451`.
+12. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates; Builder acceptance added in `spark-intelligence-builder` commit `35cd451`; blocked media replies now carry redacted proof capsules from `src/telegramDeliveryProof.ts`.
 13. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
 14. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
 
