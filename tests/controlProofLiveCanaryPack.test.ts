@@ -721,6 +721,23 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(duplicateReleaseCheck.status, 1);
     assert.match(duplicateReleaseCheck.stderr, /Duplicate observed canary id: cp-builder-001/);
+    assert.doesNotMatch(duplicateReleaseCheck.stderr, /at main|\.ts:\d+|\/Users\/|\/var\/folders\//);
+
+    const missingObservations = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        `${ROOT}/missing-local-packet.json`,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(missingObservations.status, 1);
+    assert.match(missingObservations.stderr, /Control-proof canary error:/);
+    assert.doesNotMatch(missingObservations.stderr, new RegExp(escapeRegExp(ROOT)));
+    assert.doesNotMatch(missingObservations.stderr, /\/Users\//);
 
     const outTemplatePath = resolve(tempRoot, 'template.json');
     const outTemplate = spawnSync(

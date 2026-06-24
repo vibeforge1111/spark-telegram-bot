@@ -448,9 +448,17 @@ function main(): void {
   console.log(usage());
 }
 
+function formatCanaryCliError(error: unknown): string {
+  return String(error instanceof Error ? error.message : error)
+    .replaceAll(homedir(), '<home>')
+    .replaceAll(process.cwd(), '<repo>')
+    .replace(/\/var\/folders\/[^\s)]+/g, '<tmp>')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>');
+}
+
 try {
   main();
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  console.error(`Control-proof canary error: ${formatCanaryCliError(error)}`);
   process.exitCode = 1;
 }
