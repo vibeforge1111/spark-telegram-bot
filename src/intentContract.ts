@@ -10,6 +10,7 @@ export type TelegramIntentKindV2 =
   | 'schedule_mutation'
   | 'access_status'
   | 'access_help'
+  | 'access.level_change'
   | 'build_or_spawner'
   | 'recursive_or_swarm'
   | 'wiki_or_knowledge'

@@ -99,6 +99,7 @@ test('keeps access repair setup bans as access-change constraints', () => {
   });
 
   assert.equal(envelope.selectedIntent.action, 'access.change');
+  assert.equal(envelope.selectedIntent.kind, 'access.level_change');
   assert.equal(envelope.directive.noExecution, false);
   assert.equal(result.allow, true);
   assert.equal(result.routeVerdict.reason, 'explicit_access_change');

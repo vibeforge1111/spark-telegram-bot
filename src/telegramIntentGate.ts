@@ -232,6 +232,7 @@ function kindForNaturalRoute(route: string): TelegramIntentKindV2 {
   if (/^spark_wiki\./.test(route)) return 'wiki_or_knowledge';
   if (/^(?:diagnostics\.|memory\.doctor|spark\.self_|spark\.chip_status_probe)/.test(route)) return 'diagnostic_or_self_awareness';
   if (/^(?:creator\.|domain_chip\.)/.test(route)) return 'creator_or_domain_chip';
+  if (route === 'access.change') return 'access.level_change';
   if (/^(?:access\.|operator\.)/.test(route)) return 'runtime_truth_or_operator';
   if (/^memory\.recall$/.test(route)) return 'memory_recall';
   if (/^memory\.write$/.test(route)) return 'memory_write';
