@@ -23,6 +23,7 @@ const originalEnv = {
   SPARK_ALLOW_IMPLICIT_LLM_PROVIDER: process.env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER,
   SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
   SPARK_CHAT_LLM_PROVIDER: process.env.SPARK_CHAT_LLM_PROVIDER,
+  SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
   SPARK_LLM_PROVIDER: process.env.SPARK_LLM_PROVIDER
 };
 
@@ -86,6 +87,28 @@ function installSparkStatusShim(root: string): void {
   process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;
 }
 
+function installSparkAccessShim(root: string): void {
+  const binDir = path.join(root, 'bin');
+  mkdirSync(binDir, { recursive: true });
+  const sparkShim = path.join(binDir, 'spark');
+  writeFileSync(
+    sparkShim,
+    [
+      '#!/bin/sh',
+      'if [ "$1" = "access" ] && [ "$2" = "status" ] && [ "$3" = "--level" ] && [ "$4" = "5" ] && [ "$5" = "--json" ]; then',
+      '  echo "{\\"access_level\\":5,\\"effective_access_level\\":5,\\"level5\\":{\\"activation_state\\":\\"active\\",\\"service_enabled\\":true},\\"state_machine\\":{\\"requested_access_level\\":5,\\"effective_access_level\\":5},\\"workspace_preflight\\":{\\"writable\\":true}}"',
+      '  exit 0',
+      'fi',
+      'echo "unexpected spark command: $*" >&2',
+      'exit 1',
+      ''
+    ].join('\n')
+  );
+  chmodSync(sparkShim, 0o755);
+  process.env.PATH = `${binDir}${path.delimiter}${originalEnv.PATH || ''}`;
+  process.env.SPARK_GATEWAY_STATE_DIR = root;
+}
+
 async function assertTraceRoute(text: string, expectedRoute: string, replyPattern: RegExp): Promise<void> {
   const replies: string[] = [];
   const replyExtras: any[] = [];
@@ -127,6 +150,23 @@ async function run(): Promise<void> {
         'Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.',
         'fresh_state.read_only_repair_status',
         /No repair action needed right now/
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
+
+  await test('access capability answer proof uses access route', async () => {
+    restoreEnv();
+    prepareEnv();
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-access-proof-context-'));
+    try {
+      installSparkAccessShim(tempRoot);
+      await assertTraceRoute(
+        'Can this Telegram runner edit files outside the Spark workspace right now? Use fresh access state.',
+        'access.capability_status',
+        /Fresh access evidence/
       );
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

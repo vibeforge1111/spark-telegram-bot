@@ -8864,7 +8864,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	  if (!earlyBuildIntent && shouldAnswerAuthoritativeAccessCapability(text)) {
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderAuthoritativeSparkEditCapabilityAnswer(ctx.chat.id);
-    await ctx.reply(reply);
+    await ctx.reply(reply, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'access.capability_status', intentKind: 'access.capability_status', command: 'telegram_access_capability_status', reasonSummary: 'Telegram answered fresh access capability status; no repair or access change was authorized.' })));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_access_capability_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
