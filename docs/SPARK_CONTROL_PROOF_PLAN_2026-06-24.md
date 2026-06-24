@@ -197,6 +197,8 @@ Live recapture of `cp-builder-002` on 2026-06-24 confirmed the Builder memory-di
 
 Live recapture of `cp-memory-001` on 2026-06-24 confirmed Railway memory recall stayed context-only: Spark summarized the proof-led testing decision without running work or mutating memory, and `/proof` showed `memory_recall` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 15 to 14.
 
+Live recapture of `cp-memory-002` on 2026-06-24 confirmed the Memory Doctor boundary stays read-only and human-readable: Spark summarized the diagnostic problem without exposing raw ledger detail or mutating memory, and `/proof` showed `diagnostic_or_self_awareness` with joined Telegram and Builder evidence plus `Latest proof gaps: none`, reducing stale proof-panel blockers from 14 to 13.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

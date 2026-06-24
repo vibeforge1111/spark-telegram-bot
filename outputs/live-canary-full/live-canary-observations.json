@@ -715,7 +715,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nMemory Doctor needs attention.\nTelegram had the recent turns available, but the provider context bundle did not receive them.\nNext: repair the recent-conversation capsule path, rerun this doctor command, then replay the triggering turn.\nI did not change memory.\nReceived at 7:57 PM",
+        "reply": "Memory Doctor needs attention.\n\nTelegram had the recent turns available, but the provider context bundle did not receive them.\n\nNext: repair the recent-conversation capsule path, rerun this doctor command, then replay the triggering turn.\n\nI did not change memory.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -727,11 +727,12 @@
           "notes": "Read-only Memory Doctor diagnostic observed; no memory write, deletion, mission, access change, provider switch, external network action, or media handling observed."
         },
         "proofJoin": "Latest /proof panel showed diagnostic_or_self_awareness with joined Telegram outbound and Builder gateway evidence; no request ids, raw reason codes, local paths, or stack traces visible in the Telegram reply.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: diagnostic_or_self_awareness Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:456a15934749c756 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 7:57 PM",
+        "proofPanel": "Harness Proof Intent: diagnostic_or_self_awareness Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:bd9d50dfd43f1fb6 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound, Builder gateway Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-memory-002-retest-reply.png"
+          "/tmp/cp-memory-002-live-reply.png",
+          "/tmp/cp-memory-002-live-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart via Peekaboo screenshots: Memory Doctor reply was summarized and /proof rendered a clean joined panel.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: Memory Doctor reply stayed summarized and /proof rendered a clean joined diagnostic panel.",
         "notes": "Initial live attempt exposed raw diagnostic ledger/request detail. Fixed Telegram Memory Doctor summary rendering in a79f31f, restarted Spark, retested, and corrected the canary route from memory.doctor_authority_boundary to canonical memory.doctor before recording."
       }
     },
