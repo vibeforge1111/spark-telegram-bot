@@ -4,6 +4,7 @@ import type { Telegraf } from 'telegraf';
 import { conversation } from './conversation';
 import { readJsonFile, resolveStatePath, writeJsonAtomic } from './jsonState';
 import { relaySecretMatches, requireRelaySecret } from './launchMode';
+import { buildMissionRelayTraceContext } from './missionRelayProof';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { recordShippedProjectFromMission } from './shippedProjectContext';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
@@ -757,14 +758,7 @@ function missionRelayTraceExtra(
   replyKind: string
 ): Record<string, unknown> {
   return {
-    [OUTBOUND_TRACE_CONTEXT_KEY]: {
-      route: 'mission_relay',
-      command: 'mission_relay',
-      replyKind,
-      requestId: subscription.requestId,
-      traceRef: subscription.traceRef || traceRefFromEvent(event),
-      missionId: event.missionId
-    }
+    [OUTBOUND_TRACE_CONTEXT_KEY]: buildMissionRelayTraceContext(subscription, event, replyKind)
   };
 }
 

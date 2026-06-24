@@ -1467,14 +1467,9 @@ void (async () => {
       );
 
       assert.equal(chunks, 1);
-      assert.deepEqual(extras[0]?.__sparkTraceContext, {
-        route: 'mission_relay',
-        command: 'mission_relay',
-        replyKind: 'mission_completion',
-        requestId: subscription.requestId,
-        traceRef: subscription.traceRef,
-        missionId: subscription.missionId
-      });
+      const traceContext = extras[0]?.__sparkTraceContext as Record<string, any>;
+      assert.deepEqual([traceContext.route, traceContext.command, traceContext.replyKind, traceContext.requestId, traceContext.traceRef, traceContext.missionId], ['spawner.run', 'spawner.run', 'mission_completion', subscription.requestId, subscription.traceRef, subscription.missionId]);
+      assert.deepEqual([traceContext.proofCapsule?.schema, traceContext.proofCapsule?.route, traceContext.proofCapsule?.intent?.kind, traceContext.proofCapsule?.execution?.tool, traceContext.proofCapsule?.execution?.mutationClass, traceContext.proofCapsule?.joins?.telegram, traceContext.proofCapsule?.joins?.spawner], ['spark.harness_proof.v1', 'spawner.run', 'spawner.run', 'spawner.run', 'launches_mission', 'joined', 'joined']);
     } finally {
       if (originalPromptEnv === undefined) delete process.env.SPARK_MISSION_LESSON_PROMPTS;
       else process.env.SPARK_MISSION_LESSON_PROMPTS = originalPromptEnv;
