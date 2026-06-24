@@ -88,6 +88,13 @@ Update after continuity repairs:
 - The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible and inspectable; it does not mean the capsule is silently absent.
 - Use `npm run control:proof:audit -- --sample 100 --blocking-strict` for the current blocking gate. It allows explicit legacy proof-gap capsules but fails silent missing proof/control evidence or leaks.
 
+Update after full live canary refresh:
+
+- `outputs/live-canary-full/live-canary-summary.md` is now the current live release packet for SparkRecursive_bot control-proof canaries.
+- The full pack has 27/27 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, and real voice-note boundary proof.
+- Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
+- Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -100,9 +107,9 @@ Surface conclusion: the biggest current surface risk is not final-answer copy in
 ## Media
 
 - Text: healthy.
-- Voice/audio: runtime and system-map visibility exist, but shared trace continuity is missing.
-- Photo/image: typed media envelopes and Builder normalization acceptance now exist locally. Live SparkRecursive_bot proof is still required before claiming production support.
-- Document/file: unsupported non-image documents now get a human evidence-boundary reply in Telegram, and Builder can normalize document envelopes as safe metadata. Live proof is still required before claiming full document support.
+- Voice/audio: audio-file and real voice-note boundaries are live-proven in SparkRecursive_bot as evidence-only media routes, with proof joins and no execution from media content.
+- Photo/image: text-only image boundary and captioned-photo evidence handling are live-proven in SparkRecursive_bot; image content remains evidence-only unless fresh Harness authority allows action.
+- Document/file: unsupported non-image documents get a human evidence-boundary reply in Telegram, and Builder can normalize document envelopes as safe metadata. Richer document handling beyond metadata still needs separate live proof before support is claimed.
 
 ## Documentation
 

@@ -509,6 +509,12 @@ Exit criteria:
 - Builder chat final latency is not worse than the old path
 - direct `sendRichMessage` and `sendRichMessageDraft` smoke pass for the active profile, or clearly fall back to `sendMessage` / `sendMessageDraft`
 
+Current SparkRecursive_bot proof:
+
+- `cp-streaming-001` confirms `/streaming` reports streaming on, rich messages on, rich draft transport, full-reply preview on, process telemetry, and no duplicate preview in the live Telegram surface.
+- `cp-streaming-002` confirms rich formatting renders in the top-level Telegram path without leaving a duplicate draft/final artifact.
+- These canaries prove the present Telegram surface and defaults. They do not claim Builder-native JSONL event streaming; that remains Phase 1.
+
 ### Phase 1: Builder Status Events
 
 Add Builder JSONL streaming with status events only:
