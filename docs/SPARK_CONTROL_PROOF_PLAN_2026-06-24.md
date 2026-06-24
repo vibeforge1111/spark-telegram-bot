@@ -209,6 +209,8 @@ Live recapture of `cp-model-002` on 2026-06-24 confirmed the mission-provider sw
 
 Live recapture of `cp-web-001` on 2026-06-24 confirmed the external research boundary stays read-only when browsing is withheld: Spark named the fresh-source requirement without making a network call or presenting memory as current docs, and `/proof` showed `external_research.boundary` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 9 to 8.
 
+Live recapture of `cp-web-002` on 2026-06-24 confirmed tiny current-web checks stay behind the external-research gate: Spark asked for direct web-check confirmation instead of browsing or starting a mission, and `/proof` showed `external_research.direct_or_clarify` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 8 to 7.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

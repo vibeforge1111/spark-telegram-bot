@@ -1033,13 +1033,13 @@
           "mediaHandled": false,
           "notes": "Spark asked for confirmation/permission instead of performing a web check. No external network call, Spawner mission, file edit, memory write, access change, provider switch, or media handling observed."
         },
-        "proofJoin": "Live /proof panel showed Harness Proof Intent external_research.direct_or_clarify with Telegram outbound evidence joined. Strict proof audit was blocking clean, with only legacy proof-gap rows visible.",
-        "proofPanel": "Harness Proof Intent: external_research.direct_or_clarify\nAuthority: downgraded by spark.turn_intent.v1\nGovernor: read_only, verified\nExecution: completed\nReply: delivered as natural\nTrace joins: telegram joined\nGaps: none\nProof ref: turn:sha256:4b830ca50c59291c\nPlane: telegram_outbound\nEvidence joined: Telegram outbound\nEvidence proof refs: Telegram outbound\nEvidence proof capsules: Telegram outbound\nEvidence trace-only: none\nEvidence proof gaps: none\nEvidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace\nAudit blocking: clean\nLegacy proof gaps visible: 4",
+        "proofJoin": "Latest /proof panel showed Harness Proof Intent external_research.direct_or_clarify with Telegram outbound evidence joined; no raw ids, local paths, provider internals, or stack traces visible.",
+        "proofPanel": "Harness Proof Intent: external_research.direct_or_clarify Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:e06ce753c8484997 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-web-002-fixed-reply.png",
-          "/tmp/cp-web-002-fixed-proof.png"
+          "/tmp/cp-web-002-live-reply.png",
+          "/tmp/cp-web-002-live-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after runtime restart at commit 1d8ad77; earlier failing attempt claimed public search/DNS from plain_conversation proof and was fixed before recording pass.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: Spark asked for direct web-check confirmation, did not start a mission, and /proof rendered external_research.direct_or_clarify.",
         "notes": "Fixed no-mission current web checks to clarify the external-research boundary rather than claiming unsupported fresh web/DNS work."
       }
     },
