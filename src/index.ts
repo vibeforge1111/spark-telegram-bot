@@ -335,15 +335,14 @@ import {
 } from './harnessContract';
 import {
   buildHarnessProofCapsule,
-  harnessProofCapsuleFromTurnIntentEnvelope,
   redactedProofRef,
   type HarnessProofAuthorityDecision,
   type HarnessProofCapsuleV1,
   type HarnessProofExecutionStatus,
   type HarnessProofGovernorDecision,
-  type HarnessProofJoinSummary,
   type HarnessProofReplyShape
 } from './harnessProofCapsule';
+import { buildTelegramDeliveryProofCapsule } from './telegramDeliveryProof';
 import {
   authorizeTelegramActionFromEnvelope,
   type TelegramActionAuthorityInput,
@@ -2215,8 +2214,19 @@ async function replyTelegramCommandAuthorityBlocked(ctx: any): Promise<void> {
   await ctx.reply('I did not start that command because the fresh command text does not authorize this action.');
 }
 
-async function replyTelegramMediaAuthorityBlocked(ctx: any): Promise<void> {
-  await ctx.reply('I did not route that media because the fresh caption does not authorize analysis.');
+async function replyTelegramMediaAuthorityBlocked(
+  ctx: any,
+  authorization?: TelegramActionAuthorityResult | null,
+  input?: {
+    route: 'media.image' | 'media.voice' | 'media.audio';
+    toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
+  }
+): Promise<void> {
+  const reply = 'I did not route that media because the fresh caption does not authorize analysis.';
+  const traceContext = input
+    ? buildBlockedTelegramMediaTraceContext(ctx.message, authorization, input)
+    : null;
+  await ctx.reply(reply, traceContext ? outboundTraceExtra(traceContext) : undefined);
 }
 
 function telegramActionEnvelope(
@@ -2521,23 +2531,6 @@ type NodeOutboundTraceContext = {
   mediaTurn?: TelegramMediaTurnEnvelope;
 };
 
-type TelegramDeliveryProofInput = {
-  turnRef: string;
-  route: string;
-  owner: string;
-  tool: string;
-  mutationClass: SparkHarnessMutationClass | 'unknown';
-  executionStatus: HarnessProofExecutionStatus;
-  replyDelivered: boolean;
-  replyShape: HarnessProofReplyShape;
-  authorization?: TelegramActionAuthorityResult | null;
-  envelope?: TurnIntentEnvelopeV1 | null;
-  authorityDecision?: HarnessProofAuthorityDecision;
-  governorDecision?: HarnessProofGovernorDecision;
-  reasonSummary?: string;
-  joins?: Partial<HarnessProofJoinSummary>;
-};
-
 function chatRef(chatId: unknown): string {
   return redactIdentifier(String(chatId ?? ''), 'chat');
 }
@@ -2752,88 +2745,6 @@ function proofAuditFields(
   }
   const ref = typeof proofRef === 'string' && proofRef.trim() ? proofRef.trim() : '';
   return ref ? { harness_proof_ref: ref } : {};
-}
-
-function proofGovernorDecisionForAuthorization(
-  authorization: TelegramActionAuthorityResult | null | undefined,
-  authorityDecision: HarnessProofAuthorityDecision
-): HarnessProofGovernorDecision {
-  const raw = authorization?.governorDecision as Record<string, unknown> | null | undefined;
-  const decision = String(raw?.decision || raw?.outcome || raw?.verdict || '').toLowerCase();
-  if (decision.includes('deny') || decision.includes('block')) return 'deny';
-  if (decision.includes('read')) return 'read_only';
-  if (decision.includes('allow')) return 'allow';
-  if (authorization?.allow || authorityDecision === 'allowed') return 'allow';
-  if (authorityDecision === 'downgraded') return 'read_only';
-  return 'deny';
-}
-
-function buildTelegramDeliveryProofCapsule(input: TelegramDeliveryProofInput): HarnessProofCapsuleV1 {
-  const authorization = input.authorization || null;
-  const envelope = authorization?.legacyEnvelope || input.envelope || null;
-  const authorityDecision = input.authorityDecision || (authorization ? (authorization.allow ? 'allowed' : 'blocked') : 'allowed');
-  const governorDecision = input.governorDecision || proofGovernorDecisionForAuthorization(authorization, authorityDecision);
-  const governorVerified = Boolean(authorization?.governorDecision || !authorization) && governorDecision !== 'deny';
-
-  if (envelope) {
-    return harnessProofCapsuleFromTurnIntentEnvelope({
-      envelope,
-      authorityDecision,
-      governorDecision,
-      governorVerified,
-      executionStatus: input.executionStatus,
-      tool: input.tool,
-      mutationClass: input.mutationClass,
-      replyDelivered: input.replyDelivered,
-      replyShape: input.replyShape,
-      joins: input.joins,
-      reasonSummary: input.reasonSummary || (
-        authorityDecision === 'allowed'
-          ? 'Fresh Harness authority allowed this Telegram action.'
-          : 'Fresh Harness authority blocked this Telegram action.'
-      )
-    });
-  }
-
-  return buildHarnessProofCapsule({
-    turnRef: input.turnRef,
-    route: input.route,
-    owner: input.owner,
-    intent: {
-      kind: input.route,
-      confidence: authorityDecision === 'blocked' ? 'blocked' : 'explicit',
-      noExecution: authorityDecision !== 'allowed'
-    },
-    authority: {
-      decision: authorityDecision,
-      contract: 'machine_origin_policy',
-      riskTier: input.mutationClass === 'launches_mission'
-        ? 'execute'
-        : input.mutationClass === 'external_network'
-          ? 'external'
-          : input.mutationClass === 'read_only'
-            ? 'read'
-            : input.mutationClass === 'none'
-              ? 'none'
-              : 'write',
-      reasonSummary: input.reasonSummary || 'Telegram delivery carried redacted proof metadata.'
-    },
-    governor: {
-      decision: governorDecision,
-      verified: governorVerified
-    },
-    execution: {
-      status: input.executionStatus,
-      tool: input.tool,
-      mutationClass: input.mutationClass
-    },
-    reply: {
-      delivered: input.replyDelivered,
-      shape: input.replyShape,
-      rawReasonsHidden: true
-    },
-    joins: input.joins
-  });
 }
 
 export function buildNodeOutboundAuditRecord(
@@ -10331,7 +10242,10 @@ export async function handleImageMessage(ctx: any): Promise<void> {
     action: 'media.image.analyze'
   });
   if (!authorization.allow) {
-    await replyTelegramMediaAuthorityBlocked(ctx);
+    await replyTelegramMediaAuthorityBlocked(ctx, authorization, {
+      route: 'media.image',
+      toolName: 'telegram.media.image'
+    });
     return;
   }
 
@@ -10434,7 +10348,10 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
     action: `media.${mediaKind}.transcribe`
   });
   if (!authorization.allow) {
-    await replyTelegramMediaAuthorityBlocked(ctx);
+    await replyTelegramMediaAuthorityBlocked(ctx, authorization, {
+      route: `media.${mediaKind}` as 'media.voice' | 'media.audio',
+      toolName
+    });
     return;
   }
 
@@ -10552,6 +10469,49 @@ export function buildUnsupportedTelegramMediaTraceContext(message: unknown): Nod
     route,
     command: 'media',
     replyKind: 'unsupported_media',
+    requestId: mediaTurn.turn_ref,
+    traceRef,
+    proofCapsule,
+    mediaTurn
+  };
+}
+
+export function buildBlockedTelegramMediaTraceContext(
+  message: unknown,
+  authorization: TelegramActionAuthorityResult | null | undefined,
+  input: {
+    route: 'media.image' | 'media.voice' | 'media.audio';
+    toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
+  }
+): NodeOutboundTraceContext {
+  const mediaTurn = buildTelegramMediaTurnEnvelope(message);
+  const traceRef = redactedProofRef('trace', `${mediaTurn.turn_ref}:${input.route}:blocked`);
+  const proofCapsule = buildTelegramDeliveryProofCapsule({
+    turnRef: mediaTurn.turn_ref,
+    route: input.route,
+    owner: 'spark-telegram-bot',
+    tool: input.toolName,
+    mutationClass: 'read_only',
+    executionStatus: 'blocked',
+    replyDelivered: true,
+    replyShape: 'natural',
+    authorization,
+    authorityDecision: 'blocked',
+    governorDecision: 'deny',
+    reasonSummary: 'Fresh Harness authority did not allow media analysis from this turn; no media execution ran.',
+    joins: {
+      telegram: 'joined',
+      builder: 'not_applicable',
+      spawner: 'not_applicable',
+      provider: 'not_applicable',
+      memory: 'not_applicable',
+      voice: 'not_applicable'
+    }
+  });
+  return {
+    route: input.route,
+    command: 'media',
+    replyKind: 'media_authority_blocked',
     requestId: mediaTurn.turn_ref,
     traceRef,
     proofCapsule,
