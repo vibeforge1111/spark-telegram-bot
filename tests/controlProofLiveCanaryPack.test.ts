@@ -285,6 +285,17 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
 
+  template.cases[0].observed.reply = 'Mission\nProvider\nMove';
+  const roboticReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(roboticReply.readyForRelease, false);
+  assert.deepEqual(roboticReply.cases[0].missingCaptures, ['observed_reply_robotic_shape']);
+
+  template.cases[0].observed.reply = 'That turn was blocked by tool_not_allowed_by_policy in /Users/example/private.';
+  const leakyReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyReply.readyForRelease, false);
+  assert.deepEqual(leakyReply.cases[0].missingCaptures, ['observed_reply_raw_leak']);
+
+  template.cases[0].observed.reply = 'Route confidence means Spark is justified in taking this route now.';
   template.cases[0].observed.screenshotRefs = [];
   const missing = summarizeControlProofCanaryObservations(template);
   assert.equal(missing.readyForRelease, false);

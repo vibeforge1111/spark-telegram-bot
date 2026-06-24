@@ -1151,7 +1151,7 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   if (entry.observed.verdict === 'untested') return ['verdict'];
   const missing: string[] = [];
   const capture = entry.expected.capture;
-  if (capture.observedReply && !hasCapturedText(entry.observed.reply)) missing.push('observed_reply');
+  if (capture.observedReply) missing.push(...observedReplyCaptureIssues(entry));
   if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
   missing.push(...proofJoinCaptureIssues(entry));
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
@@ -1170,6 +1170,26 @@ function proofJoinCaptureIssues(entry: ControlProofCanaryObservationCase): strin
   }
   if (proofPanelLeaksRawInternals(text)) issues.push('proof_join_raw_leak');
   return issues;
+}
+
+function observedReplyCaptureIssues(entry: ControlProofCanaryObservationCase): string[] {
+  const reply = entry.observed.reply;
+  if (!hasCapturedText(reply)) return ['observed_reply'];
+  const text = String(reply || '');
+  const issues: string[] = [];
+  if (proofPanelLeaksRawInternals(text)) issues.push('observed_reply_raw_leak');
+  if (isNaturalReplyShape(entry.expected.replyShape) && hasRoboticSurfaceHeading(text)) {
+    issues.push('observed_reply_robotic_shape');
+  }
+  return issues;
+}
+
+function isNaturalReplyShape(replyShape: ControlProofCanaryCase['expectedReplyShape']): boolean {
+  return replyShape === 'natural' || replyShape === 'clarification' || replyShape === 'media_reply';
+}
+
+function hasRoboticSurfaceHeading(value: string): boolean {
+  return /(?:^|\n)\s*(?:Mission|Provider|Move|Status)\s*:?\s*(?:\n|$)/i.test(value);
 }
 
 function userConfirmationCaptureIssues(value: string | null | undefined): string[] {
