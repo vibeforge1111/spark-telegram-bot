@@ -1081,6 +1081,55 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('unsupported Telegram document replies carry typed media envelope and proof context', async () => {
+		restoreAxios();
+		restoreEnv();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		const indexModule: any = await import('../src/index');
+		const message = {
+			message_id: 627,
+			document: {
+				file_id: 'private-doc-id',
+				file_name: 'private-plan.pdf',
+				mime_type: 'application/pdf'
+			}
+		};
+		const traceContext = indexModule.buildUnsupportedTelegramMediaTraceContext(message);
+		const record = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'I received that file.',
+			new Date('2026-06-24T00:00:00.000Z'),
+			traceContext
+		);
+
+		assert.equal(record.route, 'media.document');
+		assert.equal(record.reply_kind, 'unsupported_media');
+		assert.equal((record.media_turn as any).schema, 'spark.media_turn.v1');
+		assert.equal((record.media_turn as any).media_kind, 'document');
+		assert.equal((record.media_turn as any).analysis_policy.can_execute, false);
+		assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
+		assert.equal((record.proof_capsule as any).execution.tool, 'telegram.media.evidence');
+		assert.equal((record.proof_capsule as any).execution.mutationClass, 'read_only');
+		assert.equal((record.proof_capsule as any).reply.delivered, true);
+		assert.doesNotMatch(JSON.stringify(record), /8319079055|private-doc-id|private-plan/);
+
+		const replies: string[] = [];
+		const replyExtras: any[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 627, replies, replyExtras);
+		(ctx as any).message = message;
+		await indexModule.handleUnsupportedTelegramMediaMessage(ctx);
+
+		assert.match(replies[0] || '', /I received that file/);
+		assert.match(replies[0] || '', /will not execute anything/);
+		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.route, 'media.document');
+		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.replyKind, 'unsupported_media');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.mediaTurn?.media_kind, 'document');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
+		assert.doesNotMatch(JSON.stringify(replyExtras[0]), /private-doc-id|private-plan|8319079055/);
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('/proof renders an inspect-only redacted Harness Proof panel', async () => {
 		restoreAxios();
 		restoreEnv();

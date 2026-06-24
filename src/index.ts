@@ -391,7 +391,9 @@ import {
 } from './telegramImageBridge';
 import {
   attachTelegramMediaTurnEnvelope,
-  renderUnsupportedTelegramMediaReply
+  buildTelegramMediaTurnEnvelope,
+  renderUnsupportedTelegramMediaReply,
+  type TelegramMediaTurnEnvelope
 } from './telegramMediaEnvelope';
 import {
   buildMemoryDoctorEvidencePrompt,
@@ -2516,6 +2518,7 @@ type NodeOutboundTraceContext = {
   missionId?: string;
   proofCapsule?: HarnessProofCapsuleV1;
   proofRef?: string;
+  mediaTurn?: TelegramMediaTurnEnvelope;
 };
 
 type TelegramDeliveryProofInput = {
@@ -2879,6 +2882,7 @@ export function buildNodeOutboundAuditRecord(
     ...(requestId ? { request_id: requestId } : { request_ref: redactedRef('request', fallbackSeed) }),
     ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedRef('trace', fallbackSeed) }),
     ...proofAuditFields(traceContext?.proofCapsule, traceContext?.proofRef),
+    ...(traceContext?.mediaTurn ? { media_turn: traceContext.mediaTurn } : {}),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
     ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
     ...(typeof traceContext?.replyKind === 'string' && traceContext.replyKind.trim() ? { reply_kind: traceContext.replyKind.trim() } : {})
@@ -10505,11 +10509,52 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
   }
 }
 
+export function buildUnsupportedTelegramMediaTraceContext(message: unknown): NodeOutboundTraceContext {
+  const mediaTurn = buildTelegramMediaTurnEnvelope(message);
+  const route = `media.${mediaTurn.media_kind}`;
+  const traceRef = redactedProofRef('trace', `${mediaTurn.turn_ref}:${route}:unsupported`);
+  const proofCapsule = buildTelegramDeliveryProofCapsule({
+    turnRef: mediaTurn.turn_ref,
+    route,
+    owner: 'spark-telegram-bot',
+    tool: 'telegram.media.evidence',
+    mutationClass: 'read_only',
+    executionStatus: 'completed',
+    replyDelivered: true,
+    replyShape: 'natural',
+    authorityDecision: 'downgraded',
+    governorDecision: 'read_only',
+    reasonSummary: 'Telegram media was acknowledged as evidence-only; no analysis, storage, or execution was authorized.',
+    joins: {
+      telegram: 'joined',
+      builder: 'not_applicable',
+      spawner: 'not_applicable',
+      provider: 'not_applicable',
+      memory: 'not_applicable',
+      voice: 'not_applicable'
+    }
+  });
+  return {
+    route,
+    command: 'media',
+    replyKind: 'unsupported_media',
+    requestId: mediaTurn.turn_ref,
+    traceRef,
+    proofCapsule,
+    mediaTurn
+  };
+}
+
+export async function handleUnsupportedTelegramMediaMessage(ctx: any): Promise<void> {
+  const traceContext = buildUnsupportedTelegramMediaTraceContext(ctx.message);
+  await ctx.reply(renderUnsupportedTelegramMediaReply(), outboundTraceExtra(traceContext));
+}
+
 bot.on(message('text'), handleTextMessage);
 bot.on(message('photo'), handleImageMessage);
 bot.on(message('document'), async (ctx) => {
   if (!isTelegramImageMessage(ctx.message)) {
-    await ctx.reply(renderUnsupportedTelegramMediaReply());
+    await handleUnsupportedTelegramMediaMessage(ctx);
     return;
   }
   await handleImageMessage(ctx);
