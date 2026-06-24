@@ -47,11 +47,14 @@ Until that repo is promoted, Telegram owns the first runnable TypeScript impleme
 
 ## Next Control-Proof Slice
 
-The June 24 control-proof plan lives in:
+The June 24 control-proof docs live in:
 
+- `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`
 - `docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`
+- `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
+- `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
 
-It defines the next work after R28: Harness proof capsules, trace-continuity audit, Telegram surface repair, typed media envelopes, and the live canary pack.
+They define the next work after R28: docs organization, read-only preflight audit, Harness proof capsules, trace-continuity audit, Telegram surface repair, typed media envelopes, and the live canary pack.
 
 ## Acceptance For Next Slice
 

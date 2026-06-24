@@ -3,6 +3,11 @@
 Date: 2026-06-24
 Status: reusable execution prompt
 
+Use after:
+
+- `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`
+- `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
+
 ```text
 Goal: Turn Spark's R28 authority hardening into durable, inspectable control proof across Telegram, Harness Core, Builder, Spawner, providers, memory, voice, and media inputs. Work step by step. Do not "save the day" with one-off patches. Prefer long-term fixes, clear contracts, traceable proof, focused tests, and live confirmation.
 
@@ -55,4 +60,3 @@ Release gate:
 - spark live status and spark providers test --role chat after runtime changes.
 - User live confirmation before PR/publish claims.
 ```
-

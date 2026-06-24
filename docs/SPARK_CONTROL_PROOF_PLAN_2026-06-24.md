@@ -3,6 +3,14 @@
 Date: 2026-06-24
 Status: planning checkpoint
 
+Documentation index:
+
+- `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`
+
+Preflight audit:
+
+- `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
+
 Reusable execution prompt:
 
 - `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
@@ -334,6 +342,7 @@ Then send one photo with a caption.
 
 ## Suggested Work Order
 
+0. Read the docs index and run the read-only preflight audit.
 1. Add trace-continuity audit script.
 2. Add proof capsule schema and fixtures.
 3. Render Harness Proof panel in Spawner trace or a local proof command.
