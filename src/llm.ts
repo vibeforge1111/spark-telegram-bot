@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
+import { redactText } from './redaction';
 import { spawnHidden } from './hiddenProcess';
 import { chatCommandTimeoutMs, parsePositiveIntegerEnvValue } from './timeoutConfig';
 
@@ -590,7 +591,7 @@ async function codexChat(prompt: string): Promise<string> {
       codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env
     );
     if (!result.ok) {
-      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
+      throw new Error(redactText(result.stderr || result.stdout || 'Codex CLI failed'));
     }
     const output = readFileSync(outputPath, 'utf-8').trim();
     return output || "I'm here, but I couldn't generate a response right now.";
