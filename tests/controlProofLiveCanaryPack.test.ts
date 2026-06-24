@@ -304,6 +304,17 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(unexpectedMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
 
   template.cases[0].observed.sideEffects.missionStarted = false;
+  template.cases[0].observed.proofJoin = 'missing proof';
+  const missingProofJoin = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProofJoin.readyForRelease, false);
+  assert.deepEqual(missingProofJoin.cases[0].missingCaptures, ['proof_join_missing']);
+
+  template.cases[0].observed.proofJoin = 'trace:raw-proof-command joined';
+  const leakyProofJoin = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyProofJoin.readyForRelease, false);
+  assert.deepEqual(leakyProofJoin.cases[0].missingCaptures, ['proof_join_raw_leak']);
+
+  template.cases[0].observed.proofJoin = 'Builder gateway joined with redacted proof ref.';
   template.cases[0].observed.proofPanel = 'Harness Proof\nEvidence joined: Telegram final';
   const malformedProofPanel = summarizeControlProofCanaryObservations(template);
   assert.equal(malformedProofPanel.readyForRelease, false);

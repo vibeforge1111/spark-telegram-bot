@@ -1153,11 +1153,23 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   const capture = entry.expected.capture;
   if (capture.observedReply && !hasCapturedText(entry.observed.reply)) missing.push('observed_reply');
   if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
-  if (!hasCapturedText(entry.observed.proofJoin)) missing.push('proof_join');
+  missing.push(...proofJoinCaptureIssues(entry));
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
   if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
   if (capture.userConfirmation) missing.push(...userConfirmationCaptureIssues(entry.observed.userConfirmation));
   return missing;
+}
+
+function proofJoinCaptureIssues(entry: ControlProofCanaryObservationCase): string[] {
+  const proofJoin = entry.observed.proofJoin;
+  if (!hasCapturedText(proofJoin)) return ['proof_join'];
+  const text = String(proofJoin || '');
+  const issues: string[] = [];
+  if (entry.observed.verdict === 'pass' && /\b(?:missing proof|proof missing|not shown|not joined|unjoined|no proof|without proof)\b/i.test(text)) {
+    issues.push('proof_join_missing');
+  }
+  if (proofPanelLeaksRawInternals(text)) issues.push('proof_join_raw_leak');
+  return issues;
 }
 
 function userConfirmationCaptureIssues(value: string | null | undefined): string[] {
