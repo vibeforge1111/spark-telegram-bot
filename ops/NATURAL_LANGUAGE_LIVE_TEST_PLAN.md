@@ -12,6 +12,14 @@ Current decision record:
 
 - `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
 
+Refurbishment helper:
+
+```powershell
+npm run nl:harness-map
+```
+
+Use this before promoting an old case into the new live canary pack. The map makes hidden mutations visible, such as old `safe` cases that write memory, change access, start missions, write files, or call external research. It is not release proof by itself.
+
 ## Current Improvement Targets
 
 1. Command vocabulary: decide which phrases should launch, plan, remember, diagnose, or refuse.
@@ -42,6 +50,12 @@ List cases:
 
 ```powershell
 npm run nl:live -- --list
+```
+
+Map selected cases into Harness Core authority/mutation shape:
+
+```powershell
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
 ```
 
 Show one case:

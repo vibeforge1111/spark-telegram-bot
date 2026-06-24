@@ -7,6 +7,8 @@ import {
   buildObservedLiveNlEvidencePacket,
   buildLiveNlEvidencePacket,
   buildLiveNlObservationTemplate,
+  deriveLiveNlHarnessCoreMapping,
+  formatLiveNlHarnessCoreMap,
   formatLiveNlCopyPastePrompts,
   formatLiveNlVerdictReport,
   liveNlCaseTurns,
@@ -76,6 +78,73 @@ test('keeps explicit multi-case selection in requested order', () => {
   const selected = selectLiveNlCommandCases(cases, { caseIds: ['wiki-001', 'safe-001'] });
 
   assert.deepEqual(selected.map((entry) => entry.id), ['wiki-001', 'safe-001']);
+});
+
+test('derives Harness Core mutation and authority fields from legacy NL cases', () => {
+  const [memoryCase, accessCase, missionCase, noActionCase] = parseLiveNlCommandCases([
+    {
+      id: 'memory-safe-001',
+      suite: 'memory',
+      risk: 'safe',
+      prompt: 'remember this: concise replies',
+      expectedRoute: 'memory_directive',
+      expectedOutcome: 'Saves the preference.'
+    },
+    {
+      id: 'access-safe-001',
+      suite: 'access',
+      risk: 'safe',
+      prompt: '/access 3',
+      expectedRoute: 'slash_access',
+      expectedOutcome: 'Sets agent access.'
+    },
+    {
+      id: 'mission-legacy-001',
+      suite: 'mission',
+      risk: 'mission',
+      prompt: '/run say OK',
+      expectedRoute: 'slash_run',
+      expectedOutcome: 'Starts a mission.'
+    },
+    {
+      id: 'no-action-001',
+      suite: 'guardrails',
+      risk: 'safe',
+      prompt: 'I am mentioning build and mission, but do not start anything.',
+      expectedRoute: 'conversation',
+      expectedOutcome: 'Explains without launching work.'
+    }
+  ]);
+
+  assert.deepEqual(
+    {
+      mutation: deriveLiveNlHarnessCoreMapping(memoryCase).expectedMutationClass,
+      authority: deriveLiveNlHarnessCoreMapping(memoryCase).expectedAuthority,
+      use: deriveLiveNlHarnessCoreMapping(memoryCase).recommendedUse
+    },
+    {
+      mutation: 'writes_memory',
+      authority: 'confirmation_required_or_allowed',
+      use: 'run_only_with_intentional_action_confirmation'
+    }
+  );
+  assert.equal(deriveLiveNlHarnessCoreMapping(accessCase).expectedMutationClass, 'updates_access_setting');
+  assert.equal(deriveLiveNlHarnessCoreMapping(missionCase).expectedMutationClass, 'launches_mission');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).expectedAuthority, 'blocked_without_authority');
+  assert.equal(deriveLiveNlHarnessCoreMapping(noActionCase).recommendedUse, 'promote_after_refurbish');
+});
+
+test('formats a Harness Core map without claiming release proof', () => {
+  const report = formatLiveNlHarnessCoreMap([cases[0], cases[1]], {
+    catalog: 'fixture-live-catalog.json',
+    title: 'Fixture Harness Map'
+  });
+
+  assert.match(report, /# Fixture Harness Map/);
+  assert.match(report, /Catalog: fixture-live-catalog\.json/);
+  assert.match(report, /Do not treat this map or a passing `nl:live` run as Harness Core release proof/);
+  assert.match(report, /\| safe-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
+  assert.match(report, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
 });
 
 test('expands suite aliases for verdict reports', () => {
@@ -419,6 +488,29 @@ test('live NL CLI loads the Genesis 100-prompt catalog by name', () => {
   assert.equal(lines.length, 100);
   assert.match(lines[0], /^genesis-001\tgenesis_normal_conversation\tsafe\tchat_think_with_me$/);
   assert.match(lines[99], /^genesis-100\tgenesis_stale_recursive_swarm\tmission\texecute_action_launch_mission$/);
+});
+
+test('live NL CLI emits Harness Core refurbishment map for selected legacy cases', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--cases',
+      'memory-001,access-002,mission-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /# Natural Language Harness Core Map/);
+  assert.match(result.stdout, /\| memory-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
+  assert.match(result.stdout, /\| access-002 \| access \| safe \| updates_access_setting \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
+  assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
 });
 
 test('live NL verdict CLI emits a Genesis evidence packet', () => {

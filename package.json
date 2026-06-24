@@ -18,6 +18,7 @@
     "health:polling": "node scripts/run-health-polling.cjs",
     "health:runtime": "node scripts/run-health-runtime.cjs",
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
+    "nl:harness-map": "ts-node ops/liveNlCommandSuite.ts --harness-map",
     "nl:verdict": "ts-node ops/liveNlVerdictReport.ts",
     "nl:replay": "ts-node ops/naturalRouteReplay.ts",
     "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",

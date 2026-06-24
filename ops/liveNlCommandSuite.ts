@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Telegraf } from 'telegraf';
 import {
+  formatLiveNlHarnessCoreMap,
   formatLiveNlCopyPastePrompts,
   liveNlCaseTurns,
   parseLiveNlCommandCases,
@@ -105,6 +106,7 @@ async function main(): Promise<void> {
       '',
       'Usage:',
       '  npm run nl:live -- --list',
+      '  npm run nl:live -- --harness-map',
       '  npm run nl:live -- --catalog genesis100 --list --include-risky',
       '  npx ts-node ops/runtimeFreshnessCheck.ts --warn-only',
       '  npm run nl:live -- --copy-paste --cases guard-006,guard-007,build-004,domain-chip-003',
@@ -120,6 +122,7 @@ async function main(): Promise<void> {
       'Notes:',
       '  Run runtimeFreshnessCheck before trusting live Telegram pasteback.',
       '  --send only sends prompt cards. It does not start polling or read updates.',
+      '  --harness-map classifies selected old cases into Harness Core authority and mutation fields.',
       '  --copy-paste prints natural user messages only, plus reply-capture blocks for Codex.',
       '  --profile loads the matching Spark Telegram profile env and bot token.',
       '  --catalog genesis100 loads the Spark Genesis 100-prompt live QA catalog.',
@@ -131,6 +134,11 @@ async function main(): Promise<void> {
 
   if (selected.length === 0) {
     throw new Error('No matching command cases.');
+  }
+
+  if (hasFlag('harness-map')) {
+    console.log(formatLiveNlHarnessCoreMap(selected, { catalog: catalogFileName() }));
+    return;
   }
 
   if (hasFlag('list')) {

@@ -80,6 +80,27 @@ Refurbish its role:
 
 Treat `ops/genesis-live-telegram-100.json` as a historical breadth benchmark and periodic drift sweep, not as the everyday control-proof pack.
 
+## 2026-06-24 Refurbishment Update
+
+The suite should not be converted in place. Its normal runner should stay fast and useful for broad conversational regressions.
+
+Instead, the old cases now have a lightweight Harness Core map:
+
+```bash
+npm run nl:harness-map
+npm run nl:harness-map -- --catalog genesis100 --include-risky
+npm run nl:live -- --harness-map --cases memory-001,access-002,mission-001
+```
+
+The map derives:
+
+- Harness authority expectation.
+- Harness mutation class.
+- Recommended use: keep as legacy breadth, promote after refurbishment, or run only with intentional action confirmation.
+- Whether proof and visual/user-confirmation capture are required if promoted.
+
+This is deliberately a map, not a release gate. A mapped case is still missing live proof joins, side-effect capture, reply-shape expectations, and Telegram visual confirmation until it is copied into `control:proof:canaries` or an equivalent Harness-shaped canary.
+
 Create or maintain a smaller Harness-shaped canary pack for SparkRecursive_bot as the release gate. That pack should draw representative prompts from the old catalogs, but each case must carry the new fields: authority, mutation class, proof join, side-effect expectation, reply shape, screenshot/user-confirmation capture, and pass criteria.
 
 Initial command:

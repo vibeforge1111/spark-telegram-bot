@@ -289,6 +289,14 @@ npm run control:proof:canaries -- --checklist
 npm run control:proof:canaries -- --json
 ```
 
+Refurbishment helper for old NL cases:
+
+```bash
+npm run nl:harness-map
+```
+
+Use the map to find old prompts worth promoting into the canary schema. Do not run mapped cases as a release gate until they have authority, mutation, proof join, side-effect, reply-shape, and live evidence fields.
+
 ### Canary Prompts
 
 Use these as copy-paste live prompts in `SparkRecursive_bot` private chat.
