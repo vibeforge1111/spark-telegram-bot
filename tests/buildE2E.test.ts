@@ -1160,6 +1160,70 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('Telegram audio input keeps audio route and proof metadata through Builder handoff', async () => {
+		restoreAxios();
+		restoreEnv();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		process.env.SPARK_BOT_TEST_MODE = '1';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-audio-media-proof-'));
+		process.env.SPARK_HARNESS_CORE_LEDGER_PATH = path.join(tempRoot, 'harness-ledger.jsonl');
+		const builderBridge = require('../src/builderBridge') as typeof import('../src/builderBridge');
+		const originalBridge = builderBridge.runBuilderTelegramBridge;
+		let capturedBridgePayload: Record<string, unknown> | null = null;
+		(builderBridge as any).runBuilderTelegramBridge = async (updatePayload: Record<string, unknown>) => {
+			capturedBridgePayload = updatePayload;
+			return {
+				used: true,
+				responseText: 'Audio transcription is ready.',
+				requestId: 'builder-audio-request',
+				traceRef: 'builder-audio-trace',
+				decision: 'test',
+				bridgeMode: 'test',
+				routingDecision: 'media.audio'
+			};
+		};
+
+		try {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest((builderBridge as any).runBuilderTelegramBridge);
+			const replies: string[] = [];
+			const replyExtras: any[] = [];
+			const ctx = makeFakeCtx(8319079055, 8319079055, 628, replies, replyExtras);
+			(ctx as any).message = {
+				message_id: 628,
+				caption: 'Transcribe this startup note.',
+				audio: {
+					file_id: 'private-audio-id',
+					mime_type: 'audio/mpeg',
+					duration: 6
+				}
+			};
+			(ctx as any).update = { update_id: 628, message: (ctx as any).message };
+
+			await indexModule.handleVoiceMessage(ctx);
+
+			const payloadMessage = (capturedBridgePayload as any)?.message || {};
+			assert.equal(payloadMessage.spark_media_turn?.schema, 'spark.media_turn.v1');
+			assert.equal(payloadMessage.spark_media_turn?.media_kind, 'audio');
+			assert.equal((capturedBridgePayload as any)?.harnessProofRef, (capturedBridgePayload as any)?.harness_proof_ref);
+			assert.match(String((capturedBridgePayload as any)?.harnessProofRef || ''), /^turn:sha256:[a-f0-9]{16}$/);
+			assert.match(replies.join('\n'), /Audio transcription is ready/);
+			assert.equal(replyExtras[0]?.__sparkTraceContext?.requestId, 'builder-audio-request');
+			assert.equal(replyExtras[0]?.__sparkTraceContext?.traceRef, 'builder-audio-trace');
+			assert.equal(replyExtras[0]?.__sparkTraceContext?.replyKind, 'builder_audio_reply');
+			assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
+			assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.execution?.tool, 'media.audio.transcribe');
+			assert.doesNotMatch(JSON.stringify({ capturedBridgePayload, replyExtras }), /private-audio-id|8319079055/);
+		} finally {
+			const indexModule: any = await import('../src/index');
+			indexModule.__setBuilderBridgeRunnerForTest(null);
+			(builderBridge as any).runBuilderTelegramBridge = originalBridge;
+			rmSync(tempRoot, { recursive: true, force: true });
+			restoreAxios();
+			restoreEnv();
+		}
+	});
+
 	await test('/proof renders an inspect-only redacted Harness Proof panel', async () => {
 		restoreAxios();
 		restoreEnv();

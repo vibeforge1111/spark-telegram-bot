@@ -61,6 +61,51 @@ test('downloads Telegram voice bytes through the active runner context', async (
   assert.equal(message.spark_media.source, 'telegram_runner_download');
   assert.equal((update.message as any).spark_media, undefined);
   assert.equal((update.message as any).spark_media_turn, undefined);
+  assert.doesNotMatch(JSON.stringify(enriched), /voice-file-id/);
+});
+
+test('downloads Telegram audio bytes as audio, not voice, media evidence', async () => {
+  const update = {
+    update_id: 12,
+    message: {
+      message_id: 22,
+      audio: {
+        file_id: 'audio-file-id',
+        mime_type: 'audio/mpeg',
+        duration: 7,
+      },
+    },
+  };
+
+  const enriched = await buildVoiceBridgeUpdate(
+    {
+      update,
+      telegram: {
+        async getFileLink(fileId: string): Promise<string> {
+          assert.equal(fileId, 'audio-file-id');
+          return 'https://telegram.example/file.mp3';
+        },
+      },
+    },
+    async (url: string | URL | Request) => {
+      assert.equal(String(url), 'https://telegram.example/file.mp3');
+      return fakeResponse(Buffer.from('audio-bytes'), {
+        'content-length': '11',
+        'content-type': 'audio/mpeg',
+      });
+    }
+  );
+
+  const message = enriched.message as any;
+  assert.equal(message.spark_media_turn.schema, 'spark.media_turn.v1');
+  assert.equal(message.spark_media_turn.media_kind, 'audio');
+  assert.equal(message.spark_media.audio_base64, Buffer.from('audio-bytes').toString('base64'));
+  assert.equal(message.spark_media.mime_type, 'audio/mpeg');
+  assert.equal(message.spark_media.filename, 'telegram-audio.mp3');
+  assert.equal(message.spark_media.source, 'telegram_runner_download');
+  assert.equal((update.message as any).spark_media, undefined);
+  assert.equal((update.message as any).spark_media_turn, undefined);
+  assert.doesNotMatch(JSON.stringify(enriched), /audio-file-id/);
 });
 
 test('keeps the media envelope when Telegram download is unavailable', async () => {
@@ -92,4 +137,5 @@ test('keeps the media envelope when Telegram download is unavailable', async () 
   assert.equal((enriched.message as any).spark_media, undefined);
   assert.equal((enriched.message as any).spark_media_turn.schema, 'spark.media_turn.v1');
   assert.equal((enriched.message as any).spark_media_turn.media_kind, 'voice');
+  assert.doesNotMatch(JSON.stringify(enriched), /voice-file-id/);
 });

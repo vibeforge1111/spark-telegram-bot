@@ -21,6 +21,19 @@ function mediaExtension(mimeType: string): string {
   return '.audio';
 }
 
+function redactTelegramVoiceAudioMessage(message: Record<string, unknown>): Record<string, unknown> {
+  const clean = { ...message };
+  for (const key of ['voice', 'audio']) {
+    const media = objectValue(clean[key]);
+    if (!media) continue;
+    const mediaClean = { ...media };
+    delete mediaClean.file_id;
+    delete mediaClean.file_unique_id;
+    clean[key] = mediaClean;
+  }
+  return clean;
+}
+
 async function responseBuffer(response: Response): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer());
 }
@@ -42,11 +55,15 @@ export async function buildVoiceBridgeUpdate(
     return update;
   }
   const envelopedUpdate = attachTelegramMediaTurnEnvelope(update);
-  const envelopedMessage = objectValue(envelopedUpdate.message) || message;
+  const envelopedMessage = redactTelegramVoiceAudioMessage(objectValue(envelopedUpdate.message) || message);
+  const redactedEnvelopedUpdate = {
+    ...envelopedUpdate,
+    message: envelopedMessage,
+  };
 
   const fileId = String(media.file_id || '').trim();
   if (!fileId || !ctx?.telegram?.getFileLink) {
-    return envelopedUpdate;
+    return redactedEnvelopedUpdate;
   }
 
   try {
@@ -72,7 +89,7 @@ export async function buildVoiceBridgeUpdate(
     const downloadMs = Date.now() - startedAt;
     console.log(`[VoiceBridgeTiming] runner_download_ms=${downloadMs} bytes=${audioBuffer.length} mime=${mimeType}`);
     return {
-      ...envelopedUpdate,
+      ...redactedEnvelopedUpdate,
       message: {
         ...envelopedMessage,
         spark_media: {
@@ -88,6 +105,6 @@ export async function buildVoiceBridgeUpdate(
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     console.warn(`[VoiceBridge] runner media download unavailable: ${redactText(detail)}`);
-    return envelopedUpdate;
+    return redactedEnvelopedUpdate;
   }
 }

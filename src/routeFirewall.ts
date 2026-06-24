@@ -29,6 +29,7 @@ export type DeterministicRouteId =
   | 'spark.wiki'
   | 'media.image'
   | 'media.voice'
+  | 'media.audio'
   | 'voice.command'
   | 'memory.write'
   | 'memory.delete'

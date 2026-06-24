@@ -2180,9 +2180,9 @@ function telegramCommandActionAuthorityDecision(
 function telegramMediaActionAuthorityDecision(
   ctx: any,
   input: {
-    route: 'media.image' | 'media.voice';
+    route: 'media.image' | 'media.voice' | 'media.audio';
     text: string;
-    toolName: 'telegram.media.image' | 'telegram.media.voice';
+    toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
     action: string;
   }
 ): TelegramActionAuthorityResult {
@@ -10421,21 +10421,24 @@ export async function handleImageMessage(ctx: any): Promise<void> {
 export async function handleVoiceMessage(ctx: any): Promise<void> {
   const user = ctx.from;
   const startedAt = Date.now();
-  const voiceMemoryText = typeof ctx.message?.caption === 'string' && ctx.message.caption.trim()
-    ? `[voice] ${ctx.message.caption.trim()}`
-    : '[voice message]';
+  const mediaKind: 'voice' | 'audio' = ctx.message?.audio ? 'audio' : 'voice';
+  const mediaLabel = mediaKind === 'audio' ? 'audio file' : 'voice note';
+  const mediaMemoryText = typeof ctx.message?.caption === 'string' && ctx.message.caption.trim()
+    ? `[${mediaKind}] ${ctx.message.caption.trim()}`
+    : `[${mediaKind} message]`;
+  const toolName = `telegram.media.${mediaKind}` as 'telegram.media.voice' | 'telegram.media.audio';
   const authorization = telegramMediaActionAuthorityDecision(ctx, {
-    route: 'media.voice',
-    text: voiceMemoryText,
-    toolName: 'telegram.media.voice',
-    action: 'media.voice.transcribe'
+    route: `media.${mediaKind}` as 'media.voice' | 'media.audio',
+    text: mediaMemoryText,
+    toolName,
+    action: `media.${mediaKind}.transcribe`
   });
   if (!authorization.allow) {
     await replyTelegramMediaAuthorityBlocked(ctx);
     return;
   }
 
-  await conversation.remember(user, voiceMemoryText).catch(() => {});
+  await conversation.remember(user, mediaMemoryText).catch(() => {});
   const rememberedAt = Date.now();
   await safeSendChatAction(ctx, 'typing');
 
@@ -10446,7 +10449,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
           executionStatus: 'started',
           replyDelivered: false,
           replyShape: 'none',
-          reasonSummary: 'Telegram voice input was handed to Builder gateway with fresh Harness authority.'
+          reasonSummary: `Telegram ${mediaKind} input was handed to Builder gateway with fresh Harness authority.`
         })
       : null;
     const bridgeUpdate = attachBuilderHarnessProofRef(await buildVoiceBridgeUpdate(ctx), bridgeHandoffProofCapsule);
@@ -10460,9 +10463,9 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
 
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.responseText || builderReply.voiceMedia)) {
       recordTelegramHarnessCoreExecution(authorization, {
-        toolName: 'telegram.media.voice',
+        toolName,
         status: 'success',
-        summary: 'Telegram voice input was routed through Builder voice media handling.'
+        summary: `Telegram ${mediaKind} input was routed through Builder media handling.`
       });
       const deliveryProofCapsule = authorization.legacyEnvelope
         ? buildBuilderGatewayProofCapsule({
@@ -10471,14 +10474,14 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
             executionStatus: 'completed',
             replyDelivered: true,
             replyShape: builderReply.voiceMedia ? 'card' : 'natural',
-            reasonSummary: 'Builder voice reply was delivered to Telegram.'
+            reasonSummary: `Builder ${mediaKind} reply was delivered to Telegram.`
           })
         : null;
       await deliverBuilderReply(
         ctx,
         builderReply,
         authorization.legacyEnvelope && deliveryProofCapsule
-          ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, 'builder_voice_reply')
+          ? builderReplyTraceContext(authorization.legacyEnvelope, builderReply, deliveryProofCapsule, `builder_${mediaKind}_reply`)
           : undefined
       );
       const deliveredAt = Date.now();
@@ -10491,15 +10494,15 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       return;
     }
 
-    const fallback = 'I received the voice note, but Spark did not return a transcription or voice reply. Run `/voice`, then try one short voice note again.';
+    const fallback = `I received the ${mediaLabel}, but Spark did not return a transcription or media reply. Run \`/voice\`, then try one short ${mediaLabel} again.`;
     recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'telegram.media.voice',
+      toolName,
       status: 'failure',
-      summary: 'Telegram voice input did not receive a usable Builder voice response.'
+      summary: `Telegram ${mediaKind} input did not receive a usable Builder media response.`
     });
     await ctx.reply(fallback);
     await conversation.recordInterruptedTask(user, {
-      message: voiceMemoryText,
+      message: mediaMemoryText,
       failure: `Builder voice bridge returned no usable response. mode=${builderReply.bridgeMode || 'none'} routing=${builderReply.routingDecision || 'none'}`,
       stage: 'telegram_voice_handler'
     }).catch(() => {});
@@ -10507,12 +10510,12 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
     console.error('Voice handling error:', err);
     const detail = err instanceof Error ? err.message : String(err);
     recordTelegramHarnessCoreExecution(authorization, {
-      toolName: 'telegram.media.voice',
+      toolName,
       status: 'failure',
-      summary: `Telegram voice handling failed: ${detail}`
+      summary: `Telegram ${mediaKind} handling failed: ${detail}`
     });
     await conversation.recordInterruptedTask(user, {
-      message: voiceMemoryText,
+      message: mediaMemoryText,
       failure: detail,
       stage: 'telegram_voice_handler'
     }).catch(() => {});

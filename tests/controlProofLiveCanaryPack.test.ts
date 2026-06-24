@@ -44,6 +44,7 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
     'web_research',
     'model_switch',
     'media',
+    'audio',
     'voice'
   ];
 

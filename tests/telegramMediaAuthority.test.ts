@@ -12,9 +12,9 @@ function test(name: string, fn: () => void): void {
 }
 
 function mediaAuth(input: {
-  route: 'media.image' | 'media.voice';
+  route: 'media.image' | 'media.voice' | 'media.audio';
   text: string;
-  toolName: 'telegram.media.image' | 'telegram.media.voice';
+  toolName: 'telegram.media.image' | 'telegram.media.voice' | 'telegram.media.audio';
   action: string;
 }) {
   return authorizeTelegramMediaAction({
@@ -28,7 +28,7 @@ function mediaAuth(input: {
   });
 }
 
-test('media ingest allows read-only image and voice analysis without action authority leakage', () => {
+test('media ingest allows read-only image, voice, and audio analysis without action authority leakage', () => {
   const image = mediaAuth({
     route: 'media.image',
     text: '[image] Read this startup dashboard screenshot and tell me what looks wrong.',
@@ -41,15 +41,25 @@ test('media ingest allows read-only image and voice analysis without action auth
     toolName: 'telegram.media.voice',
     action: 'media.voice.transcribe'
   });
+  const audio = mediaAuth({
+    route: 'media.audio',
+    text: '[audio] transcribe this audio file and answer the startup question',
+    toolName: 'telegram.media.audio',
+    action: 'media.audio.transcribe'
+  });
 
   assert.equal(image.allow, true);
   assert.equal(voice.allow, true);
+  assert.equal(audio.allow, true);
   assert.equal(image.governorDecision?.outcome, 'read_only');
   assert.equal(voice.governorDecision?.outcome, 'read_only');
+  assert.equal(audio.governorDecision?.outcome, 'read_only');
   assert.equal(image.harnessCore?.authorization.restrictions.write_allowed, false);
   assert.equal(voice.harnessCore?.authorization.restrictions.write_allowed, false);
+  assert.equal(audio.harnessCore?.authorization.restrictions.write_allowed, false);
   assert.equal(image.harnessCore?.authorization.restrictions.network_allowed, true);
   assert.equal(voice.harnessCore?.authorization.restrictions.network_allowed, true);
+  assert.equal(audio.harnessCore?.authorization.restrictions.network_allowed, true);
 });
 
 test('media ingest stop wording blocks the bridge before Builder receives media', () => {
@@ -65,10 +75,18 @@ test('media ingest stop wording blocks the bridge before Builder receives media'
     toolName: 'telegram.media.voice',
     action: 'media.voice.transcribe'
   });
+  const audio = mediaAuth({
+    route: 'media.audio',
+    text: '[audio] no transcription right now',
+    toolName: 'telegram.media.audio',
+    action: 'media.audio.transcribe'
+  });
 
   assert.equal(mediaIngestStopBoundary('[image] do not inspect this'), true);
   assert.equal(image.allow, false);
   assert.equal(voice.allow, false);
+  assert.equal(audio.allow, false);
   assert.ok(image.reasonCodes.includes('tool_denied_by_policy'));
   assert.ok(voice.reasonCodes.includes('tool_denied_by_policy'));
+  assert.ok(audio.reasonCodes.includes('tool_denied_by_policy'));
 });
