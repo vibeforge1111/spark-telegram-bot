@@ -1,16 +1,15 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-24T18:50:02.066Z
+Generated: 2026-06-24T19:00:45.206Z
 Cases: 27
 Release gate: not ready
 
 Verdicts:
-- pass: 25
+- pass: 26
 - fail: 0
 - blocked: 0
-- needs-retest: 1
+- needs-retest: 0
 - untested: 1
 
 Cases needing attention:
-- cp-media-002: needs-retest
 - cp-voice-001: untested; missing verdict
