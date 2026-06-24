@@ -19,7 +19,7 @@ export interface HarnessProofProjectionOptions {
   evidenceFiles?: ControlProofEvidenceFile[];
 }
 
-export type HarnessProofEvidenceJoinStatus = 'joined' | 'missing' | 'proof_gap';
+export type HarnessProofEvidenceJoinStatus = 'joined' | 'missing' | 'proof_gap' | 'non_execution';
 
 export interface HarnessProofEvidenceJoin {
   plane: string;
@@ -94,13 +94,14 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
     const evidenceJoins = requestedRef || requestedTraceRef
       ? summarizeEvidenceJoins(evidenceFiles, requestedRef || null, requestedTraceRef || null)
       : [];
-    const hasJoinedEvidence = evidenceJoins.some((join) => join.status === 'joined' || join.status === 'proof_gap');
+    const hasJoinedEvidence = evidenceJoins.some((join) => join.status === 'joined' || join.status === 'proof_gap' || join.status === 'non_execution');
+    const hasOnlyNonExecutionEvidence = hasJoinedEvidence && evidenceJoins.every((join) => join.status === 'missing' || join.status === 'non_execution');
     const panel = [
       'Harness Proof',
       requestedRef ? `Proof ref: ${displayRef('turn', requestedRef)}` : 'Proof ref: latest',
       ...(requestedTraceRef ? [`Trace ref: ${displayRef('trace', requestedTraceRef)}`] : []),
-      hasJoinedEvidence ? 'Status: proof capsule missing' : 'Status: not found',
-      'Gaps: proof capsule missing from sampled evidence',
+      hasOnlyNonExecutionEvidence ? 'Status: non-execution evidence only' : hasJoinedEvidence ? 'Status: proof capsule missing' : 'Status: not found',
+      hasOnlyNonExecutionEvidence ? 'Gaps: no execution proof capsule expected from non-execution evidence' : 'Gaps: proof capsule missing from sampled evidence',
       ...(hasJoinedEvidence ? [renderEvidenceJoinSummary(evidenceJoins)] : []),
       renderAuditSummary(audit)
     ].join('\n');
@@ -264,11 +265,16 @@ function summarizeEvidenceJoins(
     const traceRecords = traceRef ? records.filter((record) => recordContainsTraceRef(record, traceRef)) : [];
     const traceJoined = traceRecords.length > 0;
     const proofGap = traceRecords.some(isProofGapMarkedRecord);
-    const status: HarnessProofEvidenceJoinStatus = proofJoined || (traceJoined && !proofGap)
+    const nonExecution = traceRecords.some(isProofNotApplicableRecord);
+    const status: HarnessProofEvidenceJoinStatus = proofJoined
       ? 'joined'
       : proofGap
         ? 'proof_gap'
-        : 'missing';
+        : traceJoined && nonExecution
+          ? 'non_execution'
+          : traceJoined
+            ? 'joined'
+            : 'missing';
     return {
       plane: file.label,
       displayName: EVIDENCE_PLANE_DISPLAY_NAMES[file.label] || file.label,
@@ -281,7 +287,7 @@ function summarizeEvidenceJoins(
 }
 
 function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
-  const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined');
+  const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined' || join.status === 'non_execution');
   const joined = visibleJoins.filter((join) => join.status === 'joined').map((join) => join.displayName);
   const proofRefs = visibleJoins.filter((join) => join.proofRefJoined).map((join) => join.displayName);
   const proofCapsules = visibleJoins.filter((join) => join.proofCapsuleJoined).map((join) => join.displayName);
@@ -289,6 +295,7 @@ function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
     .filter((join) => join.status === 'joined' && join.traceJoined && !join.proofRefJoined && !join.proofCapsuleJoined)
     .map((join) => join.displayName);
   const proofGaps = visibleJoins.filter((join) => join.status === 'proof_gap').map((join) => join.displayName);
+  const nonExecution = visibleJoins.filter((join) => join.status === 'non_execution').map((join) => join.displayName);
   const missing = visibleJoins.filter((join) => join.status === 'missing').map((join) => join.displayName);
   return [
     `Evidence joined: ${joined.length ? joined.join(', ') : 'none'}`,
@@ -296,6 +303,7 @@ function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
     `Evidence proof capsules: ${proofCapsules.length ? proofCapsules.join(', ') : 'none'}`,
     `Evidence trace-only: ${traceOnly.length ? traceOnly.join(', ') : 'none'}`,
     `Evidence proof gaps: ${proofGaps.length ? proofGaps.join(', ') : 'none'}`,
+    `Evidence non-execution: ${nonExecution.length ? nonExecution.join(', ') : 'none'}`,
     `Evidence missing: ${missing.length ? missing.join(', ') : 'none'}`
   ].join('\n');
 }
@@ -380,6 +388,10 @@ function isProofGapMarkedRecord(record: unknown): boolean {
   return recordHasProofGapKey(record, /^(proof_status|proofStatus|proof_storage|proofStorage)$/);
 }
 
+function isProofNotApplicableRecord(record: unknown): boolean {
+  return recordHasProofNotApplicableKey(record, /^(proof_status|proofStatus|proof_storage|proofStorage)$/);
+}
+
 function recordHasProofGapKey(record: unknown, keyPattern: RegExp): boolean {
   const queue: unknown[] = [record];
   while (queue.length > 0) {
@@ -394,6 +406,29 @@ function recordHasProofGapKey(record: unknown, keyPattern: RegExp): boolean {
       if (
         keyPattern.test(key) &&
         (normalized === 'missing_harness_proof' || normalized === 'missing_harness_authority')
+      ) {
+        return true;
+      }
+      if (value && typeof value === 'object') queue.push(value);
+    }
+  }
+  return false;
+}
+
+function recordHasProofNotApplicableKey(record: unknown, keyPattern: RegExp): boolean {
+  const queue: unknown[] = [record];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    for (const [key, value] of Object.entries(current as Record<string, unknown>)) {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (
+        keyPattern.test(key) &&
+        (normalized === 'not_execution_proof' || normalized === 'not_applicable')
       ) {
         return true;
       }

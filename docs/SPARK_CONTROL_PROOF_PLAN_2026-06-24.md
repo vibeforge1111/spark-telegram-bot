@@ -155,6 +155,8 @@ For each plane:
 
 Memory movement now exposes a redacted continuity summary in Telegram: request joined, trace joined, proof marked as non-execution proof, and raw memory hidden. This is still observability, not permission. It proves the compiled memory index can be inspected without promoting memory rows into action authority.
 
+Harness Proof panels now keep non-execution evidence separate from execution-proof joins. Memory and voice rows marked `not_execution_proof` can help explain what was observed, but they do not satisfy an action proof capsule requirement.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

@@ -401,6 +401,52 @@ test('reports trace-only joins separately from proof refs', () => {
   });
 });
 
+test('separates non-execution memory and voice evidence from execution proof joins', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:sha256:nonevidenceonly';
+    fs.mkdirSync(path.join(sparkHome, 'state', 'system-map'), { recursive: true });
+    fs.writeFileSync(path.join(sparkHome, 'state', 'system-map', 'memory-movement-index.json'), JSON.stringify({
+      schema_version: 'spark.memory_movement_trace_continuity.v1',
+      request_ref: 'request:sha256:memorytrace',
+      trace_ref: traceRef,
+      trace_continuity: {
+        trace_ref: traceRef,
+        proof_status: 'not_execution_proof',
+        raw_memory_exported: false
+      },
+      raw_memory_body: 'private memory row should stay hidden'
+    }), 'utf8');
+    fs.mkdirSync(path.join(sparkHome, 'state', 'spark-voice-comms'), { recursive: true });
+    fs.writeFileSync(path.join(sparkHome, 'state', 'spark-voice-comms', 'voice-runtime-state.json'), JSON.stringify({
+      schema_version: 'spark.voice_runtime_state.v1',
+      request_ref: 'request:sha256:voicetrace',
+      trace_ref: traceRef,
+      trace_continuity: {
+        trace_ref: traceRef,
+        proof_status: 'not_execution_proof',
+        raw_audio_exported: false
+      },
+      transcript_body: 'private transcript should stay hidden'
+    }), 'utf8');
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      traceRef
+    });
+
+    assert.equal(projection.ok, false);
+    assert.equal(projection.foundRef, null);
+    assert.match(projection.panel, /Status: non-execution evidence only/);
+    assert.match(projection.panel, /Gaps: no execution proof capsule expected from non-execution evidence/);
+    assert.match(projection.panel, /Evidence joined: none/);
+    assert.match(projection.panel, /Evidence trace-only: none/);
+    assert.match(projection.panel, /Evidence non-execution: Memory movement, Voice runtime/);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'memory_movement_index')?.status, 'non_execution');
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'voice_runtime_state')?.status, 'non_execution');
+    assert.doesNotMatch(projection.panel, /nonevidenceonly|private memory row|private transcript/);
+  });
+});
+
 test('finds a proof capsule by trace ref and preserves proof-gap evidence joins', () => {
   withTempSparkHome((sparkHome) => {
     const traceRef = 'trace:spawner-prd:mission-with-proof';
