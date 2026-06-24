@@ -154,3 +154,25 @@ Refurbishment should happen by promotion:
 5. Keep intentional actions out of default runs unless the operator explicitly includes them.
 
 The live NL helper now rejects unknown explicit case ids. That keeps refurbishment work honest when an operator names old cases for mapping or promotion.
+
+## 2026-06-24 14:14 +04 Re-Audit Notes
+
+The renewed decision still matches the current code.
+
+Commands checked:
+
+```bash
+npm run test -- --run tests/liveNlVerdict.test.ts tests/controlProofLiveCanaryPack.test.ts tests/turnIntent350Matrix.test.ts tests/harnessCoreVNext.test.ts tests/harnessContract.test.ts tests/naturalRouteDecision.test.ts
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
+npm run control:proof:canaries -- --list
+npm run control:proof:canaries -- --category streaming --checklist
+```
+
+Result:
+
+- The old NL suite is still useful as a fast breadth and drift sweep.
+- The Harness map still correctly shows that old `safe` cases can hide real mutations; for example `memory-001` writes memory and `access-002` updates access.
+- The control-proof canary pack is the right new Harness-shaped structure for release proof because it carries authority, mutation class, proof join, side-effect expectation, reply shape, and visual/user-confirmation capture.
+- Streaming and rich-message behavior should stay in the canary pack, not in the legacy route harness, because the route harness intentionally strips live Telegram rendering behavior out of the loop.
+
+Practical rule: refurbish by promotion, not conversion. Keep the old catalog quick and broad; copy only representative prompts into `control:proof:canaries` when they add coverage that the new Harness-shaped pack does not already have.
