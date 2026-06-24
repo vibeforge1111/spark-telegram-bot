@@ -1,4 +1,5 @@
 import { parseBuildIntent } from './buildIntent';
+import { isRouteConfidenceDefinitionQuestion } from './routeConfidenceQuestion';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
 const COLLABORATIVE_IDEA_PATTERNS = [
@@ -54,9 +55,8 @@ export function hasLocalOptionReference(text: string): boolean {
 export function shouldPreferConversationalIdeation(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
-  if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) {
-    return false;
-  }
+  if (HARD_EXECUTION_PATTERNS.some((pattern) => pattern.test(trimmed))) return false;
+  if (isRouteConfidenceDefinitionQuestion(trimmed)) return false;
   const mentionsDomainChipArtifact = /\bdomain[-\s]*chip[-\w]*\b/i.test(trimmed);
   return (
     hasLocalOptionReference(trimmed) ||
