@@ -205,6 +205,8 @@ Live recapture of `cp-access-002` on 2026-06-24 confirmed the access-level chang
 
 Live recapture of `cp-model-001` on 2026-06-24 confirmed model-switch explanations stay chat-only: Spark explained the confirmation boundary without changing provider settings or exposing raw policy reasons, and `/proof` showed `model_switch.boundary_explanation` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 11 to 10.
 
+Live recapture of `cp-model-002` on 2026-06-24 confirmed the mission-provider switch boundary stays narrow: Spark proved the mission provider was already Codex, left the chat provider unchanged, did not start a mission or edit files, and `/proof` showed `model_switch.mission_provider` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 10 to 9.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
