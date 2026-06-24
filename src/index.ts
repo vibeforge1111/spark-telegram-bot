@@ -2486,6 +2486,7 @@ function previewAuditText(text: string, limit = 240): string {
 }
 
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
+const TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT = Symbol.for('spark.telegram.turnOutboundTraceContext');
 
 type NodeOutboundTraceContext = {
   route?: string;
@@ -2543,6 +2544,36 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   return {
     [OUTBOUND_TRACE_CONTEXT_KEY]: traceContext
   };
+}
+
+export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): NodeOutboundTraceContext {
+  return {
+    route: envelope.selectedIntent.action || envelope.selectedIntent.kind,
+    command: envelope.surface,
+    replyKind: envelope.directive.mode === 'answer' ? 'natural_reply' : `${envelope.directive.mode}_reply`,
+    requestId: envelope.turnId,
+    traceRef: envelope.traceId
+  };
+}
+
+function setTurnOutboundTraceContext(ctx: any, traceContext: NodeOutboundTraceContext): void {
+  if (!ctx || typeof ctx !== 'object') return;
+  try {
+    Object.defineProperty(ctx, TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT, {
+      configurable: true,
+      enumerable: false,
+      value: traceContext,
+      writable: true
+    });
+  } catch {
+    ctx[TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT] = traceContext;
+  }
+}
+
+function getTurnOutboundTraceContext(ctx: any): NodeOutboundTraceContext | null {
+  if (!ctx || typeof ctx !== 'object') return null;
+  const value = ctx[TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT];
+  return value && typeof value === 'object' ? value as NodeOutboundTraceContext : null;
 }
 
 function proofAuditFields(
@@ -2825,7 +2856,7 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
 bot.use(async (ctx, next) => {
   const originalReply = ctx.reply.bind(ctx);
   ctx.reply = (async (text: any, extra?: any) => {
-    const traceContext = extractOutboundTraceContext(extra);
+    const traceContext = extractOutboundTraceContext(extra) || getTurnOutboundTraceContext(ctx);
     const cleanExtra = stripOutboundTraceContext(extra);
     if (typeof text !== 'string') {
       const delivery = await originalReply(text, cleanExtra);
@@ -8303,6 +8334,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     accessProfile: conversation.isAdmin(ctx.from) ? 'admin' : 'standard',
     conversationKind: ctx.chat?.type === 'private' ? 'dm' : 'group'
   });
+  setTurnOutboundTraceContext(ctx, buildTurnOutboundTraceContext(turnIntentEnvelope));
   const earlyBuildIntent = parsedEarlyBuildIntent && telegramActionAuthorityAllowed(turnIntentEnvelope, {
     route: 'spawner.build',
     text,

@@ -24,6 +24,8 @@ import { describeTier, getTierForUser } from '../src/userTier';
 import { readJsonFile, resolveStatePath } from '../src/jsonState';
 import { readHarnessCoreToolLedger } from '../src/harnessCoreLedger';
 import { buildHarnessProofCapsule } from '../src/harnessProofCapsule';
+import { buildTelegramTurnIntentEnvelope } from '../src/harnessContract';
+import { classifyTelegramIntentV2 } from '../src/telegramIntentGate';
 
 type AsyncTest = () => Promise<void> | void;
 
@@ -964,6 +966,38 @@ async function run(): Promise<void> {
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'user_id'), false);
 		assert.doesNotMatch(JSON.stringify(record), new RegExp(String(testUserId)));
 		assert.doesNotMatch(JSON.stringify(record.proof_capsule), /req-final-gate/);
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('turn-level outbound trace context gives ordinary replies request and trace coverage', async () => {
+		restoreAxios();
+		const indexModule: any = await import('../src/index');
+		const envelope = buildTelegramTurnIntentEnvelope({
+			text: 'what is the current live state of Spark?',
+			decision: classifyTelegramIntentV2('what is the current live state of Spark?'),
+			userRef: 'user:private-raw',
+			chatRef: 'chat:private-raw',
+			accessProfile: 'admin',
+			conversationKind: 'dm',
+			turnId: 'turn:ordinary-reply',
+			traceId: 'trace:ordinary-reply'
+		});
+		const traceContext = indexModule.buildTurnOutboundTraceContext(envelope);
+		const record = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'Spark Live is ready.',
+			new Date('2026-06-24T00:00:00.000Z'),
+			traceContext
+		);
+
+		assert.equal(record.trace_context_present, true);
+		assert.equal(record.request_id, 'turn:ordinary-reply');
+		assert.equal(record.trace_ref, 'trace:ordinary-reply');
+		assert.equal(record.route, envelope.selectedIntent.action || envelope.selectedIntent.kind);
+		assert.equal(record.command, 'telegram');
+		assert.equal(record.reply_kind, traceContext.replyKind);
+		assert.doesNotMatch(JSON.stringify(record), /8319079055|private-raw/);
 		restoreAxios();
 		restoreEnv();
 	});
