@@ -171,6 +171,8 @@ Canary release summaries group repeated capture failures before listing individu
 
 When proof-panel captures are stale, the summary prints the case ids needing fresh `/proof` captures. Use those ids for a focused run-guide or `--record-case` pass rather than rerunning unrelated canaries.
 
+Use `npm run control:proof:canaries -- --observations <packet> --stale-proof-run-guide` to generate a focused live guide from the packet's stale proof-panel blockers.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

@@ -58,6 +58,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --refresh-runtime-evidence',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
@@ -352,6 +353,24 @@ function main(): void {
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
     const summary = summarizeControlProofCanaryObservations(observations);
+    if (hasFlag(args, 'stale-proof-run-guide')) {
+      const staleProofCaseIds = summary.cases
+        .filter((entry) => entry.missingCaptures.includes('proof_panel_legacy_gap_stale'))
+        .map((entry) => entry.id);
+      if (staleProofCaseIds.length === 0) {
+        console.log('No stale proof-panel recaptures found.');
+      } else {
+        const cases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+          caseIds: staleProofCaseIds,
+          includeActions: true
+        });
+        console.log(formatControlProofCanaryLiveRunGuide(cases, {
+          observationsPath,
+          summaryPath: summaryOutPath || undefined
+        }));
+      }
+      return;
+    }
     const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict') || releaseCheck;
     const coverage = coverageRequested
       ? summarizeControlProofCanaryCoverage(canaryCasesFromObservations(observations))
