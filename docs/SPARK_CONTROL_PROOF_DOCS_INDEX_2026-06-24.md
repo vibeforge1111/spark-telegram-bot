@@ -34,19 +34,23 @@ Read these in order:
    - Compact under-4,000-character execution prompt.
    - Use only after the preflight audit is captured or intentionally skipped.
 
-7. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+7. `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+   - Audit of the older `nl:live` and Genesis natural-language suites.
+   - Source for the decision to keep them as broad regression catalogs, not the new control-proof release gate.
+
+8. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-8. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+9. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-9. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+10. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-10. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+11. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -94,6 +98,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Recursive/QA Operator behavior updates `QA_OPERATOR_TELEGRAM_RECURSION.md`.
 - Harness boundary changes update `TURNINTENT_HARNESS_RULESET.md` or `SPARK_HARNESS_CONTRACT.md`.
 - Voice behavior updates `VOICE_RUNTIME_ARCHITECTURE.md`.
+- Natural-language suite usage changes update `SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`.
 
 ## Done Definition
 

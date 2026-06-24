@@ -264,6 +264,14 @@ Make photos, documents, voice, and audio enter Spark through typed media envelop
 
 Keep a small live test pack that proves Spark is controlled and pleasant after every update.
 
+### Relationship To Old Natural-Language Suites
+
+The older `npm run nl:live` catalogs remain useful as broad behavior regression coverage, but they are not the new Harness Core release gate. Their audit decision is captured in:
+
+- `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+
+Use the old catalogs as source material and periodic drift sweeps. The control-proof canary pack should be smaller and stricter: authority decision, mutation class, proof join, side effects, reply shape, screenshot/user confirmation, and pass criteria are first-class fields.
+
 ### Canary Prompts
 
 Use these as copy-paste live prompts in `SparkRecursive_bot` private chat.
@@ -355,7 +363,8 @@ Then send one photo with a caption.
 8. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
 9. Repair Telegram failure language using fixtures from recent bad replies.
 10. Add media envelope fixtures and photo normalization.
-11. Promote the live canary pack into a repeatable command or runbook.
+11. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
+12. Promote the live canary pack into a repeatable command or runbook.
 
 ## Release Gate
 

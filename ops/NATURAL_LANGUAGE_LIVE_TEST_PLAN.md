@@ -2,6 +2,16 @@
 
 This is the running matrix for testing the active Spark Telegram profile as a natural-language control surface for Spawner UI, Mission Control, Kanban, and Canvas.
 
+## Harness Core Status
+
+This plan is now a broad behavior-regression matrix, not the main Harness Core release gate.
+
+Use it to answer whether Spark still understands natural-language prompts across many old surfaces. Do not use a passing `nl:live` run by itself to claim control-proof readiness. The new release gate must also prove fresh authority, side effects, redacted proof joins, streaming/rich-message rendering, screenshots or live Telegram confirmation, and intentional-action boundaries.
+
+Current decision record:
+
+- `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+
 ## Current Improvement Targets
 
 1. Command vocabulary: decide which phrases should launch, plan, remember, diagnose, or refuse.
