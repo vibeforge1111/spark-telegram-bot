@@ -80,6 +80,18 @@ Refurbish its role:
 
 Treat `ops/genesis-live-telegram-100.json` as a historical breadth benchmark and periodic drift sweep, not as the everyday control-proof pack.
 
+## Refurbished Operating Model
+
+The suite should become a three-lane system:
+
+1. Legacy breadth lane: `npm run nl:live`, `npm run nl:replay`, and the old catalogs stay fast. They protect conversational coverage, route-hijack prevention, context recall, and old regression prompts. A pass here means "Spark still understands the old natural-language surface," not "Spark is control-proof."
+2. Harness mapping lane: `npm run nl:harness-map` classifies old prompts into authority, mutation class, recommended use, and capture requirements. This lane exists to expose hidden mutations in old cases before promotion.
+3. Control-proof lane: `npm run control:proof:canaries` is the new Harness-shaped release gate. Cases here must carry authority, mutation class, proof join, side-effect expectation, reply shape, screenshot or user-confirmation capture, and explicit pass criteria.
+
+This keeps conversations fast while still letting the new Harness Core own the release proof. Converting the full old suite in place would make the everyday regression loop slower and blur the difference between broad conversation coverage and proof-grade control coverage.
+
+Archive only cases that are duplicated, obsolete because the surface no longer exists, or unsafe to keep even as opt-in source material. Do not archive a case merely because it came from the older harness; first map it and decide whether it should remain legacy breadth, be promoted, or require intentional-action confirmation.
+
 ## 2026-06-24 Refurbishment Update
 
 The suite should not be converted in place. Its normal runner should stay fast and useful for broad conversational regressions.
