@@ -252,17 +252,22 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofCapsulePresent, 1);
     assert.equal(plane.proofRefPresent, 1);
     assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.latestProofGapMarked, true);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.equal(result.gapCounts.latestProofGap, 1);
     assert.deepEqual(result.gapPlanes.legacyProofGap, ['telegram_route_confidence']);
+    assert.deepEqual(result.gapPlanes.latestProofGap, ['telegram_route_confidence']);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: telegram_route_confidence/);
+    assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: telegram_route_confidence/);
   });
 });
 
@@ -310,7 +315,10 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(plane.latestProofGapMarked, false);
     assert.equal(plane.latestRecordAt, '2026-06-24T12:05:00.000Z');
     assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.equal(result.gapCounts.latestProofGap, 0);
+    assert.deepEqual(result.gapPlanes.latestProofGap, []);
     assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* latest_gap no/);
+    assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 0/);
   });
 });
 
@@ -338,6 +346,7 @@ test('reports clean when every configured plane is joined and redacted', () => {
     assert.equal(result.blockingOk, true);
     assert.equal(result.gapCounts.missingTraceJoin, 0);
     assert.equal(result.gapCounts.rawRefLeak, 0);
+    assert.equal(result.gapCounts.latestProofGap, 0);
   });
 });
 
@@ -393,7 +402,9 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
     assert.match(blockingStrict.stdout, /Status: gaps found/);
     assert.match(blockingStrict.stdout, /Blocking status: clean/);
     assert.match(blockingStrict.stdout, /legacy proof gaps: 1/);
+    assert.match(blockingStrict.stdout, /latest proof gaps: 1/);
     assert.match(blockingStrict.stdout, /legacy proof gaps: telegram_route_confidence/);
+    assert.match(blockingStrict.stdout, /latest proof gaps: telegram_route_confidence/);
 
     const absoluteStrict = spawnSync(
       process.execPath,
@@ -459,6 +470,7 @@ test('fresh strict CLI fails only when the latest producer row still carries a p
     );
     assert.equal(freshStrictClean.status, 0, freshStrictClean.stderr);
     assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
+    assert.match(freshStrictClean.stdout, /latest proof gaps: 0/);
     assert.match(freshStrictClean.stdout, /latest_gap no/);
 
     writeJsonl(tracePath, [
@@ -486,5 +498,6 @@ test('fresh strict CLI fails only when the latest producer row still carries a p
     );
     assert.equal(freshStrictGap.status, 1);
     assert.match(freshStrictGap.stdout, /latest_gap yes/);
+    assert.match(freshStrictGap.stdout, /latest proof gaps: 1/);
   });
 });

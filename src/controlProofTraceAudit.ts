@@ -48,6 +48,7 @@ export interface ControlProofGapCounts {
   missingTraceJoin: number;
   missingProofCapsule: number;
   legacyProofGap: number;
+  latestProofGap: number;
   rawRefLeak: number;
   roboticFailureReply: number;
   stackLikeLeak: number;
@@ -199,6 +200,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `- missing trace joins: ${result.gapCounts.missingTraceJoin}`,
     `- missing proof capsules: ${result.gapCounts.missingProofCapsule}`,
     `- legacy proof gaps: ${result.gapCounts.legacyProofGap}`,
+    `- latest proof gaps: ${result.gapCounts.latestProofGap}`,
     `- raw ref leaks: ${result.gapCounts.rawRefLeak}`,
     `- robotic failure reasons: ${result.gapCounts.roboticFailureReply}`,
     `- stack-like leaks: ${result.gapCounts.stackLikeLeak}`
@@ -358,6 +360,7 @@ function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlPro
     missingTraceJoin: planes.filter((plane) => !plane.missing && (plane.requestIdMissing > 0 || plane.traceRefMissing > 0)).length,
     missingProofCapsule: planes.filter((plane) => !plane.missing && plane.proofCapsuleMissing > 0).length,
     legacyProofGap: planes.filter((plane) => !plane.missing && plane.proofGapMarked > 0).length,
+    latestProofGap: planes.filter((plane) => !plane.missing && plane.latestProofGapMarked).length,
     rawRefLeak: planes.filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0).length,
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
     stackLikeLeak: planes.filter((plane) => plane.stackLikeRows > 0).length
@@ -375,6 +378,9 @@ function summarizeGapPlanes(planes: ControlProofTracePlaneSummary[]): Record<key
       .map((plane) => plane.label),
     legacyProofGap: planes
       .filter((plane) => !plane.missing && plane.proofGapMarked > 0)
+      .map((plane) => plane.label),
+    latestProofGap: planes
+      .filter((plane) => !plane.missing && plane.latestProofGapMarked)
       .map((plane) => plane.label),
     rawRefLeak: planes
       .filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0)
@@ -400,6 +406,7 @@ function gapCountLabel(key: keyof ControlProofGapCounts): string {
     missingTraceJoin: 'missing trace joins',
     missingProofCapsule: 'missing proof capsules',
     legacyProofGap: 'legacy proof gaps',
+    latestProofGap: 'latest proof gaps',
     rawRefLeak: 'raw ref leaks',
     roboticFailureReply: 'robotic failure reasons',
     stackLikeLeak: 'stack-like leaks'

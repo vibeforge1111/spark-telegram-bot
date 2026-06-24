@@ -37,6 +37,7 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'missing trace joins: 0',
   'missing proof capsules: 0',
   'legacy proof gaps: 4',
+  'latest proof gaps: 0',
   'raw ref leaks: 0',
   'robotic failure reasons: 0',
   'stack-like leaks: 0',
@@ -497,6 +498,19 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
   assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
   assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = [
+    'missing evidence: 0',
+    'missing trace joins: 0',
+    'missing proof capsules: 0',
+    'legacy proof gaps: 0',
+    'raw ref leaks: 0',
+    'robotic failure reasons: 0',
+    'stack-like leaks: 0'
+  ].join('\n');
+  const missingLatestGapSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingLatestGapSummary.readyForRelease, false);
+  assert.deepEqual(missingLatestGapSummary.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 100/100 sampled | latest_gap yes`;
@@ -1067,6 +1081,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "- missing trace joins: 0"',
       '  echo "- missing proof capsules: 0"',
       '  echo "- legacy proof gaps: 4"',
+      '  echo "- latest proof gaps: 0"',
       '  echo "- raw ref leaks: 0"',
       '  echo "- robotic failure reasons: 0"',
       '  echo "- stack-like leaks: 0"',

@@ -161,6 +161,8 @@ Telegram unsupported media now has typed evidence-only envelopes for video, anim
 
 Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, and fresh-strict proof audit before it can claim release readiness.
 
+Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

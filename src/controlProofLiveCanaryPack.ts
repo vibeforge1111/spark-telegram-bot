@@ -1149,6 +1149,7 @@ function hasCleanControlProofAudit(value: string): boolean {
     /missing evidence:\s*0/i,
     /missing trace joins:\s*0/i,
     /missing proof capsules:\s*0/i,
+    /latest proof gaps:\s*0/i,
     /raw ref leaks:\s*0/i,
     /robotic failure reasons:\s*0/i,
     /stack-like leaks:\s*0/i
