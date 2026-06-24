@@ -6981,7 +6981,8 @@ export async function handleBuildIntent(
       const clarificationAssumptions = Array.isArray(res.data.addedAssumptions)
         ? res.data.addedAssumptions.filter((a: unknown): a is string => typeof a === 'string')
         : [];
-      await ctx.reply(await buildBuildClarificationReply(polishedProjectName, clarificationQuestions, clarificationAssumptions));
+      const clarificationTrace = options.actionAuthorization?.legacyEnvelope ? buildTurnOutboundTraceContext(options.actionAuthorization.legacyEnvelope, { route: 'spawner.build', intentKind: 'spawner.build', command: 'telegram_spawner_build_clarification', reasonSummary: 'Telegram asked for build clarification before dispatch; no Spawner build execution started yet.' }) : null;
+      await ctx.reply(await buildBuildClarificationReply(polishedProjectName, clarificationQuestions, clarificationAssumptions), clarificationTrace ? outboundTraceExtra(clarificationTrace) : undefined);
       return { status: 'partial', summary: `Spawner requested clarification before dispatching ${polishedProjectName}.`, requestId, traceRef };
     }
 

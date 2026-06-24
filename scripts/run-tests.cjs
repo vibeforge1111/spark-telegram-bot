@@ -14,6 +14,7 @@ const tests = [
   'tests/builderDiagnosticBoundary.test.ts',
   'tests/externalResearchBoundary.test.ts',
   'tests/spawnerIdeationBoundary.test.ts',
+  'tests/buildClarificationProofContext.test.ts',
   'tests/routeConfidenceTelegram.test.ts',
   'tests/naturalRouteDecision.test.ts',
   'tests/routeFirewall.test.ts',
