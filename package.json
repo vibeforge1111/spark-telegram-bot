@@ -12,6 +12,7 @@
     "dev": "ts-node src/index.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && tsc",
+    "check:line-count": "python3 scripts/harness_checks/line_count_gate.py --root .",
     "sync:runtime": "node scripts/sync-runtime.cjs",
     "sync:check": "node scripts/sync-runtime.cjs --check",
     "sync:check:strict": "node scripts/sync-runtime.cjs --check --require-runtime",
