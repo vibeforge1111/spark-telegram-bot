@@ -82,6 +82,13 @@ Treat `ops/genesis-live-telegram-100.json` as a historical breadth benchmark and
 
 Create or maintain a smaller Harness-shaped canary pack for SparkRecursive_bot as the release gate. That pack should draw representative prompts from the old catalogs, but each case must carry the new fields: authority, mutation class, proof join, side-effect expectation, reply shape, screenshot/user-confirmation capture, and pass criteria.
 
+Initial command:
+
+```bash
+npm run control:proof:canaries -- --list
+npm run control:proof:canaries -- --checklist
+```
+
 ## Refurbishment Plan
 
 1. Add a new Harness-shaped control-proof canary pack of 20-30 cases.

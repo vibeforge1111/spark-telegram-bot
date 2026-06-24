@@ -272,6 +272,15 @@ The older `npm run nl:live` catalogs remain useful as broad behavior regression 
 
 Use the old catalogs as source material and periodic drift sweeps. The control-proof canary pack should be smaller and stricter: authority decision, mutation class, proof join, side effects, reply shape, screenshot/user confirmation, and pass criteria are first-class fields.
 
+Repeatable command:
+
+```bash
+npm run control:proof:canaries -- --list
+npm run control:proof:canaries -- --copy-paste
+npm run control:proof:canaries -- --checklist
+npm run control:proof:canaries -- --json
+```
+
 ### Canary Prompts
 
 Use these as copy-paste live prompts in `SparkRecursive_bot` private chat.
@@ -364,7 +373,7 @@ Then send one photo with a caption.
 9. Repair Telegram failure language using fixtures from recent bad replies.
 10. Add media envelope fixtures and photo normalization.
 11. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
-12. Promote the live canary pack into a repeatable command or runbook.
+12. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
 
 ## Release Gate
 
