@@ -217,6 +217,8 @@ Live recapture of `cp-spawner-002` on 2026-06-24 confirmed local-only build word
 
 Live recapture of `cp-mission-001` on 2026-06-24 confirmed the no-edit Spawner mission proof path: Spark ran the tiny Codex mission, returned `SPARK_QA_NO_EDIT_OK`, left the repo clean, and `/proof` showed `spawner.run` with joined Telegram and Spawner evidence plus `Latest proof gaps: none`, reducing stale proof-panel blockers from 5 to 4.
 
+Live recapture of `cp-media-001` on 2026-06-24 confirmed the pre-image media boundary stays evidence-only: Spark described what it can safely inspect later without ingesting media or executing image text, and `/proof` showed `media.image_boundary` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 4 to 3.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

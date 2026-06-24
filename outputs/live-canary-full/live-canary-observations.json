@@ -1268,12 +1268,13 @@
           "mediaHandled": false,
           "notes": "No mutation observed; this was a text-only pre-media boundary, so no media was ingested or executed."
         },
-        "proofJoin": "media.image_boundary joined to Telegram outbound proof ref; audit blocking clean with legacy gaps visible.",
-        "proofPanel": "Harness Proof Intent: media.image_boundary Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:a1abcaf7634f2d89 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "proofJoin": "Latest /proof panel showed Harness Proof Intent media.image_boundary with joined Telegram outbound evidence; no raw ids, media bodies, local paths, provider internals, or stack traces visible.",
+        "proofPanel": "Harness Proof Intent: media.image_boundary Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:c954ad5a3c7e255a Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-media-001-fixed-proof.png"
+          "/tmp/cp-media-001-live-reply.png",
+          "/tmp/cp-media-001-live-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart at commit 8ef7ed7; /proof showed media.image_boundary and read-only downgraded authority.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: text-only pre-image boundary stayed evidence-only and /proof rendered media.image_boundary.",
         "notes": null
       }
     },
