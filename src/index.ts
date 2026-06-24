@@ -316,6 +316,7 @@ import {
   shouldUseBuilderReplyForMemoryDirective,
   shouldPreferConversationalIdeation
 } from './conversationIntent';
+import { isNaturalHarnessProofInspectRequest } from './harnessProofNaturalRequest';
 import {
   decideNaturalRoute,
   type NaturalRouteDecision,
@@ -8594,6 +8595,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
 	    return;
 	  }
+  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && isNaturalHarnessProofInspectRequest(text)) {
+    await conversation.remember(user, text).catch(() => {});
+    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'proof.inspect', 'spark-telegram-bot', 'proof.inspect');
+    const originalText = ctx.message.text;
+    ctx.message.text = '/proof';
+    try {
+      await handleHarnessProofCommand(ctx);
+    } finally {
+      ctx.message.text = originalText;
+    }
+    return;
+  }
 		  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && isNaturalSparkQaLoopPauseRequest(text) && telegramBranchActionAuthorityAllowed(turnIntentEnvelope, {
 		    route: 'sparkqa.pause',
 		    text,
