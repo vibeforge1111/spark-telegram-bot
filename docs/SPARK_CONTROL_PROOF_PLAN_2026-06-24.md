@@ -350,10 +350,11 @@ Then send one photo with a caption.
 3. Attach proof capsules or proof refs to Telegram/action audit rows. Wire-in started for Telegram build/run acknowledgements, suppressed Builder final-answer rows, route-confidence/action rows, default outbound text-turn trace context, and Telegram-to-Spawner PRD proof refs in `src/index.ts`.
 4. Render Harness Proof panel in Spawner trace or a local proof command. Local command added as `npm run control:proof:panel`; inspect-only Telegram command added as `/proof`; panel now reports redacted evidence-plane joins for Telegram, Builder, and Spawner proof refs.
 5. Preserve redacted proof refs in Builder gateway traces where Telegram supplies them. Builder runtime now accepts only `turn:sha256:<16 hex>` refs from Telegram update metadata and writes valid refs into future gateway trace rows.
-6. Make Telegram producers supply Builder proof refs on the action-capable paths that need them, then prove the join with a fresh canary row.
-7. Repair Telegram failure language using fixtures from recent bad replies.
-8. Add media envelope fixtures and photo normalization.
-9. Promote the live canary pack into a repeatable command or runbook.
+6. Make Telegram producers supply Builder proof refs on the action-capable paths that need them. Source now attaches redacted Builder proof refs to text, image, and voice Builder gateway handoffs while keeping the full capsule on Telegram delivery/audit context.
+7. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
+8. Repair Telegram failure language using fixtures from recent bad replies.
+9. Add media envelope fixtures and photo normalization.
+10. Promote the live canary pack into a repeatable command or runbook.
 
 ## Release Gate
 

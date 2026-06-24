@@ -12,9 +12,9 @@ Use after:
 Goal: Continue Spark control-proof and Telegram usability work from the 2026-06-24 preflight. Make streaming, rich messages, authority, execution, trace joins, media, and proof durable, inspectable, and pleasant for future Spark users. Work step by step. Do not "save the day" with one-off patches. Prefer long-term contracts, repeatable proof, focused tests, and live confirmation.
 
 Known completed baseline:
-- Docs index, preflight audit, plan, trace-audit command, `spark.harness_proof.v1`, outbound trace inheritance, panel CLI, Telegram `/proof`, Spawner PRD proof-ref persistence, and Builder gateway proof-ref preservation exist.
+- Docs index, preflight audit, plan, trace-audit command, `spark.harness_proof.v1`, outbound trace inheritance, panel CLI, Telegram `/proof`, Spawner PRD proof-ref persistence, Builder gateway proof-ref preservation, and Telegram-to-Builder proof-ref handoffs for text/image/voice exist.
 - Streaming itself works and the double-preview bug is fixed. Rich messages and streaming should become Spark's default posture only through audited config/runtime paths, tests, and live SparkRecursive_bot proof.
-- Current gaps are mostly proof visibility and historical evidence shape: Telegram-to-Builder proof-ref producers, fresh Spawner/Builder canary rows, memory/voice request+trace+proof, outbound coverage, raw-ref risk, and robotic reason-code surfaces.
+- Current gaps are mostly proof visibility and historical evidence shape: fresh Spawner/Builder canary rows after runtime sync, memory/voice request+trace+proof index coverage, outbound coverage, raw-ref risk, and robotic reason-code surfaces.
 
 Operating rules:
 - Harness Core is authority. Tracing proves what happened; tracing never grants permission.
@@ -28,7 +28,7 @@ Operating rules:
 Step 1: Proof panel evidence joins
 - Extend `/proof` and the panel CLI with redacted evidence-plane joins for Telegram, Builder, and Spawner.
 - Show joined/missing proof coverage without raw ids, paths, prompts, stack traces, provider internals, or reason codes.
-- Test future rows with proof refs and historical rows without them so the panel is honest. Builder gateway now preserves valid `turn:sha256:<16 hex>` proof refs when Telegram supplies them; the remaining work is making the right Telegram producer paths supply those refs and proving them live.
+- Test future rows with proof refs and historical rows without them so the panel is honest. Builder gateway now preserves valid `turn:sha256:<16 hex>` proof refs, and Telegram text/image/voice Builder handoffs now supply those refs while keeping full capsules on Telegram delivery/audit context. The remaining work is proving fresh joined rows live.
 
 Step 2: Streaming and rich-message defaults
 - Audit the exact config/runtime path used by SparkRecursive_bot, not just helper commands that claim the flags are on.

@@ -67,7 +67,7 @@ Current command summary after the first Telegram proof wire-in:
 - Robotic failure reason-code presence: 2 planes.
 - Stack-like leaks: 0 planes.
 
-The latest sampled Telegram final-answer plane now reports `proof 60/100`, up from `0/100` before the wire-in. Route-confidence request coverage is now classified as redacted-design coverage via `request_ref`. Source now attaches turn-level trace context to ordinary outbound text replies, but the historical live outbound sample still shows `request 7/100` until the running bot writes new rows from this code. Spawner PRD trace source now accepts and persists redacted `harnessProofRef` for future rows; historical Spawner rows still show `proof 0/100` until a new PRD build flows through the updated code. Builder gateway source now preserves valid redacted `harnessProofRef` values when Telegram supplies them; historical Builder rows and paths without a supplied ref still show missing proof coverage. Memory and voice planes still need trace/proof coverage; historical route-confidence rows still show `proof 0/100` until new route-confidence events are recorded.
+The latest sampled Telegram final-answer plane now reports `proof 80/100`, up from `0/100` before the wire-in. Route-confidence request coverage is now classified as redacted-design coverage via `request_ref`. Source now attaches turn-level trace context to ordinary outbound text replies, but the historical live outbound sample still shows `request 7/100` until the running bot writes new rows from this code. Spawner PRD trace source now accepts and persists redacted `harnessProofRef` for future rows; historical Spawner rows still show `proof 0/100` until a new PRD build flows through the updated code. Builder gateway source now preserves valid redacted `harnessProofRef` values when Telegram supplies them, and Telegram source now supplies those refs on text, image, and voice Builder gateway handoffs. Historical Builder rows still show `proof 0/100` until a fresh runtime canary writes rows from both updated sides. Memory and voice index/runtime planes still need trace/proof coverage; historical route-confidence rows still show `proof 0/100` until new route-confidence events are recorded.
 
 Local proof panel command now exists:
 
@@ -78,7 +78,7 @@ npm run control:proof:panel -- --ref turn:sha256:<hash>
 
 It renders the latest or requested redacted Harness proof capsule without printing raw trace rows. Telegram source also has an inspect-only `/proof` command that uses the same panel; live confirmation is still required after deployment/runtime sync.
 
-The panel source now also reports redacted evidence-plane joins. Current historical Builder/Spawner rows without a proof ref stay marked missing. Future Spawner PRD rows now carry `harnessProofRef` from Telegram build dispatch; future Builder gateway rows preserve a valid `harnessProofRef` when Telegram supplies one. Joined rows do not expose raw request ids, local paths, or reason codes in the proof panel.
+The panel source now also reports redacted evidence-plane joins. Current historical Builder/Spawner rows without a proof ref stay marked missing. Future Spawner PRD rows now carry `harnessProofRef` from Telegram build dispatch; future text/image/voice Builder gateway rows now carry and preserve a valid `harnessProofRef`. Joined rows do not expose raw request ids, local paths, or reason codes in the proof panel.
 
 ## Surface
 
@@ -141,9 +141,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Continue wiring Harness proof capsule refs into the remaining producer rows, starting with Telegram paths that call Builder gateway without a proof ref.
+Generate fresh canary evidence for the proof-ref producer rows now wired in source.
 
-Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, default outbound text replies, future Spawner PRD rows, and future Builder gateway rows now carry, inherit, or preserve redacted proof/trace metadata locally. A local proof panel command and inspect-only `/proof` Telegram command exist, and the panel now distinguishes proof-ref joins from missing historical Builder/Spawner evidence. The next durable move is to make Telegram supply Builder proof refs on the action-capable gateway paths that need them, then live-confirm `/proof` in SparkRecursive_bot after a fresh build canary.
+Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, default outbound text replies, future Spawner PRD rows, and future text/image/voice Builder gateway rows now carry, inherit, or preserve redacted proof/trace metadata locally. A local proof panel command and inspect-only `/proof` Telegram command exist, and the panel now distinguishes proof-ref joins from missing historical Builder/Spawner evidence. The next durable move is to runtime-sync the source, send a fresh SparkRecursive_bot Builder canary and build canary, then live-confirm `/proof`.
 
 ## Gate To Start Goal Prompt
 
@@ -162,4 +162,5 @@ Reason: build/run acknowledgements, suppressed Builder final-answer rows, new ro
 - Eighth implementation slice started: yes, local panel projection now reports redacted evidence-plane joins for Telegram, Builder, and Spawner proof refs.
 - Ninth implementation slice started: yes, Telegram build dispatch now sends redacted `harnessProofRef` to Spawner PRD bridge, and Spawner PRD trace persists it for future rows.
 - Tenth implementation slice started: yes, Builder gateway runtime now preserves valid redacted `harnessProofRef` values from Telegram update metadata in future trace rows and rejects raw-looking refs.
-- Next implementation slice chosen: yes, make Telegram supply Builder proof refs on action-capable gateway paths and live-confirm `/proof` in SparkRecursive_bot after a fresh build canary.
+- Eleventh implementation slice started: yes, Telegram text, image, and voice Builder gateway handoffs now carry only the redacted proof ref while Telegram delivery/audit context keeps the matching full capsule.
+- Next implementation slice chosen: yes, runtime-sync and live-confirm Builder/Spawner proof joins in SparkRecursive_bot with fresh canary rows.
