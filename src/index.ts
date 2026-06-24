@@ -398,9 +398,8 @@ import {
 import {
   buildMemoryDoctorEvidencePrompt,
   isMemoryDoctorBridgeDetourReply,
-  renderMemoryDoctorEvidenceFallback,
+  renderMemoryDoctorEvidenceFallback, renderMemoryDoctorTelegramSummary,
   selectMemoryDoctorEvidenceTurns,
-  shouldAttachMemoryDoctorEvidence,
   shouldAttachMemoryDoctorEvidenceWithAuthority,
   shouldPreferMemoryDoctorEvidenceFallback
 } from './memoryDoctorBridge';
@@ -10156,7 +10155,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         ? 'contradicts_resolved_list'
         : builderReplySuppressionReason(builderReply.responseText, builderReply.routingDecision);
       if (!suppressionReason && !shouldSuppressBuilderReplyForPlainChat(builderReply.responseText, builderReply.routingDecision)) {
-        const responseText = applyPlainWordsSurfaceRequest(text, builderReply.responseText);
+        const memoryDoctorSummary = memoryDoctorEvidenceTurns.length > 0 ? renderMemoryDoctorTelegramSummary(builderReply.responseText) : null;
+        const responseText = applyPlainWordsSurfaceRequest(text, memoryDoctorSummary || builderReply.responseText);
         const deliveryProofCapsule = buildBuilderGatewayProofCapsule({
           envelope: turnIntentEnvelope,
           builderReply,

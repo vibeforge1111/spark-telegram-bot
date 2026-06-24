@@ -164,6 +164,46 @@ export function renderMemoryDoctorEvidenceFallback(
   return lines.join('\n');
 }
 
+function memoryDoctorStatusSentence(reply: string): string {
+  const firstLine = reply.split(/\r?\n/).find((line) => line.trim()) || '';
+  const status = firstLine.match(/Memory Doctor:\s*([^.\n]+)/i)?.[1]?.trim().toLowerCase();
+  if (status?.includes('needs attention')) return 'Memory Doctor needs attention.';
+  if (status?.includes('clean') || status?.includes('ok')) return 'Memory Doctor looks clean.';
+  return 'Memory Doctor finished the read-only check.';
+}
+
+export function renderMemoryDoctorTelegramSummary(reply: string): string | null {
+  const normalized = reply.replace(/\s+/g, ' ').trim();
+  if (!/\bMemory Doctor\b/i.test(normalized)) return null;
+  const hasRawLedger =
+    /\bRequest:\s*\w+:/i.test(reply) ||
+    /\brequest=\w+:/i.test(reply) ||
+    /\bContext capsule:/i.test(reply) ||
+    /\bLineage scope:/i.test(reply) ||
+    /\bBenchmark:/i.test(reply) ||
+    /\bBrain:/i.test(reply);
+  if (!hasRawLedger) return null;
+
+  const lines = [memoryDoctorStatusSentence(reply)];
+  if (/gateway\s*->\s*provider context gap/i.test(reply) || /provider capsule had 0 recent-conversation/i.test(reply)) {
+    lines.push('Telegram had the recent turns available, but the provider context bundle did not receive them.');
+  } else {
+    const problem = reply.match(/\bProblem:\s*([^]*?)(?:\bNext:|$)/i)?.[1]?.trim();
+    if (problem) {
+      lines.push(problem.replace(/\s*\([^)]*request=[^)]+\)/gi, '').replace(/\s+/g, ' '));
+    }
+  }
+
+  if (/recent-conversation capsule path/i.test(reply)) {
+    lines.push('Next: repair the recent-conversation capsule path, rerun this doctor command, then replay the triggering turn.');
+  } else {
+    const next = reply.match(/\bNext:\s*([^]*?)$/i)?.[1]?.trim();
+    if (next) lines.push(`Next: ${next.replace(/\s+/g, ' ')}`);
+  }
+  lines.push('I did not change memory.');
+  return lines.join('\n\n');
+}
+
 export function shouldPreferMemoryDoctorEvidenceFallback(
   userRequest: string,
   recentTurns: MemoryDoctorEvidenceTurn[]
