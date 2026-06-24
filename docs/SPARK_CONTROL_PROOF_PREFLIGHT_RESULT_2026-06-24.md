@@ -85,6 +85,7 @@ Update after continuity repairs:
 - Spawner PRD trace, Builder gateway trace, route-confidence, and turn-bound outbound delivery rows now use explicit legacy gap capsules for historical rows that cannot be joined to fresh Harness authority.
 - Telegram outbound delivery-local rows remain `not_execution_proof`; synthetic request/trace refs for those rows must not be promoted into execution proof gaps.
 - Latest sampled audit now reports no missing trace joins and no raw ref/reason-code leaks. Remaining proof gaps are visible `proof_gap` rows, not silent missing metadata.
+- The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible and inspectable; it does not mean the capsule is silently absent.
 
 ## Surface
 

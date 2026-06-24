@@ -43,6 +43,7 @@ export interface ControlProofGapCounts {
   missingEvidence: number;
   missingTraceJoin: number;
   missingProofCapsule: number;
+  legacyProofGap: number;
   rawRefLeak: number;
   roboticFailureReply: number;
   stackLikeLeak: number;
@@ -181,6 +182,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `- missing evidence: ${result.gapCounts.missingEvidence}`,
     `- missing trace joins: ${result.gapCounts.missingTraceJoin}`,
     `- missing proof capsules: ${result.gapCounts.missingProofCapsule}`,
+    `- legacy proof gaps: ${result.gapCounts.legacyProofGap}`,
     `- raw ref leaks: ${result.gapCounts.rawRefLeak}`,
     `- robotic failure reasons: ${result.gapCounts.roboticFailureReply}`,
     `- stack-like leaks: ${result.gapCounts.stackLikeLeak}`
@@ -310,7 +312,8 @@ function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlPro
   return {
     missingEvidence: planes.filter((plane) => plane.missing).length,
     missingTraceJoin: planes.filter((plane) => !plane.missing && (plane.requestIdMissing > 0 || plane.traceRefMissing > 0)).length,
-    missingProofCapsule: planes.filter((plane) => !plane.missing && (plane.proofCapsuleMissing > 0 || plane.proofGapMarked > 0)).length,
+    missingProofCapsule: planes.filter((plane) => !plane.missing && plane.proofCapsuleMissing > 0).length,
+    legacyProofGap: planes.filter((plane) => !plane.missing && plane.proofGapMarked > 0).length,
     rawRefLeak: planes.filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0).length,
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
     stackLikeLeak: planes.filter((plane) => plane.stackLikeRows > 0).length

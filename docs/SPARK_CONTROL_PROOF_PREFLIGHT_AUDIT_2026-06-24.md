@@ -27,6 +27,7 @@ Use these labels consistently:
 
 - `action_without_proof`: high-agency action lacks a Harness proof capsule or verified authority pointer.
 - `missing_trace_join`: one plane cannot join to the turn/request/final answer.
+- `legacy_proof_gap`: historical evidence has been repaired with an explicit gap capsule, so the gap is visible and inspectable but not silent missing metadata.
 - `raw_ref_leak`: user-facing output shows local paths, raw ids, opaque hashes, stack traces, or provider internals.
 - `robotic_failure_reply`: normal Telegram reply exposes policy/router reasons or sounds like a deterministic packet.
 - `runtime_capability_drift`: access level says one thing but the active runner can or cannot actually do another.

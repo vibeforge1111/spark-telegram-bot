@@ -159,6 +159,7 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
     assert.equal(plane.proofNotApplicable, 1);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.gapCounts.legacyProofGap, 0);
     assert.equal(result.ok, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof_n\/a 1/);
   });
@@ -193,8 +194,10 @@ test('counts explicit missing Harness proof markers without treating them as pro
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofCapsuleMissing, 1);
     assert.equal(result.gapCounts.missingProofCapsule, 1);
+    assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.ok, false);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
   });
 });
 
@@ -231,10 +234,12 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofCapsulePresent, 1);
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofCapsuleMissing, 0);
-    assert.equal(result.gapCounts.missingProofCapsule, 1);
+    assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.ok, false);
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
   });
 });
 
