@@ -948,7 +948,7 @@ async function run(): Promise<void> {
 			suppressionReason: 'memory_acknowledgement',
 			builderRoutingDecision: 'plain_chat',
 			builderBridgeMode: 'test',
-			builderReply: 'Noted: saved.',
+			builderReply: 'Noted: saved. Working Memory: /Users/example/private tool_not_allowed_by_policy.',
 			requestId: 'req-final-gate',
 			traceRef: 'trace:req-final-gate',
 			proofCapsule,
@@ -960,7 +960,7 @@ async function run(): Promise<void> {
 		assert.equal(record.trace_ref, 'trace:req-final-gate');
 		assert.equal(record.harness_proof_ref, proofCapsule.turnRef);
 		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
-		assert.equal(record.builder_reply_preview, 'Noted: saved.');
+		assert.equal(record.builder_reply_preview, 'Noted: saved. Working Memory: <path> internal policy reason.');
 		assert.equal(record.chat_id_present, true);
 		assert.equal(record.user_id_present, true);
 		assert.match(String(record.chat_ref), /^chat_[a-f0-9]{16}$/);
@@ -968,6 +968,7 @@ async function run(): Promise<void> {
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'chat_id'), false);
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'user_id'), false);
 		assert.doesNotMatch(JSON.stringify(record), new RegExp(String(testUserId)));
+		assert.doesNotMatch(JSON.stringify(record), /\/Users\/example|tool_not_allowed_by_policy/);
 		assert.doesNotMatch(JSON.stringify(record.proof_capsule), /req-final-gate/);
 		restoreAxios();
 		restoreEnv();
@@ -1000,6 +1001,16 @@ async function run(): Promise<void> {
 		assert.equal(record.route, envelope.selectedIntent.action || envelope.selectedIntent.kind);
 		assert.equal(record.command, 'telegram');
 		assert.equal(record.reply_kind, traceContext.replyKind);
+		assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
+		assert.equal(record.proof_capsule.schema, 'spark.harness_proof.v1');
+		assert.equal(record.proof_capsule.owner, 'spark-telegram-bot');
+		assert.equal(record.proof_capsule.execution.tool, 'answer.compose');
+		assert.equal(record.proof_capsule.execution.mutationClass, 'read_only');
+		assert.equal(record.proof_capsule.execution.status, 'completed');
+		assert.equal(record.proof_capsule.reply.delivered, true);
+		assert.equal(record.proof_capsule.reply.rawReasonsHidden, true);
+		assert.equal(record.proof_capsule.joins.telegram, 'joined');
+		assert.equal(record.proof_capsule.joins.spawner, 'not_applicable');
 		assert.doesNotMatch(JSON.stringify(record), /8319079055|private-raw/);
 		restoreAxios();
 		restoreEnv();

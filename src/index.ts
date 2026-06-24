@@ -2491,6 +2491,18 @@ function previewAuditText(text: string, limit = 240): string {
   return normalized.length > limit ? `${normalized.slice(0, limit - 1)}...` : normalized;
 }
 
+function sanitizeAuditPreviewText(text: string): string {
+  return redactText(text)
+    .replace(/\/Users\/\S+/g, '<path>')
+    .replace(/\/var\/folders\/\S+/g, '<path>')
+    .replace(/file:\/\/\S+/g, '<path>')
+    .replace(/[A-Za-z]:\\\S+/g, '<path>')
+    .replace(
+      /\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core:[A-Za-z0-9_-]+)\b/gi,
+      'internal policy reason'
+    );
+}
+
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 const TELEGRAM_TURN_OUTBOUND_TRACE_CONTEXT = Symbol.for('spark.telegram.turnOutboundTraceContext');
 const HARNESS_PROOF_REF_PATTERN = /^turn:sha256:[a-f0-9]{16}$/;
@@ -2585,12 +2597,54 @@ function attachBuilderHarnessProofRef(
 }
 
 export function buildTurnOutboundTraceContext(envelope: TurnIntentEnvelopeV1): NodeOutboundTraceContext {
+  const route = envelope.selectedIntent.action || envelope.selectedIntent.kind;
+  const proofCapsule = buildHarnessProofCapsule({
+    turnRef: envelope.traceId || envelope.turnId,
+    route,
+    owner: 'spark-telegram-bot',
+    intent: {
+      kind: envelope.selectedIntent.kind,
+      confidence: envelope.selectedIntent.confidence,
+      noExecution: envelope.directive.noExecution
+    },
+    authority: {
+      decision: envelope.directive.noExecution ? 'downgraded' : 'allowed',
+      contract: envelope.schema,
+      riskTier: 'read',
+      reasonSummary: envelope.directive.noExecution
+        ? 'Telegram delivered a no-execution conversational reply; no owner execution was authorized.'
+        : 'Telegram delivered a conversational reply with Harness turn context; no owner execution proof is claimed.'
+    },
+    governor: {
+      decision: 'read_only',
+      verified: true
+    },
+    execution: {
+      status: 'completed',
+      tool: 'answer.compose',
+      mutationClass: 'read_only'
+    },
+    reply: {
+      delivered: true,
+      shape: 'natural',
+      rawReasonsHidden: true
+    },
+    joins: {
+      telegram: 'joined',
+      builder: 'not_applicable',
+      spawner: 'not_applicable',
+      provider: 'not_applicable',
+      memory: 'not_applicable',
+      voice: 'not_applicable'
+    }
+  });
   return {
-    route: envelope.selectedIntent.action || envelope.selectedIntent.kind,
+    route,
     command: envelope.surface,
     replyKind: envelope.directive.mode === 'answer' ? 'natural_reply' : `${envelope.directive.mode}_reply`,
     requestId: envelope.turnId,
-    traceRef: envelope.traceId
+    traceRef: envelope.traceId,
+    proofCapsule
   };
 }
 
@@ -2860,7 +2914,7 @@ export function buildFinalAnswerGateSuppressionRecord(
     builder_routing_decision: input.builderRoutingDecision || '',
     builder_bridge_mode: input.builderBridgeMode || '',
     builder_reply_length: input.builderReply.length,
-    builder_reply_preview: previewAuditText(input.builderReply, 180),
+    builder_reply_preview: previewAuditText(sanitizeAuditPreviewText(input.builderReply), 180),
     ...(requestId ? { request_id: requestId } : {}),
     ...(traceRef ? { trace_ref: traceRef } : {}),
     ...proofAuditFields(input.proofCapsule, input.proofRef),

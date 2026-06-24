@@ -92,7 +92,8 @@ async function main(): Promise<void> {
     assert.notEqual(deliveryEnd, -1);
     const deliveryBlock = source.slice(deliveryStart, deliveryEnd);
     assert.doesNotMatch(deliveryBlock, /replayTelegramDraftPreview/);
-    assert.match(deliveryBlock, /replyWithSanitizedTelegramText\(ctx,\s*builderReply\.responseText\)/);
+    assert.match(deliveryBlock, /replyWithSanitizedTelegramText\(\s*ctx,\s*builderReply\.responseText,/);
+    assert.match(deliveryBlock, /traceContext \? outboundTraceExtra\(traceContext\) : undefined/);
   });
 
   await test('streaming config persistence preserves profile env files', async () => {
