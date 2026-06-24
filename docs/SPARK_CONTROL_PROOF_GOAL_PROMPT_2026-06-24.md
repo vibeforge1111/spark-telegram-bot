@@ -56,6 +56,6 @@ Step 6: Docs/suites
 
 Release gate:
 - Focused tests for changed routes; `npm run build`; full npm test for broad routing/surface changes.
-- `spark live status`, `spark providers test --role chat`, `npm run sync:check`, and fresh-strict audit after runtime changes.
+- `spark live status`, `spark providers test --role chat`, `npm run sync:check`, `spark os compile --json`, and fresh-strict audit after runtime changes.
 - User live confirmation before PR/publish claims.
 ```

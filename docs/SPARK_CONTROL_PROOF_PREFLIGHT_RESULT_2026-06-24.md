@@ -138,7 +138,10 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - Durable slice: keep these planes joined/redacted where useful, but continue marking them `not_execution_proof` or non-execution so they cannot authorize actions.
 
 - `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
-  - Durable slice: audit registry pins versus running module versions before claiming release readiness.
+  - Current evidence from `spark os compile --json`: compiler `ok: true`, gaps `0`, duplicate truth count `2`, critical duplicate truth count `1`.
+  - The critical item is `spark-telegram-bot-runtime-registry-pin-drift`: installed Telegram runtime source is on `harness-discipline-line-count-gate` and ahead of the public registry pin; the release branch/metadata is not published from this installed head yet.
+  - The warning item is `spawner-ui-runtime-registry-pin-drift`: installed Spawner runtime source is ahead of its registry pin, with an owner-repo release metadata update still needed.
+  - Durable slice: do not claim registry/release readiness until owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
 
 ## First Slice Completed
 
