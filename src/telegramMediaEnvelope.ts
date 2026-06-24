@@ -1,6 +1,15 @@
 import { createHash } from 'node:crypto';
 
-export type TelegramMediaTurnKind = 'photo' | 'document' | 'voice' | 'audio' | 'unsupported';
+export type TelegramMediaTurnKind =
+  | 'photo'
+  | 'document'
+  | 'voice'
+  | 'audio'
+  | 'video'
+  | 'animation'
+  | 'sticker'
+  | 'video_note'
+  | 'unsupported';
 
 export interface TelegramMediaTurnEnvelope {
   schema: 'spark.media_turn.v1';
@@ -22,6 +31,10 @@ export interface TelegramMediaTurnEnvelope {
     has_document: boolean;
     has_voice: boolean;
     has_audio: boolean;
+    has_video: boolean;
+    has_animation: boolean;
+    has_sticker: boolean;
+    has_video_note: boolean;
     mime_family?: string;
     filename_present?: boolean;
   };
@@ -43,7 +56,7 @@ function mediaTurnRef(message: Record<string, unknown>): string {
   const seed = JSON.stringify({
     message_id: message.message_id || '',
     date: message.date || '',
-    media: Boolean(message.photo || message.document || message.voice || message.audio),
+    media: Boolean(message.photo || message.document || message.voice || message.audio || message.video || message.animation || message.sticker || message.video_note),
     caption_present: Boolean(stringValue(message.caption))
   });
   return `media:sha256:${createHash('sha256').update(seed).digest('hex').slice(0, 16)}`;
@@ -71,6 +84,10 @@ export function telegramMediaTurnKind(messageInput: unknown): TelegramMediaTurnK
   if (Object.keys(message.voice ? objectValue(message.voice) : {}).length > 0) return 'voice';
   if (Object.keys(message.audio ? objectValue(message.audio) : {}).length > 0) return 'audio';
   if (Object.keys(document).length > 0) return 'document';
+  if (Object.keys(message.video ? objectValue(message.video) : {}).length > 0) return 'video';
+  if (Object.keys(message.animation ? objectValue(message.animation) : {}).length > 0) return 'animation';
+  if (Object.keys(message.sticker ? objectValue(message.sticker) : {}).length > 0) return 'sticker';
+  if (Object.keys(message.video_note ? objectValue(message.video_note) : {}).length > 0) return 'video_note';
   return 'unsupported';
 }
 
@@ -79,8 +96,12 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
   const document = objectValue(message.document);
   const voice = objectValue(message.voice);
   const audio = objectValue(message.audio);
+  const video = objectValue(message.video);
+  const animation = objectValue(message.animation);
+  const sticker = objectValue(message.sticker);
+  const videoNote = objectValue(message.video_note);
   const mediaKind = telegramMediaTurnKind(message);
-  const mimeType = stringValue(document.mime_type || voice.mime_type || audio.mime_type);
+  const mimeType = stringValue(document.mime_type || voice.mime_type || audio.mime_type || video.mime_type || animation.mime_type);
   const caption = boundedCaption(message.caption);
   const canRead = mediaKind !== 'unsupported';
   return {
@@ -103,6 +124,10 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
       has_document: Object.keys(document).length > 0,
       has_voice: Object.keys(voice).length > 0,
       has_audio: Object.keys(audio).length > 0,
+      has_video: Object.keys(video).length > 0,
+      has_animation: Object.keys(animation).length > 0,
+      has_sticker: Object.keys(sticker).length > 0,
+      has_video_note: Object.keys(videoNote).length > 0,
       ...(mimeFamily(mimeType) ? { mime_family: mimeFamily(mimeType) } : {}),
       ...(stringValue(document.file_name) ? { filename_present: true } : {})
     }
@@ -122,7 +147,7 @@ export function attachTelegramMediaTurnEnvelope(updateInput: Record<string, unkn
 }
 
 export function renderUnsupportedTelegramMediaReply(): string {
-  return 'I received that file, but this Telegram path only has text, image, voice, and audio evidence handling wired right now. I will not execute anything from the file.';
+  return 'I received that file or media, but this Telegram path only has text, image, voice, and audio evidence handling wired right now. I will not execute anything from it.';
 }
 
 export function renderTelegramTextImageBoundaryReply(): string {

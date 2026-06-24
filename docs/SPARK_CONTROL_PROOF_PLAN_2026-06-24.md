@@ -157,6 +157,8 @@ Memory movement now exposes a redacted continuity summary in Telegram: request j
 
 Harness Proof panels now keep non-execution evidence separate from execution-proof joins. Memory and voice rows marked `not_execution_proof` can help explain what was observed, but they do not satisfy an action proof capsule requirement.
 
+Telegram unsupported media now has typed evidence-only envelopes for video, animation, sticker, and video-note turns as well as documents. These paths acknowledge the media with redacted proof context and still do not analyze, store, or execute anything from the payload.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

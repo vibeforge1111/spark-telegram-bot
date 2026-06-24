@@ -80,6 +80,41 @@ test('builds voice and audio envelopes as evidence-only media turns', () => {
   assert.doesNotMatch(JSON.stringify({ voice, audio }), /private-(voice|audio)-id/);
 });
 
+test('builds typed unsupported media envelopes without raw file identifiers', () => {
+  const video = buildTelegramMediaTurnEnvelope({
+    message_id: 26,
+    video: { file_id: 'private-video-id', mime_type: 'video/mp4', file_name: 'secret-demo.mp4' }
+  });
+  const animation = buildTelegramMediaTurnEnvelope({
+    message_id: 27,
+    animation: { file_id: 'private-animation-id', mime_type: 'video/mp4' }
+  });
+  const sticker = buildTelegramMediaTurnEnvelope({
+    message_id: 28,
+    sticker: { file_id: 'private-sticker-id', emoji: 'x' }
+  });
+  const videoNote = buildTelegramMediaTurnEnvelope({
+    message_id: 29,
+    video_note: { file_id: 'private-video-note-id', duration: 4 }
+  });
+
+  assert.equal(telegramMediaTurnKind({ video: { mime_type: 'video/mp4' } }), 'video');
+  assert.equal(telegramMediaTurnKind({ animation: { mime_type: 'video/mp4' } }), 'animation');
+  assert.equal(telegramMediaTurnKind({ sticker: { emoji: 'x' } }), 'sticker');
+  assert.equal(telegramMediaTurnKind({ video_note: { duration: 4 } }), 'video_note');
+  assert.equal(video.media_kind, 'video');
+  assert.equal(video.source.has_video, true);
+  assert.equal(video.source.mime_family, 'video');
+  assert.equal(video.analysis_policy.can_execute, false);
+  assert.equal(animation.media_kind, 'animation');
+  assert.equal(animation.source.has_animation, true);
+  assert.equal(sticker.media_kind, 'sticker');
+  assert.equal(sticker.source.has_sticker, true);
+  assert.equal(videoNote.media_kind, 'video_note');
+  assert.equal(videoNote.source.has_video_note, true);
+  assert.doesNotMatch(JSON.stringify({ video, animation, sticker, videoNote }), /private-|secret-demo|emoji/);
+});
+
 test('attaches a media envelope to update and message without mutating the original update', () => {
   const update = {
     update_id: 10,

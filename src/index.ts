@@ -10578,6 +10578,10 @@ bot.on(message('document'), async (ctx) => {
 });
 bot.on(message('voice'), handleVoiceMessage);
 bot.on(message('audio'), handleVoiceMessage);
+bot.on(message('video'), handleUnsupportedTelegramMediaMessage);
+bot.on(message('animation'), handleUnsupportedTelegramMediaMessage);
+bot.on(message('sticker'), handleUnsupportedTelegramMediaMessage);
+bot.on(message('video_note'), handleUnsupportedTelegramMediaMessage);
 
 // Graceful shutdown
 process.once('SIGINT', () => {
