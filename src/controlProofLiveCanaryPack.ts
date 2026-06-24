@@ -1321,8 +1321,11 @@ export function summarizeControlProofCanaryObservations(
   const knownCaseIds = new Set(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => entry.id));
   const verdictValues = new Set(CONTROL_PROOF_CANARY_VERDICTS);
   const verdictCounts = Object.fromEntries(CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => [verdict, 0])) as Record<ControlProofCanaryVerdict, number>;
+  const seenCaseIds = new Set<string>();
   const cases = observations.cases.map((entry) => {
     if (!knownCaseIds.has(entry.id)) throw new Error(`Unknown observed canary id: ${entry.id}`);
+    if (seenCaseIds.has(entry.id)) throw new Error(`Duplicate observed canary id: ${entry.id}`);
+    seenCaseIds.add(entry.id);
     if (!verdictValues.has(entry.observed.verdict)) throw new Error(`Invalid verdict for ${entry.id}: ${entry.observed.verdict}`);
     verdictCounts[entry.observed.verdict] += 1;
     return {

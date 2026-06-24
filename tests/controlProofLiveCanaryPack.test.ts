@@ -259,6 +259,18 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.cases[0].observed.userConfirmation, null);
 });
 
+test('observation summary rejects duplicate canary rows', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+
+  assert.throws(
+    () => summarizeControlProofCanaryObservations(template),
+    /Duplicate observed canary id: cp-builder-001/
+  );
+});
+
 test('observation summary requires pass verdicts and all requested capture evidence', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
@@ -686,6 +698,29 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(partialReleaseCheck.status, 1);
     assert.match(partialReleaseCheck.stdout, /Required category coverage: complete/);
     assert.match(partialReleaseCheck.stdout, /Full release pack: missing/);
+
+    const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
+    writeFileSync(
+      duplicateObservationsPath,
+      JSON.stringify(buildControlProofCanaryObservationTemplate([
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+        CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+      ]), null, 2),
+      'utf8'
+    );
+    const duplicateReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        duplicateObservationsPath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(duplicateReleaseCheck.status, 1);
+    assert.match(duplicateReleaseCheck.stderr, /Duplicate observed canary id: cp-builder-001/);
 
     const outTemplatePath = resolve(tempRoot, 'template.json');
     const outTemplate = spawnSync(
