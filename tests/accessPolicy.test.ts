@@ -427,6 +427,8 @@ async function main(): Promise<void> {
     assert.match(indexSource, /bot\.command\('capabilities', handleCapabilityGardenCommand\)/);
     assert.match(indexSource, /bot\.command\('authority', handleAuthorityStatusCommand\)/);
     assert.match(indexSource, /bot\.command\('trace_repair', handleTraceRepairCommand\)/);
+    assert.match(indexSource, /bot\.command\('proof', handleHarnessProofCommand\)/);
+    assert.match(indexSource, /bot\.command\('harness_proof', handleHarnessProofCommand\)/);
     assert.match(indexSource, /bot\.command\('memory_movement', handleMemoryMovementCommand\)/);
     assert.match(indexSource, /bot\.command\('voice', async \(ctx\) => \{/);
     assert.match(indexSource, /telegramCommandActionAuthorityDecision\(ctx, \{[\s\S]{0,500}route: 'voice\.command'/);

@@ -90,6 +90,7 @@ Record for the last 100 rows where available:
 - trace ref coverage
 - proof capsule coverage
 - latest redacted Harness Proof panel when a proof capsule exists
+- Telegram `/proof` or `/proof turn:sha256:<hash>` output after runtime deployment/live confirmation
 - raw path/id leaks
 - replies without trace context
 - ordinary replies containing policy/router reason codes

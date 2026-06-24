@@ -186,6 +186,7 @@ import { readAuthorityStatusSummary, renderAuthorityStatusSummary } from './auth
 import { readCapabilityGardenSummary, renderCapabilityGardenSummary } from './capabilityGarden';
 import { readMemoryMovementSummary, renderMemoryMovementSummary } from './memoryMovement';
 import { readTraceRepairSummary, renderTraceRepairSummary } from './traceRepair';
+import { projectHarnessProof } from './harnessProofProjection';
 import { parseBuildIntent, polishBuildProjectName, type BuildLane } from './buildIntent';
 import {
   cleanupPendingBuildClarifications,
@@ -335,6 +336,7 @@ import {
 import {
   buildHarnessProofCapsule,
   harnessProofCapsuleFromTurnIntentEnvelope,
+  redactedProofRef,
   type HarnessProofAuthorityDecision,
   type HarnessProofCapsuleV1,
   type HarnessProofExecutionStatus,
@@ -4335,6 +4337,40 @@ async function handleTraceRepairCommand(ctx: any): Promise<void> {
   }
 }
 
+export function proofRefFromCommandText(text: string): string | undefined {
+  const raw = String(text || '').replace(/^\/(?:proof|harness_proof)(?:@\w+)?\s*/i, '').trim();
+  if (!raw || /^(?:latest|last|current)$/i.test(raw)) return undefined;
+  if (/^(?:help|usage)$/i.test(raw)) return 'help';
+  return raw.split(/\s+/)[0];
+}
+
+export async function handleHarnessProofCommand(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  await safeSendChatAction(ctx, 'typing');
+  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '') : '';
+  const proofRef = proofRefFromCommandText(text);
+  if (proofRef === 'help') {
+    await ctx.reply([
+      'Harness Proof',
+      'Usage: /proof',
+      'Usage: /proof turn:sha256:<hash>',
+      '',
+      'This is inspect-only. It reads redacted proof metadata and does not execute a route.'
+    ].join('\n'));
+    return;
+  }
+  const projection = projectHarnessProof({ proofRef });
+  const requestId = redactedProofRef('proof-command', `${text}:${Date.now()}`);
+  await ctx.reply(projection.panel, outboundTraceExtra({
+    route: 'proof.inspect',
+    command: 'proof',
+    replyKind: projection.ok ? 'proof_panel' : 'proof_missing',
+    requestId,
+    traceRef: redactedProofRef('proof-trace', proofRef || projection.foundRef || requestId),
+    ...(projection.foundRef ? { proofRef: projection.foundRef } : {})
+  }));
+}
+
 async function handleMemoryMovementCommand(ctx: any): Promise<void> {
   if (!requireAdmin(ctx)) return;
   await safeSendChatAction(ctx, 'typing');
@@ -4355,6 +4391,8 @@ bot.command('capabilities', handleCapabilityGardenCommand);
 bot.command('authority', handleAuthorityStatusCommand);
 bot.command('trace_repair', handleTraceRepairCommand);
 bot.command('trace', handleTraceRepairCommand);
+bot.command('proof', handleHarnessProofCommand);
+bot.command('harness_proof', handleHarnessProofCommand);
 bot.command('memory_movement', handleMemoryMovementCommand);
 bot.command('memory_flow', handleMemoryMovementCommand);
 

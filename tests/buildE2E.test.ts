@@ -53,6 +53,7 @@ const originalEnv = {
 	SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
 	SPARK_FINAL_ANSWER_GATE_AUDIT_PATH: process.env.SPARK_FINAL_ANSWER_GATE_AUDIT_PATH,
 	SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
+	SPARK_HOME: process.env.SPARK_HOME,
 	SPARK_HARNESS_CORE_LEDGER: process.env.SPARK_HARNESS_CORE_LEDGER,
 	SPARK_HARNESS_CORE_LEDGER_PATH: process.env.SPARK_HARNESS_CORE_LEDGER_PATH,
 	SPARK_LLM_PROVIDER: process.env.SPARK_LLM_PROVIDER,
@@ -998,6 +999,58 @@ async function run(): Promise<void> {
 		assert.equal(record.command, 'telegram');
 		assert.equal(record.reply_kind, traceContext.replyKind);
 		assert.doesNotMatch(JSON.stringify(record), /8319079055|private-raw/);
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('/proof renders an inspect-only redacted Harness Proof panel', async () => {
+		restoreAxios();
+		restoreEnv();
+		process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-proof-command-'));
+		process.env.SPARK_HOME = tempRoot;
+		const proofCapsule = buildHarnessProofCapsule({
+			turnRef: 'turn:proof-command',
+			route: 'spawner.build',
+			owner: 'spawner-ui',
+			intent: { kind: 'spawner.build', confidence: 'explicit', noExecution: false },
+			authority: {
+				decision: 'allowed',
+				contract: 'spark.turn_intent.v1',
+				riskTier: 'execute',
+				reasonSummary: 'tool_not_allowed_by_policy /Users/example/private'
+			},
+			governor: { decision: 'allow', verified: true },
+			execution: { status: 'started', tool: 'spawner.run', mutationClass: 'launches_mission' },
+			reply: { delivered: true, shape: 'natural', rawReasonsHidden: true },
+			joins: { telegram: 'joined', spawner: 'joined' }
+		});
+		const auditPath = path.join(tempRoot, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl');
+		mkdirSync(path.dirname(auditPath), { recursive: true });
+		writeFileSync(auditPath, `${JSON.stringify({
+			request_id: 'raw-request-proof-command',
+			trace_ref: 'trace:raw-proof-command',
+			harness_proof_ref: proofCapsule.turnRef,
+			proof_capsule: proofCapsule
+		})}\n`, 'utf8');
+
+		const replies: string[] = [];
+		const replyExtras: any[] = [];
+		const ctx = makeFakeCtx(8319079055, 8319079055, 626, replies, replyExtras);
+		ctx.message.text = `/proof ${proofCapsule.turnRef}`;
+		const indexModule: any = await import('../src/index');
+		await indexModule.handleHarnessProofCommand(ctx);
+
+		assert.match(replies[0] || '', /Harness Proof/);
+		assert.match(replies[0] || '', /Authority: allowed/);
+		assert.match(replies[0] || '', /Proof ref: turn:sha256:/);
+		assert.doesNotMatch(replies.join('\n'), /raw-request-proof-command|trace:raw-proof-command|tool_not_allowed_by_policy|\/Users\/example/);
+		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.route, 'proof.inspect');
+		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.command, 'proof');
+		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
+
+		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();
 		restoreEnv();
 	});
