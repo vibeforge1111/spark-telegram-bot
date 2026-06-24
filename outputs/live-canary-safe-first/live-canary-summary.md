@@ -2,15 +2,13 @@
 
 Generated: 2026-06-24T14:15:03.659Z
 Cases: 4
-Release gate: not ready
+Release gate: ready
 
 Verdicts:
-- pass: 2
+- pass: 4
 - fail: 0
 - blocked: 0
 - needs-retest: 0
-- untested: 2
+- untested: 0
 
-Cases needing attention:
-- cp-streaming-001: untested; missing verdict
-- cp-streaming-002: untested; missing verdict
+All selected canaries passed with required captures present.

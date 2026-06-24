@@ -143,22 +143,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Spark Recursive\nTelegram live chat Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms\nProcess telemetry: Final transport observed: rich (1 rich, 0 fallback) Draft transport observed: rich (2 rich, 0 legacy, 0 rich fallback, 0 failed)\nPrivate chats only. Builder-routed replies are final-only until Builder stream events are wired.\nReceived at 6:49 PM",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Inspect-only streaming status command; no setting changes or duplicate preview observed."
         },
-        "proofJoin": null,
+        "proofJoin": "Telegram command reply delivered with live runtime status; proof panel not required for this visual status canary.",
         "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "screenshotRefs": [
+          "/tmp/cp-streaming-001.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: streaming on, rich messages on, no duplicate preview.",
         "notes": null
       }
     },
@@ -188,22 +190,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Spark Recursive\nCheck passed: rich formatting is visible. Short token: ok\nReceived at 6:50 PM",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Inspect-only rich-message render check; no mutation and no duplicate preview/final artifact observed."
         },
-        "proofJoin": null,
+        "proofJoin": "Telegram final delivery carried the rich-message reply; this visual canary does not require a proof panel.",
         "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "screenshotRefs": [
+          "/tmp/cp-streaming-002.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: final bubble rendered rich formatting and inline code token without duplicate preview.",
         "notes": null
       }
     }
