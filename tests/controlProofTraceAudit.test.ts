@@ -266,6 +266,54 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
   });
 });
 
+test('distinguishes historical legacy proof gaps from the latest clean producer row', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'builder_gateway',
+        filePath: path.join(sparkHome, 'gateway-trace.jsonl'),
+        kind: 'jsonl' as const
+      }
+    ];
+    writeJsonl(evidenceFiles[0].filePath, [
+      {
+        timestamp: '2026-06-24T12:00:00.000Z',
+        requestId: 'req-old',
+        traceRef: 'trace-old',
+        harnessProofRef: 'turn:sha256:abcdef1234567890',
+        proofStatus: 'missing_harness_authority',
+        proofStorage: 'source_gap_capsule',
+        proofCapsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: 'turn:sha256:abcdef1234567890'
+        }
+      },
+      {
+        timestamp: '2026-06-24T12:05:00.000Z',
+        requestId: 'req-new',
+        traceRef: 'trace-new',
+        harnessProofRef: 'turn:sha256:fedcba9876543210',
+        proofCapsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: 'turn:sha256:fedcba9876543210'
+        }
+      }
+    ]);
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.latestProofGapMarked, false);
+    assert.equal(plane.latestRecordAt, '2026-06-24T12:05:00.000Z');
+    assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* latest_gap no/);
+  });
+});
+
 test('reports clean when every configured plane is joined and redacted', () => {
   withTempSparkHome((sparkHome) => {
     const joined = {

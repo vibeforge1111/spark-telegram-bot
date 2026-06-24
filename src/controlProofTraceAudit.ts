@@ -33,6 +33,8 @@ export interface ControlProofTracePlaneSummary {
   proofRefPresent: number;
   proofNotApplicable: number;
   proofGapMarked: number;
+  latestProofGapMarked: boolean;
+  latestRecordAt: string | null;
   proofCapsuleMissing: number;
   rawIdKeyRows: number;
   rawPathLikeRows: number;
@@ -182,6 +184,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `proof_capsule ${plane.proofCapsulePresent}`,
         `proof_n/a ${plane.proofNotApplicable}`,
         `proof_gap ${plane.proofGapMarked}`,
+        `latest_gap ${plane.latestProofGapMarked ? 'yes' : 'no'}`,
         `raw_refs ${plane.rawPathLikeRows}`,
         `raw_id_keys ${plane.rawIdKeyRows}`,
         `reason_codes ${plane.policyReasonCodeRows}`,
@@ -287,7 +290,8 @@ function summarizeRecords(
     if (POLICY_REASON_PATTERN.test(raw)) policyReasonCodeRows += 1;
     if (STACK_LIKE_PATTERN.test(raw)) stackLikeRows += 1;
   }
-  const topLevelKeys = topLevelKeysFor(records[records.length - 1]);
+  const latestRecord = records[records.length - 1];
+  const topLevelKeys = topLevelKeysFor(latestRecord);
   return {
     label: file.label,
     filePath: file.filePath,
@@ -304,6 +308,8 @@ function summarizeRecords(
     proofRefPresent,
     proofNotApplicable,
     proofGapMarked,
+    latestProofGapMarked: isProofGapMarkedRecord(latestRecord),
+    latestRecordAt: recordTimestampString(latestRecord),
     proofCapsuleMissing: Math.max(0, sampled.length - proofCoveredRows - proofNotApplicable),
     rawIdKeyRows,
     rawPathLikeRows,
@@ -334,6 +340,16 @@ function isProofGapMarkedRecord(value: unknown): boolean {
     const normalized = String(entry || '').trim().toLowerCase();
     return normalized === 'missing_harness_proof' || normalized === 'missing_harness_authority';
   });
+}
+
+function recordTimestampString(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  for (const key of ['ts', 'timestamp', 'recorded_at', 'generatedAt', 'generated_at', 'createdAt', 'created_at']) {
+    const candidate = record[key];
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return null;
 }
 
 function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlProofGapCounts {
@@ -418,6 +434,8 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     proofRefPresent: 0,
     proofNotApplicable: 0,
     proofGapMarked: 0,
+    latestProofGapMarked: false,
+    latestRecordAt: null,
     proofCapsuleMissing: 0,
     rawIdKeyRows: 0,
     rawPathLikeRows: 0,
