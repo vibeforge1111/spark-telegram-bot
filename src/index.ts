@@ -4018,6 +4018,10 @@ rateLimitCleanupTimer.unref?.();
 const MAP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const LAST_NO_EDIT_PROBE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const LATEST_CANVAS_PLAN_TTL_MS = 60 * 60 * 1000; // 1 hour
+// Rate-limit notice tracking: notify a user at most once per cooldown when their
+// message is dropped (the sliding-window limiter below makes the drop decision).
+const userLastRateNotice = new Map<number, number>();
+const RATE_LIMIT_NOTICE_COOLDOWN_MS = 30_000; // match Builder's rate_limit_notice_cooldown_seconds=30
 
 const lastNoEditProbeMissions = new Map<string, NoEditProbeMission>();
 
@@ -4056,6 +4060,11 @@ const mapCleanupTimer = setInterval(() => {
   for (const [key, entry] of latestCanvasPlans) {
     if (now - new Date(entry.recordedAt ?? 0).getTime() > LATEST_CANVAS_PLAN_TTL_MS) {
       latestCanvasPlans.delete(key);
+    }
+  }
+  for (const [key, lastNotice] of userLastRateNotice) {
+    if (now - lastNotice > RATE_LIMIT_NOTICE_COOLDOWN_MS) {
+      userLastRateNotice.delete(key);
     }
   }
   cleanupPendingBuildClarifications(now);
@@ -5190,11 +5199,23 @@ bot.catch((err, ctx) => {
   ctx.reply(renderSparkErrorReply(err, 'telegram', ctx.from ? conversation.isAdmin(ctx.from) : false)).catch(() => {});
 });
 
-// Rate limit middleware
+// Rate limit middleware. The sliding-window limiter drops messages over the
+// configured budget, but tells the user once per RATE_LIMIT_NOTICE_COOLDOWN_MS
+// so a burst doesn't look like the bot is broken. Matches Builder's gateway
+// rate-limit notice convention.
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id;
   if (userId) {
-    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, Date.now())) {
+    const now = Date.now();
+    if (!slidingWindowRateLimitAllows(userRequestTimestamps, userId, now)) {
+      // Notify the user at most once per cooldown that their message was dropped.
+      // The sliding-window limiter still makes the actual rate decision and does
+      // the request tracking; this only governs the user-facing notice.
+      const lastNotice = userLastRateNotice.get(userId) ?? 0;
+      if (now - lastNotice >= RATE_LIMIT_NOTICE_COOLDOWN_MS) {
+        userLastRateNotice.set(userId, now);
+        ctx.reply('Slow down — one message per second. Your message was dropped; resend if it still matters.').catch(() => {});
+      }
       return; // Rate limited
     }
   }
