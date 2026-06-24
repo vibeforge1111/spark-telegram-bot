@@ -9,6 +9,7 @@ import {
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
+  summarizeControlProofCanaryCoverage,
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
   type ControlProofCanaryObservationUpdate,
@@ -44,6 +45,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --copy-paste',
     '  npm run control:proof:canaries -- --checklist',
     '  npm run control:proof:canaries -- --coverage',
+    '  npm run control:proof:canaries -- --include-actions --coverage --coverage-strict',
     '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
     '  npm run control:proof:canaries -- --json',
@@ -329,7 +331,11 @@ function main(): void {
   }
 
   if (hasFlag(args, 'coverage')) {
+    const coverage = summarizeControlProofCanaryCoverage(selected);
     console.log(formatControlProofCanaryCoverage(selected));
+    if (hasFlag(args, 'coverage-strict') && !coverage.coverageComplete) {
+      process.exitCode = 1;
+    }
     return;
   }
 

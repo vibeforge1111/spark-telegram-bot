@@ -13,6 +13,7 @@ import {
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
+  summarizeControlProofCanaryCoverage,
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
   type ControlProofCanaryCategory
@@ -170,11 +171,24 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   assert.match(coverage, /Cases: 27/);
   assert.match(coverage, /Intentional action cases: 4/);
   assert.match(coverage, /Manual media cases: 4/);
+  assert.match(coverage, /Required category coverage: complete/);
+  assert.match(coverage, /Missing required categories: none/);
   assert.match(coverage, /- mission: 1/);
   assert.match(coverage, /- streaming: 1/);
   assert.match(coverage, /- rich_messages: 1/);
   assert.match(coverage, /- launches_mission: 1/);
   assert.match(coverage, /- confirmation_required_or_allowed:/);
+
+  const narrow = formatControlProofCanaryCoverage([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+  const narrowSummary = summarizeControlProofCanaryCoverage([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ]);
+  assert.equal(narrowSummary.coverageComplete, false);
+  assert.ok(narrowSummary.missingRequiredCategories.includes('mission'));
+  assert.match(narrow, /Required category coverage: missing/);
+  assert.match(narrow, /Missing required categories: .*mission/);
 });
 
 test('live run guide pairs Telegram prompts with record commands', () => {
@@ -469,6 +483,22 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(coverage.status, 0, coverage.stderr);
   assert.match(coverage.stdout, /Cases: 27/);
   assert.match(coverage.stdout, /Intentional action cases: 4/);
+
+  const strictCoverage = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--coverage',
+      '--coverage-strict'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(strictCoverage.status, 1);
+  assert.match(strictCoverage.stdout, /Required category coverage: missing/);
 
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
   try {

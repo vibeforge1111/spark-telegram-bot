@@ -161,9 +161,38 @@ export interface ControlProofCanaryObservationSummary {
   cases: ControlProofCanaryObservationCaseSummary[];
 }
 
+export interface ControlProofCanaryCoverageSummary {
+  totalCases: number;
+  intentionalActionCases: number;
+  manualMediaCases: number;
+  categoryCounts: Map<string, number>;
+  riskCounts: Map<string, number>;
+  mutationCounts: Map<string, number>;
+  authorityCounts: Map<string, number>;
+  missingRequiredCategories: ControlProofCanaryCategory[];
+  coverageComplete: boolean;
+}
+
 export const CONTROL_PROOF_CANARY_TARGET = 'SparkRecursive_bot';
 export const CONTROL_PROOF_CANARY_VERDICTS: ControlProofCanaryVerdict[] =
   ['pass', 'fail', 'blocked', 'needs-retest', 'untested'];
+export const CONTROL_PROOF_REQUIRED_CANARY_CATEGORIES: ControlProofCanaryCategory[] = [
+  'no_action',
+  'authority',
+  'proof',
+  'streaming',
+  'rich_messages',
+  'builder',
+  'spawner_build',
+  'mission',
+  'memory',
+  'access',
+  'web_research',
+  'model_switch',
+  'media',
+  'audio',
+  'voice'
+];
 
 type ControlProofCanaryCaseDefinition = Omit<ControlProofCanaryCase, 'expectedAuthority' | 'expectedMutationClass'>;
 
@@ -775,32 +804,48 @@ export function formatControlProofCanaryChecklist(cases: ControlProofCanaryCase[
 }
 
 export function formatControlProofCanaryCoverage(cases: ControlProofCanaryCase[]): string {
+  const coverage = summarizeControlProofCanaryCoverage(cases);
+  const lines = [
+    `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Canary Coverage`,
+    '',
+    `Cases: ${coverage.totalCases}`,
+    `Intentional action cases: ${coverage.intentionalActionCases}`,
+    `Manual media cases: ${coverage.manualMediaCases}`,
+    `Required category coverage: ${coverage.coverageComplete ? 'complete' : 'missing'}`,
+    `Missing required categories: ${coverage.missingRequiredCategories.length ? coverage.missingRequiredCategories.join(', ') : 'none'}`,
+    '',
+    'Categories:',
+    ...formatCounts(coverage.categoryCounts),
+    '',
+    'Risk:',
+    ...formatCounts(coverage.riskCounts),
+    '',
+    'Mutation classes:',
+    ...formatCounts(coverage.mutationCounts),
+    '',
+    'Authority expectations:',
+    ...formatCounts(coverage.authorityCounts)
+  ];
+  return lines.join('\n').trimEnd();
+}
+
+export function summarizeControlProofCanaryCoverage(cases: ControlProofCanaryCase[]): ControlProofCanaryCoverageSummary {
   const categoryCounts = countBy(cases, (entry) => entry.category);
   const riskCounts = countBy(cases, (entry) => entry.risk);
   const mutationCounts = countBy(cases, (entry) => entry.expectedMutationClass);
   const authorityCounts = countBy(cases, (entry) => entry.expectedAuthority);
-  const actionCases = cases.filter((entry) => entry.risk === 'intentional_action');
-  const manualMediaCases = cases.filter((entry) => entry.risk === 'manual_media');
-  const lines = [
-    `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Canary Coverage`,
-    '',
-    `Cases: ${cases.length}`,
-    `Intentional action cases: ${actionCases.length}`,
-    `Manual media cases: ${manualMediaCases.length}`,
-    '',
-    'Categories:',
-    ...formatCounts(categoryCounts),
-    '',
-    'Risk:',
-    ...formatCounts(riskCounts),
-    '',
-    'Mutation classes:',
-    ...formatCounts(mutationCounts),
-    '',
-    'Authority expectations:',
-    ...formatCounts(authorityCounts)
-  ];
-  return lines.join('\n').trimEnd();
+  const missingRequiredCategories = CONTROL_PROOF_REQUIRED_CANARY_CATEGORIES.filter((category) => !categoryCounts.has(category));
+  return {
+    totalCases: cases.length,
+    intentionalActionCases: riskCounts.get('intentional_action') || 0,
+    manualMediaCases: riskCounts.get('manual_media') || 0,
+    categoryCounts,
+    riskCounts,
+    mutationCounts,
+    authorityCounts,
+    missingRequiredCategories,
+    coverageComplete: missingRequiredCategories.length === 0
+  };
 }
 
 function countBy<T>(items: T[], keyFor: (item: T) => string): Map<string, number> {
