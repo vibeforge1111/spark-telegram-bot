@@ -206,6 +206,17 @@ async function run(): Promise<void> {
     );
     restoreEnv();
   });
+
+  await test('spawner design-only ideation proof uses ideation boundary route', async () => {
+    restoreEnv();
+    prepareEnv();
+    await assertTraceRoute(
+      'Please help me design a project called Proof Garden. Do not build yet; ask me the first two product questions.',
+      'spawner_build.ideation_boundary',
+      /Who is it for first/
+    );
+    restoreEnv();
+  });
 }
 
 run().catch((error) => {

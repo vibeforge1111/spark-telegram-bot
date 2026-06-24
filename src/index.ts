@@ -12,11 +12,7 @@ import { Telegraf } from 'telegraf';
 // rewrites in .env. Never committed (.gitignored).
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
-import {
-  conversation,
-  isPendingTaskRecoveryQuestion,
-  renderPendingTaskRecoveryReply
-} from './conversation';
+import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
 import {
   getBuilderBridgeStatus,
@@ -378,6 +374,7 @@ import {
 } from './modelSwitch';
 import { renderExternalResearchBoundaryReply } from './externalResearchBoundary';
 import { renderBuilderMemoryDiagnosticBoundaryReply } from './builderDiagnosticBoundary';
+import { renderSpawnerIdeationBoundaryReply } from './spawnerIdeationBoundary';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
 import {
   buildContextualImageUpdate,
@@ -8692,6 +8689,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (externalResearchBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.external_research_boundary', 'spark-telegram-bot', 'external_research.boundary'); await ctx.reply(externalResearchBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'external_research.boundary', intentKind: 'external_research.boundary', command: 'telegram_external_research_boundary', reasonSummary: 'Telegram explained the external research source boundary; no external network action was authorized.' }))); await conversation.rememberAssistantReply(user, externalResearchBoundaryAnswer).catch(() => {}); return; }
   const builderMemoryDiagnosticBoundaryAnswer = !earlyBuildIntent ? renderBuilderMemoryDiagnosticBoundaryReply(text) : '';
   if (builderMemoryDiagnosticBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.builder_memory_diagnostic_boundary', 'spark-telegram-bot', 'builder_gateway.memory_diagnostic_boundary'); await ctx.reply(builderMemoryDiagnosticBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'builder_gateway.memory_diagnostic_boundary', intentKind: 'builder_gateway.memory_diagnostic_boundary', command: 'telegram_builder_memory_diagnostic_boundary', reasonSummary: 'Telegram explained the Builder memory diagnostic boundary; no memory diagnostic was authorized.' }))); await conversation.rememberAssistantReply(user, builderMemoryDiagnosticBoundaryAnswer).catch(() => {}); return; }
+  const spawnerIdeationBoundaryAnswer = !earlyBuildIntent ? renderSpawnerIdeationBoundaryReply(text) : '';
+  if (spawnerIdeationBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.spawner_ideation_boundary', 'spark-telegram-bot', 'spawner_build.ideation_boundary'); await ctx.reply(spawnerIdeationBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'spawner_build.ideation_boundary', intentKind: 'spawner_build.ideation_boundary', command: 'telegram_spawner_ideation_boundary', reasonSummary: 'Telegram kept the project request in design-only ideation; no PRD bridge write, mission, or build execution was authorized.' }))); await conversation.rememberAssistantReply(user, spawnerIdeationBoundaryAnswer).catch(() => {}); return; }
   const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     await conversation.remember(user, text).catch(() => {});
