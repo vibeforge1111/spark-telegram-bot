@@ -7319,7 +7319,7 @@ function formatBuildMissionQueuedReply(input: {
     `Setting up ${escapeTelegramHtml(input.projectName)} as a ${escapeTelegramHtml(modeText)}.`,
     telegramHtmlLink('Open board', input.kanbanUrl),
     'I will send the canvas once the nodes, skill pairings, and workflow handoff are materialized.',
-    input.projectPath ? ['Workspace', `<code>${escapeTelegramHtml(input.projectPath)}</code>`].join('\n') : null,
+    null,
   );
 }
 
@@ -9239,7 +9239,7 @@ bot.command('chip', async (ctx) => {
   const lines = [
     'Chip created successfully.',
     `Key: ${result.chipKey}`,
-    `Path: ${result.chipPath}`,
+    `Path: (internal)`,
     `Router invokable: ${result.routerInvokable ? 'yes' : 'no'}`,
   ];
   if (result.warnings && result.warnings.length > 0) {

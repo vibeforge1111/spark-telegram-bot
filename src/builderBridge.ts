@@ -1719,8 +1719,7 @@ export function formatSelfImprovementPlanReply(payload: unknown): string {
     lines.push('', 'Wiki support');
     for (const source of sources) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      lines.push(`- ${title}`);
     }
   }
   const guardrail = stringValue(root.guardrail);
@@ -1881,12 +1880,8 @@ export function formatWikiQueryReply(payload: unknown): string {
     lines.push('', 'Relevant packets');
     for (const hit of hits) {
       const title = stringValue(hit.title) || stringValue(hit.source_path) || 'wiki packet';
-      const sourcePath = stringValue(hit.source_path);
       const text = truncateForPrompt(stringValue(hit.text), 360);
       lines.push(`- ${title}`);
-      if (sourcePath) {
-        lines.push(`  source: ${sourcePath}`);
-      }
       if (text) {
         lines.push(`  ${text}`);
       }
@@ -1938,8 +1933,7 @@ export function formatWikiAnswerReply(payload: unknown): string {
     lines.push('', 'Sources');
     for (const source of sources) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      lines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      lines.push(`- ${title}`);
     }
   }
   if (missing.length) {
@@ -1973,8 +1967,7 @@ export function formatWikiAnswerReply(payload: unknown): string {
     compactLines.push('', 'Sources');
     for (const source of sources.slice(0, 2)) {
       const title = stringValue(source.title) || 'wiki source';
-      const sourcePath = stringValue(source.source_path);
-      compactLines.push(sourcePath ? `- ${title}: ${sourcePath}` : `- ${title}`);
+      compactLines.push(`- ${title}`);
     }
   }
   if (missing.length) {
@@ -2040,7 +2033,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   const config = await resolveDiagnosticsBridgeConfig(resolveBridgeConfig());
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const { stdout, stderr } = await execFileAsync(
@@ -2061,7 +2054,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   );
   const trimmedStdout = stdout.trim();
   if (!trimmedStdout) {
-    throw new Error(`Diagnostics scan returned empty stdout. stderr=${stderr.trim()}`);
+    throw new Error(`Diagnostics scan returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
   const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
   return {
@@ -2076,7 +2069,7 @@ export async function runBuilderSelfAwarenessStatus(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const userId = assertTelegramIntegerId(input.userId, 'userId');
@@ -2130,7 +2123,7 @@ export async function runBuilderSelfImprovementPlan(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const goal = input.goal || input.currentMessage || 'Improve Spark weak spots with probe-first evidence.';
@@ -2179,7 +2172,7 @@ export async function runBuilderAgentOperatingContext(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const userId = assertTelegramIntegerId(input.userId, 'userId');
@@ -2233,7 +2226,7 @@ export async function runBuilderSourceUsed(input: BuilderSourceUsedInput): Promi
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -2353,7 +2346,7 @@ export async function runBuilderAgentBlackBox(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -2483,7 +2476,7 @@ export async function runBuilderRouteConfidenceGate(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -2529,7 +2522,7 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const routeKey = String(capabilityKey || '').trim();
@@ -2863,7 +2856,7 @@ export async function runBuilderAocPreflight(input: BuilderAocPreflightInput): P
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const payloads: Record<string, unknown>[] = [];
@@ -2891,7 +2884,7 @@ export async function runBuilderWikiStatus(input: { refresh?: boolean } = {}): P
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -2944,7 +2937,7 @@ export async function runBuilderWikiInventory(input: { refresh?: boolean; limit?
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -2987,7 +2980,7 @@ export async function runBuilderWikiQuery(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -3045,7 +3038,7 @@ export async function runBuilderWikiAnswer(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -3126,7 +3119,7 @@ export async function runBuilderWikiPromoteImprovement(
   const config = resolveBridgeConfig();
   const bridgeAvailable = await ensureBridgeAvailable(config);
   if (!bridgeAvailable) {
-    throw new Error(`Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`);
+    throw new Error('Builder bridge unavailable. Builder repo or home directory not found.');
   }
 
   const args = [
@@ -3203,7 +3196,7 @@ export async function runBuilderConversationColdContext(
       contextText: '',
       sourceCount: 0,
       bridgeMode: config.mode,
-      error: `Builder bridge unavailable. repo=${config.builderRepo} home=${config.builderHome}`,
+      error: 'Builder bridge unavailable. Builder repo or home directory not found.',
     };
   }
 
@@ -3814,7 +3807,7 @@ export async function runBuilderTelegramBridge(updatePayload: Record<string, unk
   if (!bridgeAvailable) {
     if (config.mode === 'required') {
       throw new Error(
-        `Builder bridge is required but unavailable. repo=${config.builderRepo} home=${config.builderHome}`
+        'Builder bridge is required but unavailable. Builder repo or home directory not found.'
       );
     }
     return {
