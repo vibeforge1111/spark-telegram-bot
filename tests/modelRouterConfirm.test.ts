@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   pendingConfirmKey, stagePendingConfirm, getPendingConfirm, clearPendingConfirm,
   isConfirmText, isConfirmationOnlyText, shouldConsumeConfirm, confirmPromptMessage,
-  noPendingConfirmationMessage
+  isCancelText, noPendingConfirmationMessage, canceledPendingConfirmationMessage
 } from '../src/modelRouterConfirm';
 
 const registered: Array<[string, () => void]> = [];
@@ -11,6 +13,11 @@ function test(name: string, fn: () => void): void { registered.push([name, fn]);
 test('isConfirmText: affirmatives yes, negations and arbitrary text no', () => {
   for (const t of ['yes', 'yes do it', 'go ahead', 'confirm', 'ok', 'sure', 'proceed']) assert.equal(isConfirmText(t), true, t);
   for (const t of ['no', "don't", 'cancel', 'stop', 'change my access to operator', 'what is the weather', '']) assert.equal(isConfirmText(t), false, t);
+});
+
+test('isCancelText: negations cancel a staged confirmation without confirming it', () => {
+  for (const t of ['no', 'nope', 'abort that', 'do not run it', 'cancel please']) assert.equal(isCancelText(t), true, t);
+  for (const t of ['yes', 'go ahead', 'what is pending?', '']) assert.equal(isCancelText(t), false, t);
 });
 
 test('isConfirmationOnlyText: catches no-pending confirmation shapes without swallowing explicit commands', () => {
@@ -58,6 +65,30 @@ test('no pending confirmation reply states no execution without pretending a con
   assert.match(m, /pending action/i);
   assert.match(m, /did not run anything/i);
   assert.doesNotMatch(m, /confirmed/i);
+});
+
+test('canceled pending confirmation reply names the canceled action and denies execution', () => {
+  const m = canceledPendingConfirmationMessage('schedule.delete');
+  assert.match(m, /schedule\.delete/);
+  assert.match(m, /did not run anything/i);
+  assert.doesNotMatch(m, /confirmed/i);
+});
+
+test('model-router confirmation staging records owner evidence before pending state', () => {
+  const indexSource = readFileSync(resolve(__dirname, '../src/index.ts'), 'utf8');
+  const routeTypesSource = readFileSync(resolve(__dirname, '../src/routeTypes.ts'), 'utf8');
+  const confirmBranch = indexSource.match(/} else if \(routeDecision\.mode === 'confirm'\) \{[\s\S]*?\n\s*return;\n\s*\} else \{/)?.[0] || '';
+
+  assert.match(routeTypesSource, /'conversation\.pending_confirmation_stage'/);
+  assert.match(confirmBranch, /telegramAnswerComposeAuthorityDecision\(turnIntentEnvelope/);
+  assert.match(confirmBranch, /route: 'conversation\.pending_confirmation_stage'/);
+  assert.match(confirmBranch, /action: 'plain_chat\.pending_confirmation_stage'/);
+  assert.match(confirmBranch, /recordTelegramHarnessCoreExecution\(answerAuthorization/);
+  assert.match(confirmBranch, /recordNaturalRouteExecution\(ctx, naturalRouteShadow, 'conversation\.pending_confirmation_stage'/);
+  assert.ok(
+    confirmBranch.indexOf('telegramAnswerComposeAuthorityDecision') < confirmBranch.indexOf('stagePendingConfirm'),
+    'confirmation staging must be authorized before pending state is written'
+  );
 });
 
 void (async () => {

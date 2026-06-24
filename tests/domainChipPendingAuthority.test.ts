@@ -99,6 +99,22 @@ async function run(): Promise<void> {
 		assertSpawnerPrdWriteAuthority(pendingChipWrite!.body.executionAuthority, pendingChipWrite!.body.requestId);
 		assert.match(replies.join('\n'), /Starting domain-chip-payments-risk-domain-chip-for with the recommended defaults/i);
 
+		captured.length = 0;
+		replies.length = 0;
+		const createCtx2 = makeFakeCtx(8319079055, 8319079055, 106, replies);
+		createCtx2.message.text = 'create a chargeback triage domain chip for support escalations';
+		await indexModule.handleTextMessage(createCtx2);
+		assert.ok(!captured.some((call) => call.url.includes('/api/prd-bridge/write')), 'second preview must not enqueue before direction');
+
+		const directionCtx = makeFakeCtx(8319079055, 8319079055, 107, replies);
+		directionCtx.message.text = 'use a narrower fraud-only boundary';
+		await indexModule.handleTextMessage(directionCtx);
+
+		const directedChipWrite = captured.find((call) => call.url.includes('/api/prd-bridge/write'));
+		assert.ok(directedChipWrite, 'fresh chip-shaping direction should dispatch the pending domain chip');
+		assertSpawnerPrdWriteAuthority(directedChipWrite!.body.executionAuthority, directedChipWrite!.body.requestId);
+		assert.match(directedChipWrite!.body.content, /use a narrower fraud-only boundary/i);
+
 		console.log('ok - domain chip pending go dispatches with Harness authority');
 	} finally {
 		(axios as any).post = originalPost;

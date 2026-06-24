@@ -33,6 +33,8 @@ const originalBridgeKey = process.env.SPARK_BRIDGE_API_KEY;
 const originalUiKey = process.env.SPARK_UI_API_KEY;
 const originalMcpKey = process.env.MCP_API_KEY;
 const originalEventsKey = process.env.EVENTS_API_KEY;
+const originalLocalServiceTimeout = process.env.SPARK_LOCAL_SERVICE_TIMEOUT_MS;
+const originalSpawnerRunTimeout = process.env.SPARK_SPAWNER_RUN_TIMEOUT_MS;
 
 function restoreAxios(): void {
   (axios as any).get = originalGet;
@@ -52,6 +54,10 @@ function restoreEnv(): void {
   else process.env.MCP_API_KEY = originalMcpKey;
   if (originalEventsKey === undefined) delete process.env.EVENTS_API_KEY;
   else process.env.EVENTS_API_KEY = originalEventsKey;
+  if (originalLocalServiceTimeout === undefined) delete process.env.SPARK_LOCAL_SERVICE_TIMEOUT_MS;
+  else process.env.SPARK_LOCAL_SERVICE_TIMEOUT_MS = originalLocalServiceTimeout;
+  if (originalSpawnerRunTimeout === undefined) delete process.env.SPARK_SPAWNER_RUN_TIMEOUT_MS;
+  else process.env.SPARK_SPAWNER_RUN_TIMEOUT_MS = originalSpawnerRunTimeout;
 }
 
 function mutationClassForTool(toolName: string): SparkHarnessMutationClass {
@@ -104,7 +110,22 @@ async function run(): Promise<void> {
           success: true,
           missionId: 'spark-telegram-1',
           requestId: 'tg-req-1',
-          providers: ['codex', 'claude']
+          traceRef: 'trace:telegram-run:tg-req-1',
+          providers: ['codex', 'claude'],
+          missionControlAccess: {
+            effectiveAccess: 'level_3_chat_access',
+            allows: ['mission_status'],
+            doesNotAllow: ['workspace_write']
+          },
+          authorityVerdict: {
+            sourceRepo: 'spawner-ui',
+            verdict: 'allowed',
+            reasonCode: 'provider_execute_capability_allowed'
+          },
+          authority: {
+            source: 'governor_decision',
+            allowed: true
+          }
         }
       };
     };
@@ -125,7 +146,22 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'spark-telegram-1');
     assert.equal(result.requestId, 'tg-req-1');
+    assert.equal(result.traceRef, 'trace:telegram-run:tg-req-1');
     assert.deepEqual(result.providers, ['codex', 'claude']);
+    assert.deepEqual(result.missionControlAccess, {
+      effectiveAccess: 'level_3_chat_access',
+      allows: ['mission_status'],
+      doesNotAllow: ['workspace_write']
+    });
+    assert.deepEqual(result.authorityVerdict, {
+      sourceRepo: 'spawner-ui',
+      verdict: 'allowed',
+      reasonCode: 'provider_execute_capability_allowed'
+    });
+    assert.deepEqual(result.authority, {
+      source: 'governor_decision',
+      allowed: true
+    });
     assert.match(capturedUrl, /\/api\/spark\/run$/);
     const { executionAuthority: forwardedAuthority, ...capturedBodyWithoutAuthority } = capturedBody;
     assert.deepEqual(capturedBodyWithoutAuthority, {
@@ -299,6 +335,34 @@ async function run(): Promise<void> {
     assert.equal(attempts, 2);
     assert.equal(result.success, true);
     assert.equal(result.missionId, 'spark-after-retry');
+  });
+
+  await test('runGoal uses the Spawner run timeout override for bridge durability', async () => {
+    restoreAxios();
+    restoreEnv();
+    try {
+      process.env.SPARK_LOCAL_SERVICE_TIMEOUT_MS = '111111';
+      process.env.SPARK_SPAWNER_RUN_TIMEOUT_MS = '222222';
+
+      let capturedOptions: any = null;
+      (axios as any).post = async (_url: string, _body: unknown, options: unknown) => {
+        capturedOptions = options;
+        return { data: { success: true, missionId: 'spark-timeout-override' } };
+      };
+
+      const result = await spawner.runGoal({
+        goal: 'Build with an explicit Spawner bridge timeout.',
+        chatId: '123',
+        userId: '456',
+        requestId: 'tg-timeout-override',
+        executionAuthority: fakeExecutionAuthority('spawner.run')
+      });
+
+      assert.equal(result.success, true);
+      assert.equal(capturedOptions.timeout, 222222);
+    } finally {
+      restoreEnv();
+    }
   });
 
   await test('runGoal falls back to the primary relay target when env values are invalid', async () => {
@@ -1322,9 +1386,8 @@ async function run(): Promise<void> {
     assert.match(result.message, /newest thing on the board is Fresh canvas mission\. It finished\./);
     assert.doesNotMatch(result.message, /^Yes,/);
     assert.match(result.message, /Codex is attached to it\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-newer/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-newer/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-newer/);
+    assert.match(result.message, /Next\n• Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-newer/);
+    assert.doesNotMatch(result.message, /Inspect|\/missions\/mission-newer|\/trace\?missionId=mission-newer/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /^Mission:\s*mission-newer/im);
@@ -1376,9 +1439,8 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /From the current Spawner board/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /Live smoke/);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/spark-live/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-live/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=spark-live/);
+    assert.match(result.message, /Next\n• Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=spark-live/);
+    assert.doesNotMatch(result.message, /Inspect|\/missions\/spark-live|\/trace\?missionId=spark-live/);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /Mission: spark-live/);
     assert.doesNotMatch(result.message, /Result:/);
@@ -1494,9 +1556,8 @@ async function run(): Promise<void> {
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /Token Launch Dashboard/);
     assert.match(result.message, /The board has the failure details if you want the trace\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-failed/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-failed/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-failed/);
+    assert.match(result.message, /Next\n• Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-failed/);
+    assert.doesNotMatch(result.message, /Inspect|\/missions\/mission-failed|\/trace\?missionId=mission-failed/);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /Blocked by the current execution environment/);
     assert.doesNotMatch(result.message, /http:\/\/127\.0\.0\.1:3333 is not running/);
@@ -1534,9 +1595,8 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /newest thing on the board is Recursive Sage Reasoning Game\. It is still running\./);
     assert.match(result.message, /Codex is attached to it\./);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-kanban-latest/);
-    assert.match(result.message, /• Board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-kanban-latest/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-kanban-latest/);
+    assert.match(result.message, /Next\n• Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-kanban-latest/);
+    assert.doesNotMatch(result.message, /Inspect|\/missions\/mission-kanban-latest|\/trace\?missionId=mission-kanban-latest/);
     assert.doesNotMatch(result.message, /^Mission$/m);
     assert.doesNotMatch(result.message, /^Provider$/m);
     assert.doesNotMatch(result.message, /^Mission:\s*mission-kanban-latest/im);
@@ -1576,8 +1636,8 @@ async function run(): Promise<void> {
     assert.equal(result.success, true);
     assert.match(result.message, /Codex is on the latest Spawner job right now/);
     assert.doesNotMatch(result.message, /^Mission$/m);
-    assert.match(result.message, /Inspect\n• Detail: http:\/\/127\.0\.0\.1:3333\/missions\/mission-title-only-id/);
-    assert.match(result.message, /• Trace: http:\/\/127\.0\.0\.1:3333\/trace\?missionId=mission-title-only-id/);
+    assert.match(result.message, /Next\n• Open board: http:\/\/127\.0\.0\.1:3333\/kanban\?mission=mission-title-only-id/);
+    assert.doesNotMatch(result.message, /Inspect|\/missions\/mission-title-only-id|\/trace\?missionId=mission-title-only-id/);
     assert.doesNotMatch(result.message, /^Mission:\s*mission-title-only-id/im);
   });
 

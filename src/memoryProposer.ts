@@ -14,6 +14,14 @@ export interface MemoryCandidate {
   factName?: string;
 }
 
+export interface MemoryProposerTurnContext {
+  selectedRoute?: string | null;
+  naturalRoute?: string | null;
+  selectedAction?: string | null;
+  selectedKind?: string | null;
+  noExecution?: boolean;
+}
+
 const MAX_CANDIDATES = 4;
 const MEMORY_ROLES = new Set(['current_state', 'structured_evidence', 'raw_episode', 'belief']);
 const CURRENT_STATE_PREDICATES = new Set([
@@ -32,6 +40,104 @@ const CURRENT_STATE_PREDICATES = new Set([
   'profile.current_owner',
   'profile.current_low_stakes_test_fact',
 ]);
+
+const IMPLICIT_CAPTURE_ALLOWED_ROUTES = new Set([
+  'plain_chat',
+  'chat_plan',
+  'conversation.ideation',
+  'conversation.provider_fallback_chat',
+  'conversation.builder_chat',
+  'conversation.local_chat'
+]);
+
+const IMPLICIT_CAPTURE_BLOCKED_ROUTES = new Set([
+  'access.change',
+  'access.status',
+  'access.help',
+  'access.capability_status',
+  'operator.safe_action',
+  'route.probe',
+  'spawner.build',
+  'spawner.pending_clarification',
+  'spawner.default_build',
+  'spawner.contextual_mission',
+  'spawner.contextual_improvement',
+  'spawner.project_iteration',
+  'spawner.board',
+  'spawner.local_service',
+  'spawner.external_research',
+  'spawner.mission_control',
+  'diagnostics.scan',
+  'diagnostics.followup_test',
+  'domain_chip.create',
+  'creator.mission',
+  'recursive.command',
+  'recursive.proposal',
+  'recursive.start',
+  'spark.self_improvement',
+  'spark.process',
+  'spark.reflect',
+  'spark.chip_status',
+  'spark.read_only_state',
+  'spark.wiki',
+  'spark_wiki.status',
+  'spark_wiki.inventory',
+  'spark_wiki.query',
+  'spark_wiki.answer',
+  'spark_wiki.promote',
+  'media.image',
+  'media.voice',
+  'voice.command',
+  'browser.navigate',
+  'memory.write',
+  'memory.delete',
+  'memory.recall',
+  'model.switch',
+  'schedule.create',
+  'schedule.delete',
+  'natural_run',
+  'pending_task.recovery',
+  'local_workspace.inspect',
+  'mission_updates.preference',
+  'sparkqa.status',
+  'sparkqa.run',
+  'sparkqa.benchmark',
+  'sparkqa.pause',
+  'conversation.quoted_drafted_example_boundary',
+  'conversation.source_attributed_action_boundary',
+  'conversation.stale_context_authority_boundary',
+  'domain_chip.pending',
+  'slash_command'
+]);
+
+function normalizeRoute(route?: string | null): string {
+  return String(route || '').trim();
+}
+
+function routeBlocksImplicitCapture(route?: string | null): boolean {
+  const normalized = normalizeRoute(route);
+  if (!normalized) return false;
+  if (IMPLICIT_CAPTURE_BLOCKED_ROUTES.has(normalized)) return true;
+  return normalized.startsWith('spark.read_only_state.')
+    || normalized.startsWith('spark_wiki.')
+    || normalized.startsWith('spawner.')
+    || normalized.startsWith('sparkqa.')
+    || normalized.startsWith('recursive.')
+    || normalized.startsWith('schedule.');
+}
+
+export function shouldRunImplicitMemoryProposer(
+  turnText: string,
+  context: MemoryProposerTurnContext = {}
+): boolean {
+  const t = (turnText || '').trim();
+  if (t.length < 8 || t.startsWith('/')) return false;
+  if (context.noExecution) return false;
+  const routes = [context.selectedRoute, context.naturalRoute].map(normalizeRoute).filter(Boolean);
+  if (routes.some(routeBlocksImplicitCapture)) return false;
+  if (routes.length === 0) return true;
+  return routes.every((route) => IMPLICIT_CAPTURE_ALLOWED_ROUTES.has(route));
+}
 
 function optionalCleanString(value: unknown, maxLength: number): string | undefined {
   const text = String(value || '').trim();
@@ -113,10 +219,11 @@ export function parseMemoryCandidates(raw: string): MemoryCandidate[] {
 export async function runMemoryProposer(
   turnText: string,
   recentContext: string[],
-  complete: IntentProposerCompleter
+  complete: IntentProposerCompleter,
+  context: MemoryProposerTurnContext = {}
 ): Promise<MemoryCandidate[]> {
   const t = (turnText || '').trim();
-  if (t.length < 8 || t.startsWith('/')) return [];
+  if (!shouldRunImplicitMemoryProposer(t, context)) return [];
   try {
     const raw = await complete(buildMemoryProposerPrompt(t, recentContext));
     return parseMemoryCandidates(raw);

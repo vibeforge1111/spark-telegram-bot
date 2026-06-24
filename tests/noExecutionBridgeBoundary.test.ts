@@ -372,6 +372,50 @@ test('quoted drafted high-agency examples compose answers without Builder bridge
   }
 });
 
+test('text-transform action payloads compose locally without Builder bridge detours', async () => {
+  process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  process.env.SPARK_AGENT_ACCESS_PROFILE = 'developer';
+  process.env.SPARK_BUILDER_BRIDGE_MODE = 'auto';
+
+  const indexModule: any = await import('../src/index');
+  const llmModule = await import('../src/llm');
+  const originalChat = llmModule.llm.chat;
+  let bridgeCalls = 0;
+  let llmCalls = 0;
+
+  indexModule.__setBuilderBridgeRunnerForTest(async () => {
+    bridgeCalls += 1;
+    return {
+      used: true,
+      responseText: 'That looks like a high-impact action: "schedule.delete". Reply "yes" to confirm and I will run it, or "no" to cancel.',
+      decision: 'schedule.delete',
+      bridgeMode: 'test',
+      routingDecision: 'schedule.delete'
+    };
+  });
+  llmModule.llm.chat = async () => {
+    llmCalls += 1;
+    return 'Elimina el horario.';
+  };
+
+  try {
+    const text = 'translate into Spanish: remove the schedule';
+    const replies: string[] = [];
+    await indexModule.handleTextMessage(fakeCtx(text, replies));
+
+    assert.equal(bridgeCalls, 0);
+    assert.equal(llmCalls, 1);
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /Elimina el horario/i);
+    assert.doesNotMatch(replies[0], /high-impact action|Reply "yes"|schedule\.delete/i);
+  } finally {
+    llmModule.llm.chat = originalChat;
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+  }
+});
+
 test('quoted publish wording preserves governed quoted-boundary route execution', async () => {
   process.env.BOT_TOKEN = process.env.BOT_TOKEN || '123:test';
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';

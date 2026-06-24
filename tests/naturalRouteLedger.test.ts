@@ -40,11 +40,15 @@ async function run(): Promise<void> {
       executedRoute: 'spawner.build',
       executedOwner: 'spawner-ui',
       executedAction: 'spawner.build',
+      telegramUpdateId: '452999111',
       now: new Date('2026-05-09T00:00:00.000Z')
     });
     const serialized = JSON.stringify(record);
 
     assert.equal(record.schema_version, 'spark.nlp.route_execution.v1');
+    assert.equal(record.turn_id, 'turn:telegram:spawner.build:telegram-update:452999111');
+    assert.equal(record.request_id, 'turn:telegram:spawner.build:telegram-update:452999111');
+    assert.equal(record.telegram_update_id, 452999111);
     assert.equal(record.outcome, 'matched');
     assert.equal(record.shadow_route, 'spawner.build');
     assert.equal(record.executed_route, 'spawner.build');

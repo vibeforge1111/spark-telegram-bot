@@ -74,6 +74,12 @@ function safeId(prefix: string, raw: string): string {
   return safeHarnessCoreId(prefix, raw);
 }
 
+function routeScopedTelegramTurnId(route: string, turnId: string): string {
+  const rawTurnId = String(turnId || '').trim();
+  if (rawTurnId.startsWith('turn:telegram:')) return rawTurnId;
+  return safeId('turn', `telegram:${route}:${rawTurnId || 'unknown'}`);
+}
+
 function confidenceValue(envelope: TurnIntentEnvelopeV1): number {
   switch (envelope.selectedIntent.confidence) {
     case 'explicit':
@@ -142,6 +148,7 @@ function moveForEnvelope(
   legacyAllowed: boolean,
   riskTier: HarnessCoreRiskTier
 ): HarnessCoreMoveType {
+  if (staleContextWouldAuthorizeMutation(envelope, action)) return 'chat_explain';
   const safeReadOnlyAction = action &&
     (action.mutationClass === 'none' || action.mutationClass === 'read_only') &&
     !action.publishes &&
@@ -166,6 +173,38 @@ function authorityStateForMove(move: HarnessCoreMoveType): HarnessCoreAuthorityS
   return 'none';
 }
 
+function isMutatingAction(action: HarnessCoreActionInput | null): boolean {
+  return Boolean(action) && !['none', 'read_only'].includes(action!.mutationClass);
+}
+
+function nonFreshContextMutationReferent(envelope: TurnIntentEnvelopeV1, action: HarnessCoreActionInput | null): boolean {
+  if (!isMutatingAction(action)) return false;
+  const contextSource = envelope.selectedIntent.contextSource;
+  if (contextSource === 'latest_message' || contextSource === 'slash_command' || contextSource === 'visible_exact_artifact') {
+    return false;
+  }
+  return envelope.selectedIntent.mutationReferent !== 'fresh_turn' &&
+    envelope.selectedIntent.mutationReferent !== 'visible_artifact';
+}
+
+function staleContextWouldAuthorizeMutation(envelope: TurnIntentEnvelopeV1, action: HarnessCoreActionInput | null): boolean {
+  return !envelope.directive.noExecution && nonFreshContextMutationReferent(envelope, action);
+}
+
+function staleContextBlockReason(envelope: TurnIntentEnvelopeV1, action: HarnessCoreActionInput | null): string | null {
+  if (!nonFreshContextMutationReferent(envelope, action)) return null;
+  return `Mutation route ${action!.route} was demoted because ${envelope.selectedIntent.contextSource} is context evidence, not fresh action authority.`;
+}
+
+function freshnessFlagsForEnvelope(envelope: TurnIntentEnvelopeV1, action: HarnessCoreActionInput | null) {
+  const staleMutationAuthority = nonFreshContextMutationReferent(envelope, action);
+  return {
+    staleStateUsedAsAuthority: staleMutationAuthority,
+    memoryUsedAsInstruction: staleMutationAuthority && envelope.selectedIntent.contextSource === 'cold_memory',
+    pendingStateUsedAsAuthority: staleMutationAuthority && envelope.selectedIntent.contextSource === 'pending_state'
+  };
+}
+
 function routeEvidence(envelope: TurnIntentEnvelopeV1): HarnessCoreEvidenceRef[] {
   const confidence = confidenceValue(envelope);
   const trace = traceRef(envelope.traceId, 'Telegram TurnIntent V1 trace evidence.');
@@ -182,7 +221,7 @@ function routeEvidence(envelope: TurnIntentEnvelopeV1): HarnessCoreEvidenceRef[]
       `${envelope.turnId}:route`,
       'route_candidate',
       String(envelope.selectedIntent.ownerSystem || 'spark-telegram-bot'),
-      `Route candidate ${envelope.selectedIntent.kind} from ${envelope.selectedIntent.source}.`,
+      `Route candidate ${envelope.selectedIntent.kind} from ${envelope.selectedIntent.contextSource}/${envelope.selectedIntent.mutationReferent}.`,
       confidence,
       [trace]
     )
@@ -205,6 +244,7 @@ function routeEvidence(envelope: TurnIntentEnvelopeV1): HarnessCoreEvidenceRef[]
 export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: string): HarnessCoreProposedAction {
   const actionType = actionTypeForTelegramAction(input);
   const riskTier = riskTierForAction(input);
+  const canonicalTurnId = routeScopedTelegramTurnId(input.route, turnId);
   const actionEnvelope = alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
     surface: 'telegram',
     ownerSystem: String(input.ownerSystem || 'spark-telegram-bot'),
@@ -213,6 +253,7 @@ export function buildHarnessCoreAction(input: HarnessCoreActionInput, turnId: st
     source: input.route,
     reason: `Telegram proposed ${actionType} via ${input.toolName} for route ${input.route}.`,
     requestId: turnId,
+    turnId: canonicalTurnId,
     actorIdRef: 'telegram-human',
     target: input.route,
     riskTier,
@@ -231,6 +272,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
   const riskTier = action ? riskTierForAction(action) : envelope.executionPolicy.canLaunchMission ? 'medium' : 'none';
   const move = moveForEnvelope(envelope, action, legacyAllowed, riskTier);
   const actionType = action ? actionTypeForTelegramAction(action) : null;
+  const canonicalActionTurnId = action ? routeScopedTelegramTurnId(action.route, envelope.turnId) : null;
   const actionEnvelope = action && actionType && !move.startsWith('chat_')
     ? alignProposedActionType(createHarnessCoreActionEnvelopeVNext({
         surface: 'telegram',
@@ -240,6 +282,7 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
         source: action.route,
         reason: `Telegram proposed ${actionType} via ${action.toolName} for route ${action.route}.`,
         requestId: envelope.turnId,
+        turnId: canonicalActionTurnId || undefined,
         actorIdRef: envelope.user.userRef,
         target: action.route,
         confidence: confidenceValue(envelope),
@@ -252,7 +295,10 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
   const proposedAction = actionEnvelope?.proposed_actions[0] || null;
   const evidence = routeEvidence(envelope);
   const freshUserIntentRef = evidence.find((item) => item.kind === 'fresh_user_intent') || null;
+  const freshUserIntentPresent = Boolean(freshUserIntentRef) && envelope.selectedIntent.contextSource !== 'none';
   const authorityState = authorityStateForMove(move);
+  const staleBlockReason = staleContextBlockReason(envelope, action);
+  const freshnessFlags = freshnessFlagsForEnvelope(envelope, action);
 
   return {
     schema_version: 'turn-intent-envelope-vnext',
@@ -268,11 +314,11 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
     selected_move: move,
     intent_summary: `Telegram selected ${move} for ${envelope.selectedIntent.kind}; route evidence remains subordinate to fresh user intent.`,
     freshness: {
-      fresh_user_intent_present: true,
+      fresh_user_intent_present: freshUserIntentPresent,
       fresh_user_intent_ref: freshUserIntentRef,
-      stale_state_used_as_authority: false,
-      memory_used_as_instruction: false,
-      pending_state_used_as_authority: false
+      stale_state_used_as_authority: freshnessFlags.staleStateUsedAsAuthority,
+      memory_used_as_instruction: freshnessFlags.memoryUsedAsInstruction,
+      pending_state_used_as_authority: freshnessFlags.pendingStateUsedAsAuthority
     },
     evidence: actionEnvelope ? [...evidence, ...actionEnvelope.evidence] : evidence,
     action_authority: {
@@ -285,11 +331,18 @@ export function buildTurnIntentEnvelopeVNextFromTelegram(
         : 'Telegram route evidence does not grant direct execution authority.'
     },
     proposed_actions: proposedAction ? [proposedAction] : [],
-    blocked_routes: envelope.blockedCandidates.map((blocked, index) => ({
-      route_id: safeId('route', `${blocked.route}:${index}`),
-      reason: blocked.reason,
-      evidence: evidenceRef(`${envelope.turnId}:blocked:${index}`, 'route_candidate', String(blocked.ownerSystem), blocked.reason, 0.85)
-    })),
+    blocked_routes: [
+      ...envelope.blockedCandidates.map((blocked, index) => ({
+        route_id: safeId('route', `${blocked.route}:${index}`),
+        reason: blocked.reason,
+        evidence: evidenceRef(`${envelope.turnId}:blocked:${index}`, 'route_candidate', String(blocked.ownerSystem), blocked.reason, 0.85)
+      })),
+      ...(staleBlockReason && action ? [{
+        route_id: safeId('route', `${action.route}:stale-context`),
+        reason: staleBlockReason,
+        evidence: evidenceRef(`${envelope.turnId}:stale-context-authority`, 'policy', String(action.ownerSystem || 'spark-telegram-bot'), staleBlockReason, 0.95)
+      }] : [])
+    ],
     context_policy: {
       raw_private_text_in_context: false,
       store_raw_turn: false,

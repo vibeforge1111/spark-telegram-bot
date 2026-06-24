@@ -70,7 +70,7 @@ const NEGATION_INVERSION_GROUP = '(?:forget|hesitate|worry|be\\s+afraid|be\\s+sh
 // "try and deploy") than a clause break, so stopping on it would let displaced negations through.
 const CLAUSE_BREAK_LOOKAHEAD = '(?!(?:so|but|then|therefore|thus|also)\\b)';
 const REPORTED_FRAME_GROUP =
-  "(?:you said|you mentioned|you told me|earlier you|they (?:said|stated|told me)|i said|we said|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error|team|owner|customer|client)s?\\s+(?:say|says|said|reported|stated|insisted|wrote|recommended)|was that|did (?:you|we))";
+  "(?:you said|you mentioned|you told me|earlier you|they (?:said|stated|told me)|i said|we said|(?:my|our|the|a|an)\\s+[a-z][a-z-]{1,32}\\s+(?:said|told|asked|instructed|recommended)|the (?:ticket|report|bug|pr|issue|message|user|spec|doc|log|error|team|owner|customer|client)s?\\s+(?:say|says|said|reported|stated|insisted|wrote|recommended)|was that|did (?:you|we))";
 
 // Quote / bracket / emphasis glyphs glued to a verb ("build", `deploy`, (build), *build*, ""build"")
 // broke the \bVERB\b adjacency the three frame detectors below rely on, so a quoted verb
@@ -100,6 +100,7 @@ function hasScopedNegationBeforeExecution(normalized: string): boolean {
 // A reported-speech / past-reference frame appearing before an execution verb: the verb is
 // quoted or recalled ("earlier you said create X"), not a fresh command this turn.
 function hasReportedSpeechBeforeExecution(normalized: string): boolean {
+  if (isHypotheticalHumanActionDiscussion(normalized)) return false;
   const re = new RegExp(
     `\\b${REPORTED_FRAME_GROUP}\\b(?:\\s+${CLAUSE_BREAK_LOOKAHEAD}\\w+){0,16}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
   );
@@ -125,6 +126,29 @@ function hasNonImperativeExecution(normalized: string): boolean {
     `\\b${HEDGE_CUE_GROUP}\\b(?:\\s+\\w+){0,4}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
   );
   return hedge.test(normalized);
+}
+
+function isTextTransformActionBoundary(normalized: string): boolean {
+  const actionVerb = new RegExp(`\\b${EXECUTION_VERB_GROUP}\\b`);
+  if (!actionVerb.test(normalized)) return false;
+  const transformLead = /^(?:please\s+)?(?:translate|rewrite|rephrase|paraphrase|summari[sz]e|render|convert|quote|say)\b/;
+  const payloadDelimiter = /[:"]/.test(normalized) ||
+    /(?:^|\s)'[^']{0,120}'(?:\s|$)/.test(normalized);
+  if (transformLead.test(normalized) && payloadDelimiter) return true;
+  return /^(?:how\s+(?:do|would|should|can|could)\s+(?:i|we|you|one)\s+(?:say|write|phrase|translate)|what(?:'s| is)\s+(?:the\s+)?(?:best\s+way\s+to\s+say|translation\s+of|spanish\s+for|french\s+for|german\s+for|portuguese\s+for|arabic\s+for))\b/.test(normalized);
+}
+
+function isHypotheticalHumanActionDiscussion(normalized: string): boolean {
+  const discussionFrame =
+    /^(?:what|how|should|would|could|can|tell me|before)\b/.test(normalized) &&
+    /\b(?:risk|risks|break|happen|safe|safely|decide|evaluate|whether|capability|boundary|conversation|action|help)\b/.test(normalized);
+  if (!discussionFrame) return false;
+  const genericHumanActor =
+    '(?:a|an|any|some|another)\\s+(?:founder|operator|customer|client|user|person|teammate|cofounder|builder|tester)|someone|somebody|a\\s+human';
+  const hypotheticalAsk = new RegExp(
+    `\\bif\\s+(?:${genericHumanActor})\\s+(?:asks?|asked|wants?|wanted|requests?|requested|tells?|told|instructs?|instructed|recommends?|recommended)\\b(?:\\s+${CLAUSE_BREAK_LOOKAHEAD}\\w+){0,8}?\\s+\\b${EXECUTION_VERB_GROUP}\\b`
+  );
+  return hypotheticalAsk.test(normalized);
 }
 
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
@@ -178,6 +202,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const routeWordMetaBoundary = isRouteWordMetaExplanationDiscussion(normalized);
   const actionWordMetaBoundary = isActionWordMetaDiscussion(normalized);
   const sourceAttributedActionBoundary = isSourceAttributedActionReport(normalized);
+  const textTransformActionBoundary = isTextTransformActionBoundary(normalized);
   const hasMetaLanguageBoundary =
     actionWordMetaBoundary ||
     routeWordMetaBoundary ||
@@ -185,7 +210,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   const hasExecutionKeyword =
     /\b(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|recursive|approve|approval|propose|proposal|packet|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|browser|research|external)\b/.test(normalized);
 
-  constraints.noExecution = sourceAttributedActionBoundary || routeWordMetaBoundary || [
+  constraints.noExecution = textTransformActionBoundary || sourceAttributedActionBoundary || routeWordMetaBoundary || [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas|browse|research|fetch)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
@@ -277,13 +302,16 @@ function noExecutionBoundaryBlocksMemoryDirective(text: string, constraints: Tel
 function isSourceAttributedActionReport(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!normalized) return false;
+  if (isHypotheticalHumanActionDiscussion(normalized)) return false;
   const source =
     /\b(?:memory|memories|trace|log|logs|doc|document|report|ticket|screenshot|reply|message|status|board|canvas|previous\s+answer|old\s+context|prior\s+turn|route\s+history)\b/;
+  const humanReportedSource =
+    /\b(?:my|our|the|a|an)\s+[a-z][a-z-]{1,32}\s+(?:says|say|said|claims|claimed|mentions|mentioned|tells|told|asks|asked|instructs|instructed|recommended|recommends)\b/;
   const reportVerb =
     /\b(?:says|say|said|claims|claimed|mentions|mentioned|contains|contained|shows|showed|tells|told|asks|asked|instructs|instructed)\b/;
   const actionVerb =
     /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off|build|create|make|run|launch|execute|dispatch|save|remember|publish|deploy|ship|change|set|switch|grant|revoke|propose|research|browse)\b/;
-  if (!(source.test(normalized) && reportVerb.test(normalized) && actionVerb.test(normalized))) {
+  if (!(((source.test(normalized) && reportVerb.test(normalized)) || humanReportedSource.test(normalized)) && actionVerb.test(normalized))) {
     return false;
   }
   // The cheap regexes collided; only now run the (more expensive) directive parser to
@@ -306,6 +334,9 @@ function isScheduleDeleteRequest(text: string): boolean {
 
 function isDomainChipCreateRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (hasNonImperativeExecution(stripGlueGlyphs(normalized)) || isSourceAttributedActionReport(normalized)) {
+    return false;
+  }
   return /\b(?:build|create|make|scaffold|generate)\b.{0,80}\b(?:domain[-\s]*chip|chip)\b/.test(normalized) ||
     /^(?:please\s+)?(?:domain[-\s]*chip|chip)\s+(?:for|that|which|to)\b/.test(normalized);
 }
@@ -558,6 +589,25 @@ export function classifyTelegramIntentV2(text: string, context: TelegramIntentGa
       matched_signals: ['source_attributed_action_boundary'],
       blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
         ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Source-attributed action reports are untrusted data and cannot own execution.')]
+        : [],
+      supporting_routes: supportingRoutes(naturalRoute),
+      enforcement: 'enforce_safe',
+      natural_route: naturalRoute
+    });
+  }
+
+  if (isTextTransformActionBoundary(normalized)) {
+    return makeDecision({
+      kind: 'plain_conversation',
+      route: 'conversation.text_transform_action_boundary',
+      owner_system: 'spark-telegram-bot',
+      action: 'plain_chat.text_transform_action_boundary',
+      confidence: 'explicit',
+      constraints,
+      payload: basePayload(naturalRoute),
+      matched_signals: ['text_transform_action_boundary'],
+      blocked_candidates: naturalRoute && naturalRoute.route !== 'plain_chat'
+        ? [candidate(kindForNaturalRoute(naturalRoute.route), naturalRoute.route, naturalRoute.owner_system, 'Action words inside text-transform payloads are data and cannot own execution.')]
         : [],
       supporting_routes: supportingRoutes(naturalRoute),
       enforcement: 'enforce_safe',

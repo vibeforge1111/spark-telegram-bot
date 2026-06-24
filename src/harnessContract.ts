@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { NaturalRouteOwnerSystem } from './naturalRouteDecision';
+import type { NaturalRouteContextSource, NaturalRouteOwnerSystem } from './naturalRouteDecision';
 import type { TelegramIntentDecisionV2 } from './intentContract';
 
 export type SparkHarnessSchema = 'spark.turn_intent.v1';
@@ -58,6 +58,8 @@ export interface SparkHarnessIntentRef {
   confidence: SparkHarnessConfidence;
   requiresConfirmation: boolean;
   source: 'slash' | 'explicit' | 'contextual' | 'pending' | 'memory' | 'shadow_route_evidence';
+  contextSource: NaturalRouteContextSource;
+  mutationReferent: 'fresh_turn' | 'visible_artifact' | 'contextual_reference' | 'pending_state' | 'memory_reference' | 'none';
 }
 
 export interface SparkHarnessIntentCandidate {
@@ -208,9 +210,30 @@ function confidence(decision: TelegramIntentDecisionV2): SparkHarnessConfidence 
 
 function sourceForDecision(decision: TelegramIntentDecisionV2): SparkHarnessIntentRef['source'] {
   if (decision.kind === 'slash_command') return 'slash';
+  if (decision.natural_route?.context_source === 'pending_state') return 'pending';
+  if (decision.natural_route?.context_source === 'cold_memory') return 'memory';
+  if (decision.natural_route?.context_source === 'workspace_sessions') return 'contextual';
+  if (decision.natural_route?.context_source === 'hot_recent_turns') return 'contextual';
+  if (decision.natural_route?.context_source === 'visible_exact_artifact') return 'explicit';
+  if (decision.natural_route?.context_source === 'slash_command') return 'slash';
+  if (decision.natural_route?.context_source === 'latest_message') return 'explicit';
   if (decision.kind === 'memory_recall' || decision.kind === 'memory_write') return 'memory';
   if (decision.confidence === 'contextual') return 'contextual';
   return 'explicit';
+}
+
+function contextSourceForDecision(decision: TelegramIntentDecisionV2): NaturalRouteContextSource {
+  if (decision.kind === 'slash_command') return 'slash_command';
+  return decision.natural_route?.context_source || (decision.confidence === 'contextual' ? 'hot_recent_turns' : 'latest_message');
+}
+
+function mutationReferentForContextSource(source: NaturalRouteContextSource): SparkHarnessIntentRef['mutationReferent'] {
+  if (source === 'latest_message' || source === 'slash_command') return 'fresh_turn';
+  if (source === 'visible_exact_artifact') return 'visible_artifact';
+  if (source === 'pending_state') return 'pending_state';
+  if (source === 'cold_memory') return 'memory_reference';
+  if (source === 'none') return 'none';
+  return 'contextual_reference';
 }
 
 function routeLooksExternal(route: string): boolean {
@@ -608,7 +631,9 @@ export function buildTelegramTurnIntentEnvelope(input: BuildTelegramTurnEnvelope
       action: input.decision.action || null,
       confidence: confidence(input.decision),
       requiresConfirmation: Boolean(input.decision.natural_route?.requires_confirmation),
-      source: sourceForDecision(input.decision)
+      source: sourceForDecision(input.decision),
+      contextSource: contextSourceForDecision(input.decision),
+      mutationReferent: mutationReferentForContextSource(contextSourceForDecision(input.decision))
     },
     candidates: [candidateFromDecision(input.decision)],
     blockedCandidates: input.decision.blocked_candidates.map((blocked) => ({

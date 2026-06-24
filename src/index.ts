@@ -53,7 +53,7 @@ import { logIntentProposerShadow } from './intentProposerLog';
 import { decideProposerEnforcement, NO_ACTION_ROUTES, decideProposerVeto, proposerVetoConfirmMessage } from './intentProposerEnforce';
 import { decideModelRoute, type ModelRouteDecision } from './modelRouter';
 import { buildDispatchTable, runModelDispatch } from './modelDispatch';
-import { pendingConfirmKey, getPendingConfirm, clearPendingConfirm, stagePendingConfirm, shouldConsumeConfirm, confirmPromptMessage, isConfirmationOnlyText, noPendingConfirmationMessage } from './modelRouterConfirm';
+import { pendingConfirmKey, getPendingConfirm, clearPendingConfirm, stagePendingConfirm, shouldConsumeConfirm, confirmPromptMessage, isConfirmationOnlyText, isCancelText, noPendingConfirmationMessage, canceledPendingConfirmationMessage } from './modelRouterConfirm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
@@ -292,6 +292,7 @@ import {
   isMissionRoutingFailureClassQuestion,
   isModelSwitchGateExplanationRequest,
   isNoEditSpawnerProbeExplanationRequest,
+  isNoEditSpawnerProbeRequest,
   isNoExecutionExplanationPrompt,
   isNoExecutionBoundary,
   isPlainChatAnswerEditingRequest,
@@ -341,6 +342,7 @@ import {
 } from './conversationIntent';
 import {
   decideNaturalRoute,
+  parseNaturalModelSwitchIntent,
   type NaturalRouteDecision,
   type NaturalRouteOwnerSystem
 } from './naturalRouteDecision';
@@ -819,6 +821,7 @@ function isSpawnerGoldenPathRequest(text: string): boolean {
     /\bgolden[_\s-]*path\b/.test(normalized) ||
     (/\btiny mission\b/.test(normalized) && /\bspawner\b/.test(normalized)) ||
     (/\b(?:golden_path_ok|spark_qa_no_edit_ok|spark_e2e_[a-z0-9_]+)\b/.test(normalized) && /\bspawner\b/.test(normalized)) ||
+    isNoEditSpawnerProbeRequest(text) ||
     mentionsNoEditProbe
   );
 }
@@ -889,7 +892,7 @@ type TelegramStatusCard = {
 };
 
 function formatTelegramStatusCard(card: TelegramStatusCard): string {
-  const lines: string[] = [card.title, '', card.verdict];
+  const lines: string[] = [sentenceWithPeriod(card.verdict), '', card.title];
   const facts = (card.facts || []).filter(Boolean).slice(0, 2);
   const why = (card.why || []).filter(Boolean).slice(0, 2);
 
@@ -1850,13 +1853,11 @@ async function renderSparkReadOnlyStateAnswer(kind: SparkReadOnlyStateQuestion, 
 function shouldAnswerRestartNeededQuestion(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   if (!/\brestart(?:ed|ing)?\b/.test(normalized)) return false;
+  if (shouldPreferConversationalIdeation(text)) return false;
   const asksIfRestartNeeded =
     /\brestart(?:ed|ing)?\b.{0,50}\b(?:needed|need|required|recommended|recommend|help|fix|repair|healthy|right now|now|worth|safe)\b/.test(normalized) ||
     /\b(?:need|needs|needed|recommend|recommended|should|must|safe|okay|ok|enough)\b.{0,50}\brestart(?:ed|ing)?\b/.test(normalized);
   if (!asksIfRestartNeeded) return false;
-  if (/\bafter\s+(?:the\s+|a\s+)?restart\b/.test(normalized) && /\bwhat\s+should\s+i\b/.test(normalized)) {
-    return false;
-  }
   const explicitSparkScope = /\b(?:spark|bot|telegram|spawner|mission control|runtime|system|stack|it|you|we)\b/.test(normalized);
   const unscopedRuntimeRestartQuestion =
     /^(?:is|are|do|does|should|would|could|need|needs|needed)\b.{0,40}\brestart(?:ed|ing)?\b/.test(normalized) ||
@@ -2843,7 +2844,8 @@ function recordNaturalRouteExecution(
     executedRoute,
     executedOwner,
     executedAction,
-    delivery
+    delivery,
+    telegramUpdateId: telegramUpdateIdFromUpdate(ctx.update) ?? undefined
   });
   if (shouldWriteNaturalRouteLedgerSynchronously()) {
     appendNaturalRouteExecutionRecordSync(record);
@@ -3007,7 +3009,11 @@ async function handleNaturalRecursiveRoute(
     const reply = target
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
       : 'I can run that loop, but it starts benchmark work. Use the explicit `/recursive start <target> rounds <n>` command when you want it live.';
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'recursive.start_confirmation_required',
+      'clarify'
+    ));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
   }
@@ -3015,7 +3021,11 @@ async function handleNaturalRecursiveRoute(
   if (!NATURAL_RECURSIVE_READ_ACTIONS.has(parsed.action)) {
     recordNaturalRouteExecution(ctx, decision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
     const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, parsed);
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'recursive.explicit_command_required',
+      'clarify'
+    ));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
   }
@@ -3348,7 +3358,8 @@ function telegramBranchActionAuthorityDecision(
     action: input.action || input.route,
     kind: input.kind,
     confidence: input.confidence,
-    mutationClass: input.mutationClass
+    mutationClass: input.mutationClass,
+    noExecution: false
   });
   return telegramActionAuthorityDecision(actionEnvelope, input);
 }
@@ -3363,11 +3374,38 @@ function branchActionCanPromoteFromEvidence(
   authorization: TelegramActionAuthorityResult,
   input: TelegramActionAuthorityInput & { confidence?: TelegramIntentDecisionV2['confidence'] }
 ): boolean {
-  if (input.mutationClass !== 'none' && input.mutationClass !== 'read_only') return false;
   if (!authorization.routeVerdict.allow) return false;
+  if (input.mutationClass !== 'none' && input.mutationClass !== 'read_only') return false;
   if (authorization.routeVerdict.confidence === 'explicit') return true;
   if (input.confidence !== 'contextual') return false;
   return CONTEXTUAL_BRANCH_PROMOTION_REASONS.has(authorization.routeVerdict.reason);
+}
+
+function pendingClarificationActionAuthorityDecision(
+  baseEnvelope: TurnIntentEnvelopeV1,
+  input: TelegramActionAuthorityInput & {
+    action?: string;
+    kind?: TelegramIntentDecisionV2['kind'];
+    confidence?: TelegramIntentDecisionV2['confidence'];
+  }
+): TelegramActionAuthorityResult {
+  const selectedEnvelope = telegramActionEnvelope(baseEnvelope, {
+    route: 'spawner.pending_clarification',
+    ownerSystem: 'spawner-ui',
+    action: 'spawner.clarification_reply',
+    kind: input.kind || 'build_or_spawner',
+    confidence: 'explicit',
+    mutationClass: 'launches_mission',
+    noExecution: false,
+    selectedBy: 'telegram_pending_build_clarification',
+    matchedSignal: 'fresh_pending_build_clarification_reply'
+  });
+  return telegramActionAuthorityDecision(selectedEnvelope, {
+    ...input,
+    route: 'spawner.pending_clarification',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
 }
 
 function telegramBranchActionAuthorityAllowed(
@@ -3419,7 +3457,11 @@ async function handleTelegramIntentGateV2SafeRoute(
       status: 'success',
       summary: 'Intent Gate V2 access status read completed from Spark access state.'
     });
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'access.status',
+      'access.status'
+    ));
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_intent_gate_v2_access_status', [
       {
@@ -3459,7 +3501,11 @@ async function handleTelegramIntentGateV2SafeRoute(
       status: 'success',
       summary: 'Intent Gate V2 access help read completed from Spark access profile.'
     });
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'conversation.source_attributed_action_boundary',
+      'plain_chat.source_attributed_action_boundary'
+    ));
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return true;
@@ -3526,7 +3572,11 @@ async function handleTelegramIntentGateV2SafeRoute(
       status: 'success',
       summary: 'Source-attributed action text was answered as data without executing or staging a mutation.'
     });
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'conversation.source_attributed_action_boundary',
+      'plain_chat.source_attributed_action_boundary'
+    ));
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_source_attributed_action_boundary', [
       {
@@ -3611,7 +3661,7 @@ function previewAuditText(text: string, limit = 240): string {
 
 const OUTBOUND_TRACE_CONTEXT_KEY = '__sparkTraceContext';
 
-type NodeOutboundTraceContext = {
+export type NodeOutboundTraceContext = {
   turnId?: string;
   telegramUpdateId?: number | string;
   route?: string;
@@ -3650,6 +3700,25 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   return {
     [OUTBOUND_TRACE_CONTEXT_KEY]: traceContext
   };
+}
+
+export function buildAnswerComposeTraceContext(
+  update: unknown,
+  route: string,
+  replyKind: string
+): NodeOutboundTraceContext {
+  const telegramUpdateId = telegramUpdateIdFromUpdate(update);
+  return {
+    ...(telegramUpdateId === null ? {} : { telegramUpdateId }),
+    ...(telegramTurnIdFromUpdate(update) ? { turnId: telegramTurnIdFromUpdate(update) } : {}),
+    route,
+    command: 'answer.compose',
+    replyKind
+  };
+}
+
+function answerComposeOutboundTraceExtra(ctx: any, route: string, replyKind: string): Record<string, unknown> {
+  return outboundTraceExtra(buildAnswerComposeTraceContext(ctx.update, route, replyKind));
 }
 
 function telegramHtmlExtra(extra?: Record<string, unknown>): Record<string, unknown> {
@@ -3704,6 +3773,15 @@ function telegramUpdateIdFromUpdate(update: unknown): number | null {
 function telegramTurnIdFromUpdate(update: unknown): string | undefined {
   const updateId = telegramUpdateIdFromUpdate(update);
   return updateId === null ? undefined : `telegram-update:${updateId}`;
+}
+
+function telegramOwnerTurnId(
+  authorization?: TelegramActionAuthorityResult | null,
+  update?: unknown
+): string | undefined {
+  const vnextTurnId = (authorization?.harnessCore?.envelope as any)?.turn_id;
+  if (typeof vnextTurnId === 'string' && vnextTurnId.trim()) return vnextTurnId.trim();
+  return telegramTurnIdFromUpdate(update);
 }
 
 function turnTraceHops(traceContext?: NodeOutboundTraceContext | null): string[] {
@@ -4320,6 +4398,18 @@ function shouldBypassBuilderBridgeForTurnIntent(
   text: string
 ): boolean {
   const selectedPlainChat = decision.kind === 'plain_conversation' && decision.route === 'plain_chat';
+  const governedLocalPlainConversationRoutes = new Set([
+    'conversation.quoted_drafted_example_boundary',
+    'conversation.source_attributed_action_boundary',
+    'conversation.stale_context_authority_boundary',
+    'conversation.text_transform_action_boundary'
+  ]);
+  if (
+    decision.kind === 'plain_conversation' &&
+    governedLocalPlainConversationRoutes.has(decision.route)
+  ) {
+    return true;
+  }
   return Boolean(
     (
       selectedPlainChat &&
@@ -4744,13 +4834,12 @@ async function handlePlainChatMemoryDirective(
 
   await safeSendChatAction(ctx, 'typing');
   try {
-    const updateId = (ctx.update as Record<string, unknown> | undefined)?.update_id;
     const memoryWrite = await builderMemoryWriteRunner({
       userId: ctx.from?.id,
       chatId: ctx.chat?.id,
       noteText: directive,
       sessionId: ctx.chat?.id === undefined ? undefined : `telegram:${ctx.chat.id}`,
-      turnId: updateId === undefined ? undefined : `telegram-update:${String(updateId)}`,
+      turnId: telegramOwnerTurnId(authorization, ctx.update),
       governorDecision: authorization?.governorDecision as Record<string, unknown> | undefined,
     });
     console.log(`[BridgeMemory] user=${userRef(ctx.from?.id)} used=${memoryWrite.used} mode=${memoryWrite.bridgeMode} status=${memoryWrite.status} accepted=${memoryWrite.acceptedCount} rejected=${memoryWrite.rejectedCount} skipped=${memoryWrite.skippedCount}`);
@@ -4802,7 +4891,6 @@ async function captureDurableMemory(
   });
   if (!auth.allow) return { captured: false, reason: 'authority_denied' };
   try {
-    const updateId = (ctx.update as Record<string, unknown> | undefined)?.update_id;
     const memoryWrite = await builderMemoryWriteRunner({
       userId: ctx.from?.id,
       chatId: ctx.chat?.id,
@@ -4812,7 +4900,7 @@ async function captureDurableMemory(
       value: candidate?.value,
       factName: candidate?.factName,
       sessionId: ctx.chat?.id === undefined ? undefined : `telegram:${ctx.chat.id}`,
-      turnId: updateId === undefined ? undefined : `telegram-update:${String(updateId)}`,
+      turnId: telegramOwnerTurnId(auth, ctx.update),
       governorDecision: auth.governorDecision as Record<string, unknown> | undefined,
     });
     const ok = memoryWrite.used && memoryWrite.acceptedCount > 0;
@@ -7158,6 +7246,14 @@ export function parseNaturalRunIntent(text: string): { providers: string[]; goal
     if (p) return { providers: [p], goal: leadMatch[2].trim() };
   }
 
+  const missionMatch = trimmed.match(/^(?:please\s+)?(?:run|start|launch|kick\s+off|queue|execute)\s+(?:(?:a|an|the|final)\s+)?(?:(?:spawner|spark)\s+)?(?:mission|task|job)\b(?:\s+(.+))?$/i);
+  if (missionMatch) {
+    const goal = (missionMatch[1] || '')
+      .replace(/^(?:to|that|which|for|and)\s+/i, '')
+      .trim();
+    if (goal.length >= 3) return { providers: [missionDefaultProvider()], goal };
+  }
+
   return null;
 }
 
@@ -7842,7 +7938,7 @@ async function handlePendingDomainChipBuild(ctx: any, text: string, envelope?: T
     mutationClass: 'launches_mission',
     action: 'spawner.pending_domain_chip_build',
     kind: 'creator_or_domain_chip',
-    confidence: 'contextual',
+    confidence: 'explicit',
     selectedBy: 'telegram_pending_domain_chip',
     matchedSignal: 'fresh_pending_domain_chip_direction'
   };
@@ -10450,7 +10546,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       try {
         const recent = await conversation.getRecentTurns(user, 8).catch(() => []);
         const recentLines = recent.map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`);
-        const candidates = await runMemoryProposer(text, recentLines, intentProposerProviderComplete);
+        const candidates = await runMemoryProposer(text, recentLines, intentProposerProviderComplete, {
+          selectedRoute: telegramIntentGateV2.route,
+          naturalRoute: naturalRouteShadow?.route,
+          selectedAction: telegramIntentGateV2.action,
+          selectedKind: telegramIntentGateV2.kind,
+          // The turn envelope marks ordinary answer-mode chat as noExecution so chat cannot
+          // execute tools. Implicit capture has its own low-blast memory.write owner path, so
+          // only explicit IntentGate no-execution boundaries should suppress the proposer here.
+          noExecution: telegramIntentGateV2.constraints.noExecution
+        });
         for (const candidate of candidates) {
           await captureDurableMemory(ctx, user, candidate.note, captureBaseEnvelope, candidate.salienceReason, candidate).catch(() => {});
         }
@@ -10482,6 +10587,44 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       // hole); a bare token never reaches here as an action (the model routes it to chat).
       const pendingForConfirm = getPendingConfirm(confirmKey);
       const confirmConsume = shouldConsumeConfirm(pendingForConfirm, text);
+      if (pendingForConfirm && isCancelText(text)) {
+        clearPendingConfirm(confirmKey);
+        turnIntentEnvelope.directive.noExecution = true;
+        const localAnswerRoute = localChatReplyRoute(naturalRouteShadow);
+        const answerAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
+          route: localAnswerRoute,
+          text,
+          ownerSystem: localChatReplyOwner(localAnswerRoute),
+          action: 'plain_chat.pending_confirmation_cancel',
+          selectedBy: 'model_router_pending_confirmation_cancel_boundary',
+          matchedSignal: 'pending_confirmation_cancel',
+          confidence: naturalRouteShadow?.confidence || 'explicit'
+        });
+        if (!answerAuthorization.allow) {
+          recordTelegramHarnessCoreExecution(answerAuthorization, {
+            toolName: 'answer.compose',
+            status: 'not_started',
+            summary: 'Pending confirmation cancellation reply was blocked before delivery.'
+          });
+          await ctx.reply('I did not continue that cancellation reply because the answer boundary was not authorized.');
+          return;
+        }
+        const reply = canceledPendingConfirmationMessage(pendingForConfirm.label);
+        await conversation.remember(user, text).catch(() => {});
+        await ctx.reply(reply, answerComposeOutboundTraceExtra(
+          ctx,
+          'conversation.pending_confirmation_cancel',
+          'plain_chat.pending_confirmation_cancel'
+        ));
+        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        recordTelegramHarnessCoreExecution(answerAuthorization, {
+          toolName: 'answer.compose',
+          status: 'success',
+          summary: 'Pending confirmation was canceled by a fresh negation; no action executed.'
+        });
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.pending_confirmation_cancel', 'spark-telegram-bot', 'plain_chat.pending_confirmation_cancel');
+        return;
+      }
       // CONFIRM IS SINGLE-USE AND IMMEDIATE: if a pending exists but THIS turn is not its matching
       // confirmation, drop it now so a later unrelated "yes"/"do it" can never execute a stale confirm
       // (defense-in-depth for the carryover the QA surfaced once execution is actually granted).
@@ -10494,12 +10637,28 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         clearPendingConfirm(confirmKey);
         routeDecision = { mode: 'dispatch', route: confirmConsume.route, reason: 'confirmed_pending' };
       } else {
+        const recentTurnsForModelRouter = await conversation.getRecentTurns(user, 8).catch(() => []);
+        const recentMessagesForModelRouter = recentTurnsForModelRouter
+          .map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`)
+          .filter((line: string) => line.trim().length > 0);
         const { proposal: modelRouteProposal } = await runIntentProposerShadow(
           text,
           naturalRouteShadow?.route || telegramIntentGateV2.route,
-          intentProposerProviderComplete
+          intentProposerProviderComplete,
+          undefined,
+          { recentMessages: recentMessagesForModelRouter }
         );
-        routeDecision = decideModelRoute(modelRouteProposal);
+        routeDecision = decideModelRoute(modelRouteProposal, {
+          text,
+          deterministicRoute: naturalRouteShadow ? {
+            route: telegramIntentGateV2.route,
+            confidence: telegramIntentGateV2.confidence || naturalRouteShadow.confidence,
+            context_source: naturalRouteShadow.context_source,
+            mutation_referent: 'fresh_turn',
+            requires_confirmation: naturalRouteShadow.requires_confirmation,
+            payload: naturalRouteShadow.payload
+          } : null
+        });
         if (
           routeDecision.mode === 'dispatch' &&
           (routeDecision.route === 'memory.recall' || routeDecision.route === 'spark.read_only_state') &&
@@ -10544,7 +10703,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           }
           const reply = noPendingConfirmationMessage();
           await conversation.remember(user, text).catch(() => {});
-          await ctx.reply(reply);
+          await ctx.reply(reply, answerComposeOutboundTraceExtra(
+            ctx,
+            'conversation.no_pending_confirmation',
+            'plain_chat.no_pending_confirmation'
+          ));
           await conversation.rememberAssistantReply(user, reply).catch(() => {});
           recordTelegramHarnessCoreExecution(answerAuthorization, {
             toolName: 'answer.compose',
@@ -10558,11 +10721,39 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         // High-blast-radius mutation: stage a single-use pending and ask. It executes only on a matching
         // confirmation next turn (irreversibility-scaled confirmation).
         const label = routeDecision.route || 'that action';
+        const answerAuthorization = telegramAnswerComposeAuthorityDecision(turnIntentEnvelope, {
+          route: 'conversation.pending_confirmation_stage',
+          text,
+          ownerSystem: 'spark-telegram-bot',
+          action: 'plain_chat.pending_confirmation_stage',
+          selectedBy: 'model_router_pending_confirmation_stage_boundary',
+          matchedSignal: 'pending_confirmation_stage',
+          confidence: naturalRouteShadow?.confidence || telegramIntentGateV2.confidence || 'explicit'
+        });
+        if (!answerAuthorization.allow) {
+          recordTelegramHarnessCoreExecution(answerAuthorization, {
+            toolName: 'answer.compose',
+            status: 'not_started',
+            summary: 'Pending confirmation staging reply was blocked before delivery; no pending action was staged.'
+          });
+          await ctx.reply('I did not stage that confirmation because the answer boundary was not authorized.');
+          return;
+        }
         stagePendingConfirm(confirmKey, { route: routeDecision.route as string, label, turnId: telegramTurnIdFromUpdate(ctx.update) || '', text });
         await conversation.remember(user, text).catch(() => {});
         const reply = confirmPromptMessage(label);
-        await ctx.reply(reply);
+        await ctx.reply(reply, answerComposeOutboundTraceExtra(
+          ctx,
+          'conversation.pending_confirmation_stage',
+          'plain_chat.pending_confirmation_stage'
+        ));
         await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        recordTelegramHarnessCoreExecution(answerAuthorization, {
+          toolName: 'answer.compose',
+          status: 'success',
+          summary: `High-blast action "${label}" was staged for explicit confirmation; no action executed.`
+        });
+        recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.pending_confirmation_stage', 'spark-telegram-bot', 'plain_chat.pending_confirmation_stage', 'delivered');
         return;
       } else {
         // dispatch (incl. a confirmed pending). The dispatch table is the cascade's replacement, filled
@@ -10915,14 +11106,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             // provider (so a vague "switch model" gets the cascade's guide instead of a wrong switch).
             routeId: 'model.switch',
             run: async (d) => {
-              const lower = d.text.toLowerCase();
-              const role = normalizeModelRole(/\bmission\b/.test(lower) ? 'mission' : 'agent');
-              let provider: ReturnType<typeof normalizeModelProvider> = null;
-              for (const word of lower.split(/\s+/).filter(Boolean)) {
-                const p = normalizeModelProvider(word);
-                if (p) { provider = p; break; }
-              }
-              if (!role || !provider) return false;
+              const modelSwitch = parseNaturalModelSwitchIntent(d.text);
+              if (!modelSwitch) return false;
+              const { role, provider } = modelSwitch;
               const env = telegramActionEnvelope(d.turnIntentEnvelope, {
                 route: 'model.switch', ownerSystem: 'spark-telegram-bot', action: 'model.switch', kind: 'runtime_truth_or_operator', mutationClass: 'writes_files'
               });
@@ -10994,6 +11180,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             run: async (d) => {
               const parsed = parseNaturalCreatorMissionIntent(d.text, []);
               if (!parsed) return false;
+              if (parsed.artifactLabel === 'benchmark pack') return false;
               const env = telegramActionEnvelope(d.turnIntentEnvelope, {
                 route: 'creator.mission', ownerSystem: 'spawner-ui', action: 'creator.mission.plan', kind: 'creator_or_domain_chip', mutationClass: 'creates_chip'
               });
@@ -11213,7 +11400,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         const reply = veto.reason === 'proposer_unavailable'
           ? `I could not double-check that this was a fresh command (my intent classifier did not respond), so I held off on "${actionLabel}". Reply with a clear go-ahead such as "yes, ${actionLabel}" and I will run it.`
           : proposerVetoConfirmMessage(actionLabel);
-        await ctx.reply(reply);
+        await ctx.reply(reply, answerComposeOutboundTraceExtra(
+          ctx,
+          'conversation.semantic_proposer_veto',
+          'plain_chat.semantic_veto'
+        ));
         await conversation.rememberAssistantReply(user, reply).catch(() => {});
         return;
       }
@@ -11241,7 +11432,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderMissionRoutingFailureClassReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'chat_explain', 'spark-telegram-bot', 'plain_chat.qa_boundary');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(ctx, 'chat_explain', 'plain_chat.qa_boundary'));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11249,7 +11440,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderPlainChatAnswerEditingReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.answer_editing', 'spark-telegram-bot', 'plain_chat.answer_editing');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(ctx, 'conversation.answer_editing', 'plain_chat.answer_editing'));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11257,7 +11448,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderNoEditSpawnerProbeExplanationReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.no_edit_spawner_probe_explanation', 'spark-telegram-bot', 'plain_chat.probe_explanation');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'conversation.no_edit_spawner_probe_explanation',
+      'plain_chat.probe_explanation'
+    ));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11265,7 +11460,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderModelSwitchGateExplanationReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.model_switch_gate_explanation', 'spark-telegram-bot', 'plain_chat.model_switch_gate');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'conversation.model_switch_gate_explanation',
+      'plain_chat.model_switch_gate'
+    ));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11273,7 +11472,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderBrowserComputerUseAuthorizationBoundaryReply(text);
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_computer_use_authorization_boundary', 'spark-telegram-bot', 'plain_chat.qa_boundary');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(
+      ctx,
+      'conversation.browser_computer_use_authorization_boundary',
+      'plain_chat.qa_boundary'
+    ));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11281,7 +11484,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    const reply = renderSparkQaBenchmarkNoRunReply();
 	    await conversation.remember(user, text).catch(() => {});
 	    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'sparkqa.no_run_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
-	    await ctx.reply(reply);
+	    await ctx.reply(reply, answerComposeOutboundTraceExtra(ctx, 'sparkqa.no_run_boundary', 'plain_chat.boundary'));
 	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
 	    return;
 	  }
@@ -11315,7 +11518,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderXContentCredentialBoundaryReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.xcontent_credential_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(ctx, 'conversation.xcontent_credential_boundary', 'plain_chat.boundary'));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -11323,7 +11526,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const reply = renderXPostReviewFromLinksBoundaryReply();
     await conversation.remember(user, text).catch(() => {});
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.x_post_review_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
-    await ctx.reply(reply);
+    await ctx.reply(reply, answerComposeOutboundTraceExtra(ctx, 'conversation.x_post_review_boundary', 'plain_chat.boundary'));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -12344,7 +12547,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ? pendingBuildClarificationForMessage(telegramPendingBuildKey(ctx.chat.id, ctx.from.id), text)
     : null;
   const activePendingClarificationAuthorization = activePendingClarification && isPendingClarificationFollowup(text)
-    ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+    ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
         route: 'spawner.pending_clarification',
         text,
         toolName: 'spawner.run',
@@ -12352,7 +12555,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         mutationClass: 'launches_mission',
         action: 'spawner.clarification_reply',
         kind: 'build_or_spawner',
-        confidence: 'contextual'
+        confidence: 'explicit'
       })
     : null;
   if (activePendingClarificationAuthorization?.allow) {
@@ -12458,7 +12661,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         status: 'success',
         summary: 'Conversational ideation answer completed through Harness Core for a no-execution boundary.'
       });
-      await ctx.reply(response);
+      await ctx.reply(response, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
       await conversation.rememberAssistantReply(user, response).catch(() => {});
       return;
     }
@@ -12471,7 +12674,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           status: 'success',
           summary: 'Conversational ideation answer completed through Harness Core for a resolved list pick.'
         });
-        await ctx.reply(fastReply);
+        await ctx.reply(fastReply, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
         await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
         return;
       }
@@ -12484,7 +12687,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       status: 'success',
       summary: 'Conversational ideation answer completed through Harness Core.'
     });
-    await ctx.reply(response);
+    await ctx.reply(response, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
     await conversation.rememberAssistantReply(user, response).catch(() => {});
     return;
   }
@@ -12847,7 +13050,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    const earlyClarificationAuthorization = pendingClarification && isPendingClarificationFollowup(text)
-	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+	      ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.pending_clarification',
 	          text,
 	          toolName: 'spawner.run',
@@ -12855,7 +13058,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	          mutationClass: 'launches_mission',
 	          action: 'spawner.clarification_reply',
 	          kind: 'build_or_spawner',
-	          confidence: 'contextual'
+	          confidence: 'explicit'
 	        })
 	      : null;
 	    if (earlyClarificationAuthorization?.allow) {
@@ -13033,7 +13236,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    const clarificationAuthorization = pendingClarification && !buildIntent
-	      ? telegramBranchActionAuthorityDecision(turnIntentEnvelope, {
+	      ? pendingClarificationActionAuthorityDecision(turnIntentEnvelope, {
 	          route: 'spawner.pending_clarification',
 	          text,
 	          toolName: 'spawner.run',
@@ -13041,7 +13244,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	          mutationClass: 'launches_mission',
 	          action: 'spawner.clarification_reply',
 	          kind: 'build_or_spawner',
-	          confidence: 'contextual'
+	          confidence: 'explicit'
 	        })
 	      : null;
 	    if (clarificationAuthorization?.allow) {
@@ -13656,7 +13859,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           status: 'success',
           summary: 'Conversational ideation fallback answer completed through Harness Core for a no-execution boundary.'
         });
-        await ctx.reply(response);
+        await ctx.reply(response, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
         await conversation.rememberAssistantReply(user, response).catch(() => {});
         return;
       }
@@ -13670,7 +13873,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             status: 'success',
             summary: 'Conversational ideation fallback answer completed through Harness Core for a resolved list pick.'
           });
-          await ctx.reply(fastReply);
+          await ctx.reply(fastReply, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
           await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
           return;
         }
@@ -13684,7 +13887,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         status: 'success',
         summary: 'Conversational ideation fallback answer completed through Harness Core.'
       });
-      await ctx.reply(response);
+      await ctx.reply(response, answerComposeOutboundTraceExtra(ctx, 'conversation.ideation', 'plain_chat.ideation'));
       await conversation.rememberAssistantReply(user, response).catch(() => {});
       return;
     }
@@ -13907,7 +14110,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     try {
-      await ctx.reply(response);
+      await ctx.reply(response, answerComposeOutboundTraceExtra(
+        ctx,
+        localAnswerRoute,
+        'plain_chat.local_llm'
+      ));
       recordLocalChatReplyExecution(ctx, naturalRouteShadow);
       recordTelegramHarnessCoreExecution(localAnswerAuthorization, {
         toolName: 'answer.compose',

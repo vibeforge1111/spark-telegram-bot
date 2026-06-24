@@ -626,6 +626,11 @@ export function parseNaturalChipCreateIntent(text: string): string | null {
   if (!normalized) return null;
 
   const mentionsChip = /\b(?:domain[-\s]*chip|chip)\b/i.test(normalized);
+  const nonImperativeChipCreation =
+    /\b(?:should\s+(?:i|we)|how\s+(?:do|would|should|can|could|to)\s+(?:i|we|you|one)|how\s+to|what\s+if|do\s+(?:i|we)\s+(?:need|have)\s+to|do\s+(?:you|we)\s+think|remind\s+me\s+(?:how|what|to)|thinking\s+about|considering|wonder(?:ing)?\s+(?:if|whether)|i\s+wonder|suppose\s+(?:we|i|you|that))\b[^.\n]{0,80}\b(?:build|create|make|scaffold|generate)\b[^.\n]{0,80}\b(?:domain[-\s]*chip|chip)\b/i.test(normalized);
+  if (nonImperativeChipCreation) {
+    return null;
+  }
   const negatesChipCreation =
     /\b(?:do\s+not|don't|dont|please\s+don't|please\s+dont|no\s+need\s+to)\s+(?:build|create|make|scaffold|generate|save)\b[^.\n]{0,80}\b(?:domain[-\s]*chip|chip)\b/i.test(normalized) ||
     (
@@ -1024,7 +1029,7 @@ function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarge
     return { pathId, chipKey: pathId.replace(/^path:/, ''), label: pathId };
   }
   if (/\b(?:spark\s+qa\s+operator|qa\s+operator|qa\s+tester|quality\s+tester|tester\s+for\s+spark|spark\s+tester)\b/i.test(normalized) ||
-      (/\bqa\b/i.test(normalized) && /\b(?:recursive|recursion|loop|round|report|trace|review|decision|improve|improvement)\b/i.test(normalized))) {
+      (/\bqa\b/i.test(normalized) && /\b(?:recursive|recursion|loop|round|decisions?\s+need\s+review|review\s+decisions?|improve|improvement)\b/i.test(normalized))) {
     return { pathId: 'path:spark-qa-operator', chipKey: 'spark-qa-operator', label: 'Spark QA Operator' };
   }
   if (/\bstartup[-\s]+yc\b/i.test(normalized)) {
@@ -1038,6 +1043,13 @@ function knownNaturalRecursiveTarget(text: string): NaturalRecursiveCommandTarge
     };
   }
   return null;
+}
+
+function isQaTracePlanningTurn(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!/\bqa\b/i.test(normalized) || !/\b(?:trace|traces|ledger|ledgers|owner\s+proof|proof|evidence)\b/i.test(normalized)) return false;
+  if (!/\b(?:next|next\s+step|focus|work\s+on|move|step|today|tonight|from\s+here)\b/i.test(normalized)) return false;
+  return !/\b(?:recursive|recursion|autoloop|loop|round|benchmark|baseline|candidate|path:[A-Za-z0-9:_-]+|qa\s+operator|qa\s+tester|spark\s+qa\s+operator|review|decision|report|status|receipts?)\b/i.test(normalized);
 }
 
 function newestContextualNaturalRecursiveTarget(
@@ -1076,6 +1088,9 @@ function naturalRecursiveTarget(text: string, context: NaturalRecursiveCommandCo
 export function parseNaturalRecursiveCommandIntent(text: string, context: NaturalRecursiveCommandContext = {}): NaturalRecursiveCommandIntent | null {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized || normalized.startsWith('/')) return null;
+  if (isQaTracePlanningTurn(normalized)) {
+    return null;
+  }
   if (/\b(?:named\s+telegram\s+profile|telegram\s+profile|profile\s+setup|disposable\s+(?:lane|profile|bot|chat)|read[-\s]*only\s+lane|test\s+lane)\b/i.test(normalized) &&
       /\b(?:\/myid|env|config|logs?|log\s+separation|primary\s+bot|separate\s+(?:bot|token|chat|env|config|logs?))\b/i.test(normalized)) {
     return null;
@@ -1909,8 +1924,14 @@ export function isProtectedMissionCancelPronounIntent(text: string, recentMessag
 
 export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   const normalized = text.trim().toLowerCase();
+  const asksAboutTesting =
+    /\b(?:how|what|why|when|should|would|could)\b.{0,80}\b(?:test|verify|check)\b/.test(normalized) ||
+    /\b(?:test|verify|check)\b.{0,80}\b(?:plan|strategy|approach|criteria|evidence)\b/.test(normalized);
   if (/\b(?:mission|build|spawner)\b.{0,60}\b(?:again|rerun|re-run|retry|restart)\b/.test(normalized) ||
       /\b(?:again|rerun|re-run|retry|restart)\b.{0,60}\b(?:mission|build|spawner)\b/.test(normalized)) {
+    return false;
+  }
+  if (asksAboutTesting) {
     return false;
   }
   if (isExplicitMemoryWriteLikeRequest(normalized)) {
@@ -1927,6 +1948,13 @@ export function isDiagnosticFollowupTestQuestion(text: string): boolean {
   }
   if (isAccessSandboxRouteDesignDiscussion(normalized)) {
     return false;
+  }
+  const explicitTestVerb = /\b(?:test|try|check|verify|kick\s+the\s+tires)\b/.test(normalized);
+  const relaySurface =
+    /\b(?:telegram\s+(?:to\s+)?spawner\s+relay|spawner\s+relay|mission\s+relay|relay\s+updates?|kanban\s+updates?|board\s+updates?)\b/.test(normalized) ||
+    (/\btelegram\b/.test(normalized) && /\bspawner\b/.test(normalized) && /\b(?:relay|kanban|board|updates?)\b/.test(normalized));
+  if (explicitTestVerb && relaySurface) {
+    return true;
   }
   return (
     /\b(?:test|try|check|verify|integrated|integration|kick the tires)\b/.test(normalized) &&
@@ -2468,7 +2496,14 @@ export function isAccessStatusQuestion(text: string): boolean {
     return false;
   }
 
+  const asksAccessCapabilityTruth =
+    /\b(?:what\s+can\s+you\s+(?:actually\s+)?do|what\s+are\s+you\s+allowed\s+to\s+do|what\s+is\s+(?:actually\s+)?allowed|effective\s+access|allows?|does\s+not\s+allow|doesn'?t\s+allow)\b/.test(normalized) &&
+    /\b(?:spark\s+access|access\s+(?:level|profile|status)|chat\s+(?:is|at|on)\s+access|level\s*[1-5]|level\s+(?:one|two|three|four|five)|permissions?|level\s*5)\b/.test(normalized);
+
   return (
+    asksAccessCapabilityTruth ||
+    /\bwhat\s+access\s+(?:do|does)\s+(?:you|spark|this\s+chat|we)\s+(?:actually\s+|currently\s+)?(?:have|has)\b/.test(normalized) ||
+    /\bhow\s+much\s+access\s+(?:do|does)\s+(?:you|spark|this\s+chat|we)\s+(?:actually\s+|currently\s+)?(?:have|has)\b/.test(normalized) ||
     /\bwhat'?s\s+(?:my|this\s+chat'?s|our)?\s*(?:spark\s+)?access\s+(?:level|profile|status)\b/.test(normalized) ||
     /\b(?:what|which)\s+(?:is|are|'?s)?\s*(?:my|this\s+chat'?s|our)?\s*spark\s+access\s+(?:level|profile|status)\b/.test(normalized) ||
     /\b(?:what|which)\s+(?:access\s+)?level\s+(?:am\s+i|are\s+we|is\s+this\s+chat)\s+(?:on|at|using)\b/.test(normalized) ||
@@ -2496,9 +2531,12 @@ export function parseNaturalAccessChangeIntent(text: string): string | null {
   const hasExplicitAccessTarget = /\b(?:spark\s+)?access(?:\s+level|\s+profile|\s+status)?\b|\bpermissions?\b/i.test(normalized);
   const hasStrongAccessChangePhrase = (
     /\b(?:change|set|switch|update|raise|lower|increase|decrease|upgrade|downgrade)\s+(?:my|our|me|us|this\s+chat'?s?|the\s+chat'?s?|spark)?\s*(?:spark\s+)?access\b/i.test(normalized) ||
-    /\b(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)\s+(?:to|as|into|onto)\s+(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer|agent|builder|chat)\b/i.test(normalized)
+    /\b(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat)\s+(?:to|as|into|onto)\s+(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer|agent|builder|chat)\b/i.test(normalized)
   );
-  const startsAsDirectAccessChange = /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat|it|that)?\s*(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized);
+  const startsAsDirectAccessChange = (
+    /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:me|us|this\s+chat|the\s+chat)\s+(?:to|as|into|onto)?\s*(?:access\s+)?(?:level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized) ||
+    /^(?:please\s+)?(?:change|set|switch|update|upgrade|downgrade)\s+(?:my|our|this\s+chat'?s?|the\s+chat'?s?|spark\s+)?(?:spark\s+)?access\s+(?:to|as|into|onto|level\s*)?(?:[1-5]|one|two|three|four|five|chat\s+only|build\s+when\s+asked|research\s*(?:\+|and|&)\s*build|sandbox(?:ed)?(?:\s+local)?|full\s+access|operator|developer)\b/i.test(normalized)
+  );
   if (!(hasExplicitAccessTarget && hasStrongAccessChangePhrase) && !startsAsDirectAccessChange) {
     return null;
   }
@@ -2815,16 +2853,28 @@ export function buildProjectImprovementGoal(
 export function isExternalResearchRequest(text: string): boolean {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
-  const hasExternalTarget =
+  const explicitExternalTarget =
     /https?:\/\/(?:www\.)?github\.com\/[\w.-]+\/[\w.-]+/i.test(text) ||
     /\bgithub\.com\/[\w.-]+\/[\w.-]+\b/i.test(text) ||
     /\b[\w.-]+\/[\w.-]+\b/.test(normalized) && /\b(?:github|repo|repository)\b/.test(normalized) ||
-    /\b(?:openclaw|hermes)\b/.test(normalized) && /\b(?:docs?|documentation|repos?|repositories|github|codebase|source\s+code)\b/.test(normalized) ||
-    /\b(?:research|look\s+(?:up|into|at)|search|find|compare|study|inspect|analy[sz]e)\b/.test(normalized) && /\b(?:today|latest|current|now|recent|people\s+are\s+saying|web|internet|online|public)\b/.test(normalized);
+    /\b(?:openclaw|hermes)\b/.test(normalized) && /\b(?:docs?|documentation|repos?|repositories|github|codebase|source\s+code)\b/.test(normalized);
+  const externalSource =
+    /\b(?:today|latest|current|now|recent|web|internet|online|github|repos?|repositories|docs?|documentation|source\s+code)\b/.test(normalized) ||
+    /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data|examples?|case\s+studies)\b/.test(normalized);
+  const acquisitionVerb = /\b(?:research|look\s+(?:up|into|at)|search|find|fetch|pull\s+up)\b/.test(normalized);
+  const comparisonVerb = /\b(?:compare|study|inspect|analy[sz]e|review)\b/.test(normalized);
+  const hasExternalTarget =
+    explicitExternalTarget ||
+    (acquisitionVerb && externalSource) ||
+    (comparisonVerb && (
+      explicitExternalTarget ||
+      /\b(?:web|internet|online|github|repos?|repositories|docs?|documentation|source\s+code)\b/.test(normalized) ||
+      /\bpublic\s+(?:web|internet|docs?|documentation|repos?|repositories|github|sources?|pages?|sites?|information|info|data|examples?|case\s+studies)\b/.test(normalized)
+    ));
   if (!hasExternalTarget) return false;
   if (shouldPreferConversationalIdeation(text)) return false;
 
-  return /\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|compare|study|browse|pull up|research|look\s+up|search|find|can you)\b/i.test(text);
+  return /\b(?:visit|open|check|check out|look at|look into|inspect|read|analyze|review|compare|study|browse|pull up|fetch|research|look\s+up|search|find|can you)\b/i.test(text);
 }
 
 export function buildExternalResearchGoal(currentText: string, recentMessages: string[]): string {
@@ -3237,15 +3287,27 @@ export function isPlainChatAnswerEditingRequest(text: string): boolean {
 
 export function isNoEditSpawnerProbeExplanationRequest(text: string): boolean {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!normalized || extractPlainChatMemoryDirective(text) || !isNoExecutionBoundary(normalized)) return false;
+  if (!normalized || extractPlainChatMemoryDirective(text)) return false;
   const mentionsNoEditProbe =
     /\bno[-\s]*edit\b/.test(normalized) &&
-    /\b(?:spawner|mission\s+control|mission|probe|test|proof)\b/.test(normalized);
+    /\b(?:spawner|mission\s+control|mission|probe|test|proof|smoke)\b/.test(normalized);
   const asksExplanation =
     /\b(?:what|why|how)\b.*\b(?:prove|proves|proof|show|shows|mean|means|validate|validates)\b/.test(normalized) ||
     /\b(?:what|which|how)\b.*\b(?:smallest|tiny|minimal|safe|bounded)\b.*\b(?:test|probe|proof)\b/.test(normalized) ||
     /\b(?:explain|describe)\b/.test(normalized);
   return mentionsNoEditProbe && asksExplanation;
+}
+
+export function isNoEditSpawnerProbeRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized || extractPlainChatMemoryDirective(text)) return false;
+  if (/\b(?:do\s+not|don't|dont|no\s+need\s+to|without)\s+(?:start|run|launch|queue|dispatch|execute)\b/.test(normalized)) return false;
+  if (/^(?:how|why|what|when|whether|should|would)\b/.test(normalized)) return false;
+  const asksToRun = /\b(?:run|start|launch|queue|execute)\b/.test(normalized);
+  const noEditProbe = /\bno[-\s]*edit\b/.test(normalized) && /\b(?:probe|diagnostic|mission|qa|health|smoke|golden[_\s-]*path)\b/.test(normalized);
+  const boundedReply = /\b(?:only\s+)?repl(?:y|ies)\s+with\b/.test(normalized) || /\bspark_[a-z0-9_]{4,}\b/.test(normalized);
+  const explicitSpawner = /\b(?:spawner|mission\s+control)\b/.test(normalized);
+  return asksToRun && noEditProbe && (boundedReply || explicitSpawner);
 }
 
 export function renderNoEditSpawnerProbeExplanationReply(): string {
@@ -3275,7 +3337,7 @@ export function renderModelSwitchGateExplanationReply(): string {
   return [
     'Model-switch commands are gated as settings mutations, not triggered by model names in conversation.',
     '',
-    'A real switch needs an explicit `/model` request with role and provider, then the Governor checks access, policy, and mutation scope before writing config. Explanation turns like this stay chat-only, so no provider or model setting changes here.'
+    'A real switch needs an explicit `/model` request with role and provider, such as `/model agent codex`, or an explicit natural chat-model switch request. The Governor still checks access, policy, and mutation scope before writing config. Explanation turns like this stay chat-only, so no provider or model setting changes here.'
   ].join('\n');
 }
 
@@ -3321,7 +3383,9 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
   const normalized = trimmed.toLowerCase().replace(/\s+/g, ' ');
   if (
     /\b(?:do\s+you\s+)?remember\s+(?:when|how|what|where|why)\b/.test(normalized) ||
-    /\bremember\s+(?:the\s+time|we|you|i)\b/.test(normalized)
+    /\bremember\s+(?:the\s+time|we|you|i)\b/.test(normalized) ||
+    /\b(?:the\s+word\s+)?remember\s+(?:is|means|as|just|only)\b/.test(normalized) ||
+    /\b(?:word|phrase|trigger\s+word)\s+remember\b/.test(normalized)
   ) {
     return null;
   }
@@ -3342,6 +3406,8 @@ export function extractPlainChatMemoryDirective(text: string): string | null {
     /^(?:.+?\b)?(?:save|store|remember)\s+(?:exactly\s+)?(?:one\s+)?(?:kb\s+)?(?:memory\s+)?(?:write|note)\s*[:,-]\s*["']?(.+?)["']?(?:\s+(?:do\s+not|don't|dont)\b.+)?[.!?]?$/i,
     /^(?:memory\s+update|memory\s+note|save\s+to\s+memory)\s*[:,-]\s*(.+?)(?:\s+(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+.+)?[.!?]?$/i,
     /^(?:please\s+)?save\s+to\s+memory\s+that\s+(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+this\s+as\s+(?:a\s+)?(?:note|memory|preference)\s+only\s+if\s+(?:it\s+is|it's|that\s+is|that's|memory\s+is|saving\s+is)?\s*allowed\s*[:,-]\s*(.+?)[.!?]?$/i,
+    /^(?:please\s+)?(?:save|store|remember)\s+this\s+(?:note|memory|preference)\s+only\s+if\s+(?:it\s+is|it's|that\s+is|that's|memory\s+is|saving\s+is)?\s*allowed\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:for\s+later|note\s+for\s+later)\s*[,:-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?store\s+this\s+for\s+later\s*[:,-]\s*(.+?)[.!?]?$/i,
     /^(?:please\s+)?save\s+this\s+preference\s*[:,-]\s*(.+?)[.!?]?$/i,

@@ -64,9 +64,9 @@ export interface TurnIntentEnvelopeVNext {
     freshness: {
         fresh_user_intent_present: boolean;
         fresh_user_intent_ref: HarnessCoreEvidenceRef | null;
-        stale_state_used_as_authority: false;
-        memory_used_as_instruction: false;
-        pending_state_used_as_authority: false;
+        stale_state_used_as_authority: boolean;
+        memory_used_as_instruction: boolean;
+        pending_state_used_as_authority: boolean;
     };
     evidence: HarnessCoreEvidenceRef[];
     action_authority: {
@@ -608,6 +608,9 @@ export declare function createHarnessCoreActionEnvelopeVNext(input: {
     publishes?: boolean;
     externalNetwork?: boolean;
     requiresHumanConfirmation?: boolean;
+    staleStateUsedAsAuthority?: boolean;
+    memoryUsedAsInstruction?: boolean;
+    pendingStateUsedAsAuthority?: boolean;
 }): TurnIntentEnvelopeVNext;
 export declare function createHarnessCoreGovernorDecision(input: {
     envelope: TurnIntentEnvelopeVNext;

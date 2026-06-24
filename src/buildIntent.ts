@@ -855,7 +855,7 @@ function isAbstractPlanningStructureRequest(prd: string): boolean {
 
 function extractBuildDescription(text: string): string | null {
   const command = text.match(
-    /^\s*(?:(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+|can\s+(?:you|we)\s+|could\s+(?:you|we)\s+|let'?s\s+|let\s+us\s+|please\s+)?\/?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+    /^\s*(?:(?:i|we)\s+(?:want|need|would\s+like|would\s+love)\s+to\s+|can\s+(?:you|we)\s+|could\s+(?:you|we)\s+|let'?s\s+|let\s+us\s+|please\s+)?\/?(?:build|make|create|ship|scaffold|generate|develop)\b(?!-)\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
   );
   if (command) {
     const description = text.slice(command[0].length);
@@ -872,7 +872,7 @@ function extractBuildDescription(text: string): string | null {
   }
 
   const inlineCommand = text.match(
-    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
+    /\b(?:and\s+|then\s+|also\s+)?(?:build|make|create|ship|scaffold|generate|develop)\b(?!-)\s*(?:(?:right\s+now|now)\s+)?(?:me\s+|us\s+)?(?:(?:a|an|the|this)\s+|new\s+project\s+)?/i
   );
   if (inlineCommand?.index !== undefined) {
     const prefix = text.slice(0, inlineCommand.index).toLowerCase();
@@ -901,7 +901,7 @@ function extractBuildDescription(text: string): string | null {
   }
 
   const lineCommand = text.match(
-    /(?:^|\n)\s*(?:build|make|create|ship|scaffold|generate|develop)\s+(?:this|it)\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i
+    /(?:^|\n)\s*(?:build|make|create|ship|scaffold|generate|develop)\b(?!-)\s+(?:this|it)\s+(?:at|in|into)\s+(?:[A-Z]:[\\/]|\/)/i
   );
   if (lineCommand?.index !== undefined) {
     return text.slice(lineCommand.index).replace(/^\s*(?:build|make|create|ship|scaffold|generate|develop)\s+/i, '');

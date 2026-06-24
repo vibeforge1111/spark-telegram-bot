@@ -3334,13 +3334,24 @@ export async function runBuilderTelegramMemoryWrite(
       '--json',
     ];
 
-    // The Builder's `memory write-telegram-note` derives the memory role/predicate itself from the
-    // note text (handle_memory_write_telegram_note -> result.memory_role). It does NOT accept
-    // --memory-role/--predicate/--value/--fact-name; passing them makes argparse exit with
-    // "unrecognized arguments" and drops the whole capture (observed live on @SparkRecursive
-    // 2026-06-20). The typed proposer fields are advisory only and must not be forwarded to
-    // write-telegram-note. (input.memoryRole/predicate/value/factName are kept on the type for
-    // telemetry/future use, but the Builder owns typed classification from --text.)
+    // The Builder's `memory write-telegram-note` now accepts the proposer-typed fields and performs
+    // a typed current_state write (handle_memory_write_telegram_note -> _maybe_write_typed_current_state)
+    // in addition to the exact-note structured-evidence write. Forward the typed fields so the gateway's
+    // classification drives the durable write instead of the Builder's regex auto-classification. The
+    // base structured-evidence write still runs when these are omitted (the M-series richness restored
+    // after bb6f6d0; the CLI now defines these flags, so argparse no longer rejects them).
+    if (input.memoryRole) {
+      args.push('--memory-role', input.memoryRole);
+    }
+    if (input.predicate) {
+      args.push('--predicate', input.predicate);
+    }
+    if (input.value) {
+      args.push('--value', input.value);
+    }
+    if (input.factName) {
+      args.push('--fact-name', input.factName);
+    }
 
     if (input.governorDecision) {
       const governorPath = path.join(tempDir, 'governor-decision.json');
@@ -3533,11 +3544,30 @@ export async function runBuilderTelegramMemoryCapsuleRecall(
       String(input.limit || 5),
       '--json',
     ];
-    // The Builder's `memory inspect-capsule` accepts --subject/--query/--limit/--json but NOT the
-    // --governed-read-* audit flags; sending them makes argparse exit with "unrecognized arguments",
-    // so the recall threw and fell through to a cascade (observed live on @SparkRecursive 2026-06-20).
-    // The audited-governed-read feature needs the matching Builder CLI args (follow-up); until then,
-    // recall through the supported inspect-capsule args so the primary recall path works directly.
+    // The Builder's `memory inspect-capsule` now accepts the --governed-read-* flags and records the
+    // recall as an audited Harness Core read_only governed read (handle_memory_inspect_capsule ->
+    // _record_telegram_memory_governed_read) while still returning the capsule. Forward them so the
+    // primary recall path is audited; the read still runs through --subject/--query/--limit when the
+    // turn id is absent (the M-series richness restored after bb6f6d0; the CLI now defines these flags).
+    const sessionId = input.sessionId || (
+      input.chatId === undefined
+        ? `telegram:${userId}`
+        : `telegram:${assertTelegramIntegerId(input.chatId, 'chatId')}`
+    );
+    if (input.turnId) {
+      args.push(
+        '--governed-read-request-id',
+        input.turnId,
+        '--governed-read-session-id',
+        sessionId,
+        '--governed-read-human-id',
+        `human:telegram:${userId}`,
+        '--governed-read-source-kind',
+        input.sourceKind || 'telegram_runtime_memory_recall',
+        '--governed-read-user-message',
+        input.queryText
+      );
+    }
     const { stdout, stderr } = await execFileAsync(
       config.pythonCommand,
       pythonModuleInvocation(config, 'spark_intelligence.cli', args),

@@ -309,6 +309,25 @@ async function main(): Promise<void> {
     });
   });
 
+  await test('post-restart focus question stays conversational instead of runtime restart status', async () => {
+    const { llm } = await import('../src/llm');
+    const indexModule = await import('../src/index');
+    const replies: string[] = [];
+    const extras: any[] = [];
+    const originalChat = llm.chat;
+    (llm as any).chat = async () => 'Stay on the memory/context QA thread first.';
+    try {
+      await indexModule.handleTextMessage(fakeCtx('Now that it restarted, what should I work on next?', replies, extras));
+    } finally {
+      (llm as any).chat = originalChat;
+    }
+
+    assert.equal(replies.length, 1);
+    assert.match(replies[0], /memory\/context QA/i);
+    assert.doesNotMatch(replies[0], /Restart verdict|Spark Live|fresh live-status|No restart needed/i);
+    assert.notEqual(extras[0]?.__sparkTraceContext?.route, 'spark.read_only_state.restart_needed');
+  });
+
   await test('restart-needed CLI failures stay compact without local command leakage', async () => {
     const indexModule = await import('../src/index');
     const replies: string[] = [];

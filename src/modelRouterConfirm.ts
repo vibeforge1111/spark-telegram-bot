@@ -53,6 +53,12 @@ export function isConfirmText(text: string): boolean {
   return CONFIRM_RE.test(t);
 }
 
+export function isCancelText(text: string): boolean {
+  const t = (text || '').trim();
+  if (!t) return false;
+  return NEGATE_RE.test(t);
+}
+
 export function isConfirmationOnlyText(text: string): boolean {
   const t = (text || '').trim();
   if (!t) return false;
@@ -83,4 +89,9 @@ export function noPendingConfirmationMessage(): string {
     '',
     'If you were answering a normal question, send me the next detail and I will continue from there.'
   ].join('\n');
+}
+
+export function canceledPendingConfirmationMessage(label?: string): string {
+  const safe = (label || 'that action').trim() || 'that action';
+  return `Canceled the pending action: "${safe}". I did not run anything.`;
 }

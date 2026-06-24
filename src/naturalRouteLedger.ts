@@ -14,6 +14,9 @@ export type NaturalRouteExecutionDelivery = 'selected' | 'delivered' | 'failed' 
 export interface NaturalRouteExecutionRecord {
   schema_version: 'spark.nlp.route_execution.v1';
   recorded_at: string;
+  turn_id?: string;
+  request_id?: string;
+  telegram_update_id?: number;
   profile: string;
   user_id: string;
   chat_id: string;
@@ -44,6 +47,9 @@ export interface NaturalRouteExecutionRecordInput {
   executedOwner: NaturalRouteOwnerSystem;
   executedAction: string;
   delivery?: NaturalRouteExecutionDelivery;
+  turnId?: string | null;
+  requestId?: string | null;
+  telegramUpdateId?: string | number | null;
   now?: Date;
 }
 
@@ -64,6 +70,22 @@ function safeList(values: string[]): string[] {
   return values.map((value) => safeScalar(value)).filter(Boolean);
 }
 
+function safeOptionalScalar(value: string | number | null | undefined): string | undefined {
+  const text = safeScalar(value, '');
+  return text || undefined;
+}
+
+function numericTelegramUpdateId(value: string | number | null | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return undefined;
+}
+
+function routeScopedTelegramTurnId(executedRoute: string, telegramUpdateId?: number): string | undefined {
+  if (telegramUpdateId === undefined) return undefined;
+  return `turn:telegram:${safeScalar(executedRoute)}:telegram-update:${telegramUpdateId}`;
+}
+
 export function naturalRouteLedgerPath(env: NodeJS.ProcessEnv = process.env): string {
   return env.SPARK_NATURAL_ROUTE_LEDGER_PATH?.trim() || resolveStatePath('.spark-natural-route-execution.jsonl');
 }
@@ -82,9 +104,20 @@ export function shouldWriteNaturalRouteLedgerSynchronously(env: NodeJS.ProcessEn
 }
 
 export function createNaturalRouteExecutionRecord(input: NaturalRouteExecutionRecordInput): NaturalRouteExecutionRecord {
+  const telegramUpdateId = numericTelegramUpdateId(input.telegramUpdateId);
+  const turnId =
+    safeOptionalScalar(input.turnId) ||
+    routeScopedTelegramTurnId(input.executedRoute, telegramUpdateId);
+  const requestId =
+    safeOptionalScalar(input.requestId) ||
+    turnId ||
+    (telegramUpdateId === undefined ? undefined : `telegram-update:${telegramUpdateId}`);
   return {
     schema_version: 'spark.nlp.route_execution.v1',
     recorded_at: (input.now || new Date()).toISOString(),
+    ...(turnId ? { turn_id: turnId } : {}),
+    ...(requestId ? { request_id: requestId } : {}),
+    ...(telegramUpdateId === undefined ? {} : { telegram_update_id: telegramUpdateId }),
     profile: safeScalar(input.profile),
     user_id: redactIdentifier(input.userId, 'user'),
     chat_id: redactIdentifier(input.chatId, 'chat'),

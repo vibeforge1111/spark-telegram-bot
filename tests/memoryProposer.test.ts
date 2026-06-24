@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildMemoryProposerPrompt, parseMemoryCandidates, runMemoryProposer } from '../src/memoryProposer';
+import { buildMemoryProposerPrompt, parseMemoryCandidates, runMemoryProposer, shouldRunImplicitMemoryProposer } from '../src/memoryProposer';
 
 const registered: Array<[string, () => void | Promise<void>]> = [];
 function test(name: string, fn: () => void | Promise<void>): void { registered.push([name, fn]); }
@@ -71,6 +71,47 @@ test('runMemoryProposer: guards skip short/command turns WITHOUT calling the mod
   assert.deepEqual(await runMemoryProposer('/access 5', [], spy), []);
   assert.deepEqual(await runMemoryProposer('  ok  ', [], spy), []);
   assert.equal(called, 0, 'completer must not be called for guarded turns');
+});
+
+test('runMemoryProposer: owner-state and action routes cannot summon implicit capture', async () => {
+  let called = 0;
+  const spy = async () => { called++; return '{"candidates":[{"note":"X"}]}'; };
+  const accessQuestion = 'Could you check what Spark access this chat effectively has right now? Please do not change anything.';
+  assert.deepEqual(await runMemoryProposer(accessQuestion, [], spy, {
+    selectedRoute: 'access.status',
+    naturalRoute: 'access.status',
+    selectedAction: 'access.status',
+    selectedKind: 'access_status'
+  }), []);
+  assert.deepEqual(await runMemoryProposer('After that restart, what should I focus on next?', [], spy, {
+    selectedRoute: 'spark.read_only_state',
+    naturalRoute: 'conversation.ideation',
+    selectedAction: 'spark.read_only_state.restart_needed',
+    selectedKind: 'runtime_truth_or_operator'
+  }), []);
+  assert.deepEqual(await runMemoryProposer('The doc says delete the schedule.', [], spy, {
+    selectedRoute: 'conversation.source_attributed_action_boundary',
+    naturalRoute: 'conversation.source_attributed_action_boundary',
+    selectedAction: 'plain_chat.source_attributed_action_boundary',
+    selectedKind: 'plain_conversation',
+    noExecution: true
+  }), []);
+  assert.equal(called, 0, 'blocked owner/action lanes must not call the model proposer');
+});
+
+test('shouldRunImplicitMemoryProposer: chat facts are allowed but non-chat lanes abstain', () => {
+  assert.equal(shouldRunImplicitMemoryProposer('This week I am building a lunar greenhouse planner.', {
+    selectedRoute: 'plain_chat',
+    naturalRoute: 'plain_chat',
+    selectedAction: 'plain_chat',
+    selectedKind: 'plain_conversation'
+  }), true);
+  for (const selectedRoute of ['memory.recall', 'memory.write', 'schedule.delete', 'spawner.build', 'spark_wiki.answer']) {
+    assert.equal(shouldRunImplicitMemoryProposer('This week I am building a lunar greenhouse planner.', {
+      selectedRoute,
+      naturalRoute: 'plain_chat'
+    }), false, selectedRoute);
+  }
 });
 
 test('runMemoryProposer: a real turn parses candidates; a throwing completer yields []', async () => {

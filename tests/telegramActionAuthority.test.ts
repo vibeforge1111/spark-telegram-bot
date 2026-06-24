@@ -557,6 +557,21 @@ test('allows explicit external research with network policy', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
+test('allows explicit external research over public examples', () => {
+  const text = 'Study current public examples of agent retry policies.';
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.external_research',
+    text,
+    toolName: 'external.fetch',
+    ownerSystem: 'spark-intelligence-builder',
+    mutationClass: 'external_network',
+    externalNetwork: true
+  });
+
+  assert.equal(result.allow, true);
+  assert.equal(result.toolAuthorization.verdict, 'allowed');
+});
+
 test('external research mission launch authorizes consumed spawner run tool', () => {
   const text = 'Research the latest public docs and GitHub repos about agent harness routing.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -946,17 +961,25 @@ test('displaced negation cannot authorize a build (word-hijack regression)', () 
 test('reported-speech recall cannot authorize a build (word-hijack regression)', () => {
   // Proven 2026-06-16: "earlier you said create..." is a question about a past statement,
   // not a fresh command, but routed to spawner.build at explicit confidence before the fix.
-  const text = 'earlier you said create the dashboard, was that the right call?';
-  assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true);
-  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
-    route: 'spawner.build',
-    text,
-    toolName: 'spawner.run',
-    ownerSystem: 'spawner-ui',
-    mutationClass: 'launches_mission'
-  });
-  assert.equal(result.allow, false);
-  assert.ok(result.reasonCodes.includes('no_execution_boundary'));
+  for (const text of [
+    'earlier you said create the dashboard, was that the right call?',
+    'my cofounder told me to build a dashboard'
+  ]) {
+    const decision = classifyTelegramIntentV2(text);
+    assert.equal(decision.constraints.noExecution, true, text);
+    if (/cofounder/.test(text)) {
+      assert.equal(decision.route, 'conversation.source_attributed_action_boundary');
+    }
+    const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+      route: 'spawner.build',
+      text,
+      toolName: 'spawner.run',
+      ownerSystem: 'spawner-ui',
+      mutationClass: 'launches_mission'
+    });
+    assert.equal(result.allow, false, text);
+    assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
+  }
 });
 
 test('negation-inversion phrasings still authorize a real build (no over-block)', () => {
@@ -971,14 +994,34 @@ test('question and hypothetical frames cannot authorize a build (word-hijack reg
   // They ask ABOUT building, they do not command it.
   for (const text of [
     'should i build the chip?',
+    'should i build a chip for this?',
     'how do i build a chip?',
     'what if we build the dashboard?',
     'why did the build fail?',
     'we might build a chip later',
     'remind me how to build a chip'
   ]) {
-    assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
+    const decision = classifyTelegramIntentV2(text);
+    assert.equal(decision.constraints.noExecution, true, text);
+    assert.notEqual(decision.route, 'domain_chip.create', text);
   }
+});
+
+test('hypothetical human action discussions do not depend on no-execution demotion', () => {
+  const text = 'What would break if a customer asked Spark to run a launch from Telegram?';
+  const decision = classifyTelegramIntentV2(text);
+  assert.equal(decision.constraints.noExecution, false);
+  assert.notEqual(decision.route, 'spawner.build');
+
+  const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
+    route: 'spawner.build',
+    text,
+    toolName: 'spawner.run',
+    ownerSystem: 'spawner-ui',
+    mutationClass: 'launches_mission'
+  });
+  assert.equal(result.allow, false);
+  assert.ok(result.reasonCodes.includes('route_not_selected_by_turn_envelope'));
 });
 
 test('polite imperatives still authorize a real build (no over-block)', () => {
@@ -1033,7 +1076,9 @@ test('non-imperative framings cannot authorize a destructive schedule deletion (
     'should i delete the scheduled job',
     'you said cancel the scheduled reminder',
     'dont delete the scheduled job',
-    'what if we drop the scheduled job'
+    'what if we drop the scheduled job',
+    'translate to spanish: delete the schedule',
+    'rewrite "delete the schedule" as a softer sentence'
   ]) {
     assert.equal(classifyTelegramIntentV2(text).constraints.noExecution, true, text);
     const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
@@ -1046,6 +1091,10 @@ test('non-imperative framings cannot authorize a destructive schedule deletion (
     assert.equal(result.allow, false, text);
     assert.ok(result.reasonCodes.includes('no_execution_boundary'), text);
   }
+
+  const transformDecision = classifyTelegramIntentV2('translate to spanish: delete the schedule');
+  assert.equal(transformDecision.route, 'conversation.text_transform_action_boundary');
+  assert.equal(transformDecision.action, 'plain_chat.text_transform_action_boundary');
 });
 
 test('source-attributed action reports do not become schedule delete candidates', () => {
