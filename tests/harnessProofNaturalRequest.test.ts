@@ -116,6 +116,8 @@ async function run(): Promise<void> {
       assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.command, 'proof');
       assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
       assert.equal(replyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
+      assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.turnRef, proofCapsule.turnRef);
+      assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
       restoreEnv();

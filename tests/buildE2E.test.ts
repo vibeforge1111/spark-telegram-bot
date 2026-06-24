@@ -1269,6 +1269,8 @@ async function run(): Promise<void> {
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.command, 'proof');
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
 		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.turnRef, proofCapsule.turnRef);
+		assert.equal(replyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
 
 		const traceReplies: string[] = [];
 		const traceReplyExtras: any[] = [];
@@ -1283,6 +1285,8 @@ async function run(): Promise<void> {
 		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.route, 'proof.inspect');
 		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
 		assert.equal(traceReplyExtras[0]?.__sparkTraceContext?.proofRef, proofCapsule.turnRef);
+		assert.equal(traceReplyExtras[0]?.__sparkTraceContext?.proofCapsule?.turnRef, proofCapsule.turnRef);
+		assert.equal(traceReplyExtras[0]?.__sparkTraceContext?.proofCapsule?.schema, 'spark.harness_proof.v1');
 
 		rmSync(tempRoot, { recursive: true, force: true });
 		restoreAxios();

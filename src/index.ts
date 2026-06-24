@@ -4540,7 +4540,8 @@ export async function handleHarnessProofCommand(ctx: any): Promise<void> {
     replyKind: projection.ok ? 'proof_panel' : 'proof_missing',
     requestId,
     traceRef: redactedProofRef('proof-trace', lookup.traceRef || lookup.proofRef || projection.foundRef || requestId),
-    ...(projection.foundRef ? { proofRef: projection.foundRef } : {})
+    ...(projection.foundRef ? { proofRef: projection.foundRef } : {}),
+    ...(projection.capsule ? { proofCapsule: projection.capsule } : {})
   }));
 }
 
