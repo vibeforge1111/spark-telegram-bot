@@ -49,22 +49,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "fail",
+        "reply": "Got it, staying in chat.\nThe useful move is to shape the idea without starting work: define the target, name the trigger that would make action appropriate, and keep execution paused until you explicitly ask for it.",
         "sideEffects": {
           "filesChanged": null,
           "memoryWritten": null,
-          "missionStarted": null,
+          "missionStarted": false,
           "externalNetworkCalled": null,
           "accessChanged": null,
           "providerChanged": null,
           "mediaHandled": null,
-          "notes": null
+          "notes": "Live Spark Recursive stayed in chat, but did not answer the route-confidence question; /proof showed stale build_or_spawner execution proof instead of this no-action turn."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "proofJoin": "Missing for this canary turn; /proof projected stale build_or_spawner execution proof from an older Spawner mission.",
+        "proofPanel": "Harness Proof Intent: build_or_spawner Authority: allowed by spark.turn_intent.v1 Governor: allow, verified Execution: started Reply: delivered as natural Trace joins: telegram joined, spawner joined Gaps: none Proof ref: turn:sha256:61225326799f77c7 Plane: telegram_final_answer Evidence joined: Telegram final Evidence missing: Telegram outbound, Route confidence, Builder gateway, Spawner trace",
+        "screenshotRefs": [
+          "/tmp/cp-builder-001.png"
+        ],
+        "userConfirmation": "Observed directly in Spark Recursive Telegram window by Peekaboo on 2026-06-24 18:16-18:17 Asia/Dubai.",
         "notes": null
       }
     },
