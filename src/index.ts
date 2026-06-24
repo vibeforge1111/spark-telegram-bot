@@ -4669,6 +4669,22 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
   const projectName = pending.capabilityProposalPacket
     ? pending.projectName
     : polishBuildProjectName(pending.projectName);
+  const proofCapsule = buildTelegramDeliveryProofCapsule({
+    turnRef: traceRef || newRequestId,
+    route: 'spawner.build',
+    owner: 'spawner-ui',
+    tool: 'spawner.run',
+    mutationClass: 'launches_mission',
+    executionStatus: 'started',
+    replyDelivered: true,
+    replyShape: 'natural',
+    authorityDecision: 'allowed',
+    reasonSummary: 'Telegram clarified build acknowledgement followed authorized Spawner PRD dispatch.',
+    joins: {
+      telegram: 'joined',
+      spawner: 'joined'
+    }
+  });
   const prdContent = pending.projectPath
     ? `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\nTarget workspace/project path: \`${pending.projectPath}\`\n\n${enrichedPrd}`
     : `# ${projectName}\n\nBuild mode: ${pending.buildMode}\nBuild mode reason: ${pending.buildModeReason}\nBuild lane: ${buildLane}\nBuild lane reason: ${buildLaneReason}\n\n${enrichedPrd}`;
@@ -4687,6 +4703,8 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
         buildLaneReason,
         chatId: String(ctx.chat.id),
         userId: String(ctx.from.id),
+        harnessProofRef: proofCapsule.turnRef,
+        harnessProofCapsule: proofCapsule,
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
@@ -4714,6 +4732,7 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
       chatId: String(ctx.chat.id),
       userId: String(ctx.from.id),
       requestId: newRequestId,
+      traceRef,
       goal: projectName || pending.prd,
       createdAt: new Date().toISOString(),
       updateId: typeof ctx.update.update_id === 'number' ? ctx.update.update_id : undefined
@@ -4729,7 +4748,22 @@ export async function handleClarificationAnswers(ctx: any, answersRawInput: stri
       buildLane,
       missionId,
       kanbanUrl
+    }), outboundTraceExtra({
+      route: 'spawner',
+      command: 'clarify',
+      replyKind: 'build_ack',
+      requestId: newRequestId,
+      traceRef,
+      missionId,
+      proofCapsule
     }));
+    recordCommandReplyDelivery({
+      command: 'clarify',
+      replyKind: 'build_ack',
+      requestId: newRequestId,
+      traceRef,
+      proofCapsule
+    });
     startPrdCanvasReadyNotifier({
       chatId: Number(ctx.chat.id),
       userId: Number(ctx.from.id),
@@ -6938,6 +6972,7 @@ export async function handleBuildIntent(
         chatId: String(chatId),
         userId: String(ctx.from.id),
         harnessProofRef: proofCapsule.turnRef,
+        harnessProofCapsule: proofCapsule,
         runnerCapability: runnerPreflight
           ? {
               runnerWritable: runnerPreflight.runnerWritable,
