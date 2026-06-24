@@ -24,9 +24,11 @@ function usage(): string {
     '  npx ts-node ops/controlProofTraceAudit.ts --spark-home /path/to/.spark',
     '  npx ts-node ops/controlProofTraceAudit.ts --strict',
     '  npx ts-node ops/controlProofTraceAudit.ts --blocking-strict',
+    '  npx ts-node ops/controlProofTraceAudit.ts --fresh-strict',
     '',
     'Summarizes trace join coverage and raw-ref risks without printing raw trace rows.',
-    '--strict fails on any visible gap. --blocking-strict allows explicit legacy proof gaps but fails silent or leaking gaps.'
+    '--strict fails on any visible gap. --blocking-strict allows explicit legacy proof gaps but fails silent or leaking gaps.',
+    '--fresh-strict also fails when any latest producer row still carries a proof gap marker.'
   ].join('\n');
 }
 
@@ -53,6 +55,8 @@ function main(): void {
   if (!result.ok && hasFlag(args, 'strict')) {
     process.exitCode = 1;
   } else if (!result.blockingOk && hasFlag(args, 'blocking-strict')) {
+    process.exitCode = 1;
+  } else if (hasFlag(args, 'fresh-strict') && result.planes.some((plane) => !plane.missing && plane.latestProofGapMarked)) {
     process.exitCode = 1;
   }
 }

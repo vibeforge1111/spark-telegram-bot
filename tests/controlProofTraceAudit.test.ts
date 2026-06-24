@@ -411,3 +411,80 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
     assert.match(absoluteStrict.stdout, /Blocking status: clean/);
   });
 });
+
+test('fresh strict CLI fails only when the latest producer row still carries a proof gap', () => {
+  withTempSparkHome((sparkHome) => {
+    for (const file of defaultControlProofEvidenceFiles(sparkHome)) {
+      if (file.label === 'builder_gateway') continue;
+      const row = {
+        request_ref: 'request:sha256:nonexecution',
+        trace_ref: 'trace:sha256:nonexecution',
+        proof_status: 'not_execution_proof'
+      };
+      if (file.kind === 'jsonl') {
+        writeJsonl(file.filePath, [row]);
+      } else {
+        writeJson(file.filePath, row);
+      }
+    }
+    const tracePath = path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl');
+    writeJsonl(tracePath, [
+      {
+        requestId: 'req-old',
+        traceRef: 'trace-old',
+        harnessProofRef: 'turn:sha256:abcdef1234567890',
+        proofStatus: 'missing_harness_authority',
+        proofCapsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+      },
+      {
+        requestId: 'req-new',
+        traceRef: 'trace-new',
+        harnessProofRef: 'turn:sha256:fedcba9876543210',
+        proofCapsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:fedcba9876543210' }
+      }
+    ]);
+
+    const freshStrictClean = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--sample',
+        '10',
+        '--fresh-strict'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(freshStrictClean.status, 0, freshStrictClean.stderr);
+    assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
+    assert.match(freshStrictClean.stdout, /latest_gap no/);
+
+    writeJsonl(tracePath, [
+      {
+        requestId: 'req-latest-gap',
+        traceRef: 'trace-latest-gap',
+        harnessProofRef: 'turn:sha256:1111111111111111',
+        proofStatus: 'missing_harness_authority',
+        proofCapsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:1111111111111111' }
+      }
+    ]);
+
+    const freshStrictGap = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--sample',
+        '10',
+        '--fresh-strict'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(freshStrictGap.status, 1);
+    assert.match(freshStrictGap.stdout, /latest_gap yes/);
+  });
+});
