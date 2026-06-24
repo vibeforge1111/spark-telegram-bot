@@ -199,6 +199,8 @@ Live recapture of `cp-memory-001` on 2026-06-24 confirmed Railway memory recall 
 
 Live recapture of `cp-memory-002` on 2026-06-24 confirmed the Memory Doctor boundary stays read-only and human-readable: Spark summarized the diagnostic problem without exposing raw ledger detail or mutating memory, and `/proof` showed `diagnostic_or_self_awareness` with joined Telegram and Builder evidence plus `Latest proof gaps: none`, reducing stale proof-panel blockers from 14 to 13.
 
+Live recapture of `cp-access-001` on 2026-06-24 confirmed fresh access inspection stays read-only: Spark separated chat access, CLI access, runner writability, and workspace writability without starting repair or changing access, and `/proof` showed `access.capability_status` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 13 to 12.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

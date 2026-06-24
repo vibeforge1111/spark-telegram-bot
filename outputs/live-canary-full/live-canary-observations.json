@@ -763,7 +763,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nYes. This Telegram runner is writable and Level 5 operator mode is active.\nFresh access evidence:\n- Chat setting: Access level 5.\n- Requested by CLI: Level 5.\n- Effective by CLI: Level 5.\n- Level 5 service guardrails: active (active).\n- Runner writable: yes.\n- Spark workspace writable: yes.\nBoundary: routine outside-workspace operator work is allowed, but deleting important files, exposing secrets, publishing, or deploying still requires confirmation.\nReceived at 8:04 PM",
+        "reply": "No. Whole-computer file work is not fully available from this Telegram runner right now.\n\nFresh access evidence:\n- Chat setting: Access level 3.\n- Requested by CLI: Level 5.\n- Effective by CLI: Level 5.\n- Level 5 service guardrails: active (active).\n- Runner writable: yes.\n- Spark workspace writable: yes.\n\nBoundary: Spark should stay in the workspace/sandbox path unless Level 5 service guardrails, chat access, and runner writability are all active.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -775,11 +775,12 @@
           "notes": "Read-only fresh access status/capability inspection observed; no repair, access change, mission, provider switch, external network action, memory write, or media handling observed."
         },
         "proofJoin": "Latest /proof panel showed Harness Proof Intent access.capability_status with joined Telegram outbound evidence; no raw ids, local paths, stack traces, or reason codes visible.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: access.capability_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:d2d35225b577e6fd Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 8:04 PM",
+        "proofPanel": "Harness Proof Intent: access.capability_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:0a7aac310b119a3d Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-access-001-retest-reply.png"
+          "/tmp/cp-access-001-live-reply.png",
+          "/tmp/cp-access-001-live-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart via Peekaboo screenshots: access reply used fresh state and /proof rendered access.capability_status.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: access reply used fresh state and /proof rendered access.capability_status.",
         "notes": "Initial live proof classified the access capability reply as plain_conversation. Fixed trace override in 5ea13f0, restarted Spark, retested, and recorded the corrected proof panel."
       }
     },
