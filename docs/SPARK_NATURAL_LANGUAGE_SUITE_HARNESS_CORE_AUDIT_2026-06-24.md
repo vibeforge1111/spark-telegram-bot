@@ -120,6 +120,7 @@ Initial command:
 ```bash
 npm run control:proof:canaries -- --list
 npm run control:proof:canaries -- --checklist
+npm run control:proof:canaries -- --cases cp-streaming-001,cp-streaming-002 --checklist
 ```
 
 ## Refurbishment Plan
@@ -178,6 +179,8 @@ npm run test -- --run tests/liveNlVerdict.test.ts tests/controlProofLiveCanaryPa
 npm run nl:harness-map -- --cases memory-001,access-002,mission-001
 npm run control:proof:canaries -- --list
 npm run control:proof:canaries -- --category streaming --checklist
+npm run control:proof:canaries -- --category rich_messages --checklist
+npm run control:proof:canaries -- --cases cp-streaming-001,cp-streaming-002 --copy-paste
 ```
 
 Result:
@@ -185,7 +188,7 @@ Result:
 - The old NL suite is still useful as a fast breadth and drift sweep.
 - The Harness map still correctly shows that old `safe` cases can hide real mutations; for example `memory-001` writes memory and `access-002` updates access.
 - The control-proof canary pack is the right new Harness-shaped structure for release proof because it carries authority, mutation class, proof join, side-effect expectation, reply shape, and visual/user-confirmation capture.
-- Streaming and rich-message behavior should stay in the canary pack, not in the legacy route harness, because the route harness intentionally strips live Telegram rendering behavior out of the loop.
+- Streaming and rich-message behavior should stay in the canary pack, not in the legacy route harness, because the route harness intentionally strips live Telegram rendering behavior out of the loop. They are separate canary categories: use `cp-streaming-001,cp-streaming-002` together when judging the current Telegram feel.
 
 Practical rule: refurbish by promotion, not conversion. Keep the old catalog quick and broad; copy only representative prompts into `control:proof:canaries` when they add coverage that the new Harness-shaped pack does not already have.
 
@@ -201,3 +204,23 @@ Use this to keep the refurbished structure honest:
 - When an old prompt becomes a canary, preserve its origin as `promoted_from`, `derived_from`, or `coverage_for`.
 
 This gives the best of both systems: the old suite stays fast, and the new Harness Core structure can prove authority, mutation class, proof joins, side effects, reply shape, streaming/rich-message rendering, and live visual or user confirmation without losing the old regression lineage.
+
+## 2026-06-24 14:40 +04 Streaming/Rich Recheck
+
+The current code still supports the renewed decision.
+
+Commands checked:
+
+```bash
+npm run test -- --run tests/liveNlVerdict.test.ts tests/controlProofLiveCanaryPack.test.ts
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
+npm run control:proof:canaries -- --category streaming --checklist
+npm run control:proof:canaries -- --category rich_messages --checklist
+npm run control:proof:canaries -- --cases cp-streaming-001,cp-streaming-002 --copy-paste
+```
+
+Result:
+
+- The old NL suite should still be kept as fast breadth and promotion source material.
+- The Harness map still shows hidden mutations in old "safe" cases, so converting the old suite in place would blur authority proof.
+- Streaming and rich-message proof remains in `control:proof:canaries`, with screenshot and user-confirmation capture required for both current Telegram-feel checks.

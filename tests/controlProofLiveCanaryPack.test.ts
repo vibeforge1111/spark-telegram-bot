@@ -109,6 +109,19 @@ test('category selection keeps non-action defaults safe', () => {
   assert.deepEqual(selected.map((entry) => entry.id), ['cp-spawner-001']);
 });
 
+test('streaming and rich-message canaries stay visual release checks', () => {
+  const selected = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: ['cp-streaming-001', 'cp-streaming-002']
+  });
+
+  assert.deepEqual(selected.map((entry) => entry.category), ['streaming', 'rich_messages']);
+  for (const entry of selected) {
+    assert.equal(entry.capture.screenshot, true, `${entry.id} needs Telegram visual capture`);
+    assert.equal(entry.capture.userConfirmation, true, `${entry.id} needs user confirmation capture`);
+    assert.match(entry.passCriteria.join('\n'), /duplicate|render|settings/i);
+  }
+});
+
 test('copy-paste output keeps scoring expectations outside Telegram blocks', () => {
   const promptSheet = formatControlProofCanaryCopyPaste([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
