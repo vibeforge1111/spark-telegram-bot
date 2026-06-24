@@ -195,6 +195,8 @@ Live recapture of `cp-proof-002` on 2026-06-24 confirmed repeated `/proof` inspe
 
 Live recapture of `cp-builder-002` on 2026-06-24 confirmed the Builder memory-diagnostic boundary stays read-only: Spark explained the missing fresh authority in plain language, did not run Memory Doctor or mutate state, and `/proof` showed `builder_gateway.memory_diagnostic_boundary` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 16 to 15.
 
+Live recapture of `cp-memory-001` on 2026-06-24 confirmed Railway memory recall stayed context-only: Spark summarized the proof-led testing decision without running work or mutating memory, and `/proof` showed `memory_recall` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 15 to 14.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

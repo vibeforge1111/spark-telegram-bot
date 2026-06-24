@@ -667,7 +667,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nI don’t have a clean preserved Railway-specific decision in visible memory.\nClosest decision: Railway testing should be proof-first, not assumed. Use it as a controlled canary lane, require fresh runtime evidence, and don’t let stale memory or platform status override what the latest probe shows.\nReceived at 7:49 PM",
+        "reply": "We decided Railway testing should be proof-led, not memory-led.\n\nMeaning: don’t assume Railway is healthy from old notes. Run a fresh, tiny availability/deploy check only when the turn explicitly authorizes it, then report one clear result without starting unrelated repair or mission work.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -679,9 +679,10 @@
           "notes": "Read-only memory-context answer observed; no memory write, deletion, mission, access change, provider switch, external network call, or media handling observed."
         },
         "proofJoin": "Latest /proof panel showed Harness Proof Intent memory_recall with joined Telegram outbound evidence; no raw memory body, local paths, raw refs, or reason codes visible.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: memory_recall Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:1c0f7763d08e0f29 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 7:49 PM",
+        "proofPanel": "Harness Proof Intent: memory_recall Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:b886e5b25d7820c4 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-memory-001-reply-2.png"
+          "/tmp/cp-memory-001-live-reply-3.png",
+          "/tmp/cp-memory-001-live-proof.png"
         ],
         "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots: memory-context reply was natural and /proof showed a clean memory_recall proof panel.",
         "notes": "Canary contract route corrected from memory.read_context_only to canonical memory_recall before recording; live proof panel matched memory_recall."
