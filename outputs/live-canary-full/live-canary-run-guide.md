@@ -323,7 +323,7 @@ Record command:
 npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-memory-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
 ```
 
-Expected route: memory.read_context_only
+Expected route: memory_recall
 Expected authority: read_only_allowed
 Expected mutation class: read_only
 Expected reply shape: natural

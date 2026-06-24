@@ -453,7 +453,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     category: 'memory',
     risk: 'safe',
     prompt: 'Use memory only as context: what did we decide about Railway testing? Keep it short and do not run anything.',
-    expectedRoute: 'memory.read_context_only',
+    expectedRoute: 'memory_recall',
     expectedReplyShape: 'natural',
     expectedSideEffect: 'No memory write or deletion.',
     expectedProofJoin: 'Telegram final answer has trace; memory evidence is not stored raw in proof.',

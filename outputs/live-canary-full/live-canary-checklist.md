@@ -268,7 +268,7 @@ Verdict values: pass, fail, blocked, needs-retest, untested
 - Prompt: Use memory only as context: what did we decide about Railway testing? Keep it short and do not run anything.
 - Expected authority: read_only_allowed
 - Expected mutation class: read_only
-- Expected route: memory.read_context_only
+- Expected route: memory_recall
 - Expected reply shape: natural
 - Expected side effect: No memory write or deletion.
 - Expected proof join: Telegram final answer has trace; memory evidence is not stored raw in proof.
