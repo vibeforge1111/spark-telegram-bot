@@ -5,6 +5,7 @@ import {
   extractSparkWikiQuery,
   isAccessHelpQuestion,
   isAccessStatusQuestion,
+  parseNaturalAccessChangeIntent,
   isSparkWikiInventoryQuestion,
   isSparkWikiStatusQuestion,
   isStartupFounderAdvisoryQuestion,
@@ -38,6 +39,14 @@ function emptyConstraints(): TelegramIntentConstraintsV2 {
   };
 }
 
+function isAccessSetupOnlyBoundary(normalized: string): boolean {
+  const stopsAccessChange =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|raise|lower|enable|disable)\b.{0,40}\baccess\b/.test(normalized) ||
+    /\b(?:no|not)\s+access\s+change(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+  return Boolean(parseNaturalAccessChangeIntent(normalized)) && !stopsAccessChange &&
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:run|start|launch|execute|prepare|configure|setup|set\s+up|repair)\b.{0,80}\b(?:repair|setup|set\s+up|workspace|local)\b/.test(normalized);
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const constraints = emptyConstraints();
@@ -64,6 +73,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
   ].some((pattern) => pattern.test(normalized)) || (hasMetaLanguageBoundary && hasExecutionKeyword);
 
   if (constraints.noExecution && isExplicitSpawnerNoEditMissionRequest(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isAccessSetupOnlyBoundary(normalized)) {
     constraints.noExecution = false;
   }
 

@@ -87,6 +87,23 @@ test('keeps local-only publication bans as build constraints', () => {
   assert.equal(result.toolAuthorization.verdict, 'allowed');
 });
 
+test('keeps access repair setup bans as access-change constraints', () => {
+  const text = 'Change my access level to three please, but do not run any local repair setup.';
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'access.change',
+    text,
+    toolName: 'access.change',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'access.change');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'explicit_access_change');
+});
+
 test('final Telegram action boundary never treats prepare as execution authority', () => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {
