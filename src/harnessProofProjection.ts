@@ -161,6 +161,9 @@ function findHarnessProofCapsule(
   requestedRef: string | null,
   requestedTraceRef: string | null
 ): { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null } | null {
+  if (!requestedRef && !requestedTraceRef) {
+    return findLatestHarnessProofCapsule(evidenceFiles);
+  }
   for (const file of evidenceFiles) {
     const records = readEvidenceRecordsNewestFirst(file);
     for (const record of records) {
@@ -174,6 +177,41 @@ function findHarnessProofCapsule(
         traceRef: requestedTraceRef
       };
     }
+  }
+  return null;
+}
+
+function findLatestHarnessProofCapsule(
+  evidenceFiles: ControlProofEvidenceFile[]
+): { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null } | null {
+  let best: { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null; sortMs: number; order: number } | null = null;
+  let order = 0;
+  for (const file of evidenceFiles) {
+    const records = readEvidenceRecordsNewestFirst(file);
+    for (const record of records) {
+      const capsule = extractHarnessProofCapsule(record);
+      if (!capsule) {
+        order += 1;
+        continue;
+      }
+      const sortMs = recordTimestampMs(record) ?? 0;
+      if (!best || sortMs > best.sortMs || (sortMs === best.sortMs && order < best.order)) {
+        best = { plane: file.label, capsule, traceRef: null, sortMs, order };
+      }
+      order += 1;
+    }
+  }
+  return best ? { plane: best.plane, capsule: best.capsule, traceRef: best.traceRef } : null;
+}
+
+function recordTimestampMs(record: unknown): number | null {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return null;
+  const obj = record as Record<string, unknown>;
+  for (const key of ['ts', 'timestamp', 'generatedAt', 'generated_at']) {
+    const value = obj[key];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
   }
   return null;
 }
