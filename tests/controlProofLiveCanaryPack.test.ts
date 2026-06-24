@@ -26,6 +26,15 @@ function test(name: string, fn: () => void): void {
 }
 
 const ROOT = resolve(__dirname, '..');
+const CLEAN_CONTROL_PROOF_AUDIT = [
+  'missing evidence: 0',
+  'missing trace joins: 0',
+  'missing proof capsules: 0',
+  'legacy proof gaps: 4',
+  'raw ref leaks: 0',
+  'robotic failure reasons: 0',
+  'stack-like leaks: 0'
+].join('\n');
 
 test('control-proof canary pack stays small enough for live runs', () => {
   assert.ok(CONTROL_PROOF_LIVE_CANARY_CASES.length >= 20);
@@ -183,7 +192,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     sparkLiveStatus: 'Spark Live healthy: primary and sparkqa-bot running.',
     providerStatus: 'chat provider ping OK.',
     runtimeSync: 'runtime in sync.',
-    controlProofAudit: 'missing evidence 0, missing trace joins 0, missing proof capsules 0, legacy proof gaps 4.',
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
   template.cases[0].observed = {
@@ -220,6 +229,45 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(missingPacketEvidence.readyForRelease, false);
   assert.deepEqual(missingPacketEvidence.missingPacketEvidence, ['control_proof_audit']);
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
+});
+
+test('observation summary rejects dirty runtime evidence even when packet fields are filled', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: 'Spark Live healthy.',
+    providerStatus: 'Provider ping OK.',
+    runtimeSync: 'runtime in sync.',
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Route confidence means Spark is justified in taking this route now.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      missionStarted: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Builder joined.',
+    proofPanel: 'Harness Proof: Builder joined.',
+    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    userConfirmation: 'Confirmed.'
+  };
+
+  template.evidence.controlProofAudit = 'missing evidence: 0\nmissing trace joins: 0\nmissing proof capsules: 1';
+  const dirtyAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyAudit.readyForRelease, false);
+  assert.deepEqual(dirtyAudit.invalidPacketEvidence, ['control_proof_audit']);
+  assert.match(formatControlProofCanaryObservationSummary(dirtyAudit), /Packet evidence invalid: control_proof_audit/);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.providerStatus = 'Provider ping failed.';
+  const dirtyProvider = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyProvider.readyForRelease, false);
+  assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
 });
 
 test('control-proof canary CLI lists and exports selected cases', () => {
@@ -315,7 +363,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       sparkLiveStatus: 'Spark Live healthy.',
       providerStatus: 'Provider ping OK.',
       runtimeSync: 'runtime in sync.',
-      controlProofAudit: 'audit has no missing evidence, trace joins, or proof capsules.',
+      controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
       notes: null
     };
     const observationsPath = resolve(tempRoot, 'observations.json');

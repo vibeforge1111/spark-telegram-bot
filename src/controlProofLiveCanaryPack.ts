@@ -145,6 +145,7 @@ export interface ControlProofCanaryObservationSummary {
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
   missingPacketEvidence: string[];
+  invalidPacketEvidence: string[];
   cases: ControlProofCanaryObservationCaseSummary[];
 }
 
@@ -846,6 +847,59 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
   return missing;
 }
 
+function commandEvidencePassed(value: string): boolean | null {
+  const match = value.match(/(?:^|\n)exit=(-?\d+)(?:\n|$)/);
+  if (!match) return null;
+  return match[1] === '0';
+}
+
+function hasPositiveRuntimeStatus(value: string): boolean {
+  return /\b(ok|healthy|ready|running|PING_OK|in sync)\b/i.test(value);
+}
+
+function hasCleanControlProofAudit(value: string): boolean {
+  const requiredZeroPatterns = [
+    /missing evidence:\s*0/i,
+    /missing trace joins:\s*0/i,
+    /missing proof capsules:\s*0/i,
+    /raw ref leaks:\s*0/i,
+    /robotic failure reasons:\s*0/i,
+    /stack-like leaks:\s*0/i
+  ];
+  if (requiredZeroPatterns.every((pattern) => pattern.test(value))) return true;
+  return /no missing evidence/i.test(value) &&
+    /trace joins/i.test(value) &&
+    /proof capsules/i.test(value) &&
+    !/\bmissing (?:evidence|trace joins|proof capsules):\s*[1-9]/i.test(value);
+}
+
+function validRuntimeEvidenceValue(value: string | null | undefined, kind: 'spark_live_status' | 'provider_status' | 'runtime_sync' | 'control_proof_audit'): boolean {
+  const normalized = String(value || '').trim();
+  if (!normalized) return false;
+  const commandStatus = commandEvidencePassed(normalized);
+  if (commandStatus === false) return false;
+  if (kind === 'control_proof_audit') return hasCleanControlProofAudit(normalized);
+  if (commandStatus === true) return true;
+  if (kind === 'runtime_sync') return /\bruntime in sync\b/i.test(normalized);
+  if (kind === 'provider_status') return /\b(PING_OK|provider ping OK|chat provider ping OK|ok true)\b/i.test(normalized);
+  return hasPositiveRuntimeStatus(normalized);
+}
+
+function invalidPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {
+  const evidence = observations.evidence || {
+    sparkLiveStatus: null,
+    providerStatus: null,
+    runtimeSync: null,
+    controlProofAudit: null
+  };
+  const invalid: string[] = [];
+  if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
+  if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
+  if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
+  if (String(evidence.controlProofAudit || '').trim() && !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit')) invalid.push('control_proof_audit');
+  return invalid;
+}
+
 function missingCapturesForCase(entry: ControlProofCanaryObservationCase): string[] {
   if (entry.observed.verdict === 'untested') return ['verdict'];
   const missing: string[] = [];
@@ -890,7 +944,11 @@ export function summarizeControlProofCanaryObservations(
     };
   });
   const missingEvidence = missingPacketEvidence(observations);
-  const readyForRelease = cases.length > 0 && missingEvidence.length === 0 && cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
+  const invalidEvidence = invalidPacketEvidence(observations);
+  const readyForRelease = cases.length > 0 &&
+    missingEvidence.length === 0 &&
+    invalidEvidence.length === 0 &&
+    cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -898,6 +956,7 @@ export function summarizeControlProofCanaryObservations(
     verdictCounts,
     readyForRelease,
     missingPacketEvidence: missingEvidence,
+    invalidPacketEvidence: invalidEvidence,
     cases
   };
 }
@@ -916,6 +975,9 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   ];
   if (summary.missingPacketEvidence.length > 0) {
     lines.push(`Packet evidence missing: ${summary.missingPacketEvidence.join(', ')}`, '');
+  }
+  if (summary.invalidPacketEvidence.length > 0) {
+    lines.push(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`, '');
   }
   const attention = summary.cases.filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0);
   if (attention.length === 0) {

@@ -302,6 +302,8 @@ npm run sync:check
 npm run control:proof:audit -- --sample 100
 ```
 
+`--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are tracked separately.
+
 Refurbishment helper for old NL cases:
 
 ```bash

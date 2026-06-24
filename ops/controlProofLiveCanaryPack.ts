@@ -95,7 +95,9 @@ function summarizeCommandResult(
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
     .replace(/\s+\n/g, '\n')
     .trim();
-  const snippet = output.slice(0, 1600);
+  const snippet = output.length > 2400
+    ? `${output.slice(0, 1200)}\n...\n${output.slice(-1200)}`
+    : output;
   return [
     `$ ${command} ${args.join(' ')}`,
     `exit=${status === null ? 'unknown' : status}`,
