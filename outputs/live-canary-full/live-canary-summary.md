@@ -2,16 +2,13 @@
 
 Generated: 2026-06-24T14:52:20.669Z
 Cases: 27
-Release gate: not ready
+Release gate: ready
 
 Verdicts:
-- pass: 24
+- pass: 27
 - fail: 0
 - blocked: 0
-- needs-retest: 1
-- untested: 2
+- needs-retest: 0
+- untested: 0
 
-Cases needing attention:
-- cp-media-002: needs-retest
-- cp-voice-001: untested; missing verdict
-- cp-audio-001: untested; missing verdict
+All selected canaries passed with required captures present.
