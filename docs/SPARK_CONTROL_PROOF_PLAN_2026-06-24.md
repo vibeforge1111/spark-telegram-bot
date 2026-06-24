@@ -215,6 +215,8 @@ Live recapture of `cp-spawner-001` on 2026-06-24 confirmed project-design wordin
 
 Live recapture of `cp-spawner-002` on 2026-06-24 confirmed local-only build wording stays behind the Spawner confirmation gate: Spark shaped the Spark Proof Tile idea without dispatching a mission, publishing, deploying, pushing, or editing project files, and `/proof` showed `spawner.build` with joined Telegram evidence plus an honest absence of Spawner execution evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 6 to 5.
 
+Live recapture of `cp-mission-001` on 2026-06-24 confirmed the no-edit Spawner mission proof path: Spark ran the tiny Codex mission, returned `SPARK_QA_NO_EDIT_OK`, left the repo clean, and `/proof` showed `spawner.run` with joined Telegram and Spawner evidence plus `Latest proof gaps: none`, reducing stale proof-panel blockers from 5 to 4.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
