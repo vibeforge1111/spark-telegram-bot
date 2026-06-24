@@ -382,6 +382,7 @@ import {
   isTelegramImageMessage,
   telegramImageMemoryText
 } from './telegramImageBridge';
+import { analyzeTelegramImageForReply } from './telegramImageAnalysis';
 import {
   attachTelegramMediaTurnEnvelope,
   buildTelegramMediaTurnEnvelope, isTelegramTextImageBoundaryRequest, renderTelegramTextImageBoundaryReply,
@@ -407,12 +408,10 @@ export {
   shouldUsePendingClarificationForMessage
 } from './telegramPendingBuildEvidence';
 export { isDomainChipPendingDirection } from './telegramPendingDomainChipEvidence';
-
+export { __setTelegramImageAnalyzerForTest } from './telegramImageAnalysis';
 const TELEGRAM_SMOKE_MODE = process.env.TELEGRAM_SMOKE_MODE === '1';
 const execFileAsync = promisify(execFile);
-
 installConsoleRedaction();
-
 type BuilderBridgeRunner = typeof runBuilderTelegramBridge;
 let builderBridgeRunnerForTest: BuilderBridgeRunner | null = null;
 
@@ -10340,6 +10339,8 @@ export async function handleImageMessage(ctx: any): Promise<void> {
       await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
       return;
     }
+    const imageAnalysis = await analyzeTelegramImageForReply(ctx, imageMemoryText);
+    if (imageAnalysis.ok && imageAnalysis.text) { recordTelegramHarnessCoreExecution(authorization, { toolName: 'telegram.media.image', status: 'success', summary: 'Telegram image input was analyzed through the local vision adapter.' }); const visionProofCapsule = authorization.legacyEnvelope ? buildBuilderGatewayProofCapsule({ envelope: authorization.legacyEnvelope, builderReply, executionStatus: 'completed', replyDelivered: true, replyShape: 'natural', reasonSummary: 'Builder media response was low-information, so Telegram delivered a governed local image analysis.' }) : null; await ctx.reply(imageAnalysis.text, authorization.legacyEnvelope && visionProofCapsule ? outboundTraceExtra(builderReplyTraceContext(authorization.legacyEnvelope, builderReply, visionProofCapsule, 'builder_image_vision_adapter_reply')) : undefined); await conversation.rememberAssistantReply(user, imageAnalysis.text).catch(() => {}); return; }
     const fallback = 'I received the image and kept it evidence-only, but Spark did not return a usable visual description. I will not pretend I inspected pixels, and I did not execute anything from the image.';
     recordTelegramHarnessCoreExecution(authorization, {
       toolName: 'telegram.media.image',
