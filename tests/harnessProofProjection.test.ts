@@ -153,3 +153,30 @@ test('reports a missing proof ref without exposing evidence files', () => {
     assert.doesNotMatch(projection.panel, /spark-harness-proof-panel-/);
   });
 });
+
+test('reports ref-only Builder evidence when the proof capsule is missing', () => {
+  withTempSparkHome((sparkHome) => {
+    const proofRef = 'turn:sha256:0000000000000001';
+    writeJsonl(path.join(sparkHome, 'state', 'spark-intelligence', 'logs', 'gateway-trace.jsonl'), [
+      {
+        request_id: 'raw-request-builder-ref-only',
+        trace_ref: 'trace:builder-raw',
+        harnessProofRef: proofRef,
+        artifact_path: '/Users/example/private/builder.log'
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      proofRef
+    });
+
+    assert.equal(projection.ok, false);
+    assert.equal(projection.foundRef, null);
+    assert.match(projection.panel, /Status: proof capsule missing/);
+    assert.match(projection.panel, /Evidence joined: Builder gateway/);
+    assert.match(projection.panel, /Evidence missing: .*Telegram final/);
+    assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
+    assert.doesNotMatch(projection.panel, /raw-request|trace:builder-raw|\/Users\/example/);
+  });
+});

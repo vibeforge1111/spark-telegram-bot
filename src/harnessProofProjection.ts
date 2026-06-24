@@ -62,11 +62,14 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
   const requestedRef = cleanRef(options.proofRef);
   const match = findHarnessProofCapsule(evidenceFiles, requestedRef);
   if (!match) {
+    const evidenceJoins = requestedRef ? summarizeEvidenceJoins(evidenceFiles, requestedRef) : [];
+    const hasJoinedEvidence = evidenceJoins.some((join) => join.status === 'joined');
     const panel = [
       'Harness Proof',
       requestedRef ? `Proof ref: ${requestedRef}` : 'Proof ref: latest',
-      'Status: not found',
-      'Gaps: proof capsule missing from sampled evidence'
+      hasJoinedEvidence ? 'Status: proof capsule missing' : 'Status: not found',
+      'Gaps: proof capsule missing from sampled evidence',
+      ...(hasJoinedEvidence ? [renderEvidenceJoinSummary(evidenceJoins)] : [])
     ].join('\n');
     return {
       ok: false,
@@ -74,7 +77,8 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
       requestedRef,
       foundRef: null,
       plane: null,
-      panel
+      panel,
+      ...(hasJoinedEvidence ? { evidenceJoins } : {})
     };
   }
   const evidenceJoins = summarizeEvidenceJoins(evidenceFiles, match.capsule.turnRef);
