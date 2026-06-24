@@ -192,6 +192,16 @@ function isExplicitMemoryWrite(normalized: string): boolean {
     /^memory\s+(?:update|note)\s*[:,-]/.test(normalized);
 }
 
+function isExplicitModelSwitch(normalized: string): boolean {
+  return /\b(?:switch|change|set|make|use|configure|update)\b.{0,80}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?)|(?:missions?|spawner|builds?)\b.{0,40}\bprovider)\b/.test(normalized) &&
+    /\b(?:codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/.test(normalized);
+}
+
+function isModelSwitchStopBoundary(normalized: string): boolean {
+  return /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|make|use|configure|update)\b.{0,60}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?))\b/.test(normalized) ||
+    /\b(?:no|not)\s+(?:mission\s+)?provider\s+(?:switch|change)(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+}
+
 function isExplicitScheduleDelete(normalized: string): boolean {
   return /\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off)\b.{0,80}\b(?:schedule|scheduled|reminder|job|automation|routine|recurring\s+task|sched-[a-z0-9]+)\b/.test(normalized) ||
     /\b(?:schedule|scheduled|reminder|job|automation|routine|recurring\s+task|sched-[a-z0-9]+)\b.{0,80}\b(?:delete|cancel|remove|kill|stop|drop|disable|turn\s+off)\b/.test(normalized);
@@ -466,6 +476,12 @@ export function evaluateDeterministicRoute(route: DeterministicRouteId, text: st
       return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
     }
     return { allow: true, reason: 'explicit_access_change', confidence: 'explicit' };
+  }
+  if (route === 'model.switch' && isExplicitModelSwitch(normalized)) {
+    if (isModelSwitchStopBoundary(normalized)) {
+      return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };
+    }
+    return { allow: true, reason: 'explicit_model_switch', confidence: 'explicit' };
   }
   if (isNoExecutionBoundary(normalized) && INTERRUPTIVE_ROUTES.has(route)) {
     return { allow: false, reason: 'no_execution_boundary', confidence: 'blocked' };

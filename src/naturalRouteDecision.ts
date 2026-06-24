@@ -249,6 +249,34 @@ function parseNaturalProviderRun(text: string): { providers: string[]; goal: str
   return null;
 }
 
+function parseNaturalMissionProviderSwitch(text: string): Record<string, unknown> | null {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return null;
+  const asksToSwitch = /\b(?:switch|change|set|make|use|configure|update)\b/.test(normalized);
+  const missionProvider =
+    /\bmission\s+provider\b/.test(normalized) ||
+    /\bprovider\s+for\s+(?:missions?|spawner|builds?)\b/.test(normalized) ||
+    /\b(?:missions?|spawner|builds?)\b.{0,40}\bprovider\b/.test(normalized);
+  if (!asksToSwitch || !missionProvider) return null;
+
+  const providerMatch = normalized.match(/\b(?:to|as|onto|use)\s+(codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/) ||
+    normalized.match(/\b(codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/);
+  if (!providerMatch?.[1]) return null;
+
+  const providerAliases: Record<string, string> = {
+    claude: 'anthropic',
+    glm: 'zai',
+    hf: 'huggingface',
+    'lm studio': 'lmstudio'
+  };
+  const rawProvider = providerMatch[1].replace(/\s+/g, ' ');
+  return {
+    role: 'mission',
+    provider: providerAliases[rawProvider] || rawProvider,
+    preserveChatProvider: /\b(?:do not|don't|dont|please don't|please dont|keep|leave)\b.{0,50}\b(?:chat|agent)\s+provider\b/.test(normalized)
+  };
+}
+
 export function decideNaturalRoute(
   text: string,
   context: NaturalRouteDecisionContext = {}
@@ -374,6 +402,25 @@ export function decideNaturalRoute(
       payload: { level: explicitAccessLevel },
       context_source: 'latest_message',
       matched_signals: ['explicit_access_change'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  const missionProviderSwitch = parseNaturalMissionProviderSwitch(normalized);
+  if (missionProviderSwitch) {
+    if (!routeAllowed('model.switch', normalized)) return routeBlockedByFirewall(normalized, 'model.switch');
+    return decision({
+      route: 'model.switch',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'model.switch.mission_provider',
+      payload: missionProviderSwitch,
+      context_source: 'latest_message',
+      matched_signals: [
+        'mission_provider_switch',
+        missionProviderSwitch.preserveChatProvider ? 'preserve_chat_provider' : ''
+      ].filter(Boolean) as string[],
       blocked_by: [],
       requires_confirmation: false
     });

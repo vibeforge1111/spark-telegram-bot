@@ -11,6 +11,7 @@ export type TelegramIntentKindV2 =
   | 'access_status'
   | 'access_help'
   | 'access.level_change'
+  | 'model_switch.mission_provider'
   | 'build_or_spawner'
   | 'recursive_or_swarm'
   | 'wiki_or_knowledge'

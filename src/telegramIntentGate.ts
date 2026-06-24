@@ -47,6 +47,19 @@ function isAccessSetupOnlyBoundary(normalized: string): boolean {
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:run|start|launch|execute|prepare|configure|setup|set\s+up|repair)\b.{0,80}\b(?:repair|setup|set\s+up|workspace|local)\b/.test(normalized);
 }
 
+function isMissionProviderSwitchPreservingChatProvider(normalized: string): boolean {
+  const switchesMissionProvider =
+    /\b(?:switch|change|set|make|use|configure|update)\b.{0,80}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?)|(?:missions?|spawner|builds?)\b.{0,40}\bprovider)\b/.test(normalized) &&
+    /\b(?:codex|claude|anthropic|zai|glm|minimax|openrouter|openai|huggingface|hf|lmstudio|lm\s+studio|ollama)\b/.test(normalized);
+  const preservesChatProvider =
+    /\b(?:do not|don't|dont|please don't|please dont)\s+(?:change|set|switch|make|use|configure|update|touch)\b.{0,60}\b(?:chat|agent)\s+provider\b/.test(normalized) ||
+    /\b(?:keep|leave)\b.{0,40}\b(?:chat|agent)\s+provider\b.{0,40}\b(?:same|unchanged|alone|as\s+is)\b/.test(normalized);
+  const stopsMissionProvider =
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|make|use|configure|update)\b.{0,60}\b(?:mission\s+provider|provider\s+for\s+(?:missions?|spawner|builds?))\b/.test(normalized) ||
+    /\b(?:no|not)\s+(?:mission\s+)?provider\s+(?:switch|change)(?:\s+(?:yet|for\s+now|right\s+now))?\b/.test(normalized);
+  return switchesMissionProvider && preservesChatProvider && !stopsMissionProvider;
+}
+
 export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentConstraintsV2 {
   const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
   const constraints = emptyConstraints();
@@ -59,6 +72,7 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
 
   constraints.noExecution = [
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|start|run|launch|execute|dispatch|mission|spawner|codex|provider|schedule|loop|chip|publish|deploy|ship|save|remember|route|memory|wiki|access|draft|canvas)\b(?:\s+(?:it|this|that|anything|something|yet|for\s+now|now))?/,
+    /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:change|set|switch|make|use|configure|update|touch)\b.{0,80}\b(?:provider|model|access)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:start|run|launch|execute|dispatch|kick\s+off)\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:build|create|make|scaffold|generate|save|remember)\s+(?:it|this|that|anything|something|a\s+mission|a\s+build|a\s+project|a\s+domain[-\s]*chip|a\s+chip|the\s+mission|the\s+build|the\s+project|the\s+domain[-\s]*chip|the\s+chip|yet|for\s+now)?\b/,
     /\b(?:do not|don't|dont|please don't|please dont|no need to)\s+(?:do|act\s+on|execute)\s+(?:it|this|that|the\s+example)\b/,
@@ -76,6 +90,9 @@ export function parseTelegramIntentConstraintsV2(text: string): TelegramIntentCo
     constraints.noExecution = false;
   }
   if (constraints.noExecution && isAccessSetupOnlyBoundary(normalized)) {
+    constraints.noExecution = false;
+  }
+  if (constraints.noExecution && isMissionProviderSwitchPreservingChatProvider(normalized)) {
     constraints.noExecution = false;
   }
 
@@ -245,8 +262,11 @@ function observedNaturalRouteDecision(
   constraints: TelegramIntentConstraintsV2,
   naturalRoute: NaturalRouteDecision
 ): TelegramIntentDecisionV2 {
+  const kind = naturalRoute.action === 'model.switch.mission_provider'
+    ? 'model_switch.mission_provider'
+    : kindForNaturalRoute(naturalRoute.route);
   return makeDecision({
-    kind: kindForNaturalRoute(naturalRoute.route),
+    kind,
     route: naturalRoute.route,
     owner_system: naturalRoute.owner_system,
     action: naturalRoute.action,

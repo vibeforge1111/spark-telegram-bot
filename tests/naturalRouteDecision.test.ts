@@ -195,6 +195,20 @@ test('routes contextual access changes only after access-focused turns', () => {
   assert.equal(decideNaturalRoute('4', { recentMessages: ['User: I like the fourth design'] }).route, 'plain_chat');
 });
 
+test('routes natural mission-provider switches while preserving chat provider', () => {
+  const route = decideNaturalRoute('Switch mission provider to Codex if it is available. Do not change chat provider.');
+
+  assert.equal(route.route, 'model.switch');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.confidence, 'explicit');
+  assert.equal(route.action, 'model.switch.mission_provider');
+  assert.equal(route.payload.role, 'mission');
+  assert.equal(route.payload.provider, 'codex');
+  assert.equal(route.payload.preserveChatProvider, true);
+  assert.deepEqual(route.matched_signals, ['mission_provider_switch', 'preserve_chat_provider']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes read-only repair turns to access status instead of contextual missions', () => {
   const recentMessages = [
     'User: how are you Spark',

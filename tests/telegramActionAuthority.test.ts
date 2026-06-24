@@ -105,6 +105,41 @@ test('keeps access repair setup bans as access-change constraints', () => {
   assert.equal(result.routeVerdict.reason, 'explicit_access_change');
 });
 
+test('allows mission-provider switches while preserving chat provider', () => {
+  const text = 'Switch mission provider to Codex if it is available. Do not change chat provider.';
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'model.switch',
+    text,
+    toolName: 'model.switch',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files'
+  });
+
+  assert.equal(envelope.selectedIntent.action, 'model.switch.mission_provider');
+  assert.equal(envelope.selectedIntent.kind, 'model_switch.mission_provider');
+  assert.equal(envelope.directive.noExecution, false);
+  assert.equal(envelope.executionPolicy.canMutateFiles, true);
+  assert.equal(result.allow, true);
+  assert.equal(result.routeVerdict.reason, 'explicit_model_switch');
+});
+
+test('blocks model switches when the user stops the mission-provider change itself', () => {
+  const text = 'Switch mission provider to Codex, but do not change mission provider yet.';
+  const envelope = envelopeFor(text);
+  const result = authorizeTelegramActionFromEnvelope(envelope, {
+    route: 'model.switch',
+    text,
+    toolName: 'model.switch',
+    ownerSystem: 'spark-telegram-bot',
+    mutationClass: 'writes_files'
+  });
+
+  assert.equal(envelope.directive.noExecution, true);
+  assert.equal(result.allow, false);
+  assert.equal(result.routeVerdict.reason, 'no_execution_boundary');
+});
+
 test('final Telegram action boundary never treats prepare as execution authority', () => {
   const text = 'Build a private local-first dashboard for memory reports with stale context and source labels.';
   const result = authorizeTelegramActionFromEnvelope(envelopeFor(text), {

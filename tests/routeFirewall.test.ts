@@ -202,6 +202,22 @@ test('allows access setting changes while blocking only local repair setup', () 
   assert.equal(stop.reason, 'no_execution_boundary');
 });
 
+test('allows mission-provider switches while preserving chat provider', () => {
+  const verdict = evaluateDeterministicRoute(
+    'model.switch',
+    'Switch mission provider to Codex if it is available. Do not change chat provider.'
+  );
+  assert.equal(verdict.allow, true);
+  assert.equal(verdict.reason, 'explicit_model_switch');
+
+  const stop = evaluateDeterministicRoute(
+    'model.switch',
+    'Switch mission provider to Codex, but do not change mission provider yet.'
+  );
+  assert.equal(stop.allow, false);
+  assert.equal(stop.reason, 'no_execution_boundary');
+});
+
 test('uses the firewall as a broad route-arbitration smoke matrix', () => {
   const cases: Array<{
     name: string;
