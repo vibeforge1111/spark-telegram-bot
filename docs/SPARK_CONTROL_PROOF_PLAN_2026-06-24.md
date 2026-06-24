@@ -421,11 +421,12 @@ Then send one photo with a caption.
 6. Make Telegram producers supply Builder proof refs on the action-capable paths that need them. Source now attaches redacted Builder proof refs to text, image, and voice Builder gateway handoffs while keeping the full capsule on Telegram delivery/audit context.
 7. Show ref-only trace evidence honestly. The proof panel now reports joined evidence planes even when the matching proof capsule is missing.
 8. Carry redacted request/trace/proof refs into future Telegram voice runtime state rows without storing raw audio or transcript bodies.
-9. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
-10. Repair Telegram failure language using fixtures from recent bad replies.
-11. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates; Builder acceptance added in `spark-intelligence-builder` commit `35cd451`.
-12. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
-13. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
+9. Include audit blocking status in the redacted proof panel so `/proof` and `control:proof:panel` can show whether current silent proof/control gaps are clean while keeping legacy proof-gap capsules visible.
+10. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
+11. Repair Telegram failure language using fixtures from recent bad replies.
+12. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates; Builder acceptance added in `spark-intelligence-builder` commit `35cd451`.
+13. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
+14. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
 
 ## Release Gate
 

@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import {
+  auditControlProofTraceContinuity,
   defaultControlProofEvidenceFiles,
   defaultSparkHome,
   type ControlProofEvidenceFile
@@ -35,7 +36,19 @@ export interface HarnessProofProjection {
   plane: string | null;
   panel: string;
   evidenceJoins?: HarnessProofEvidenceJoin[];
+  audit?: HarnessProofAuditSummary;
   capsule?: HarnessProofCapsuleV1;
+}
+
+export interface HarnessProofAuditSummary {
+  blockingOk: boolean;
+  legacyProofGapPlanes: number;
+  missingEvidencePlanes: number;
+  missingTraceJoinPlanes: number;
+  missingProofCapsulePlanes: number;
+  rawRefLeakPlanes: number;
+  roboticFailureReplyPlanes: number;
+  stackLikeLeakPlanes: number;
 }
 
 const PROOF_CAPSULE_KEYS = ['proof_capsule', 'proofCapsule', 'harness_proof', 'harnessProof'];
@@ -65,6 +78,7 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
   const evidenceFiles = options.evidenceFiles || defaultControlProofEvidenceFiles(sparkHome);
   const requestedRef = cleanRef(options.proofRef);
   const requestedTraceRef = cleanRef(options.traceRef);
+  const audit = summarizeCurrentAudit(sparkHome, evidenceFiles);
   const match = findHarnessProofCapsule(evidenceFiles, requestedRef, requestedTraceRef);
   if (!match) {
     const evidenceJoins = requestedRef || requestedTraceRef
@@ -77,7 +91,8 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
       ...(requestedTraceRef ? [`Trace ref: ${displayRef('trace', requestedTraceRef)}`] : []),
       hasJoinedEvidence ? 'Status: proof capsule missing' : 'Status: not found',
       'Gaps: proof capsule missing from sampled evidence',
-      ...(hasJoinedEvidence ? [renderEvidenceJoinSummary(evidenceJoins)] : [])
+      ...(hasJoinedEvidence ? [renderEvidenceJoinSummary(evidenceJoins)] : []),
+      renderAuditSummary(audit)
     ].join('\n');
     return {
       ok: false,
@@ -87,6 +102,7 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
       foundRef: null,
       plane: null,
       panel,
+      audit,
       ...(hasJoinedEvidence ? { evidenceJoins } : {})
     };
   }
@@ -96,7 +112,8 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
     `Proof ref: ${match.capsule.turnRef}`,
     ...(requestedTraceRef ? [`Trace ref: ${displayRef('trace', requestedTraceRef)}`] : []),
     `Plane: ${match.plane}`,
-    renderEvidenceJoinSummary(evidenceJoins)
+    renderEvidenceJoinSummary(evidenceJoins),
+    renderAuditSummary(audit)
   ].join('\n');
   return {
     ok: true,
@@ -107,8 +124,33 @@ export function projectHarnessProof(options: HarnessProofProjectionOptions = {})
     plane: match.plane,
     panel,
     evidenceJoins,
+    audit,
     capsule: match.capsule
   };
+}
+
+function summarizeCurrentAudit(
+  sparkHome: string,
+  evidenceFiles: ControlProofEvidenceFile[]
+): HarnessProofAuditSummary {
+  const result = auditControlProofTraceContinuity({ sparkHome, evidenceFiles });
+  return {
+    blockingOk: result.blockingOk,
+    legacyProofGapPlanes: result.gapCounts.legacyProofGap,
+    missingEvidencePlanes: result.gapCounts.missingEvidence,
+    missingTraceJoinPlanes: result.gapCounts.missingTraceJoin,
+    missingProofCapsulePlanes: result.gapCounts.missingProofCapsule,
+    rawRefLeakPlanes: result.gapCounts.rawRefLeak,
+    roboticFailureReplyPlanes: result.gapCounts.roboticFailureReply,
+    stackLikeLeakPlanes: result.gapCounts.stackLikeLeak
+  };
+}
+
+function renderAuditSummary(audit: HarnessProofAuditSummary): string {
+  return [
+    `Audit blocking: ${audit.blockingOk ? 'clean' : 'gaps found'}`,
+    `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}`
+  ].join('\n');
 }
 
 function findHarnessProofCapsule(

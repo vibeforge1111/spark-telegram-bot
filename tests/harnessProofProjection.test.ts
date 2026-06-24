@@ -97,8 +97,10 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.match(projection.panel, /Evidence joined: Telegram final/);
     assert.match(projection.panel, /Evidence missing: .*Builder gateway/);
     assert.match(projection.panel, /Evidence missing: .*Spawner trace/);
+    assert.match(projection.panel, /Audit blocking: gaps found/);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'missing');
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'missing');
+    assert.equal(projection.audit?.blockingOk, false);
     assert.doesNotMatch(projection.panel, /raw-request|tool_not_allowed_by_policy|\/Users\/example|trace:builder-raw|trace:spawner-raw/);
   });
 });
@@ -137,7 +139,54 @@ test('marks future Builder and Spawner rows joined when they carry a redacted pr
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'joined');
     assert.match(projection.panel, /Evidence joined: .*Builder gateway/);
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
+    assert.match(projection.panel, /Audit blocking: gaps found/);
     assert.doesNotMatch(projection.panel, /raw-request|\/Users\/example/);
+  });
+});
+
+test('shows clean blocking audit while keeping legacy proof gaps visible', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:sha256:legacyvisible';
+    const latest = proofCapsule('turn:latest');
+    const finalAnswerPath = path.join(sparkHome, 'final-answer.jsonl');
+    const spawnerPath = path.join(sparkHome, 'spawner.jsonl');
+    writeJsonl(finalAnswerPath, [
+      {
+        request_ref: 'request:sha256:latest',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
+      }
+    ]);
+    writeJsonl(spawnerPath, [
+      {
+        request_ref: 'request:sha256:latest',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_status: 'missing_harness_authority',
+        proof_storage: 'legacy_gap_capsule',
+        proof_capsule: latest
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      proofRef: latest.turnRef,
+      traceRef,
+      evidenceFiles: [
+        { label: 'telegram_final_answer', filePath: finalAnswerPath, kind: 'jsonl' },
+        { label: 'spawner_prd_trace', filePath: spawnerPath, kind: 'jsonl' }
+      ]
+    });
+
+    assert.equal(projection.ok, true);
+    assert.equal(projection.audit?.blockingOk, true);
+    assert.equal(projection.audit?.legacyProofGapPlanes, 1);
+    assert.match(projection.panel, /Audit blocking: clean/);
+    assert.match(projection.panel, /Legacy proof gaps visible: 1/);
+    assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence proof gaps: none/);
+    assert.doesNotMatch(projection.panel, /legacyvisible|request:sha256:latest/);
   });
 });
 
