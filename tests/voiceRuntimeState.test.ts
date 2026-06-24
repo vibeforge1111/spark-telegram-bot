@@ -150,6 +150,39 @@ test('carries redacted trace continuity without raw audio or transcript bodies',
   assert.match(serialized, /transcript bodies/);
 });
 
+test('rejects raw-looking voice proof refs while keeping safe trace metadata', () => {
+  const state = buildTelegramVoiceBridgeRuntimeState({
+    existingState: existingRuntimeState,
+    voiceMedia: {
+      filename: 'voice-reply.ogg',
+      mimeType: 'audio/ogg',
+      voiceCompatible: true,
+      providerId: 'elevenlabs',
+      voiceId: 'native-voice-id',
+    },
+    sendMethod: 'sendVoice',
+    telegramResult: { result: { message_id: 456 } },
+    audioBytes: 8192,
+    sentAtIso: '2026-06-02T09:11:00Z',
+    traceContext: {
+      requestId: 'turn:voice-runtime',
+      traceRef: 'trace:voice-runtime',
+      proofRef: '/Users/example/private-proof-capsule.json',
+    },
+  });
+
+  assert.equal(state.request_id, 'turn:voice-runtime');
+  assert.equal(state.trace_ref, 'trace:voice-runtime');
+  assert.equal(state.harness_proof_ref, undefined);
+  assert.deepEqual(state.trace_continuity, {
+    request_joined: true,
+    trace_joined: true,
+    proof_joined: false,
+    proof_storage: 'missing',
+  });
+  assert.doesNotMatch(JSON.stringify(state), /private-proof-capsule|\/Users\//);
+});
+
 test('writes sanitized runtime state to the Spark OS artifact path', async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'spark-voice-runtime-state-'));
   const outputPath = path.join(tempDir, 'state', 'spark-voice-comms', 'voice-runtime-state.json');

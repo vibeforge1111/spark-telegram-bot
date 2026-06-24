@@ -47,7 +47,15 @@ function telegramMessageIdPresent(value: unknown): boolean {
 }
 
 function cleanTraceValue(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return '';
+  if (/\/Users\/|\/var\/folders\/|[A-Za-z]:\\|file:\/\/|\b[A-Za-z0-9_-]{48,}\b/.test(text)) return '';
+  return text;
+}
+
+function cleanProofRef(value: unknown): string {
+  const text = cleanTraceValue(value);
+  return /^turn:sha256:[a-f0-9]{16}$/i.test(text) ? text : '';
 }
 
 function mergeSources(existing: Record<string, unknown>): string[] {
@@ -81,7 +89,7 @@ export function buildTelegramVoiceBridgeRuntimeState(input: TelegramVoiceBridgeD
   }
   const requestId = cleanTraceValue(input.traceContext?.requestId);
   const traceRef = cleanTraceValue(input.traceContext?.traceRef);
-  const proofRef = cleanTraceValue(input.traceContext?.proofRef);
+  const proofRef = cleanProofRef(input.traceContext?.proofRef);
   return {
     schema_version: 'spark.voice_runtime_state.v1',
     generated_at: sentAt,
