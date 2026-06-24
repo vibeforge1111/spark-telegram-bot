@@ -1055,12 +1055,22 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   if (entry.observed.verdict === 'untested') return ['verdict'];
   const missing: string[] = [];
   const capture = entry.expected.capture;
-  if (capture.observedReply && !String(entry.observed.reply || '').trim()) missing.push('observed_reply');
+  if (capture.observedReply && !hasCapturedText(entry.observed.reply)) missing.push('observed_reply');
   if (capture.sideEffects && !hasSideEffectObservation(entry.observed.sideEffects)) missing.push('side_effects');
-  if (capture.proofPanel && !String(entry.observed.proofPanel || '').trim()) missing.push('proof_panel');
-  if (capture.screenshot && entry.observed.screenshotRefs.length === 0) missing.push('screenshot');
-  if (capture.userConfirmation && !String(entry.observed.userConfirmation || '').trim()) missing.push('user_confirmation');
+  if (!hasCapturedText(entry.observed.proofJoin)) missing.push('proof_join');
+  if (capture.proofPanel && !hasCapturedText(entry.observed.proofPanel)) missing.push('proof_panel');
+  if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
+  if (capture.userConfirmation && !hasCapturedText(entry.observed.userConfirmation)) missing.push('user_confirmation');
   return missing;
+}
+
+function hasCapturedText(value: string | null | undefined): boolean {
+  const text = String(value || '').trim();
+  return Boolean(text) && !/^<[^>]+>$/.test(text);
+}
+
+function hasCapturedRefs(values: string[]): boolean {
+  return values.some((value) => hasCapturedText(value));
 }
 
 function hasSideEffectObservation(sideEffects: ControlProofCanaryObservationCase['observed']['sideEffects']): boolean {
@@ -1072,7 +1082,7 @@ function hasSideEffectObservation(sideEffects: ControlProofCanaryObservationCase
     sideEffects.accessChanged,
     sideEffects.providerChanged,
     sideEffects.mediaHandled
-  ].some((value) => value !== null) || Boolean(String(sideEffects.notes || '').trim());
+  ].some((value) => value !== null) || hasCapturedText(sideEffects.notes);
 }
 
 export function summarizeControlProofCanaryObservations(

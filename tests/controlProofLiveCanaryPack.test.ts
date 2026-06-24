@@ -288,6 +288,44 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
 });
 
+test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: 'Spark Live healthy.',
+    providerStatus: 'Provider ping OK.',
+    runtimeSync: 'runtime in sync.',
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: '<observed reply>',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      missionStarted: false,
+      notes: '<what changed, or no mutation observed>'
+    },
+    proofJoin: '<proof join observed, or missing proof>',
+    proofPanel: '<proof panel text, or not shown>',
+    screenshotRefs: ['<screenshot path>'],
+    userConfirmation: '<confirmed in SparkRecursive_bot>'
+  };
+
+  const summary = summarizeControlProofCanaryObservations(template);
+  assert.equal(summary.readyForRelease, false);
+  assert.deepEqual(summary.cases[0].missingCaptures, [
+    'observed_reply',
+    'proof_join',
+    'proof_panel',
+    'screenshot',
+    'user_confirmation'
+  ]);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /missing observed_reply, proof_join, proof_panel, screenshot, user_confirmation/);
+});
+
 test('observation recorder updates one case while preserving packet evidence', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!

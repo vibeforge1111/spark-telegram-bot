@@ -313,6 +313,8 @@ Use `--run-guide` for the operator-facing live pass: it pairs each Telegram prom
 
 Use `--release-bundle --out-dir <dir> --collect-runtime-evidence` to write the full live-pass folder in one step: README, observation packet, run guide, copy-paste prompt sheet, checklist, and initial summary.
 
+Replace every `<...>` placeholder in generated record commands before treating a case as passed. Strict summaries count leftover placeholders as missing captures.
+
 Refurbishment helper for old NL cases:
 
 ```bash
