@@ -939,7 +939,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
-    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --release-check`));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /selected-case strict check/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /not the full release gate until the complete canary pack is run/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
@@ -964,6 +966,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
     assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 27);
     assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--release-check/);
 
     observed.evidence.controlProofAudit = null;
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');

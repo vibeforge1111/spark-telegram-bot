@@ -1,6 +1,6 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-24T14:13:08.303Z
+Generated: 2026-06-24T14:15:03.659Z
 Cases: 4
 Release gate: not ready
 

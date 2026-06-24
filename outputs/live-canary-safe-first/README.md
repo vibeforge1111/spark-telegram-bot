@@ -16,13 +16,13 @@ This folder is the live Telegram release packet. It starts not ready until each 
 1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.
 2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.
 3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.
-4. Re-run the release check:
+4. Re-run the selected-case strict check:
 
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --release-check
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --strict
 ```
 
-The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.
+This selected-case gate is ready when every case in this bundle passed with required captures present and top-level runtime evidence is clean. It is not the full release gate until the complete canary pack is run.
 
 ## Side-Effect Proof
 
