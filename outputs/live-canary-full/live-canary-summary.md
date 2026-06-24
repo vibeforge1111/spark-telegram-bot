@@ -5,14 +5,13 @@ Cases: 27
 Release gate: not ready
 
 Verdicts:
-- pass: 7
+- pass: 8
 - fail: 0
 - blocked: 0
 - needs-retest: 0
-- untested: 20
+- untested: 19
 
 Cases needing attention:
-- cp-noaction-004: untested; missing verdict
 - cp-authority-001: untested; missing verdict
 - cp-authority-002: untested; missing verdict
 - cp-proof-002: untested; missing verdict
