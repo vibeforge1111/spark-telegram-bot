@@ -535,6 +535,21 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(freshGapAudit.readyForRelease, false);
   assert.deepEqual(freshGapAudit.invalidPacketEvidence, ['control_proof_audit']);
 
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nBlocking status: blocking gaps found`;
+  const blockingGapAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(blockingGapAudit.readyForRelease, false);
+  assert.deepEqual(blockingGapAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 1/1 sampled | raw_refs 0 | raw_id_keys 1 | reason_codes 0 | parse_errors 0`;
+  const rawIdPlaneAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawIdPlaneAudit.readyForRelease, false);
+  assert.deepEqual(rawIdPlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 1/1 sampled | raw_refs 0 | raw_id_keys 0 | reason_codes 1 | parse_errors 0`;
+  const reasonCodePlaneAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(reasonCodePlaneAudit.readyForRelease, false);
+  assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
+
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.evidence.providerStatus = 'Provider ping failed.';
   const dirtyProvider = summarizeControlProofCanaryObservations(template);
@@ -1187,6 +1202,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
     assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_outbound/);
+    assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);

@@ -175,7 +175,7 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
       maxBuffer: 1024 * 1024,
       timeout: 30_000
     });
-    byLabel.set(label, summarizeCommandResult(command, args, result.status, result.stdout, result.stderr, result.error));
+    byLabel.set(label, summarizeCommandResult(label, command, args, result.status, result.stdout, result.stderr, result.error));
   }
   return {
     collectedAt: new Date().toISOString(),
@@ -188,6 +188,7 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
 }
 
 function summarizeCommandResult(
+  label: string,
   command: string,
   args: string[],
   status: number | null,
@@ -206,7 +207,8 @@ function summarizeCommandResult(
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
     .replace(/\s+\n/g, '\n')
     .trim();
-  const snippet = output.length > 2400
+  const maxOutputLength = label === 'control_proof_audit' ? 24_000 : 2400;
+  const snippet = output.length > maxOutputLength
     ? `${output.slice(0, 1200)}\n...\n${output.slice(-1200)}`
     : output;
   return [
