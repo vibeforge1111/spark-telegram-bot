@@ -105,6 +105,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(finalAnswer?.traceRefPresent, 2);
     assert.equal(finalAnswer?.proofCapsulePresent, 1);
     assert.equal(finalAnswer?.proofNotApplicable, 0);
+    assert.equal(finalAnswer?.proofGapMarked, 0);
     assert.equal(finalAnswer?.rawPathLikeRows, 1);
     assert.equal(outbound?.requestIdMissing, 1);
     assert.equal(routeConfidence?.requestIdPresent, 1);
@@ -160,6 +161,40 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.ok, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof_n\/a 1/);
+  });
+});
+
+test('counts explicit missing Harness proof markers without treating them as proof', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'spawner_prd_trace',
+        filePath: path.join(sparkHome, 'prd-auto-trace.jsonl'),
+        kind: 'jsonl' as const
+      }
+    ];
+    writeJsonl(evidenceFiles[0].filePath, [
+      {
+        requestId: 'tg-build-proof-gap',
+        traceRef: 'trace:spawner-prd:mission-proof-gap',
+        proofStatus: 'missing_harness_proof',
+        event: 'request_written'
+      }
+    ]);
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofCapsulePresent, 0);
+    assert.equal(plane.proofNotApplicable, 0);
+    assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.proofCapsuleMissing, 1);
+    assert.equal(result.gapCounts.missingProofCapsule, 1);
+    assert.equal(result.ok, false);
+    assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
   });
 });
 

@@ -30,6 +30,7 @@ export interface ControlProofTracePlaneSummary {
   traceRefMissing: number;
   proofCapsulePresent: number;
   proofNotApplicable: number;
+  proofGapMarked: number;
   proofCapsuleMissing: number;
   rawIdKeyRows: number;
   rawPathLikeRows: number;
@@ -166,6 +167,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `trace ${plane.traceRefPresent}/${plane.sampledRows}`,
         `proof ${plane.proofCapsulePresent}/${plane.sampledRows}`,
         `proof_n/a ${plane.proofNotApplicable}`,
+        `proof_gap ${plane.proofGapMarked}`,
         `raw_refs ${plane.rawPathLikeRows}`,
         `raw_id_keys ${plane.rawIdKeyRows}`,
         `reason_codes ${plane.policyReasonCodeRows}`,
@@ -236,6 +238,7 @@ function summarizeRecords(
   let traceRefPresent = 0;
   let proofCapsulePresent = 0;
   let proofNotApplicable = 0;
+  let proofGapMarked = 0;
   let rawIdKeyRows = 0;
   let rawPathLikeRows = 0;
   let policyReasonCodeRows = 0;
@@ -248,6 +251,8 @@ function summarizeRecords(
       proofCapsulePresent += 1;
     } else if (isProofNotApplicableRecord(record)) {
       proofNotApplicable += 1;
+    } else if (isProofGapMarkedRecord(record)) {
+      proofGapMarked += 1;
     }
     if (hasKeyPattern(record, RAW_ID_KEY_PATTERN)) rawIdKeyRows += 1;
     const raw = safeStringify(record);
@@ -269,6 +274,7 @@ function summarizeRecords(
     traceRefMissing: sampled.length - traceRefPresent,
     proofCapsulePresent,
     proofNotApplicable,
+    proofGapMarked,
     proofCapsuleMissing: Math.max(0, sampled.length - proofCapsulePresent - proofNotApplicable),
     rawIdKeyRows,
     rawPathLikeRows,
@@ -291,6 +297,13 @@ function isProofNotApplicableRecord(value: unknown): boolean {
   return hasKeyValue(value, /^(proof_status|proofStatus|proof_storage|proofStorage)$/, (entry) => {
     const normalized = String(entry || '').trim().toLowerCase();
     return normalized === 'not_execution_proof' || normalized === 'not_applicable';
+  });
+}
+
+function isProofGapMarkedRecord(value: unknown): boolean {
+  return hasKeyValue(value, /^(proof_status|proofStatus|proof_storage|proofStorage)$/, (entry) => {
+    const normalized = String(entry || '').trim().toLowerCase();
+    return normalized === 'missing_harness_proof' || normalized === 'missing_harness_authority';
   });
 }
 
@@ -319,6 +332,7 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     traceRefMissing: 0,
     proofCapsulePresent: 0,
     proofNotApplicable: 0,
+    proofGapMarked: 0,
     proofCapsuleMissing: 0,
     rawIdKeyRows: 0,
     rawPathLikeRows: 0,
