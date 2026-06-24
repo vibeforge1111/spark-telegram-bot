@@ -26,23 +26,27 @@ Read these in order:
    - Read-only audit to run before using the goal prompt.
    - Source for evidence locations and gap classes.
 
-5. `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
+5. `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md`
+   - Latest captured read-only baseline.
+   - Source for the first implementation slice and current gap register.
+
+6. `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
    - Compact under-4,000-character execution prompt.
    - Use only after the preflight audit is captured or intentionally skipped.
 
-6. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+7. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-7. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+8. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-8. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+9. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-9. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+10. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -99,4 +103,3 @@ The documentation is current when:
 - No canonical doc says tracing, memory, keywords, pending state, provider output, or mission ids authorize action.
 - Every shipped control-proof slice has matching tests and matching docs.
 - The live canary suite links to current docs and records where proof should appear.
-

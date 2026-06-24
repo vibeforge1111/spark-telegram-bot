@@ -10,6 +10,7 @@ Documentation index:
 Preflight audit:
 
 - `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
+- `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md`
 
 Reusable execution prompt:
 

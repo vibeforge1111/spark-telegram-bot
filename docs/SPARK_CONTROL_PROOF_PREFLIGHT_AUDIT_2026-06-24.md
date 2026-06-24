@@ -3,6 +3,10 @@
 Date: 2026-06-24
 Status: read-only audit runbook
 
+Latest captured result:
+
+- `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md`
+
 ## Purpose
 
 Run this before the control-proof goal prompt. The goal is to capture current truth and organize gaps before implementation starts.
@@ -210,4 +214,3 @@ Start the goal prompt only when:
 - runtime health has been checked or marked unavailable
 - docs index, preflight audit, plan, and goal prompt all point to each other
 - first implementation slice is chosen from the gap register
-
