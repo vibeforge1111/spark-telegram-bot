@@ -1407,22 +1407,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "needs-retest",
+        "reply": "Voice transcription is unavailable right now. Reason: voice.transcribe requires Harness Core Governor authority. Next: send the instruction as text for now, or finish the spark-voice-comms setup.",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": true,
+          "notes": "Audio media route/proof now reaches the transcription layer with no envelope or policy rejection; no mutation observed. Transcription itself still needs spark-voice-comms/Harness Core Governor setup."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "proofJoin": "telegram joined, builder joined; audit blocking clean; proof route media.audio_transcribe_or_boundary",
+        "proofPanel": "Harness Proof Intent: media.audio_transcribe_or_boundary Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:c18b0497d8455d9b Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound, Builder gateway Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "screenshotRefs": [
+          "/tmp/cp-audio-001-after-media-tools-fix.png"
+        ],
+        "userConfirmation": "Observed live in SparkRecursive_bot on 2026-06-24 22:27 GST.",
         "notes": null
       }
     }
