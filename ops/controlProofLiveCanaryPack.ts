@@ -175,6 +175,7 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
     byLabel.set(label, summarizeCommandResult(command, args, result.status, result.stdout, result.stderr, result.error));
   }
   return {
+    collectedAt: new Date().toISOString(),
     sparkLiveStatus: byLabel.get('spark_live_status') || null,
     providerStatus: byLabel.get('provider_status') || null,
     runtimeSync: byLabel.get('runtime_sync') || null,

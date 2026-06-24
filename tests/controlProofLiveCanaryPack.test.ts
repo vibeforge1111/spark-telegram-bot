@@ -247,6 +247,7 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.target, 'SparkRecursive_bot');
   assert.equal(template.generatedAt, '2026-06-24T00:00:00.000Z');
   assert.deepEqual(template.verdictValues, ['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
+  assert.equal(template.evidence.collectedAt, null);
   assert.equal(template.evidence.sparkLiveStatus, null);
   assert.equal(template.evidence.controlProofAudit, null);
   assert.equal(template.cases[0].id, 'cp-builder-001');
@@ -303,6 +304,7 @@ test('observation summary requires pass verdicts and all requested capture evide
 
   const summary = summarizeControlProofCanaryObservations(template);
   assert.equal(summary.readyForRelease, true);
+  assert.deepEqual(summary.stalePacketEvidence, []);
   assert.equal(summary.verdictCounts.pass, 1);
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
@@ -389,6 +391,20 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(missingPacketEvidence.readyForRelease, false);
   assert.deepEqual(missingPacketEvidence.missingPacketEvidence, ['control_proof_audit']);
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.collectedAt = '2026-06-23T00:00:00.000Z';
+  const stalePacketEvidence = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(stalePacketEvidence.readyForRelease, false);
+  assert.deepEqual(stalePacketEvidence.stalePacketEvidence, ['runtime_evidence_collected_at']);
+  assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
+
+  template.evidence.collectedAt = null;
+  const missingCollectedAt = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingCollectedAt.readyForRelease, false);
+  assert.deepEqual(missingCollectedAt.missingPacketEvidence, ['runtime_evidence_collected_at']);
 });
 
 test('observation summary rejects unrelated mutations on action cases', () => {
@@ -795,6 +811,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       userConfirmation: 'Confirmed in SparkRecursive_bot.'
     };
     observed.evidence = {
+      collectedAt: new Date().toISOString(),
       sparkLiveStatus: 'Spark Live healthy.',
       providerStatus: 'Provider ping OK.',
       runtimeSync: 'runtime in sync.',

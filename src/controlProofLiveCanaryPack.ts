@@ -78,6 +78,7 @@ export interface ControlProofCanaryObservationTemplate {
   generatedAt: string;
   verdictValues: ControlProofCanaryVerdict[];
   evidence: {
+    collectedAt: string | null;
     sparkLiveStatus: string | null;
     providerStatus: string | null;
     runtimeSync: string | null;
@@ -88,6 +89,7 @@ export interface ControlProofCanaryObservationTemplate {
 }
 
 export interface ControlProofCanaryRuntimeEvidence {
+  collectedAt?: string | null;
   sparkLiveStatus: string | null;
   providerStatus: string | null;
   runtimeSync: string | null;
@@ -158,6 +160,7 @@ export interface ControlProofCanaryObservationSummary {
   readyForRelease: boolean;
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
+  stalePacketEvidence: string[];
   cases: ControlProofCanaryObservationCaseSummary[];
 }
 
@@ -985,6 +988,7 @@ export function buildControlProofCanaryObservationTemplate(
     generatedAt: options.generatedAt || new Date().toISOString(),
     verdictValues: CONTROL_PROOF_CANARY_VERDICTS,
     evidence: {
+      collectedAt: null,
       sparkLiveStatus: null,
       providerStatus: null,
       runtimeSync: null,
@@ -1037,6 +1041,7 @@ export function withControlProofCanaryRuntimeEvidence(
   return {
     ...observations,
     evidence: {
+      collectedAt: evidence.collectedAt || new Date().toISOString(),
       sparkLiveStatus: evidence.sparkLiveStatus,
       providerStatus: evidence.providerStatus,
       runtimeSync: evidence.runtimeSync,
@@ -1094,17 +1099,38 @@ function textOrNull(value: string | null | undefined): string | null {
 
 function missingPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {
   const evidence = observations.evidence || {
+    collectedAt: null,
     sparkLiveStatus: null,
     providerStatus: null,
     runtimeSync: null,
     controlProofAudit: null
   };
   const missing: string[] = [];
+  if (!String(evidence.collectedAt || '').trim()) missing.push('runtime_evidence_collected_at');
   if (!String(evidence.sparkLiveStatus || '').trim()) missing.push('spark_live_status');
   if (!String(evidence.providerStatus || '').trim()) missing.push('provider_status');
   if (!String(evidence.runtimeSync || '').trim()) missing.push('runtime_sync');
   if (!String(evidence.controlProofAudit || '').trim()) missing.push('control_proof_audit');
   return missing;
+}
+
+function stalePacketEvidence(
+  observations: ControlProofCanaryObservationTemplate,
+  options: { now?: Date | string; maxAgeHours?: number } = {}
+): string[] {
+  const evidence = observations.evidence;
+  const collectedAt = String(evidence?.collectedAt || '').trim();
+  if (!collectedAt) return [];
+  const collectedMs = Date.parse(collectedAt);
+  const nowMs = options.now instanceof Date
+    ? options.now.getTime()
+    : options.now
+      ? Date.parse(options.now)
+      : Date.now();
+  if (!Number.isFinite(collectedMs) || !Number.isFinite(nowMs)) return ['runtime_evidence_collected_at'];
+  const maxAgeMs = Math.max(1, options.maxAgeHours || 24) * 60 * 60 * 1000;
+  if (collectedMs - nowMs > 5 * 60 * 1000) return ['runtime_evidence_collected_at'];
+  return nowMs - collectedMs > maxAgeMs ? ['runtime_evidence_collected_at'] : [];
 }
 
 function commandEvidencePassed(value: string): boolean | null {
@@ -1157,6 +1183,7 @@ function validRuntimeEvidenceValue(value: string | null | undefined, kind: 'spar
 
 function invalidPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {
   const evidence = observations.evidence || {
+    collectedAt: null,
     sparkLiveStatus: null,
     providerStatus: null,
     runtimeSync: null,
@@ -1323,7 +1350,8 @@ function screenshotRefLeaksRawInternals(value: string): boolean {
 }
 
 export function summarizeControlProofCanaryObservations(
-  observations: ControlProofCanaryObservationTemplate
+  observations: ControlProofCanaryObservationTemplate,
+  options: { now?: Date | string; maxRuntimeEvidenceAgeHours?: number } = {}
 ): ControlProofCanaryObservationSummary {
   if (observations.target !== CONTROL_PROOF_CANARY_TARGET) {
     throw new Error(`Unexpected canary target: ${observations.target}`);
@@ -1346,9 +1374,14 @@ export function summarizeControlProofCanaryObservations(
   });
   const missingEvidence = missingPacketEvidence(observations);
   const invalidEvidence = invalidPacketEvidence(observations);
+  const staleEvidence = stalePacketEvidence(observations, {
+    now: options.now,
+    maxAgeHours: options.maxRuntimeEvidenceAgeHours
+  });
   const readyForRelease = cases.length > 0 &&
     missingEvidence.length === 0 &&
     invalidEvidence.length === 0 &&
+    staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   return {
     target: observations.target,
@@ -1358,6 +1391,7 @@ export function summarizeControlProofCanaryObservations(
     readyForRelease,
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
+    stalePacketEvidence: staleEvidence,
     cases
   };
 }
@@ -1379,6 +1413,9 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   }
   if (summary.invalidPacketEvidence.length > 0) {
     lines.push(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`, '');
+  }
+  if (summary.stalePacketEvidence.length > 0) {
+    lines.push(`Packet evidence stale: ${summary.stalePacketEvidence.join(', ')}`, '');
   }
   const attention = summary.cases.filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0);
   if (attention.length === 0) {

@@ -159,6 +159,8 @@ Harness Proof panels now keep non-execution evidence separate from execution-pro
 
 Telegram unsupported media now has typed evidence-only envelopes for video, animation, sticker, and video-note turns as well as documents. These paths acknowledge the media with redacted proof context and still do not analyze, store, or execute anything from the payload.
 
+Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, and fresh-strict proof audit before it can claim release readiness.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
