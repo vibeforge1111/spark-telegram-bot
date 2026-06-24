@@ -39,7 +39,8 @@ async function test(name: string, fn: () => Promise<void> | void): Promise<void>
   }
 }
 
-test('denied Telegram media analysis replies carry proof context', async () => {
+async function run(): Promise<void> {
+await test('denied Telegram media analysis replies carry proof context', async () => {
   restoreEnv();
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
   process.env.SPARK_BOT_TEST_MODE = '1';
@@ -76,20 +77,74 @@ test('denied Telegram media analysis replies carry proof context', async () => {
   }
 });
 
-test('low-information image bridge replies are replaced with media fallback proof', async () => {
+await test('audio bridge handoff carries media and turn intent envelopes', async () => {
   restoreEnv();
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
   process.env.SPARK_BOT_TEST_MODE = '1';
   const indexModule: any = await import('../src/index');
-  indexModule.__setBuilderBridgeRunnerForTest(async () => ({
-    used: true,
-    responseText: 'Working Memory',
-    requestId: 'builder-image-request',
-    traceRef: 'builder-image-trace',
-    decision: 'test',
-    bridgeMode: 'test',
-    routingDecision: 'memory_generic_observation'
-  }));
+  let capturedBridgePayload: Record<string, unknown> | null = null;
+  indexModule.__setBuilderBridgeRunnerForTest(async (updatePayload: Record<string, unknown>) => {
+    capturedBridgePayload = updatePayload;
+    return {
+      used: true,
+      responseText: 'Audio transcription is ready.',
+      requestId: 'builder-audio-request',
+      traceRef: 'builder-audio-trace',
+      decision: 'test',
+      bridgeMode: 'test',
+      routingDecision: 'media.audio'
+    };
+  });
+  try {
+    const replies: string[] = [];
+    const replyExtras: unknown[] = [];
+    const message = {
+      message_id: 631,
+      caption: 'Transcribe this startup note.',
+      audio: {
+        file_id: 'private-audio-id',
+        mime_type: 'audio/mpeg',
+        duration: 6
+      }
+    };
+
+    await indexModule.handleVoiceMessage(makeFakeCtx(message, replies, replyExtras));
+
+    const payloadMessage = (capturedBridgePayload as any)?.message || {};
+    const traceContext = (replyExtras[0] as any)?.__sparkTraceContext;
+    assert.equal(payloadMessage.spark_media_turn?.schema, 'spark.media_turn.v1');
+    assert.equal(payloadMessage.spark_media_turn?.media_kind, 'audio');
+    assert.equal((capturedBridgePayload as any)?.spark_turn_intent?.schema, 'spark.turn_intent.v1');
+    assert.equal((capturedBridgePayload as any)?.spark_turn_intent?.selectedIntent?.action, 'media.audio.transcribe');
+    assert.equal(payloadMessage.spark_turn_intent?.selectedIntent?.action, 'media.audio.transcribe');
+    assert.match(replies.join('\n'), /Audio transcription is ready/);
+    assert.equal(traceContext?.route, 'media.audio_transcribe_or_boundary');
+    assert.equal(traceContext?.replyKind, 'builder_audio_reply');
+    assert.doesNotMatch(JSON.stringify({ capturedBridgePayload, replyExtras }), /private-audio-id|8319079055/);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    restoreEnv();
+  }
+});
+
+await test('low-information image bridge replies are replaced with media fallback proof', async () => {
+  restoreEnv();
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  const indexModule: any = await import('../src/index');
+  let capturedBridgePayload: Record<string, unknown> | null = null;
+  indexModule.__setBuilderBridgeRunnerForTest(async (updatePayload: Record<string, unknown>) => {
+    capturedBridgePayload = updatePayload;
+    return {
+      used: true,
+      responseText: 'Working Memory',
+      requestId: 'builder-image-request',
+      traceRef: 'builder-image-trace',
+      decision: 'test',
+      bridgeMode: 'test',
+      routingDecision: 'memory_generic_observation'
+    };
+  });
   try {
     const replies: string[] = [];
     const replyExtras: unknown[] = [];
@@ -102,6 +157,10 @@ test('low-information image bridge replies are replaced with media fallback proo
     await indexModule.handleImageMessage(makeFakeCtx(message, replies, replyExtras));
 
     const traceContext = (replyExtras[0] as any)?.__sparkTraceContext;
+    const payloadMessage = (capturedBridgePayload as any)?.message || {};
+    assert.equal((capturedBridgePayload as any)?.spark_turn_intent?.schema, 'spark.turn_intent.v1');
+    assert.equal((capturedBridgePayload as any)?.spark_turn_intent?.selectedIntent?.action, 'media.image.analyze');
+    assert.equal(payloadMessage.spark_turn_intent?.selectedIntent?.action, 'media.image.analyze');
     assert.match(replies[0] || '', /kept it evidence-only/i);
     assert.doesNotMatch(replies[0] || '', /Working Memory|tool_denied_by_policy|harness_core/i);
     assert.equal(traceContext?.route, 'media.image_analyze_or_boundary');
@@ -113,4 +172,10 @@ test('low-information image bridge replies are replaced with media fallback proo
     indexModule.__setBuilderBridgeRunnerForTest(null);
     restoreEnv();
   }
+});
+}
+
+run().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });

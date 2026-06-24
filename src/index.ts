@@ -10303,17 +10303,15 @@ export async function handleImageMessage(ctx: any): Promise<void> {
           reasonSummary: 'Telegram image input was handed to Builder gateway with fresh Harness authority.'
         })
       : null;
-    const bridgeUpdate = attachBuilderHarnessProofRef(
-      attachTelegramMediaTurnEnvelope(
-        imageMessageHasCaption(ctx.message)
-          ? JSON.parse(JSON.stringify(ctx.update as unknown as Record<string, unknown>)) as Record<string, unknown>
-          : buildContextualImageUpdate(
-            ctx.update as unknown as Record<string, unknown>,
-            await conversation.getRecentMessages(user, 6).catch(() => [])
-          )
-      ),
-      bridgeHandoffProofCapsule
+    const bridgeUpdateBase = attachTelegramMediaTurnEnvelope(
+      imageMessageHasCaption(ctx.message)
+        ? JSON.parse(JSON.stringify(ctx.update as unknown as Record<string, unknown>)) as Record<string, unknown>
+        : buildContextualImageUpdate(
+          ctx.update as unknown as Record<string, unknown>,
+          await conversation.getRecentMessages(user, 6).catch(() => [])
+        )
     );
+    const bridgeUpdate = authorization.legacyEnvelope ? withSparkTurnIntentEnvelope(bridgeUpdateBase, authorization.legacyEnvelope, bridgeHandoffProofCapsule) : attachBuilderHarnessProofRef(bridgeUpdateBase, bridgeHandoffProofCapsule);
     const builderReply = await builderBridgeRunner(bridgeUpdate);
     console.log(`[ImageBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length}`);
     if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && builderReply.responseText && !isLowInformationLlmReply(builderReply.responseText)) {
@@ -10409,7 +10407,8 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
           reasonSummary: `Telegram ${mediaKind} input was handed to Builder gateway with fresh Harness authority.`
         })
       : null;
-    const bridgeUpdate = attachBuilderHarnessProofRef(await buildVoiceBridgeUpdate(ctx), bridgeHandoffProofCapsule);
+    const bridgeUpdateBase = await buildVoiceBridgeUpdate(ctx);
+    const bridgeUpdate = authorization.legacyEnvelope ? withSparkTurnIntentEnvelope(bridgeUpdateBase, authorization.legacyEnvelope, bridgeHandoffProofCapsule) : attachBuilderHarnessProofRef(bridgeUpdateBase, bridgeHandoffProofCapsule);
     const mediaReadyAt = Date.now();
     const builderReply = await builderBridgeRunner(bridgeUpdate);
     const builderReadyAt = Date.now();
