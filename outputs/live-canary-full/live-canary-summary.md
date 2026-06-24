@@ -8,10 +8,10 @@ Verdicts:
 - pass: 24
 - fail: 0
 - blocked: 0
-- needs-retest: 0
-- untested: 3
+- needs-retest: 1
+- untested: 2
 
 Cases needing attention:
-- cp-media-002: untested; missing verdict
+- cp-media-002: needs-retest
 - cp-voice-001: untested; missing verdict
 - cp-audio-001: untested; missing verdict
