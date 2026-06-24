@@ -9,6 +9,7 @@ import {
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
+  formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
   summarizeControlProofCanaryObservations,
@@ -159,6 +160,22 @@ test('checklist output includes proof, side-effect, visual, authority, and mutat
   assert.match(checklist, /Observed side effects:/);
   assert.match(checklist, /Observed proof join:/);
   assert.match(checklist, /Screenshot\/user confirmation:/);
+});
+
+test('live run guide pairs Telegram prompts with record commands', () => {
+  const guide = formatControlProofCanaryLiveRunGuide([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
+  ], { observationsPath: '/tmp/live-canary-observations.json' });
+
+  assert.match(guide, /SparkRecursive_bot Control-Proof Live Run Guide/);
+  assert.match(guide, /Observation packet: \/tmp\/live-canary-observations\.json/);
+  assert.match(guide, /```text\nIn one sentence, what does route confidence mean for Spark\? Do not start anything\.\n```/);
+  assert.match(guide, /--observations '\/tmp\/live-canary-observations\.json' --record-case cp-builder-001/);
+  assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
+  assert.match(guide, /--mission-started <true\|false\|unknown>/);
+  assert.match(guide, /--screenshot-ref '\/tmp\/cp-streaming-001\.png'/);
+  assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
 });
 
 test('observation template records expected fields and empty live observations', () => {
@@ -365,6 +382,25 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(observed.cases[0].expected.route, 'builder_gateway.plain_chat');
   assert.equal(observed.cases[0].observed.verdict, 'untested');
   assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
+
+  const runGuide = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--run-guide',
+      '--observations',
+      '/tmp/live-canary-observations.json'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(runGuide.status, 0, runGuide.stderr);
+  assert.match(runGuide.stdout, /Control-Proof Live Run Guide/);
+  assert.match(runGuide.stdout, /--record-case cp-builder-001/);
+  assert.doesNotMatch(runGuide.stdout, /Unexpected token|ENOENT/);
 
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
   try {

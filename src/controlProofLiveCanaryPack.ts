@@ -774,6 +774,95 @@ export function formatControlProofCanaryChecklist(cases: ControlProofCanaryCase[
   return lines.join('\n').trimEnd();
 }
 
+export function formatControlProofCanaryLiveRunGuide(
+  cases: ControlProofCanaryCase[],
+  options: { observationsPath?: string } = {}
+): string {
+  const observationsPath = options.observationsPath || 'outputs/live-canary-observations.json';
+  const lines = [
+    `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Live Run Guide`,
+    '',
+    'Run each Telegram block exactly as written. Then save the observed reply to a text file, keep any screenshot path, and run the matching record command with real values.',
+    '',
+    `Observation packet: ${observationsPath}`,
+    ''
+  ];
+  cases.forEach((entry, index) => {
+    const replyFile = `/tmp/${entry.id}-reply.txt`;
+    const screenshotRef = `/tmp/${entry.id}.png`;
+    lines.push(`${index + 1}. ${entry.id}`);
+    lines.push('');
+    lines.push('Telegram prompt:');
+    lines.push('```text');
+    lines.push(entry.prompt);
+    lines.push('```');
+    lines.push('');
+    lines.push('Record command:');
+    lines.push('```bash');
+    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef));
+    lines.push('```');
+    lines.push('');
+    lines.push(`Expected route: ${entry.expectedRoute}`);
+    lines.push(`Expected authority: ${entry.expectedAuthority}`);
+    lines.push(`Expected mutation class: ${entry.expectedMutationClass}`);
+    lines.push(`Expected reply shape: ${entry.expectedReplyShape}`);
+    lines.push(`Expected side effect: ${entry.expectedSideEffect}`);
+    lines.push(`Expected proof join: ${entry.expectedProofJoin}`);
+    lines.push(`Capture screenshot: ${entry.capture.screenshot ? 'yes' : 'no'}`);
+    lines.push(`Capture user confirmation: ${entry.capture.userConfirmation ? 'yes' : 'no'}`);
+    lines.push('');
+  });
+  return lines.join('\n').trimEnd();
+}
+
+function formatControlProofCanaryRecordCommand(
+  entry: ControlProofCanaryCase,
+  observationsPath: string,
+  replyFile: string,
+  screenshotRef: string
+): string {
+  const args = [
+    'npm run control:proof:canaries --',
+    '--observations',
+    shellQuote(observationsPath),
+    '--record-case',
+    entry.id,
+    '--verdict',
+    '<pass|fail|blocked|needs-retest>',
+    '--reply-file',
+    shellQuote(replyFile),
+    sideEffectFlagFor(entry),
+    '<true|false|unknown>',
+    '--side-effects-notes',
+    shellQuote('<what changed, or no mutation observed>'),
+    '--proof-join',
+    shellQuote('<proof join observed, or missing proof>'),
+    '--proof-panel',
+    shellQuote('<proof panel text, or not shown>'),
+    '--user-confirmation',
+    shellQuote('<confirmed in SparkRecursive_bot>')
+  ];
+  if (entry.capture.screenshot) {
+    args.push('--screenshot-ref', shellQuote(screenshotRef));
+  }
+  return args.join(' ');
+}
+
+function sideEffectFlagFor(entry: ControlProofCanaryCase): string {
+  if (entry.expectedMutationClass === 'writes_files') return '--files-changed';
+  if (entry.expectedMutationClass === 'writes_memory') return '--memory-written';
+  if (entry.expectedMutationClass === 'launches_mission') return '--mission-started';
+  if (entry.expectedMutationClass === 'external_network') return '--external-network-called';
+  if (entry.expectedMutationClass === 'updates_access_setting') return '--access-changed';
+  if (entry.expectedMutationClass === 'switches_provider') return '--provider-changed';
+  if (entry.expectedMutationClass === 'media_read') return '--media-handled';
+  return '--mission-started';
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export function buildControlProofCanaryObservationTemplate(
   cases: ControlProofCanaryCase[],
   options: { generatedAt?: string } = {}

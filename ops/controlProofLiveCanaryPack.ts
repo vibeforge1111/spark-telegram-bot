@@ -5,6 +5,7 @@ import {
   formatControlProofCanaryObservationSummary,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
+  formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
   summarizeControlProofCanaryObservations,
@@ -40,6 +41,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --list',
     '  npm run control:proof:canaries -- --copy-paste',
     '  npm run control:proof:canaries -- --checklist',
+    '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
@@ -162,7 +164,7 @@ function main(): void {
   const outPath = argValue(args, 'out');
 
   const observationsPath = argValue(args, 'observations');
-  if (observationsPath) {
+  if (observationsPath && !hasFlag(args, 'run-guide')) {
     let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
     const recordCaseId = argValue(args, 'record-case');
     if (recordCaseId) {
@@ -222,6 +224,13 @@ function main(): void {
 
   if (hasFlag(args, 'copy-paste')) {
     console.log(formatControlProofCanaryCopyPaste(selected));
+    return;
+  }
+
+  if (hasFlag(args, 'run-guide')) {
+    console.log(formatControlProofCanaryLiveRunGuide(selected, {
+      observationsPath: observationsPath || outPath || undefined
+    }));
     return;
   }
 
