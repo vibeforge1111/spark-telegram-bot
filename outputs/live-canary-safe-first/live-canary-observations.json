@@ -96,22 +96,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Spark Recursive\nHarness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:08b29d90ede45ddd Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 6:48 PM",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Inspect-only proof panel; no mission, file, memory, access, provider, media, or network mutation observed."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "proofJoin": "Telegram outbound proof panel joined with proof ref, proof capsule, and clean blocking audit; known legacy proof gaps remain visible.",
+        "proofPanel": "Spark Recursive\nHarness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:08b29d90ede45ddd Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 6:48 PM",
+        "screenshotRefs": [
+          "/tmp/cp-proof-001-after-fix-retest.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot after runtime restart at commit 1d66e2e.",
         "notes": null
       }
     },

@@ -5,13 +5,12 @@ Cases: 4
 Release gate: not ready
 
 Verdicts:
-- pass: 1
+- pass: 2
 - fail: 0
 - blocked: 0
 - needs-retest: 0
-- untested: 3
+- untested: 2
 
 Cases needing attention:
-- cp-proof-001: untested; missing verdict
 - cp-streaming-001: untested; missing verdict
 - cp-streaming-002: untested; missing verdict
