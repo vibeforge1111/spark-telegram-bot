@@ -28,7 +28,7 @@ Operating rules:
 Step 1: Proof panel evidence joins
 - Extend `/proof` and the panel CLI with redacted evidence-plane joins for Telegram, Builder, and Spawner.
 - Show joined/missing proof coverage without raw ids, paths, prompts, stack traces, provider internals, or reason codes.
-- Test future rows with proof refs and historical rows without them so the panel is honest. Builder gateway now preserves valid `turn:sha256:<16 hex>` proof refs, and Telegram text/image/voice Builder handoffs now supply those refs while keeping full capsules on Telegram delivery/audit context. The remaining work is proving fresh joined rows live.
+- Test future rows with proof refs and historical rows without them so the panel is honest. Builder gateway now preserves valid `turn:sha256:<16 hex>` proof refs, and Telegram text/image/voice Builder handoffs now supply those refs while keeping full capsules on Telegram delivery/audit context. Ref-only trace evidence should render as joined evidence with `proof capsule missing`, not as a hidden/not-found row. The remaining work is proving fresh joined rows live.
 
 Step 2: Streaming and rich-message defaults
 - Audit the exact config/runtime path used by SparkRecursive_bot, not just helper commands that claim the flags are on.
