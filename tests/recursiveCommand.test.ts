@@ -66,6 +66,17 @@ async function main(): Promise<void> {
     assert.equal(ctx.replies[0], 'Usage: /recursive start <targetKey> [rounds <n>]');
   });
 
+  await test('global Telegram reply wrapper previews direct recursive replies', async () => {
+    const source = readFileSync(path.join(process.cwd(), 'src', 'index.ts'), 'utf-8');
+    const wrapperStart = source.indexOf('bot.use(async (ctx, next)');
+    const wrapperEnd = source.indexOf('const userRequestTimestamps', wrapperStart);
+    assert.notEqual(wrapperStart, -1);
+    assert.notEqual(wrapperEnd, -1);
+    const wrapperBlock = source.slice(wrapperStart, wrapperEnd);
+    assert.match(wrapperBlock, /replayTelegramDraftPreview\(ctx,\s*ctx\.telegram as any,\s*chunk\)/);
+    assert.match(wrapperBlock, /sendTelegramRichMessage\(ctx\.telegram as any,\s*ctx\.chat\?\.id,\s*chunk,\s*cleanExtra\)/);
+  });
+
   await test('recursive async start paths record final Harness Core ledgers', async () => {
     const source = readFileSync(path.join(process.cwd(), 'src', 'index.ts'), 'utf-8');
     const loopCommandBlock = source.slice(

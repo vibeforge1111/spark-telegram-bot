@@ -2603,6 +2603,9 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
   const chunks = sanitizeAndSplitTelegramText(text);
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
+    if (typeof chatId === 'number' && chatId > 0) {
+      await replayTelegramDraftPreview({ chat: { id: chatId, type: 'private' } }, bot.telegram as any, chunk);
+    }
     const richDelivery = await sendTelegramRichMessage(bot.telegram as any, chatId, chunk, cleanExtra);
     lastDelivery = richDelivery
       ? richDelivery as Awaited<ReturnType<typeof _origSendMessage>>
@@ -2626,6 +2629,7 @@ bot.use(async (ctx, next) => {
     const chunks = sanitizeAndSplitTelegramText(text);
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
+      await replayTelegramDraftPreview(ctx, ctx.telegram as any, chunk);
       const richReply = await sendTelegramRichMessage(ctx.telegram as any, ctx.chat?.id, chunk, cleanExtra);
       lastReply = richReply
         ? richReply as Awaited<ReturnType<typeof originalReply>>
