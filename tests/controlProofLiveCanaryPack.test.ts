@@ -31,6 +31,8 @@ function test(name: string, fn: () => void): void {
 
 const ROOT = resolve(__dirname, '..');
 const CLEAN_CONTROL_PROOF_AUDIT = [
+  'telegram_final_answer: 100/100 sampled | latest_gap no',
+  'builder_gateway: 100/100 sampled | latest_gap no',
   'missing evidence: 0',
   'missing trace joins: 0',
   'missing proof capsules: 0',
@@ -479,6 +481,12 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
   assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
   assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.controlProofAudit = `${CLEAN_CONTROL_PROOF_AUDIT}\nbuilder_gateway: 100/100 sampled | latest_gap yes`;
+  const freshGapAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(freshGapAudit.readyForRelease, false);
+  assert.deepEqual(freshGapAudit.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.evidence.providerStatus = 'Provider ping failed.';
@@ -1033,7 +1041,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '#!/bin/sh',
       'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
       'if [ "$1 $2" = "run control:proof:audit" ]; then',
-      '  case " $* " in *" --blocking-strict "*) ;; *) echo "missing --blocking-strict" >&2; exit 1;; esac',
+      '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
       '  i=0',
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
       '  echo "Blocking status: clean"',

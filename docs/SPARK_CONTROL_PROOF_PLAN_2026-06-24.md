@@ -302,19 +302,19 @@ npm run control:proof:canaries -- --observations outputs/live-canary-observation
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --release-check
 ```
 
-Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. Runtime collection uses audit `--blocking-strict`, so silent proof/control gaps fail collection while explicit legacy proof-gap capsules remain visible. If automatic collection is unavailable, fill the observation packet's top-level evidence fields from:
+Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. Runtime collection uses audit `--fresh-strict`, so silent proof/control gaps fail collection while explicit legacy proof-gap capsules remain visible and any latest producer row that still carries a proof-gap marker fails. If automatic collection is unavailable, fill the observation packet's top-level evidence fields from:
 
 ```bash
 spark live status
 spark providers test --role chat
 npm run sync:check
 npm run control:proof:audit -- --sample 100
-npm run control:proof:audit -- --sample 100 --blocking-strict
+npm run control:proof:audit -- --sample 100 --fresh-strict
 ```
 
 `--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are tracked separately.
 
-Use audit `--blocking-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, raw-ref leaks, robotic reason leaks, and stack-like leaks, while allowing explicit legacy proof-gap capsules to stay visible.
+Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 
 Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary. Use `--summary-out` during bundle runs to refresh the bundle summary file after each recorded case.
 

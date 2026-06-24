@@ -1118,6 +1118,7 @@ function hasPositiveRuntimeStatus(value: string): boolean {
 }
 
 function hasCleanControlProofAudit(value: string): boolean {
+  if (/latest_gap\s+yes/i.test(value)) return false;
   const requiredZeroPatterns = [
     /missing evidence:\s*0/i,
     /missing trace joins:\s*0/i,
