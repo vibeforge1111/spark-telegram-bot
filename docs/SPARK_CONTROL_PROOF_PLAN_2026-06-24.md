@@ -141,7 +141,7 @@ For each plane:
 | Spawner dispatch | Governor checks exist, panel not visible enough | Render proof capsule in trace UI and block dispatch without verified authority. |
 | Provider | Provider result often arrives as execution output only | Attach provider outcome to execution span without exposing raw provider details. |
 | Memory | Visible but not always authoritative or joined | Treat memory as evidence-only unless a memory-write tool is envelope-authorized. |
-| Voice | Readiness visible, continuity weaker | Add shared trace ref to voice analysis/speak events without storing raw audio in proof. |
+| Voice | Readiness visible, continuity weaker | Add shared trace ref to voice analysis/speak events without storing raw audio in proof. Telegram voice delivery runtime state now accepts redacted request/trace/proof refs for future rows. |
 | Non-text input | Image/photo route gap observed | Normalize photo/document turns into typed media envelopes before Builder handoff. |
 
 ### Deliverables
@@ -369,11 +369,12 @@ Then send one photo with a caption.
 5. Preserve redacted proof refs in Builder gateway traces where Telegram supplies them. Builder runtime now accepts only `turn:sha256:<16 hex>` refs from Telegram update metadata and writes valid refs into future gateway trace rows.
 6. Make Telegram producers supply Builder proof refs on the action-capable paths that need them. Source now attaches redacted Builder proof refs to text, image, and voice Builder gateway handoffs while keeping the full capsule on Telegram delivery/audit context.
 7. Show ref-only trace evidence honestly. The proof panel now reports joined evidence planes even when the matching proof capsule is missing.
-8. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
-9. Repair Telegram failure language using fixtures from recent bad replies.
-10. Add media envelope fixtures and photo normalization.
-11. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
-12. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
+8. Carry redacted request/trace/proof refs into future Telegram voice runtime state rows without storing raw audio or transcript bodies.
+9. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
+10. Repair Telegram failure language using fixtures from recent bad replies.
+11. Add media envelope fixtures and photo normalization.
+12. Keep `nl:live` as a broad behavior-regression matrix, not the main control-proof gate.
+13. Promote the live canary pack into a repeatable command or runbook. Initial command added as `npm run control:proof:canaries`.
 
 ## Release Gate
 

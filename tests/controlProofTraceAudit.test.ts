@@ -78,6 +78,18 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
       schema_version: 'memory.index.v1',
       authority: 'evidence_only'
     });
+    writeJson(path.join(sparkHome, 'state', 'spark-voice-comms', 'voice-runtime-state.json'), {
+      schema_version: 'spark.voice_runtime_state.v1',
+      request_id: 'turn:voice-runtime',
+      trace_ref: 'trace:voice-runtime',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890',
+      trace_continuity: {
+        request_joined: true,
+        trace_joined: true,
+        proof_joined: true,
+        proof_storage: 'redacted_ref_only'
+      }
+    });
 
     const result = auditControlProofTraceContinuity({
       sparkHome,
@@ -88,6 +100,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     const outbound = result.planes.find((plane) => plane.label === 'telegram_outbound');
     const routeConfidence = result.planes.find((plane) => plane.label === 'telegram_route_confidence');
     const builder = result.planes.find((plane) => plane.label === 'builder_gateway');
+    const voiceRuntime = result.planes.find((plane) => plane.label === 'voice_runtime_state');
     assert.equal(finalAnswer?.requestIdPresent, 2);
     assert.equal(finalAnswer?.traceRefPresent, 2);
     assert.equal(finalAnswer?.proofCapsulePresent, 1);
@@ -98,6 +111,9 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(routeConfidence?.proofCapsulePresent, 1);
     assert.equal(builder?.rawIdKeyRows, 1);
     assert.equal(builder?.policyReasonCodeRows, 1);
+    assert.equal(voiceRuntime?.requestIdPresent, 1);
+    assert.equal(voiceRuntime?.traceRefPresent, 1);
+    assert.equal(voiceRuntime?.proofCapsulePresent, 1);
     assert.equal(result.gapCounts.missingTraceJoin > 0, true);
     assert.equal(result.gapCounts.rawRefLeak > 0, true);
     assert.equal(result.ok, false);

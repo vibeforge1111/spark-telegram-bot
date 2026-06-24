@@ -1,6 +1,6 @@
 # Spark Telegram Voice Runtime Architecture
 
-Last audited: 2026-05-08
+Last audited: 2026-06-24
 
 ## Verdict
 
@@ -13,6 +13,17 @@ The canonical live path is:
 3. Builder routes voice commands to `spark-voice-comms`.
 4. `spark-voice-comms` returns text plus optional `voice_media`.
 5. `spark-telegram-bot` sends `voice_media` with `replyWithVoice` when it is Telegram-compatible.
+
+## Control-Proof Trace Continuity
+
+Telegram voice delivery writes `spark.voice_runtime_state.v1` as metadata only. Future Builder-delivered voice replies carry:
+
+- `request_id`
+- `trace_ref`
+- `harness_proof_ref`
+- `trace_continuity` booleans
+
+The runtime state must not store raw audio, transcript bodies, provider secrets, or unmasked voice ids. `harness_proof_ref` is a redacted ref only; full proof capsules stay in the Telegram delivery/audit context and proof projection surfaces.
 
 ## Live Owners
 
@@ -35,6 +46,7 @@ These must stay true in every worktree that can sync to runtime:
 - `src/index.ts` has `sendBuilderVoiceMedia(...)`.
 - `src/index.ts` registers `bot.on(message('voice'), handleVoiceMessage)` and `bot.on(message('audio'), handleVoiceMessage)`.
 - `src/builderBridge.ts` parses Builder `detail.voice_media`.
+- `src/voiceRuntimeState.ts` keeps voice delivery metadata joined to request/trace/proof refs without storing raw audio or transcript bodies.
 - `src/builderBridge.ts` merges `C:/Users/USER/.spark/state/spark-intelligence/.env` into the Builder subprocess environment without printing secrets.
 - `src/spark.ts` does not expose `getVoice()`.
 - `dist` must match `src`; always run `npm run build` before syncing or starting.

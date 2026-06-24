@@ -3344,6 +3344,13 @@ async function sendBuilderVoiceMedia(
       sendMethod,
       telegramResult,
       audioBytes: audioBuffer.length,
+      traceContext: traceContext
+        ? {
+            requestId: traceContext.requestId,
+            traceRef: traceContext.traceRef,
+            proofRef: traceContext.proofCapsule?.turnRef || traceContext.proofRef,
+          }
+        : undefined,
     }
   ).catch((error) => {
     console.warn('[BridgeVoice] failed to export voice runtime state:', error);
