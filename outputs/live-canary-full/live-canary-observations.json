@@ -919,23 +919,26 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Mission provider is already Codex, so no switch was needed.\n\nFresh check:\n- Mission provider: Codex\n- Codex CLI: available\n- Chat provider: unchanged\n\nI did not edit files or start a mission.",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Mission provider was already Codex; no provider setting changed. Chat provider unchanged; no mission, file edit, memory write, access change, external network call, or media handling observed."
         },
-        "proofJoin": null,
-        "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
-        "notes": null
+        "proofJoin": "Live /proof panel showed Harness Proof Intent model_switch.mission_provider with Telegram outbound evidence joined and zero gaps on that outbound row. Strict proof audit after final-answer trace backfill was blocking clean, with only legacy proof-gap rows visible.",
+        "proofPanel": "Harness Proof Intent: model_switch.mission_provider\nAuthority: allowed by spark.turn_intent.v1\nGovernor: read_only, verified\nExecution: completed\nReply: delivered as natural\nTrace joins: telegram joined\nGaps: none\nProof ref: turn:sha256:11e386f6b8813858\nPlane: telegram_outbound\nEvidence joined: Telegram outbound\nEvidence proof refs: Telegram outbound\nEvidence proof capsules: Telegram outbound\nEvidence trace-only: none\nEvidence proof gaps: none\nEvidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace\nAudit blocking: gaps found\nLegacy proof gaps visible: 4",
+        "screenshotRefs": [
+          "/tmp/cp-model-002-final-reply-2.png",
+          "/tmp/cp-model-002-final-proof.png"
+        ],
+        "userConfirmation": "Confirmed live in SparkRecursive_bot after runtime restart at commit 7a34d93, then Spark Live restarted again at f74b6cf for the suppression trace-ref audit fix.",
+        "notes": "Initial live proof before the fix was plain_conversation. Added natural route/proof classification for mission-provider switches preserving chat provider, then fixed final-answer suppression rows that carried proof capsules without trace_ref."
       }
     },
     {
