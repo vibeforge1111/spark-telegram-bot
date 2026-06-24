@@ -296,7 +296,7 @@ npm run control:proof:canaries -- --observation-template --collect-runtime-evide
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --side-effects-notes "No mutation observed." --proof-join "Builder joined." --proof-panel "Harness Proof: Builder joined." --screenshot-ref /tmp/case.png --user-confirmation "Confirmed in SparkRecursive_bot."
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict
-npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict --coverage-strict
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --release-check
 ```
 
 Prefer `--collect-runtime-evidence` before the live Telegram run so the packet captures local runtime proof automatically. If that is unavailable, fill the observation packet's top-level evidence fields from:
@@ -318,7 +318,7 @@ Use `--release-bundle --out-dir <dir> --collect-runtime-evidence` to write the f
 
 Replace every `<...>` placeholder in generated record commands before treating a case as passed. Strict summaries count leftover placeholders as missing captures.
 
-Use `--coverage --coverage-strict` to fail a selection that does not cover the required Harness Core categories. The full release coverage check should include explicit action cases. Use `--observations <packet> --strict --coverage-strict` as the combined final gate for a full release packet.
+Use `--coverage --coverage-strict` to fail a selection that does not cover the required Harness Core categories. The full release coverage check should include explicit action cases. Use `--observations <packet> --release-check` as the combined final gate for a full release packet; it is shorthand for strict observation readiness plus strict required coverage.
 
 Refurbishment helper for old NL cases:
 

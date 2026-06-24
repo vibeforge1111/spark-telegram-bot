@@ -556,21 +556,20 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(summary.status, 0, summary.stderr);
     assert.match(summary.stdout, /Release gate: ready/);
 
-    const combinedStrict = spawnSync(
+    const releaseCheck = spawnSync(
       process.execPath,
       [
         resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
         'ops/controlProofLiveCanaryPack.ts',
         '--observations',
         observationsPath,
-        '--strict',
-        '--coverage-strict'
+        '--release-check'
       ],
       { cwd: ROOT, encoding: 'utf8' }
     );
-    assert.equal(combinedStrict.status, 1);
-    assert.match(combinedStrict.stdout, /Release gate: ready/);
-    assert.match(combinedStrict.stdout, /Required category coverage: missing/);
+    assert.equal(releaseCheck.status, 1);
+    assert.match(releaseCheck.stdout, /Release gate: ready/);
+    assert.match(releaseCheck.stdout, /Required category coverage: missing/);
 
     const replyPath = resolve(tempRoot, 'reply.txt');
     writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
@@ -643,7 +642,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summary/);
-    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict --coverage-strict`));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --release-check`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));

@@ -53,6 +53,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
@@ -235,13 +236,13 @@ function formatReleaseBundleReadme(paths: {
     '1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.',
     '2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.',
     '3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.',
-    '4. Re-run strict verification:',
+    '4. Re-run the release check:',
     '',
     '```bash',
-    `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --strict --coverage-strict`,
+    `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --release-check`,
     '```',
     '',
-    'The release gate is ready only when strict verification reports every selected case as pass with required captures present and required category coverage is complete.',
+    'The release gate is ready only when the release check reports every selected case as pass with required captures present and required category coverage is complete.',
     ''
   ].join('\n');
 }
@@ -269,6 +270,7 @@ function main(): void {
     let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
     const recordCaseId = argValue(args, 'record-case');
     const summaryOutPath = argValue(args, 'summary-out');
+    const releaseCheck = hasFlag(args, 'release-check');
     if (recordCaseId) {
       observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));
       const outputPath = outPath || observationsPath;
@@ -276,7 +278,7 @@ function main(): void {
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
     const summary = summarizeControlProofCanaryObservations(observations);
-    const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict');
+    const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict') || releaseCheck;
     const coverage = coverageRequested
       ? summarizeControlProofCanaryCoverage(canaryCasesFromObservations(observations))
       : null;
@@ -299,7 +301,10 @@ function main(): void {
         console.log(formatControlProofCanaryCoverage(canaryCasesFromObservations(observations)));
       }
     }
-    if ((!summary.readyForRelease && hasFlag(args, 'strict')) || (coverage && hasFlag(args, 'coverage-strict') && !coverage.coverageComplete)) {
+    if (
+      (!summary.readyForRelease && (hasFlag(args, 'strict') || releaseCheck))
+      || (coverage && (hasFlag(args, 'coverage-strict') || releaseCheck) && !coverage.coverageComplete)
+    ) {
       process.exitCode = 1;
     }
     return;
