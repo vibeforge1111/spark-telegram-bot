@@ -3296,7 +3296,7 @@ async function run(): Promise<void> {
 		}
 	});
 
-	await test('text Builder handoff carries redacted Harness proof ref and delivery context', async () => {
+	await test('text Builder handoff carries redacted Harness proof capsule and delivery context', async () => {
 		restoreAxios();
 		const testUserId = 8319079590;
 		process.env.ADMIN_TELEGRAM_IDS = String(testUserId);
@@ -3337,7 +3337,23 @@ async function run(): Promise<void> {
 			assert.equal(bridgePayload.harness_proof_ref, bridgePayload.harnessProofRef);
 			assert.equal(bridgePayload.message?.harnessProofRef, bridgePayload.harnessProofRef);
 			assert.equal(bridgePayload.message?.spark_harness?.proofRef, bridgePayload.harnessProofRef);
-			assert.doesNotMatch(JSON.stringify(bridgePayload), /proof_capsule|spark\.harness_proof\.v1/);
+			assert.deepEqual(
+				[
+					bridgePayload.harnessProofCapsule?.schema,
+					bridgePayload.harnessProofCapsule?.turnRef,
+					bridgePayload.proofCapsule?.turnRef,
+					bridgePayload.message?.harnessProofCapsule?.turnRef,
+					bridgePayload.message?.spark_harness?.proofCapsule?.turnRef
+				],
+				[
+					'spark.harness_proof.v1',
+					bridgePayload.harnessProofRef,
+					bridgePayload.harnessProofRef,
+					bridgePayload.harnessProofRef,
+					bridgePayload.harnessProofRef
+				]
+			);
+			assert.doesNotMatch(JSON.stringify(bridgePayload.harnessProofCapsule), /8319079590|tg-build-|trace:spawner-prd|chat_id/);
 			const traceContext = replyExtras[0]?.__sparkTraceContext;
 			assert.match(traceContext?.requestId || '', /^request:sha256:[a-f0-9]{16}$/);
 			assert.match(traceContext?.traceRef || '', /^trace:sha256:[a-f0-9]{16}$/);

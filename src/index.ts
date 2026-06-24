@@ -2567,18 +2567,24 @@ function attachBuilderHarnessProofRef(
   const proofRef = proofCapsule.turnRef;
   update.harnessProofRef = proofRef;
   update.harness_proof_ref = proofRef;
+  update.harnessProofCapsule = proofCapsule;
+  update.proofCapsule = proofCapsule;
   const messagePayload = update.message;
   if (messagePayload && typeof messagePayload === 'object') {
     const messageRecord = messagePayload as Record<string, unknown>;
     messageRecord.harnessProofRef = proofRef;
     messageRecord.harness_proof_ref = proofRef;
+    messageRecord.harnessProofCapsule = proofCapsule;
+    messageRecord.proofCapsule = proofCapsule;
     const existingSparkHarness = messageRecord.spark_harness && typeof messageRecord.spark_harness === 'object'
       ? messageRecord.spark_harness as Record<string, unknown>
       : {};
     messageRecord.spark_harness = {
       ...existingSparkHarness,
       proofRef,
-      harnessProofRef: proofRef
+      harnessProofRef: proofRef,
+      proofCapsule,
+      harnessProofCapsule: proofCapsule
     };
   }
   return update;
