@@ -305,11 +305,13 @@ test('observation summary requires pass verdicts and all requested capture evide
 
   const summary = summarizeControlProofCanaryObservations(template);
   assert.equal(summary.readyForRelease, true);
+  assert.match(String(summary.runtimeEvidenceCollectedAt), /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(summary.stalePacketEvidence, []);
   assert.equal(summary.verdictCounts.pass, 1);
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
 
   template.cases[0].observed.reply = 'Mission\nProvider\nMove';
   const roboticReply = summarizeControlProofCanaryObservations(template);

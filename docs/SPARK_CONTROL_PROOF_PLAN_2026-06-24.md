@@ -163,6 +163,8 @@ Canary release packets now record when runtime evidence was collected and reject
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
+Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

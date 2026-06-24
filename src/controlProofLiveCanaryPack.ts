@@ -155,6 +155,7 @@ export interface ControlProofCanaryObservationUpdate {
 export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
+  runtimeEvidenceCollectedAt: string | null;
   totalCases: number;
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
@@ -1387,6 +1388,7 @@ export function summarizeControlProofCanaryObservations(
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
+    runtimeEvidenceCollectedAt: observations.evidence?.collectedAt || null,
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease,
@@ -1402,6 +1404,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     `# ${summary.target} Control-Proof Canary Evidence Summary`,
     '',
     `Generated: ${summary.generatedAt}`,
+    `Runtime evidence collected: ${summary.runtimeEvidenceCollectedAt || 'missing'}`,
     `Cases: ${summary.totalCases}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
     '',
