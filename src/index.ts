@@ -6804,7 +6804,7 @@ export async function handleRunCommand(
     }
   });
   await ctx.reply(humanAck(result.providers || providers), outboundTraceExtra({
-    route: 'spawner',
+    route: 'spawner.run',
     command: 'run',
     replyKind: 'mission_ack',
     requestId: result.requestId || requestId,

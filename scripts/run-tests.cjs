@@ -36,6 +36,7 @@ const tests = [
   'tests/legacyAuthorityInventory.test.ts',
   'tests/telegramActionAuthority.test.ts',
   'tests/telegramCommandAuthority.test.ts',
+  'tests/telegramDeliveryProof.test.ts',
   'tests/telegramMediaAuthority.test.ts',
   'tests/telegramMediaEnvelope.test.ts',
   'tests/controlProofTraceAudit.test.ts',

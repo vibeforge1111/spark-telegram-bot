@@ -50,7 +50,7 @@ export function buildTelegramDeliveryProofCapsule(input: TelegramDeliveryProofIn
   const governorVerified = Boolean(authorization?.governorDecision || !authorization) && governorDecision !== 'deny';
 
   if (envelope) {
-    return harnessProofCapsuleFromTurnIntentEnvelope({
+    const capsule = harnessProofCapsuleFromTurnIntentEnvelope({
       envelope,
       authorityDecision,
       governorDecision,
@@ -67,6 +67,9 @@ export function buildTelegramDeliveryProofCapsule(input: TelegramDeliveryProofIn
           : 'Fresh Harness authority blocked this Telegram action.'
       )
     });
+    return input.route
+      ? { ...capsule, route: input.route, intent: { ...capsule.intent, kind: input.route } }
+      : capsule;
   }
 
   return buildHarnessProofCapsule({
