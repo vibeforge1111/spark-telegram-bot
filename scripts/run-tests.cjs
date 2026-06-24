@@ -21,6 +21,7 @@ const tests = [
   'tests/routeBoundaryHandlerHarness.test.ts',
   'tests/harnessContract.test.ts',
   'tests/harnessProofCapsule.test.ts',
+  'tests/harnessProofProjection.test.ts',
   'tests/harnessCoreVNext.test.ts',
   'tests/harnessCoreLedger.test.ts',
   'tests/legacyAuthorityInventory.test.ts',

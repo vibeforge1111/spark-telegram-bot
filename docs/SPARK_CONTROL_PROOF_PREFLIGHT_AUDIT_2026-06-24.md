@@ -42,6 +42,8 @@ Commands:
 ```bash
 npm run control:proof:audit
 npm run control:proof:audit -- --json
+npm run control:proof:panel
+npm run control:proof:panel -- --ref turn:sha256:<hash>
 spark live status
 spark status
 spark providers test --role chat
@@ -87,6 +89,7 @@ Record for the last 100 rows where available:
 - request id coverage
 - trace ref coverage
 - proof capsule coverage
+- latest redacted Harness Proof panel when a proof capsule exists
 - raw path/id leaks
 - replies without trace context
 - ordinary replies containing policy/router reason codes

@@ -69,6 +69,15 @@ Current command summary after the first Telegram proof wire-in:
 
 The latest sampled Telegram final-answer plane now reports `proof 30/100`, up from `0/100` before the wire-in. Route-confidence request coverage is now classified as redacted-design coverage via `request_ref`. Source now attaches turn-level trace context to ordinary outbound text replies, but the historical live outbound sample still shows `request 7/100` until the running bot writes new rows from this code. Builder, Spawner, memory, and voice planes still need trace/proof coverage; historical route-confidence rows still show `proof 0/100` until new route-confidence events are recorded.
 
+Local proof panel command now exists:
+
+```bash
+npm run control:proof:panel
+npm run control:proof:panel -- --ref turn:sha256:<hash>
+```
+
+It renders the latest or requested redacted Harness proof capsule without printing raw trace rows.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -132,7 +141,7 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 Continue wiring Harness proof capsule refs into the remaining Telegram/action audit rows.
 
-Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, and default outbound text replies now carry or inherit redacted proof/trace metadata locally, but the audit still reports missing proof capsules across historical and non-final-answer planes. The next durable move is to extend Builder/Spawner proof projection and then build the visual proof panel.
+Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, and default outbound text replies now carry or inherit redacted proof/trace metadata locally, and a local proof panel command exists. The next durable move is to extend Builder/Spawner proof projection into that panel and then wire an inspect-only Telegram proof command.
 
 ## Gate To Start Goal Prompt
 
@@ -146,4 +155,5 @@ Reason: build/run acknowledgements, suppressed Builder final-answer rows, new ro
 - Third implementation slice started: yes, Telegram build/run acknowledgements and suppressed Builder final-answer rows now emit proof metadata.
 - Fourth implementation slice started: yes, route-confidence `request_ref` is classified as redacted join coverage and new route-confidence/action rows emit proof metadata.
 - Fifth implementation slice started: yes, ordinary outbound text replies inherit turn-level request/trace context in source; live audit evidence will update after new runtime rows.
-- Next implementation slice chosen: yes, extend Builder/Spawner proof projection and build the Harness Proof panel.
+- Sixth implementation slice started: yes, local redacted Harness Proof panel command added.
+- Next implementation slice chosen: yes, extend Builder/Spawner proof projection into the panel and wire an inspect-only Telegram proof command.
