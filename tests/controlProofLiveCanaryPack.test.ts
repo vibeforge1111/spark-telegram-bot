@@ -37,7 +37,9 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'legacy proof gaps: 4',
   'raw ref leaks: 0',
   'robotic failure reasons: 0',
-  'stack-like leaks: 0'
+  'stack-like leaks: 0',
+  'Gap planes:',
+  '- legacy proof gaps: telegram_outbound, telegram_route_confidence, builder_gateway, spawner_prd_trace'
 ].join('\n');
 const CLEAN_PROOF_PANEL = [
   'Harness Proof',
@@ -464,6 +466,19 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(dirtyAudit.readyForRelease, false);
   assert.deepEqual(dirtyAudit.invalidPacketEvidence, ['control_proof_audit']);
   assert.match(formatControlProofCanaryObservationSummary(dirtyAudit), /Packet evidence invalid: control_proof_audit/);
+
+  template.evidence.controlProofAudit = [
+    'missing evidence: 0',
+    'missing trace joins: 0',
+    'missing proof capsules: 0',
+    'legacy proof gaps: 4',
+    'raw ref leaks: 0',
+    'robotic failure reasons: 0',
+    'stack-like leaks: 0'
+  ].join('\n');
+  const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
+  assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
+  assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.evidence.providerStatus = 'Provider ping failed.';
@@ -1030,6 +1045,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "- raw ref leaks: 0"',
       '  echo "- robotic failure reasons: 0"',
       '  echo "- stack-like leaks: 0"',
+      '  echo "Gap planes:"',
+      '  echo "- legacy proof gaps: telegram_outbound, telegram_route_confidence, builder_gateway, spawner_prd_trace"',
       '  exit 0',
       'fi',
       'echo "unexpected npm args: $*" >&2',
@@ -1061,6 +1078,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
     assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
+    assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
+    assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_outbound/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);

@@ -1126,11 +1126,20 @@ function hasCleanControlProofAudit(value: string): boolean {
     /robotic failure reasons:\s*0/i,
     /stack-like leaks:\s*0/i
   ];
-  if (requiredZeroPatterns.every((pattern) => pattern.test(value))) return true;
+  if (requiredZeroPatterns.every((pattern) => pattern.test(value))) {
+    return legacyProofGapsAreInspectable(value);
+  }
   return /no missing evidence/i.test(value) &&
     /trace joins/i.test(value) &&
     /proof capsules/i.test(value) &&
     !/\bmissing (?:evidence|trace joins|proof capsules):\s*[1-9]/i.test(value);
+}
+
+function legacyProofGapsAreInspectable(value: string): boolean {
+  const match = value.match(/legacy proof gaps:\s*(\d+)/i);
+  if (!match) return true;
+  if (Number(match[1]) === 0) return true;
+  return /Gap planes:/i.test(value) && /legacy proof gaps:\s*[a-z_]/i.test(value);
 }
 
 function validRuntimeEvidenceValue(value: string | null | undefined, kind: 'spark_live_status' | 'provider_status' | 'runtime_sync' | 'control_proof_audit'): boolean {
