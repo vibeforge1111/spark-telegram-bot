@@ -2766,6 +2766,8 @@ export function buildNodeOutboundAuditRecord(
   traceContext?: NodeOutboundTraceContext | null
 ): Record<string, unknown> {
   const text = typeof deliveredText === 'string' ? deliveredText : String(deliveredText ?? '');
+  const timestamp = now.toISOString();
+  const chat_ref = chatRef(chatId);
   const requestId = typeof traceContext?.requestId === 'string' && traceContext.requestId.trim()
     ? traceContext.requestId.trim()
     : null;
@@ -2775,17 +2777,33 @@ export function buildNodeOutboundAuditRecord(
   const missionId = typeof traceContext?.missionId === 'string' && traceContext.missionId.trim()
     ? traceContext.missionId.trim()
     : null;
+  const fallbackSeed = JSON.stringify({
+    event: 'telegram_node_delivered',
+    ts: timestamp,
+    chat_ref,
+    text_length: text.length,
+    mission_id_present: Boolean(missionId),
+    route: typeof traceContext?.route === 'string' ? traceContext.route.trim() : '',
+    command: typeof traceContext?.command === 'string' ? traceContext.command.trim() : '',
+    reply_kind: typeof traceContext?.replyKind === 'string' ? traceContext.replyKind.trim() : ''
+  });
+  const traceContextScope = requestId && traceRef
+    ? 'turn_or_action'
+    : requestId || traceRef || missionId
+      ? 'partial_turn_delivery_local'
+      : 'delivery_local';
   return {
-    ts: now.toISOString(),
+    ts: timestamp,
     event: 'telegram_node_delivered',
     privacy: 'metadata_only',
     chat_id_present: String(chatId ?? '').trim().length > 0,
-    chat_ref: chatRef(chatId),
+    chat_ref,
     text_length: text.length,
     trace_context_present: Boolean(requestId || traceRef || missionId),
+    trace_context_scope: traceContextScope,
     mission_id_present: Boolean(missionId),
-    ...(requestId ? { request_id: requestId } : {}),
-    ...(traceRef ? { trace_ref: traceRef } : {}),
+    ...(requestId ? { request_id: requestId } : { request_ref: redactedRef('request', fallbackSeed) }),
+    ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedRef('trace', fallbackSeed) }),
     ...proofAuditFields(traceContext?.proofCapsule, traceContext?.proofRef),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
     ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),

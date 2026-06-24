@@ -1005,6 +1005,26 @@ async function run(): Promise<void> {
 		restoreEnv();
 	});
 
+	await test('outbound audit creates delivery-local refs when no turn context is available', async () => {
+		restoreAxios();
+		const indexModule: any = await import('../src/index');
+		const record = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'Spark Live is ready.',
+			new Date('2026-06-24T00:00:00.000Z'),
+			null
+		);
+
+		assert.equal(record.trace_context_present, false);
+		assert.equal(record.trace_context_scope, 'delivery_local');
+		assert.match(record.request_ref, /^request:sha256:[a-f0-9]{16}$/);
+		assert.match(record.trace_ref, /^trace:sha256:[a-f0-9]{16}$/);
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
+		assert.doesNotMatch(JSON.stringify(record), /8319079055|Spark Live is ready/);
+		restoreAxios();
+		restoreEnv();
+	});
+
 	await test('/proof renders an inspect-only redacted Harness Proof panel', async () => {
 		restoreAxios();
 		restoreEnv();
