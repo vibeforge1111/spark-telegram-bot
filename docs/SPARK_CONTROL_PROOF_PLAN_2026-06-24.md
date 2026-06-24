@@ -181,6 +181,8 @@ Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel
 
 Live recapture of `cp-noaction-001` on 2026-06-24 confirmed build/mission wording stayed chat-only: Spark answered with a low current risk profile, did not start a mission or repair action, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 23 to 22.
 
+Live recapture of `cp-noaction-002` on 2026-06-24 confirmed mission-routing bug language stayed chat-only: Spark explained the route-hijack failure class without launching a mission, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 22 to 21.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
