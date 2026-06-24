@@ -179,6 +179,8 @@ Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap co
 
 Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel capture: `/proof` in SparkRecursive_bot showed a read-only, no-mutation Telegram proof panel with `Latest proof gaps: none`, reducing stale proof-panel blockers from 24 to 23.
 
+Live recapture of `cp-noaction-001` on 2026-06-24 confirmed build/mission wording stayed chat-only: Spark answered with a low current risk profile, did not start a mission or repair action, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 23 to 22.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
