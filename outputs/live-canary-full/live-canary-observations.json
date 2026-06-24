@@ -425,7 +425,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Harness Proof Intent: media.voice_transcribe_or_boundary Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:81281ccf7f363817 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4 (Telegram outbound, Route confidence, Builder gateway, Spawner trace)",
+        "reply": "Harness Proof Intent: fresh_state.live_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:fc11164b87d0f26c Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -434,14 +434,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Live /proof inspected the latest proof only; no mission, build, memory write, provider switch, access change, media handling, file edit, or external network action observed."
+          "notes": "Proof inspection only; no mutation, mission, build, repair, provider, media, file, or memory write observed."
         },
-        "proofJoin": "Latest /proof joined the Telegram outbound proof capsule and now shows the visible legacy proof-gap planes by name without raw ids or paths.",
-        "proofPanel": "Harness Proof Intent: media.voice_transcribe_or_boundary Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined, builder joined Gaps: none Proof ref: turn:sha256:81281ccf7f363817 Plane: telegram_outbound Evidence joined: Telegram outbound, Builder gateway Evidence proof refs: Telegram outbound, Builder gateway Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4 (Telegram outbound, Route confidence, Builder gateway, Spawner trace)",
+        "proofJoin": "Live /proof rendered the latest Telegram outbound proof capsule with joined evidence, visible legacy gaps, and no latest proof gaps.",
+        "proofPanel": "Harness Proof Intent: fresh_state.live_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:fc11164b87d0f26c Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-proof-gap-planes-live.png"
+          "/tmp/cp-proof-002-first.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after restart at 2026-06-24 23:23 GST. The proof panel showed legacy proof gap planes as Telegram outbound, Route confidence, Builder gateway, and Spawner trace.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and screenshot /tmp/cp-proof-002-first.png.",
         "notes": null
       }
     },

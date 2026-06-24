@@ -191,6 +191,8 @@ Live recapture of `cp-authority-001` on 2026-06-24 confirmed fresh runtime state
 
 Live recapture of `cp-authority-002` on 2026-06-24 confirmed current live-state answers use fresh runtime state, not memory: Spark reported the live loop as healthy without raw internals or mutation, and `/proof` showed `fresh_state.live_status` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 18 to 17.
 
+Live recapture of `cp-proof-002` on 2026-06-24 confirmed repeated `/proof` inspection stays read-only and renders the latest proof ref with joined evidence, visible legacy gaps, and `Latest proof gaps: none`, reducing stale proof-panel blockers from 17 to 16.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
