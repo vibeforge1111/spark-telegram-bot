@@ -13,13 +13,12 @@ Verdicts:
 - untested: 0
 
 Attention summary:
-- proof_panel_legacy_gap_stale: 12 cases
+- proof_panel_legacy_gap_stale: 11 cases
 
 Recapture hint:
-- Refresh /proof panel captures for: cp-access-002, cp-model-001, cp-model-002, cp-web-001, cp-web-002, cp-spawner-001, cp-spawner-002, cp-mission-001, cp-media-001, cp-media-002, cp-voice-001, cp-audio-001
+- Refresh /proof panel captures for: cp-model-001, cp-model-002, cp-web-001, cp-web-002, cp-spawner-001, cp-spawner-002, cp-mission-001, cp-media-001, cp-media-002, cp-voice-001, cp-audio-001
 
 Cases needing attention:
-- cp-access-002: pass; missing proof_panel_legacy_gap_stale
 - cp-model-001: pass; missing proof_panel_legacy_gap_stale
 - cp-model-002: pass; missing proof_panel_legacy_gap_stale
 - cp-web-001: pass; missing proof_panel_legacy_gap_stale
