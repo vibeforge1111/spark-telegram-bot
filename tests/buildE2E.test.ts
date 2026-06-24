@@ -1075,7 +1075,37 @@ async function run(): Promise<void> {
 		assert.equal(record.trace_context_scope, 'delivery_local');
 		assert.match(record.request_ref, /^request:sha256:[a-f0-9]{16}$/);
 		assert.match(record.trace_ref, /^trace:sha256:[a-f0-9]{16}$/);
+		assert.equal(record.proof_status, 'not_execution_proof');
+		assert.equal(record.proof_storage, 'not_applicable');
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'harness_proof_ref'), false);
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'proof_capsule'), false);
 		assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
+		assert.doesNotMatch(JSON.stringify(record), /8319079055|Spark Live is ready/);
+		restoreAxios();
+		restoreEnv();
+	});
+
+	await test('outbound audit marks partial turn delivery without proof as an explicit gap', async () => {
+		restoreAxios();
+		const indexModule: any = await import('../src/index');
+		const record = indexModule.buildNodeOutboundAuditRecord(
+			8319079055,
+			'Spark Live is ready.',
+			new Date('2026-06-24T00:00:00.000Z'),
+			{
+				route: 'proof.inspect',
+				requestId: 'turn:partial-outbound',
+				traceRef: 'trace:partial-outbound'
+			}
+		);
+
+		assert.equal(record.trace_context_present, true);
+		assert.equal(record.trace_context_scope, 'turn_or_action');
+		assert.equal(record.request_id, 'turn:partial-outbound');
+		assert.equal(record.trace_ref, 'trace:partial-outbound');
+		assert.equal(record.proofStatus, 'missing_harness_proof');
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'harness_proof_ref'), false);
+		assert.equal(Object.prototype.hasOwnProperty.call(record, 'proof_capsule'), false);
 		assert.doesNotMatch(JSON.stringify(record), /8319079055|Spark Live is ready/);
 		restoreAxios();
 		restoreEnv();

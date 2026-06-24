@@ -2869,6 +2869,17 @@ export function buildNodeOutboundAuditRecord(
     : requestId || traceRef || missionId
       ? 'partial_turn_delivery_local'
       : 'delivery_local';
+  const proofFields = proofAuditFields(traceContext?.proofCapsule, traceContext?.proofRef);
+  const proofContinuityFields = Object.keys(proofFields).length > 0
+    ? proofFields
+    : traceContextScope === 'delivery_local'
+      ? {
+          proof_status: 'not_execution_proof',
+          proof_storage: 'not_applicable'
+        }
+      : {
+          proofStatus: 'missing_harness_proof'
+        };
   return {
     ts: timestamp,
     event: 'telegram_node_delivered',
@@ -2881,7 +2892,7 @@ export function buildNodeOutboundAuditRecord(
     mission_id_present: Boolean(missionId),
     ...(requestId ? { request_id: requestId } : { request_ref: redactedRef('request', fallbackSeed) }),
     ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedRef('trace', fallbackSeed) }),
-    ...proofAuditFields(traceContext?.proofCapsule, traceContext?.proofRef),
+    ...proofContinuityFields,
     ...(traceContext?.mediaTurn ? { media_turn: traceContext.mediaTurn } : {}),
     ...(typeof traceContext?.route === 'string' && traceContext.route.trim() ? { route: traceContext.route.trim() } : {}),
     ...(typeof traceContext?.command === 'string' && traceContext.command.trim() ? { command: traceContext.command.trim() } : {}),
