@@ -282,8 +282,9 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
     assert.equal(projection.ok, true);
     assert.equal(projection.audit?.blockingOk, true);
     assert.equal(projection.audit?.legacyProofGapPlanes, 1);
+    assert.deepEqual(projection.audit?.legacyProofGapPlaneLabels, ['Spawner trace']);
     assert.match(projection.panel, /Audit blocking: clean/);
-    assert.match(projection.panel, /Legacy proof gaps visible: 1/);
+    assert.match(projection.panel, /Legacy proof gaps visible: 1 \(Spawner trace\)/);
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof capsules: .*Spawner trace/);

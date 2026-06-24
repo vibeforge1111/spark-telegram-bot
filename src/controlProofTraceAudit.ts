@@ -59,6 +59,7 @@ export interface ControlProofTraceAuditResult {
   sparkHome: string;
   planes: ControlProofTracePlaneSummary[];
   gapCounts: ControlProofGapCounts;
+  gapPlanes: Record<keyof ControlProofGapCounts, string[]>;
 }
 
 const REQUEST_ID_KEYS = ['request_id', 'requestId', 'requestID', 'request_ref', 'requestRef'];
@@ -139,6 +140,7 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
   const evidenceFiles = options.evidenceFiles || defaultControlProofEvidenceFiles(sparkHome);
   const planes = evidenceFiles.map((file) => summarizeEvidenceFile(file, sampleSize));
   const gapCounts = summarizeGapCounts(planes);
+  const gapPlanes = summarizeGapPlanes(planes);
   const ok = Object.values(gapCounts).every((count) => count === 0);
   const blockingOk = releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
   return {
@@ -148,7 +150,8 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
     sampleSize,
     sparkHome,
     planes,
-    gapCounts
+    gapCounts,
+    gapPlanes
   };
 }
 
@@ -197,6 +200,10 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `- robotic failure reasons: ${result.gapCounts.roboticFailureReply}`,
     `- stack-like leaks: ${result.gapCounts.stackLikeLeak}`
   );
+  const gapDetails = formatGapPlaneDetails(result.gapPlanes);
+  if (gapDetails.length > 0) {
+    lines.push('', 'Gap planes:', ...gapDetails);
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -339,6 +346,48 @@ function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlPro
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
     stackLikeLeak: planes.filter((plane) => plane.stackLikeRows > 0).length
   };
+}
+
+function summarizeGapPlanes(planes: ControlProofTracePlaneSummary[]): Record<keyof ControlProofGapCounts, string[]> {
+  return {
+    missingEvidence: planes.filter((plane) => plane.missing).map((plane) => plane.label),
+    missingTraceJoin: planes
+      .filter((plane) => !plane.missing && (plane.requestIdMissing > 0 || plane.traceRefMissing > 0))
+      .map((plane) => plane.label),
+    missingProofCapsule: planes
+      .filter((plane) => !plane.missing && plane.proofCapsuleMissing > 0)
+      .map((plane) => plane.label),
+    legacyProofGap: planes
+      .filter((plane) => !plane.missing && plane.proofGapMarked > 0)
+      .map((plane) => plane.label),
+    rawRefLeak: planes
+      .filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0)
+      .map((plane) => plane.label),
+    roboticFailureReply: planes
+      .filter((plane) => plane.policyReasonCodeRows > 0)
+      .map((plane) => plane.label),
+    stackLikeLeak: planes
+      .filter((plane) => plane.stackLikeRows > 0)
+      .map((plane) => plane.label)
+  };
+}
+
+function formatGapPlaneDetails(gapPlanes: Record<keyof ControlProofGapCounts, string[]>): string[] {
+  return (Object.entries(gapPlanes) as Array<[keyof ControlProofGapCounts, string[]]>)
+    .filter(([, planes]) => planes.length > 0)
+    .map(([key, planes]) => `- ${gapCountLabel(key)}: ${planes.join(', ')}`);
+}
+
+function gapCountLabel(key: keyof ControlProofGapCounts): string {
+  return {
+    missingEvidence: 'missing evidence',
+    missingTraceJoin: 'missing trace joins',
+    missingProofCapsule: 'missing proof capsules',
+    legacyProofGap: 'legacy proof gaps',
+    rawRefLeak: 'raw ref leaks',
+    roboticFailureReply: 'robotic failure reasons',
+    stackLikeLeak: 'stack-like leaks'
+  }[key];
 }
 
 function releaseBlockingGapCounts(gapCounts: ControlProofGapCounts): number[] {

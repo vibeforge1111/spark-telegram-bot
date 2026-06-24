@@ -46,6 +46,7 @@ export interface HarnessProofProjection {
 export interface HarnessProofAuditSummary {
   blockingOk: boolean;
   legacyProofGapPlanes: number;
+  legacyProofGapPlaneLabels: string[];
   missingEvidencePlanes: number;
   missingTraceJoinPlanes: number;
   missingProofCapsulePlanes: number;
@@ -75,6 +76,10 @@ const EVIDENCE_PLANE_DISPLAY_NAMES: Record<string, string> = {
   voice_surface_view: 'Voice surface',
   voice_runtime_state: 'Voice runtime'
 };
+
+function displayNameForEvidencePlane(plane: string): string {
+  return EVIDENCE_PLANE_DISPLAY_NAMES[plane] || plane;
+}
 
 export function projectHarnessProof(options: HarnessProofProjectionOptions = {}): HarnessProofProjection {
   const sparkHome = options.sparkHome || defaultSparkHome();
@@ -140,6 +145,7 @@ function summarizeCurrentAudit(
   return {
     blockingOk: result.blockingOk,
     legacyProofGapPlanes: result.gapCounts.legacyProofGap,
+    legacyProofGapPlaneLabels: result.gapPlanes.legacyProofGap.map(displayNameForEvidencePlane),
     missingEvidencePlanes: result.gapCounts.missingEvidence,
     missingTraceJoinPlanes: result.gapCounts.missingTraceJoin,
     missingProofCapsulePlanes: result.gapCounts.missingProofCapsule,
@@ -150,9 +156,12 @@ function summarizeCurrentAudit(
 }
 
 function renderAuditSummary(audit: HarnessProofAuditSummary): string {
+  const legacyGapDetail = audit.legacyProofGapPlaneLabels.length > 0
+    ? ` (${audit.legacyProofGapPlaneLabels.join(', ')})`
+    : '';
   return [
     `Audit blocking: ${audit.blockingOk ? 'clean' : 'gaps found'}`,
-    `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}`
+    `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}${legacyGapDetail}`
   ].join('\n');
 }
 

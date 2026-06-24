@@ -123,6 +123,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.equal(voiceRuntime?.proofRefPresent, 1);
     assert.equal(result.gapCounts.missingTraceJoin > 0, true);
     assert.equal(result.gapCounts.rawRefLeak > 0, true);
+    assert.deepEqual(result.gapPlanes.rawRefLeak, ['telegram_final_answer', 'builder_gateway']);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, false);
 
@@ -131,6 +132,8 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.match(report, /voice_runtime_state: .*proof 1\/1 .* proof_ref 1 .* proof_capsule 0/);
     assert.match(report, /Blocking status: blocking gaps found/);
     assert.match(report, /missing trace joins/);
+    assert.match(report, /Gap planes:/);
+    assert.match(report, /raw ref leaks: telegram_final_answer, builder_gateway/);
     assert.doesNotMatch(report, /private-trace|123|tool_not_allowed_by_policy/);
   });
 });
@@ -252,12 +255,14 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.deepEqual(result.gapPlanes.legacyProofGap, ['telegram_route_confidence']);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: telegram_route_confidence/);
   });
 });
 
@@ -340,6 +345,7 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
     assert.match(blockingStrict.stdout, /Status: gaps found/);
     assert.match(blockingStrict.stdout, /Blocking status: clean/);
     assert.match(blockingStrict.stdout, /legacy proof gaps: 1/);
+    assert.match(blockingStrict.stdout, /legacy proof gaps: telegram_route_confidence/);
 
     const absoluteStrict = spawnSync(
       process.execPath,
