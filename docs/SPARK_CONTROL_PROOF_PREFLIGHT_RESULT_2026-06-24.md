@@ -51,6 +51,24 @@ Last-100-row summary where available:
 
 Trace conclusion: final-answer audit is the strongest joined Telegram surface. Outbound audit, memory, and voice are not yet joined enough for end-to-end proof. Builder and Spawner are joined but still carry raw-ish fields that should be redacted before user-facing proof panels.
 
+Repeatable command added after this audit:
+
+```bash
+npm run control:proof:audit
+npm run control:proof:audit -- --json
+```
+
+Current command summary:
+
+- Missing evidence files: 0.
+- Missing trace joins: 5 planes.
+- Missing proof capsules: 9 planes.
+- Raw ref leaks: 5 planes.
+- Robotic failure reason-code presence: 2 planes.
+- Stack-like leaks: 0 planes.
+
+The command confirms the next major structural gap: proof capsule coverage is currently absent from all sampled planes.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -104,11 +122,17 @@ Docs drift scan found mostly intentional new-rule references. One older handoff 
 - `stale_doc_rule`: one old handoff still uses "memory authoritative" wording.
   - Durable slice: add a historical note pointing to the control-proof docs index and current Harness wording.
 
-## Recommended First Slice
+## First Slice Completed
 
-Start with a repeatable trace-continuity audit command/report.
+The first durable slice is now in progress/completed at minimum viable level: a repeatable trace-continuity audit command/report exists.
 
-Reason: today's audit had to use an ad hoc local script. The durable first win is to turn that into a stable command that reports request id coverage, trace ref coverage, proof capsule coverage, raw ref leaks, and unjoined execution spans. That creates the measurement surface needed before patching individual planes.
+It reports request id coverage, trace ref coverage, proof capsule coverage, raw ref leaks, raw id-key rows, policy reason-code rows, stack-like leaks, and missing evidence files without printing raw trace rows in the default human report.
+
+## Recommended Next Slice
+
+Add the Harness proof capsule schema and fixtures.
+
+Reason: the new audit command reports `missingProofCapsule` for every sampled plane. Before building a proof panel, Spark needs a stable redacted capsule shape and fixtures for allowed, blocked, downgraded, no-action, and missing-proof cases.
 
 ## Gate To Start Goal Prompt
 
@@ -117,4 +141,5 @@ Reason: today's audit had to use an ad hoc local script. The durable first win i
 - Runtime health checked: yes.
 - Docs index, preflight audit, plan, and goal prompt point to each other: yes.
 - First implementation slice chosen: yes, trace-continuity audit command/report.
-
+- First implementation slice started: yes, minimum viable command/report added.
+- Next implementation slice chosen: yes, Harness proof capsule schema and fixtures.

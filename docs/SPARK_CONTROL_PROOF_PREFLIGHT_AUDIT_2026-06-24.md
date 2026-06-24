@@ -40,6 +40,8 @@ Use these labels consistently:
 Commands:
 
 ```bash
+npm run control:proof:audit
+npm run control:proof:audit -- --json
 spark live status
 spark status
 spark providers test --role chat
@@ -84,6 +86,7 @@ Record for the last 100 rows where available:
 
 - request id coverage
 - trace ref coverage
+- proof capsule coverage
 - raw path/id leaks
 - replies without trace context
 - ordinary replies containing policy/router reason codes

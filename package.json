@@ -20,6 +20,7 @@
     "nl:live": "ts-node ops/liveNlCommandSuite.ts",
     "nl:verdict": "ts-node ops/liveNlVerdictReport.ts",
     "nl:replay": "ts-node ops/naturalRouteReplay.ts",
+    "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
     "test": "node scripts/run-tests.cjs",

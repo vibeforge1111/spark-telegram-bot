@@ -344,7 +344,7 @@ Then send one photo with a caption.
 ## Suggested Work Order
 
 0. Read the docs index and run the read-only preflight audit.
-1. Add trace-continuity audit script.
+1. Add trace-continuity audit script. Minimum viable command added in `npm run control:proof:audit`.
 2. Add proof capsule schema and fixtures.
 3. Render Harness Proof panel in Spawner trace or a local proof command.
 4. Repair Telegram failure language using fixtures from recent bad replies.

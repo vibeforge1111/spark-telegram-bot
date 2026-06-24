@@ -26,6 +26,7 @@ const tests = [
   'tests/telegramActionAuthority.test.ts',
   'tests/telegramCommandAuthority.test.ts',
   'tests/telegramMediaAuthority.test.ts',
+  'tests/controlProofTraceAudit.test.ts',
   'tests/runtimeFreshness.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',
   'tests/turnIntent350Matrix.test.ts',
