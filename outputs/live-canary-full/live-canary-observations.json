@@ -277,7 +277,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nFresh runtime state wins.\nIf fresh spark live status says Spawner is up, Spawner is up right now. Memory becomes stale context, not current truth.\nReceived at 7:04 PM",
+        "reply": "Fresh runtime state wins.\n\nIf fresh spark live status says Spawner is up, Spawner is up right now. Memory becomes stale context, not current truth.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -286,15 +286,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Read-only source-priority answer; no mission, build, file edit, memory write, provider switch, media handling, or external network action observed."
+          "notes": "Read-only fresh-state authority check only; no mutation, mission, build, repair, provider, media, file, or memory write observed."
         },
-        "proofJoin": "Latest /proof panel joined Telegram outbound proof capsule with intent fresh_state.authority_answer; stale memory was not treated as current authority.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: fresh_state.authority_answer Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:82bbd782fb515bed Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 7:04 PM",
+        "proofJoin": "Live /proof joined the Telegram outbound proof capsule for the read-only fresh_state.authority_answer reply.",
+        "proofPanel": "Harness Proof Intent: fresh_state.authority_answer Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:555939682d4bafb5 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-authority-001-fixed-reply.png",
-          "/tmp/cp-authority-001-fixed-proof.png"
+          "/tmp/cp-authority-001-proof-2.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot after runtime restart at commit 5fb7664; proof panel now shows fresh_state.authority_answer instead of build_or_spawner.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and screenshot /tmp/cp-authority-001-proof-2.png.",
         "notes": null
       }
     },

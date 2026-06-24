@@ -187,6 +187,8 @@ Live recapture of `cp-noaction-003` on 2026-06-24 confirmed the compact "no need
 
 Live recapture of `cp-noaction-004` on 2026-06-24 confirmed read-only repair status stayed bounded: Spark used fresh runtime state, reported no repair needed, did not run repair/build/mission actions, and `/proof` showed `fresh_state.read_only_repair_status` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 20 to 19.
 
+Live recapture of `cp-authority-001` on 2026-06-24 confirmed fresh runtime state wins over memory for Spawner status: Spark treated memory as stale context, did not mutate anything, and `/proof` showed `fresh_state.authority_answer` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 19 to 18.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
