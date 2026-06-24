@@ -1,6 +1,7 @@
 import {
   CONTROL_PROOF_CANARY_TARGET,
   CONTROL_PROOF_LIVE_CANARY_CASES,
+  buildControlProofCanaryObservationTemplate,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
   selectControlProofCanaryCases
@@ -31,6 +32,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --copy-paste',
     '  npm run control:proof:canaries -- --checklist',
     '  npm run control:proof:canaries -- --json',
+    '  npm run control:proof:canaries -- --observation-template',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
     '  npm run control:proof:canaries -- --category streaming --list',
@@ -60,6 +62,11 @@ function main(): void {
 
   if (hasFlag(args, 'json')) {
     console.log(JSON.stringify({ target: CONTROL_PROOF_CANARY_TARGET, cases: selected }, null, 2));
+    return;
+  }
+
+  if (hasFlag(args, 'observation-template')) {
+    console.log(JSON.stringify(buildControlProofCanaryObservationTemplate(selected), null, 2));
     return;
   }
 

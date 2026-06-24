@@ -63,7 +63,54 @@ export interface ControlProofCanarySelection {
   includeActions?: boolean;
 }
 
+export type ControlProofCanaryVerdict = 'pass' | 'fail' | 'blocked' | 'needs-retest' | 'untested';
+
+export interface ControlProofCanaryObservationTemplate {
+  target: string;
+  generatedAt: string;
+  verdictValues: ControlProofCanaryVerdict[];
+  cases: ControlProofCanaryObservationCase[];
+}
+
+export interface ControlProofCanaryObservationCase {
+  id: string;
+  category: ControlProofCanaryCategory;
+  risk: ControlProofCanaryRisk;
+  prompt: string;
+  expected: {
+    authority: ControlProofCanaryAuthorityExpectation;
+    mutationClass: ControlProofCanaryMutationClass;
+    route: string;
+    replyShape: ControlProofCanaryCase['expectedReplyShape'];
+    sideEffect: string;
+    proofJoin: string;
+    passCriteria: string[];
+    capture: ControlProofCanaryCase['capture'];
+  };
+  observed: {
+    verdict: ControlProofCanaryVerdict;
+    reply: string | null;
+    sideEffects: {
+      filesChanged: boolean | null;
+      memoryWritten: boolean | null;
+      missionStarted: boolean | null;
+      externalNetworkCalled: boolean | null;
+      accessChanged: boolean | null;
+      providerChanged: boolean | null;
+      mediaHandled: boolean | null;
+      notes: string | null;
+    };
+    proofJoin: string | null;
+    proofPanel: string | null;
+    screenshotRefs: string[];
+    userConfirmation: string | null;
+    notes: string | null;
+  };
+}
+
 export const CONTROL_PROOF_CANARY_TARGET = 'SparkRecursive_bot';
+export const CONTROL_PROOF_CANARY_VERDICTS: ControlProofCanaryVerdict[] =
+  ['pass', 'fail', 'blocked', 'needs-retest', 'untested'];
 
 type ControlProofCanaryCaseDefinition = Omit<ControlProofCanaryCase, 'expectedAuthority' | 'expectedMutationClass'>;
 
@@ -602,4 +649,50 @@ export function formatControlProofCanaryChecklist(cases: ControlProofCanaryCase[
     lines.push('');
   });
   return lines.join('\n').trimEnd();
+}
+
+export function buildControlProofCanaryObservationTemplate(
+  cases: ControlProofCanaryCase[],
+  options: { generatedAt?: string } = {}
+): ControlProofCanaryObservationTemplate {
+  return {
+    target: CONTROL_PROOF_CANARY_TARGET,
+    generatedAt: options.generatedAt || new Date().toISOString(),
+    verdictValues: CONTROL_PROOF_CANARY_VERDICTS,
+    cases: cases.map((entry) => ({
+      id: entry.id,
+      category: entry.category,
+      risk: entry.risk,
+      prompt: entry.prompt,
+      expected: {
+        authority: entry.expectedAuthority,
+        mutationClass: entry.expectedMutationClass,
+        route: entry.expectedRoute,
+        replyShape: entry.expectedReplyShape,
+        sideEffect: entry.expectedSideEffect,
+        proofJoin: entry.expectedProofJoin,
+        passCriteria: entry.passCriteria,
+        capture: entry.capture
+      },
+      observed: {
+        verdict: 'untested',
+        reply: null,
+        sideEffects: {
+          filesChanged: null,
+          memoryWritten: null,
+          missionStarted: null,
+          externalNetworkCalled: null,
+          accessChanged: null,
+          providerChanged: null,
+          mediaHandled: null,
+          notes: null
+        },
+        proofJoin: null,
+        proofPanel: null,
+        screenshotRefs: [],
+        userConfirmation: null,
+        notes: null
+      }
+    }))
+  };
 }

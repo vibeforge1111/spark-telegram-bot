@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import {
   CONTROL_PROOF_LIVE_CANARY_CASES,
+  buildControlProofCanaryObservationTemplate,
   formatControlProofCanaryChecklist,
   formatControlProofCanaryCopyPaste,
   selectControlProofCanaryCases,
@@ -106,6 +107,25 @@ test('checklist output includes proof, side-effect, visual, authority, and mutat
   assert.match(checklist, /Screenshot\/user confirmation:/);
 });
 
+test('observation template records expected fields and empty live observations', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+
+  assert.equal(template.target, 'SparkRecursive_bot');
+  assert.equal(template.generatedAt, '2026-06-24T00:00:00.000Z');
+  assert.deepEqual(template.verdictValues, ['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
+  assert.equal(template.cases[0].id, 'cp-builder-001');
+  assert.equal(template.cases[0].expected.route, 'builder_gateway.plain_chat');
+  assert.equal(template.cases[0].expected.proofJoin, 'Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.');
+  assert.equal(template.cases[0].observed.verdict, 'untested');
+  assert.equal(template.cases[0].observed.reply, null);
+  assert.equal(template.cases[0].observed.proofJoin, null);
+  assert.equal(template.cases[0].observed.sideEffects.missionStarted, null);
+  assert.deepEqual(template.cases[0].observed.screenshotRefs, []);
+  assert.equal(template.cases[0].observed.userConfirmation, null);
+});
+
 test('control-proof canary CLI lists and exports selected cases', () => {
   const list = spawnSync(
     process.execPath,
@@ -139,4 +159,23 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(parsed.target, 'SparkRecursive_bot');
   assert.equal(parsed.cases[0].id, 'cp-builder-001');
   assert.equal(parsed.cases[0].expectedAuthority, 'read_only_allowed');
+
+  const observationTemplate = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--case',
+      'cp-builder-001',
+      '--observation-template'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(observationTemplate.status, 0, observationTemplate.stderr);
+  const observed = JSON.parse(observationTemplate.stdout);
+  assert.equal(observed.target, 'SparkRecursive_bot');
+  assert.equal(observed.cases[0].expected.route, 'builder_gateway.plain_chat');
+  assert.equal(observed.cases[0].observed.verdict, 'untested');
+  assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
 });
