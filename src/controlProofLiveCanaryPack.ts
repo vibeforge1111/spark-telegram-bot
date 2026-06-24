@@ -886,6 +886,13 @@ export function formatControlProofCanaryLiveRunGuide(
     lines.push(entry.prompt);
     lines.push('```');
     lines.push('');
+    if (entry.capture.proofPanel) {
+      lines.push('Proof inspection prompt:');
+      lines.push('```text');
+      lines.push('/proof');
+      lines.push('```');
+      lines.push('');
+    }
     lines.push('Record command:');
     lines.push('```bash');
     lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef, options.summaryPath));
@@ -926,12 +933,12 @@ function formatControlProofCanaryRecordCommand(
     '--side-effects-notes',
     shellQuote('<what changed, or no mutation observed>'),
     '--proof-join',
-    shellQuote('<proof join observed, or missing proof>'),
-    '--proof-panel',
-    shellQuote('<proof panel text, or not shown>'),
-    '--user-confirmation',
-    shellQuote('<confirmed in SparkRecursive_bot>')
+    shellQuote('<proof join observed, or missing proof>')
   ];
+  if (entry.capture.proofPanel) {
+    args.push('--proof-panel', shellQuote('<proof panel text, or not shown>'));
+  }
+  args.push('--user-confirmation', shellQuote('<confirmed in SparkRecursive_bot>'));
   if (entry.capture.screenshot) {
     args.push('--screenshot-ref', shellQuote(screenshotRef));
   }
