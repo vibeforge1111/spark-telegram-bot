@@ -1156,8 +1156,21 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   if (!hasCapturedText(entry.observed.proofJoin)) missing.push('proof_join');
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
   if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
-  if (capture.userConfirmation && !hasCapturedText(entry.observed.userConfirmation)) missing.push('user_confirmation');
+  if (capture.userConfirmation) missing.push(...userConfirmationCaptureIssues(entry.observed.userConfirmation));
   return missing;
+}
+
+function userConfirmationCaptureIssues(value: string | null | undefined): string[] {
+  if (!hasCapturedText(value)) return ['user_confirmation'];
+  const text = String(value || '');
+  const issues: string[] = [];
+  if (!/\b(?:confirm(?:ed|s)?|verified|observed|saw|rendered|passed)\b/i.test(text)) {
+    issues.push('user_confirmation');
+  }
+  if (!/\b(?:SparkRecursive_bot|Telegram|live bot|Recursive)\b/i.test(text)) {
+    issues.push('user_confirmation_surface');
+  }
+  return issues;
 }
 
 type ControlProofObservedSideEffects = ControlProofCanaryObservationCase['observed']['sideEffects'];

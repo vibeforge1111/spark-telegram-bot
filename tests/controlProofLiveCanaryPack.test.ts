@@ -318,6 +318,17 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(leakyProofPanel.cases[0].missingCaptures, ['proof_panel_raw_leak']);
 
   template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
+  template.cases[0].observed.userConfirmation = 'Looks good.';
+  const vagueConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(vagueConfirmation.readyForRelease, false);
+  assert.deepEqual(vagueConfirmation.cases[0].missingCaptures, ['user_confirmation', 'user_confirmation_surface']);
+
+  template.cases[0].observed.userConfirmation = 'Confirmed.';
+  const missingConfirmationSurface = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingConfirmationSurface.readyForRelease, false);
+  assert.deepEqual(missingConfirmationSurface.cases[0].missingCaptures, ['user_confirmation_surface']);
+
+  template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once.';
   template.evidence.controlProofAudit = null;
   const missingPacketEvidence = summarizeControlProofCanaryObservations(template);
   assert.equal(missingPacketEvidence.readyForRelease, false);
@@ -348,7 +359,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     proofJoin: 'Builder joined.',
     proofPanel: CLEAN_PROOF_PANEL,
     screenshotRefs: ['/tmp/spark-recursive-builder.png'],
-    userConfirmation: 'Confirmed.'
+    userConfirmation: 'Confirmed in SparkRecursive_bot.'
   };
 
   template.evidence.controlProofAudit = 'missing evidence: 0\nmissing trace joins: 0\nmissing proof capsules: 1';
@@ -580,7 +591,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       proofJoin: 'Builder joined.',
       proofPanel: CLEAN_PROOF_PANEL,
       screenshotRefs: ['/tmp/spark-recursive-builder.png'],
-      userConfirmation: 'Confirmed.'
+      userConfirmation: 'Confirmed in SparkRecursive_bot.'
     };
     observed.evidence = {
       sparkLiveStatus: 'Spark Live healthy.',
@@ -653,7 +664,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         '--summary-out',
         recordedSummaryPath,
         '--user-confirmation',
-        'Confirmed.'
+        'Confirmed in SparkRecursive_bot.'
       ],
       { cwd: ROOT, encoding: 'utf8' }
     );
@@ -817,7 +828,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       proofJoin: 'Builder joined.',
       proofPanel: CLEAN_PROOF_PANEL,
       screenshotRefs: ['/tmp/spark-recursive-builder.png'],
-      userConfirmation: 'Confirmed.'
+      userConfirmation: 'Confirmed in SparkRecursive_bot.'
     };
     const summary = summarizeControlProofCanaryObservations(observed);
     assert.equal(summary.readyForRelease, true);
