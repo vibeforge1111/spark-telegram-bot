@@ -43,6 +43,12 @@ import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
 import { sanitizeAndSplitTelegramText } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
+import {
+  createTelegramDraftStreamer,
+  parseTelegramStreamingConfigText,
+  replayTelegramDraftPreview,
+  renderTelegramStreamingConfigStatus
+} from './telegramDraft';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
 import {
@@ -2894,6 +2900,7 @@ async function deliverBuilderReply(ctx: any, builderReply: Awaited<ReturnType<ty
     return;
   }
   if (builderReply.responseText) {
+    await replayTelegramDraftPreview(ctx, bot.telegram as any, builderReply.responseText);
     await replyWithSanitizedTelegramText(ctx, builderReply.responseText);
   }
 }
@@ -3424,6 +3431,23 @@ bot.command('status', async (ctx) => {
 
   await ctx.reply(lines.join('\n').replace(/\n{3,}/g, '\n\n').trim());
 });
+
+async function handleTelegramStreamingCommand(ctx: any): Promise<void> {
+  if (!requireAdmin(ctx)) return;
+  const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '/streaming') : '/streaming';
+  const action = parseTelegramStreamingConfigText(text);
+  if (!action) {
+    await ctx.reply('Use /streaming, /streaming on, /streaming off, /streaming interval 500, /streaming rich on, or /streaming preview off.');
+    return;
+  }
+  if (action.kind === 'set') {
+    process.env[action.key] = action.value;
+  }
+  await ctx.reply(renderTelegramStreamingConfigStatus());
+}
+
+bot.command('streaming', handleTelegramStreamingCommand);
+bot.command('drafts', handleTelegramStreamingCommand);
 
 // /diagnose command â€” one-shot full-stack health + per-provider ping test
 bot.command('diagnose', async (ctx) => {
@@ -9507,8 +9531,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         : ''
     ].filter(Boolean).join('\n\n');
 
-    // Get LLM response with Spark context
-    const response = applyPlainWordsSurfaceRequest(text, await llm.chat(chatPrompt, systemContext, memories));
+    // Get LLM response with Spark context. Private chats can receive Telegram draft
+    // updates when the selected provider exposes stream chunks.
+    const draftStreamer = createTelegramDraftStreamer(ctx, bot.telegram as any);
+    const response = applyPlainWordsSurfaceRequest(
+      text,
+      await llm.chatStream(chatPrompt, systemContext, memories, draftStreamer ? (partial) => draftStreamer.push(partial) : undefined)
+    );
 
     if (isLowInformationLlmReply(response)) {
       await conversation.recordInterruptedTask(user, {

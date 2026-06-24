@@ -14,12 +14,31 @@ The guiding rule: Telegram drafts are presentation only. Spark truth lives in Bu
 
 ## Current State
 
-Telegram now supports `sendMessageDraft`, which streams a partial message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate. Telegram currently documents this as private-chat scoped.
+Telegram Bot API 10.1 adds Rich Messages for bots, including `sendRichMessageDraft`, which can stream a partial rich message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate as an ephemeral preview, and the final answer should still be delivered through the normal final-message path.
+
+Spark now uses `sendRichMessageDraft` by default for draft previews, with legacy `sendMessageDraft` retained as a fallback for older Telegram surfaces or transient API incompatibility.
 
 Sources:
 
-- https://core.telegram.org/bots/api#sendmessagedraft
+- https://core.telegram.org/bots/api#sendrichmessagedraft
+- https://core.telegram.org/bots/api#inputrichmessage
 - https://telegram.org/blog/ai-bot-revolution-11-new-features
+
+## Telegram Features Worth Using
+
+Bot API 10.1 Rich Messages are the main upgrade path for Spark:
+
+- `sendRichMessageDraft` for visible in-progress replies.
+- `sendRichMessage` for persistent rich final replies once Spark has a formatter that can preserve final-message audit and memory boundaries.
+- `InputRichMessage.markdown` or `InputRichMessage.html` for cleaner headings, lists, block quotes, tables, and compact evidence sections.
+- `<tg-thinking>` / `RichBlockThinking` for a first-class "thinking" surface when Telegram clients support it. Spark should use this only for short user-visible status, not hidden reasoning.
+
+Other recent Telegram surfaces to consider after streaming is proven:
+
+- guest mode and `answerGuestQuery` for public or invite-less Spark entry points.
+- reaction improvements for lightweight feedback on answers, review queues, and mission relays.
+- managed bots and bot-to-bot communication for future Spark agent profiles, only after identity and access boundaries are explicit.
+- richer poll/media support for review queues, pickers, and lightweight approvals.
 
 Spark currently has two answer paths:
 
@@ -147,18 +166,18 @@ sequenceDiagram
     U->>Bot: "hi Spark"
     Bot->>Builder: "stream telegram turn"
     Builder-->>Bot: "route_started"
-    Bot->>TG: "sendMessageDraft: Checking context..."
+    Bot->>TG: "sendRichMessageDraft: Checking context..."
     Builder->>Memory: "retrieve context"
     Memory-->>Builder: "memory_context_ready"
     Builder-->>Bot: "memory_context_ready"
-    Bot->>TG: "sendMessageDraft: Checking memory..."
+    Bot->>TG: "sendRichMessageDraft: Checking memory..."
     Builder->>Model: "stream chat completion"
     Model-->>Builder: "delta: Hey Cem."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem."
     Model-->>Builder: "delta: Still tracking..."
     Builder-->>Bot: "model_delta"
-    Bot->>TG: "sendMessageDraft: Hey Cem... Still tracking..."
+    Bot->>TG: "sendRichMessageDraft: Hey Cem... Still tracking..."
     Builder-->>Bot: "final_text"
     Bot->>TG: "sendMessage final"
     Bot->>Bot: "audit and remember final only"
@@ -313,7 +332,7 @@ Rules:
 
 ### Client Compatibility
 
-`sendMessageDraft` is private-chat scoped in the Bot API. The consumer should treat private chat as the supported target.
+`sendRichMessageDraft` is private-chat scoped in the Bot API. The consumer should treat private chat as the supported target.
 
 Policy:
 
@@ -414,6 +433,11 @@ Operator command:
 
 ```text
 /streaming
+/streaming on
+/streaming off
+/streaming rich on
+/streaming preview off
+/streaming interval 500
 ```
 
 Should show:
@@ -421,6 +445,8 @@ Should show:
 ```text
 Telegram live chat
 Status: on
+Rich drafts: on
+Transport: rich
 Real streaming: Builder stream off/on
 Fallback streaming: on
 Full-reply preview: off
@@ -458,6 +484,7 @@ Config:
 
 ```env
 SPARK_TELEGRAM_CHAT_STREAMING=1
+SPARK_TELEGRAM_DRAFT_METHOD=rich
 SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=0
 SPARK_TELEGRAM_DRAFT_INTERVAL_MS=500
 ```
@@ -477,7 +504,7 @@ Exit criteria:
 - `/streaming` reports full-reply preview off
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
-- direct `sendMessageDraft` smoke passes for the active profile
+- direct `sendRichMessageDraft` smoke passes for the active profile, or clearly falls back to `sendMessageDraft`
 
 ### Phase 1: Builder Status Events
 

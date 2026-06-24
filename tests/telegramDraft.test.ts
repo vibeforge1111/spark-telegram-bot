@@ -6,8 +6,11 @@ import {
   prepareTelegramDraftText,
   replayTelegramDraftPreview,
   renderTelegramStreamingConfigStatus,
+  sendTelegramDraftUpdate,
   telegramDraftsSupportedForContext,
-  telegramDraftStreamingEnabled
+  telegramDraftStreamingEnabled,
+  telegramDraftTransport,
+  telegramRichDraftsEnabled
 } from '../src/telegramDraft';
 
 type AsyncTest = () => Promise<void> | void;
@@ -26,6 +29,9 @@ async function run(): Promise<void> {
   await test('draft streaming is opt-in only', () => {
     assert.equal(telegramDraftStreamingEnabled({}), false);
     assert.equal(telegramDraftStreamingEnabled({ SPARK_TELEGRAM_CHAT_STREAMING: '1' }), true);
+    assert.equal(telegramDraftTransport({}), 'rich');
+    assert.equal(telegramDraftTransport({ SPARK_TELEGRAM_DRAFT_METHOD: 'legacy' }), 'legacy');
+    assert.equal(telegramRichDraftsEnabled({ SPARK_TELEGRAM_DRAFT_METHOD: 'legacy' }), false);
   });
 
   await test('draft streaming only enables for private chats', () => {
@@ -56,6 +62,21 @@ async function run(): Promise<void> {
       key: 'SPARK_TELEGRAM_CHAT_STREAMING',
       value: '0'
     });
+    assert.deepEqual(parseTelegramStreamingConfigText('/streaming@SparkBot on'), {
+      kind: 'set',
+      key: 'SPARK_TELEGRAM_CHAT_STREAMING',
+      value: '1'
+    });
+    assert.deepEqual(parseTelegramStreamingConfigText('/streaming rich off'), {
+      kind: 'set',
+      key: 'SPARK_TELEGRAM_DRAFT_METHOD',
+      value: 'legacy'
+    });
+    assert.deepEqual(parseTelegramStreamingConfigText('/streaming preview off'), {
+      kind: 'set',
+      key: 'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES',
+      value: '0'
+    });
     assert.deepEqual(parseTelegramStreamingConfigText('/streaming'), { kind: 'status' });
     assert.equal(parseTelegramStreamingConfigText('BOT_TOKEN=secret'), null);
   });
@@ -67,8 +88,62 @@ async function run(): Promise<void> {
     });
 
     assert.match(status, /Status: on/);
+    assert.match(status, /Rich drafts: on/);
+    assert.match(status, /Transport: rich/);
+    assert.match(status, /Full-reply preview: on/);
     assert.match(status, /Draft interval: 700ms/);
     assert.match(status, /Private chats only/);
+  });
+
+  await test('sends Telegram drafts through Rich Message drafts by default', async () => {
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+
+    const transport = await sendTelegramDraftUpdate(
+      {
+        async callApi(method, payload) {
+          calls.push({ method, payload });
+        },
+      },
+      42,
+      1001,
+      'Hello Spark',
+      {}
+    );
+
+    assert.equal(transport, 'rich');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
+    assert.equal(calls[0].payload.chat_id, 42);
+    assert.equal(calls[0].payload.draft_id, 1001);
+    assert.deepEqual(calls[0].payload.rich_message, {
+      markdown: 'Hello Spark',
+      skip_entity_detection: false,
+    });
+  });
+
+  await test('falls back to legacy message drafts when Rich Message drafts fail', async () => {
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+
+    const transport = await sendTelegramDraftUpdate(
+      {
+        async callApi(method, payload) {
+          calls.push({ method, payload });
+          if (method === 'sendRichMessageDraft') {
+            throw new Error('method unavailable');
+          }
+        },
+      },
+      42,
+      1001,
+      'Hello Spark',
+      {}
+    );
+
+    assert.equal(transport, 'legacy');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
+    assert.equal(calls[1].method, 'sendMessageDraft');
+    assert.equal(calls[1].payload.text, 'Hello Spark');
   });
 
   await test('builds progressive draft previews for full Builder replies', () => {
@@ -97,13 +172,13 @@ async function run(): Promise<void> {
     );
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].method, 'sendMessageDraft');
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
     assert.equal(calls[0].payload.chat_id, 42);
     assert.equal(calls[1].payload.draft_id, calls[0].payload.draft_id);
-    assert.match(String(calls[1].payload.text), /full Builder reply/);
+    assert.match(String((calls[1].payload.rich_message as any).markdown), /full Builder reply/);
   });
 
-  await test('streamer sends stable draft id updates through sendMessageDraft', async () => {
+  await test('streamer sends stable draft id updates through Rich Message drafts', async () => {
     const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
     const streamer = createTelegramDraftStreamer(
       { chat: { id: 42, type: 'private' } },
@@ -120,10 +195,10 @@ async function run(): Promise<void> {
     await streamer.push('Hello **Spark**');
 
     assert.equal(calls.length, 2);
-    assert.equal(calls[0].method, 'sendMessageDraft');
+    assert.equal(calls[0].method, 'sendRichMessageDraft');
     assert.equal(calls[0].payload.chat_id, 42);
-    assert.equal(calls[0].payload.text, 'Hel');
-    assert.equal(calls[1].payload.text, 'Hello Spark');
+    assert.equal((calls[0].payload.rich_message as any).markdown, 'Hel');
+    assert.equal((calls[1].payload.rich_message as any).markdown, 'Hello Spark');
     assert.equal(calls[1].payload.draft_id, calls[0].payload.draft_id);
   });
 
@@ -144,7 +219,7 @@ async function run(): Promise<void> {
     await streamer.push('Second');
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].text, 'First');
+    assert.equal((calls[0].rich_message as any).markdown, 'First');
   });
 }
 
