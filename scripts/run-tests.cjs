@@ -23,6 +23,7 @@ const tests = [
   'tests/harnessContract.test.ts',
   'tests/harnessProofCapsule.test.ts',
   'tests/harnessProofProjection.test.ts',
+  'tests/finalAnswerGateAudit.test.ts',
   'tests/harnessCoreVNext.test.ts',
   'tests/harnessCoreLedger.test.ts',
   'tests/legacyAuthorityInventory.test.ts',

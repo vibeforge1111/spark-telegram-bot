@@ -2847,7 +2847,7 @@ export function buildFinalAnswerGateSuppressionRecord(
   now = new Date()
 ): Record<string, unknown> {
   const requestId = String(input.requestId || '').trim();
-  const traceRef = String(input.traceRef || '').trim();
+  const traceRef = sanitizeFinalAnswerTraceRef(input.traceRef);
   return {
     ts: now.toISOString(),
     event: 'final_answer_checked',
@@ -2867,6 +2867,15 @@ export function buildFinalAnswerGateSuppressionRecord(
     fallback_route: input.fallbackRoute,
     latest_intent_preserved: true
   };
+}
+
+function sanitizeFinalAnswerTraceRef(value: unknown): string {
+  const traceRef = String(value || '').trim();
+  if (!traceRef) return '';
+  if (/[/\\]|(?:^|[\\/])Users[\\/]|[A-Za-z]:[\\/]|\.jsonl?$/i.test(traceRef)) {
+    return redactedRef('trace', traceRef);
+  }
+  return /^trace[:_]/i.test(traceRef) ? traceRef : redactedRef('trace', traceRef);
 }
 
 function recordFinalAnswerGateSuppression(input: FinalAnswerGateSuppressionInput): void {
