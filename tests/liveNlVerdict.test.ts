@@ -521,6 +521,50 @@ test('live NL CLI emits Harness Core refurbishment map for selected legacy cases
   assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
 });
 
+test('live NL CLI strict Harness map fails cases that need promotion', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--harness-strict',
+      '--cases',
+      'memory-001,access-002,mission-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /run_only_with_intentional_action_confirmation: 3/);
+  assert.match(result.stderr, /Harness strict failed: 3 selected legacy case\(s\) need promotion or intentional-action confirmation: memory-001, access-002, mission-001/);
+});
+
+test('live NL CLI strict Harness map allows legacy breadth-only cases', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--harness-map',
+      '--harness-strict',
+      '--case',
+      'smoke-001'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /keep_legacy_breadth: 1/);
+  assert.doesNotMatch(result.stderr, /Harness strict failed/);
+});
+
 test('live NL verdict CLI emits a Genesis evidence packet', () => {
   const result = spawnSync(
     process.execPath,

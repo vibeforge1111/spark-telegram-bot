@@ -102,6 +102,7 @@ Instead, the old cases now have a lightweight Harness Core map:
 npm run nl:harness-map
 npm run nl:harness-map -- --catalog genesis100 --include-risky
 npm run nl:live -- --harness-map --cases memory-001,access-002,mission-001
+npm run nl:live -- --harness-map --harness-strict --cases smoke-001
 ```
 
 The map derives:
@@ -112,6 +113,8 @@ The map derives:
 - Whether proof and visual/user-confirmation capture are required if promoted.
 
 This is deliberately a map, not a release gate. A mapped case is still missing live proof joins, side-effect capture, reply-shape expectations, and Telegram visual confirmation until it is copied into `control:proof:canaries` or an equivalent Harness-shaped canary.
+
+Use `--harness-strict` only for candidate legacy subsets that are supposed to remain breadth-only. It exits nonzero when any selected case needs promotion or intentional-action confirmation, which keeps old "safe" labels from slipping into release proof without the new Harness fields.
 
 Create or maintain a smaller Harness-shaped canary pack for SparkRecursive_bot as the release gate. That pack should draw representative prompts from the old catalogs, but each case must carry the new fields: authority, mutation class, proof join, side-effect expectation, reply shape, screenshot/user-confirmation capture, and pass criteria.
 
