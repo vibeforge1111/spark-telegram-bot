@@ -9297,7 +9297,10 @@ bot.command('loop', async (ctx) => {
           status: 'failure',
           summary: `Recursive chip loop ${chipKey} failed after asynchronous start: ${result.error || 'unknown error'}.`
         });
-        await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop failed', result.error));
+        const loopRepair = /not found|does not exist|no such|unknown chip|missing/i.test(result.error || '')
+          ? '\n\nRepair\n• Make sure the chip key exists. Run /chip create to create a new chip.\n• Check available chips with your Spark admin.'
+          : '';
+        await ctx.telegram.sendMessage(chatId, renderTelegramError('Loop failed', (result.error || '') + loopRepair));
         return;
       }
       recordTelegramHarnessCoreExecution(authorization, {
@@ -9707,7 +9710,10 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
               status: 'failure',
               summary: `Recursive Builder chip loop ${startTarget.key} failed after asynchronous start: ${result.error || 'unknown error'}.`
             });
-            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', result.error));
+            const recursiveRepair = /not found|does not exist|no such|unknown chip|missing|no path/i.test(result.error || '')
+              ? '\n\nRepair\n• Make sure the path or chip key exists. Run /recursive paths to see available paths.\n• Run /chip create to create a new chip.'
+              : '';
+            await ctx.telegram.sendMessage(chatId, renderTelegramError('Recursive loop failed', (result.error || '') + recursiveRepair));
             return;
           }
           let sync = null;
@@ -9750,7 +9756,8 @@ export async function handleRecursiveCommand(ctx: any, rawOverride?: string): Pr
         `Workspace: ${sparkWorkspaceRecursionsUrl()}`
       ].join('\n'));
     }
-    return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}`);
+    const swarmRepair = /workspace is not configured|SPARK_SWARM/i.test(detail) ? '\n\nRepair\n• Swarm credentials are required for this command.\n• Set SPARK_SWARM_WORKSPACE_ID and SPARK_SWARM_ACCESS_TOKEN in your Spark config or contact your admin.' : '';
+    return ctx.reply(`Recursive command failed${status ? ` (${status})` : ''}: ${detail}${swarmRepair}`);
   }
 }
 
