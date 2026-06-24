@@ -54,6 +54,9 @@ test('media ingest allows read-only image, voice, and audio analysis without act
   assert.equal(image.governorDecision?.outcome, 'read_only');
   assert.equal(voice.governorDecision?.outcome, 'read_only');
   assert.equal(audio.governorDecision?.outcome, 'read_only');
+  assert.ok(image.legacyEnvelope?.toolPolicy.allowedTools.includes('media.image.analyze'));
+  assert.ok(voice.legacyEnvelope?.toolPolicy.allowedTools.includes('media.voice.transcribe'));
+  assert.ok(audio.legacyEnvelope?.toolPolicy.allowedTools.includes('media.audio.transcribe'));
   assert.equal(image.harnessCore?.authorization.restrictions.write_allowed, false);
   assert.equal(voice.harnessCore?.authorization.restrictions.write_allowed, false);
   assert.equal(audio.harnessCore?.authorization.restrictions.write_allowed, false);

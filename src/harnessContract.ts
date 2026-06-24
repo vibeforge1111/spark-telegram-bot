@@ -297,9 +297,9 @@ function allowedToolsForDecision(decision: TelegramIntentDecisionV2, policy: Spa
   if (decision.route === 'spark.reflect') tools.push('spark.reflect');
   if (decision.route === 'mission_updates.preference') tools.push('mission_updates.preference');
   if (decision.route === 'model.switch') tools.push('model.switch');
-  if (decision.route === 'media.image_analyze_or_boundary') tools.push('telegram.media.image', 'builder.telegram_bridge');
-  if (decision.route === 'media.voice_transcribe_or_boundary') tools.push('telegram.media.voice', 'builder.telegram_bridge');
-  if (decision.route === 'media.audio_transcribe_or_boundary') tools.push('telegram.media.audio', 'builder.telegram_bridge');
+  if (decision.route === 'media.image_analyze_or_boundary') tools.push('telegram.media.image', 'media.image.analyze', 'builder.telegram_bridge');
+  if (decision.route === 'media.voice_transcribe_or_boundary') tools.push('telegram.media.voice', 'media.voice.transcribe', 'builder.telegram_bridge');
+  if (decision.route === 'media.audio_transcribe_or_boundary') tools.push('telegram.media.audio', 'media.audio.transcribe', 'builder.telegram_bridge');
   if (decision.route === 'voice.command') {
     tools.push(
       'voice.command',
