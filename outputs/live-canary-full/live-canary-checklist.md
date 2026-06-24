@@ -289,7 +289,7 @@ Verdict values: pass, fail, blocked, needs-retest, untested
 - Prompt: Run memory doctor for last request only if the current turn authorizes it; otherwise explain what to ask next.
 - Expected authority: read_only_allowed
 - Expected mutation class: read_only
-- Expected route: memory.doctor_authority_boundary
+- Expected route: memory.doctor
 - Expected reply shape: natural
 - Expected side effect: Read-only diagnostic only when authorized.
 - Expected proof join: Tool ledger and Telegram reply should not expose raw reason codes.

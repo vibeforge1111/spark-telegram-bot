@@ -469,7 +469,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     category: 'memory',
     risk: 'inspect_only',
     prompt: 'Run memory doctor for last request only if the current turn authorizes it; otherwise explain what to ask next.',
-    expectedRoute: 'memory.doctor_authority_boundary',
+    expectedRoute: 'memory.doctor',
     expectedReplyShape: 'natural',
     expectedSideEffect: 'Read-only diagnostic only when authorized.',
     expectedProofJoin: 'Tool ledger and Telegram reply should not expose raw reason codes.',
