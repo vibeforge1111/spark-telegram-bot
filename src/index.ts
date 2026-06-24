@@ -241,14 +241,11 @@ import {
   buildNoExecutionIdeationReply,
   buildIdeationSystemHint, buildContextualImprovementGoal,
   buildProjectImprovementGoal, buildDiagnosticFollowupTestReply,
-  buildExternalResearchGoal,
-  buildLocalSparkServiceClarificationReply, buildLocalSparkServiceReply,
-  buildMemoryBridgeUnavailableReply,
-  buildRecentBuildContextReply,
+  buildExternalResearchGoal, buildLocalSparkServiceClarificationReply, buildLocalSparkServiceReply,
+  buildMemoryBridgeUnavailableReply, buildRecentBuildContextReply,
   extractSparkSelfImprovementGoal,
   extractSparkWikiAnswerQuestion,
-  extractSparkWikiPromotionIntent,
-  extractSparkWikiQuery,
+  extractSparkWikiPromotionIntent, extractSparkWikiQuery,
   extractPlainChatMemoryDirective,
   formatGlobalAgentDoctrineRequestReply,
   formatMissionUpdatePreferenceAcknowledgement,
@@ -380,6 +377,7 @@ import {
   switchModelRoute
 } from './modelSwitch';
 import { renderExternalResearchBoundaryReply } from './externalResearchBoundary';
+import { renderBuilderMemoryDiagnosticBoundaryReply } from './builderDiagnosticBoundary';
 import { telegramHandlerTimeoutMs } from './timeoutConfig';
 import {
   buildContextualImageUpdate,
@@ -8692,6 +8690,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   const externalResearchBoundaryAnswer = !earlyBuildIntent ? renderExternalResearchBoundaryReply(text) : '';
   if (externalResearchBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.external_research_boundary', 'spark-telegram-bot', 'external_research.boundary'); await ctx.reply(externalResearchBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'external_research.boundary', intentKind: 'external_research.boundary', command: 'telegram_external_research_boundary', reasonSummary: 'Telegram explained the external research source boundary; no external network action was authorized.' }))); await conversation.rememberAssistantReply(user, externalResearchBoundaryAnswer).catch(() => {}); return; }
+  const builderMemoryDiagnosticBoundaryAnswer = !earlyBuildIntent ? renderBuilderMemoryDiagnosticBoundaryReply(text) : '';
+  if (builderMemoryDiagnosticBoundaryAnswer) { await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.builder_memory_diagnostic_boundary', 'spark-telegram-bot', 'builder_gateway.memory_diagnostic_boundary'); await ctx.reply(builderMemoryDiagnosticBoundaryAnswer, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'builder_gateway.memory_diagnostic_boundary', intentKind: 'builder_gateway.memory_diagnostic_boundary', command: 'telegram_builder_memory_diagnostic_boundary', reasonSummary: 'Telegram explained the Builder memory diagnostic boundary; no memory diagnostic was authorized.' }))); await conversation.rememberAssistantReply(user, builderMemoryDiagnosticBoundaryAnswer).catch(() => {}); return; }
   const browserProofAnswer = !earlyBuildIntent ? await buildBrowserProofQuestionAnswer(text) : '';
   if (browserProofAnswer) {
     await conversation.remember(user, text).catch(() => {});

@@ -11,6 +11,7 @@ const tests = [
   'tests/buildE2E.test.ts',
   'tests/conversationIntent.test.ts',
   'tests/memoryDoctorBridge.test.ts',
+  'tests/builderDiagnosticBoundary.test.ts',
   'tests/externalResearchBoundary.test.ts',
   'tests/routeConfidenceTelegram.test.ts',
   'tests/naturalRouteDecision.test.ts',

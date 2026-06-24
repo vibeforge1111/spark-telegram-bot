@@ -195,6 +195,17 @@ async function run(): Promise<void> {
     );
     restoreEnv();
   });
+
+  await test('builder memory diagnostic boundary proof uses builder route', async () => {
+    restoreEnv();
+    prepareEnv();
+    await assertTraceRoute(
+      'Ask for a memory diagnostic only if this turn authorizes it. Otherwise tell me plainly what is missing.',
+      'builder_gateway.memory_diagnostic_boundary',
+      /does not authorize a memory diagnostic/i
+    );
+    restoreEnv();
+  });
 }
 
 run().catch((error) => {
