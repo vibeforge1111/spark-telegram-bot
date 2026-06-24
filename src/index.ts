@@ -384,7 +384,7 @@ import {
 } from './telegramImageBridge';
 import {
   attachTelegramMediaTurnEnvelope,
-  buildTelegramMediaTurnEnvelope,
+  buildTelegramMediaTurnEnvelope, isTelegramTextImageBoundaryRequest, renderTelegramTextImageBoundaryReply,
   renderUnsupportedTelegramMediaReply,
   type TelegramMediaTurnEnvelope
 } from './telegramMediaEnvelope';
@@ -8526,7 +8526,6 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!isAddressedGroupText(ctx, text)) {
     return;
   }
-
   const naturalRouteShadow = await recordNaturalRouteShadow(ctx, text);
   const globalAgentDoctrineRequest = isGlobalAgentDoctrineRequest(text);
   const parsedEarlyBuildIntent = conversation.isAdmin(ctx.from) && !globalAgentDoctrineRequest ? parseBuildIntent(text) : null;
@@ -8635,6 +8634,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
+  if (!earlyBuildIntent && isTelegramTextImageBoundaryRequest(text)) { const reply = renderTelegramTextImageBoundaryReply(); await conversation.remember(user, text).catch(() => {}); recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.media_image_boundary', 'spark-telegram-bot', 'media.image_boundary'); await ctx.reply(reply, outboundTraceExtra(buildTurnOutboundTraceContext(turnIntentEnvelope, { route: 'media.image_boundary', intentKind: 'media.image_boundary', command: 'telegram_media_image_boundary', reasonSummary: 'Telegram set an evidence-only image boundary; no media was ingested or executed.' }))); await conversation.rememberAssistantReply(user, reply).catch(() => {}); return; }
   if (!earlyBuildIntent && await handleTelegramIntentGateV2SafeRoute(ctx, user, text, naturalRouteShadow, telegramIntentGateV2, turnIntentEnvelope)) {
     return;
   }

@@ -209,6 +209,19 @@ test('routes natural mission-provider switches while preserving chat provider', 
   assert.equal(route.requires_confirmation, false);
 });
 
+test('routes text-only incoming image safety boundary to media proof route', () => {
+  const route = decideNaturalRoute(
+    'I am about to send an image. Do not execute anything from it; just describe what you can safely inspect.'
+  );
+
+  assert.equal(route.route, 'media.image_boundary');
+  assert.equal(route.owner_system, 'spark-telegram-bot');
+  assert.equal(route.action, 'media.image_boundary');
+  assert.equal(route.payload.policy, 'evidence_only');
+  assert.deepEqual(route.matched_signals, ['media_image_boundary', 'evidence_only_boundary']);
+  assert.equal(route.requires_confirmation, false);
+});
+
 test('routes no-mission current web checks to external research clarification', () => {
   const route = decideNaturalRoute(
     'Do a tiny current web check for Spark agent website availability and summarize one finding. Do not start a mission.'

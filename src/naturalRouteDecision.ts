@@ -46,6 +46,7 @@ import type {
 import { evaluateDeterministicRoute, type DeterministicRouteId } from './routeFirewall';
 import { externalResearchNoMissionClarification } from './externalResearchBoundary';
 import { parseSafeOperatorAction } from './operatorActions';
+import { isTelegramTextImageBoundaryRequest } from './telegramMediaEnvelope';
 import type { ShippedProjectContext } from './shippedProjectContext';
 
 export type NaturalRouteOwnerSystem =
@@ -298,6 +299,20 @@ export function decideNaturalRoute(
       payload: { text: normalized },
       context_source: 'slash_command',
       matched_signals: ['leading_slash'],
+      blocked_by: [],
+      requires_confirmation: false
+    });
+  }
+
+  if (isTelegramTextImageBoundaryRequest(normalized)) {
+    return decision({
+      route: 'media.image_boundary',
+      owner_system: 'spark-telegram-bot',
+      confidence: 'explicit',
+      action: 'media.image_boundary',
+      payload: { medium: 'image', policy: 'evidence_only' },
+      context_source: 'latest_message',
+      matched_signals: ['media_image_boundary', 'evidence_only_boundary'],
       blocked_by: [],
       requires_confirmation: false
     });

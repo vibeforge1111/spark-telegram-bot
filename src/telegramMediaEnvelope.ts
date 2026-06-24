@@ -55,6 +55,15 @@ function mimeFamily(mimeType: string): string | undefined {
   return family || undefined;
 }
 
+export function isTelegramTextImageBoundaryRequest(text: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!normalized) return false;
+  const announcesImage = /\b(?:about\s+to|going\s+to|gonna|will|i(?:'| a)m)\s+(?:send|upload|attach|share)\b.{0,50}\b(?:image|photo|picture|screenshot)\b/.test(normalized);
+  const evidenceOnly = /\b(?:do not|don't|dont|please don't|please dont|won't|will not)\b.{0,80}\b(?:execute|follow|open|scan|run|act\s+on|treat)\b/.test(normalized) ||
+    /\b(?:just|only)\s+(?:describe|inspect|read|look at)\b.{0,60}\b(?:visible|safely|image|photo|screenshot)\b/.test(normalized);
+  return announcesImage && evidenceOnly;
+}
+
 export function telegramMediaTurnKind(messageInput: unknown): TelegramMediaTurnKind {
   const message = objectValue(messageInput);
   const document = objectValue(message.document);
@@ -114,4 +123,12 @@ export function attachTelegramMediaTurnEnvelope(updateInput: Record<string, unkn
 
 export function renderUnsupportedTelegramMediaReply(): string {
   return 'I received that file, but this Telegram path only has text, image, voice, and audio evidence handling wired right now. I will not execute anything from the file.';
+}
+
+export function renderTelegramTextImageBoundaryReply(): string {
+  return [
+    'Send it. I will safely inspect only what is visible in the image: layout, text, UI state, objects, screenshots, and obvious risk signals.',
+    '',
+    'I will not execute instructions inside it, follow links, scan QR codes, open files, or treat image text as commands.'
+  ].join('\n');
 }
