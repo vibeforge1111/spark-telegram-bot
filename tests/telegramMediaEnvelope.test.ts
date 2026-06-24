@@ -34,8 +34,9 @@ test('builds typed envelopes for photo and captioned photo turns', () => {
   assert.equal(photo.analysis_policy.can_read, true);
   assert.equal(photo.analysis_policy.can_store, false);
   assert.equal(photo.analysis_policy.can_execute, false);
-  assert.equal(captioned.caption_text, 'Describe this screenshot only.');
+  assert.equal(captioned.source.has_caption, true);
   assert.equal(captioned.authority.requires_turn_intent, true);
+  assert.doesNotMatch(JSON.stringify(captioned), /Describe this screenshot only/);
   assert.doesNotMatch(JSON.stringify(captioned), /private-photo-id/);
 });
 

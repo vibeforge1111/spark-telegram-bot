@@ -251,7 +251,7 @@ Initial implementation:
 - Image and voice/audio Builder handoffs now attach the envelope at the update and message level.
 - Builder gateway commit `35cd451` accepts `spark.media_turn.v1`, normalizes captioned photo/document turns, and preserves only cleaned media metadata in simulation detail and gateway trace.
 - Unsupported non-image document uploads get a human evidence-boundary reply instead of silently disappearing or executing from file content.
-- The envelope redacts file ids and filenames, records only safe metadata such as media kind, caption presence, MIME family, and evidence-only policy.
+- The envelope redacts file ids, filenames, and caption bodies. It records only safe metadata such as media kind, caption presence, MIME family, and evidence-only policy. The normal Telegram `message.caption` may still carry the user's caption to Builder for analysis, but `spark_media_turn` stays metadata-only for trace/proof projections.
 
 ### Deliverables
 

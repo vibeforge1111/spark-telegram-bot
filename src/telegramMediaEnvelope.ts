@@ -7,7 +7,6 @@ export interface TelegramMediaTurnEnvelope {
   media_kind: TelegramMediaTurnKind;
   chat_surface: 'telegram';
   turn_ref: string;
-  caption_text?: string;
   analysis_policy: {
     can_read: boolean;
     can_store: false;
@@ -80,7 +79,6 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
     media_kind: mediaKind,
     chat_surface: 'telegram',
     turn_ref: mediaTurnRef(message),
-    ...(caption ? { caption_text: caption } : {}),
     analysis_policy: {
       can_read: canRead,
       can_store: false,
