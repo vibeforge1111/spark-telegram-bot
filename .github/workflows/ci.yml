@@ -29,6 +29,9 @@ jobs:
       - name: Typecheck and build
         run: npm run build
 
+      - name: Harness discipline - god-file line-count gate (R-21)
+        run: python3 scripts/harness_checks/line_count_gate.py --root .
+
       - name: Runtime sync check
         run: npm run sync:check
 
