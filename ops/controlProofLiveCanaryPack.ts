@@ -105,6 +105,8 @@ const CONTROL_PROOF_SIDE_EFFECT_FLAGS: ControlProofSideEffectFlagName[] = [
   'media-handled'
 ];
 
+const STALE_PROOF_STARTER_CASE_IDS = ['cp-builder-001', 'cp-proof-001', 'cp-streaming-001', 'cp-streaming-002'];
+
 function sideEffectFlagForMutationClass(mutationClass: ControlProofCanaryMutationClass): ControlProofSideEffectFlagName | null {
   if (mutationClass === 'writes_files') return 'files-changed';
   if (mutationClass === 'writes_memory') return 'memory-written';
@@ -325,6 +327,18 @@ function canaryCasesFromObservations(observations: { cases?: Array<{ id?: string
   });
 }
 
+function prioritizeStaleProofCaseIds(caseIds: string[]): string[] {
+  const seen = new Set<string>();
+  return [
+    ...STALE_PROOF_STARTER_CASE_IDS,
+    ...caseIds
+  ].filter((id) => {
+    if (!caseIds.includes(id) || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   if (hasFlag(args, 'help') || args.length === 0) {
@@ -361,7 +375,7 @@ function main(): void {
         console.log('No stale proof-panel recaptures found.');
       } else {
         const cases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
-          caseIds: staleProofCaseIds,
+          caseIds: prioritizeStaleProofCaseIds(staleProofCaseIds),
           includeActions: true
         });
         console.log(formatControlProofCanaryLiveRunGuide(cases, {

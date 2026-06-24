@@ -173,6 +173,8 @@ When proof-panel captures are stale, the summary prints the case ids needing fre
 
 Use `npm run control:proof:canaries -- --observations <packet> --stale-proof-run-guide` to generate a focused live guide from the packet's stale proof-panel blockers.
 
+The stale-proof run guide prioritizes the safe starter canaries first when they are stale, especially `cp-builder-001` and `cp-proof-001`, before continuing through the rest of the recapture list.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.

@@ -829,7 +829,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
 
     const staleProofObservationsPath = resolve(tempRoot, 'stale-proof-observations.json');
     let staleProofObservations = buildControlProofCanaryObservationTemplate([
-      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-noaction-001')!,
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-proof-001')!
     ], { generatedAt: '2026-06-24T00:00:00.000Z' });
     staleProofObservations = withControlProofCanaryRuntimeEvidence(staleProofObservations, {
       sparkLiveStatus: 'Spark Live healthy.',
@@ -838,20 +840,23 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 4', 'legacy proof gaps: 3'),
       notes: null
     });
-    staleProofObservations.cases[0].observed = {
-      ...staleProofObservations.cases[0].observed,
-      verdict: 'pass',
-      reply: 'Route confidence means Spark is justified in taking this route now.',
-      sideEffects: {
-        ...staleProofObservations.cases[0].observed.sideEffects,
-        missionStarted: false,
-        notes: 'No mutation observed.'
-      },
-      proofJoin: 'Builder joined.',
-      proofPanel: CLEAN_PROOF_PANEL,
-      screenshotRefs: ['/tmp/cp-builder-001.png'],
-      userConfirmation: 'Confirmed in SparkRecursive_bot.'
-    };
+    staleProofObservations.cases = staleProofObservations.cases.map((entry) => ({
+      ...entry,
+      observed: {
+        ...entry.observed,
+        verdict: 'pass',
+        reply: 'Route confidence means Spark is justified in taking this route now.',
+        sideEffects: {
+          ...entry.observed.sideEffects,
+          missionStarted: false,
+          notes: 'No mutation observed.'
+        },
+        proofJoin: 'Builder joined.',
+        proofPanel: CLEAN_PROOF_PANEL,
+        screenshotRefs: [`/tmp/${entry.id}.png`],
+        userConfirmation: 'Confirmed in SparkRecursive_bot.'
+      }
+    }));
     writeFileSync(staleProofObservationsPath, JSON.stringify(staleProofObservations, null, 2), 'utf8');
     const staleProofRunGuide = spawnSync(
       process.execPath,
@@ -867,9 +872,10 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(staleProofRunGuide.status, 0, staleProofRunGuide.stderr);
     assert.match(staleProofRunGuide.stdout, /Control-Proof Live Run Guide/);
     assert.match(staleProofRunGuide.stdout, /1\. cp-builder-001/);
+    assert.match(staleProofRunGuide.stdout, /2\. cp-proof-001/);
+    assert.match(staleProofRunGuide.stdout, /3\. cp-noaction-001/);
     assert.match(staleProofRunGuide.stdout, /Proof inspection prompt:\n```text\n\/proof\n```/);
     assert.match(staleProofRunGuide.stdout, /--record-case cp-builder-001/);
-    assert.doesNotMatch(staleProofRunGuide.stdout, /cp-proof-001/);
 
     observed.cases[0].observed = {
       ...observed.cases[0].observed,
