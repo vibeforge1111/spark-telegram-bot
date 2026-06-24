@@ -170,7 +170,9 @@ export interface ControlProofCanaryCoverageSummary {
   mutationCounts: Map<string, number>;
   authorityCounts: Map<string, number>;
   missingRequiredCategories: ControlProofCanaryCategory[];
+  missingReleaseCaseIds: string[];
   coverageComplete: boolean;
+  releasePackComplete: boolean;
 }
 
 export const CONTROL_PROOF_CANARY_TARGET = 'SparkRecursive_bot';
@@ -813,6 +815,8 @@ export function formatControlProofCanaryCoverage(cases: ControlProofCanaryCase[]
     `Manual media cases: ${coverage.manualMediaCases}`,
     `Required category coverage: ${coverage.coverageComplete ? 'complete' : 'missing'}`,
     `Missing required categories: ${coverage.missingRequiredCategories.length ? coverage.missingRequiredCategories.join(', ') : 'none'}`,
+    `Full release pack: ${coverage.releasePackComplete ? 'complete' : 'missing'}`,
+    `Missing release cases: ${coverage.missingReleaseCaseIds.length ? coverage.missingReleaseCaseIds.join(', ') : 'none'}`,
     '',
     'Categories:',
     ...formatCounts(coverage.categoryCounts),
@@ -835,6 +839,10 @@ export function summarizeControlProofCanaryCoverage(cases: ControlProofCanaryCas
   const mutationCounts = countBy(cases, (entry) => entry.expectedMutationClass);
   const authorityCounts = countBy(cases, (entry) => entry.expectedAuthority);
   const missingRequiredCategories = CONTROL_PROOF_REQUIRED_CANARY_CATEGORIES.filter((category) => !categoryCounts.has(category));
+  const selectedIds = new Set(cases.map((entry) => entry.id));
+  const missingReleaseCaseIds = CONTROL_PROOF_LIVE_CANARY_CASES
+    .map((entry) => entry.id)
+    .filter((id) => !selectedIds.has(id));
   return {
     totalCases: cases.length,
     intentionalActionCases: riskCounts.get('intentional_action') || 0,
@@ -844,7 +852,9 @@ export function summarizeControlProofCanaryCoverage(cases: ControlProofCanaryCas
     mutationCounts,
     authorityCounts,
     missingRequiredCategories,
-    coverageComplete: missingRequiredCategories.length === 0
+    missingReleaseCaseIds,
+    coverageComplete: missingRequiredCategories.length === 0,
+    releasePackComplete: missingReleaseCaseIds.length === 0
   };
 }
 

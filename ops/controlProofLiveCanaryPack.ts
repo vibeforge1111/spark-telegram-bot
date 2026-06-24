@@ -284,7 +284,7 @@ function formatReleaseBundleReadme(paths: {
     `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --release-check`,
     '```',
     '',
-    'The release gate is ready only when the release check reports every selected case as pass with required captures present and required category coverage is complete.',
+    'The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.',
     '',
     '## Side-Effect Proof',
     '',
@@ -354,6 +354,7 @@ function main(): void {
     if (
       (!summary.readyForRelease && (hasFlag(args, 'strict') || releaseCheck))
       || (coverage && (hasFlag(args, 'coverage-strict') || releaseCheck) && !coverage.coverageComplete)
+      || (coverage && releaseCheck && !coverage.releasePackComplete)
     ) {
       process.exitCode = 1;
     }

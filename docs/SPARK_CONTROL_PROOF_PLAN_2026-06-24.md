@@ -324,7 +324,7 @@ Use `--include-actions --release-bundle --out-dir <dir> --collect-runtime-eviden
 
 Replace every `<...>` placeholder in generated record commands before treating a case as passed. Strict summaries count leftover placeholders as missing captures.
 
-Use `--coverage --coverage-strict` to fail a selection that does not cover the required Harness Core categories. The full release coverage check should include explicit action cases. Use `--observations <packet> --release-check` as the combined final gate for a full release packet; it is shorthand for strict observation readiness plus strict required coverage.
+Use `--coverage --coverage-strict` to fail a selection that does not cover the required Harness Core categories. The full release coverage check should include explicit action cases. Use `--observations <packet> --release-check` as the combined final gate for a full release packet; it is shorthand for strict observation readiness, strict required category coverage, and full release-pack presence.
 
 Refurbishment helper for old NL cases:
 

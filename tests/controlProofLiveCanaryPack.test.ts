@@ -183,6 +183,8 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   assert.match(coverage, /Manual media cases: 4/);
   assert.match(coverage, /Required category coverage: complete/);
   assert.match(coverage, /Missing required categories: none/);
+  assert.match(coverage, /Full release pack: complete/);
+  assert.match(coverage, /Missing release cases: none/);
   assert.match(coverage, /- mission: 1/);
   assert.match(coverage, /- streaming: 1/);
   assert.match(coverage, /- rich_messages: 1/);
@@ -196,8 +198,11 @@ test('coverage output summarizes categories, action risk, and mutation classes',
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ]);
   assert.equal(narrowSummary.coverageComplete, false);
+  assert.equal(narrowSummary.releasePackComplete, false);
   assert.ok(narrowSummary.missingRequiredCategories.includes('mission'));
+  assert.ok(narrowSummary.missingReleaseCaseIds.includes('cp-proof-001'));
   assert.match(narrow, /Required category coverage: missing/);
+  assert.match(narrow, /Full release pack: missing/);
   assert.match(narrow, /Missing required categories: .*mission/);
 });
 
@@ -641,6 +646,47 @@ test('control-proof canary CLI lists and exports selected cases', () => {
 
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-observations-'));
   try {
+    const requiredCategories: ControlProofCanaryCategory[] = [
+      'no_action',
+      'authority',
+      'proof',
+      'streaming',
+      'rich_messages',
+      'builder',
+      'spawner_build',
+      'mission',
+      'memory',
+      'access',
+      'web_research',
+      'model_switch',
+      'media',
+      'audio',
+      'voice'
+    ];
+    const categoryCompleteCases = requiredCategories.map((category) =>
+      CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.category === category)!
+    );
+    const partialReleasePath = resolve(tempRoot, 'category-complete-partial-release.json');
+    writeFileSync(
+      partialReleasePath,
+      JSON.stringify(buildControlProofCanaryObservationTemplate(categoryCompleteCases), null, 2),
+      'utf8'
+    );
+    const partialReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        partialReleasePath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(partialReleaseCheck.status, 1);
+    assert.match(partialReleaseCheck.stdout, /Required category coverage: complete/);
+    assert.match(partialReleaseCheck.stdout, /Full release pack: missing/);
+
     const outTemplatePath = resolve(tempRoot, 'template.json');
     const outTemplate = spawnSync(
       process.execPath,
