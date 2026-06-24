@@ -414,12 +414,19 @@ export class ConversationMemory {
     for (const [key, value] of this.frameStateByUser.entries()) {
       frameStateByUser[String(key)] = value;
     }
-    await writeJsonAtomic(this.statePath, {
-      recentByUser: this.recordFromMap(this.recentByUser),
-      notesByUser: this.recordFromMap(this.notesByUser),
-      interruptedByUser,
-      frameStateByUser
-    });
+    try {
+      await writeJsonAtomic(this.statePath, {
+        recentByUser: this.recordFromMap(this.recentByUser),
+        notesByUser: this.recordFromMap(this.notesByUser),
+        interruptedByUser,
+        frameStateByUser
+      });
+    } catch (error) {
+      // Diagnostic only: callers already swallow persist() rejections, so this
+      // makes the failure visible in logs without changing control flow.
+      console.error('[ConversationMemory] persist failed:', error);
+      throw error;
+    }
   }
 
   private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
