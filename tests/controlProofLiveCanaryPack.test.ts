@@ -1063,6 +1063,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
+    assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
+    assert.doesNotMatch(observed.evidence.notes, /before live Telegram observation/);
     assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
 
     const staleObservations = buildControlProofCanaryObservationTemplate([

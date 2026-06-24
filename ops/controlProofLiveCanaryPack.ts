@@ -179,7 +179,7 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
     providerStatus: byLabel.get('provider_status') || null,
     runtimeSync: byLabel.get('runtime_sync') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
-    notes: 'Collected locally by control-proof canary CLI before live Telegram observation.'
+    notes: 'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.'
   };
 }
 
