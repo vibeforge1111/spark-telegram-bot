@@ -188,3 +188,16 @@ Result:
 - Streaming and rich-message behavior should stay in the canary pack, not in the legacy route harness, because the route harness intentionally strips live Telegram rendering behavior out of the loop.
 
 Practical rule: refurbish by promotion, not conversion. Keep the old catalog quick and broad; copy only representative prompts into `control:proof:canaries` when they add coverage that the new Harness-shaped pack does not already have.
+
+## 2026-06-24 Refurbishment Metadata
+
+The control-proof canary pack now carries optional `sourceRefs` on promoted or derived cases.
+
+Use this to keep the refurbished structure honest:
+
+- `natural-language-live-commands.json` remains the old breadth catalog.
+- `genesis-live-telegram-100.json` remains the historical/periodic drift benchmark.
+- `control:proof:canaries` is the release-proof pack.
+- When an old prompt becomes a canary, preserve its origin as `promoted_from`, `derived_from`, or `coverage_for`.
+
+This gives the best of both systems: the old suite stays fast, and the new Harness Core structure can prove authority, mutation class, proof joins, side effects, reply shape, streaming/rich-message rendering, and live visual or user confirmation without losing the old regression lineage.

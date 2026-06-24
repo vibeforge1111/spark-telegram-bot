@@ -65,7 +65,31 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
     assert.equal(typeof entry.capture.proofPanel, 'boolean');
     assert.equal(typeof entry.capture.screenshot, 'boolean');
     assert.equal(typeof entry.capture.userConfirmation, 'boolean');
+    for (const ref of entry.sourceRefs || []) {
+      assert.ok(ref.catalog, `${entry.id} has source ref without catalog`);
+      assert.ok(ref.caseId, `${entry.id} has source ref without case id`);
+      assert.ok(ref.relationship, `${entry.id} has source ref without relationship`);
+    }
   }
+});
+
+test('promoted canaries keep traceable legacy source references', () => {
+  const byId = new Map(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => [entry.id, entry]));
+
+  assert.deepEqual(
+    byId.get('cp-builder-001')?.sourceRefs,
+    [
+      { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
+    ]
+  );
+  assert.ok(
+    byId.get('cp-spawner-001')?.sourceRefs?.some((ref) => ref.catalog === 'natural-language-live-commands.json' && ref.caseId === 'build-004'),
+    'cp-spawner-001 should point back to the old no-build design prompt'
+  );
+  assert.ok(
+    byId.get('cp-mission-001')?.sourceRefs?.some((ref) => ref.catalog === 'genesis-live-telegram-100.json' && ref.caseId === 'genesis-061'),
+    'cp-mission-001 should point back to the Genesis no-edit mission smoke'
+  );
 });
 
 test('default selection excludes intentional live actions but explicit selection can include them', () => {
@@ -96,11 +120,12 @@ test('copy-paste output keeps scoring expectations outside Telegram blocks', () 
 
 test('checklist output includes proof, side-effect, visual, authority, and mutation capture', () => {
   const checklist = formatControlProofCanaryChecklist([
-    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-proof-001')!
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ]);
 
   assert.match(checklist, /Expected authority:/);
   assert.match(checklist, /Expected mutation class:/);
+  assert.match(checklist, /Source refs: natural-language-live-commands\.json:memory-004:derived_from/);
   assert.match(checklist, /Observed reply:/);
   assert.match(checklist, /Observed side effects:/);
   assert.match(checklist, /Observed proof join:/);
@@ -116,6 +141,9 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.generatedAt, '2026-06-24T00:00:00.000Z');
   assert.deepEqual(template.verdictValues, ['pass', 'fail', 'blocked', 'needs-retest', 'untested']);
   assert.equal(template.cases[0].id, 'cp-builder-001');
+  assert.deepEqual(template.cases[0].sourceRefs, [
+    { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
+  ]);
   assert.equal(template.cases[0].expected.route, 'builder_gateway.plain_chat');
   assert.equal(template.cases[0].expected.proofJoin, 'Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.');
   assert.equal(template.cases[0].observed.verdict, 'untested');
@@ -159,6 +187,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(parsed.target, 'SparkRecursive_bot');
   assert.equal(parsed.cases[0].id, 'cp-builder-001');
   assert.equal(parsed.cases[0].expectedAuthority, 'read_only_allowed');
+  assert.equal(parsed.cases[0].sourceRefs[0].caseId, 'memory-004');
 
   const observationTemplate = spawnSync(
     process.execPath,
@@ -175,6 +204,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   assert.equal(observationTemplate.status, 0, observationTemplate.stderr);
   const observed = JSON.parse(observationTemplate.stdout);
   assert.equal(observed.target, 'SparkRecursive_bot');
+  assert.equal(observed.cases[0].sourceRefs[0].caseId, 'memory-004');
   assert.equal(observed.cases[0].expected.route, 'builder_gateway.plain_chat');
   assert.equal(observed.cases[0].observed.verdict, 'untested');
   assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
