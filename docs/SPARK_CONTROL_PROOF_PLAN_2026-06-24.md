@@ -203,6 +203,8 @@ Live recapture of `cp-access-001` on 2026-06-24 confirmed fresh access inspectio
 
 Live recapture of `cp-access-002` on 2026-06-24 confirmed the access-level change boundary stays narrow: Spark changed only the Telegram chat setting to level 3, did not run local repair setup, and `/proof` showed `access.level_change` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 12 to 11.
 
+Live recapture of `cp-model-001` on 2026-06-24 confirmed model-switch explanations stay chat-only: Spark explained the confirmation boundary without changing provider settings or exposing raw policy reasons, and `/proof` showed `model_switch.boundary_explanation` with joined Telegram evidence and `Latest proof gaps: none`, reducing stale proof-panel blockers from 11 to 10.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
