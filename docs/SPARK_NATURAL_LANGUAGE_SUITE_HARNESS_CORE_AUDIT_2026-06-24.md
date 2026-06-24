@@ -132,3 +132,25 @@ npm run control:proof:canaries -- --checklist
 The control-proof canary pack answers "can Spark prove authority, side effects, trace joins, and Telegram readability for the behaviors we are about to ship?"
 
 Both are useful. Only the second one should be used as the main release gate for the new Harness Core work.
+
+## Renewed Audit Decision
+
+After checking the current mapper, canary pack, and focused tests, the decision still stands:
+
+- Do not archive the old natural-language suite.
+- Do not convert it in place into the Harness Core schema.
+- Keep it fast and broad as a regression and drift sweep.
+- Use `npm run nl:harness-map` only as a promotion helper.
+- Use `npm run control:proof:canaries` as the current Harness-shaped live gate.
+
+The reason is structural: older "safe" NL cases can still imply Harness mutations such as memory writes or access changes. Those cases are useful source material, but they need explicit authority, mutation, proof-join, side-effect, reply-shape, visual, and user-confirmation fields before they can act as release proof.
+
+Refurbishment should happen by promotion:
+
+1. Pick a representative old NL prompt.
+2. Run `npm run nl:harness-map -- --case <id>` to classify the authority and mutation risk.
+3. Copy the prompt into the control-proof canary schema only if it adds a missing behavior area.
+4. Add exact pass criteria for proof joins, side effects, reply shape, and Telegram visual evidence.
+5. Keep intentional actions out of default runs unless the operator explicitly includes them.
+
+The live NL helper now rejects unknown explicit case ids. That keeps refurbishment work honest when an operator names old cases for mapping or promotion.

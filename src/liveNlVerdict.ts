@@ -184,7 +184,11 @@ export function selectLiveNlCommandCases(
   let selected = cases;
   if (selectedCaseIds.size > 0) {
     const byId = new Map(cases.map((entry) => [entry.id, entry]));
-    selected = orderedCaseIds.map((id) => byId.get(id)).filter((entry): entry is LiveNlCommandCase => Boolean(entry));
+    const missing = orderedCaseIds.filter((id) => !byId.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Unknown live NL case id(s): ${missing.join(', ')}`);
+    }
+    selected = orderedCaseIds.map((id) => byId.get(id)!);
   }
   if (suiteNames) selected = selected.filter((entry) => suiteNames.has(entry.suite));
   if (!selection.includeRisky && selectedCaseIds.size === 0) selected = selected.filter((entry) => entry.risk === 'safe');

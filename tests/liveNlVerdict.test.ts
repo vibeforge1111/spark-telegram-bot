@@ -80,6 +80,13 @@ test('keeps explicit multi-case selection in requested order', () => {
   assert.deepEqual(selected.map((entry) => entry.id), ['wiki-001', 'safe-001']);
 });
 
+test('rejects unknown explicit live NL case ids', () => {
+  assert.throws(
+    () => selectLiveNlCommandCases(cases, { caseIds: ['safe-001', 'missing-001'] }),
+    /Unknown live NL case id\(s\): missing-001/
+  );
+});
+
 test('derives Harness Core mutation and authority fields from legacy NL cases', () => {
   const [memoryCase, accessCase, missionCase, noActionCase] = parseLiveNlCommandCases([
     {
