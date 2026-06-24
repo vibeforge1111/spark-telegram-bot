@@ -93,8 +93,8 @@ Surface conclusion: the biggest current surface risk is not final-answer copy in
 
 - Text: healthy.
 - Voice/audio: runtime and system-map visibility exist, but shared trace continuity is missing.
-- Photo/image: still a planned gap class from earlier Telegram normalization behavior. Needs typed media envelope fixtures before claiming support.
-- Document/file: no support claim should be made until typed media envelopes and access boundaries exist.
+- Photo/image: typed media envelopes and Builder normalization acceptance now exist locally. Live SparkRecursive_bot proof is still required before claiming production support.
+- Document/file: unsupported non-image documents now get a human evidence-boundary reply in Telegram, and Builder can normalize document envelopes as safe metadata. Live proof is still required before claiming full document support.
 
 ## Documentation
 
@@ -127,8 +127,8 @@ Docs drift scan found mostly intentional new-rule references. One older handoff 
 - `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
   - Durable slice: audit registry pins versus running module versions before claiming release readiness.
 
-- `media_payload_gap`: photo/image and document/file routes are not proven through typed media envelopes.
-  - Durable slice: add media envelope fixtures and normalization before live media claims.
+- `media_payload_gap`: photo/image and document/file routes are not yet live-proven through typed media envelopes.
+  - Durable slice: local Telegram envelope fixtures, Telegram handoff attachment, unsupported-document boundary replies, and Builder gateway acceptance now exist. Remaining work is live SparkRecursive_bot media canary proof and richer document handling beyond metadata.
 
 - `stale_doc_rule`: one old handoff still uses "memory authoritative" wording.
   - Durable slice: add a historical note pointing to the control-proof docs index and current Harness wording.
