@@ -130,9 +130,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Add the Harness proof capsule schema and fixtures.
+Wire Harness proof capsule refs into Telegram/action audit rows.
 
-Reason: the new audit command reports `missingProofCapsule` for every sampled plane. Before building a proof panel, Spark needs a stable redacted capsule shape and fixtures for allowed, blocked, downgraded, no-action, and missing-proof cases.
+Reason: the Harness proof capsule schema and fixtures now exist, but the new audit command still reports `missingProofCapsule` for every sampled live plane. The next durable move is to write proof capsules or proof refs at the Telegram final-answer/action boundary before building the visual proof panel.
 
 ## Gate To Start Goal Prompt
 
@@ -142,4 +142,5 @@ Reason: the new audit command reports `missingProofCapsule` for every sampled pl
 - Docs index, preflight audit, plan, and goal prompt point to each other: yes.
 - First implementation slice chosen: yes, trace-continuity audit command/report.
 - First implementation slice started: yes, minimum viable command/report added.
-- Next implementation slice chosen: yes, Harness proof capsule schema and fixtures.
+- Second implementation slice started: yes, Harness proof capsule schema and fixtures added.
+- Next implementation slice chosen: yes, attach proof capsules or proof refs to Telegram/action audit rows.

@@ -240,7 +240,7 @@ function summarizeRecords(
   for (const record of sampled) {
     if (hasAnyKey(record, REQUEST_ID_KEYS)) requestIdPresent += 1;
     if (hasAnyKey(record, TRACE_REF_KEYS)) traceRefPresent += 1;
-    if (hasAnyKey(record, PROOF_CAPSULE_KEYS)) proofCapsulePresent += 1;
+    if (hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record)) proofCapsulePresent += 1;
     if (hasKeyPattern(record, RAW_ID_KEY_PATTERN)) rawIdKeyRows += 1;
     const raw = safeStringify(record);
     if (RAW_PATH_PATTERN.test(raw)) rawPathLikeRows += 1;
@@ -267,6 +267,15 @@ function summarizeRecords(
     stackLikeRows,
     topLevelKeys
   };
+}
+
+function isHarnessProofCapsuleRecord(value: unknown): boolean {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).schema === 'spark.harness_proof.v1'
+  );
 }
 
 function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlProofGapCounts {

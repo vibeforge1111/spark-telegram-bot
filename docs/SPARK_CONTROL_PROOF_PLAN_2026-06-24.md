@@ -345,11 +345,12 @@ Then send one photo with a caption.
 
 0. Read the docs index and run the read-only preflight audit.
 1. Add trace-continuity audit script. Minimum viable command added in `npm run control:proof:audit`.
-2. Add proof capsule schema and fixtures.
-3. Render Harness Proof panel in Spawner trace or a local proof command.
-4. Repair Telegram failure language using fixtures from recent bad replies.
-5. Add media envelope fixtures and photo normalization.
-6. Promote the live canary pack into a repeatable command or runbook.
+2. Add proof capsule schema and fixtures. TypeScript schema added in `src/harnessProofCapsule.ts`.
+3. Attach proof capsules or proof refs to Telegram/action audit rows.
+4. Render Harness Proof panel in Spawner trace or a local proof command.
+5. Repair Telegram failure language using fixtures from recent bad replies.
+6. Add media envelope fixtures and photo normalization.
+7. Promote the live canary pack into a repeatable command or runbook.
 
 ## Release Gate
 
