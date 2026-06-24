@@ -838,6 +838,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summary/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --release-check`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
