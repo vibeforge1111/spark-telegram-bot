@@ -30,6 +30,7 @@ const tests = [
   'tests/telegramMediaAuthority.test.ts',
   'tests/telegramMediaEnvelope.test.ts',
   'tests/controlProofTraceAudit.test.ts',
+  'tests/outboundTraceRepair.test.ts',
   'tests/controlProofLiveCanaryPack.test.ts',
   'tests/runtimeFreshness.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',

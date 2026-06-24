@@ -24,6 +24,7 @@
     "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",
     "control:proof:panel": "ts-node ops/harnessProofPanel.ts",
     "control:proof:canaries": "ts-node ops/controlProofLiveCanaryPack.ts",
+    "control:proof:repair:outbound": "ts-node ops/repairOutboundTraceAudit.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
     "test": "node scripts/run-tests.cjs",
