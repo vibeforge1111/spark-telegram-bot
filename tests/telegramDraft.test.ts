@@ -6,11 +6,13 @@ import {
   prepareTelegramDraftText,
   replayTelegramDraftPreview,
   renderTelegramStreamingConfigStatus,
+  sendTelegramRichMessage,
   sendTelegramDraftUpdate,
   telegramDraftsSupportedForContext,
   telegramDraftStreamingEnabled,
   telegramDraftTransport,
-  telegramRichDraftsEnabled
+  telegramRichDraftsEnabled,
+  telegramRichMessagesEnabled
 } from '../src/telegramDraft';
 
 type AsyncTest = () => Promise<void> | void;
@@ -26,20 +28,25 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 }
 
 async function run(): Promise<void> {
-  await test('draft streaming is opt-in only', () => {
-    assert.equal(telegramDraftStreamingEnabled({}), false);
+  await test('draft streaming and rich messages default on', () => {
+    assert.equal(telegramDraftStreamingEnabled({}), true);
+    assert.equal(telegramDraftStreamingEnabled({ SPARK_TELEGRAM_CHAT_STREAMING: '0' }), false);
     assert.equal(telegramDraftStreamingEnabled({ SPARK_TELEGRAM_CHAT_STREAMING: '1' }), true);
     assert.equal(telegramDraftTransport({}), 'rich');
     assert.equal(telegramDraftTransport({ SPARK_TELEGRAM_DRAFT_METHOD: 'legacy' }), 'legacy');
     assert.equal(telegramRichDraftsEnabled({ SPARK_TELEGRAM_DRAFT_METHOD: 'legacy' }), false);
+    assert.equal(telegramRichMessagesEnabled({}), true);
+    assert.equal(telegramRichMessagesEnabled({ SPARK_TELEGRAM_RICH_MESSAGES: '0' }), false);
   });
 
   await test('draft streaming only enables for private chats', () => {
-    const env = { SPARK_TELEGRAM_CHAT_STREAMING: '1' };
-
-    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1, type: 'private' } }, env), true);
-    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1, type: 'group' } }, env), false);
-    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1 } }, env), false);
+    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1, type: 'private' } }, {}), true);
+    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1, type: 'group' } }, {}), false);
+    assert.equal(telegramDraftsSupportedForContext({ chat: { id: 1 } }, {}), false);
+    assert.equal(
+      telegramDraftsSupportedForContext({ chat: { id: 1, type: 'private' } }, { SPARK_TELEGRAM_CHAT_STREAMING: '0' }),
+      false
+    );
   });
 
   await test('draft text is sanitized before Telegram sees it', () => {
@@ -68,9 +75,16 @@ async function run(): Promise<void> {
       value: '1'
     });
     assert.deepEqual(parseTelegramStreamingConfigText('/streaming rich off'), {
+      kind: 'set_many',
+      values: [
+        { key: 'SPARK_TELEGRAM_DRAFT_METHOD', value: 'legacy' },
+        { key: 'SPARK_TELEGRAM_RICH_MESSAGES', value: '0' }
+      ]
+    });
+    assert.deepEqual(parseTelegramStreamingConfigText('/streaming rich_messages off'), {
       kind: 'set',
-      key: 'SPARK_TELEGRAM_DRAFT_METHOD',
-      value: 'legacy'
+      key: 'SPARK_TELEGRAM_RICH_MESSAGES',
+      value: '0'
     });
     assert.deepEqual(parseTelegramStreamingConfigText('/streaming preview off'), {
       kind: 'set',
@@ -83,13 +97,12 @@ async function run(): Promise<void> {
 
   await test('renders compact Telegram streaming status', () => {
     const status = renderTelegramStreamingConfigStatus({
-      SPARK_TELEGRAM_CHAT_STREAMING: '1',
       SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '700',
     });
 
     assert.match(status, /Status: on/);
-    assert.match(status, /Rich drafts: on/);
-    assert.match(status, /Transport: rich/);
+    assert.match(status, /Rich messages: on/);
+    assert.match(status, /Draft transport: rich/);
     assert.match(status, /Full-reply preview: on/);
     assert.match(status, /Draft interval: 700ms/);
     assert.match(status, /Private chats only/);
@@ -119,6 +132,64 @@ async function run(): Promise<void> {
       markdown: 'Hello Spark',
       skip_entity_detection: false,
     });
+  });
+
+  await test('sends final Telegram replies through Rich Messages by default', async () => {
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+
+    const delivery = await sendTelegramRichMessage(
+      {
+        async callApi(method, payload) {
+          calls.push({ method, payload });
+          return { message_id: 7 };
+        },
+      },
+      42,
+      'Hello Spark',
+      { parse_mode: 'MarkdownV2', reply_markup: { inline_keyboard: [] } },
+      {}
+    );
+
+    assert.deepEqual(delivery, { message_id: 7 });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'sendRichMessage');
+    assert.equal(calls[0].payload.chat_id, 42);
+    assert.deepEqual(calls[0].payload.rich_message, {
+      markdown: 'Hello Spark',
+      skip_entity_detection: false,
+    });
+    assert.deepEqual(calls[0].payload.reply_markup, { inline_keyboard: [] });
+    assert.equal('parse_mode' in calls[0].payload, false);
+  });
+
+  await test('final Rich Messages can be disabled or can fall back silently', async () => {
+    const disabledCalls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    const disabled = await sendTelegramRichMessage(
+      {
+        async callApi(method, payload) {
+          disabledCalls.push({ method, payload });
+        },
+      },
+      42,
+      'Hello Spark',
+      null,
+      { SPARK_TELEGRAM_RICH_MESSAGES: '0' }
+    );
+    assert.equal(disabled, null);
+    assert.equal(disabledCalls.length, 0);
+
+    const failed = await sendTelegramRichMessage(
+      {
+        async callApi() {
+          throw new Error('method unavailable');
+        },
+      },
+      42,
+      'Hello Spark',
+      null,
+      {}
+    );
+    assert.equal(failed, null);
   });
 
   await test('falls back to legacy message drafts when Rich Message drafts fail', async () => {

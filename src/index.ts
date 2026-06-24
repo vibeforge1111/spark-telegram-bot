@@ -47,7 +47,8 @@ import {
   createTelegramDraftStreamer,
   parseTelegramStreamingConfigText,
   replayTelegramDraftPreview,
-  renderTelegramStreamingConfigStatus
+  renderTelegramStreamingConfigStatus,
+  sendTelegramRichMessage
 } from './telegramDraft';
 import { installConsoleRedaction, redactIdentifier, redactText } from './redaction';
 import { readJsonFile } from './jsonState';
@@ -2602,7 +2603,10 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
   const chunks = sanitizeAndSplitTelegramText(text);
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
-    lastDelivery = await _origSendMessage(chatId, chunk, cleanExtra);
+    const richDelivery = await sendTelegramRichMessage(bot.telegram as any, chatId, chunk, cleanExtra);
+    lastDelivery = richDelivery
+      ? richDelivery as Awaited<ReturnType<typeof _origSendMessage>>
+      : await _origSendMessage(chatId, chunk, cleanExtra);
     recordNodeOutboundDelivery(chatId, chunk, traceContext);
   }
   return lastDelivery!;
@@ -2622,7 +2626,10 @@ bot.use(async (ctx, next) => {
     const chunks = sanitizeAndSplitTelegramText(text);
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
-      lastReply = await originalReply(chunk, cleanExtra);
+      const richReply = await sendTelegramRichMessage(ctx.telegram as any, ctx.chat?.id, chunk, cleanExtra);
+      lastReply = richReply
+        ? richReply as Awaited<ReturnType<typeof originalReply>>
+        : await originalReply(chunk, cleanExtra);
       recordNodeOutboundDelivery(ctx.chat?.id, chunk, traceContext);
     }
     return lastReply!;
@@ -3437,11 +3444,15 @@ async function handleTelegramStreamingCommand(ctx: any): Promise<void> {
   const text = 'text' in (ctx.message || {}) ? String((ctx.message as any).text || '/streaming') : '/streaming';
   const action = parseTelegramStreamingConfigText(text);
   if (!action) {
-    await ctx.reply('Use /streaming, /streaming on, /streaming off, /streaming interval 500, /streaming rich on, or /streaming preview off.');
+    await ctx.reply('Use /streaming, /streaming on, /streaming off, /streaming interval 500, /streaming rich on, /streaming rich_messages off, or /streaming preview off.');
     return;
   }
   if (action.kind === 'set') {
     process.env[action.key] = action.value;
+  } else if (action.kind === 'set_many') {
+    for (const update of action.values) {
+      process.env[update.key] = update.value;
+    }
   }
   await ctx.reply(renderTelegramStreamingConfigStatus());
 }

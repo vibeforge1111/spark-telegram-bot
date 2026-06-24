@@ -16,7 +16,7 @@ The guiding rule: Telegram drafts are presentation only. Spark truth lives in Bu
 
 Telegram Bot API 10.1 adds Rich Messages for bots, including `sendRichMessageDraft`, which can stream a partial rich message to a target private chat while a bot is generating. The Bot API requires a non-zero `draft_id`; changes using the same `draft_id` animate as an ephemeral preview, and the final answer should still be delivered through the normal final-message path.
 
-Spark now uses `sendRichMessageDraft` by default for draft previews, with legacy `sendMessageDraft` retained as a fallback for older Telegram surfaces or transient API incompatibility.
+Spark now uses Rich Messages by default for final text delivery and `sendRichMessageDraft` by default for draft previews. Legacy `sendMessage` and `sendMessageDraft` remain automatic fallbacks for older Telegram surfaces or transient API incompatibility.
 
 Sources:
 
@@ -29,7 +29,7 @@ Sources:
 Bot API 10.1 Rich Messages are the main upgrade path for Spark:
 
 - `sendRichMessageDraft` for visible in-progress replies.
-- `sendRichMessage` for persistent rich final replies once Spark has a formatter that can preserve final-message audit and memory boundaries.
+- `sendRichMessage` for persistent rich final replies while preserving final-message audit and memory boundaries.
 - `InputRichMessage.markdown` or `InputRichMessage.html` for cleaner headings, lists, block quotes, tables, and compact evidence sections.
 - `<tg-thinking>` / `RichBlockThinking` for a first-class "thinking" surface when Telegram clients support it. Spark should use this only for short user-visible status, not hidden reasoning.
 
@@ -436,6 +436,7 @@ Operator command:
 /streaming on
 /streaming off
 /streaming rich on
+/streaming rich_messages off
 /streaming preview off
 /streaming interval 500
 ```
@@ -445,11 +446,11 @@ Should show:
 ```text
 Telegram live chat
 Status: on
-Rich drafts: on
-Transport: rich
+Rich messages: on
+Draft transport: rich
 Real streaming: Builder stream off/on
 Fallback streaming: on
-Full-reply preview: off
+Full-reply preview: on
 Draft interval: 500ms
 Last turn: first draft 240ms, first token 1.8s, final 3.4s
 Failures: 0 draft, 0 stream parse
@@ -476,16 +477,17 @@ This gives us repeatable UX checks before live Telegram testing.
 
 ## Rollout Plan
 
-### Phase 0: Stabilize Current Prototype
+### Phase 0: Stabilize Current Defaults
 
-Decision: disable full-reply preview by default unless explicitly requested.
+Decision: enable Rich Messages, Rich Message drafts, and full-reply previews by default, with quiet fallback to legacy Telegram methods when the client/API rejects the rich path. Full-reply preview is a bridge until Builder emits real JSONL stream events; it should be short, throttled, and private-chat scoped.
 
 Config:
 
 ```env
 SPARK_TELEGRAM_CHAT_STREAMING=1
+SPARK_TELEGRAM_RICH_MESSAGES=1
 SPARK_TELEGRAM_DRAFT_METHOD=rich
-SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=0
+SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=1
 SPARK_TELEGRAM_DRAFT_INTERVAL_MS=500
 ```
 
@@ -497,14 +499,14 @@ Keep:
 
 Remove from default:
 
-- artificial draft preview for completed Builder replies
+- route-unsafe draft preview for mission/build/access/control flows
 
 Exit criteria:
 
-- `/streaming` reports full-reply preview off
+- `/streaming` reports streaming, rich messages, rich draft transport, and full-reply preview on
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
-- direct `sendRichMessageDraft` smoke passes for the active profile, or clearly falls back to `sendMessageDraft`
+- direct `sendRichMessage` and `sendRichMessageDraft` smoke pass for the active profile, or clearly fall back to `sendMessage` / `sendMessageDraft`
 
 ### Phase 1: Builder Status Events
 

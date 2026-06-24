@@ -11,23 +11,28 @@ export interface TelegramDraftStreamer {
 
 export type TelegramDraftTransport = 'rich' | 'legacy';
 
+export type TelegramStreamingConfigKey =
+  | 'SPARK_TELEGRAM_CHAT_STREAMING'
+  | 'SPARK_TELEGRAM_DRAFT_INTERVAL_MS'
+  | 'SPARK_TELEGRAM_DRAFT_METHOD'
+  | 'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES'
+  | 'SPARK_TELEGRAM_RICH_MESSAGES';
+
+export interface TelegramStreamingConfigSet {
+  key: TelegramStreamingConfigKey;
+  value: string;
+}
+
 export type TelegramStreamingConfigAction =
   | { kind: 'status' }
-  | {
-      kind: 'set';
-      key:
-        | 'SPARK_TELEGRAM_CHAT_STREAMING'
-        | 'SPARK_TELEGRAM_DRAFT_INTERVAL_MS'
-        | 'SPARK_TELEGRAM_DRAFT_METHOD'
-        | 'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES';
-      value: string;
-    };
+  | ({ kind: 'set' } & TelegramStreamingConfigSet)
+  | { kind: 'set_many'; values: TelegramStreamingConfigSet[] };
 
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
 
 export function telegramDraftStreamingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SPARK_TELEGRAM_CHAT_STREAMING === '1';
+  return env.SPARK_TELEGRAM_CHAT_STREAMING !== '0';
 }
 
 export function telegramDraftTransport(env: NodeJS.ProcessEnv = process.env): TelegramDraftTransport {
@@ -36,6 +41,10 @@ export function telegramDraftTransport(env: NodeJS.ProcessEnv = process.env): Te
 
 export function telegramRichDraftsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return telegramDraftTransport(env) === 'rich';
+}
+
+export function telegramRichMessagesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.SPARK_TELEGRAM_RICH_MESSAGES !== '0';
 }
 
 export function telegramDraftsSupportedForContext(ctx: any, env: NodeJS.ProcessEnv = process.env): boolean {
@@ -49,8 +58,8 @@ export function createTelegramDraftId(): number {
 }
 
 export function telegramDraftIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
-  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || 700);
-  if (!Number.isFinite(parsed)) return 700;
+  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || 500);
+  if (!Number.isFinite(parsed)) return 500;
   return Math.max(0, parsed);
 }
 
@@ -85,7 +94,7 @@ export function buildTelegramDraftPreviewTexts(text: string): string[] {
   return [...new Set(previews)];
 }
 
-function buildTelegramRichDraftPayload(text: string): Record<string, unknown> {
+function buildTelegramRichTextPayload(text: string): Record<string, unknown> {
   return {
     markdown: text,
     skip_entity_detection: false,
@@ -112,7 +121,7 @@ export async function sendTelegramDraftUpdate(
     await api.callApi('sendRichMessageDraft', {
       chat_id: chatId,
       draft_id: draftId,
-      rich_message: buildTelegramRichDraftPayload(text),
+      rich_message: buildTelegramRichTextPayload(text),
     });
     return 'rich';
   } catch (error) {
@@ -123,6 +132,52 @@ export async function sendTelegramDraftUpdate(
       text,
     });
     return 'legacy';
+  }
+}
+
+function buildTelegramRichMessagePayload(
+  chatId: number | string,
+  text: string,
+  extra?: Record<string, unknown> | null
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    rich_message: buildTelegramRichTextPayload(text),
+  };
+  const safeExtraKeys = [
+    'business_connection_id',
+    'message_thread_id',
+    'direct_messages_topic_id',
+    'disable_notification',
+    'protect_content',
+    'allow_paid_broadcast',
+    'message_effect_id',
+    'suggested_post_parameters',
+    'reply_parameters',
+    'reply_markup',
+  ];
+  for (const key of safeExtraKeys) {
+    if (extra && extra[key] !== undefined) {
+      payload[key] = extra[key];
+    }
+  }
+  return payload;
+}
+
+export async function sendTelegramRichMessage(
+  api: TelegramDraftApi | undefined,
+  chatId: number | string | undefined,
+  text: string,
+  extra?: Record<string, unknown> | null,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<unknown | null> {
+  if (!api?.callApi || chatId === undefined || chatId === null || !telegramRichMessagesEnabled(env)) {
+    return null;
+  }
+  try {
+    return await api.callApi('sendRichMessage', buildTelegramRichMessagePayload(chatId, text, extra));
+  } catch {
+    return null;
   }
 }
 
@@ -175,8 +230,23 @@ export function parseTelegramStreamingConfigText(text: string): TelegramStreamin
     trimmed.match(/^SPARK_TELEGRAM_DRAFT_METHOD\s*=\s*(rich|legacy)$/i);
   if (richDraftMatch) {
     const raw = richDraftMatch[1].toLowerCase();
-    const value = raw === 'off' || raw === 'legacy' ? 'legacy' : 'rich';
-    return { kind: 'set', key: 'SPARK_TELEGRAM_DRAFT_METHOD', value };
+    const enabled = raw !== 'off' && raw !== 'legacy';
+    return {
+      kind: 'set_many',
+      values: [
+        { key: 'SPARK_TELEGRAM_DRAFT_METHOD', value: enabled ? 'rich' : 'legacy' },
+        { key: 'SPARK_TELEGRAM_RICH_MESSAGES', value: enabled ? '1' : '0' },
+      ],
+    };
+  }
+
+  const finalRichMatch =
+    trimmed.match(new RegExp(`^/?${command}\\s+(?:final_rich|rich_messages|final_rich_messages)\\s+(on|off|true|false|1|0)$`, 'i')) ||
+    trimmed.match(/^SPARK_TELEGRAM_RICH_MESSAGES\s*=\s*(on|off|true|false|1|0)$/i);
+  if (finalRichMatch) {
+    const raw = finalRichMatch[1].toLowerCase();
+    const value = raw === 'on' || raw === 'true' || raw === '1' ? '1' : '0';
+    return { kind: 'set', key: 'SPARK_TELEGRAM_RICH_MESSAGES', value };
   }
 
   const previewMatch =
@@ -207,8 +277,8 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
   return [
     'Telegram live chat',
     `Status: ${enabled ? 'on' : 'off'}`,
-    `Rich drafts: ${telegramRichDraftsEnabled(env) ? 'on' : 'off'}`,
-    `Transport: ${transport}`,
+    `Rich messages: ${telegramRichMessagesEnabled(env) ? 'on' : 'off'}`,
+    `Draft transport: ${transport}`,
     `Full-reply preview: ${previewFullReplies ? 'on' : 'off'}`,
     `Draft interval: ${interval}ms`,
     '',
