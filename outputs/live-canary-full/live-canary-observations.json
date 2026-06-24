@@ -223,7 +223,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\n✅ Spark is healthy right now.\nI'm using fresh runtime state here, not memory.\nLive loop • Spawner: reachable. • Telegram: polling. • Mission Control: ready.\nNo repair action needed right now.\nReceived at 6:56 PM",
+        "reply": "Spark is healthy right now.\n\nI'm using fresh runtime state here, not memory.\n\nLive loop: Spawner reachable; Telegram polling; Mission Control ready.\n\nNo repair action needed right now.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -232,15 +232,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Fresh runtime status check only; no repair, build, mission, file edit, memory write, provider switch, media handling, or external network action observed."
+          "notes": "Fresh read-only runtime status was inspected; no repair, build, mission, file, memory, provider, media, or network mutation observed."
         },
-        "proofJoin": "Latest /proof panel joined the Telegram outbound proof capsule for the fresh-state no-repair reply; authority was read-only and execution completed without mutation.",
-        "proofPanel": "Spark Recursive\nHarness Proof Intent: plain_conversation Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:4ac98ec5f3e6a920 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4\nReceived at 6:57 PM",
+        "proofJoin": "Live /proof joined the Telegram outbound proof capsule for the read-only fresh_state.read_only_repair_status reply.",
+        "proofPanel": "Harness Proof Intent: fresh_state.read_only_repair_status Authority: allowed by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3a073ea84b610b4c Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-noaction-004-reply.png",
           "/tmp/cp-noaction-004-proof.png"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshots for fresh-state reply and proof panel.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and screenshot /tmp/cp-noaction-004-proof.png.",
         "notes": null
       }
     },

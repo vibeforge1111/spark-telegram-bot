@@ -185,6 +185,8 @@ Live recapture of `cp-noaction-002` on 2026-06-24 confirmed mission-routing bug 
 
 Live recapture of `cp-noaction-003` on 2026-06-24 confirmed the compact "no need we can talk here" boundary stayed conversational: Spark did not proceed with a pending build, mission, or creator action, and `/proof` showed a no-execution `plain_conversation` turn with `Latest proof gaps: none`, reducing stale proof-panel blockers from 21 to 20.
 
+Live recapture of `cp-noaction-004` on 2026-06-24 confirmed read-only repair status stayed bounded: Spark used fresh runtime state, reported no repair needed, did not run repair/build/mission actions, and `/proof` showed `fresh_state.read_only_repair_status` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 20 to 19.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
