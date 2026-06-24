@@ -238,12 +238,22 @@ function formatReleaseBundleReadme(paths: {
     '4. Re-run strict verification:',
     '',
     '```bash',
-    `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --strict`,
+    `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --strict --coverage-strict`,
     '```',
     '',
-    'The release gate is ready only when strict verification reports every selected case as pass with required captures present.',
+    'The release gate is ready only when strict verification reports every selected case as pass with required captures present and required category coverage is complete.',
     ''
   ].join('\n');
+}
+
+function canaryCasesFromObservations(observations: { cases?: Array<{ id?: string }> }) {
+  const byId = new Map(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => [entry.id, entry]));
+  return (observations.cases || []).map((entry) => {
+    const id = entry.id || '';
+    const canary = byId.get(id);
+    if (!canary) throw new Error(`Unknown observed canary id: ${id}`);
+    return canary;
+  });
 }
 
 function main(): void {
@@ -266,16 +276,30 @@ function main(): void {
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
     const summary = summarizeControlProofCanaryObservations(observations);
+    const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict');
+    const coverage = coverageRequested
+      ? summarizeControlProofCanaryCoverage(canaryCasesFromObservations(observations))
+      : null;
     if (summaryOutPath) {
       writeFileSync(summaryOutPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
       console.log(`Wrote control-proof observation summary: ${summaryOutPath}`);
     }
     if (hasFlag(args, 'json')) {
-      console.log(JSON.stringify(summary, null, 2));
+      console.log(JSON.stringify(coverage ? { summary, coverage: {
+        ...coverage,
+        categoryCounts: Object.fromEntries(coverage.categoryCounts),
+        riskCounts: Object.fromEntries(coverage.riskCounts),
+        mutationCounts: Object.fromEntries(coverage.mutationCounts),
+        authorityCounts: Object.fromEntries(coverage.authorityCounts)
+      } } : summary, null, 2));
     } else {
       console.log(formatControlProofCanaryObservationSummary(summary).trimEnd());
+      if (coverageRequested) {
+        console.log('');
+        console.log(formatControlProofCanaryCoverage(canaryCasesFromObservations(observations)));
+      }
     }
-    if (!summary.readyForRelease && hasFlag(args, 'strict')) {
+    if ((!summary.readyForRelease && hasFlag(args, 'strict')) || (coverage && hasFlag(args, 'coverage-strict') && !coverage.coverageComplete)) {
       process.exitCode = 1;
     }
     return;
