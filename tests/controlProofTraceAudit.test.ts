@@ -423,7 +423,7 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
   });
 });
 
-test('fresh strict CLI fails only when the latest producer row still carries a proof gap', () => {
+test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', () => {
   withTempSparkHome((sparkHome) => {
     for (const file of defaultControlProofEvidenceFiles(sparkHome)) {
       if (file.label === 'builder_gateway') continue;
@@ -472,6 +472,39 @@ test('fresh strict CLI fails only when the latest producer row still carries a p
     assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
     assert.match(freshStrictClean.stdout, /latest proof gaps: 0/);
     assert.match(freshStrictClean.stdout, /latest_gap no/);
+
+    const finalAnswerPath = path.join(sparkHome, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl');
+    writeJsonl(finalAnswerPath, [
+      {
+        request_ref: 'request:sha256:blocking-gap',
+        proof_status: 'not_execution_proof'
+      }
+    ]);
+
+    const freshStrictBlockingGap = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--sample',
+        '10',
+        '--fresh-strict'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(freshStrictBlockingGap.status, 1);
+    assert.match(freshStrictBlockingGap.stdout, /Blocking status: blocking gaps found/);
+    assert.match(freshStrictBlockingGap.stdout, /missing trace joins: 1/);
+
+    writeJsonl(finalAnswerPath, [
+      {
+        request_ref: 'request:sha256:nonexecution',
+        trace_ref: 'trace:sha256:nonexecution',
+        proof_status: 'not_execution_proof'
+      }
+    ]);
 
     writeJsonl(tracePath, [
       {

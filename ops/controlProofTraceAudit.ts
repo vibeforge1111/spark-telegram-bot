@@ -28,7 +28,7 @@ function usage(): string {
     '',
     'Summarizes trace join coverage and raw-ref risks without printing raw trace rows.',
     '--strict fails on any visible gap. --blocking-strict allows explicit legacy proof gaps but fails silent or leaking gaps.',
-    '--fresh-strict also fails when any latest producer row still carries a proof gap marker.'
+    '--fresh-strict applies blocking-strict checks and also fails when any latest producer row still carries a proof gap marker.'
   ].join('\n');
 }
 
@@ -56,7 +56,10 @@ function main(): void {
     process.exitCode = 1;
   } else if (!result.blockingOk && hasFlag(args, 'blocking-strict')) {
     process.exitCode = 1;
-  } else if (hasFlag(args, 'fresh-strict') && result.planes.some((plane) => !plane.missing && plane.latestProofGapMarked)) {
+  } else if (
+    hasFlag(args, 'fresh-strict') &&
+    (!result.blockingOk || result.planes.some((plane) => !plane.missing && plane.latestProofGapMarked))
+  ) {
     process.exitCode = 1;
   }
 }
