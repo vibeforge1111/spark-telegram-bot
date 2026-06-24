@@ -184,6 +184,8 @@ function findHarnessProofCapsule(
 function findLatestHarnessProofCapsule(
   evidenceFiles: ControlProofEvidenceFile[]
 ): { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null } | null {
+  const latestOutbound = findLatestHarnessProofCapsuleInPlane(evidenceFiles, 'telegram_outbound');
+  if (latestOutbound) return latestOutbound;
   let best: { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null; sortMs: number; order: number } | null = null;
   let order = 0;
   for (const file of evidenceFiles) {
@@ -202,6 +204,20 @@ function findLatestHarnessProofCapsule(
     }
   }
   return best ? { plane: best.plane, capsule: best.capsule, traceRef: best.traceRef } : null;
+}
+
+function findLatestHarnessProofCapsuleInPlane(
+  evidenceFiles: ControlProofEvidenceFile[],
+  plane: string
+): { plane: string; capsule: HarnessProofCapsuleV1; traceRef?: string | null } | null {
+  const file = evidenceFiles.find((candidate) => candidate.label === plane);
+  if (!file) return null;
+  const records = readEvidenceRecordsNewestFirst(file);
+  for (const record of records) {
+    const capsule = extractHarnessProofCapsule(record);
+    if (capsule) return { plane: file.label, capsule, traceRef: null };
+  }
+  return null;
 }
 
 function recordTimestampMs(record: unknown): number | null {

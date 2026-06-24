@@ -154,6 +154,50 @@ test('latest proof prefers newest evidence timestamp across planes', () => {
   });
 });
 
+test('latest proof keeps user-visible outbound ahead of newer background evidence', () => {
+  withTempSparkHome((sparkHome) => {
+    const delivered = proofCapsule('turn:delivered');
+    delivered.route = 'plain_chat';
+    delivered.owner = 'spark-telegram-bot';
+    delivered.execution.status = 'completed';
+    delivered.execution.tool = 'answer.compose';
+    delivered.execution.mutationClass = 'read_only';
+    delivered.reply.delivered = true;
+    const background = proofCapsule('turn:background');
+
+    const outboundPath = path.join(sparkHome, 'outbound.jsonl');
+    const finalAnswerPath = path.join(sparkHome, 'final-answer.jsonl');
+    writeJsonl(outboundPath, [
+      {
+        ts: '2026-06-24T14:28:18.000Z',
+        harness_proof_ref: delivered.turnRef,
+        proof_capsule: delivered
+      }
+    ]);
+    writeJsonl(finalAnswerPath, [
+      {
+        ts: '2026-06-24T14:32:26.000Z',
+        harness_proof_ref: background.turnRef,
+        proof_capsule: background
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      evidenceFiles: [
+        { label: 'telegram_final_answer', filePath: finalAnswerPath, kind: 'jsonl' },
+        { label: 'telegram_outbound', filePath: outboundPath, kind: 'jsonl' }
+      ]
+    });
+
+    assert.equal(projection.ok, true);
+    assert.equal(projection.foundRef, delivered.turnRef);
+    assert.equal(projection.plane, 'telegram_outbound');
+    assert.match(projection.panel, /Execution: completed/);
+    assert.match(projection.panel, /Reply: delivered as natural/);
+  });
+});
+
 test('marks future Builder and Spawner rows joined when they carry a redacted proof ref', () => {
   withTempSparkHome((sparkHome) => {
     const latest = proofCapsule('turn:latest');
