@@ -484,8 +484,8 @@
         }
       },
       "observed": {
-        "verdict": "pass",
-        "reply": "Route confidence is Spark’s proof score for whether a user turn is just chat, needs clarification, or has enough fresh authority to take action.",
+        "verdict": "needs-retest",
+        "reply": "Route confidence is Spark's check that the user's fresh intent is clear enough, authorized enough, and safe enough to choose the right move: act, ask, explain, or refuse.",
         "sideEffects": {
           "filesChanged": null,
           "memoryWritten": null,
@@ -494,14 +494,14 @@
           "accessChanged": null,
           "providerChanged": null,
           "mediaHandled": null,
-          "notes": "Live Spark Recursive answered the route-confidence definition directly after restart; no mission/action started. /proof latest now selected the delivered Telegram outbound plain_conversation proof rather than stale/background Spawner proof."
+          "notes": "No mission or mutation observed in live Telegram; reply stayed conversational/read-only."
         },
-        "proofJoin": "Joined via Telegram outbound proof capsule for the delivered plain_conversation reply; audit blocking clean, legacy gaps visible only.",
-        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:9522c7099a7abf6c Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 4",
+        "proofJoin": "Live /proof joined the Telegram outbound proof capsule, but the proof intent was plain_conversation rather than expected builder_gateway.plain_chat.",
+        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-builder-001-after-fix-reply.png"
+          "/tmp/cp-builder-001-proof.png"
         ],
-        "userConfirmation": "Observed directly in Spark Recursive Telegram window by Peekaboo on 2026-06-24 18:28 and 18:37 Asia/Dubai.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot /tmp/cp-builder-001-proof.png: reply rendered once and /proof showed Legacy proof gaps visible: 3.",
         "notes": null
       }
     },
