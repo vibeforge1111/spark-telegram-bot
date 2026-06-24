@@ -3,6 +3,10 @@
 Date: 2026-06-24
 Status: planning checkpoint
 
+Reusable execution prompt:
+
+- `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
+
 ## Theme
 
 Spark should prove control before adding more power.
@@ -347,4 +351,3 @@ Do not call the plan done until:
 - `spark live status` is OK after runtime changes.
 - `spark providers test --role chat` is OK after chat/runtime changes.
 - User confirms live Telegram behavior for streaming, failure copy, and at least one proof-panel example.
-
