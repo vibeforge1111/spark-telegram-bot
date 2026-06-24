@@ -1,8 +1,9 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
 Generated: 2026-06-24T14:52:20.669Z
+Runtime evidence collected: 2026-06-24T20:39:56.545Z
 Cases: 27
-Release gate: ready
+Release gate: not ready
 
 Verdicts:
 - pass: 27
@@ -11,4 +12,34 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-All selected canaries passed with required captures present.
+Attention summary:
+- proof_panel_legacy_gap_stale: 24 cases
+
+Recapture hint:
+- Refresh /proof panel captures for: cp-noaction-001, cp-noaction-002, cp-noaction-003, cp-noaction-004, cp-authority-001, cp-authority-002, cp-proof-001, cp-proof-002, cp-builder-002, cp-memory-001, cp-memory-002, cp-access-001, cp-access-002, cp-model-001, cp-model-002, cp-web-001, cp-web-002, cp-spawner-001, cp-spawner-002, cp-mission-001, cp-media-001, cp-media-002, cp-voice-001, cp-audio-001
+
+Cases needing attention:
+- cp-noaction-001: pass; missing proof_panel_legacy_gap_stale
+- cp-noaction-002: pass; missing proof_panel_legacy_gap_stale
+- cp-noaction-003: pass; missing proof_panel_legacy_gap_stale
+- cp-noaction-004: pass; missing proof_panel_legacy_gap_stale
+- cp-authority-001: pass; missing proof_panel_legacy_gap_stale
+- cp-authority-002: pass; missing proof_panel_legacy_gap_stale
+- cp-proof-001: pass; missing proof_panel_legacy_gap_stale
+- cp-proof-002: pass; missing proof_panel_legacy_gap_stale
+- cp-builder-002: pass; missing proof_panel_legacy_gap_stale
+- cp-memory-001: pass; missing proof_panel_legacy_gap_stale
+- cp-memory-002: pass; missing proof_panel_legacy_gap_stale
+- cp-access-001: pass; missing proof_panel_legacy_gap_stale
+- cp-access-002: pass; missing proof_panel_legacy_gap_stale
+- cp-model-001: pass; missing proof_panel_legacy_gap_stale
+- cp-model-002: pass; missing proof_panel_legacy_gap_stale
+- cp-web-001: pass; missing proof_panel_legacy_gap_stale
+- cp-web-002: pass; missing proof_panel_legacy_gap_stale
+- cp-spawner-001: pass; missing proof_panel_legacy_gap_stale
+- cp-spawner-002: pass; missing proof_panel_legacy_gap_stale
+- cp-mission-001: pass; missing proof_panel_legacy_gap_stale
+- cp-media-001: pass; missing proof_panel_legacy_gap_stale
+- cp-media-002: pass; missing proof_panel_legacy_gap_stale
+- cp-voice-001: pass; missing proof_panel_legacy_gap_stale
+- cp-audio-001: pass; missing proof_panel_legacy_gap_stale

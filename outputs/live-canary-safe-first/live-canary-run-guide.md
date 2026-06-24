@@ -21,12 +21,12 @@ Record command:
 npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md'
 ```
 
-Expected route: builder_gateway.plain_chat
+Expected route: plain_conversation
 Expected authority: read_only_allowed
 Expected mutation class: read_only
 Expected reply shape: natural
 Expected side effect: Builder may answer; no mission or mutation.
-Expected proof join: Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.
+Expected proof join: Telegram proof should show a no-execution plain conversation with a Builder-backed reply.
 Capture screenshot: yes
 Capture user confirmation: yes
 

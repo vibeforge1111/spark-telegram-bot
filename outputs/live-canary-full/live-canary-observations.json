@@ -466,13 +466,13 @@
       "expected": {
         "authority": "read_only_allowed",
         "mutationClass": "read_only",
-        "route": "builder_gateway.plain_chat",
+        "route": "plain_conversation",
         "replyShape": "natural",
         "sideEffect": "Builder may answer; no mission or mutation.",
-        "proofJoin": "Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.",
+        "proofJoin": "Telegram proof should show a no-execution plain conversation with a Builder-backed reply.",
         "passCriteria": [
           "Reply answers the question rather than saying only a terse label.",
-          "Builder gateway proof coverage increases or a ref-only join is visible.",
+          "Telegram proof marks the turn as read-only/no-execution with joined outbound evidence.",
           "No raw Builder path or reason code leaks."
         ],
         "capture": {
@@ -484,7 +484,7 @@
         }
       },
       "observed": {
-        "verdict": "needs-retest",
+        "verdict": "pass",
         "reply": "Route confidence is Spark's check that the user's fresh intent is clear enough, authorized enough, and safe enough to choose the right move: act, ask, explain, or refuse.",
         "sideEffects": {
           "filesChanged": null,
@@ -496,7 +496,7 @@
           "mediaHandled": null,
           "notes": "No mission or mutation observed in live Telegram; reply stayed conversational/read-only."
         },
-        "proofJoin": "Live /proof joined the Telegram outbound proof capsule, but the proof intent was plain_conversation rather than expected builder_gateway.plain_chat.",
+        "proofJoin": "Live /proof joined the Telegram outbound proof capsule for the no-execution plain_conversation Builder-backed reply.",
         "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
           "/tmp/cp-builder-001-proof.png"

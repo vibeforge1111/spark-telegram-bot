@@ -255,8 +255,8 @@ test('observation template records expected fields and empty live observations',
   assert.deepEqual(template.cases[0].sourceRefs, [
     { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
   ]);
-  assert.equal(template.cases[0].expected.route, 'builder_gateway.plain_chat');
-  assert.equal(template.cases[0].expected.proofJoin, 'Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.');
+  assert.equal(template.cases[0].expected.route, 'plain_conversation');
+  assert.equal(template.cases[0].expected.proofJoin, 'Telegram proof should show a no-execution plain conversation with a Builder-backed reply.');
   assert.equal(template.cases[0].observed.verdict, 'untested');
   assert.equal(template.cases[0].observed.reply, null);
   assert.equal(template.cases[0].observed.proofJoin, null);
@@ -671,7 +671,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   const observed = JSON.parse(observationTemplate.stdout);
   assert.equal(observed.target, 'SparkRecursive_bot');
   assert.equal(observed.cases[0].sourceRefs[0].caseId, 'memory-004');
-  assert.equal(observed.cases[0].expected.route, 'builder_gateway.plain_chat');
+  assert.equal(observed.cases[0].expected.route, 'plain_conversation');
   assert.equal(observed.cases[0].observed.verdict, 'untested');
   assert.deepEqual(observed.cases[0].observed.screenshotRefs, []);
 

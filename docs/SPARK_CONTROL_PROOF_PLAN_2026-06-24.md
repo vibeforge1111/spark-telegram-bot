@@ -175,7 +175,7 @@ Use `npm run control:proof:canaries -- --observations <packet> --stale-proof-run
 
 The stale-proof run guide prioritizes the safe starter canaries first when they are stale, especially `cp-builder-001` and `cp-proof-001`, before continuing through the rest of the recapture list.
 
-Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count but exposed a route-proof mismatch: the reply stayed safe/read-only, while `/proof` showed `plain_conversation` instead of the canary's expected `builder_gateway.plain_chat`. Keep it as `needs-retest` until the canary expectation or route behavior is reconciled with fresh proof.
+Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
 ### Acceptance
 

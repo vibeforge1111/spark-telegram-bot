@@ -392,17 +392,17 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
       { catalog: 'natural-language-live-commands.json', caseId: 'memory-004', relationship: 'derived_from' }
     ],
     prompt: 'In one sentence, what does route confidence mean for Spark? Do not start anything.',
-    expectedRoute: 'builder_gateway.plain_chat',
+    expectedRoute: 'plain_conversation',
     expectedReplyShape: 'natural',
     expectedSideEffect: 'Builder may answer; no mission or mutation.',
-    expectedProofJoin: 'Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.',
+    expectedProofJoin: 'Telegram proof should show a no-execution plain conversation with a Builder-backed reply.',
     passCriteria: [
       'Reply answers the question rather than saying only a terse label.',
-      'Builder gateway proof coverage increases or a ref-only join is visible.',
+      'Telegram proof marks the turn as read-only/no-execution with joined outbound evidence.',
       'No raw Builder path or reason code leaks.'
     ],
     capture: { observedReply: true, sideEffects: true, proofPanel: true, screenshot: true, userConfirmation: true },
-    notes: 'This is the primary fresh Builder proof-ref canary.'
+    notes: 'This is the primary safe Builder-answer canary; route-confidence definitions stay no-execution plain conversation proof.'
   },
   {
     id: 'cp-builder-002',

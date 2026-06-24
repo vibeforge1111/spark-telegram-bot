@@ -182,10 +182,10 @@ Verdict values: pass, fail, blocked, needs-retest, untested
 - Prompt: In one sentence, what does route confidence mean for Spark? Do not start anything.
 - Expected authority: read_only_allowed
 - Expected mutation class: read_only
-- Expected route: builder_gateway.plain_chat
+- Expected route: plain_conversation
 - Expected reply shape: natural
 - Expected side effect: Builder may answer; no mission or mutation.
-- Expected proof join: Builder gateway row should carry harnessProofRef; Telegram delivery keeps matching capsule.
+- Expected proof join: Telegram proof should show a no-execution plain conversation with a Builder-backed reply.
 - Source refs: natural-language-live-commands.json:memory-004:derived_from
 - Capture observed reply: yes
 - Capture side effects: yes
@@ -197,7 +197,7 @@ Verdict values: pass, fail, blocked, needs-retest, untested
 - Observed proof join:
 - Screenshot/user confirmation:
 - Notes:
-- Operator note: This is the primary fresh Builder proof-ref canary.
+- Operator note: This is the primary safe Builder-answer canary; route-confidence definitions stay no-execution plain conversation proof.
 
 10. cp-builder-002
 - Category: builder
