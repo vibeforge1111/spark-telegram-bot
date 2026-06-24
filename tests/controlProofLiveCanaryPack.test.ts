@@ -39,6 +39,16 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'robotic failure reasons: 0',
   'stack-like leaks: 0'
 ].join('\n');
+const CLEAN_PROOF_PANEL = [
+  'Harness Proof',
+  'Intent: builder_gateway.plain_chat',
+  'Authority: allowed by spark.turn_intent.v1',
+  'Governor: allow, verified',
+  'Execution: not_started',
+  'Reply: delivered as natural',
+  'Audit blocking: clean',
+  'Legacy proof gaps visible: 4'
+].join('\n');
 
 test('control-proof canary pack stays small enough for live runs', () => {
   assert.ok(CONTROL_PROOF_LIVE_CANARY_CASES.length >= 20);
@@ -263,7 +273,7 @@ test('observation summary requires pass verdicts and all requested capture evide
       notes: 'No mission or mutation observed.'
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
-    proofPanel: 'Harness Proof: Builder joined.',
+    proofPanel: CLEAN_PROOF_PANEL,
     screenshotRefs: ['/tmp/spark-recursive-builder.png'],
     userConfirmation: 'User confirmed Telegram reply rendered once.'
   };
@@ -282,6 +292,20 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(formatControlProofCanaryObservationSummary(missing), /missing screenshot/);
 
   template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  template.cases[0].observed.proofPanel = 'Harness Proof\nEvidence joined: Telegram final';
+  const malformedProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(malformedProofPanel.readyForRelease, false);
+  assert.deepEqual(malformedProofPanel.cases[0].missingCaptures, [
+    'proof_panel_audit_status',
+    'proof_panel_legacy_gap_status'
+  ]);
+
+  template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;
+  const leakyProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyProofPanel.readyForRelease, false);
+  assert.deepEqual(leakyProofPanel.cases[0].missingCaptures, ['proof_panel_raw_leak']);
+
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
   template.evidence.controlProofAudit = null;
   const missingPacketEvidence = summarizeControlProofCanaryObservations(template);
   assert.equal(missingPacketEvidence.readyForRelease, false);
@@ -310,7 +334,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       notes: 'No mutation observed.'
     },
     proofJoin: 'Builder joined.',
-    proofPanel: 'Harness Proof: Builder joined.',
+    proofPanel: CLEAN_PROOF_PANEL,
     screenshotRefs: ['/tmp/spark-recursive-builder.png'],
     userConfirmation: 'Confirmed.'
   };
@@ -387,7 +411,7 @@ test('observation recorder updates one case while preserving packet evidence', (
       notes: 'No mission or mutation observed.'
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
-    proofPanel: 'Harness Proof: Builder joined.',
+    proofPanel: CLEAN_PROOF_PANEL,
     screenshotRefs: ['/tmp/spark-recursive-builder.png'],
     userConfirmation: 'User confirmed Telegram reply rendered once.'
   });
@@ -542,7 +566,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         notes: 'No mutation observed.'
       },
       proofJoin: 'Builder joined.',
-      proofPanel: 'Harness Proof: Builder joined.',
+      proofPanel: CLEAN_PROOF_PANEL,
       screenshotRefs: ['/tmp/spark-recursive-builder.png'],
       userConfirmation: 'Confirmed.'
     };
@@ -587,6 +611,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
     const recordedPath = resolve(tempRoot, 'recorded.json');
     const recordedSummaryPath = resolve(tempRoot, 'recorded-summary.md');
+    const proofPanelPath = resolve(tempRoot, 'proof-panel.txt');
+    writeFileSync(proofPanelPath, `${CLEAN_PROOF_PANEL}\n`, 'utf8');
     const record = spawnSync(
       process.execPath,
       [
@@ -608,8 +634,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         'No mutation observed.',
         '--proof-join',
         'Builder joined.',
-        '--proof-panel',
-        'Harness Proof: Builder joined.',
+        '--proof-panel-file',
+        proofPanelPath,
         '--screenshot-ref',
         '/tmp/spark-recursive-builder.png',
         '--summary-out',
@@ -777,7 +803,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
         notes: 'No mutation observed.'
       },
       proofJoin: 'Builder joined.',
-      proofPanel: 'Harness Proof: Builder joined.',
+      proofPanel: CLEAN_PROOF_PANEL,
       screenshotRefs: ['/tmp/spark-recursive-builder.png'],
       userConfirmation: 'Confirmed.'
     };

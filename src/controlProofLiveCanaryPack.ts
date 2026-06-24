@@ -1154,10 +1154,25 @@ function missingCapturesForCase(entry: ControlProofCanaryObservationCase): strin
   if (capture.observedReply && !hasCapturedText(entry.observed.reply)) missing.push('observed_reply');
   if (capture.sideEffects && !hasSideEffectObservation(entry.observed.sideEffects)) missing.push('side_effects');
   if (!hasCapturedText(entry.observed.proofJoin)) missing.push('proof_join');
-  if (capture.proofPanel && !hasCapturedText(entry.observed.proofPanel)) missing.push('proof_panel');
+  if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel));
   if (capture.screenshot && !hasCapturedRefs(entry.observed.screenshotRefs)) missing.push('screenshot');
   if (capture.userConfirmation && !hasCapturedText(entry.observed.userConfirmation)) missing.push('user_confirmation');
   return missing;
+}
+
+function proofPanelCaptureIssues(value: string | null | undefined): string[] {
+  if (!hasCapturedText(value)) return ['proof_panel'];
+  const text = String(value || '');
+  const issues: string[] = [];
+  if (!/Harness Proof/i.test(text)) issues.push('proof_panel_shape');
+  if (!/Audit blocking:\s*(?:clean|gaps found)/i.test(text)) issues.push('proof_panel_audit_status');
+  if (!/Legacy proof gaps visible:\s*\d+/i.test(text)) issues.push('proof_panel_legacy_gap_status');
+  if (proofPanelLeaksRawInternals(text)) issues.push('proof_panel_raw_leak');
+  return issues;
+}
+
+function proofPanelLeaksRawInternals(value: string): boolean {
+  return /\/Users\/|\/var\/folders\/|file:\/\/|[A-Za-z]:\\|Traceback \(most recent call last\)|\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?)\b|raw-request|trace:raw|chat_id|user_id/i.test(value);
 }
 
 function hasCapturedText(value: string | null | undefined): boolean {
