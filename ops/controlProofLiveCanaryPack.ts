@@ -47,7 +47,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --coverage',
     '  npm run control:proof:canaries -- --include-actions --coverage --coverage-strict',
     '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
-    '  npm run control:proof:canaries -- --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
+    '  npm run control:proof:canaries -- --include-actions --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',

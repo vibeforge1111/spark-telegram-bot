@@ -651,6 +651,23 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
     assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);
 
+    const fullBundleDir = resolve(tempRoot, 'full-bundle');
+    const fullReleaseBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--include-actions',
+        '--release-bundle',
+        '--out-dir',
+        fullBundleDir
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
+    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 27);
+    assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
+
     observed.evidence.controlProofAudit = null;
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
     const strictSummary = spawnSync(
