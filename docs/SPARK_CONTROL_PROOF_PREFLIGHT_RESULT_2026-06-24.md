@@ -45,11 +45,11 @@ Last-100-row summary where available:
 | Builder gateway trace | 100/100 | 100/100 | 100 rows contain raw id keys, 80 contain path-like refs, 5 contain policy reason-code text. |
 | Spawner PRD trace | 100/100 | 100/100 | 27 rows contain path-like refs. |
 | System trace index | present | present | Contains path-like refs and policy reason-code text. |
-| Memory movement index | missing | missing | Index is visible but not joined by request id or trace ref. |
+| Memory movement index | missing | missing | Original preflight finding: index was visible but not joined by request id or trace ref. Current state: joined by redacted request/trace refs and marked `not_execution_proof`. |
 | Voice surface view | missing | missing | Voice readiness exists, but trace continuity is not joined. |
 | Voice runtime state | missing | missing | Runtime state exists, but trace continuity is not joined. |
 
-Trace conclusion: final-answer audit is the strongest joined Telegram surface. Outbound audit, memory, and voice are not yet joined enough for end-to-end proof. Builder and Spawner are joined but still carry raw-ish fields that should be redacted before user-facing proof panels.
+Trace conclusion: final-answer audit is the strongest joined Telegram surface. Outbound audit, memory, and voice were not yet joined enough for end-to-end proof at original preflight time. Memory movement now has redacted request/trace continuity as observability-only proof. Builder and Spawner are joined but still carry raw-ish fields that should be redacted before user-facing proof panels.
 
 Repeatable command added after this audit:
 
@@ -129,8 +129,8 @@ Docs drift scan found mostly intentional new-rule references. One older handoff 
 - `robotic_failure_reply`: Builder gateway trace contains policy reason-code text in 5/100 sampled rows.
   - Durable slice: add a copy map from internal reason classes to natural Telegram failure replies and tests that ordinary replies never show raw reason codes.
 
-- `missing_trace_join`: memory movement and voice runtime surfaces do not carry request id or trace ref.
-  - Durable slice: add optional shared trace refs to memory/voice events without storing raw memory evidence or raw audio in proof capsules.
+- `missing_trace_join`: original preflight found memory movement and voice runtime surfaces did not carry request id or trace ref.
+  - Durable slice: memory movement now carries redacted request/trace continuity and stays `not_execution_proof`; voice runtime state carries redacted refs as a non-execution surface. Continue keeping raw memory evidence and raw audio out of proof capsules.
 
 - `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
   - Durable slice: audit registry pins versus running module versions before claiming release readiness.

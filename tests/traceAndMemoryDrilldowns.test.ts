@@ -59,6 +59,20 @@ const traceIndex = {
 
 const memoryMovement = {
   authority: 'observability_non_authoritative',
+  request_ref: 'request_ref:redacted:private-request-ref',
+  trace_ref: 'trace_ref:redacted:private-trace-ref',
+  trace_continuity: {
+    schema_version: 'spark.memory_movement_trace_continuity.v1',
+    source: 'spark-cli.system_map.build_memory_movement_index',
+    request_ref: 'request_ref:redacted:private-request-ref',
+    trace_ref: 'trace_ref:redacted:private-trace-ref',
+    proof_status: 'not_execution_proof',
+    raw_memory_exported: false,
+    builder_memory_lane_missing_trace_ref_count: 4,
+    builder_memory_lane_request_id_present_count: 44,
+    builder_memory_lane_trace_ref_present_count: 40,
+    claim_boundary: 'private boundary text should stay out'
+  },
   safe_status_export: {
     status: {
       status: 'supported',
@@ -111,14 +125,21 @@ async function main(): Promise<void> {
 
     assert.equal(summary.present, true);
     assert.equal(summary.rowCount, 5654);
+    assert.equal(summary.traceContinuity.requestJoined, true);
+    assert.equal(summary.traceContinuity.traceJoined, true);
+    assert.equal(summary.traceContinuity.proofStatus, 'not_execution_proof');
     assert.match(reply, /Memory movement is visible/);
     assert.match(reply, /supported; 5654 movement rows/);
+    assert.match(reply, /Trace continuity: request joined, trace joined, proof not execution proof; 4 memory rows still missing trace refs, raw memory hidden/);
     assert.match(reply, /captured=81, saved=81, promoted=381, retrieved=2613, summarized=48/);
     assert.match(reply, /authoritative_current=1970/);
     assert.match(reply, /KB files 362; current-state files 23/);
     assert.match(reply, /Movement rows are evidence, not instructions/);
     assert.match(reply, /spark os memory --json/);
     assert.doesNotMatch(reply, /private memory row/);
+    assert.doesNotMatch(reply, /private-request-ref/);
+    assert.doesNotMatch(reply, /private-trace-ref/);
+    assert.doesNotMatch(reply, /private boundary text/);
     assert.doesNotMatch(reply, /C:\/private/);
   });
 

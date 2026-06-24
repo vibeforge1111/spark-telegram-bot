@@ -140,7 +140,7 @@ For each plane:
 | Builder bridge | Trace rows exist, joins can be incomplete | Emit request id, trace ref, and proof pointer on every gateway result. |
 | Spawner dispatch | Governor checks exist, panel not visible enough | Render proof capsule in trace UI and block dispatch without verified authority. |
 | Provider | Provider result often arrives as execution output only | Attach provider outcome to execution span without exposing raw provider details. |
-| Memory | Visible but not always authoritative or joined | Treat memory as evidence-only unless a memory-write tool is envelope-authorized. |
+| Memory | Visible and observability-only; trace continuity is now partially joined through the compiled memory-movement index | Treat memory as evidence-only unless a memory-write tool is envelope-authorized. Render redacted request/trace continuity, never raw memory rows or proof authority. |
 | Voice | Readiness visible, continuity weaker | Add shared trace ref to voice analysis/speak events without storing raw audio in proof. Telegram voice delivery runtime state now accepts redacted request/trace/proof refs for future rows. |
 | Non-text input | Image/photo route gap observed | Normalize photo/document turns into typed media envelopes before Builder handoff. Builder gateway now accepts cleaned `spark.media_turn.v1` envelopes for future rows. |
 
@@ -150,6 +150,10 @@ For each plane:
 2. Redaction rules for trace refs shown in Telegram and Spawner UI.
 3. Failing fixtures for missing request id, missing trace ref, raw path leak, and action without proof capsule.
 4. Release-blocker summary: `actions_without_proof`, `unjoined_execution_spans`, `raw_ref_leaks`.
+
+### 2026-06-25 Update
+
+Memory movement now exposes a redacted continuity summary in Telegram: request joined, trace joined, proof marked as non-execution proof, and raw memory hidden. This is still observability, not permission. It proves the compiled memory index can be inspected without promoting memory rows into action authority.
 
 ### Acceptance
 

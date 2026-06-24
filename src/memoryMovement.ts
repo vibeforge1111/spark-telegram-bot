@@ -6,6 +6,7 @@ export type MemoryMovementSummary = {
   present: boolean;
   status: string;
   authority: string;
+  traceContinuity: MemoryMovementTraceContinuity;
   rowCount: number;
   movementCounts: Record<string, number>;
   authorityCounts: Record<string, number>;
@@ -15,6 +16,19 @@ export type MemoryMovementSummary = {
   currentStateFileCount: number;
   nextRequiredBridges: string[];
   error?: string;
+};
+
+export type MemoryMovementTraceContinuity = {
+  present: boolean;
+  requestJoined: boolean;
+  traceJoined: boolean;
+  proofJoined: boolean;
+  proofStatus: string;
+  source: string;
+  rawMemoryExported: boolean | null;
+  missingTraceRefCount: number;
+  requestIdPresentCount: number;
+  traceRefPresentCount: number;
 };
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -42,12 +56,56 @@ function numberRecord(value: unknown): Record<string, number> {
   return result;
 }
 
+function booleanValue(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
 export function resolveMemoryMovementIndexPath(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.SPARK_SYSTEM_MAP_DIR || env.SPARK_OS_SYSTEM_MAP_DIR;
   const root = configured && configured.trim()
     ? configured.trim()
     : path.join(os.homedir(), '.spark', 'state', 'system-map');
   return path.join(root, 'memory-movement-index.json');
+}
+
+function summarizeTraceContinuity(root: Record<string, unknown>): MemoryMovementTraceContinuity {
+  const continuity = objectValue(root.trace_continuity || root.traceContinuity);
+  const requestRef = stringValue(continuity.request_ref || continuity.requestRef || root.request_ref || root.requestRef);
+  const traceRef = stringValue(continuity.trace_ref || continuity.traceRef || root.trace_ref || root.traceRef);
+  const proofRef = stringValue(
+    continuity.harness_proof_ref ||
+    continuity.harnessProofRef ||
+    root.harness_proof_ref ||
+    root.harnessProofRef
+  );
+  const requestIdPresentCount = numberValue(
+    continuity.builder_memory_lane_request_id_present_count ||
+    continuity.request_id_present_count ||
+    continuity.requestIdPresentCount
+  );
+  const traceRefPresentCount = numberValue(
+    continuity.builder_memory_lane_trace_ref_present_count ||
+    continuity.trace_ref_present_count ||
+    continuity.traceRefPresentCount
+  );
+  const proofStatus = stringValue(continuity.proof_status || continuity.proofStatus || continuity.proof_storage || continuity.proofStorage);
+
+  return {
+    present: Object.keys(continuity).length > 0 || Boolean(requestRef || traceRef || proofRef),
+    requestJoined: Boolean(requestRef || requestIdPresentCount > 0),
+    traceJoined: Boolean(traceRef || traceRefPresentCount > 0),
+    proofJoined: Boolean(proofRef),
+    proofStatus: proofStatus || (proofRef ? 'present' : 'unknown'),
+    source: stringValue(continuity.source),
+    rawMemoryExported: booleanValue(continuity.raw_memory_exported ?? continuity.rawMemoryExported),
+    missingTraceRefCount: numberValue(
+      continuity.builder_memory_lane_missing_trace_ref_count ||
+      continuity.missing_trace_ref_count ||
+      continuity.missingTraceRefCount
+    ),
+    requestIdPresentCount,
+    traceRefPresentCount
+  };
 }
 
 export function summarizeMemoryMovement(payload: unknown): MemoryMovementSummary {
@@ -62,6 +120,7 @@ export function summarizeMemoryMovement(payload: unknown): MemoryMovementSummary
     present: Object.keys(status).length > 0,
     status: stringValue(status.status) || 'unknown',
     authority: stringValue(status.authority || root.authority) || 'observability_non_authoritative',
+    traceContinuity: summarizeTraceContinuity(root),
     rowCount: numberValue(status.row_count),
     movementCounts: numberRecord(status.movement_counts),
     authorityCounts: numberRecord(status.authority_counts),
@@ -83,6 +142,18 @@ export async function readMemoryMovementSummary(indexPath = resolveMemoryMovemen
       status: 'missing',
       authority: 'missing',
       rowCount: 0,
+      traceContinuity: {
+        present: false,
+        requestJoined: false,
+        traceJoined: false,
+        proofJoined: false,
+        proofStatus: 'missing',
+        source: '',
+        rawMemoryExported: null,
+        missingTraceRefCount: 0,
+        requestIdPresentCount: 0,
+        traceRefPresentCount: 0
+      },
       movementCounts: {},
       authorityCounts: {},
       sourceFamilyCounts: {},
@@ -103,6 +174,22 @@ function countLine(counts: Record<string, number>, keys: string[]): string {
   return parts.length ? parts.join(', ') : 'none yet';
 }
 
+function traceContinuityLine(continuity: MemoryMovementTraceContinuity): string {
+  if (!continuity.present) {
+    return 'Trace continuity: not reported by the compiled index yet';
+  }
+  const joins = [
+    continuity.requestJoined ? 'request joined' : 'request not joined',
+    continuity.traceJoined ? 'trace joined' : 'trace not joined',
+    continuity.proofJoined ? 'proof ref present' : `proof ${continuity.proofStatus.replace(/_/g, ' ')}`
+  ];
+  const extras = [
+    continuity.missingTraceRefCount > 0 ? `${continuity.missingTraceRefCount} memory rows still missing trace refs` : '',
+    continuity.rawMemoryExported === false ? 'raw memory hidden' : ''
+  ].filter(Boolean);
+  return `Trace continuity: ${joins.join(', ')}${extras.length ? `; ${extras.join(', ')}` : ''}`;
+}
+
 export function renderMemoryMovementSummary(summary: MemoryMovementSummary): string {
   if (!summary.present) {
     return [
@@ -119,6 +206,7 @@ export function renderMemoryMovementSummary(summary: MemoryMovementSummary): str
     '',
     'State',
     `• ${summary.status}; ${summary.rowCount} movement rows`,
+    `• ${traceContinuityLine(summary.traceContinuity)}`,
     `• Movement: ${countLine(summary.movementCounts, ['captured', 'saved', 'promoted', 'retrieved', 'summarized', 'blocked'])}`,
     `• Authority: ${countLine(summary.authorityCounts, ['authoritative_current', 'authoritative_historical', 'supporting_not_authoritative', 'structured_support'])}`,
     `• Records: ${countLine(summary.recordCounts, ['current_state', 'events', 'observations', 'sessions'])}`,
