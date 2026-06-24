@@ -189,6 +189,8 @@ Live recapture of `cp-noaction-004` on 2026-06-24 confirmed read-only repair sta
 
 Live recapture of `cp-authority-001` on 2026-06-24 confirmed fresh runtime state wins over memory for Spawner status: Spark treated memory as stale context, did not mutate anything, and `/proof` showed `fresh_state.authority_answer` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 19 to 18.
 
+Live recapture of `cp-authority-002` on 2026-06-24 confirmed current live-state answers use fresh runtime state, not memory: Spark reported the live loop as healthy without raw internals or mutation, and `/proof` showed `fresh_state.live_status` with `Latest proof gaps: none`, reducing stale proof-panel blockers from 18 to 17.
+
 ### Acceptance
 
 - Last 100 Telegram final answers can be audited for proof coverage.
