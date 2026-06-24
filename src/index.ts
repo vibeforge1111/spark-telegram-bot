@@ -10416,7 +10416,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
       ? ` voiceTiming=${JSON.stringify(builderReply.voiceTiming)}`
       : '';
     console.log(`[VoiceBridge] user=${userRef(ctx.from?.id)} used=${builderReply.used} mode=${builderReply.bridgeMode} routing=${builderReply.routingDecision} textLen=${(builderReply.responseText || '').length} hasVoice=${Boolean(builderReply.voiceMedia)}${voiceTiming}`);
-    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.voiceMedia || (builderReply.responseText && !isLowInformationLlmReply(builderReply.responseText)))) {
+    if (builderReply.used && builderReply.bridgeMode !== 'bridge_error' && (builderReply.voiceMedia ? (!builderReply.responseText || !isLowInformationLlmReply(builderReply.responseText)) : (builderReply.responseText && !isLowInformationLlmReply(builderReply.responseText)))) {
       recordTelegramHarnessCoreExecution(authorization, {
         toolName,
         status: 'success',

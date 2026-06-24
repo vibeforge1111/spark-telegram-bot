@@ -127,6 +127,62 @@ await test('audio bridge handoff carries media and turn intent envelopes', async
   }
 });
 
+await test('low-information audio voice media replies are replaced with media fallback proof', async () => {
+  restoreEnv();
+  process.env.ADMIN_TELEGRAM_IDS = '8319079055';
+  process.env.SPARK_BOT_TEST_MODE = '1';
+  const indexModule: any = await import('../src/index');
+  indexModule.__setBuilderBridgeRunnerForTest(async () => ({
+    used: true,
+    responseText: 'Working Memory',
+    requestId: 'builder-audio-request',
+    traceRef: 'builder-audio-trace',
+    decision: 'test',
+    bridgeMode: 'test',
+    routingDecision: 'researcher_advisory',
+    voiceMedia: {
+      audioBase64: Buffer.from('fake-audio').toString('base64'),
+      mimeType: 'audio/wav',
+      filename: 'voice-reply-test.wav',
+      voiceCompatible: false,
+      spokenText: 'Working Memory'
+    }
+  }));
+  try {
+    const replies: string[] = [];
+    const replyExtras: unknown[] = [];
+    let audioDeliveries = 0;
+    const message = {
+      message_id: 632,
+      caption: 'Evidence-only audio test. Transcribe or summarize what is audible.',
+      audio: {
+        file_id: 'private-audio-id',
+        mime_type: 'audio/mp4',
+        duration: 6
+      }
+    };
+    const ctx = makeFakeCtx(message, replies, replyExtras);
+    ctx.replyWithAudio = async () => {
+      audioDeliveries += 1;
+      return {};
+    };
+
+    await indexModule.handleVoiceMessage(ctx);
+
+    const traceContext = (replyExtras[0] as any)?.__sparkTraceContext;
+    assert.equal(audioDeliveries, 0);
+    assert.match(replies[0] || '', /did not return a transcription or media reply/i);
+    assert.doesNotMatch(replies[0] || '', /Working Memory|tool_denied_by_policy|harness_core/i);
+    assert.equal(traceContext?.route, 'media.audio_transcribe_or_boundary');
+    assert.equal(traceContext?.replyKind, 'builder_audio_fallback');
+    assert.equal(traceContext?.proofCapsule?.execution?.status, 'failed');
+    assert.equal(traceContext?.proofCapsule?.reply?.delivered, true);
+  } finally {
+    indexModule.__setBuilderBridgeRunnerForTest(null);
+    restoreEnv();
+  }
+});
+
 await test('low-information image bridge replies are replaced with media fallback proof', async () => {
   restoreEnv();
   process.env.ADMIN_TELEGRAM_IDS = '8319079055';
