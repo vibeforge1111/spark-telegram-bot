@@ -21,6 +21,7 @@ Operating rules:
 
 Current baseline:
 - Fresh-strict audit is blocking-clean with no missing evidence, trace joins, proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
+- Read the audit header by gate posture, not by the headline alone: `Status: gaps found` with `Blocking status: clean` and `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` is release-clean for current proof work, while still preserving historical debt visibility.
 - Remaining proof gaps are visible historical legacy rows in route-confidence, Builder gateway, and Spawner trace planes. Keep them inspectable; do not relabel them as fresh Harness authority.
 - Canary evidence is in `outputs/live-canary-full/live-canary-summary.md/.json`. Release gate can be ready while publish gate remains not ready because registry or repo handoffs are still open.
 - Publish/registry answers must distinguish release-ready behavior from publish-not-ready metadata drift, name owner surfaces and next safe action, and state read-only evidence lookup without leaking raw commits, registry keys, or local paths.

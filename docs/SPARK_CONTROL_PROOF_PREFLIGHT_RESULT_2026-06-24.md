@@ -145,6 +145,11 @@ Update after rich-message delivery proof hardening on 2026-06-25 14:54 +04:
 - Commits through `c524293` made `cp-streaming-002` reject generic rich-message proof joins. The case definition, tests, and live evidence now require proof that the rich-message reply was delivered through the live Telegram profile path, not merely that the reply text rendered.
 - The refreshed packet reports runtime evidence collected at `2026-06-25T10:54:44.460Z`, release gate ready, and publish gate not ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
 
+Update after audit gap-posture clarity on 2026-06-25 17:56 +04:
+
+- Commits through `0126183` added the fresh-strict audit header line `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` and refreshed the full SparkRecursive_bot canary evidence packet from a clean tree.
+- This is report clarity only: gates still depend on the structured counters and `Blocking status`. Current audit output remains blocking-clean while preserving visible historical legacy gaps in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
