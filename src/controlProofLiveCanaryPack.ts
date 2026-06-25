@@ -2099,6 +2099,7 @@ function gateDecisionDetails(input: {
   releaseBlockers: string[];
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
+  auditDetails: ControlProofAuditDetails | null;
   releaseHandoffs: string[];
   releaseHandoffDetails: ControlProofReleaseHandoffDetail[];
   publishHandoffs: Record<string, unknown> | null;
@@ -2114,11 +2115,13 @@ function gateDecisionDetails(input: {
       verdict: entry.verdict,
       missingCaptures: [...entry.missingCaptures]
     }));
+  const auditBlockingGapDetails = controlProofAuditBlockingGapDetails(input.auditDetails);
   const releaseGateBlockers = [
     ...(input.missingEvidence.length > 0 ? ['missing_packet_evidence'] : []),
     ...(input.invalidEvidence.length > 0 ? ['invalid_packet_evidence'] : []),
     ...(input.staleEvidence.length > 0 ? ['stale_packet_evidence'] : []),
     ...(failingCases.length > 0 ? ['canary_case_failures'] : []),
+    ...(auditBlockingGapDetails ? ['control_proof_audit_blocking_gaps'] : []),
     ...input.releaseBlockers
   ];
   const handoffFamilies = publishHandoffFamilies(input.publishHandoffs);
@@ -2140,6 +2143,9 @@ function gateDecisionDetails(input: {
   }
   if (failingCases.length > 0) {
     releaseBlockerDetails.canary_case_failures = { cases: JSON.parse(JSON.stringify(failingCases)) };
+  }
+  if (auditBlockingGapDetails) {
+    releaseBlockerDetails.control_proof_audit_blocking_gaps = auditBlockingGapDetails;
   }
   for (const blocker of input.releaseBlockers) {
     if (!releaseBlockerDetails[blocker]) {
@@ -2206,6 +2212,33 @@ function gateDecisionDetails(input: {
       },
       failingCases
     }
+  };
+}
+
+function controlProofAuditBlockingGapDetails(
+  auditDetails: ControlProofAuditDetails | null
+): Record<string, unknown> | null {
+  if (!auditDetails) return null;
+  const gapFamilies = Object.fromEntries(
+    Object.entries(auditDetails.gapDetails)
+      .filter(([, detail]) => detail.releaseBlocking)
+      .map(([family, detail]) => [family, {
+        count: detail.count,
+        releaseBlocking: detail.releaseBlocking,
+        publishBlocking: detail.publishBlocking,
+        backingStatus: detail.backingStatus,
+        planeLabels: [...detail.planeLabels],
+        latestGapPlaneCount: detail.latestGapPlaneCount,
+        incompleteBackingPlaneCount: detail.incompleteBackingPlaneCount,
+        completeBackingPlaneCount: detail.completeBackingPlaneCount
+      }])
+  );
+  if (Object.keys(gapFamilies).length === 0) return null;
+  return {
+    source: 'control_proof_audit',
+    blockingStatus: auditDetails.blockingStatus,
+    gapPosture: auditDetails.gapPosture,
+    gapFamilies
   };
 }
 
@@ -2882,6 +2915,7 @@ export function summarizeControlProofCanaryObservations(
     releaseBlockers,
     releaseCaveats,
     releaseCaveatDetails,
+    auditDetails,
     releaseHandoffs,
     releaseHandoffDetails,
     publishHandoffs,

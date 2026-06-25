@@ -969,6 +969,40 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const incompleteLegacyGapBacking = summarizeControlProofCanaryObservations(template);
   assert.equal(incompleteLegacyGapBacking.readyForRelease, false);
   assert.deepEqual(incompleteLegacyGapBacking.invalidPacketEvidence, ['control_proof_audit']);
+  assert.deepEqual(incompleteLegacyGapBacking.gateDecisionDetails.release.blockers, [
+    'invalid_packet_evidence',
+    'control_proof_audit_blocking_gaps'
+  ]);
+  assert.deepEqual(
+    incompleteLegacyGapBacking.gateDecisionDetails.release.blockerDetails.control_proof_audit_blocking_gaps,
+    {
+      source: 'control_proof_audit',
+      blockingStatus: 'clean',
+      gapPosture: 'backed legacy gaps only; no blocking or latest proof gaps',
+      gapFamilies: {
+        incomplete_legacy_gap_backing: {
+          count: 1,
+          releaseBlocking: true,
+          publishBlocking: true,
+          backingStatus: 'none',
+          planeLabels: [],
+          latestGapPlaneCount: 0,
+          incompleteBackingPlaneCount: 0,
+          completeBackingPlaneCount: 0
+        }
+      }
+    }
+  );
+  assert.deepEqual(
+    incompleteLegacyGapBacking.gateDecisionDetails.publish.blockerDetails.release_gate_not_ready,
+    {
+      releaseReady: false,
+      releaseBlockers: [
+        'invalid_packet_evidence',
+        'control_proof_audit_blocking_gaps'
+      ]
+    }
+  );
 
   template.evidence.controlProofAudit = [
     'missing evidence: 0',
