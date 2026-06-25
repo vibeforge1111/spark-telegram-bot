@@ -1278,7 +1278,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(staleEmbeddedCompile.readyForRelease, false);
   assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockers, ['invalid_packet_evidence']);
-  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockers, ['release_gate_not_ready']);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockers, [
+    'release_gate_not_ready',
+    'release_caveats'
+  ]);
   assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
   assert.deepEqual(staleEmbeddedCompile.packetEvidenceDetails.invalid, [{
     key: 'spark_os_compile',
