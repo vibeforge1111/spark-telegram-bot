@@ -170,6 +170,7 @@ export interface ControlProofCanaryObservationSummary {
   readyForPublish: boolean;
   releaseCaveats: string[];
   releaseHandoffs: string[];
+  publishHandoffs: Record<string, unknown> | null;
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
   stalePacketEvidence: string[];
@@ -1551,6 +1552,80 @@ function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): strin
   ];
 }
 
+function safeStringToken(value: unknown): string | null {
+  const text = String(value || '').trim();
+  return /^[a-z0-9_.-]+$/i.test(text) ? text : null;
+}
+
+function safeDisplayToken(value: unknown): string | null {
+  const text = String(value || '').trim();
+  return text && /^[A-Za-z0-9 ._/-]+$/.test(text) ? text : null;
+}
+
+function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record<string, unknown> | null {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  if (!parsed) return null;
+  const publishHandoffs = objectOrNull(parsed.publish_handoffs);
+  if (!publishHandoffs) return null;
+  const families = Array.isArray(publishHandoffs.families)
+    ? publishHandoffs.families.map(safeStringToken).filter((entry): entry is string => Boolean(entry))
+    : [];
+  const blockedReleaseRepos = (Array.isArray(publishHandoffs.blocked_release_repos)
+    ? publishHandoffs.blocked_release_repos
+    : [])
+    .map((rawEntry) => {
+      const entry = objectOrNull(rawEntry);
+      if (!entry) return null;
+      const repo = safeStringToken(entry.repo);
+      if (!repo) return null;
+      const item: Record<string, unknown> = { repo };
+      const riskClass = safeStringToken(entry.risk_class);
+      const reason = safeDisplayToken(entry.reason);
+      const nextSafeAction = safeDisplayToken(entry.next_safe_action);
+      const behind = numberOrNull(entry.behind);
+      if (riskClass) item.risk_class = riskClass;
+      if (reason) item.reason = reason;
+      if (nextSafeAction) item.next_safe_action = nextSafeAction;
+      if (behind !== null && behind >= 0) item.behind = behind;
+      return item;
+    })
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .sort((a, b) => String(a.repo).localeCompare(String(b.repo)));
+  const localRuntime = objectOrNull(publishHandoffs.local_runtime_test_artifacts);
+  const localRuntimeOwners = (Array.isArray(localRuntime?.owners) ? localRuntime.owners : [])
+    .map(safeStringToken)
+    .filter((entry): entry is string => Boolean(entry))
+    .sort();
+  const builderTrace = objectOrNull(publishHandoffs.builder_trace_health);
+  const builderFlags = (Array.isArray(builderTrace?.flags) ? builderTrace.flags : [])
+    .map(safeStringToken)
+    .filter((entry): entry is string => Boolean(entry));
+  return {
+    schema_version: safeStringToken(publishHandoffs.schema_version) || 'spark.publish_handoffs.summary.v0',
+    family_count: families.length || numberOrNull(publishHandoffs.family_count) || 0,
+    families,
+    blocked_release_repos: blockedReleaseRepos,
+    local_runtime_test_artifacts: {
+      count: numberOrNull(localRuntime?.count) || 0,
+      owners: localRuntimeOwners
+    },
+    builder_trace_health: {
+      flags: builderFlags,
+      high_severity_open_count: numberOrNull(builderTrace?.high_severity_open_count),
+      unresolved_high_severity_open_count: numberOrNull(builderTrace?.unresolved_high_severity_open_count),
+      current_unresolved_high_severity_open_count: numberOrNull(
+        builderTrace?.current_unresolved_high_severity_open_count
+      ),
+      unresolved_high_severity_source_group_count: numberOrNull(
+        builderTrace?.unresolved_high_severity_source_group_count
+      ),
+      latest_unresolved_high_severity_event_created_at: safeTimestampToken(
+        builderTrace?.latest_unresolved_high_severity_event_created_at
+      )
+    }
+  };
+}
+
 function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>): string[] {
   const publishHandoffs = objectOrNull(parsed.publish_handoffs);
   if (!publishHandoffs) return [];
@@ -2144,6 +2219,7 @@ export function summarizeControlProofCanaryObservations(
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
+  const publishHandoffs = sparkOsCompilePublishHandoffs(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = Array.from(new Set([
     ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
     ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
@@ -2162,6 +2238,7 @@ export function summarizeControlProofCanaryObservations(
     readyForPublish,
     releaseCaveats,
     releaseHandoffs,
+    publishHandoffs,
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
     stalePacketEvidence: staleEvidence,
