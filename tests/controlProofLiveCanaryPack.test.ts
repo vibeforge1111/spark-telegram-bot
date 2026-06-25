@@ -825,6 +825,17 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     /Publish gate: not ready/
   );
 
+  template.generatedAt = 'June 24, 2026 00:00 UTC';
+  const looseGeneratedAt = summarizeControlProofCanaryObservations(template);
+  assert.equal(looseGeneratedAt.readyForRelease, false);
+  assert.deepEqual(looseGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+  assert.match(formatControlProofCanaryObservationSummary(looseGeneratedAt), /Packet evidence invalid: packet_generated_at/);
+
+  template.generatedAt = '2026-06-24T00:00:00.000Z';
+  const strictGeneratedAt = summarizeControlProofCanaryObservations(template);
+  assert.equal(strictGeneratedAt.readyForRelease, true);
+  assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);
+
   template.evidence.notes = 'Collected locally; raw repo board was /Users/example/private and chat_id was hidden.';
   const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template);
   assert.equal(leakyRuntimeEvidenceNotes.readyForRelease, false);

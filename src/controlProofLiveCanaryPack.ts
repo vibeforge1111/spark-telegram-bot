@@ -1360,6 +1360,7 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
     controlProofAudit: null
   };
   const invalid: string[] = [];
+  if (!isStrictIsoTimestamp(String(observations.generatedAt || '').trim())) invalid.push('packet_generated_at');
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
