@@ -162,6 +162,7 @@ export interface ControlProofCanaryObservationSummary {
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
   releaseCaveats: string[];
+  releaseHandoffs: string[];
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
   stalePacketEvidence: string[];
@@ -1244,6 +1245,23 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   return caveats;
 }
 
+function duplicateTruthReleaseHandoffs(value: string | null | undefined): string[] {
+  const text = String(value || '');
+  const marker = 'Duplicate-truth handoff:';
+  const markerIndex = text.indexOf(marker);
+  if (markerIndex === -1) return [];
+  return text
+    .slice(markerIndex + marker.length)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => line.slice(2).trim())
+    .filter((line) =>
+      /^[a-z0-9_.-]+:\s+(?:critical|warning|info)\s+[a-z0-9_.-]+(?:;\s+next safe action:\s+.+)?$/i.test(line) &&
+      !proofPanelLeaksRawInternals(line)
+    );
+}
+
 function legacyProofGapsAreInspectable(value: string): boolean {
   const match = value.match(/legacy proof gaps:\s*(\d+)/i);
   if (!match) return true;
@@ -1493,6 +1511,7 @@ export function summarizeControlProofCanaryObservations(
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
+  const releaseHandoffs = duplicateTruthReleaseHandoffs(observations.evidence?.notes);
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -1501,6 +1520,7 @@ export function summarizeControlProofCanaryObservations(
     verdictCounts,
     readyForRelease,
     releaseCaveats,
+    releaseHandoffs,
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
     stalePacketEvidence: staleEvidence,
@@ -1534,6 +1554,13 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     lines.push('Release caveats:');
     for (const caveat of summary.releaseCaveats) {
       lines.push(`- ${caveat}`);
+    }
+    lines.push('');
+  }
+  if (summary.releaseHandoffs.length > 0) {
+    lines.push('Release handoffs:');
+    for (const handoff of summary.releaseHandoffs) {
+      lines.push(`- ${handoff}`);
     }
     lines.push('');
   }

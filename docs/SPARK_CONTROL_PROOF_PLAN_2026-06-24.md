@@ -167,6 +167,8 @@ Canary summaries now carry non-blocking release caveats from `spark os compile -
 
 When fresh runtime evidence is collected, the canary CLI joins registry-drift caveats to the redacted duplicate-truth handoff items from the compiled repo board. The observation packet notes name the owner repo, severity, classification, and next safe action without exposing local paths or commit refs.
 
+Canary summaries now promote those redacted duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
+
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.

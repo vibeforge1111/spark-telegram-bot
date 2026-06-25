@@ -124,6 +124,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
   assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
+  assert.deepEqual(summaryJson.summary.releaseHandoffs, summary.releaseHandoffs);
 });
 
 test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
@@ -630,6 +631,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(compileDriftVisibleButClean.releaseCaveats, [
     'registry_pin_drift | runtime_ahead_of_registry_pin=0 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
   ]);
+  assert.deepEqual(compileDriftVisibleButClean.releaseHandoffs, []);
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
     /Release caveats:\n- registry_pin_drift/
@@ -1439,6 +1441,11 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const summary = summarizeControlProofCanaryObservations(observed);
     assert.equal(summary.readyForRelease, true);
     assert.deepEqual(summary.invalidPacketEvidence, []);
+    assert.deepEqual(summary.releaseHandoffs, [
+      'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
+      'spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
+    ]);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -15,4 +15,8 @@ Verdicts:
 Release caveats:
 - registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 
+Release handoffs:
+- spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
+- spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
+
 All selected canaries passed with required captures present.
