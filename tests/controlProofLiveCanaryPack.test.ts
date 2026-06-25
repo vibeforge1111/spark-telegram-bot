@@ -1118,6 +1118,33 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
     'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
   ]);
+  assert.deepEqual(structuredPublishHandoffs.releaseCaveatDetails, {
+    builder_trace_health: {
+      flags: ['historical_open_high_severity_events'],
+      status: 'current_clean',
+      window: '1h',
+      missing_trace_ref_count: 0,
+      one_hour_missing_trace_ref_count: null,
+      historical_missing_trace_ref_count: 0,
+      high_severity_open_count: 46,
+      unresolved_high_severity_open_count: 1,
+      current_unresolved_high_severity_open_count: 0,
+      unresolved_high_severity_source_group_count: 1,
+      latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+      latest_missing_source_group_count: null,
+      latest_clean_historical_window_group_count: null
+    },
+    repo_release_blocks: {
+      blocked_release_count: 1,
+      critical_repo_count: 1
+    },
+    duplicate_truths: {
+      label: 'local_runtime_test_artifacts',
+      classification_counts: { local_runtime_test_artifact: 2 },
+      duplicate_truth_count: 2,
+      critical_duplicate_truth_count: 0
+    }
+  });
   assert.deepEqual(structuredPublishHandoffs.publishHandoffs, {
     schema_version: 'spark.publish_handoffs.summary.v0',
     family_count: 3,

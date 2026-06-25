@@ -49,6 +49,8 @@ When `spark os compile --json` includes `publish_handoffs`, the canary summary s
 
 The machine-readable `live-canary-summary.json` summary carries the sanitized `publishHandoffs` object as well as the human `releaseHandoffs` lines. Automation should read `publishHandoffs` first and use the display lines only for operator-facing reports.
 
+The same JSON summary carries sanitized `releaseCaveatDetails` for release caveat counts and Builder trace-health aggregates. Automation should use those structured counts instead of parsing the human `releaseCaveats` strings.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.

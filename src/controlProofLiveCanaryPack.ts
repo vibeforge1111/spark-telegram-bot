@@ -169,6 +169,7 @@ export interface ControlProofCanaryObservationSummary {
   readyForRelease: boolean;
   readyForPublish: boolean;
   releaseCaveats: string[];
+  releaseCaveatDetails: Record<string, unknown> | null;
   releaseHandoffs: string[];
   publishHandoffs: Record<string, unknown> | null;
   missingPacketEvidence: string[];
@@ -1431,6 +1432,81 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   return caveats;
 }
 
+function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): Record<string, unknown> | null {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  if (!parsed) return null;
+  const repoBoard = objectOrNull(parsed.repo_board) ?? {};
+  const duplicateTruths = objectOrNull(parsed.duplicate_truths) ?? {};
+  const classificationCounts = objectOrNull(duplicateTruths.classification_counts) ?? {};
+  const builderFlags = Array.isArray(parsed.builder_trace_health_flags)
+    ? parsed.builder_trace_health_flags.map(safeStringToken).filter((entry): entry is string => Boolean(entry)).sort()
+    : [];
+  const duplicateClassificationCounts = Object.fromEntries(
+    Object.entries(classificationCounts)
+      .map(([key, value]) => {
+        const safeKey = safeStringToken(key);
+        const count = numberOrNull(value);
+        return safeKey && count !== null && count > 0 ? [safeKey, count] : null;
+      })
+      .filter((entry): entry is [string, number] => Boolean(entry))
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
+  const duplicateTruthCount =
+    numberOrNull(repoBoard.duplicate_truth_count) ?? numberOrNull(duplicateTruths.item_count) ?? 0;
+  const criticalDuplicateTruthCount = numberOrNull(repoBoard.critical_duplicate_truth_count) ?? 0;
+  const blockedReleaseCount = numberOrNull(repoBoard.blocked_release_count) ?? 0;
+  const criticalRepoCount = numberOrNull(repoBoard.critical_repo_count) ?? 0;
+  if (
+    builderFlags.length === 0 &&
+    blockedReleaseCount === 0 &&
+    criticalRepoCount === 0 &&
+    duplicateTruthCount === 0 &&
+    criticalDuplicateTruthCount === 0 &&
+    Object.keys(duplicateClassificationCounts).length === 0
+  ) return null;
+  const current = objectOrNull(parsed.builder_trace_current_health);
+  const builderTraceHealth = builderFlags.length > 0 && current
+    ? {
+        flags: builderFlags,
+        status: safeStringToken(current.status),
+        window: safeStringToken(current.window),
+        missing_trace_ref_count: numberOrNull(current.missing_trace_ref_count),
+        one_hour_missing_trace_ref_count: oneHourMissingTraceRefCount(parsed.builder_trace_recent_windows),
+        historical_missing_trace_ref_count: numberOrNull(current.historical_missing_trace_ref_count),
+        high_severity_open_count: numberOrNull(current.high_severity_open_count),
+        unresolved_high_severity_open_count: numberOrNull(current.unresolved_high_severity_open_count),
+        current_unresolved_high_severity_open_count: numberOrNull(current.current_unresolved_high_severity_open_count),
+        unresolved_high_severity_source_group_count: numberOrNull(current.unresolved_high_severity_source_group_count),
+        latest_unresolved_high_severity_event_created_at: safeTimestampToken(
+          current.latest_unresolved_high_severity_event_created_at
+        ),
+        latest_missing_source_group_count:
+          numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count),
+        latest_clean_historical_window_group_count:
+          numberOrNull(current.latest_clean_historical_window_debt_group_count) ??
+          numberOrNull(current.latest_clean_window_debt_group_count) ??
+          numberOrNull(current.latest_clean_group_count)
+      }
+    : null;
+  return {
+    builder_trace_health: builderTraceHealth,
+    repo_release_blocks: {
+      blocked_release_count: blockedReleaseCount,
+      critical_repo_count: criticalRepoCount
+    },
+    duplicate_truths: {
+      label: duplicateTruthCaveatLabel({
+        runtimeAheadCount: numberOrNull(classificationCounts.runtime_ahead_of_registry_pin) ?? 0,
+        localRuntimeTestCount: numberOrNull(classificationCounts.local_runtime_test_artifact) ?? 0,
+        duplicateTruthCount
+      }),
+      classification_counts: duplicateClassificationCounts,
+      duplicate_truth_count: duplicateTruthCount,
+      critical_duplicate_truth_count: criticalDuplicateTruthCount
+    }
+  };
+}
+
 function duplicateTruthCaveatLabel(input: {
   runtimeAheadCount: number;
   localRuntimeTestCount: number;
@@ -1494,6 +1570,14 @@ function compileTraceWindowSummary(value: unknown, windowName: string): string |
   const missing = numberOrNull(row.missing_trace_ref_count);
   if (missing === null) return null;
   return `${windowName}_missing_trace_refs=${missing}`;
+}
+
+function oneHourMissingTraceRefCount(value: unknown): number | null {
+  const windows = Array.isArray(value) ? value : [];
+  const row = windows
+    .map(objectOrNull)
+    .find((entry) => String(entry?.window || '') === '1h');
+  return row ? numberOrNull(row.missing_trace_ref_count) : null;
 }
 
 function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknown>): string {
@@ -2218,6 +2302,7 @@ export function summarizeControlProofCanaryObservations(
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
+  const releaseCaveatDetails = sparkOsCompileReleaseCaveatDetails(observations.evidence?.sparkOsCompile);
   const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
   const publishHandoffs = sparkOsCompilePublishHandoffs(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = Array.from(new Set([
@@ -2237,6 +2322,7 @@ export function summarizeControlProofCanaryObservations(
     readyForRelease: releaseReady,
     readyForPublish,
     releaseCaveats,
+    releaseCaveatDetails,
     releaseHandoffs,
     publishHandoffs,
     missingPacketEvidence: missingEvidence,
