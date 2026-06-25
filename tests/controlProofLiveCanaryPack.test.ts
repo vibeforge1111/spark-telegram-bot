@@ -1076,12 +1076,67 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       ready: true,
       blockers: [],
       blockerDetails: {},
-      caveats: [],
-      caveatDetails: null,
-      caveatFamilies: [],
-      handoffDetails: null,
-      handoffFamilies: [],
-      handoffCount: 0,
+      caveats: [
+        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z',
+        'repo_release_blocks | blocked_release_count=1 | critical_repo_count=1',
+        'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+      ],
+      caveatDetails: {
+        builder_trace_health: {
+          flags: ['historical_open_high_severity_events'],
+          status: 'current_clean',
+          window: '1h',
+          missing_trace_ref_count: 0,
+          one_hour_missing_trace_ref_count: null,
+          historical_missing_trace_ref_count: 0,
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z',
+          latest_missing_source_group_count: null,
+          latest_clean_historical_window_group_count: null
+        },
+        repo_release_blocks: {
+          blocked_release_count: 1,
+          critical_repo_count: 1
+        },
+        duplicate_truths: {
+          label: 'local_runtime_test_artifacts',
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: 2,
+          critical_duplicate_truth_count: 0
+        }
+      },
+      caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffDetails: {
+        schema_version: 'spark.publish_handoffs.summary.v0',
+        family_count: 3,
+        families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+        blocked_release_repos: [
+          {
+            repo: 'spark-intelligence-builder',
+            risk_class: 'critical',
+            reason: 'behind upstream',
+            next_safe_action: 'pull or merge upstream before release',
+            behind: 12
+          }
+        ],
+        local_runtime_test_artifacts: {
+          count: 2,
+          owners: ['spark-telegram-bot', 'spawner-ui']
+        },
+        builder_trace_health: {
+          flags: ['historical_open_high_severity_events'],
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        }
+      },
+      handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffCount: 3,
       packetEvidence: { missing: [], invalid: [], stale: [] },
       failingCases: []
     },
