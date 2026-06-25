@@ -7,13 +7,13 @@
     "runtimeEvidenceExpiresAt": "2026-06-25T02:13:34.167Z",
     "totalCases": 27,
     "verdictCounts": {
-      "pass": 26,
+      "pass": 27,
       "fail": 0,
       "blocked": 0,
-      "needs-retest": 1,
+      "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": false,
+    "readyForRelease": true,
     "releaseCaveats": [
       "registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
     ],
@@ -77,7 +77,7 @@
       },
       {
         "id": "cp-streaming-001",
-        "verdict": "needs-retest",
+        "verdict": "pass",
         "missingCaptures": []
       },
       {
