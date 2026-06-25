@@ -723,6 +723,57 @@ test('streaming canaries require runtime status and rich-message proof shape', (
   assert.deepEqual(cleanStreamingProof.cases.map((entry) => entry.missingCaptures), [[], []]);
 });
 
+test('publish canary requires release-ready versus publish-not-ready handoff shape', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-publish-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Registry drift exists. Please review it later.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'Read-only registry drift lookup; no mutation observed.'
+    },
+    proofJoin: 'Telegram final answer joined read-only registry drift evidence without raw commits.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+
+  const weakHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(weakHandoff.readyForRelease, false);
+  assert.deepEqual(weakHandoff.cases[0].missingCaptures, ['observed_reply_publish_handoff_shape']);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+    'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+    '',
+    'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    'spawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    '',
+    'This was a read-only evidence lookup; no registry edit was made.'
+  ].join('\n');
+  const cleanHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanHandoff.readyForRelease, true);
+  assert.deepEqual(cleanHandoff.cases[0].missingCaptures, []);
+});
+
 test('observation summary rejects dirty runtime evidence even when packet fields are filled', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
@@ -1302,7 +1353,15 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       publishCanary.observed = {
         ...publishCanary.observed,
         verdict: 'pass',
-        reply: 'Current evidence shows registry drift. Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+        reply: [
+          'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+          'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+          '',
+          'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+          'spawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+          '',
+          'This was a read-only evidence lookup; no registry edit was made.'
+        ].join('\n'),
         sideEffects: {
           filesChanged: false,
           memoryWritten: false,

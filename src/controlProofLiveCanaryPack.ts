@@ -1642,6 +1642,9 @@ function observedReplyCaptureIssues(entry: ControlProofCanaryObservationCase): s
   if (entry.id === 'cp-streaming-002' && !hasRichMessageProofShape(text)) {
     issues.push('observed_reply_rich_message_shape');
   }
+  if (entry.id === 'cp-publish-001' && !hasPublishHandoffProofShape(text)) {
+    issues.push('observed_reply_publish_handoff_shape');
+  }
   return issues;
 }
 
@@ -1656,6 +1659,15 @@ function hasStreamingStatusProofShape(value: string): boolean {
 
 function hasRichMessageProofShape(value: string): boolean {
   return /\bStatus:\s*\S+/i.test(value) && /\bToken:\s*\S+/i.test(value);
+}
+
+function hasPublishHandoffProofShape(value: string): boolean {
+  return /\bregistry truth drift\b/i.test(value) &&
+    /\brelease-ready\b/i.test(value) &&
+    /\bpublish stays not ready\b/i.test(value) &&
+    /\b(?:spark-telegram-bot|spawner-ui)\b/i.test(value) &&
+    /\b(?:next verified metadata batch|publish or port|update release metadata|local runtime test artifact)\b/i.test(value) &&
+    /\bread-only evidence lookup\b/i.test(value);
 }
 
 function isNaturalReplyShape(replyShape: ControlProofCanaryCase['expectedReplyShape']): boolean {
