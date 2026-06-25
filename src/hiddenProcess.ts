@@ -4,7 +4,11 @@ import path from 'node:path';
 
 export function quoteWindowsArg(value: string): string {
   if (/^[A-Za-z0-9._:/\\@+=,-]+$/.test(value)) return value;
-  return `"${value.replace(/"/g, '\\"')}"`;
+  const escaped = value
+    .replace(/%/g, '%%')   // Prevent env var expansion in cmd.exe
+    .replace(/\^/g, '^^')  // Prevent caret escape in cmd.exe
+    .replace(/"/g, '""');  // Double-quote escaping for cmd.exe
+  return `"${escaped}"`;
 }
 
 export function withHiddenWindows<T extends object>(options: T): T & { windowsHide: true } {
