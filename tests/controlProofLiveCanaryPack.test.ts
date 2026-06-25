@@ -438,6 +438,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   ]);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.count, 3);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.releaseBlocking, false);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.publishBlocking, false);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.backingStatus, 'complete');
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.latestGapPlaneCount, 0);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.incompleteBackingPlaneCount, 0);

@@ -232,6 +232,7 @@ export interface ControlProofAuditPlaneDetail {
 export interface ControlProofAuditGapFamilyDetail {
   count: number | null;
   releaseBlocking: boolean;
+  publishBlocking: boolean;
   backingStatus: 'complete' | 'incomplete' | 'none';
   planeLabels: string[];
   planes: ControlProofAuditPlaneDetail[];
@@ -1470,9 +1471,11 @@ function controlProofAuditGapDetails(
     }).length;
     const completeBackingPlaneCount = joinedPlanes.filter((entry) => entry.gapBacking === 'complete').length;
     const count = typeof gapCounts[key] === 'number' ? gapCounts[key] : null;
+    const releaseBlocking = auditGapFamilyReleaseBlocking(key, count, latestGapPlaneCount, incompleteBackingPlaneCount);
     details[key] = {
       count,
-      releaseBlocking: auditGapFamilyReleaseBlocking(key, count, latestGapPlaneCount, incompleteBackingPlaneCount),
+      releaseBlocking,
+      publishBlocking: releaseBlocking,
       backingStatus: auditGapFamilyBackingStatus(joinedPlanes, incompleteBackingPlaneCount, completeBackingPlaneCount),
       planeLabels,
       planes: joinedPlanes,
