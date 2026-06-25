@@ -1591,6 +1591,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /selected-case strict check/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /not the full release gate until the complete canary pack is run/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /repo release blocks/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /repo_release_blocks/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /duplicate-truth drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /registry_pin_drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /safe classification counts/);
