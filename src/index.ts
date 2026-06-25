@@ -437,6 +437,31 @@ const execFileAsync = promisify(execFile);
 
 installConsoleRedaction();
 
+// Conversation memory writes (remember / rememberAssistantReply / learnAboutUser)
+// are intentionally best-effort: a failed write must never break a reply. Previously
+// these used silent `.catch(() => {})`, which swallowed every error and made memory
+// regressions invisible. We now route them through a debug-gated, rate-limited logger
+// so failures surface during investigation without flooding normal operation.
+// Enable with SPARK_DEBUG_MEMORY_WRITES=1. Off by default to keep the happy path quiet.
+const MEMORY_WRITE_DEBUG = process.env.SPARK_DEBUG_MEMORY_WRITES === '1';
+const MEMORY_WRITE_LOG_INTERVAL_MS = 60_000;
+let memoryWriteLogLastAt = 0;
+let memoryWriteLogSuppressed = 0;
+
+export function logMemoryWriteFailure(error: unknown): void {
+  if (!MEMORY_WRITE_DEBUG) return;
+  const now = Date.now();
+  if (now - memoryWriteLogLastAt < MEMORY_WRITE_LOG_INTERVAL_MS) {
+    memoryWriteLogSuppressed += 1;
+    return;
+  }
+  const suppressedNote = memoryWriteLogSuppressed > 0 ? ` (+${memoryWriteLogSuppressed} suppressed)` : '';
+  memoryWriteLogLastAt = now;
+  memoryWriteLogSuppressed = 0;
+  const detail = redactText(error instanceof Error ? error.message : String(error));
+  console.warn(`[memory] best-effort write failed${suppressedNote}: ${detail}`);
+}
+
 type BuilderBridgeRunner = typeof runBuilderTelegramBridge;
 let builderBridgeRunnerForTest: BuilderBridgeRunner | null = null;
 type BuilderMemoryWriteRunner = typeof runBuilderTelegramMemoryWrite;
@@ -1356,7 +1381,7 @@ async function handleNaturalSpawnerBoardRead(
       return true;
     }
 
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     let result: { success: boolean; message: string };
     switch (spawnerBoardIntent) {
@@ -1459,7 +1484,7 @@ async function replyWithGovernedReadOnlyState(
     return true;
   }
 
-  await conversation.remember(user, text).catch(() => {});
+  await conversation.remember(user, text).catch(logMemoryWriteFailure);
   const reply = await input.render();
   recordNaturalRouteExecution(
     ctx,
@@ -1475,7 +1500,7 @@ async function replyWithGovernedReadOnlyState(
   });
   await ctx.reply(reply, readOnlyStateOutboundTraceExtra(ctx, input.kind));
   recordTelegramSourceUsedEvidence(ctx, user, text, input.sourceId, input.evidence);
-  await conversation.rememberAssistantReply(user, reply).catch(() => {});
+  await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
   return true;
 }
 
@@ -3011,7 +3036,7 @@ async function handleNaturalRecursiveRoute(
   const parsed = parseRecursiveCommand(rawCommand);
   if (!parsed) return false;
 
-  await conversation.remember(user, text).catch(() => {});
+  await conversation.remember(user, text).catch(logMemoryWriteFailure);
 
   if (parsed.action === 'start') {
     recordNaturalRouteExecution(ctx, decision, 'recursive.start_confirmation_required', 'spark-telegram-bot', 'clarify');
@@ -3020,7 +3045,7 @@ async function handleNaturalRecursiveRoute(
       ? `I can run the ${labelForTelegram(target)} loop, but that starts benchmark work. Use \`/recursive ${rawCommand}\` when you want the run to actually begin.`
       : 'I can run that loop, but it starts benchmark work. Use the explicit `/recursive start <target> rounds <n>` command when you want it live.';
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -3028,7 +3053,7 @@ async function handleNaturalRecursiveRoute(
     recordNaturalRouteExecution(ctx, decision, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
     const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, parsed);
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -3042,14 +3067,14 @@ async function handleNaturalRecursiveRoute(
     if (target.kind !== 'path') {
       const reply = `${statusTarget} does not look like an attached specialization path yet. Use /recursive paths to pick a loop.`;
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return true;
     }
     const reply = renderSpecializationLoopStatus(await deps.readStatus(target), {
       style: 'conversational'
     });
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -3424,7 +3449,7 @@ async function handleTelegramIntentGateV2SafeRoute(
     if (!accessStatusAuthorization.allow) {
       return false;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = await renderAuthoritativeSparkAccessStatus(ctx.chat.id);
     recordTelegramHarnessCoreExecution(accessStatusAuthorization, {
       toolName: 'access.status',
@@ -3442,7 +3467,7 @@ async function handleTelegramIntentGateV2SafeRoute(
         summary: 'Intent Gate V2 routed access status to the authoritative Spark CLI access state and runner writability preflight.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -3451,7 +3476,7 @@ async function handleTelegramIntentGateV2SafeRoute(
     if (!accessHelpAuthorization.allow) {
       return false;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     if (isAccessProductRuleQuestion(text)) {
       const reply = renderAccessProductRuleReply();
       recordTelegramHarnessCoreExecution(accessHelpAuthorization, {
@@ -3461,7 +3486,7 @@ async function handleTelegramIntentGateV2SafeRoute(
       });
       await ctx.reply(reply);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.access_product_rule', 'spark-telegram-bot', 'plain_chat.product_rule');
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return true;
     }
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
@@ -3473,43 +3498,43 @@ async function handleTelegramIntentGateV2SafeRoute(
     });
     await ctx.reply(reply);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
   if (decision.route === 'startup.proof_readout') {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     const reply = renderStartupReleaseVerdict(await readStartupReleaseVerdict());
     await ctx.reply(reply);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
   if (decision.route === 'startup.founder_advice') {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     try {
       const reply = await renderStartupFounderAdviceReply(text);
       await ctx.reply(reply);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     } catch (err: any) {
       const reply = renderSparkErrorReply(err, 'chat', conversation.isAdmin(user));
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     }
     return true;
   }
 
   if (decision.route === 'startup.answer_improvement_canary') {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     const reply = await renderStartupSelfImprovementCanaryReply(text);
     await ctx.reply(reply);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, decision.route, decision.owner_system, decision.action);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -3531,7 +3556,7 @@ async function handleTelegramIntentGateV2SafeRoute(
       });
       return false;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = renderSourceAttributedActionBoundaryReply();
     recordTelegramHarnessCoreExecution(answerAuthorization, {
       toolName: 'answer.compose',
@@ -3556,7 +3581,7 @@ async function handleTelegramIntentGateV2SafeRoute(
         summary: 'A user must make a fresh direct request before source-attributed action text can become executable intent.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return true;
   }
 
@@ -4107,7 +4132,7 @@ async function handlePendingMissionCancelConfirmation(ctx: any, text: string, en
   if (!pending) return false;
 
   deletePendingMissionCancelConfirmation(key);
-  await conversation.remember(ctx.from, text).catch(() => {});
+  await conversation.remember(ctx.from, text).catch(logMemoryWriteFailure);
 
   if (isPendingMissionCancelConfirmationExpired(pending)) {
     await ctx.reply('That cancel confirmation expired. Ask me to cancel it again if you still want to stop it.');
@@ -4528,7 +4553,7 @@ async function replyViaBuilder(
 ): Promise<boolean> {
   const user = ctx.from;
   if (user) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
   }
   const builderReply = await builderBridgeRunner(
     buildUpdateWithText(ctx.update as Record<string, unknown>, text, envelope, authority)
@@ -4544,7 +4569,7 @@ async function replyViaBuilder(
     allowVoiceMedia: options.allowVoiceMedia === true
   });
   if (user && responseText) {
-    await conversation.rememberAssistantReply(user, responseText).catch(() => {});
+    await conversation.rememberAssistantReply(user, responseText).catch(logMemoryWriteFailure);
   }
   return true;
 }
@@ -4778,7 +4803,7 @@ async function handlePlainChatMemoryDirective(
     if (memoryWrite.used && memoryWrite.acceptedCount > 0) {
       const reply = memoryWrite.responseText || 'Saved exact memory note through Builder/domain-chip memory.';
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.write',
         status: 'success',
@@ -4792,7 +4817,7 @@ async function handlePlainChatMemoryDirective(
 
   const reply = buildMemoryBridgeUnavailableReply('remember');
   await ctx.reply(reply);
-  await conversation.rememberAssistantReply(user, reply).catch(() => {});
+  await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
   recordTelegramHarnessCoreExecution(authorization, {
     toolName: 'memory.write',
     status: 'failure',
@@ -4875,7 +4900,7 @@ async function executeGovernedTelegramMemoryDelete(
     if (memoryDelete.used && memoryDelete.acceptedCount > 0) {
       const reply = memoryDelete.responseText || 'Forgot the matching saved memory through Builder/domain-chip memory.';
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.delete',
         status: 'success',
@@ -5161,7 +5186,7 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
     console.log(`[BridgeMemoryRecall] user=${userRef(ctx.from?.id)} used=${builderRecall.used} mode=${builderRecall.bridgeMode} status=${builderRecall.status} records=${builderRecall.recordCount}`);
     if (builderRecall.used && builderRecall.responseText) {
       await ctx.reply(builderRecall.responseText);
-      await conversation.rememberAssistantReply(ctx.from, builderRecall.responseText).catch(() => {});
+      await conversation.rememberAssistantReply(ctx.from, builderRecall.responseText).catch(logMemoryWriteFailure);
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.recall',
         status: 'success',
@@ -5172,7 +5197,7 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
     const localRecall = await buildLocalRecallReply(ctx.from, query);
     if (localRecall) {
       await ctx.reply(localRecall);
-      await conversation.rememberAssistantReply(ctx.from, localRecall).catch(() => {});
+      await conversation.rememberAssistantReply(ctx.from, localRecall).catch(logMemoryWriteFailure);
       recordTelegramHarnessCoreExecution(authorization, {
         toolName: 'memory.recall',
         status: 'partial',
@@ -6503,7 +6528,7 @@ export async function handleLocalWorkspaceInventory(ctx: any): Promise<void> {
       summary: 'Slash local workspace inspection completed from configured local workspace roots.'
     });
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     recordTelegramHarnessCoreExecution(authorization, {
@@ -8045,7 +8070,7 @@ async function handlePendingCreatorMissionControl(ctx: any, text: string, envelo
     await ctx.reply(renderSparkAccessDenial(accessProfile, 'spawner_build'));
     return true;
   }
-  await conversation.remember(ctx.from, text).catch(() => {});
+  await conversation.remember(ctx.from, text).catch(logMemoryWriteFailure);
   await safeSendChatAction(ctx, 'typing');
 
   if (action === 'status') {
@@ -10061,7 +10086,7 @@ bot.command('access', async (ctx) => {
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
       return;
     }
   }
@@ -10123,7 +10148,7 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
   const level5ServiceStillEnabled = next !== 'operator' && (current === 'operator' || await isLevel5ServiceEnabled());
 
   await setSparkAccessProfile(ctx.chat.id, next);
-  await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(() => {});
+  await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is ${next}. ${describeSparkAccessProfile(next)}`).catch(logMemoryWriteFailure);
   const baseReply = await renderSparkAccessChangeReply(next);
   const reply = level5ServiceStillEnabled
     ? [
@@ -10133,7 +10158,7 @@ async function applySparkAccessProfileChange(ctx: any, next: SparkAccessProfile)
       ].filter(Boolean).join('\n')
     : baseReply;
   await ctx.reply(reply, buildSparkAccessChangeKeyboard(next));
-  await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+  await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
   return { status: 'success', summary: `Access profile changed to ${next}.` };
 }
 
@@ -10185,7 +10210,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
     }
 
     await setSparkAccessProfile(ctx.chat.id, 'operator');
-    await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is operator. ${describeSparkAccessProfile('operator')}`).catch(() => {});
+    await conversation.learnAboutUser(ctx.from, `Spark access profile for this chat is operator. ${describeSparkAccessProfile('operator')}`).catch(logMemoryWriteFailure);
     const reply = [
       'Access Level 5 is approved.',
       '',
@@ -10194,7 +10219,7 @@ async function prepareLevel5AndApplyAccess(ctx: any): Promise<TelegramAuthorityE
         : await renderSparkAccessChangeReply('operator'),
     ].join('\n');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
     if (result.needsSparkRestart) {
       scheduleSparkRestartAfterAccessChange();
     }
@@ -10256,7 +10281,7 @@ async function handleSparkAccessAction(
       ? [result.reply, '', formatSparkAccessAutomaticRestartNotice(actionId)].join('\n')
       : result.reply;
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+    await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
     if (result.needsSparkRestart) {
       scheduleSparkRestartAfterAccessChange();
     }
@@ -10330,7 +10355,7 @@ async function handleAccessChangeRequest(
     if (runtimeGate.ok) {
       const reply = await renderLevel5ActivationAnswer(ctx.chat.id);
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(ctx.from, reply).catch(() => {});
+      await conversation.rememberAssistantReply(ctx.from, reply).catch(logMemoryWriteFailure);
       return true;
     }
   }
@@ -10588,7 +10613,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const pendingDomainChipKeyForRouter = telegramPendingDomainChipKey(ctx.chat?.id, ctx.from?.id);
   if (conversation.isAdmin(ctx.from) && getPendingDomainChipBuild(pendingDomainChipKeyForRouter)) {
     if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       return;
     }
   }
@@ -10669,9 +10694,9 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             return;
           }
           const reply = noPendingConfirmationMessage();
-          await conversation.remember(user, text).catch(() => {});
+          await conversation.remember(user, text).catch(logMemoryWriteFailure);
           await ctx.reply(reply);
-          await conversation.rememberAssistantReply(user, reply).catch(() => {});
+          await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
           recordTelegramHarnessCoreExecution(answerAuthorization, {
             toolName: 'answer.compose',
             status: 'success',
@@ -10685,10 +10710,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         // confirmation next turn (irreversibility-scaled confirmation).
         const label = routeDecision.route || 'that action';
         stagePendingConfirm(confirmKey, { route: routeDecision.route as string, label, turnId: telegramTurnIdFromUpdate(ctx.update) || '', text });
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         const reply = confirmPromptMessage(label);
         await ctx.reply(reply);
-        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
         return;
       } else {
         // dispatch (incl. a confirmed pending). The dispatch table is the cascade's replacement, filled
@@ -10715,14 +10740,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 return true;
               }
               await safeSendChatAction(d.ctx, 'typing');
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               recordWikiReadExecution(auth, 'spark_wiki.answer', 'not_started', 'Model-router wiki answer read authorized before Builder wiki call.');
               try {
                 const result = await runBuilderWikiAnswer({ question, refresh: true, limit: 5, userId: d.user.id, chatId: d.ctx.chat.id, currentMessage: d.text });
                 await d.ctx.reply(result.replyText);
                 recordWikiReadExecution(auth, 'spark_wiki.answer', 'success', 'Model-router wiki answer read completed through Builder.');
                 recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'delivered');
-                await conversation.rememberAssistantReply(d.user, result.replyText).catch(() => {});
+                await conversation.rememberAssistantReply(d.user, result.replyText).catch(logMemoryWriteFailure);
               } catch (err: any) {
                 recordWikiReadExecution(auth, 'spark_wiki.answer', 'failure', `Model-router wiki answer read failed: ${err?.message || String(err)}.`);
                 recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
@@ -10760,7 +10785,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               const reply = await buildNaturalBuilderMemoryRecallReply(d.ctx, d.text, true, auth) ||
                 await buildNaturalLocalMemoryRecallReply(d.user, d.text, true);
               if (!reply) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const usedBuilderMemory = reply.includes('Source: current-state memory read through Builder.') ||
                 reply.includes('Source: source-aware memory capsule through Builder.') ||
                 reply.includes('Source: Builder/domain-chip memory recall found no matching saved record.');
@@ -10773,7 +10798,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               });
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'memory.recall', 'spark-telegram-bot', 'memory.recall', 'delivered');
               await d.ctx.reply(reply);
-              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              await conversation.rememberAssistantReply(d.user, reply).catch(logMemoryWriteFailure);
               return true;
             }
           },
@@ -10799,7 +10824,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 await d.ctx.reply('I did not read Spark state because the fresh turn did not authorize that read-only check.', readOnlyStateOutboundTraceExtra(d.ctx, kind, 'read_only_state_denied'));
                 return true;
               }
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const reply = await renderSparkReadOnlyStateAnswer(kind, d.ctx, d.user);
               recordNaturalRouteExecution(d.ctx, readOnlyStateNaturalRouteDecision(kind), `spark.read_only_state.${kind}`, 'spark-telegram-bot', 'harness_core.read_only_state');
               recordTelegramHarnessCoreExecution(auth, { toolName: 'spark.read_only_state', status: 'success', summary: `Natural read-only Spark state answer completed for ${kind}.` });
@@ -10821,7 +10846,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                   summary: 'Telegram answered a read-only Spark state question without execution authority.'
                 }
               ]);
-              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              await conversation.rememberAssistantReply(d.user, reply).catch(logMemoryWriteFailure);
               return true;
             }
           },
@@ -10845,7 +10870,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 await d.ctx.reply('I did not read Spark access status because the fresh turn did not authorize that read-only check.');
                 return true;
               }
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const reply = await renderAuthoritativeSparkAccessStatus(d.ctx.chat.id);
               recordTelegramHarnessCoreExecution(auth, { toolName: 'access.status', status: 'success', summary: 'Natural access status read completed from Spark access state.' });
               await d.ctx.reply(reply);
@@ -10858,7 +10883,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                   summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.'
                 }
               ]);
-              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              await conversation.rememberAssistantReply(d.user, reply).catch(logMemoryWriteFailure);
               return true;
             }
           },
@@ -10892,7 +10917,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 return true;
               }
               await safeSendChatAction(d.ctx, 'typing');
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const routed = await replyViaBuilder(
                 d.ctx,
                 canonicalVoiceText,
@@ -10948,7 +10973,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'diagnostics.scan', text: d.text, toolName: 'diagnostics.scan', ownerSystem: 'spark-cli', mutationClass: 'writes_files'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               await safeSendChatAction(d.ctx, 'typing');
               try {
                 const scan = await runBuilderDiagnosticsScan();
@@ -10988,7 +11013,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'browser.navigate', text: d.text, toolName: 'browser.navigate', ownerSystem: 'spark-browser', mutationClass: 'external_network', externalNetwork: true
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               await safeSendChatAction(d.ctx, 'typing');
               const result = await runBuilderBrowserPageSnapshot({ url });
               recordTelegramHarnessCoreExecution(auth, {
@@ -11000,7 +11025,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
               });
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'browser.navigate', 'spark-browser', 'browser.navigate', result.ok ? 'delivered' : 'failed');
               await d.ctx.reply(result.replyText);
-              await conversation.rememberAssistantReply(d.user, result.replyText).catch(() => {});
+              await conversation.rememberAssistantReply(d.user, result.replyText).catch(logMemoryWriteFailure);
               return true;
             }
           },
@@ -11023,13 +11048,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 recordTelegramHarnessCoreExecution(auth, { toolName: 'spawner.run', status: 'failure', summary: 'Natural external research was authorized by intent but blocked by Spark access.' });
                 return true;
               }
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const recent = await conversation.getRecentTurns(d.user, 15).catch(() => []);
               const contextualTurns = recent.map((turn: any) => `${turn.role === 'assistant' ? 'Spark' : 'User'}: ${turn.text}`);
               const missionId = await handleRunCommand(d.ctx, buildExternalResearchGoal(d.text, contextualTurns), [missionDefaultProvider()], 'external_research', { executionAuthority: auth.governorDecision });
               recordTelegramHarnessCoreExecution(auth, { toolName: 'spawner.run', status: missionId ? 'success' : 'failure', summary: missionId ? `Natural external research started Spawner mission ${missionId}.` : 'Natural external research did not return a mission id.' });
               if (missionId) {
-                await conversation.learnAboutUser(d.user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
+                await conversation.learnAboutUser(d.user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(logMemoryWriteFailure);
                 recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'external_research.inspect', 'spawner-ui', 'spawner.external_research', 'delivered');
               }
               return true;
@@ -11056,12 +11081,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'model.switch', text: d.text, toolName: 'model.switch', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const reply = await switchModelRoute(role, provider, '');
               recordTelegramHarnessCoreExecution(auth, { toolName: 'model.switch', status: /now uses/i.test(reply) ? 'success' : 'failure', summary: `Model-router switched ${role} routing to ${provider}.` });
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'model.switch', 'spark-telegram-bot', 'model.switch', 'delivered');
               await d.ctx.reply(reply);
-              await conversation.rememberAssistantReply(d.user, reply).catch(() => {});
+              await conversation.rememberAssistantReply(d.user, reply).catch(logMemoryWriteFailure);
               return true;
             }
           },
@@ -11077,7 +11102,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'memory.delete', text: d.text, toolName: 'memory.delete', ownerSystem: 'domain-chip-memory', mutationClass: 'writes_memory'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const routed = await executeGovernedTelegramMemoryDelete(d.ctx, d.user, d.text, auth, 'Model-router memory.delete');
               if (routed) {
                 recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'memory.delete', 'domain-chip-memory', 'memory.delete', 'delivered');
@@ -11099,7 +11124,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'access.change', text: d.text, toolName: 'access.change', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'access.change', 'spark-telegram-bot', 'access.change', 'delivered');
               // Extract the level token ("operator"/"5"/...) from the NL command so the handler does not
               // get a full sentence it cannot normalize; falls back to the raw text (handler then asks).
@@ -11127,7 +11152,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'creator.mission', text: d.text, toolName: 'creator.mission.create', ownerSystem: 'spawner-ui', mutationClass: 'creates_chip'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               await d.ctx.reply(`I will stage the ${parsed.artifactLabel} privately first. No run or publishing yet.`);
               const result = await handleCreatorMissionPlan(d.ctx, parsed, auth);
               recordNaturalRouteExecution(d.ctx, d.naturalRouteShadow, 'creator.mission', 'spawner-ui', 'creator.mission.plan', result.status === 'success' ? 'delivered' : 'failed');
@@ -11149,7 +11174,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'spawner.build', text: d.text, toolName: 'spawner.run', ownerSystem: 'spawner-ui', mutationClass: 'launches_mission'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const buildDispatch = await handleBuildIntent(
                 d.ctx,
                 buildIntent.prd,
@@ -11186,7 +11211,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'schedule.create', text: d.text, toolName: SCHEDULE_CREATE_TOOL, ownerSystem: SCHEDULE_OWNER_SYSTEM, mutationClass: 'creates_schedule'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const res = await createSchedule({
                 cron: parsed.cron,
                 action: parsed.action,
@@ -11222,7 +11247,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'schedule.delete', text: d.text, toolName: SCHEDULE_DELETE_TOOL, ownerSystem: SCHEDULE_OWNER_SYSTEM, mutationClass: 'deletes_schedule'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const res = await deleteSchedule(id, { executionAuthority: auth.governorDecision });
               recordTelegramHarnessCoreExecution(auth, {
                 toolName: SCHEDULE_DELETE_TOOL,
@@ -11249,7 +11274,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'domain_chip.create', text: d.text, toolName: 'domain_chip.create', ownerSystem: 'spawner-ui', mutationClass: 'creates_chip'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const mode = domainChipBuildModeForBrief(brief);
               rememberPendingDomainChipBuild(telegramPendingDomainChipKey(d.ctx.chat.id, d.ctx.from.id), {
                 brief,
@@ -11286,7 +11311,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
                 route: 'recursive.proposal', text: d.text, toolName: 'recursive.propose', ownerSystem: 'spark-telegram-bot', mutationClass: 'writes_files'
               });
               if (!auth.allow) return false;
-              await conversation.remember(d.user, d.text).catch(() => {});
+              await conversation.remember(d.user, d.text).catch(logMemoryWriteFailure);
               const submitArg = parsed.submit ? ' submit' : '';
               await handleRecursiveCommand(d.ctx, `propose ${parsed.target}${submitArg}`);
               recordTelegramHarnessCoreExecution(auth, {
@@ -11334,13 +11359,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         console.log(
           `[IntentProposerVeto] blocked mutation route=${telegramIntentGateV2.route} action=${telegramIntentGateV2.action || 'none'} reason=${veto.reason || 'semantic'} proposer=${veto.route || 'none'} conf=${veto.confidence ?? 'n/a'}`
         );
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.semantic_proposer_veto', 'spark-telegram-bot', 'plain_chat.semantic_veto');
         const reply = veto.reason === 'proposer_unavailable'
           ? `I could not double-check that this was a fresh command (my intent classifier did not respond), so I held off on "${actionLabel}". Reply with a clear go-ahead such as "yes, ${actionLabel}" and I will run it.`
           : proposerVetoConfirmMessage(actionLabel);
         await ctx.reply(reply);
-        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
         return;
       }
     } catch {
@@ -11365,50 +11390,50 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     isMetaNoActionTriggerDiscussion(text)
   ) {
     const reply = renderMissionRoutingFailureClassReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'chat_explain', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (isPlainChatAnswerEditingRequest(text)) {
     const reply = renderPlainChatAnswerEditingReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.answer_editing', 'spark-telegram-bot', 'plain_chat.answer_editing');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && isNoEditSpawnerProbeExplanationRequest(text)) {
     const reply = renderNoEditSpawnerProbeExplanationReply();
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.no_edit_spawner_probe_explanation', 'spark-telegram-bot', 'plain_chat.probe_explanation');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && isModelSwitchGateExplanationRequest(text)) {
     const reply = renderModelSwitchGateExplanationReply();
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.model_switch_gate_explanation', 'spark-telegram-bot', 'plain_chat.model_switch_gate');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && isBrowserComputerUseAuthorizationBoundaryQuestion(text)) {
     const reply = renderBrowserComputerUseAuthorizationBoundaryReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.browser_computer_use_authorization_boundary', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 	  if (!earlyBuildIntent && isNaturalSparkQaBenchmarkNoRunQuestion(text)) {
 	    const reply = renderSparkQaBenchmarkNoRunReply();
-	    await conversation.remember(user, text).catch(() => {});
+	    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 	    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'sparkqa.no_run_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
 	    await ctx.reply(reply);
-	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+	    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
 	    return;
 	  }
   const sparkQaPauseAuthorization = !earlyBuildIntent && conversation.isAdmin(ctx.from) && isNaturalSparkQaLoopPauseRequest(text)
@@ -11423,7 +11448,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 		  if (sparkQaPauseAuthorization?.allow) {
-	    await conversation.remember(user, text).catch(() => {});
+	    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 	    const result = await pauseSparkQaOperatorLoop();
 	    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'sparkqa.pause', 'spark-telegram-bot', 'sparkqa.local_control');
 	    recordTelegramHarnessCoreExecution(sparkQaPauseAuthorization, {
@@ -11434,23 +11459,23 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	        : 'Natural Spark QA pause could not write the local control state.'
 	    });
 	    await ctx.reply(result.reply);
-	    await conversation.rememberAssistantReply(user, result.reply).catch(() => {});
+	    await conversation.rememberAssistantReply(user, result.reply).catch(logMemoryWriteFailure);
 	    return;
 	  }
 	  if (!earlyBuildIntent && isXContentCredentialBoundaryQuestion(text)) {
     const reply = renderXContentCredentialBoundaryReply();
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.xcontent_credential_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && isXPostReviewFromLinksRequest(text)) {
     const reply = renderXPostReviewFromLinksBoundaryReply();
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.x_post_review_boundary', 'spark-telegram-bot', 'plain_chat.boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   const earlyTurnSelectedRuntimeRead = turnEnvelopeSelectsRoute(turnIntentEnvelope, 'spark.read_only_state');
@@ -11474,7 +11499,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply('I did not read Spark live state because the fresh turn did not authorize that read-only check.');
       return;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
     recordNaturalRouteExecution(
       ctx,
@@ -11490,7 +11515,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     });
     await ctx.reply(reply);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && await handleTelegramIntentGateV2SafeRoute(ctx, user, text, naturalRouteShadow, telegramIntentGateV2, turnIntentEnvelope)) {
@@ -11498,28 +11523,28 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   }
   const quotedOriginReply = buildQuotedMissionStatusOriginReply(text, quotedTelegramMessageText(ctx.message));
   if (!earlyBuildIntent && quotedOriginReply) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply(quotedOriginReply);
-    await conversation.rememberAssistantReply(user, quotedOriginReply).catch(() => {});
+    await conversation.rememberAssistantReply(user, quotedOriginReply).catch(logMemoryWriteFailure);
     return;
   }
   const noStartMissionTitleReply = !earlyBuildIntent && conversation.isAdmin(ctx.from)
     ? buildNoStartMissionTitleReply(text)
     : null;
   if (noStartMissionTitleReply) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spawner.title_probe', 'spark-telegram-bot', 'answer');
     await ctx.reply(noStartMissionTitleReply);
-    await conversation.rememberAssistantReply(user, noStartMissionTitleReply).catch(() => {});
+    await conversation.rememberAssistantReply(user, noStartMissionTitleReply).catch(logMemoryWriteFailure);
     return;
   }
   const latestOriginReply = !earlyBuildIntent && conversation.isAdmin(ctx.from)
     ? buildLatestAssistantOriginReply(text, getPendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id)))
     : null;
   if (latestOriginReply) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply(latestOriginReply);
-    await conversation.rememberAssistantReply(user, latestOriginReply).catch(() => {});
+    await conversation.rememberAssistantReply(user, latestOriginReply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -11528,19 +11553,19 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await readLatestCanvasPlanFromSpawnerState();
     if (latestPlan) {
       const reply = formatLatestCanvasPlanReply(latestPlan);
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return;
     }
   }
 
   if (globalAgentDoctrineRequest) {
     const reply = formatGlobalAgentDoctrineRequestReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'agent_doctrine.global_blocked', 'spark-telegram-bot', 'clarify');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -11574,7 +11599,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply('I did not answer from stale context because the fresh turn did not authorize even the answer boundary.');
       return;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = renderStaleContextAuthorityBoundaryReply(text, staleContextAuthorityKind);
     recordNaturalRouteExecution(
       ctx,
@@ -11605,7 +11630,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Memory, pending state, route history, and prior mission ids are evidence only until fresh intent and Governor authority permit action.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -11662,7 +11687,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply('I did not read browser-use capability state because the fresh turn did not authorize that read-only check.');
       return;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(
       ctx,
       readOnlyStateNaturalRouteDecision('browser_use_availability'),
@@ -11685,7 +11710,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Telegram answered browser-use availability as a read-only status claim and did not open a browser.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, browserProofAnswer).catch(() => {});
+    await conversation.rememberAssistantReply(user, browserProofAnswer).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -11710,7 +11735,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       )
     : null;
   if (readOnlyStateQuestion && readOnlyStateAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = await renderSparkReadOnlyStateAnswer(readOnlyStateQuestion, ctx, user);
     const readOnlyStateRoute = `spark.read_only_state.${readOnlyStateQuestion}`;
     recordNaturalRouteExecution(
@@ -11743,7 +11768,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Telegram answered a read-only Spark state question without execution authority.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (readOnlyStateQuestion && readOnlyStateAuthorization) {
@@ -11782,14 +11807,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const pendingTask = await conversation.getPendingTaskRecovery(user);
     if (pendingTask) {
       const reply = renderPendingTaskRecoveryReply(pendingTask);
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       recordTelegramHarnessCoreExecution(pendingTaskRecoveryAuthorization, {
         toolName: 'pending_task.recovery',
         status: 'success',
         summary: 'Natural pending task recovery read completed from Telegram pending task state.'
       });
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return;
     }
   }
@@ -11814,7 +11839,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (naturalAccessChange && naturalAccessChangeAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await handleAccessChangeRequest(ctx, naturalAccessChange, naturalAccessChangeAuthorization);
     return;
   }
@@ -11843,7 +11868,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (frameAccessChange && frameAccessChangeAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await handleAccessChangeRequest(ctx, frameAccessChange, frameAccessChangeAuthorization);
     return;
 	  }
@@ -11874,7 +11899,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 	  if (contextualAccessChange && contextualAccessChangeAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await handleAccessChangeRequest(ctx, contextualAccessChange, contextualAccessChangeAuthorization);
     return;
   }
@@ -11920,7 +11945,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      await ctx.reply('I did not answer from current-state hierarchy because the fresh turn did not authorize that read-only check.');
 	      return;
 	    }
-	    await conversation.remember(user, text).catch(() => {});
+	    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 	    const reply = renderRuntimeTruthPriorityAnswer();
 	    recordNaturalRouteExecution(
 	      ctx,
@@ -11951,7 +11976,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Fresh diagnostics and live probes outrank stale memory for current-state claims.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
 	    return;
 	  }
 
@@ -12052,7 +12077,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     })
     : null;
   if (goldenPathAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const replyPhrase = extractNoEditMissionReplyPhrase(text);
     const missionId = await handleRunCommand(
       ctx,
@@ -12088,7 +12113,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         const detail = error instanceof Error ? error.message : String(error);
         console.warn(`[NoEditProbe] failed to persist mission ${missionId}: ${redactText(detail)}`);
       });
-      await conversation.learnAboutUser(user, `Started Spawner golden-path probe mission ${missionId} from Telegram; requested exact reply: ${replyPhrase}.`).catch(() => {});
+      await conversation.learnAboutUser(user, `Started Spawner golden-path probe mission ${missionId} from Telegram; requested exact reply: ${replyPhrase}.`).catch(logMemoryWriteFailure);
     }
     return;
   }
@@ -12114,7 +12139,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply('I did not read Spark live state because the fresh turn did not authorize that read-only check.');
       return;
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = await renderAuthoritativeSparkLiveStateAnswer({ rawDetails: shouldShowRawSparkLiveDetails(text) });
     recordNaturalRouteExecution(
       ctx,
@@ -12130,7 +12155,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     });
     await ctx.reply(reply);
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12159,7 +12184,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       )
     : null;
   if (accessStatusAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = await renderAuthoritativeSparkAccessStatus(ctx.chat.id);
     recordTelegramHarnessCoreExecution(accessStatusAuthorization, {
       toolName: 'access.status',
@@ -12176,7 +12201,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Telegram answered access status from the Spark CLI access state and runner writability preflight.'
       }
     ]);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (accessStatusAuthorization) {
@@ -12199,7 +12224,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       )
     : null;
   if (accessProductRuleAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const reply = renderAccessProductRuleReply();
     recordTelegramHarnessCoreExecution(accessProductRuleAuthorization, {
       toolName: 'access.help',
@@ -12207,7 +12232,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       summary: 'Natural access product rule answer completed.'
     });
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (accessProductRuleAuthorization) {
@@ -12230,7 +12255,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       )
     : null;
   if (accessHelpAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     const reply = renderSparkAccessConversationHelp(accessProfile);
     recordTelegramHarnessCoreExecution(accessHelpAuthorization, {
@@ -12239,7 +12264,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       summary: 'Natural access help read completed from Spark access profile.'
     });
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (accessHelpAuthorization) {
@@ -12249,28 +12274,28 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   if (!earlyBuildIntent && isSparkThreadQaGoldenCaseRequest(text)) {
     const reply = renderSparkThreadQaGoldenCaseReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.thread_qa_golden_case', 'spark-telegram-bot', 'plain_chat.qa_fixture');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
   if (!earlyBuildIntent && isPublicationApprovalBoundaryQuestion(text)) {
     const reply = renderPublicationApprovalBoundaryReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.publication_approval_boundary', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
   if (!earlyBuildIntent && isMissionRoutingFailureClassQuestion(text)) {
     const reply = renderMissionRoutingFailureClassReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.mission_routing_failure_class', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12280,10 +12305,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     isNoExecutionExplanationPrompt(text)
   ) {
     const reply = renderMissionRoutingFailureClassReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'chat_explain', 'spark-telegram-bot', 'plain_chat.qa_boundary');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12299,7 +12324,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (quotedExampleAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     const quotedDecisionForReply: TelegramIntentDecisionV2 = {
       ...telegramIntentGateV2,
@@ -12321,16 +12346,16 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       'spark-telegram-bot',
       'plain_chat.quoted_example_boundary'
     );
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
   if (!earlyBuildIntent && isUnderspecifiedBenchmarkPackCreation(text)) {
     const reply = renderUnderspecifiedBenchmarkPackReply();
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'creator.benchmark_pack_clarify', 'spark-telegram-bot', 'clarify');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12349,7 +12374,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (explicitBenchmarkCreatorIntent?.artifactLabel === 'benchmark pack' && explicitBenchmarkCreatorAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply('I will stage the level 10 Benchmark Creator PRD privately first. It should cover Canvas, Kanban, Spark Swarm review, research evidence, and Auto Loop improvement; scoring stays blocked until fresh artifacts exist.');
     await handleCreatorMissionPlan(ctx, explicitBenchmarkCreatorIntent, explicitBenchmarkCreatorAuthorization);
     return;
@@ -12357,10 +12382,10 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 
   if (!earlyBuildIntent && isSparkWorkflowBugHuntRequest(text)) {
     const reply = renderSparkWorkflowBugHuntReply(text);
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.qa_planning', 'spark-telegram-bot', 'plain_chat.qa_plan');
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12377,7 +12402,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 	  if (safeOperatorAction && safeOperatorAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const accessProfile = await getSparkAccessProfile(ctx.chat.id);
     if (safeOperatorAction.kind === 'level5_smoke' && accessProfile !== 'operator') {
       await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
@@ -12406,7 +12431,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: `Natural safe operator action ${safeOperatorAction.kind} completed.`
       });
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     } catch (err: any) {
       const reply = `Safe operator check failed: ${err?.message || String(err)}`;
       recordTelegramHarnessCoreExecution(safeOperatorAuthorization, {
@@ -12415,18 +12440,18 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: `Natural safe operator action ${safeOperatorAction.kind} failed: ${err?.message || String(err)}.`
       });
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     }
     return;
   }
 
 	  if (!earlyBuildIntent && conversation.isAdmin(ctx.from) && isNaturalSparkQaBenchmarkStatusQuestion(text)) {
-	    await conversation.remember(user, text).catch(() => {});
+	    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 	    await safeSendChatAction(ctx, 'typing');
 	    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'sparkqa.status', 'spark-telegram-bot', 'sparkqa.latest_autoloop_round');
 	    const reply = renderSparkQaAutoloopRound(await readLatestSparkQaAutoloopRound());
 	    await ctx.reply(reply);
-	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+	    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
 	    return;
 	  }
 
@@ -12442,7 +12467,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 		  if (sparkQaRunAuthorization?.allow) {
-	    await conversation.remember(user, text).catch(() => {});
+	    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 	    await safeSendChatAction(ctx, 'typing');
 	    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'sparkqa.run', 'spark-telegram-bot', 'sparkqa.autoloop_round');
 	    const target = await resolveRecursiveStartTarget('spark-qa-operator');
@@ -12458,7 +12483,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	        : 'Natural Spark QA benchmark/autoloop proof failed.'
 	    });
 	    await ctx.reply(reply);
-	    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+	    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
 	    return;
 	  }
 
@@ -12516,7 +12541,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (naturalCreatorIntent && (!earlyNaturalChipBrief || creatorLoopDomainChipFollowup) && naturalCreatorAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply(`I will stage the ${naturalCreatorIntent.artifactLabel} privately first. No run or publishing yet.`);
     await handleCreatorMissionPlan(ctx, naturalCreatorIntent, naturalCreatorAuthorization);
     return;
@@ -12531,7 +12556,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
   if (earlyNaturalChipBrief && earlyNaturalChipAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const mode = domainChipBuildModeForBrief(earlyNaturalChipBrief);
     rememberPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id), {
       brief: earlyNaturalChipBrief,
@@ -12575,7 +12600,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (isPendingClarificationAlternativeRequest(text)) {
       deletePendingBuildClarification(telegramPendingBuildKey(ctx.chat.id, ctx.from.id));
     }
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.ideation', 'spark-intelligence-builder', 'harness_core.answer_boundary');
     if (isNoExecutionBoundary(text)) {
       const response = buildNoExecutionIdeationReply(text);
@@ -12585,7 +12610,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Conversational ideation answer completed through Harness Core for a no-execution boundary.'
       });
       await ctx.reply(response);
-      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
       return;
     }
     await safeSendChatAction(ctx, 'typing');
@@ -12598,7 +12623,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           summary: 'Conversational ideation answer completed through Harness Core for a resolved list pick.'
         });
         await ctx.reply(fastReply);
-        await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
+        await conversation.rememberAssistantReply(user, fastReply).catch(logMemoryWriteFailure);
         return;
       }
     }
@@ -12611,7 +12636,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       summary: 'Conversational ideation answer completed through Harness Core.'
     });
     await ctx.reply(response);
-    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
     return;
   }
   const naturalRecursiveProposal = earlyBuildIntent ? null : parseNaturalRecursiveProposalIntent(text);
@@ -12624,17 +12649,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	    action: 'recursive.propose',
 	    kind: 'recursive_or_swarm'
 	  })) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const submitArg = naturalRecursiveProposal.submit ? ' submit' : '';
     const rawCommand = `propose ${naturalRecursiveProposal.target}${submitArg}`;
     recordNaturalRouteExecution(ctx, naturalRouteShadow, 'recursive.explicit_command_required', 'spark-telegram-bot', 'clarify');
     const reply = renderNaturalRecursiveExplicitCommandReply(rawCommand, { action: 'propose', id: naturalRecursiveProposal.target, proposeArgs: submitArg ? ['submit'] : [] });
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
   if (!earlyBuildIntent && isSparkChipStatusOverclaimQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfAwarenessStatus({
@@ -12643,30 +12668,30 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         currentMessage: text,
       });
       await ctx.reply(result.replyText);
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       const reply = renderSparkChipStatusBoundaryFallbackReply();
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     }
     return;
   }
   if (!earlyBuildIntent && isStartupReleaseBoundaryQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     const reply = renderStartupReleaseVerdict(await readStartupReleaseVerdict());
     await ctx.reply(reply);
-    await conversation.rememberAssistantReply(user, reply).catch(() => {});
+    await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
     return;
   }
 
   if (!earlyBuildIntent && isStartupFounderAdvisoryQuestion(text)) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     try {
       const response = await renderStartupFounderAdviceReply(text);
       await ctx.reply(response);
-      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
     } catch (err: any) {
       await ctx.reply(renderSparkErrorReply(err, 'chat', conversation.isAdmin(user)));
     }
@@ -12686,7 +12711,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 	  if (selfImprovementGoal && selfImprovementAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderSelfImprovementPlan({
@@ -12701,7 +12726,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Natural Spark self-improvement request routed a Builder improvement plan.'
       });
       await ctx.reply(result.replyText);
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordTelegramHarnessCoreExecution(selfImprovementAuthorization, {
         toolName: 'spark.self_improvement',
@@ -12725,7 +12750,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       })
     : null;
 	  if (wikiPromotion && wikiPromotionAuthorization?.allow) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await safeSendChatAction(ctx, 'typing');
     try {
       const result = await runBuilderWikiPromoteImprovement({
@@ -12743,7 +12768,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Natural Spark wiki promotion routed a knowledge promotion through Builder.'
       });
       await ctx.reply(result.replyText);
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordTelegramHarnessCoreExecution(wikiPromotionAuthorization, {
         toolName: 'spark_wiki.promote',
@@ -12762,14 +12787,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await safeSendChatAction(ctx, 'typing');
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'not_started', 'Natural Spark wiki inventory read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiInventory({ refresh: true, limit: 12 });
       await ctx.reply(result.replyText);
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'success', 'Natural Spark wiki inventory read completed through Builder.');
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'delivered');
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.inventory', 'failure', `Natural Spark wiki inventory read failed: ${err?.message || String(err)}.`);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.inventory', 'spark-intelligence-builder', 'spark_wiki.inventory', 'failed');
@@ -12786,7 +12811,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await safeSendChatAction(ctx, 'typing');
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'not_started', 'Natural Spark wiki answer read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiAnswer({
@@ -12800,7 +12825,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       await ctx.reply(result.replyText);
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'success', 'Natural Spark wiki answer read completed through Builder.');
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'delivered');
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.answer', 'failure', `Natural Spark wiki answer read failed: ${err?.message || String(err)}.`);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.answer', 'spark-intelligence-builder', 'spark_wiki.answer', 'failed');
@@ -12817,14 +12842,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await safeSendChatAction(ctx, 'typing');
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'not_started', 'Natural Spark wiki query read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiQuery({ query: wikiQuery, refresh: true, limit: 5 });
       await ctx.reply(result.replyText);
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'success', 'Natural Spark wiki query read completed through Builder.');
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'delivered');
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.query', 'failure', `Natural Spark wiki query read failed: ${err?.message || String(err)}.`);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.query', 'spark-intelligence-builder', 'spark_wiki.query', 'failed');
@@ -12840,14 +12865,14 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       return;
     }
     await safeSendChatAction(ctx, 'typing');
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'not_started', 'Natural Spark wiki status read authorized before Builder wiki call.');
     try {
       const result = await runBuilderWikiStatus({ refresh: true });
       await ctx.reply(result.replyText);
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'success', 'Natural Spark wiki status read completed through Builder.');
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'delivered');
-      await conversation.rememberAssistantReply(user, result.replyText).catch(() => {});
+      await conversation.rememberAssistantReply(user, result.replyText).catch(logMemoryWriteFailure);
     } catch (err: any) {
       recordWikiReadExecution(wikiReadAuthorization, 'spark_wiki.status', 'failure', `Natural Spark wiki status read failed: ${err?.message || String(err)}.`);
       recordNaturalRouteExecution(ctx, naturalRouteShadow, 'spark_wiki.status', 'spark-intelligence-builder', 'spark_wiki.status', 'failed');
@@ -12878,7 +12903,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       ], text)
     : null;
   if (earlyBuildContextRecall) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     recordNaturalRouteExecution(
       ctx,
       naturalRouteShadow,
@@ -12888,11 +12913,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       'delivered'
     );
     await ctx.reply(earlyBuildContextRecall, buildContextRecallOutboundTraceExtra(ctx));
-    await conversation.rememberAssistantReply(user, earlyBuildContextRecall).catch(() => {});
+    await conversation.rememberAssistantReply(user, earlyBuildContextRecall).catch(logMemoryWriteFailure);
     return;
   }
   if (naturalLocalMemoryRecall) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     const usedBuilderMemory = naturalLocalMemoryRecall.includes('Source: current-state memory read through Builder.') ||
       naturalLocalMemoryRecall.includes('Source: source-aware memory capsule through Builder.') ||
       naturalLocalMemoryRecall.includes('Source: Builder/domain-chip memory recall found no matching saved record.');
@@ -12904,7 +12929,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         : 'Natural memory recall fallback answered without a Builder current-state source line.'
     });
     await ctx.reply(naturalLocalMemoryRecall);
-    await conversation.rememberAssistantReply(user, naturalLocalMemoryRecall).catch(() => {});
+    await conversation.rememberAssistantReply(user, naturalLocalMemoryRecall).catch(logMemoryWriteFailure);
     return;
   }
   const recentRememberedAnswer = earlyBuildIntent ? null : answerFromRememberTurns(text, [
@@ -12912,17 +12937,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     ...await conversation.getRecentTurns(user, 40)
   ]);
   if (recentRememberedAnswer) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply(recentRememberedAnswer);
-    await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(() => {});
+    await conversation.rememberAssistantReply(user, recentRememberedAnswer).catch(logMemoryWriteFailure);
     return;
   }
 
   const choiceContextAcknowledgement = earlyBuildIntent ? null : renderChoiceContextAcknowledgement(text);
   if (choiceContextAcknowledgement) {
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     await ctx.reply(choiceContextAcknowledgement);
-    await conversation.rememberAssistantReply(user, choiceContextAcknowledgement).catch(() => {});
+    await conversation.rememberAssistantReply(user, choiceContextAcknowledgement).catch(logMemoryWriteFailure);
     return;
   }
 
@@ -12964,7 +12989,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         ? await markLatestMissionRelayCancelledForChat(ctx.chat.id, ctx.from.id)
         : null;
       if (clearedPendingExecution || suppressedMissionId) {
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         await ctx.reply(suppressedMissionId
           ? 'Got it. I will keep late handoff messages quiet for that build, and we can just talk here.'
           : 'Got it, no build or mission started. We can keep talking here.');
@@ -12990,7 +13015,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       return;
     }
 
@@ -13011,7 +13036,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (projectIterationAuthorization?.allow) {
       const improvementGoal = buildProjectImprovementGoal(text, latestShippedProject, contextualTurns);
       if (improvementGoal && latestShippedProject) {
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         await ctx.reply([
           `Got it. I will improve ${latestShippedProject.projectName}.`,
           '',
@@ -13049,7 +13074,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         mutationClass: 'launches_mission'
       });
       if (!buildAuthorization.allow) {
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         await ctx.reply('I am treating that as planning, not a build launch. We can keep shaping it here.');
         return;
       }
@@ -13120,7 +13145,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         await ctx.reply(renderSparkAccessDenial(accessProfile, 'operating_system'));
         return;
       }
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await safeSendChatAction(ctx, 'typing');
       try {
         const summary = await summarizeLocalWorkspaces();
@@ -13131,7 +13156,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           summary: 'Natural local workspace inspection completed from configured local workspace roots.'
         });
         await ctx.reply(reply);
-        await conversation.rememberAssistantReply(user, reply).catch(() => {});
+        await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         recordTelegramHarnessCoreExecution(localWorkspaceInspectionAuthorization, {
@@ -13154,7 +13179,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
 	    if (await handlePendingDomainChipBuild(ctx, text, turnIntentEnvelope)) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       return;
     }
 
@@ -13186,7 +13211,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
     if (defaultBuild && defaultBuildAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await ctx.reply(`I will choose the default and start it: ${defaultBuild.projectName}.`);
       const buildDispatch = await handleBuildIntent(
         ctx,
@@ -13209,7 +13234,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     }
 
     if (isBareExecutionStart(text)) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await ctx.reply('I am not seeing an active build or mission waiting from here. Give me the target again and I will route it fresh.');
       return;
     }
@@ -13227,7 +13252,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
 	    if (missionUpdatePreference && missionUpdatePreferenceAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const detailLines: string[] = [];
       if (missionUpdatePreference.verbosity) {
         await setTelegramRelayVerbosity(ctx.chat.id, missionUpdatePreference.verbosity);
@@ -13263,7 +13288,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	        })
 	      : null;
 	    if (missionResumeAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const result = isNoExecutionBoundary(text)
         ? await spawner.describeContextualPausedMissionResumeBoundary()
         : await spawner.resumeContextualPausedMission({
@@ -13296,7 +13321,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	        })
 	      : null;
 	    if (missionPauseAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const result = isNoExecutionBoundary(text)
         ? await spawner.describeContextualActiveMissionPauseBoundary()
         : await spawner.pauseContextualActiveMission({
@@ -13329,7 +13354,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	        })
 	      : null;
 	    if (missionCancelAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const result = isNoExecutionBoundary(text)
         ? await spawner.describeContextualMissionCancelBoundary()
         : await spawner.prepareContextualMissionCancel();
@@ -13362,7 +13387,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
     if (naturalChipBrief && naturalChipAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const mode = domainChipBuildModeForBrief(naturalChipBrief);
       rememberPendingDomainChipBuild(telegramPendingDomainChipKey(ctx.chat.id, ctx.from.id), {
         brief: naturalChipBrief,
@@ -13405,7 +13430,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         return;
       }
 
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await safeSendChatAction(ctx, 'typing');
       const result = await spawner.missionCommand('status', missionRerunIntent.missionId, {
         executionAuthority: missionRerunAuthorization.governorDecision
@@ -13428,7 +13453,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           ].join('\n')
         : `I did not rerun ${missionRerunIntent.missionId} because the owner status read failed: ${result.message}`;
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return;
     }
     if (missionRerunIntent && missionRerunAuthorization) {
@@ -13460,7 +13485,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         return;
       }
 
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await safeSendChatAction(ctx, 'typing');
       const result = await spawner.missionCommand('status', missionStatusIntent.missionId, {
         executionAuthority: missionStatusAuthorization.governorDecision
@@ -13475,7 +13500,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       });
       const reply = result.success ? result.message : `Mission status failed: ${result.message}`;
       await ctx.reply(reply);
-      await conversation.rememberAssistantReply(user, reply).catch(() => {});
+      await conversation.rememberAssistantReply(user, reply).catch(logMemoryWriteFailure);
       return;
     }
     if (missionStatusIntent && missionStatusAuthorization) {
@@ -13502,7 +13527,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
     if (localSparkServiceAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const available = await spawner.isAvailable();
       recordTelegramHarnessCoreExecution(localSparkServiceAuthorization, {
         toolName: 'spawner.local_service',
@@ -13531,7 +13556,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
     if (ambiguousLocalSparkServiceAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await ctx.reply(buildLocalSparkServiceClarificationReply());
       return;
     }
@@ -13578,7 +13603,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     if (diagnosticsFollowupTestAuthorization?.allow) {
       const reply = buildDiagnosticFollowupTestReply(sessionContext);
       if (reply) {
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         recordTelegramHarnessCoreExecution(diagnosticsFollowupTestAuthorization, {
           toolName: 'diagnostics.followup_test',
           status: 'success',
@@ -13608,7 +13633,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         })
       : null;
 	    if (diagnosticsScanAuthorization?.allow) {
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       await safeSendChatAction(ctx, 'typing');
       try {
         const scan = await runBuilderDiagnosticsScan();
@@ -13661,7 +13686,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       const improvementGoal = buildContextualImprovementGoal(text, contextualTurns);
       if (improvementGoal) {
         console.log(`[ConversationIntent] inferred contextual improvement mission user=${userRef(ctx.from?.id)} textLen=${text.length}`);
-        await conversation.remember(user, text).catch(() => {});
+        await conversation.remember(user, text).catch(logMemoryWriteFailure);
         const missionId = await handleRunCommand(ctx, improvementGoal, [missionDefaultProvider()], undefined, {
           missionName: 'Spark Diagnostic Agent Integration',
           executionAuthority: contextualImprovementAuthorization.governorDecision
@@ -13674,7 +13699,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             : 'Natural contextual improvement did not return a mission id.'
         });
         if (missionId) {
-          await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to improve the Spark Diagnostic Agent integration from Telegram context.`).catch(() => {});
+          await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to improve the Spark Diagnostic Agent integration from Telegram context.`).catch(logMemoryWriteFailure);
         }
         return;
       }
@@ -13701,7 +13726,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         });
         return;
       }
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const missionId = await handleRunCommand(ctx, buildExternalResearchGoal(text, contextualTurns), [missionDefaultProvider()], 'external_research', {
         executionAuthority: externalResearchAuthorization.governorDecision
       });
@@ -13713,7 +13738,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           : 'Natural external research did not return a mission id.'
       });
       if (missionId) {
-        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(() => {});
+        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} to inspect an external GitHub/web target from Telegram.`).catch(logMemoryWriteFailure);
       }
       return;
     }
@@ -13730,7 +13755,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       : null;
     if (inferredMission && inferredMissionAuthorization?.allow) {
       console.log(`[ConversationIntent] inferred mission from follow-up user=${userRef(ctx.from?.id)} textLen=${text.length}`);
-      await conversation.remember(user, text).catch(() => {});
+      await conversation.remember(user, text).catch(logMemoryWriteFailure);
       const missionId = await handleRunCommand(ctx, inferredMission.goal, [missionDefaultProvider()], undefined, {
         missionName: inferredMission.missionName,
         executionAuthority: inferredMissionAuthorization.governorDecision
@@ -13743,12 +13768,12 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           : 'Natural inferred follow-up did not return a mission id.'
       });
       if (missionId) {
-        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} from Telegram follow-up: ${inferredMission.goal.slice(0, 220)}`).catch(() => {});
+        await conversation.learnAboutUser(user, `Started Spawner mission ${missionId} from Telegram follow-up: ${inferredMission.goal.slice(0, 220)}`).catch(logMemoryWriteFailure);
       }
       return;
     }
 
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
 
     if (naturalRouteShadow?.route !== 'chat_plan' &&
         !naturalRouteShadow?.route?.startsWith('spawner.board') &&
@@ -13783,7 +13808,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           summary: 'Conversational ideation fallback answer completed through Harness Core for a no-execution boundary.'
         });
         await ctx.reply(response);
-        await conversation.rememberAssistantReply(user, response).catch(() => {});
+        await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
         return;
       }
       await safeSendChatAction(ctx, 'typing');
@@ -13797,7 +13822,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
             summary: 'Conversational ideation fallback answer completed through Harness Core for a resolved list pick.'
           });
           await ctx.reply(fastReply);
-          await conversation.rememberAssistantReply(user, fastReply).catch(() => {});
+          await conversation.rememberAssistantReply(user, fastReply).catch(logMemoryWriteFailure);
           return;
         }
       }
@@ -13811,7 +13836,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         summary: 'Conversational ideation fallback answer completed through Harness Core.'
       });
       await ctx.reply(response);
-      await conversation.rememberAssistantReply(user, response).catch(() => {});
+      await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
       return;
     }
 
@@ -13849,11 +13874,11 @@ export async function handleTextMessage(ctx: any): Promise<void> {
     const memoryDoctorEvidenceTurns = shouldAttachMemoryDoctorEvidenceWithAuthority(text, turnIntentEnvelope)
       ? selectMemoryDoctorEvidenceTurns(text, await conversation.getRecentTurns(user, 8).catch(() => []))
       : [];
-    await conversation.remember(user, text).catch(() => {});
+    await conversation.remember(user, text).catch(logMemoryWriteFailure);
     if (memoryDoctorEvidenceTurns.length > 0 && shouldPreferMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns)) {
       const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
       await ctx.reply(fallback);
-      await conversation.rememberAssistantReply(user, fallback).catch(() => {});
+      await conversation.rememberAssistantReply(user, fallback).catch(logMemoryWriteFailure);
       return;
     }
 
@@ -13904,7 +13929,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       if (memoryDoctorEvidenceTurns.length > 0 && isMemoryDoctorBridgeDetourReply(builderReply.responseText)) {
         const fallback = renderMemoryDoctorEvidenceFallback(text, memoryDoctorEvidenceTurns);
         await ctx.reply(fallback);
-        await conversation.rememberAssistantReply(user, fallback).catch(() => {});
+        await conversation.rememberAssistantReply(user, fallback).catch(logMemoryWriteFailure);
         return;
       }
       const contradictsResolvedList = conversationFrame.referenceResolution.kind === 'list_item' &&
@@ -13946,7 +13971,7 @@ export async function handleTextMessage(ctx: any): Promise<void> {
           throw error;
         }
         if (responseText) {
-          await conversation.rememberAssistantReply(user, responseText).catch(() => {});
+          await conversation.rememberAssistantReply(user, responseText).catch(logMemoryWriteFailure);
         }
         return;
       }
@@ -14048,20 +14073,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
       });
       throw error;
     }
-    await conversation.rememberAssistantReply(user, response).catch(() => {});
+    await conversation.rememberAssistantReply(user, response).catch(logMemoryWriteFailure);
 
     // Learn preferences from patterns
     if (text.toLowerCase().includes('i like')) {
       const preference = text.replace(/i like/i, '').trim();
       if (preference) {
-        await conversation.learnAboutUser(user, `Likes: ${preference}`).catch(() => {});
+        await conversation.learnAboutUser(user, `Likes: ${preference}`).catch(logMemoryWriteFailure);
       }
     }
 
     if (text.toLowerCase().includes('my name is')) {
       const name = text.replace(/my name is/i, '').trim();
       if (name) {
-        await conversation.learnAboutUser(user, `Name: ${name}`).catch(() => {});
+        await conversation.learnAboutUser(user, `Name: ${name}`).catch(logMemoryWriteFailure);
       }
     }
 
@@ -14110,7 +14135,7 @@ export async function handleImageMessage(ctx: any): Promise<void> {
         summary: 'Telegram image input was routed through Builder media analysis.'
       });
       await ctx.reply(builderReply.responseText);
-      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+      await conversation.rememberAssistantReply(user, builderReply.responseText).catch(logMemoryWriteFailure);
       return;
     }
 
@@ -14185,7 +14210,7 @@ export async function handleVoiceMessage(ctx: any): Promise<void> {
         `[VoiceBridgeTiming] user=${userRef(ctx.from?.id)} auth_ms=${authorizedAt - startedAt} media_ms=${mediaReadyAt - authorizedAt} builder_ms=${builderReadyAt - mediaReadyAt} deliver_ms=${deliveredAt - builderReadyAt} total_ms=${deliveredAt - startedAt}`
       );
       if (builderReply.responseText) {
-        await conversation.rememberAssistantReply(user, builderReply.responseText).catch(() => {});
+        await conversation.rememberAssistantReply(user, builderReply.responseText).catch(logMemoryWriteFailure);
       }
       return;
     }
