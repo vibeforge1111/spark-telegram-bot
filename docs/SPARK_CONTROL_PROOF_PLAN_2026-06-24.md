@@ -185,6 +185,8 @@ Canary summaries now distinguish `Release gate` from `Publish gate`. `Release ga
 
 Use `npm run control:proof:canaries -- --observations <packet> --publish-check` for publish or registry claims. It applies the same full-pack/fresh-evidence checks as `--release-check`, then exits nonzero while `Publish gate: not ready`.
 
+Publish-drift canaries must also prove the human handoff shape. The observed Telegram reply for `cp-publish-001` is release-ready only when it distinguishes release-ready behavior from publish-not-ready registry truth drift, names the owner surface, gives a next safe action such as the next verified metadata batch or explicit local-runtime-test classification, and states that the lookup was read-only. Weak replies that merely say "registry drift exists" are not enough release evidence because they leave the control-proof handoff ambiguous.
+
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
 Audit plane rows now also print `gap_capsule`, `gap_capsule_valid`, `gap_ref`, and `gap_backing` next to `proof_gap`. A historical gap is release-inspectable only when `gap_backing complete` proves every sampled gap row has a redacted proof ref and a valid downgraded proof capsule: `authority.decision: downgraded`, `authority.contract: none`, `governor.decision: not_applicable`, and `governor.verified: false`. These are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.

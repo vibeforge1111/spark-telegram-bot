@@ -134,6 +134,12 @@ Update after repo release-block handoff promotion on 2026-06-25 13:05 +04:
 - Commits through `bdb5ebd` made the canary packet promote repo release-block handoffs alongside registry drift handoffs. `Release handoffs` now names the release-blocked owner repos and next safe action without exposing local paths or commit refs.
 - The current packet reports runtime evidence collected at `2026-06-25T09:05:25.298Z`, release gate ready, and publish gate not ready because `domain-chip-memory`, `spark-intelligence-builder`, `spark-researcher`, and `spawner-ui` are behind upstream, while `spark-telegram-bot` and `spawner-ui` still have registry pin drift handoffs.
 
+Update after publish handoff proof-shape hardening on 2026-06-25 13:43 +04:
+
+- Commits through `5966840` made `cp-publish-001` reject weak publish-drift replies. The observed reply must distinguish release-ready behavior from publish-not-ready registry truth drift, name owner surfaces such as `spark-telegram-bot` or `spawner-ui`, give a next safe action, and state that the lookup was read-only.
+- The refreshed packet reports runtime evidence collected at `2026-06-25T09:43:31.793Z`, release gate ready, and publish gate not ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
+- Remaining visible proof gaps are historical and backed in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`. They should stay visible rather than being rewritten into fresh authority.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -168,6 +174,9 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
 
 - `release_packet_integrity`: live canary packets must carry current, complete runtime evidence.
   - Durable slice: release packets now reject stale runtime evidence, stale embedded compile/audit command timestamps, truncated control-proof audit bodies, non-clean blocking status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
+
+- `publish_handoff_shape`: publish/registry drift must not be summarized as a vague caveat in Telegram-facing evidence.
+  - Durable slice: `cp-publish-001` now requires a human handoff that separates release-ready from publish-not-ready, names owner surfaces, gives a next safe action, and confirms read-only evidence lookup without raw commits, registry keys, or paths.
 
 - `media_payload_gap`: photo, captioned photo, audio-file, and real voice-note boundaries are live-proven as evidence-only routes.
   - Durable slice: keep richer document handling beyond metadata separate from the proven media boundary claims; do not promote document bodies or raw media into proof capsules.

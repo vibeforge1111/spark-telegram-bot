@@ -6,25 +6,25 @@ Date: 2026-06-24
 - `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
 
 ```text
-Goal: Continue Spark control-proof work from the 2026-06-24 audit. Make authority, execution, trace joins, Telegram replies, media, and proof durable and inspectable. Work step by step. Do not "save the day" with one-off patches; prefer long-term contracts, repeatable proof, focused tests, docs, and confirmation.
+Goal: Make Spark's Telegram, Recursive, Spawner, Builder, and mission-relay surfaces dependable, readable, and release-safe under the new Harness Core.
 
-Priority rule:
+Highest priority:
 First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or new features unless they directly close a measured control-proof gap.
 
-Baseline:
-- Latest fresh-strict audit has no missing evidence, trace joins, proof capsules, raw refs, raw id keys, reason-code leaks, or stack-like leaks. Remaining gaps are visible historical `proof_gap` rows plus release/user confirmation.
-- Canary evidence is in `outputs/live-canary-full/live-canary-summary.md/.json`; PR/publish claims still require user confirmation.
-- `/proof`, proof panels, canary pack, NL Harness map, streaming/rich helpers, media envelopes, and non-execution evidence classification exist.
-- Keep NL suites as fast breadth/drift coverage; stable local tests stay in default `npm test`, and `nl:live` is not release proof.
-
 Operating rules:
-- Harness Core is authority. Tracing proves what happened; tracing never grants permission.
-- Raw words, memory, pending state, route history, provider output, and mission ids are evidence only. Fresh TurnIntent/Harness decides action.
-- Keep deterministic machinery exact underneath and Telegram human on the surface.
-- Hide raw ids, paths, stacks, provider internals, prompts, tokens, memory/media bodies, and reason codes from normal chat.
-- Treat robotic replies, missing trace joins, stale proof, and action without proof as product bugs.
-- Add failing proof before fixes when useful. Keep changes narrow, commit often, and test before live claims.
-- Do not push/open PRs until local proof is clean and the user confirms live Telegram behavior, unless asked for a draft.
+- Treat every issue as a proof problem first, an implementation problem second, and a publishing problem last.
+- Prefer durable fixes at the failing boundary over one-off patches, hidden state, brittle prompts, or undocumented assumptions.
+- Keep deterministic machinery exact underneath: routing, state, access, providers, trace ids, proof joins, safety gates, mission ids, timestamps, and source-of-truth checks.
+- Keep Telegram/chat replies human on the surface: concise, warm, readable, no robotic templates, no raw ids, hashes, stack traces, local paths, provider internals, or repeated mission numbers unless explicitly requested.
+- Use compact cards only for dense status, diagnostics, proof panels, review queues, picker choices, or multi-system summaries.
+- Commit often in small verified slices. Do not push, merge, or open/update PRs until local proof is clean and live Telegram confirmation is gathered where required.
+
+Current baseline:
+- Fresh-strict audit is blocking-clean with no missing evidence, trace joins, proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
+- Remaining proof gaps are visible historical legacy rows in route-confidence, Builder gateway, and Spawner trace planes. Keep them inspectable; do not relabel them as fresh Harness authority.
+- Canary evidence is in `outputs/live-canary-full/live-canary-summary.md/.json`. Release gate can be ready while publish gate remains not ready because registry or repo handoffs are still open.
+- Publish/registry answers must distinguish release-ready behavior from publish-not-ready metadata drift, name owner surfaces and next safe action, and state read-only evidence lookup without leaking raw commits, registry keys, or local paths.
+- Keep NL suites as fast breadth/drift coverage only where they strengthen the new Harness Core. Archive or narrow parts that conflict with deterministic routing, trace proof, or modern Spark behavior.
 
 Step 1: Reduce measured gaps
 - Run `npm run control:proof:audit -- --sample 100 --fresh-strict`.
@@ -54,6 +54,7 @@ Step 5: Media boundaries
 Step 6: Docs/suites
 - Update docs with each slice.
 - Keep canaries Harness-shaped: authority, mutation class, proof join, side effect, reply shape, visual/user confirmation.
+- Keep publish/release docs and canaries explicit that release-ready and publish-ready are separate claims.
 
 Release gate:
 - Focused tests for changed routes; `npm run build`; full npm test for broad routing/surface changes.
