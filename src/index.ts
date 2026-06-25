@@ -7,9 +7,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { Telegraf } from 'telegraf';
+import { loadSparkTelegramProfileEnv } from './profileEnv';
 
 // Load .env.override LAST with override=true. Wins over anything spark-cli
 // rewrites in .env. Never committed (.gitignored).
+loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });
 loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });
 import { message } from 'telegraf/filters';
 import { conversation, isPendingTaskRecoveryQuestion, renderPendingTaskRecoveryReply } from './conversation';

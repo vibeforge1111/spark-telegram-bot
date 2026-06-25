@@ -14,11 +14,20 @@ export function argValue(args: string[], name: string): string | null {
   return null;
 }
 
-export function loadEnvFileIntoProcess(file: string, env: NodeJS.ProcessEnv = process.env): void {
+interface LoadEnvFileOptions {
+  preserveKeys?: Set<string>;
+}
+
+export function loadEnvFileIntoProcess(
+  file: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: LoadEnvFileOptions = {}
+): void {
   if (!fs.existsSync(file)) return;
   for (const line of fs.readFileSync(file, 'utf-8').split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (!match) continue;
+    if (options.preserveKeys?.has(match[1])) continue;
     let value = match[2];
     if (value.length >= 2 && value[0] === value[value.length - 1] && (value[0] === '"' || value[0] === "'")) {
       value = value.slice(1, -1);
@@ -43,7 +52,11 @@ export function safeAgentEnvName(agentName: string): string | null {
   return trimmed;
 }
 
-export function loadSparkAgentEnv(agentName: string, env: NodeJS.ProcessEnv = process.env): string[] {
+export function loadSparkAgentEnv(
+  agentName: string,
+  env: NodeJS.ProcessEnv = process.env,
+  options: LoadEnvFileOptions = {}
+): string[] {
   const safeName = safeAgentEnvName(agentName);
   if (!safeName) return [];
   const loaded: string[] = [];
@@ -54,7 +67,7 @@ export function loadSparkAgentEnv(agentName: string, env: NodeJS.ProcessEnv = pr
   ];
   for (const file of files) {
     if (!fs.existsSync(file)) continue;
-    loadEnvFileIntoProcess(file, env);
+    loadEnvFileIntoProcess(file, env, options);
     loaded.push(file);
   }
   return loaded;
@@ -105,20 +118,29 @@ function readSparkSecretViaPythonBridge(secretId: string): string | null {
   }
 }
 
-export function loadSparkTelegramProfileEnv(args: string[], env: NodeJS.ProcessEnv = process.env): string | null {
+export function loadSparkTelegramProfileEnv(
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+  options: { preserveExisting?: boolean } = {}
+): string | null {
   const profile = argValue(args, 'profile') || env.SPARK_TELEGRAM_PROFILE?.trim() || null;
   if (!profile) return null;
+  const preserveKeys = options.preserveExisting ? new Set(Object.keys(env)) : undefined;
+  const loadOptions = { preserveKeys };
 
-  loadSparkAgentEnv('spark-telegram-bot', env);
-  loadSparkAgentEnv(`spark-telegram-bot.${profile}`, env);
+  loadSparkAgentEnv('spark-telegram-bot', env, loadOptions);
+  loadSparkAgentEnv(`spark-telegram-bot.${profile}`, env, loadOptions);
 
   const configDir = sparkConfigModulesDir(env);
-  loadEnvFileIntoProcess(path.join(configDir, 'spark-telegram-bot.env'), env);
-  loadEnvFileIntoProcess(path.join(configDir, `spark-telegram-bot.${profile}.env`), env);
+  loadEnvFileIntoProcess(path.join(configDir, 'spark-telegram-bot.env'), env, loadOptions);
+  loadEnvFileIntoProcess(path.join(configDir, `spark-telegram-bot.${profile}.env`), env, loadOptions);
 
   const profileSecretId = `telegram.profiles.${profile}.bot_token`;
+  const preserveBotToken = Boolean(options.preserveExisting && preserveKeys?.has('BOT_TOKEN') && env.BOT_TOKEN?.trim());
   const profileToken = readSparkSecret(profileSecretId) || (profile === 'default' ? readSparkSecret('telegram.bot_token') : null);
-  if (profileToken) {
+  if (preserveBotToken) {
+    delete env.SPARK_PROFILE_TOKEN_MISSING;
+  } else if (profileToken) {
     env.BOT_TOKEN = profileToken;
     delete env.SPARK_PROFILE_TOKEN_MISSING;
   } else if (env.TEST_BOT_TOKEN?.trim()) {

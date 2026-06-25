@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
+import { loadSparkTelegramProfileEnv, sparkConfigModulesDir, sparkSecretPythonBridgeCommand } from '../src/profileEnv';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -46,4 +47,60 @@ test('runtime health wrapper forwards profile arguments', () => {
 
   assert.match(wrapper, /process\.argv\.slice\(2\)/);
   assert.match(wrapper, /\.\.\.forwardedArgs/);
+});
+
+test('main Telegram runtime loads profile env before override env', () => {
+  const source = readFileSync('src/index.ts', 'utf-8');
+  const profileLoad = source.indexOf('loadSparkTelegramProfileEnv(process.argv.slice(2), process.env, { preserveExisting: true });');
+  const overrideLoad = source.indexOf("loadEnv({ path: path.join(__dirname, '..', '.env.override'), override: true });");
+
+  assert.notEqual(profileLoad, -1);
+  assert.notEqual(overrideLoad, -1);
+  assert.ok(profileLoad < overrideLoad);
+});
+
+test('Telegram profile env loads streaming defaults without overriding explicit runtime env', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'spark-profile-env-'));
+  try {
+    const modulesDir = path.join(home, 'config', 'modules');
+    mkdirSync(modulesDir, { recursive: true });
+    writeFileSync(
+      path.join(modulesDir, 'spark-telegram-bot.env'),
+      [
+        'SPARK_TELEGRAM_PROFILE=primary',
+        'SPARK_TELEGRAM_CHAT_STREAMING=1',
+        'SPARK_TELEGRAM_RICH_MESSAGES=1',
+        'SPARK_TELEGRAM_DRAFT_METHOD=rich',
+        'SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES=1'
+      ].join('\n')
+    );
+    writeFileSync(
+      path.join(modulesDir, 'spark-telegram-bot.primary.env'),
+      [
+        'SPARK_TELEGRAM_DRAFT_INTERVAL_MS=500',
+        'ADMIN_TELEGRAM_IDS=999'
+      ].join('\n')
+    );
+
+    const env = {
+      SPARK_HOME: home,
+      SPARK_TELEGRAM_PROFILE: 'primary',
+      ADMIN_TELEGRAM_IDS: '123',
+      BOT_TOKEN: '123:test',
+      TEST_BOT_TOKEN: '0:test-token'
+    } as NodeJS.ProcessEnv;
+    const profile = loadSparkTelegramProfileEnv([], env, { preserveExisting: true });
+
+    assert.equal(profile, 'primary');
+    assert.equal(env.SPARK_TELEGRAM_CHAT_STREAMING, '1');
+    assert.equal(env.SPARK_TELEGRAM_RICH_MESSAGES, '1');
+    assert.equal(env.SPARK_TELEGRAM_DRAFT_METHOD, 'rich');
+    assert.equal(env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES, '1');
+    assert.equal(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS, '500');
+    assert.equal(env.ADMIN_TELEGRAM_IDS, '123');
+    assert.equal(env.BOT_TOKEN, '123:test');
+    assert.equal(env.SPARK_PROFILE_TOKEN_MISSING, undefined);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
