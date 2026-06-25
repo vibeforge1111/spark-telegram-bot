@@ -516,6 +516,13 @@ Current SparkRecursive_bot proof:
 - `cp-streaming-002` confirms rich formatting renders in the top-level Telegram path without leaving a duplicate draft/final artifact.
 - These canaries prove the present Telegram surface and defaults. They do not claim Builder-native JSONL event streaming; that remains Phase 1.
 
+Durability update, 2026-06-25:
+
+- The main Telegram runtime now loads the active Spark Telegram profile env before `.env.override`, with explicit process env values preserved. This closes the gap where `/streaming` could save profile defaults but a restarted bot process could still run from repo `.env` alone.
+- Profile env files are the durable source for the default-on settings above; `.env.override` remains the operator escape hatch.
+- Regression coverage now proves the main runtime loads profile env before override env, loads streaming/rich defaults from profile config, and does not overwrite an explicitly supplied runtime `BOT_TOKEN` or admin env.
+- The refreshed SparkRecursive_bot release packet at `outputs/live-canary-full/live-canary-observations.json` has runtime evidence collected at `2026-06-25T07:58:51.790Z`; it keeps release readiness separate from publish readiness.
+
 ### Phase 1: Builder Status Events
 
 Add Builder JSONL streaming with status events only:
