@@ -163,6 +163,8 @@ Canary release packets now record when runtime evidence was collected and reject
 
 The `--release-check` path now enforces a one-hour runtime evidence window. Older packets can still be inspected, but they cannot support a fresh release claim until runtime evidence is refreshed.
 
+Canary packet timestamps are part of the proof contract: `generatedAt` and `evidence.collectedAt` must both be strict millisecond ISO timestamps. Runtime refresh sets `generatedAt` to the collected evidence timestamp, and release checks reject packet metadata that predates the runtime evidence or is more than five minutes future-dated.
+
 Canary summaries now print the runtime evidence expiry timestamp as well as the collection timestamp, and the JSON summary carries the same freshness window fields for automation.
 
 Canary runtime evidence treats `spark os compile --json` as a first-class proof contract: the packet must show `ok: true`, `gaps: 0`, clean repo/gate dirty-state counters, and every privacy raw-read flag set to `false`. Registry duplicate-truth drift stays visible in the captured compiler output, but it does not by itself block the Telegram live canary gate unless it produces measured compile gaps.
