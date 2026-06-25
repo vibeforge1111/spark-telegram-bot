@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T18:37:38.384Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T18:37:38.384Z",
+    "generatedAt": "2026-06-25T18:44:21.603Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T18:44:21.603Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T19:37:38.384Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T19:44:21.603Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -21,6 +21,7 @@
         "blockers": [],
         "caveats": [],
         "caveatFamilies": [],
+        "handoffDetails": null,
         "handoffFamilies": [],
         "handoffCount": 0,
         "packetEvidence": {
@@ -46,6 +47,62 @@
           "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
+        "handoffDetails": {
+          "schema_version": "spark.publish_handoffs.summary.v0",
+          "family_count": 3,
+          "families": [
+            "repo_release_blocks",
+            "local_runtime_test_artifacts",
+            "builder_trace_health"
+          ],
+          "blocked_release_repos": [
+            {
+              "repo": "domain-chip-memory",
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 6
+            },
+            {
+              "repo": "spark-intelligence-builder",
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 12
+            },
+            {
+              "repo": "spark-researcher",
+              "risk_class": "high",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 61
+            },
+            {
+              "repo": "spawner-ui",
+              "risk_class": "critical",
+              "reason": "behind upstream",
+              "next_safe_action": "pull or merge upstream before release",
+              "behind": 29
+            }
+          ],
+          "local_runtime_test_artifacts": {
+            "count": 2,
+            "owners": [
+              "spark-telegram-bot",
+              "spawner-ui"
+            ]
+          },
+          "builder_trace_health": {
+            "flags": [
+              "historical_open_high_severity_events"
+            ],
+            "high_severity_open_count": 46,
+            "unresolved_high_severity_open_count": 1,
+            "current_unresolved_high_severity_open_count": 0,
+            "unresolved_high_severity_source_group_count": 1,
+            "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
+          }
+        },
         "handoffFamilies": [
           "builder_trace_health",
           "local_runtime_test_artifacts",
@@ -97,7 +154,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T18:37:38.354Z",
+      "generatedAt": "2026-06-25T18:44:21.573Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -123,7 +180,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 6969,
+          "totalRows": 6991,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -379,10 +436,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T18:37:38.384Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T18:37:38.384Z",
+      "generatedAt": "2026-06-25T18:44:21.603Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T18:44:21.603Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T19:37:38.384Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T19:44:21.603Z",
       "missing": [],
       "invalid": [],
       "stale": []
