@@ -232,6 +232,7 @@ function writeReleaseBundle(
   const checklistPath = join(outDir, 'live-canary-checklist.md');
   const coveragePath = join(outDir, 'live-canary-coverage.md');
   const summaryPath = join(outDir, 'live-canary-summary.md');
+  const summaryJsonPath = join(outDir, 'live-canary-summary.json');
   const readmePath = join(outDir, 'README.md');
   const template = buildControlProofCanaryObservationTemplate(cases);
   const observations = collectEvidence
@@ -246,6 +247,16 @@ function writeReleaseBundle(
   writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
   writeFileSync(coveragePath, `${formatControlProofCanaryCoverage(cases)}\n`, 'utf8');
   writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
+  writeFileSync(summaryJsonPath, `${JSON.stringify({
+    summary,
+    coverage: {
+      ...coverage,
+      categoryCounts: Object.fromEntries(coverage.categoryCounts),
+      riskCounts: Object.fromEntries(coverage.riskCounts),
+      mutationCounts: Object.fromEntries(coverage.mutationCounts),
+      authorityCounts: Object.fromEntries(coverage.authorityCounts)
+    }
+  }, null, 2)}\n`, 'utf8');
   writeFileSync(readmePath, formatReleaseBundleReadme({
     observationsPath,
     runGuidePath,
@@ -253,6 +264,7 @@ function writeReleaseBundle(
     checklistPath,
     coveragePath,
     summaryPath,
+    summaryJsonPath,
     fullReleasePack: coverage.releasePackComplete
   }), 'utf8');
 
@@ -265,6 +277,7 @@ function writeReleaseBundle(
     `- checklist: ${checklistPath}`,
     `- coverage: ${coveragePath}`,
     `- summary: ${summaryPath}`,
+    `- summary JSON: ${summaryJsonPath}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`
   ].join('\n'));
 }
@@ -276,6 +289,7 @@ function formatReleaseBundleReadme(paths: {
   checklistPath: string;
   coveragePath: string;
   summaryPath: string;
+  summaryJsonPath: string;
   fullReleasePack: boolean;
 }): string {
   const checkFlag = paths.fullReleasePack ? '--release-check' : '--strict';
@@ -296,6 +310,7 @@ function formatReleaseBundleReadme(paths: {
     `- Checklist: ${paths.checklistPath}`,
     `- Coverage: ${paths.coveragePath}`,
     `- Current summary: ${paths.summaryPath}`,
+    `- Current summary JSON: ${paths.summaryJsonPath}`,
     '',
     '## Run Order',
     '',

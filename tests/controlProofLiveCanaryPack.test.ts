@@ -1121,6 +1121,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const bundledObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
     const bundledGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
     const bundledSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    const bundledSummaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
     const bundledReadmePath = resolve(bundleDir, 'README.md');
     const bundledCoveragePath = resolve(bundleDir, 'live-canary-coverage.md');
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
@@ -1134,12 +1135,16 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /not the full release gate until the complete canary pack is run/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
     assert.match(readFileSync(bundledCoveragePath, 'utf8'), /Cases: 1/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);
     assert.match(readFileSync(bundledSummaryPath, 'utf8'), /Release gate: not ready/);
+    const bundledSummaryJson = JSON.parse(readFileSync(bundledSummaryJsonPath, 'utf8'));
+    assert.equal(bundledSummaryJson.summary.totalCases, 1);
+    assert.equal(bundledSummaryJson.coverage.totalCases, 1);
 
     const fullBundleDir = resolve(tempRoot, 'full-bundle');
     const fullReleaseBundle = spawnSync(
