@@ -622,7 +622,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nCheck passed: rich formatting is visible. Short token: ok\nReceived at 6:50 PM",
+        "reply": "Spark Recursive\nStatus: clean.\n\nToken: ok",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -631,14 +631,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Inspect-only rich-message render check; no mutation and no duplicate preview/final artifact observed."
+          "notes": "Inspect-only rich-message render check after primary profile restart; no mutation and no duplicate preview/final artifact observed."
         },
-        "proofJoin": "Telegram final delivery carried the rich-message reply; this visual canary does not require a proof panel.",
+        "proofJoin": "Telegram final delivery carried the rich-message reply from the restarted primary profile; this visual canary does not require a proof panel.",
         "proofPanel": null,
         "screenshotRefs": [
-          "screenshot:sha256:19cd9a0ada56aa5bd35687a315cadca0bc024d8cf99c8ec349e69ed61b4f366d"
+          "screenshot:sha256:cfdb5f35860df905826e13b449fff51606f182407225e570d08bd8f72da818de"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: final bubble rendered rich formatting and inline code token without duplicate preview.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Peekaboo screenshot digest: rich formatting and inline code token rendered without duplicate preview.",
         "notes": null
       }
     },
