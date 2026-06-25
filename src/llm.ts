@@ -7,6 +7,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { renderSparkErrorReply } from './errorExplain';
 import { spawnHidden } from './hiddenProcess';
+import { redactText } from './redaction';
 import { chatCommandTimeoutMs, parsePositiveIntegerEnvValue } from './timeoutConfig';
 
 loadEnv({ path: path.join(os.homedir(), '.env.zai'), override: false, quiet: true });
@@ -590,7 +591,7 @@ async function codexChat(prompt: string): Promise<string> {
       codexHome ? { ...process.env, CODEX_HOME: codexHome } : process.env
     );
     if (!result.ok) {
-      throw new Error(result.stderr || result.stdout || 'Codex CLI failed');
+      throw new Error(redactText(result.stderr || result.stdout || 'Codex CLI failed'));
     }
     const output = readFileSync(outputPath, 'utf-8').trim();
     return output || "I'm here, but I couldn't generate a response right now.";
@@ -607,7 +608,7 @@ async function claudeChat(prompt: string, model: string): Promise<string> {
     chatCommandTimeoutMs()
   );
   if (!result.ok) {
-    throw new Error(result.stderr || result.stdout || 'Claude CLI failed');
+    throw new Error(redactText(result.stderr || result.stdout || 'Claude CLI failed'));
   }
   return result.stdout.trim() || "I'm here, but I couldn't generate a response right now.";
 }
