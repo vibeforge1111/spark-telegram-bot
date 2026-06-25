@@ -339,7 +339,7 @@ function safeHandoffText(value: unknown): string | null {
   const text = String(value || '')
     .replaceAll(homedir(), '<home>')
     .replace(/\b[A-Fa-f0-9]{8,}\b/g, '<redacted-ref>')
-    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, redactLongToken)
     .replace(/\s+/g, ' ')
     .trim();
   if (!text) return null;
@@ -363,7 +363,7 @@ function summarizeCommandResult(
     .replace(/\bpid=\d+\b/gi, 'pid=<redacted-pid>')
     .replace(/\b(?:https?:\/\/)?(?:127\.0\.0\.1|localhost):\d{2,6}\b/g, '<local-url>')
     .replace(/\b\d{8,}\b/g, '<redacted-number>')
-    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, redactLongToken)
     .replace(/\s+\n/g, '\n')
     .trim();
   const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' ? 24_000 : 2400;
@@ -375,6 +375,15 @@ function summarizeCommandResult(
     `exit=${status === null ? 'unknown' : status}`,
     snippet || '<no output>'
   ].join('\n');
+}
+
+const SAFE_LONG_RUNTIME_EVIDENCE_TOKENS = new Set([
+  'historical_missing_trace_ref_count',
+  'historical_open_high_severity_events',
+]);
+
+function redactLongToken(token: string): string {
+  return SAFE_LONG_RUNTIME_EVIDENCE_TOKENS.has(token) ? token : '<redacted-token>';
 }
 
 function writeReleaseBundle(

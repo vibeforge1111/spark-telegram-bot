@@ -1917,6 +1917,16 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       "  \"generated_at\": \"$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\",",
       '  "ok": true,',
       '  "gaps": 0,',
+      '  "builder_trace_health_flags": ["missing_trace_refs", "historical_open_high_severity_events"],',
+      '  "builder_trace_current_health": {',
+      '    "status": "current_missing_trace_refs",',
+      '    "window": "24h",',
+      '    "row_count": 1039,',
+      '    "missing_trace_ref_count": 480,',
+      '    "historical_missing_trace_ref_count": 12721,',
+      '    "total_missing_trace_ref_count": 13201,',
+      '    "missing_trace_ref_ratio": 0.462',
+      '  },',
       '  "duplicate_truths": { "item_count": 2 },',
       '  "repo_board": { "dirty_repo_count": 0, "blocked_release_count": 1, "critical_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
       '  "gate": { "dirty_repo_count": 0, "broad_dirty_repo_count": 0 },',
@@ -2000,6 +2010,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
+    assert.match(observed.evidence.sparkOsCompile, /historical_open_high_severity_events/);
+    assert.match(observed.evidence.sparkOsCompile, /historical_missing_trace_ref_count/);
     assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
     assert.match(observed.evidence.sparkOsCompile, /"repo_board": "<tmp>"/);
     assert.doesNotMatch(observed.evidence.sparkOsCompile, /\n\.\.\.\n/);
