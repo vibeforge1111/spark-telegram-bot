@@ -2040,5 +2040,5 @@ test('runtime evidence collection gives os compile a release-proof timeout budge
   const cliSource = readFileSync(resolve(ROOT, 'ops/controlProofLiveCanaryPack.ts'), 'utf8');
   const match = cliSource.match(/label:\s*'spark_os_compile'[\s\S]*?timeoutMs:\s*(\d[\d_]*)/);
   assert.ok(match, 'spark_os_compile runtime evidence command should set an explicit timeout');
-  assert.ok(Number(match[1].replaceAll('_', '')) >= 300_000, 'spark_os_compile timeout should allow slow release proof collection');
+  assert.ok(Number(match[1].replaceAll('_', '')) >= 600_000, 'spark_os_compile timeout should allow slow release proof collection');
 });

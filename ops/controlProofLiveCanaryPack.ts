@@ -206,7 +206,7 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
     { label: 'spark_live_status', command: 'spark', args: ['live', 'status'] },
     { label: 'provider_status', command: 'spark', args: ['providers', 'test', '--role', 'chat'] },
     { label: 'runtime_sync', command: 'npm', args: ['run', 'sync:check'] },
-    { label: 'spark_os_compile', command: 'spark', args: ['os', 'compile', '--json'], timeoutMs: 300_000 },
+    { label: 'spark_os_compile', command: 'spark', args: ['os', 'compile', '--json'], timeoutMs: 600_000 },
     {
       label: 'control_proof_audit',
       command: 'npm',
