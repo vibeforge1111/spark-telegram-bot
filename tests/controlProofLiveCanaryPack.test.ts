@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -300,7 +301,7 @@ test('live run guide pairs Telegram prompts with record commands', () => {
   assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
   assert.match(guide, /--mission-started <true\|false\|unknown>/);
   assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
-  assert.match(guide, /--screenshot-ref 'screenshot:sha256:<64-hex-digest>'/);
+  assert.match(guide, /--screenshot-file '\/tmp\/cp-streaming-001\.png'/);
   assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
 });
 
@@ -1259,7 +1260,13 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const recordedSummaryPath = resolve(tempRoot, 'recorded-summary.md');
     const recordedSummaryJsonPath = resolve(tempRoot, 'recorded-summary.json');
     const proofPanelPath = resolve(tempRoot, 'proof-panel.txt');
+    const screenshotPath = resolve(tempRoot, 'spark-recursive-builder.png');
+    const screenshotProofPath = resolve(tempRoot, 'spark-recursive-builder-proof.png');
     writeFileSync(proofPanelPath, `${CLEAN_PROOF_PANEL}\n`, 'utf8');
+    writeFileSync(screenshotPath, 'telegram reply screenshot bytes', 'utf8');
+    writeFileSync(screenshotProofPath, 'telegram proof screenshot bytes', 'utf8');
+    const screenshotRef = `screenshot:sha256:${createHash('sha256').update(readFileSync(screenshotPath)).digest('hex')}`;
+    const screenshotProofRef = `screenshot:sha256:${createHash('sha256').update(readFileSync(screenshotProofPath)).digest('hex')}`;
     const record = spawnSync(
       process.execPath,
       [
@@ -1283,10 +1290,10 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         'Builder joined.',
         '--proof-panel-file',
         proofPanelPath,
-        '--screenshot-ref',
-        STABLE_SCREENSHOT_REF,
-        '--screenshot-ref',
-        STABLE_SCREENSHOT_REF_TWO,
+        '--screenshot-file',
+        screenshotPath,
+        '--screenshot-file',
+        screenshotProofPath,
         '--summary-out',
         recordedSummaryPath,
         '--summary-json-out',
@@ -1305,13 +1312,35 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
     assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [
-      STABLE_SCREENSHOT_REF,
-      STABLE_SCREENSHOT_REF_TWO
+      screenshotRef,
+      screenshotProofRef
     ]);
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
     const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
     assert.equal(recordedSummaryJson.summary.readyForRelease, true);
     assert.equal(recordedSummaryJson.coverage.totalCases, 1);
+
+    const missingScreenshotRecord = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--out',
+        resolve(tempRoot, 'missing-screenshot-recorded.json'),
+        '--record-case',
+        'cp-builder-001',
+        '--verdict',
+        'pass',
+        '--screenshot-file',
+        resolve(tempRoot, 'missing-screenshot.png')
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(missingScreenshotRecord.status, 1);
+    assert.match(missingScreenshotRecord.stderr, /Control-proof canary error:/);
+    assert.doesNotMatch(missingScreenshotRecord.stderr, new RegExp(tempRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
     const accessTemplate = withControlProofCanaryRuntimeEvidence(
       buildControlProofCanaryObservationTemplate([

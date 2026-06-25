@@ -914,14 +914,14 @@ export function formatControlProofCanaryLiveRunGuide(
   const lines = [
     `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Live Run Guide`,
     '',
-    'Run each Telegram block exactly as written. Then save the observed reply to a text file, hash any screenshot evidence, and run the matching record command with real values.',
+    'Run each Telegram block exactly as written. Then save the observed reply to a text file, keep the local screenshot capture, and run the matching record command with real values. The recorder stores screenshot files as stable digest refs.',
     '',
     `Observation packet: ${observationsPath}`,
     ''
   ];
   cases.forEach((entry, index) => {
     const replyFile = `/tmp/${entry.id}-reply.txt`;
-    const screenshotRef = 'screenshot:sha256:<64-hex-digest>';
+    const screenshotFile = `/tmp/${entry.id}.png`;
     lines.push(`${index + 1}. ${entry.id}`);
     lines.push('');
     lines.push('Telegram prompt:');
@@ -938,7 +938,7 @@ export function formatControlProofCanaryLiveRunGuide(
     }
     lines.push('Record command:');
     lines.push('```bash');
-    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef, options.summaryPath, options.summaryJsonPath));
+    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotFile, options.summaryPath, options.summaryJsonPath));
     lines.push('```');
     lines.push('');
     lines.push(`Expected route: ${entry.expectedRoute}`);
@@ -958,7 +958,7 @@ function formatControlProofCanaryRecordCommand(
   entry: ControlProofCanaryCase,
   observationsPath: string,
   replyFile: string,
-  screenshotRef: string,
+  screenshotFile: string,
   summaryPath?: string,
   summaryJsonPath?: string
 ): string {
@@ -987,7 +987,7 @@ function formatControlProofCanaryRecordCommand(
   }
   args.push('--user-confirmation', shellQuote('<confirmed in SparkRecursive_bot>'));
   if (entry.capture.screenshot) {
-    args.push('--screenshot-ref', shellQuote(screenshotRef));
+    args.push('--screenshot-file', shellQuote(screenshotFile));
   }
   if (summaryPath) {
     args.push('--summary-out', shellQuote(summaryPath));
