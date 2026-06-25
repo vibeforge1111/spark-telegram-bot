@@ -288,13 +288,20 @@ function releaseBlockHandoffLine(item: unknown): string | null {
   if (safeHandoffToken(record.release_eligibility) !== 'blocked') return null;
   const repo = safeRepoNameFromBoardItem(record);
   const reason = safeHandoffText(record.do_not_merge_reason);
+  const behind = safeNonNegativeInteger(record.behind);
   const nextSafeAction = safeHandoffText(record.next_safe_action);
   if (!repo) return null;
   return [
     `${repo}: release_blocked`,
     reason ? `reason: ${reason}` : null,
+    behind !== null ? `behind=${behind}` : null,
     nextSafeAction ? `next safe action: ${nextSafeAction}` : null
   ].filter(Boolean).join('; ');
+}
+
+function safeNonNegativeInteger(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function safeRepoNameFromBoardItem(record: Record<string, unknown>): string | null {

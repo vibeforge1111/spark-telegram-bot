@@ -1646,7 +1646,7 @@ function handoffSectionLines(text: string, marker: string): string[] {
 function releaseBlockHandoffLines(text: string): string[] {
   return handoffSectionLines(text, 'Repo release-block handoff:')
     .filter((line) =>
-      /^[a-z0-9_.-]+:\s+release_blocked(?:;\s+reason:\s+.+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
+      /^[a-z0-9_.-]+:\s+release_blocked(?:;\s+reason:\s+.+)?(?:;\s+behind=\d+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
     );
 }
 
