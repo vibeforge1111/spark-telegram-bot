@@ -1792,6 +1792,8 @@ function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): R
   const criticalDuplicateTruthCount = numberOrNull(repoBoard.critical_duplicate_truth_count) ?? 0;
   const blockedReleaseCount = numberOrNull(repoBoard.blocked_release_count) ?? 0;
   const criticalRepoCount = numberOrNull(repoBoard.critical_repo_count) ?? 0;
+  const blockedReleaseRepos = sanitizedBlockedReleaseRepos(parsed);
+  const ownerSets = sanitizedDuplicateTruthOwnerSets(duplicateTruths);
   if (
     builderFlags.length === 0 &&
     blockedReleaseCount === 0 &&
@@ -1832,7 +1834,8 @@ function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): R
       releaseBlocking: false,
       publishBlocking: blockedReleaseCount > 0 || criticalRepoCount > 0,
       blocked_release_count: blockedReleaseCount,
-      critical_repo_count: criticalRepoCount
+      critical_repo_count: criticalRepoCount,
+      blocked_release_repos: blockedReleaseRepos
     },
     duplicate_truths: {
       releaseBlocking: false,
@@ -1846,7 +1849,8 @@ function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): R
       }),
       classification_counts: duplicateClassificationCounts,
       duplicate_truth_count: duplicateTruthCount,
-      critical_duplicate_truth_count: criticalDuplicateTruthCount
+      critical_duplicate_truth_count: criticalDuplicateTruthCount,
+      owner_sets: ownerSets
     }
   };
 }
@@ -2060,6 +2064,55 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
       )
     }
   };
+}
+
+function sanitizedBlockedReleaseRepos(parsed: Record<string, unknown>): Record<string, unknown>[] {
+  const publishHandoffs = objectOrNull(parsed.publish_handoffs);
+  const blockedReleaseRepos = Array.isArray(publishHandoffs?.blocked_release_repos)
+    ? publishHandoffs.blocked_release_repos
+    : [];
+  return blockedReleaseRepos
+    .map((rawEntry) => {
+      const entry = objectOrNull(rawEntry);
+      if (!entry) return null;
+      const repo = safeStringToken(entry.repo);
+      if (!repo) return null;
+      const item: Record<string, unknown> = {
+        repo,
+        releaseBlocking: false,
+        publishBlocking: true
+      };
+      const riskClass = safeStringToken(entry.risk_class);
+      const reason = safeDisplayToken(entry.reason);
+      const nextSafeAction = safeDisplayToken(entry.next_safe_action);
+      const behind = numberOrNull(entry.behind);
+      if (riskClass) item.risk_class = riskClass;
+      if (reason) item.reason = reason;
+      if (nextSafeAction) item.next_safe_action = nextSafeAction;
+      if (behind !== null && behind >= 0) item.behind = behind;
+      return item;
+    })
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .sort((a, b) => String(a.repo).localeCompare(String(b.repo)));
+}
+
+function sanitizedDuplicateTruthOwnerSets(duplicateTruths: Record<string, unknown>): Record<string, string[]> {
+  const ownerSets = objectOrNull(duplicateTruths.owner_sets);
+  if (!ownerSets) return {};
+  return Object.fromEntries(
+    Object.entries(ownerSets)
+      .map(([classification, rawOwners]) => {
+        const safeClassification = safeStringToken(classification);
+        if (!safeClassification || !Array.isArray(rawOwners)) return null;
+        const owners = rawOwners
+          .map(safeStringToken)
+          .filter((entry): entry is string => Boolean(entry))
+          .sort();
+        return owners.length ? [safeClassification, owners] : null;
+      })
+      .filter((entry): entry is [string, string[]] => Boolean(entry))
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
 }
 
 function publishHandoffFamilies(publishHandoffs: Record<string, unknown> | null): string[] {

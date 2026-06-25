@@ -1364,7 +1364,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           releaseBlocking: false,
           publishBlocking: true,
           blocked_release_count: 1,
-          critical_repo_count: 1
+          critical_repo_count: 1,
+          blocked_release_repos: [
+            {
+              repo: 'spark-intelligence-builder',
+              releaseBlocking: false,
+              publishBlocking: true,
+              risk_class: 'critical',
+              reason: 'behind upstream',
+              next_safe_action: 'pull or merge upstream before release',
+              behind: 12
+            }
+          ]
         },
         duplicate_truths: {
           releaseBlocking: false,
@@ -1372,7 +1383,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           label: 'local_runtime_test_artifacts',
           classification_counts: { local_runtime_test_artifact: 2 },
           duplicate_truth_count: 2,
-          critical_duplicate_truth_count: 0
+          critical_duplicate_truth_count: 0,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
         }
       },
       caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
@@ -1443,7 +1457,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               releaseBlocking: false,
               publishBlocking: true,
               blocked_release_count: 1,
-              critical_repo_count: 1
+              critical_repo_count: 1,
+              blocked_release_repos: [
+                {
+                  repo: 'spark-intelligence-builder',
+                  releaseBlocking: false,
+                  publishBlocking: true,
+                  risk_class: 'critical',
+                  reason: 'behind upstream',
+                  next_safe_action: 'pull or merge upstream before release',
+                  behind: 12
+                }
+              ]
             },
             duplicate_truths: {
               releaseBlocking: false,
@@ -1451,7 +1476,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               label: 'local_runtime_test_artifacts',
               classification_counts: { local_runtime_test_artifact: 2 },
               duplicate_truth_count: 2,
-              critical_duplicate_truth_count: 0
+              critical_duplicate_truth_count: 0,
+              owner_sets: {
+                local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+              }
             }
           }
         },
@@ -1525,7 +1553,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           releaseBlocking: false,
           publishBlocking: true,
           blocked_release_count: 1,
-          critical_repo_count: 1
+          critical_repo_count: 1,
+          blocked_release_repos: [
+            {
+              repo: 'spark-intelligence-builder',
+              releaseBlocking: false,
+              publishBlocking: true,
+              risk_class: 'critical',
+              reason: 'behind upstream',
+              next_safe_action: 'pull or merge upstream before release',
+              behind: 12
+            }
+          ]
         },
         duplicate_truths: {
           releaseBlocking: false,
@@ -1533,7 +1572,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           label: 'local_runtime_test_artifacts',
           classification_counts: { local_runtime_test_artifact: 2 },
           duplicate_truth_count: 2,
-          critical_duplicate_truth_count: 0
+          critical_duplicate_truth_count: 0,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
         }
       },
       caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
@@ -1670,7 +1712,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       releaseBlocking: false,
       publishBlocking: true,
       blocked_release_count: 1,
-      critical_repo_count: 1
+      critical_repo_count: 1,
+      blocked_release_repos: [
+        {
+          repo: 'spark-intelligence-builder',
+          releaseBlocking: false,
+          publishBlocking: true,
+          risk_class: 'critical',
+          reason: 'behind upstream',
+          next_safe_action: 'pull or merge upstream before release',
+          behind: 12
+        }
+      ]
     },
     duplicate_truths: {
       releaseBlocking: false,
@@ -1678,7 +1731,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       label: 'local_runtime_test_artifacts',
       classification_counts: { local_runtime_test_artifact: 2 },
       duplicate_truth_count: 2,
-      critical_duplicate_truth_count: 0
+      critical_duplicate_truth_count: 0,
+      owner_sets: {
+        local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+      }
     }
   });
   assert.deepEqual(structuredPublishHandoffs.publishHandoffs, {
