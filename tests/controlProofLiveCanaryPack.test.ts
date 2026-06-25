@@ -645,6 +645,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
     /Release caveats:\n- registry_pin_drift/
   );
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Release note: ready with caveats; complete the listed handoffs before publish\/registry claims\./
+  );
 });
 
 test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {

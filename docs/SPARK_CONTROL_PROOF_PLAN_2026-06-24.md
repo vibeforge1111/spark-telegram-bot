@@ -173,6 +173,8 @@ When fresh runtime evidence is collected, the canary CLI joins registry-drift ca
 
 Canary summaries now promote those redacted duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
 
+When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
+
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.

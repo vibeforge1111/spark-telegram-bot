@@ -13,6 +13,8 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
+Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
+
 Release caveats:
 - registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 

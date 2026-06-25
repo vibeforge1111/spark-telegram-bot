@@ -1575,6 +1575,9 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
       lines.push('');
     }
   }
+  if (summary.readyForRelease && (summary.releaseCaveats.length > 0 || summary.releaseHandoffs.length > 0)) {
+    lines.push('Release note: ready with caveats; complete the listed handoffs before publish/registry claims.', '');
+  }
   if (summary.releaseCaveats.length > 0) {
     lines.push('Release caveats:');
     for (const caveat of summary.releaseCaveats) {
