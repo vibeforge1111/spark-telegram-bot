@@ -1551,10 +1551,74 @@ function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): strin
   ];
 }
 
+function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>): string[] {
+  const publishHandoffs = objectOrNull(parsed.publish_handoffs);
+  if (!publishHandoffs) return [];
+  const lines: string[] = [];
+  const blockedRepos = Array.isArray(publishHandoffs.blocked_release_repos)
+    ? publishHandoffs.blocked_release_repos
+    : [];
+  for (const rawEntry of blockedRepos) {
+    const entry = objectOrNull(rawEntry);
+    if (!entry) continue;
+    const repo = String(entry.repo || '').trim();
+    if (!/^[a-z0-9_.-]+$/i.test(repo)) continue;
+    const reason = String(entry.reason || '').trim();
+    const nextSafeAction = String(entry.next_safe_action || '').trim();
+    const behind = numberOrNull(entry.behind);
+    const details = [
+      `${repo}: release_blocked`,
+      ...(reason && /^[A-Za-z0-9 ._/-]+$/.test(reason) ? [`reason: ${reason}`] : []),
+      ...(behind !== null && behind >= 0 ? [`behind=${behind}`] : []),
+      ...(nextSafeAction && /^[A-Za-z0-9 ._/-]+$/.test(nextSafeAction) ? [`next safe action: ${nextSafeAction}`] : [])
+    ];
+    lines.push(details.join('; '));
+  }
+
+  const localRuntime = objectOrNull(publishHandoffs.local_runtime_test_artifacts);
+  const localRuntimeCount = numberOrNull(localRuntime?.count) ?? 0;
+  const rawOwners = Array.isArray(localRuntime?.owners) ? localRuntime?.owners : [];
+  const owners = rawOwners
+    .map((entry) => String(entry || '').trim())
+    .filter((entry) => /^[a-z0-9_.-]+$/i.test(entry))
+    .sort();
+  if (localRuntimeCount > 0) {
+    const sourceLabel = localRuntimeCount === 1 ? 'source' : 'sources';
+    const ownerClause = owners.length ? ` (${owners.join(', ')})` : '';
+    lines.push(
+      `spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep ${localRuntimeCount} installed ${sourceLabel}${ownerClause} for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.`
+    );
+  }
+
+  const builderTrace = objectOrNull(publishHandoffs.builder_trace_health);
+  const flags = Array.isArray(builderTrace?.flags)
+    ? builderTrace.flags.map((entry) => String(entry || '').trim())
+    : [];
+  if (flags.includes('open_high_severity_events')) {
+    lines.push(
+      'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
+    );
+  } else if (flags.includes('historical_open_high_severity_events') && !flags.includes('missing_trace_refs')) {
+    const unresolvedSourceGroups = numberOrNull(builderTrace?.unresolved_high_severity_source_group_count) ?? 0;
+    const unresolvedOpen = numberOrNull(builderTrace?.unresolved_high_severity_open_count) ?? 0;
+    const currentUnresolved = numberOrNull(builderTrace?.current_unresolved_high_severity_open_count) ?? 0;
+    const latestUnresolved = safeTimestampToken(builderTrace?.latest_unresolved_high_severity_event_created_at);
+    if (unresolvedOpen > 0 && currentUnresolved === 0) {
+      const sourceGroupCount = unresolvedSourceGroups || unresolvedOpen;
+      const familyLabel = sourceGroupCount === 1 ? 'family' : 'families';
+      const latestClause = latestUnresolved ? `; latest unresolved event ${latestUnresolved}` : '';
+      lines.push(
+        `spark-intelligence-builder: warning builder_trace_health; next safe action: Audit ${sourceGroupCount} unresolved historical high-severity Builder integrity ${familyLabel}${latestClause}, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.`
+      );
+    }
+  }
+  return lines;
+}
+
 function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string[] {
   const parsed = parseFirstJsonObject(String(value || ''));
   if (!parsed) return [];
-  const handoffs: string[] = [];
+  const handoffs: string[] = publishHandoffLinesFromCompileSummary(parsed);
   const duplicateTruths = objectOrNull(parsed.duplicate_truths) ?? {};
   const repoBoard = objectOrNull(parsed.repo_board) ?? {};
   const classificationCounts = objectOrNull(duplicateTruths.classification_counts) ?? {};
@@ -2080,10 +2144,10 @@ export function summarizeControlProofCanaryObservations(
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
-  const releaseHandoffs = [
+  const releaseHandoffs = Array.from(new Set([
     ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
     ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
-  ];
+  ]));
   const releaseReady = readyForRelease && releaseBlockers.length === 0;
   const readyForPublish = releaseReady && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   return {
