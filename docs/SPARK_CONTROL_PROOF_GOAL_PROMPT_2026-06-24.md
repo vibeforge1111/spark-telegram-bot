@@ -13,7 +13,7 @@ First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or
 
 Baseline:
 - Latest fresh-strict audit has no missing evidence, trace joins, proof capsules, raw refs, raw id keys, reason-code leaks, or stack-like leaks. Remaining gaps are visible historical `proof_gap` rows plus release/user confirmation.
-- Canary evidence is in `outputs/live-canary-full/live-canary-summary.md`; PR/publish claims still require user confirmation.
+- Canary evidence is in `outputs/live-canary-full/live-canary-summary.md/.json`; PR/publish claims still require user confirmation.
 - `/proof`, proof panels, canary pack, NL Harness map, streaming/rich helpers, media envelopes, and non-execution evidence classification exist.
 - Keep NL suites as fast breadth/drift coverage; stable local tests stay in default `npm test`, and `nl:live` is not release proof.
 

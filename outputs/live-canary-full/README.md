@@ -10,6 +10,7 @@ This folder is the live Telegram release packet. It starts not ready until each 
 - Checklist: outputs/live-canary-full/live-canary-checklist.md
 - Coverage: outputs/live-canary-full/live-canary-coverage.md
 - Current summary: outputs/live-canary-full/live-canary-summary.md
+- Current summary JSON: outputs/live-canary-full/live-canary-summary.json
 
 ## Run Order
 
