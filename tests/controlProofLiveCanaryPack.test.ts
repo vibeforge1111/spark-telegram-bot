@@ -583,6 +583,11 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(dirtyAudit.invalidPacketEvidence, ['control_proof_audit']);
   assert.match(formatControlProofCanaryObservationSummary(dirtyAudit), /Packet evidence invalid: control_proof_audit/);
 
+  template.evidence.controlProofAudit = 'no missing evidence; trace joins and proof capsules look clean';
+  const proseAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(proseAudit.readyForRelease, false);
+  assert.deepEqual(proseAudit.invalidPacketEvidence, ['control_proof_audit']);
+
   template.evidence.controlProofAudit = [
     'missing evidence: 0',
     'missing trace joins: 0',

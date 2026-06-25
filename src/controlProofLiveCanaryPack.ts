@@ -1213,10 +1213,7 @@ function hasCleanControlProofAudit(value: string): boolean {
   if (requiredZeroPatterns.every((pattern) => pattern.test(value))) {
     return legacyProofGapsAreInspectable(value);
   }
-  return /no missing evidence/i.test(value) &&
-    /trace joins/i.test(value) &&
-    /proof capsules/i.test(value) &&
-    !/\bmissing (?:evidence|trace joins|proof capsules):\s*[1-9]/i.test(value);
+  return false;
 }
 
 function parseFirstJsonObject(value: string): Record<string, unknown> | null {

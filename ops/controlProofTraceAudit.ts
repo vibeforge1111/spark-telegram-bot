@@ -27,7 +27,7 @@ function usage(): string {
     '  npx ts-node ops/controlProofTraceAudit.ts --fresh-strict',
     '',
     'Summarizes trace join coverage and raw-ref risks without printing raw trace rows.',
-    '--strict fails on any visible gap. --blocking-strict allows explicit legacy proof gaps but fails silent or leaking gaps.',
+    '--strict fails on any visible gap. --blocking-strict allows complete, backed legacy proof gaps but fails silent, partial, or leaking gaps.',
     '--fresh-strict applies blocking-strict checks and also fails when any latest producer row still carries a proof gap marker.'
   ].join('\n');
 }
