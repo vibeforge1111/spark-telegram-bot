@@ -1621,6 +1621,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.doesNotMatch(readFileSync(bundledReadmePath, 'utf8'), /screenshot path/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Every record command should prove side effects explicitly/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /For no-action and read-only cases, keep `--no-other-side-effects`/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /selected-case strict check/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /not the full release gate until the complete canary pack is run/);
@@ -1633,6 +1635,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-json-out '${escapeRegExp(bundledSummaryJsonPath)}'`));
     assert.match(readFileSync(bundledCoveragePath, 'utf8'), /Cases: 1/);
