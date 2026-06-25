@@ -1497,6 +1497,9 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     const window = String(current.window || '').trim();
     const missing = numberOrNull(current.missing_trace_ref_count);
     const historicalMissing = numberOrNull(current.historical_missing_trace_ref_count);
+    const highSeverityOpen = numberOrNull(current.high_severity_open_count);
+    const unresolvedHighSeverityOpen = numberOrNull(current.unresolved_high_severity_open_count);
+    const currentUnresolvedHighSeverityOpen = numberOrNull(current.current_unresolved_high_severity_open_count);
     const latestMissingSourceGroups =
       numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count);
     const latestCleanHistoricalWindowGroups =
@@ -1509,6 +1512,13 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     const oneHourSummary = compileTraceWindowSummary(parsed.builder_trace_recent_windows, '1h');
     if (oneHourSummary) details.push(oneHourSummary);
     if (historicalMissing !== null) details.push(`historical_missing_trace_refs=${historicalMissing}`);
+    if (highSeverityOpen !== null) details.push(`high_severity_open_events=${highSeverityOpen}`);
+    if (unresolvedHighSeverityOpen !== null) {
+      details.push(`unresolved_high_severity_events=${unresolvedHighSeverityOpen}`);
+    }
+    if (currentUnresolvedHighSeverityOpen !== null) {
+      details.push(`current_unresolved_high_severity_events=${currentUnresolvedHighSeverityOpen}`);
+    }
     if (latestMissingSourceGroups !== null) details.push(`latest_missing_source_groups=${latestMissingSourceGroups}`);
     if (latestCleanHistoricalWindowGroups !== null) {
       details.push(`latest_clean_historical_window_groups=${latestCleanHistoricalWindowGroups}`);
