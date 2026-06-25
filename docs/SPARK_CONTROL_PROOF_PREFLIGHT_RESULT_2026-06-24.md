@@ -199,11 +199,12 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
 - `non_execution_evidence`: memory movement, voice surface, and voice runtime evidence stay explicitly separated from execution proof.
   - Durable slice: keep these planes joined/redacted where useful, but continue marking them `not_execution_proof` or non-execution so they cannot authorize actions.
 
-- `runtime_capability_drift`: `spark os compile` can report duplicate-truth or registry-pin drift while the Telegram behavior release gate remains clean.
+- `runtime_capability_drift`: `spark os compile` can report duplicate-truth or local-runtime classification caveats while the Telegram behavior release gate remains clean.
   - Current evidence belongs in `outputs/live-canary-full/live-canary-summary.md` and the embedded `spark os compile --json` transcript in `outputs/live-canary-full/live-canary-observations.json`; do not rely on static commit hashes in this doc for registry readiness.
-  - The recurring handoff shape is `spark-telegram-bot` local runtime test artifact when the installed source is intentionally being used for local SparkRecursive proof, and `spawner-ui` warning registry-pin drift until the owner repo commits are ported/pushed and registry or release metadata is updated.
+  - The current handoff shape is `spark-telegram-bot` and `spawner-ui` local runtime test artifacts when the installed sources are intentionally being used for local SparkRecursive proof.
   - Durable slice: do not claim registry/release readiness until owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
   - 2026-06-25 Spark CLI update: local CLI commit `994f213` carries `runtime_classification=local_runtime_test_artifact` from installed module metadata into duplicate-truth evidence. This reduces the Telegram runtime-ahead item from critical registry drift to an explicit decision caveat while preserving the publish boundary: the public registry pin remains installer truth until owner repo and release metadata catch up.
+  - 2026-06-25 installed metadata update: `spawner-ui` now carries the same explicit local-runtime-test classification. Fresh compile evidence reports `classification_counts.local_runtime_test_artifact=2` and `critical_duplicate_truth_count=0`; publish remains not ready because local proof runtime is not installer truth.
 
 - `builder_trace_health`: `spark os compile --json` currently reports Builder trace health flag `historical_open_high_severity_events`, while the Telegram control-proof audit has no latest-row gaps.
   - Durable slice: release canary summaries now surface Builder trace-health flags as `builder_trace_health` caveats, so they block publish claims until the underlying Builder trace health is resolved or explicitly handed off.
