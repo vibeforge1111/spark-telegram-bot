@@ -261,6 +261,7 @@ export interface ControlProofReleaseHandoffDetail {
   reason: string | null;
   behind: number | null;
   nextSafeAction: string | null;
+  familyDetails: Record<string, unknown> | null;
   line: string;
 }
 
@@ -2322,7 +2323,29 @@ function safeHandoffDisplayText(value: unknown): string | null {
   return text && /^[A-Za-z0-9 ._/:;,+()='/-]+$/.test(text) ? text : null;
 }
 
-function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHandoffDetail[] {
+function releaseHandoffFamilyDetails(
+  family: string | null,
+  owner: string,
+  publishHandoffs: Record<string, unknown> | null
+): Record<string, unknown> | null {
+  if (!family || !publishHandoffs) return null;
+  if (family === 'repo_release_blocks') {
+    const blockedRepos = Array.isArray(publishHandoffs.blocked_release_repos)
+      ? publishHandoffs.blocked_release_repos
+      : [];
+    const repoDetail = blockedRepos
+      .map(objectOrNull)
+      .find((entry) => entry && entry.repo === owner);
+    return repoDetail ? JSON.parse(JSON.stringify(repoDetail)) as Record<string, unknown> : null;
+  }
+  const familyDetail = objectOrNull(publishHandoffs[family]);
+  return familyDetail ? JSON.parse(JSON.stringify(familyDetail)) as Record<string, unknown> : null;
+}
+
+function releaseHandoffActionDetails(
+  handoffs: string[],
+  publishHandoffs: Record<string, unknown> | null = null
+): ControlProofReleaseHandoffDetail[] {
   return handoffs
     .map((line) => {
       const safeLine = safeHandoffDisplayText(line);
@@ -2357,6 +2380,7 @@ function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHan
         reason,
         behind,
         nextSafeAction,
+        familyDetails: releaseHandoffFamilyDetails(family, owner, publishHandoffs),
         line: safeLine
       };
     })
@@ -2917,7 +2941,7 @@ export function summarizeControlProofCanaryObservations(
     ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
     ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
   ]));
-  const releaseHandoffDetails = releaseHandoffActionDetails(releaseHandoffs);
+  const releaseHandoffDetails = releaseHandoffActionDetails(releaseHandoffs, publishHandoffs);
   const releaseReady = readyForRelease && releaseBlockers.length === 0;
   const readyForPublish = releaseReady && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   const structuredGateDecisionDetails = gateDecisionDetails({
