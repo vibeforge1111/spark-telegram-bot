@@ -2390,8 +2390,9 @@ function handoffSectionLines(text: string, marker: string): string[] {
 function releaseBlockHandoffLines(text: string): string[] {
   return handoffSectionLines(text, 'Repo release-block handoff:')
     .filter((line) =>
-      /^[a-z0-9_.-]+:\s+release_blocked(?:;\s+reason:\s+.+)?(?:;\s+behind=\d+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
-    );
+      /^[a-z0-9_.-]+:\s+release_blocked(?:\s+repo_release_blocks)?(?:;\s+reason:\s+.+)?(?:;\s+behind=\d+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
+    )
+    .map(canonicalReleaseBlockHandoffLine);
 }
 
 function duplicateTruthHandoffLines(text: string): string[] {
@@ -2399,6 +2400,10 @@ function duplicateTruthHandoffLines(text: string): string[] {
     .filter((line) =>
       /^[a-z0-9_.-]+:\s+(?:critical|warning|info)\s+[a-z0-9_.-]+(?:;\s+next safe action:\s+.+)?$/i.test(line)
     );
+}
+
+function canonicalReleaseBlockHandoffLine(line: string): string {
+  return line.replace(/^([a-z0-9_.-]+:\s+release_blocked)(?=;)/i, '$1 repo_release_blocks');
 }
 
 function legacyProofGapsAreInspectable(value: string): boolean {
