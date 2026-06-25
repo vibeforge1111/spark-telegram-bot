@@ -1495,6 +1495,30 @@ function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): strin
   ];
 }
 
+function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string[] {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  if (!parsed) return [];
+  const current = objectOrNull(parsed.builder_trace_current_health);
+  if (!current) return [];
+  const flags = Array.isArray(parsed.builder_trace_health_flags)
+    ? parsed.builder_trace_health_flags.map((entry) => String(entry || '').trim())
+    : [];
+  if (!flags.includes('missing_trace_refs')) return [];
+  const latestMissingGroups =
+    numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count) ?? 0;
+  const latestCleanWindowGroups =
+    numberOrNull(current.latest_clean_historical_window_debt_group_count) ??
+    numberOrNull(current.latest_clean_window_debt_group_count) ??
+    numberOrNull(current.latest_clean_group_count) ??
+    0;
+  const nextSafeAction = latestMissingGroups > 0
+    ? `Repair or replay ${latestMissingGroups} latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.`
+    : latestCleanWindowGroups > 0
+      ? `Let ${latestCleanWindowGroups} latest-clean historical-window groups age out or backfill the historical rows, then rerun spark os compile.`
+      : 'Rerun spark os compile after Builder trace producers emit clean rows.';
+  return [`spark-intelligence-builder: warning builder_trace_health; next safe action: ${nextSafeAction}`];
+}
+
 function handoffSectionLines(text: string, marker: string): string[] {
   const markerIndex = text.indexOf(marker);
   if (markerIndex === -1) return [];
@@ -1945,7 +1969,10 @@ export function summarizeControlProofCanaryObservations(
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
-  const releaseHandoffs = runtimeEvidenceReleaseHandoffs(observations.evidence?.notes);
+  const releaseHandoffs = [
+    ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
+    ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
+  ];
   const readyForPublish = readyForRelease && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   return {
     target: observations.target,
