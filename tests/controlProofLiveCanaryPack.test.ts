@@ -2444,8 +2444,12 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /duplicate-truth drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /registry_pin_drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /local_runtime_test_artifacts/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /packetEvidenceDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /proof-gap reasons, timestamps, and freshness windows/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateDecisionDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /control_proof_audit_blocking_gaps/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /release_gate_not_ready/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /releaseBlockerDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
