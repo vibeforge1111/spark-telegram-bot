@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T19:50:56.932Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T19:50:56.932Z",
+    "generatedAt": "2026-06-25T20:07:24.692Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T20:07:24.692Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T20:50:56.932Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T21:07:24.692Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -121,38 +121,38 @@
           {
             "owner": "domain-chip-memory",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 6,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+            "line": "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-intelligence-builder",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 12,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+            "line": "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-researcher",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 61,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+            "line": "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spawner-ui",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 29,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+            "line": "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-installer-registry",
@@ -299,38 +299,38 @@
               {
                 "owner": "domain-chip-memory",
                 "status": "release_blocked",
-                "family": null,
+                "family": "repo_release_blocks",
                 "reason": "behind upstream",
                 "behind": 6,
                 "nextSafeAction": "pull or merge upstream before release",
-                "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+                "line": "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
               },
               {
                 "owner": "spark-intelligence-builder",
                 "status": "release_blocked",
-                "family": null,
+                "family": "repo_release_blocks",
                 "reason": "behind upstream",
                 "behind": 12,
                 "nextSafeAction": "pull or merge upstream before release",
-                "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+                "line": "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
               },
               {
                 "owner": "spark-researcher",
                 "status": "release_blocked",
-                "family": null,
+                "family": "repo_release_blocks",
                 "reason": "behind upstream",
                 "behind": 61,
                 "nextSafeAction": "pull or merge upstream before release",
-                "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+                "line": "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
               },
               {
                 "owner": "spawner-ui",
                 "status": "release_blocked",
-                "family": null,
+                "family": "repo_release_blocks",
                 "reason": "behind upstream",
                 "behind": 29,
                 "nextSafeAction": "pull or merge upstream before release",
-                "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+                "line": "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
               },
               {
                 "owner": "spark-installer-registry",
@@ -352,10 +352,10 @@
               }
             ],
             "handoffs": [
-              "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
-              "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
-              "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
-              "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
+              "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
+              "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
+              "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+              "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
               "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
               "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
             ]
@@ -462,38 +462,38 @@
           {
             "owner": "domain-chip-memory",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 6,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+            "line": "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-intelligence-builder",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 12,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+            "line": "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-researcher",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 61,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+            "line": "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spawner-ui",
             "status": "release_blocked",
-            "family": null,
+            "family": "repo_release_blocks",
             "reason": "behind upstream",
             "behind": 29,
             "nextSafeAction": "pull or merge upstream before release",
-            "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+            "line": "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
           },
           {
             "owner": "spark-installer-registry",
@@ -565,7 +565,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T19:50:56.919Z",
+      "generatedAt": "2026-06-25T20:07:24.677Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -671,7 +671,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7178,
+          "totalRows": 7211,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -860,10 +860,10 @@
       ]
     },
     "releaseHandoffs": [
-      "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
-      "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
-      "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
-      "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
+      "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
+      "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
+      "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+      "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
       "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
       "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
     ],
@@ -871,38 +871,38 @@
       {
         "owner": "domain-chip-memory",
         "status": "release_blocked",
-        "family": null,
+        "family": "repo_release_blocks",
         "reason": "behind upstream",
         "behind": 6,
         "nextSafeAction": "pull or merge upstream before release",
-        "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+        "line": "domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
       },
       {
         "owner": "spark-intelligence-builder",
         "status": "release_blocked",
-        "family": null,
+        "family": "repo_release_blocks",
         "reason": "behind upstream",
         "behind": 12,
         "nextSafeAction": "pull or merge upstream before release",
-        "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+        "line": "spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
       },
       {
         "owner": "spark-researcher",
         "status": "release_blocked",
-        "family": null,
+        "family": "repo_release_blocks",
         "reason": "behind upstream",
         "behind": 61,
         "nextSafeAction": "pull or merge upstream before release",
-        "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+        "line": "spark-researcher: release_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
       },
       {
         "owner": "spawner-ui",
         "status": "release_blocked",
-        "family": null,
+        "family": "repo_release_blocks",
         "reason": "behind upstream",
         "behind": 29,
         "nextSafeAction": "pull or merge upstream before release",
-        "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+        "line": "spawner-ui: release_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
       },
       {
         "owner": "spark-installer-registry",
@@ -983,10 +983,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T19:50:56.932Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T19:50:56.932Z",
+      "generatedAt": "2026-06-25T20:07:24.692Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T20:07:24.692Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T20:50:56.932Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T21:07:24.692Z",
       "missing": [],
       "invalid": [],
       "stale": []
