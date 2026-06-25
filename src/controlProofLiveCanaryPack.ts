@@ -231,6 +231,8 @@ export interface ControlProofAuditPlaneDetail {
 
 export interface ControlProofAuditGapFamilyDetail {
   count: number | null;
+  releaseBlocking: boolean;
+  backingStatus: 'complete' | 'incomplete' | 'none';
   planeLabels: string[];
   planes: ControlProofAuditPlaneDetail[];
   latestGapPlaneCount: number;
@@ -1459,19 +1461,46 @@ function controlProofAuditGapDetails(
     const joinedPlanes = planeLabels
       .map((label) => planes.find((entry) => entry.label === label))
       .filter((entry): entry is ControlProofAuditPlaneDetail => Boolean(entry));
+    const latestGapPlaneCount = joinedPlanes.filter((entry) => entry.latestGap === true).length;
+    const incompleteBackingPlaneCount = joinedPlanes.filter((entry) => {
+      if (entry.gapBacking === null || entry.gapBacking === 'n/a') return false;
+      return entry.gapBacking !== 'complete';
+    }).length;
+    const completeBackingPlaneCount = joinedPlanes.filter((entry) => entry.gapBacking === 'complete').length;
+    const count = typeof gapCounts[key] === 'number' ? gapCounts[key] : null;
     details[key] = {
-      count: typeof gapCounts[key] === 'number' ? gapCounts[key] : null,
+      count,
+      releaseBlocking: auditGapFamilyReleaseBlocking(key, count, latestGapPlaneCount, incompleteBackingPlaneCount),
+      backingStatus: auditGapFamilyBackingStatus(joinedPlanes, incompleteBackingPlaneCount, completeBackingPlaneCount),
       planeLabels,
       planes: joinedPlanes,
-      latestGapPlaneCount: joinedPlanes.filter((entry) => entry.latestGap === true).length,
-      incompleteBackingPlaneCount: joinedPlanes.filter((entry) => {
-        if (entry.gapBacking === null || entry.gapBacking === 'n/a') return false;
-        return entry.gapBacking !== 'complete';
-      }).length,
-      completeBackingPlaneCount: joinedPlanes.filter((entry) => entry.gapBacking === 'complete').length
+      latestGapPlaneCount,
+      incompleteBackingPlaneCount,
+      completeBackingPlaneCount
     };
   }
   return details;
+}
+
+function auditGapFamilyReleaseBlocking(
+  key: string,
+  count: number | null,
+  latestGapPlaneCount: number,
+  incompleteBackingPlaneCount: number
+): boolean {
+  if ((count || 0) <= 0) return false;
+  if (key === 'legacy_proof_gaps') return latestGapPlaneCount > 0 || incompleteBackingPlaneCount > 0;
+  return true;
+}
+
+function auditGapFamilyBackingStatus(
+  planes: ControlProofAuditPlaneDetail[],
+  incompleteBackingPlaneCount: number,
+  completeBackingPlaneCount: number
+): 'complete' | 'incomplete' | 'none' {
+  if (incompleteBackingPlaneCount > 0) return 'incomplete';
+  if (completeBackingPlaneCount > 0 && completeBackingPlaneCount === planes.length) return 'complete';
+  return 'none';
 }
 
 function controlProofAuditPlaneDetail(line: string): ControlProofAuditPlaneDetail | null {

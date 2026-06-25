@@ -53,7 +53,7 @@ The same JSON summary carries sanitized `releaseCaveatDetails` for release cavea
 
 The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.
 
-The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, joined `gapDetails`, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
+The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, joined `gapDetails`, normalized `releaseBlocking`/`backingStatus`, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
 
 The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat details, handoff details, per-action `handoffActionDetails`, and per-blocker `blockerDetails` joins instead of reconstructing the decision from prose lines.
 
