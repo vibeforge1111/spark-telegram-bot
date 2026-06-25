@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T19:35:19.103Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T19:35:19.103Z",
+    "generatedAt": "2026-06-25T19:40:39.782Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T19:40:39.782Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T20:35:19.103Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T20:40:39.782Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -117,6 +117,62 @@
             "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
           }
         },
+        "handoffActionDetails": [
+          {
+            "owner": "domain-chip-memory",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 6,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 12,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-researcher",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 61,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spawner-ui",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 29,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-installer-registry",
+            "status": "warning",
+            "family": "local_runtime_test_artifacts",
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "warning",
+            "family": "builder_trace_health",
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+            "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+          }
+        ],
         "handoffFamilies": [
           "builder_trace_health",
           "local_runtime_test_artifacts",
@@ -402,6 +458,62 @@
             "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
           }
         },
+        "handoffActionDetails": [
+          {
+            "owner": "domain-chip-memory",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 6,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 12,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-researcher",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 61,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spark-researcher: release_blocked; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spawner-ui",
+            "status": "release_blocked",
+            "family": null,
+            "reason": "behind upstream",
+            "behind": 29,
+            "nextSafeAction": "pull or merge upstream before release",
+            "line": "spawner-ui: release_blocked; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release"
+          },
+          {
+            "owner": "spark-installer-registry",
+            "status": "warning",
+            "family": "local_runtime_test_artifacts",
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+          },
+          {
+            "owner": "spark-intelligence-builder",
+            "status": "warning",
+            "family": "builder_trace_health",
+            "reason": null,
+            "behind": null,
+            "nextSafeAction": "Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
+            "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
+          }
+        ],
         "handoffFamilies": [
           "builder_trace_health",
           "local_runtime_test_artifacts",
@@ -453,7 +565,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T19:35:19.072Z",
+      "generatedAt": "2026-06-25T19:40:39.754Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -557,7 +669,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7134,
+          "totalRows": 7145,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -869,10 +981,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T19:35:19.103Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T19:35:19.103Z",
+      "generatedAt": "2026-06-25T19:40:39.782Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T19:40:39.782Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T20:35:19.103Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T20:40:39.782Z",
       "missing": [],
       "invalid": [],
       "stale": []
