@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T08:44:26.543Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T08:44:26.543Z",
+    "generatedAt": "2026-06-25T08:58:55.823Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T08:58:55.823Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T09:44:26.543Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T09:58:55.823Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -16,6 +16,7 @@
     "readyForRelease": true,
     "readyForPublish": false,
     "releaseCaveats": [
+      "repo_release_blocks | blocked_release_count=4 | critical_repo_count=0",
       "registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
     ],
     "releaseHandoffs": [
