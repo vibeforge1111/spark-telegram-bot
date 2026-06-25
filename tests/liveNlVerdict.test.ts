@@ -152,8 +152,8 @@ test('formats a Harness Core map without claiming release proof', () => {
   assert.match(report, /Catalog: fixture-live-catalog\.json/);
   assert.match(report, /Selected cases: 2/);
   assert.match(report, /Do not treat this map or a passing `nl:live` run as Harness Core release proof/);
-  assert.match(report, /\| safe-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
-  assert.match(report, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
+  assert.match(report, /\| safe-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(report, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
 });
 
 test('formats Harness Core map with selected versus full catalog count', () => {
@@ -528,9 +528,9 @@ test('live NL CLI emits Harness Core refurbishment map for selected legacy cases
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /# Natural Language Harness Core Map/);
   assert.match(result.stdout, /Selected cases: 3 of 73 \(risky cases excluded unless explicitly selected\)/);
-  assert.match(result.stdout, /\| memory-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
-  assert.match(result.stdout, /\| access-002 \| access \| safe \| updates_access_setting \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
-  assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \|/);
+  assert.match(result.stdout, /\| memory-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(result.stdout, /\| access-002 \| access \| safe \| updates_access_setting \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
+  assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
 });
 
 test('live NL CLI strict Harness map fails cases that need promotion', () => {

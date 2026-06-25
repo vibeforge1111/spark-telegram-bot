@@ -421,8 +421,8 @@ export function formatLiveNlHarnessCoreMap(
     '',
     '## Cases',
     '',
-    '| Case | Suite | Old risk | Mutation | Authority | Use | Proof if promoted |',
-    '| --- | --- | --- | --- | --- | --- | --- |'
+    '| Case | Suite | Old risk | Mutation | Authority | Use | Proof if promoted | Capture required |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |'
   ];
 
   for (const entry of mapped) {
@@ -433,7 +433,8 @@ export function formatLiveNlHarnessCoreMap(
       entry.expectedMutationClass,
       entry.expectedAuthority,
       entry.recommendedUse,
-      entry.proofRequiredIfPromoted ? 'yes' : 'no'
+      entry.proofRequiredIfPromoted ? 'yes' : 'no',
+      tableCell(entry.captureRequired.join(', '))
     ].join(' | ').replace(/^/, '| ').replace(/$/, ' |'));
   }
 

@@ -273,3 +273,21 @@ Result:
 - Do not treat the default `61` selected cases as the full standard inventory; the full catalog remains `73` cases.
 - Do not treat `nl:harness-map` or `nl:live` as release proof. Use them to choose promotion candidates, then move only the useful representatives into `control:proof:canaries` or an equivalent Harness-shaped packet.
 - The current high-value promotion candidates remain the cases marked `promote_after_refurbish`; intentional action cases stay out of default live runs unless the operator explicitly includes and proves them.
+
+## 2026-06-25 Capture-Requirement Recheck
+
+The decision still holds after the trace-backlog proof wording slice.
+
+The promotion helper now prints capture requirements beside each mapped case. This closes a proof usability gap: an operator can see that old prompts promoted into Harness-shaped canaries need `observed_reply`, `side_effects`, `proof_panel`, and `screenshot_or_user_confirmation` instead of reading a plain "proof yes" cell as release-ready evidence.
+
+Commands checked:
+
+```bash
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
+npx ts-node tests/liveNlVerdict.test.ts
+```
+
+Result:
+
+- Keep using the map as a promotion helper, not a release gate.
+- Treat the new capture column as the minimum evidence list before any old NL prompt can support a control-proof release claim.
