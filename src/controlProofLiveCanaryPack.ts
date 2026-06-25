@@ -437,6 +437,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     expectedProofJoin: 'Command reply has Telegram trace context when delivered.',
     passCriteria: [
       'Status reflects streaming and rich-message settings from runtime source.',
+      'Status names the active Telegram profile without exposing env paths or secrets.',
       'No duplicate preview appears.',
       'No raw env file paths or tokens appear.'
     ],

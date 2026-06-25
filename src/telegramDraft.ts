@@ -329,6 +329,7 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
   const previewFullReplies = env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES !== '0';
   return [
     'Telegram live chat',
+    `Profile: ${telegramStreamingProfileLabel(env)}`,
     `Status: ${enabled ? 'on' : 'off'}`,
     `Rich messages: ${telegramRichMessagesEnabled(env) ? 'on' : 'off'}`,
     `Draft transport: ${transport}`,
@@ -339,6 +340,12 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
     '',
     'Private chats only. Builder-routed replies are final-only until Builder stream events are wired.'
   ].join('\n');
+}
+
+function telegramStreamingProfileLabel(env: NodeJS.ProcessEnv): string {
+  const raw = env.SPARK_TELEGRAM_PROFILE || env.TELEGRAM_PROFILE || 'primary';
+  const normalized = raw.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return normalized || 'primary';
 }
 
 export function createTelegramDraftStreamer(

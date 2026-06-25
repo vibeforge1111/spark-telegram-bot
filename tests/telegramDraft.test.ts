@@ -99,9 +99,11 @@ async function run(): Promise<void> {
 
   await test('renders compact Telegram streaming status', () => {
     const status = renderTelegramStreamingConfigStatus({
+      SPARK_TELEGRAM_PROFILE: 'primary',
       SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '700',
     });
 
+    assert.match(status, /Profile: primary/);
     assert.match(status, /Status: on/);
     assert.match(status, /Rich messages: on/);
     assert.match(status, /Draft transport: rich/);
@@ -109,6 +111,15 @@ async function run(): Promise<void> {
     assert.match(status, /Draft interval: 700ms/);
     assert.match(status, /Process telemetry: no rich\/draft delivery attempt observed since start/);
     assert.match(status, /Private chats only/);
+  });
+
+  await test('streaming status redacts unsafe profile labels', () => {
+    const status = renderTelegramStreamingConfigStatus({
+      SPARK_TELEGRAM_PROFILE: '../private primary',
+    });
+
+    assert.match(status, /Profile: private-primary/);
+    assert.doesNotMatch(status, /\.\.|\/Users|private primary/);
   });
 
   await test('streaming status reports observed rich final and draft transports', async () => {

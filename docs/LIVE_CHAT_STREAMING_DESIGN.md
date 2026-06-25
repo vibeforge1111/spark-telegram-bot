@@ -503,7 +503,7 @@ Remove from default:
 
 Exit criteria:
 
-- `/streaming` reports streaming, rich messages, rich draft transport, and full-reply preview on
+- `/streaming` reports the active Telegram profile, streaming, rich messages, rich draft transport, and full-reply preview on
 - `/streaming` also reports process telemetry for observed final and draft transports, so "configured on" is not mistaken for "rich path succeeded"
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path

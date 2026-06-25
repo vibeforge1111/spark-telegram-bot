@@ -561,6 +561,7 @@
         "proofJoin": "Command reply has Telegram trace context when delivered.",
         "passCriteria": [
           "Status reflects streaming and rich-message settings from runtime source.",
+          "Status names the active Telegram profile without exposing env paths or secrets.",
           "No duplicate preview appears.",
           "No raw env file paths or tokens appear."
         ],
@@ -573,7 +574,7 @@
         }
       },
       "observed": {
-        "verdict": "pass",
+        "verdict": "needs-retest",
         "reply": "Spark Recursive\nTelegram live chat Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms\nProcess telemetry: Final transport observed: rich (1 rich, 0 fallback) Draft transport observed: rich (2 rich, 0 legacy, 0 rich fallback, 0 failed)\nPrivate chats only. Builder-routed replies are final-only until Builder stream events are wired.\nReceived at 6:49 PM",
         "sideEffects": {
           "filesChanged": false,
@@ -591,7 +592,7 @@
           "screenshot:sha256:4fc036696c34377198fc5843c259ac9688c2892949203883cd58dca40c1e7d47"
         ],
         "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: streaming on, rich messages on, no duplicate preview.",
-        "notes": null
+        "notes": "Needs live recapture after /streaming status began reporting the redacted active Telegram profile."
       }
     },
     {
