@@ -86,6 +86,7 @@ Update after continuity repairs:
 - Telegram outbound delivery-local rows remain `not_execution_proof`; synthetic request/trace refs for those rows must not be promoted into execution proof gaps.
 - Latest sampled audit now reports no missing trace joins and no raw ref/reason-code leaks. Remaining proof gaps are visible `proof_gap` rows, not silent missing metadata.
 - The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible and inspectable; it does not mean the capsule is silently absent.
+- Audit plane summaries now include `gap_capsule` and `gap_ref` counts. These prove whether sampled historical gap rows carry downgraded proof capsules and redacted proof refs, while still keeping the rows classified as legacy gaps rather than fresh Harness authority.
 - Use `npm run control:proof:audit -- --sample 100 --fresh-strict` for the current release gate. It allows explicit historical legacy proof-gap capsules to remain visible, but fails silent missing proof/control evidence, leaks, or any latest producer row that still carries a proof-gap marker.
 
 Update after full live canary refresh:

@@ -33,6 +33,8 @@ export interface ControlProofTracePlaneSummary {
   proofRefPresent: number;
   proofNotApplicable: number;
   proofGapMarked: number;
+  proofGapCapsulePresent: number;
+  proofGapRefPresent: number;
   latestProofGapMarked: boolean;
   latestRecordAt: string | null;
   proofCapsuleMissing: number;
@@ -185,6 +187,8 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `proof_capsule ${plane.proofCapsulePresent}`,
         `proof_n/a ${plane.proofNotApplicable}`,
         `proof_gap ${plane.proofGapMarked}`,
+        `gap_capsule ${plane.proofGapCapsulePresent}`,
+        `gap_ref ${plane.proofGapRefPresent}`,
         `latest_gap ${plane.latestProofGapMarked ? 'yes' : 'no'}`,
         `raw_refs ${plane.rawPathLikeRows}`,
         `raw_id_keys ${plane.rawIdKeyRows}`,
@@ -265,6 +269,8 @@ function summarizeRecords(
   let proofCoveredRows = 0;
   let proofNotApplicable = 0;
   let proofGapMarked = 0;
+  let proofGapCapsulePresent = 0;
+  let proofGapRefPresent = 0;
   let rawIdKeyRows = 0;
   let rawPathLikeRows = 0;
   let policyReasonCodeRows = 0;
@@ -274,7 +280,11 @@ function summarizeRecords(
     if (hasAnyKey(record, TRACE_REF_KEYS)) traceRefPresent += 1;
     const hasProofCapsule = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
     const hasProofRef = hasAnyKey(record, PROOF_REF_KEYS);
-    if (isProofGapMarkedRecord(record)) proofGapMarked += 1;
+    if (isProofGapMarkedRecord(record)) {
+      proofGapMarked += 1;
+      if (hasProofCapsule) proofGapCapsulePresent += 1;
+      if (hasProofRef) proofGapRefPresent += 1;
+    }
     if (hasProofCapsule || hasProofRef) {
       proofCoveredRows += 1;
     }
@@ -310,6 +320,8 @@ function summarizeRecords(
     proofRefPresent,
     proofNotApplicable,
     proofGapMarked,
+    proofGapCapsulePresent,
+    proofGapRefPresent,
     latestProofGapMarked: isProofGapMarkedRecord(latestRecord),
     latestRecordAt: recordTimestampString(latestRecord),
     proofCapsuleMissing: Math.max(0, sampled.length - proofCoveredRows - proofNotApplicable),
@@ -441,6 +453,8 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     proofRefPresent: 0,
     proofNotApplicable: 0,
     proofGapMarked: 0,
+    proofGapCapsulePresent: 0,
+    proofGapRefPresent: 0,
     latestProofGapMarked: false,
     latestRecordAt: null,
     proofCapsuleMissing: 0,

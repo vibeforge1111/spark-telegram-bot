@@ -177,6 +177,8 @@ When non-blocking caveats or handoffs are present, the human canary summary now 
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
+Audit plane rows now also print `gap_capsule` and `gap_ref` next to `proof_gap`. These counts show whether sampled historical gap rows are backed by downgraded proof capsules and redacted proof refs. They are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.
+
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 
 Live visual canary evidence can use `screenshot:sha256:<digest>` refs instead of raw `/tmp` screenshot paths. That keeps Telegram rendering evidence durable and checkable without committing private chat imagery.

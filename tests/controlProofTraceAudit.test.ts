@@ -208,6 +208,8 @@ test('counts explicit missing Harness proof markers without treating them as pro
     assert.equal(plane.proofRefPresent, 0);
     assert.equal(plane.proofNotApplicable, 0);
     assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.proofGapCapsulePresent, 0);
+    assert.equal(plane.proofGapRefPresent, 0);
     assert.equal(plane.proofCapsuleMissing, 1);
     assert.equal(result.gapCounts.missingProofCapsule, 1);
     assert.equal(result.gapCounts.legacyProofGap, 1);
@@ -252,6 +254,8 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofCapsulePresent, 1);
     assert.equal(plane.proofRefPresent, 1);
     assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.proofGapCapsulePresent, 1);
+    assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.latestProofGapMarked, true);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
@@ -263,6 +267,8 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(result.blockingOk, true);
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_capsule 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_ref 1/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 1/);
@@ -312,12 +318,14 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     });
     const plane = result.planes[0];
     assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.proofGapCapsulePresent, 1);
+    assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.latestProofGapMarked, false);
     assert.equal(plane.latestRecordAt, '2026-06-24T12:05:00.000Z');
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
-    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* latest_gap no/);
+    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_ref 1 .* latest_gap no/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 0/);
   });
 });
