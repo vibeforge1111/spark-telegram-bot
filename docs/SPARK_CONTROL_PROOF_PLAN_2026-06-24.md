@@ -175,9 +175,9 @@ Canary runtime evidence treats `spark os compile --json` as a first-class proof 
 
 Canary summaries now carry non-blocking release caveats from `spark os compile --json`. Current runtime-ahead-of-registry-pin drift is printed in the human summary and JSON summary as an explicit publish/registry handoff item with safe duplicate-truth classification counts, while preserving the Telegram canary release verdict when compile gaps, dirty runtime state, and privacy checks are clean. Duplicate-truth drift without runtime-ahead rows is labeled separately from registry pin drift. Dirty runtime compile evidence still invalidates the canary packet.
 
-When fresh runtime evidence is collected, the canary CLI joins registry-drift caveats to the redacted duplicate-truth handoff items from the compiled repo board. The observation packet notes name the owner repo, severity, classification, and next safe action without exposing local paths or commit refs.
+When fresh runtime evidence is collected, the canary CLI joins repo release-block and registry-drift caveats to redacted handoff items from the compiled repo board. The observation packet notes name the owner repo, release-block reason or duplicate-truth severity/classification, and next safe action without exposing local paths or commit refs.
 
-Canary summaries now promote those redacted duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
+Canary summaries now promote those redacted release-block and duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
 
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 

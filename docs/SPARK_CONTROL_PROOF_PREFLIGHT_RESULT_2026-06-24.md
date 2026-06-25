@@ -126,8 +126,13 @@ Update after Telegram profile-env startup proof on 2026-06-25 11:58 +04:
 Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +04:
 
 - Commits through `da9cedd` made the full SparkRecursive_bot canary packet reject stale source snapshots, classify runtime-ahead registry pin drift as `registry_pin_drift`, print release handoffs, and refresh the current runtime evidence from a clean tree.
-- The current packet reports runtime evidence collected at `2026-06-25T08:38:04.504Z`, release gate ready, and publish gate not ready because `spark-telegram-bot` and `spawner-ui` still need registry pin drift handoff or explicit local-runtime-test classification.
+- That packet reported runtime evidence collected at `2026-06-25T08:38:04.504Z`, release gate ready, and publish gate not ready because `spark-telegram-bot` and `spawner-ui` still needed registry pin drift handoff or explicit local-runtime-test classification.
 - Current fresh-strict audit remains blocking-clean with zero missing evidence, trace joins, proof capsules, incomplete legacy gap backing, latest proof gaps, raw ref leaks, robotic failure reasons, or stack-like leaks. The remaining visible legacy proof-gap planes are `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`; keep them visible rather than relabeling them as green execution proof.
+
+Update after repo release-block handoff promotion on 2026-06-25 13:05 +04:
+
+- Commits through `bdb5ebd` made the canary packet promote repo release-block handoffs alongside registry drift handoffs. `Release handoffs` now names the release-blocked owner repos and next safe action without exposing local paths or commit refs.
+- The current packet reports runtime evidence collected at `2026-06-25T09:05:25.298Z`, release gate ready, and publish gate not ready because `domain-chip-memory`, `spark-intelligence-builder`, `spark-researcher`, and `spawner-ui` are behind upstream, while `spark-telegram-bot` and `spawner-ui` still have registry pin drift handoffs.
 
 ## Surface
 
