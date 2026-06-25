@@ -163,6 +163,7 @@ export interface ControlProofCanaryObservationSummary {
   totalCases: number;
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
+  readyForPublish: boolean;
   releaseCaveats: string[];
   releaseHandoffs: string[];
   missingPacketEvidence: string[];
@@ -1533,6 +1534,7 @@ export function summarizeControlProofCanaryObservations(
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = duplicateTruthReleaseHandoffs(observations.evidence?.notes);
+  const readyForPublish = readyForRelease && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -1542,6 +1544,7 @@ export function summarizeControlProofCanaryObservations(
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease,
+    readyForPublish,
     releaseCaveats,
     releaseHandoffs,
     missingPacketEvidence: missingEvidence,
@@ -1560,6 +1563,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     `Runtime evidence expires: ${summary.runtimeEvidenceExpiresAt || 'missing'} (${summary.runtimeEvidenceMaxAgeHours}h window)`,
     `Cases: ${summary.totalCases}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
+    `Publish gate: ${summary.readyForPublish ? 'ready' : 'not ready'}`,
     '',
     'Verdicts:',
     ...CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => `- ${verdict}: ${summary.verdictCounts[verdict]}`),

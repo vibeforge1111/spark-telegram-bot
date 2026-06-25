@@ -120,6 +120,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.summary.runtimeEvidenceMaxAgeHours, summary.runtimeEvidenceMaxAgeHours);
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
+  assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
@@ -352,6 +353,7 @@ test('observation summary requires pass verdicts and all requested capture evide
 
   const summary = summarizeControlProofCanaryObservations(template);
   assert.equal(summary.readyForRelease, true);
+  assert.equal(summary.readyForPublish, false);
   assert.match(String(summary.runtimeEvidenceCollectedAt), /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(summary.runtimeEvidenceMaxAgeHours, 24);
   assert.match(String(summary.runtimeEvidenceExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
@@ -360,6 +362,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Publish gate: not ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence expires: \d{4}-\d{2}-\d{2}T.*\(24h window\)/);
 
@@ -647,9 +650,17 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(dirtyRuntimeCompile.readyForRelease, false);
   assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
 
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_logs_read":false}}';
+  const publishCleanCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(publishCleanCompile.readyForRelease, true);
+  assert.equal(publishCleanCompile.readyForPublish, true);
+  assert.deepEqual(publishCleanCompile.releaseCaveats, []);
+  assert.match(formatControlProofCanaryObservationSummary(publishCleanCompile), /Publish gate: ready/);
+
   template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
   const compileDriftVisibleButClean = summarizeControlProofCanaryObservations(template);
   assert.equal(compileDriftVisibleButClean.readyForRelease, true);
+  assert.equal(compileDriftVisibleButClean.readyForPublish, false);
   assert.deepEqual(compileDriftVisibleButClean.invalidPacketEvidence, []);
   assert.deepEqual(compileDriftVisibleButClean.releaseCaveats, [
     'registry_pin_drift | runtime_ahead_of_registry_pin=0 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
@@ -662,6 +673,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
     /Release note: ready with caveats; complete the listed handoffs before publish\/registry claims\./
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Publish gate: not ready/
   );
 });
 
@@ -1488,6 +1503,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     };
     const summary = summarizeControlProofCanaryObservations(observed);
     assert.equal(summary.readyForRelease, true);
+    assert.equal(summary.readyForPublish, false);
     assert.deepEqual(summary.invalidPacketEvidence, []);
     assert.deepEqual(summary.releaseHandoffs, [
       'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',

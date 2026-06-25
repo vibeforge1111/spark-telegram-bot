@@ -93,6 +93,7 @@ Update after full live canary refresh:
 
 - `outputs/live-canary-full/live-canary-summary.md` is now the current live release packet for SparkRecursive_bot control-proof canaries.
 - The full pack has 27/27 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, and real voice-note boundary proof.
+- The canary packet separates live behavior readiness from publish readiness. `Release gate: ready` can coexist with `Publish gate: not ready` when registry pin drift or duplicate-truth handoffs remain open.
 - Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
 - Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
 - The earlier baseline notes about pending inbound Builder/Spawner/media/voice proof are superseded by the full live canary packet. Keep those notes as historical sequence, but use `outputs/live-canary-full/live-canary-summary.md` plus fresh-strict audit as the current proof state.
