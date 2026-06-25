@@ -220,12 +220,16 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
   const byLabel = new Map<string, string>();
   const rawStdoutByLabel = new Map<string, string>();
   for (const { label, command, args, timeoutMs = 30_000 } of commands) {
+    const startedAt = Date.now();
+    console.error(`[runtime-evidence] start ${label}: ${[command, ...args].join(' ')}`);
     const result = spawnSync(command, args, {
       cwd: process.cwd(),
       encoding: 'utf8',
       maxBuffer: 1024 * 1024,
       timeout: timeoutMs
     });
+    const elapsedMs = Date.now() - startedAt;
+    console.error(`[runtime-evidence] done ${label}: exit=${result.status ?? 'error'} elapsed_ms=${elapsedMs}`);
     rawStdoutByLabel.set(label, result.stdout || '');
     byLabel.set(label, summarizeCommandResult(label, command, args, result.status, result.stdout, result.stderr, result.error));
   }
