@@ -2,7 +2,7 @@
   "summary": {
     "target": "SparkRecursive_bot",
     "generatedAt": "2026-06-24T14:52:20.669Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T00:52:25.512Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T00:53:13.522Z",
     "totalCases": 27,
     "verdictCounts": {
       "pass": 27,
@@ -11,14 +11,12 @@
       "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": false,
+    "readyForRelease": true,
     "releaseCaveats": [
-      "registry_pin_drift | runtime_ahead_of_registry_pin=1 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
+      "registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
     ],
     "missingPacketEvidence": [],
-    "invalidPacketEvidence": [
-      "spark_os_compile"
-    ],
+    "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "cases": [
       {

@@ -1,9 +1,9 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
 Generated: 2026-06-24T14:52:20.669Z
-Runtime evidence collected: 2026-06-25T00:52:25.512Z
+Runtime evidence collected: 2026-06-25T00:53:13.522Z
 Cases: 27
-Release gate: not ready
+Release gate: ready
 
 Verdicts:
 - pass: 27
@@ -12,9 +12,7 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Packet evidence invalid: spark_os_compile
-
 Release caveats:
-- registry_pin_drift | runtime_ahead_of_registry_pin=1 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
+- registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 
 All selected canaries passed with required captures present.
