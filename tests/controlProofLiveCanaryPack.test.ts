@@ -551,6 +551,21 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(stalePacketEvidence.stalePacketEvidence, ['runtime_evidence_collected_at']);
   assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
 
+  template.evidence.collectedAt = 'June 24, 2026 00:30 UTC';
+  const looseCollectedAt = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(looseCollectedAt.readyForRelease, false);
+  assert.equal(looseCollectedAt.runtimeEvidenceExpiresAt, null);
+  assert.deepEqual(looseCollectedAt.stalePacketEvidence, ['runtime_evidence_collected_at']);
+
+  template.evidence.collectedAt = '2026-06-24T01:06:00.000Z';
+  const futureCollectedAt = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T01:00:00.000Z'
+  });
+  assert.equal(futureCollectedAt.readyForRelease, false);
+  assert.deepEqual(futureCollectedAt.stalePacketEvidence, ['runtime_evidence_collected_at']);
+
   template.evidence.collectedAt = null;
   const missingCollectedAt = summarizeControlProofCanaryObservations(template);
   assert.equal(missingCollectedAt.readyForRelease, false);

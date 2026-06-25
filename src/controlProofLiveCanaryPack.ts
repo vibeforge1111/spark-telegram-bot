@@ -1159,6 +1159,7 @@ function stalePacketEvidence(
   const evidence = observations.evidence;
   const collectedAt = String(evidence?.collectedAt || '').trim();
   if (!collectedAt) return [];
+  if (!isStrictIsoTimestamp(collectedAt)) return ['runtime_evidence_collected_at'];
   const collectedMs = Date.parse(collectedAt);
   const nowMs = options.now instanceof Date
     ? options.now.getTime()
@@ -1171,6 +1172,11 @@ function stalePacketEvidence(
   return nowMs - collectedMs > maxAgeMs ? ['runtime_evidence_collected_at'] : [];
 }
 
+function isStrictIsoTimestamp(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
+  return Number.isFinite(Date.parse(value));
+}
+
 function runtimeEvidenceMaxAgeHours(value: number | undefined): number {
   return Math.max(1, value || 24);
 }
@@ -1180,6 +1186,7 @@ function runtimeEvidenceExpiresAt(
   maxAgeHours: number
 ): string | null {
   const collectedAt = String(observations.evidence?.collectedAt || '').trim();
+  if (!isStrictIsoTimestamp(collectedAt)) return null;
   const collectedMs = Date.parse(collectedAt);
   if (!Number.isFinite(collectedMs)) return null;
   return new Date(collectedMs + maxAgeHours * 60 * 60 * 1000).toISOString();
