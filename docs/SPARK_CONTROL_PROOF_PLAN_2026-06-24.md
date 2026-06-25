@@ -165,6 +165,8 @@ Canary runtime evidence treats `spark os compile --json` as a first-class proof 
 
 Canary summaries now carry non-blocking release caveats from `spark os compile --json`. Current runtime-ahead-of-registry-pin drift is printed in the human summary and JSON summary as an explicit publish/registry handoff item while preserving the Telegram canary release verdict when compile gaps, dirty runtime state, and privacy checks are clean. Dirty runtime compile evidence still invalidates the canary packet.
 
+When fresh runtime evidence is collected, the canary CLI joins registry-drift caveats to the redacted duplicate-truth handoff items from the compiled repo board. The observation packet notes name the owner repo, severity, classification, and next safe action without exposing local paths or commit refs.
+
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.

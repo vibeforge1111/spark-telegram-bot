@@ -1236,8 +1236,33 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
   const tempRoot = mkdtempSync(resolve(tmpdir(), 'spark-canary-runtime-evidence-'));
   try {
     const binRoot = resolve(tempRoot, 'bin');
+    const stateRoot = resolve(tempRoot, 'state');
     const outTemplatePath = resolve(tempRoot, 'observations.json');
     mkdirSync(binRoot);
+    mkdirSync(stateRoot);
+    const repoBoardPath = resolve(stateRoot, 'repo-board.json');
+    writeFileSync(repoBoardPath, JSON.stringify({
+      duplicate_truths: {
+        items: [
+          {
+            owner_repo: 'spark-telegram-bot',
+            severity: 'critical',
+            classification: 'runtime_ahead_of_registry_pin',
+            next_safe_action: 'Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
+            evidence_details: {
+              installed_head: '5acaeb9e5538',
+              registry_commit: 'e5a1bd040986'
+            }
+          },
+          {
+            owner_repo: 'spawner-ui',
+            severity: 'warning',
+            classification: 'runtime_ahead_of_registry_pin',
+            next_safe_action: 'Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
+          }
+        ]
+      }
+    }, null, 2), 'utf8');
     const sparkPath = resolve(binRoot, 'spark');
     const npmPath = resolve(binRoot, 'npm');
     writeFileSync(sparkPath, [
@@ -1250,6 +1275,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  "gaps": 0,',
       '  "duplicate_truths": { "item_count": 2 },',
       '  "repo_board": { "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      `  "outputs": { "repo_board": ${JSON.stringify(repoBoardPath)} },`,
       '  "privacy": {',
       '    "raw_secret_values_read": false,',
       '    "raw_logs_read": false,',
@@ -1323,7 +1349,13 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
+    assert.match(observed.evidence.notes, /Duplicate-truth handoff:/);
+    assert.match(observed.evidence.notes, /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
+    assert.match(observed.evidence.notes, /spawner-ui: warning runtime_ahead_of_registry_pin/);
+    assert.match(observed.evidence.notes, /next safe action: Port and push the owner repo commit/);
     assert.doesNotMatch(observed.evidence.notes, /before live Telegram observation/);
+    assert.doesNotMatch(observed.evidence.notes, new RegExp(escapeRegExp(repoBoardPath)));
+    assert.doesNotMatch(observed.evidence.notes, /5acaeb9e5538|e5a1bd040986/);
     assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
 
     const staleObservations = buildControlProofCanaryObservationTemplate([

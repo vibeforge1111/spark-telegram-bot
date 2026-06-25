@@ -195,6 +195,7 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
 
 function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]][]) {
   const byLabel = new Map<string, string>();
+  const rawStdoutByLabel = new Map<string, string>();
   for (const [label, command, args] of commands) {
     const result = spawnSync(command, args, {
       cwd: process.cwd(),
@@ -202,8 +203,14 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
       maxBuffer: 1024 * 1024,
       timeout: 30_000
     });
+    rawStdoutByLabel.set(label, result.stdout || '');
     byLabel.set(label, summarizeCommandResult(label, command, args, result.status, result.stdout, result.stderr, result.error));
   }
+  const duplicateTruthHandoff = duplicateTruthHandoffFromSparkOsCompile(rawStdoutByLabel.get('spark_os_compile') || '');
+  const notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    duplicateTruthHandoff
+  ].filter(Boolean).join('\n');
   return {
     collectedAt: new Date().toISOString(),
     sparkLiveStatus: byLabel.get('spark_live_status') || null,
@@ -211,8 +218,68 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
     runtimeSync: byLabel.get('runtime_sync') || null,
     sparkOsCompile: byLabel.get('spark_os_compile') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
-    notes: 'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.'
+    notes
   };
+}
+
+function duplicateTruthHandoffFromSparkOsCompile(stdout: string): string | null {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(stdout) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const outputs = parsed.outputs && typeof parsed.outputs === 'object' && !Array.isArray(parsed.outputs)
+    ? parsed.outputs as Record<string, unknown>
+    : {};
+  const repoBoardPath = typeof outputs.repo_board === 'string' ? outputs.repo_board : null;
+  if (!repoBoardPath) return null;
+  let repoBoard: Record<string, unknown>;
+  try {
+    repoBoard = JSON.parse(readFileSync(repoBoardPath, 'utf8')) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+  const duplicateTruths = repoBoard.duplicate_truths && typeof repoBoard.duplicate_truths === 'object' && !Array.isArray(repoBoard.duplicate_truths)
+    ? repoBoard.duplicate_truths as Record<string, unknown>
+    : {};
+  const items = Array.isArray(duplicateTruths.items) ? duplicateTruths.items : [];
+  const lines = items
+    .map((item) => duplicateTruthHandoffLine(item))
+    .filter((line): line is string => Boolean(line));
+  if (lines.length === 0) return null;
+  return ['Duplicate-truth handoff:', ...lines.map((line) => `- ${line}`)].join('\n');
+}
+
+function duplicateTruthHandoffLine(item: unknown): string | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const record = item as Record<string, unknown>;
+  const ownerRepo = safeHandoffToken(record.owner_repo);
+  const severity = safeHandoffToken(record.severity);
+  const classification = safeHandoffToken(record.classification);
+  const nextSafeAction = safeHandoffText(record.next_safe_action);
+  if (!ownerRepo || !severity || !classification) return null;
+  return [
+    `${ownerRepo}: ${severity} ${classification}`,
+    nextSafeAction ? `next safe action: ${nextSafeAction}` : null
+  ].filter(Boolean).join('; ');
+}
+
+function safeHandoffToken(value: unknown): string | null {
+  const text = String(value || '').trim();
+  if (!text || !/^[a-z0-9_.-]+$/i.test(text)) return null;
+  return text;
+}
+
+function safeHandoffText(value: unknown): string | null {
+  const text = String(value || '')
+    .replaceAll(homedir(), '<home>')
+    .replace(/\b[A-Fa-f0-9]{8,}\b/g, '<redacted-ref>')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return null;
+  return text.slice(0, 240);
 }
 
 function summarizeCommandResult(
