@@ -314,6 +314,8 @@ test('live run guide pairs Telegram prompts with record commands', () => {
   assert.match(guide, /--observations '\/tmp\/live-canary-observations\.json' --record-case cp-builder-001/);
   assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
   assert.match(guide, /--mission-started <true\|false\|unknown>/);
+  assert.match(guide, /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
+  assert.match(guide, /--record-case cp-streaming-001[\s\S]*--no-other-side-effects/);
   assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
   assert.match(guide, /cp-builder-001[\s\S]*Capture proof panel: yes/);
   assert.match(guide, /cp-streaming-001[\s\S]*Capture proof panel: no/);
@@ -387,7 +389,13 @@ test('observation summary requires pass verdicts and all requested capture evide
     reply: 'Route confidence means Spark is justified in taking this route now.',
     sideEffects: {
       ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
       missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
       notes: 'No mission or mutation observed.'
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
@@ -654,7 +662,13 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     reply: 'Route confidence means Spark is justified in taking this route now.',
     sideEffects: {
       ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
       missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
       notes: 'No mutation observed.'
     },
     proofJoin: 'Builder joined.',
@@ -973,12 +987,13 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
   assert.equal(summary.readyForRelease, false);
   assert.deepEqual(summary.cases[0].missingCaptures, [
     'observed_reply',
+    'side_effects_unobserved',
     'proof_join',
     'proof_panel',
     'screenshot',
     'user_confirmation'
   ]);
-  assert.match(formatControlProofCanaryObservationSummary(summary), /missing observed_reply, proof_join, proof_panel, screenshot, user_confirmation/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /missing observed_reply, side_effects_unobserved, proof_join, proof_panel, screenshot, user_confirmation/);
 });
 
 test('observation recorder updates one case while preserving packet evidence', () => {
@@ -999,7 +1014,13 @@ test('observation recorder updates one case while preserving packet evidence', (
     verdict: 'pass',
     reply: 'Route confidence means Spark is justified in taking this route now.',
     sideEffects: {
+      filesChanged: false,
+      memoryWritten: false,
       missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
       notes: 'No mission or mutation observed.'
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
@@ -1330,7 +1351,13 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         reply: 'Route confidence means Spark is justified in taking this route now.',
         sideEffects: {
           ...entry.observed.sideEffects,
+          filesChanged: false,
+          memoryWritten: false,
           missionStarted: false,
+          externalNetworkCalled: false,
+          accessChanged: false,
+          providerChanged: false,
+          mediaHandled: false,
           notes: 'No mutation observed.'
         },
         proofJoin: 'Builder joined.',
@@ -1365,7 +1392,13 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       reply: 'Route confidence means Spark is justified in taking this route now.',
       sideEffects: {
         ...observed.cases[0].observed.sideEffects,
+        filesChanged: false,
+        memoryWritten: false,
         missionStarted: false,
+        externalNetworkCalled: false,
+        accessChanged: false,
+        providerChanged: false,
+        mediaHandled: false,
         notes: 'No mutation observed.'
       },
       proofJoin: 'Builder joined.',
@@ -1891,7 +1924,13 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       reply: 'Route confidence means Spark is justified in taking this route now.',
       sideEffects: {
         ...observed.cases[0].observed.sideEffects,
+        filesChanged: false,
+        memoryWritten: false,
         missionStarted: false,
+        externalNetworkCalled: false,
+        accessChanged: false,
+        providerChanged: false,
+        mediaHandled: false,
         notes: 'No mutation observed.'
       },
       proofJoin: 'Builder joined.',

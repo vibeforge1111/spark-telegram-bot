@@ -13,7 +13,7 @@
       "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": true,
+    "readyForRelease": false,
     "readyForPublish": false,
     "releaseCaveats": [
       "repo_release_blocks | blocked_release_count=4 | critical_repo_count=0",
@@ -28,7 +28,9 @@
       "spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact."
     ],
     "missingPacketEvidence": [],
-    "invalidPacketEvidence": [],
+    "invalidPacketEvidence": [
+      "source_snapshot"
+    ],
     "stalePacketEvidence": [],
     "cases": [
       {

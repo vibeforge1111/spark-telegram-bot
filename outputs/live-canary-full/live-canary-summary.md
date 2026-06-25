@@ -4,7 +4,7 @@ Generated: 2026-06-25T09:08:40.341Z
 Runtime evidence collected: 2026-06-25T09:08:40.341Z
 Runtime evidence expires: 2026-06-25T10:08:40.341Z (1h window)
 Cases: 28
-Release gate: ready
+Release gate: not ready
 Publish gate: not ready
 
 Verdicts:
@@ -14,7 +14,7 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
+Packet evidence invalid: source_snapshot
 
 Release caveats:
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=0

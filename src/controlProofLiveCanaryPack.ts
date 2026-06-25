@@ -1732,7 +1732,7 @@ function hasUnobservedUnexpectedMutations(
 }
 
 function requiresFullNoOtherMutationProof(mutationClass: ControlProofCanaryMutationClass): boolean {
-  return mutationClass !== 'none' && mutationClass !== 'read_only';
+  return true;
 }
 
 function proofPanelCaptureIssues(
