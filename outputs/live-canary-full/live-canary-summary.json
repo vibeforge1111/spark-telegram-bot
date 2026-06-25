@@ -5,15 +5,15 @@
     "runtimeEvidenceCollectedAt": "2026-06-25T01:44:49.582Z",
     "runtimeEvidenceMaxAgeHours": 1,
     "runtimeEvidenceExpiresAt": "2026-06-25T02:44:49.582Z",
-    "totalCases": 27,
+    "totalCases": 28,
     "verdictCounts": {
       "pass": 27,
       "fail": 0,
       "blocked": 0,
       "needs-retest": 0,
-      "untested": 0
+      "untested": 1
     },
-    "readyForRelease": true,
+    "readyForRelease": false,
     "readyForPublish": false,
     "releaseCaveats": [
       "registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
@@ -160,11 +160,18 @@
         "id": "cp-audio-001",
         "verdict": "pass",
         "missingCaptures": []
+      },
+      {
+        "id": "cp-publish-001",
+        "verdict": "untested",
+        "missingCaptures": [
+          "verdict"
+        ]
       }
     ]
   },
   "coverage": {
-    "totalCases": 27,
+    "totalCases": 28,
     "intentionalActionCases": 4,
     "manualMediaCases": 4,
     "categoryCounts": {
@@ -182,17 +189,18 @@
       "mission": 1,
       "media": 2,
       "voice": 1,
-      "audio": 1
+      "audio": 1,
+      "publish": 1
     },
     "riskCounts": {
       "safe": 9,
-      "inspect_only": 10,
+      "inspect_only": 11,
       "intentional_action": 4,
       "manual_media": 4
     },
     "mutationCounts": {
       "none": 5,
-      "read_only": 13,
+      "read_only": 14,
       "updates_access_setting": 1,
       "switches_provider": 1,
       "external_network": 1,
@@ -202,7 +210,7 @@
     },
     "authorityCounts": {
       "chat_only": 5,
-      "read_only_allowed": 13,
+      "read_only_allowed": 14,
       "confirmation_required_or_allowed": 5,
       "media_evidence_only": 4
     },

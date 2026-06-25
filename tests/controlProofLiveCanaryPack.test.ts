@@ -91,6 +91,7 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
     'mission',
     'memory',
     'access',
+    'publish',
     'web_research',
     'model_switch',
     'media',
@@ -230,7 +231,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   const coverage = formatControlProofCanaryCoverage(CONTROL_PROOF_LIVE_CANARY_CASES);
 
   assert.match(coverage, /Control-Proof Canary Coverage/);
-  assert.match(coverage, /Cases: 27/);
+  assert.match(coverage, /Cases: 28/);
   assert.match(coverage, /Intentional action cases: 4/);
   assert.match(coverage, /Manual media cases: 4/);
   assert.match(coverage, /Required category coverage: complete/);
@@ -238,6 +239,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   assert.match(coverage, /Full release pack: complete/);
   assert.match(coverage, /Missing release cases: none/);
   assert.match(coverage, /- mission: 1/);
+  assert.match(coverage, /- publish: 1/);
   assert.match(coverage, /- streaming: 1/);
   assert.match(coverage, /- rich_messages: 1/);
   assert.match(coverage, /- launches_mission: 1/);
@@ -847,8 +849,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
   );
 
   assert.equal(coverage.status, 0, coverage.stderr);
-  assert.match(coverage.stdout, /Cases: 27/);
+  assert.match(coverage.stdout, /Cases: 28/);
   assert.match(coverage.stdout, /Intentional action cases: 4/);
+  assert.match(coverage.stdout, /- publish: 1/);
 
   const strictCoverage = spawnSync(
     process.execPath,
@@ -879,6 +882,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       'mission',
       'memory',
       'access',
+      'publish',
       'web_research',
       'model_switch',
       'media',
@@ -932,6 +936,27 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const publishCaveatPath = resolve(tempRoot, 'publish-caveat-full-release.json');
     const publishCaveatPacket = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
     publishCaveatPacket.evidence.collectedAt = new Date().toISOString();
+    const publishCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-publish-001');
+    if (publishCanary) {
+      publishCanary.observed = {
+        ...publishCanary.observed,
+        verdict: 'pass',
+        reply: 'Current evidence shows registry drift. Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+        sideEffects: {
+          filesChanged: false,
+          memoryWritten: false,
+          missionStarted: false,
+          externalNetworkCalled: false,
+          accessChanged: false,
+          providerChanged: false,
+          mediaHandled: false,
+          notes: 'Read-only registry drift lookup; no registry edit or release metadata change.'
+        },
+        proofJoin: 'Telegram final answer joined read-only registry drift evidence without raw commits.',
+        screenshotRefs: ['screenshot:sha256:1111111111111111111111111111111111111111111111111111111111111111'],
+        userConfirmation: 'Verified in SparkRecursive_bot.'
+      };
+    }
     writeFileSync(publishCaveatPath, JSON.stringify(publishCaveatPacket, null, 2), 'utf8');
     const caveatReleaseCheck = spawnSync(
       process.execPath,
@@ -1302,7 +1327,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       { cwd: ROOT, encoding: 'utf8' }
     );
     assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
-    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 27);
+    assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 28);
     assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--release-check/);
