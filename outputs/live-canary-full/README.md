@@ -25,6 +25,8 @@ npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-
 
 The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.
 
+`--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.
+
 If `spark os compile --json` is otherwise clean but reports runtime-ahead-of-registry-pin drift, the summary stays release-check ready and prints the drift under `Release caveats`. Treat that as a publish/registry handoff item, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.
 
 When the observation packet includes duplicate-truth handoff notes, the markdown and JSON summaries also print `Release handoffs` so the owner repo and next safe action are visible without reading raw system-map artifacts.

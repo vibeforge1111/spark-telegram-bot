@@ -867,6 +867,25 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(partialReleaseCheck.stdout, /Required category coverage: complete/);
     assert.match(partialReleaseCheck.stdout, /Full release pack: missing/);
 
+    const staleFullReleasePath = resolve(tempRoot, 'stale-full-release.json');
+    const staleFullRelease = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+    staleFullRelease.evidence.collectedAt = '2000-01-01T00:00:00.000Z';
+    writeFileSync(staleFullReleasePath, JSON.stringify(staleFullRelease, null, 2), 'utf8');
+    const staleFullReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        staleFullReleasePath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(staleFullReleaseCheck.status, 1);
+    assert.match(staleFullReleaseCheck.stdout, /Packet evidence stale: runtime_evidence_collected_at/);
+    assert.match(staleFullReleaseCheck.stdout, /Full release pack: complete/);
+
     const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
     writeFileSync(
       duplicateObservationsPath,

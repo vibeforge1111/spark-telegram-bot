@@ -161,6 +161,8 @@ Telegram unsupported media now has typed evidence-only envelopes for video, anim
 
 Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, `spark os compile --json`, and fresh-strict proof audit before it can claim release readiness.
 
+The `--release-check` path now enforces a one-hour runtime evidence window. Older packets can still be inspected, but they cannot support a fresh release claim until runtime evidence is refreshed.
+
 Canary runtime evidence treats `spark os compile --json` as a first-class proof contract: the packet must show `ok: true`, `gaps: 0`, and no privacy raw-read flags. Registry duplicate-truth drift stays visible in the captured compiler output, but it does not by itself block the Telegram live canary gate unless it produces measured compile gaps.
 
 Canary summaries now carry non-blocking release caveats from `spark os compile --json`. Current runtime-ahead-of-registry-pin drift is printed in the human summary and JSON summary as an explicit publish/registry handoff item while preserving the Telegram canary release verdict when compile gaps, dirty runtime state, and privacy checks are clean. Dirty runtime compile evidence still invalidates the canary packet.

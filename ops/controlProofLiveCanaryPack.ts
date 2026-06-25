@@ -475,7 +475,10 @@ function main(): void {
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
-    const summary = summarizeControlProofCanaryObservations(observations);
+    const summary = summarizeControlProofCanaryObservations(
+      observations,
+      releaseCheck ? { maxRuntimeEvidenceAgeHours: 1 } : {}
+    );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases
         .filter((entry) => entry.missingCaptures.includes('proof_panel_legacy_gap_stale'))
