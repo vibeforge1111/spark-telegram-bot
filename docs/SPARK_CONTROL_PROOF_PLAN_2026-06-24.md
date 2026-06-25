@@ -187,6 +187,8 @@ The duplicate-truth compile summary must also preserve safe `owner_sets` by clas
 
 Builder high-severity trace caveats must distinguish active producer gaps from historical integrity debt. The release caveat should carry current unresolved counts, historical unresolved family count, and the latest unresolved event timestamp when present; the handoff should ask for an owner-approved lifecycle resolution or an explicit publish handoff, not a one-off state rewrite.
 
+`spark os compile --json` now exposes `publish_handoffs` as the machine-readable source for these publish blocker families. Telegram canary summaries should read that object first and keep prose-note parsing only as backwards-compatible evidence, so release/publish automation does not have to reverse-parse human caveat lines.
+
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 
 Canary summaries now distinguish `Release gate` from `Publish gate`. `Release gate: ready` means the live Telegram/control-proof canary packet is locally complete. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.

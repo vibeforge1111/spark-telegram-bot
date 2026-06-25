@@ -45,6 +45,8 @@ Repo release-block handoffs should include `behind=N` when the repo board report
 
 Builder trace-health handoffs should preserve unresolved historical family evidence, including unresolved source-group count and latest unresolved event timestamp when available. Do not resolve those caveats by editing state directly; either land an owner-approved lifecycle repair or keep the publish handoff explicit.
 
+When `spark os compile --json` includes `publish_handoffs`, the canary summary should prefer that structured object over prose notes for release handoffs. Prose note parsing remains a compatibility path for older packets, not the primary publish-proof contract.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
