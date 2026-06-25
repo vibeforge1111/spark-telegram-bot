@@ -109,7 +109,7 @@ Update after default-runner proof refresh on 2026-06-25 00:27 +04:
 - Verification for this slice passed: `npm test`, `npm run build`, `npm run control:proof:audit -- --sample 100 --fresh-strict`, full live-canary release check against `outputs/live-canary-full/live-canary-observations.json`, `npm run sync:check`, `spark live status`, `spark providers test --role chat`, `git diff --check`, and `spark os compile --json`.
 - Post-commit `spark os compile --json` reported `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`. The remaining compiler gate issue is the known duplicate-truth registry drift, not an uncommitted local repo state.
 - The release rule is unchanged: the live canary packet is usable evidence, but PR/publish claims still require user confirmation of the intended live Telegram behavior.
-- The live canary bundle now includes a real machine-readable `outputs/live-canary-full/live-canary-summary.json` generated from the same summary and coverage logic as `--release-check`; future record-case commands in the run guide refresh both markdown and JSON summaries.
+- Standard checked-in live canary bundles now include machine-readable `live-canary-summary.json` files generated from the same summary and coverage logic as strict/release checks; future record-case commands in the run guides refresh both markdown and JSON summaries. `outputs/live-canary-safe-first` follows the same proof-packet contract as a selected-case gate, while `outputs/live-canary-full` remains the full release packet.
 
 Update after embedded runtime-evidence timestamp gate on 2026-06-25 11:36 +04:
 
