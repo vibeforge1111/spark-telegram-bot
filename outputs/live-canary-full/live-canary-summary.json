@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T15:00:32.010Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T15:00:32.010Z",
+    "generatedAt": "2026-06-25T15:11:39.742Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T15:11:39.742Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T16:00:32.010Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T16:11:39.742Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -16,7 +16,7 @@
     "readyForRelease": true,
     "readyForPublish": false,
     "releaseCaveats": [
-      "builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=1783 | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+      "builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=493 | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
       "repo_release_blocks | blocked_release_count=4 | critical_repo_count=0",
       "registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
     ],
