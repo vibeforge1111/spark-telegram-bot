@@ -148,6 +148,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.match(report, /telegram_final_answer/);
     assert.match(report, /voice_runtime_state: .*proof 1\/1 .* proof_ref 1 .* proof_capsule 0/);
     assert.match(report, /Blocking status: blocking gaps found/);
+    assert.match(report, /Gap posture: blocking gaps require repair/);
     assert.match(report, /missing trace joins/);
     assert.match(report, /Gap planes:/);
     assert.match(report, /raw ref leaks: telegram_final_answer, builder_gateway/);
@@ -192,7 +193,9 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
     assert.equal(result.gapCounts.legacyProofGap, 0);
     assert.equal(result.ok, true);
     assert.equal(result.blockingOk, true);
-    assert.match(formatControlProofTraceAuditReport(result), /proof_n\/a 1/);
+    const report = formatControlProofTraceAuditReport(result);
+    assert.match(report, /Gap posture: clean/);
+    assert.match(report, /proof_n\/a 1/);
   });
 });
 
@@ -294,6 +297,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.match(formatControlProofTraceAuditReport(result), /gap_ref 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_backing complete/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
+    assert.match(formatControlProofTraceAuditReport(result), /Gap posture: non-blocking gaps visible/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: telegram_route_confidence/);
@@ -393,8 +397,10 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
-    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
-    assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 0/);
+    const report = formatControlProofTraceAuditReport(result);
+    assert.match(report, /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
+    assert.match(report, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
+    assert.match(report, /latest proof gaps: 0/);
   });
 });
 
@@ -543,6 +549,7 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
       { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
     );
     assert.equal(freshStrictClean.status, 0, freshStrictClean.stderr);
+    assert.match(freshStrictClean.stdout, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
     assert.match(freshStrictClean.stdout, /latest proof gaps: 0/);
     assert.match(freshStrictClean.stdout, /latest_gap no/);
@@ -570,6 +577,7 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
     );
     assert.equal(freshStrictBlockingGap.status, 1);
     assert.match(freshStrictBlockingGap.stdout, /Blocking status: blocking gaps found/);
+    assert.match(freshStrictBlockingGap.stdout, /Gap posture: blocking gaps require repair/);
     assert.match(freshStrictBlockingGap.stdout, /missing trace joins: 1/);
 
     writeJsonl(finalAnswerPath, [

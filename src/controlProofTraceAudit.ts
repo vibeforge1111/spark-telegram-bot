@@ -173,6 +173,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     '',
     result.ok ? 'Status: clean' : 'Status: gaps found',
     result.blockingOk ? 'Blocking status: clean' : 'Blocking status: blocking gaps found',
+    `Gap posture: ${formatGapPosture(result)}`,
     '',
     'Planes:'
   ];
@@ -221,6 +222,24 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     lines.push('', 'Gap planes:', ...gapDetails);
   }
   return `${lines.join('\n')}\n`;
+}
+
+function formatGapPosture(result: ControlProofTraceAuditResult): string {
+  if (result.ok) {
+    return 'clean';
+  }
+  if (!result.blockingOk) {
+    return 'blocking gaps require repair';
+  }
+  const onlyBackedLegacyGaps =
+    result.gapCounts.legacyProofGap > 0 &&
+    result.gapCounts.incompleteLegacyProofGapBacking === 0 &&
+    result.gapCounts.latestProofGap === 0 &&
+    releaseBlockingGapCounts(result.gapCounts).every((count) => count === 0);
+  if (onlyBackedLegacyGaps) {
+    return 'backed legacy gaps only; no blocking or latest proof gaps';
+  }
+  return 'non-blocking gaps visible';
 }
 
 function summarizeEvidenceFile(file: ControlProofEvidenceFile, sampleSize: number): ControlProofTracePlaneSummary {
