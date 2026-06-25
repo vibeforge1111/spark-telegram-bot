@@ -841,12 +841,12 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(compileDriftVisibleButClean.readyForPublish, false);
   assert.deepEqual(compileDriftVisibleButClean.invalidPacketEvidence, []);
   assert.deepEqual(compileDriftVisibleButClean.releaseCaveats, [
-    'registry_pin_drift | runtime_ahead_of_registry_pin=0 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
+    'duplicate_truth_drift | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
   ]);
   assert.deepEqual(compileDriftVisibleButClean.releaseHandoffs, []);
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
-    /Release caveats:\n- registry_pin_drift/
+    /Release caveats:\n- duplicate_truth_drift/
   );
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
@@ -856,6 +856,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
     /Publish gate: not ready/
   );
+
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2,"canonical_runtime_dirty":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const registryPinDrift = summarizeControlProofCanaryObservations(template);
+  assert.equal(registryPinDrift.readyForRelease, true);
+  assert.equal(registryPinDrift.readyForPublish, false);
+  assert.deepEqual(registryPinDrift.releaseCaveats, [
+    'registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
+  ]);
 
   template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-23T23:40:00.000Z');
   const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);

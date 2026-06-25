@@ -1387,14 +1387,27 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   if (!duplicateTruthCount && !criticalDuplicateTruthCount && !runtimeAheadCount) return [];
   const caveats: string[] = [];
   if (runtimeAheadCount > 0 || duplicateTruthCount > 0 || criticalDuplicateTruthCount > 0) {
+    const classificationSummary = safeClassificationCountSummary(classificationCounts);
     caveats.push([
-      'registry_pin_drift',
-      `runtime_ahead_of_registry_pin=${Number.isFinite(runtimeAheadCount) ? runtimeAheadCount : 0}`,
+      runtimeAheadCount > 0 ? 'registry_pin_drift' : 'duplicate_truth_drift',
+      ...(classificationSummary ? [`classifications=${classificationSummary}`] : []),
       `duplicate_truth_count=${Number.isFinite(duplicateTruthCount) ? duplicateTruthCount : 0}`,
       `critical_duplicate_truth_count=${Number.isFinite(criticalDuplicateTruthCount) ? criticalDuplicateTruthCount : 0}`
     ].join(' | '));
   }
   return caveats;
+}
+
+function safeClassificationCountSummary(classificationCounts: Record<string, unknown>): string {
+  return Object.entries(classificationCounts)
+    .map(([key, value]) => {
+      const count = Number(value);
+      if (!/^[a-z0-9_.-]+$/i.test(key) || !Number.isFinite(count) || count <= 0) return null;
+      return `${key}:${count}`;
+    })
+    .filter((entry): entry is string => Boolean(entry))
+    .sort()
+    .join(',');
 }
 
 function duplicateTruthReleaseHandoffs(value: string | null | undefined): string[] {

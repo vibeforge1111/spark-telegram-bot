@@ -173,7 +173,7 @@ Canary summaries now print the runtime evidence expiry timestamp as well as the 
 
 Canary runtime evidence treats `spark os compile --json` as a first-class proof contract: the packet must show `ok: true`, `gaps: 0`, clean repo/gate dirty-state counters, and every privacy raw-read flag set to `false`. Registry duplicate-truth drift stays visible in the captured compiler output, but it does not by itself block the Telegram live canary gate unless it produces measured compile gaps.
 
-Canary summaries now carry non-blocking release caveats from `spark os compile --json`. Current runtime-ahead-of-registry-pin drift is printed in the human summary and JSON summary as an explicit publish/registry handoff item while preserving the Telegram canary release verdict when compile gaps, dirty runtime state, and privacy checks are clean. Dirty runtime compile evidence still invalidates the canary packet.
+Canary summaries now carry non-blocking release caveats from `spark os compile --json`. Current runtime-ahead-of-registry-pin drift is printed in the human summary and JSON summary as an explicit publish/registry handoff item with safe duplicate-truth classification counts, while preserving the Telegram canary release verdict when compile gaps, dirty runtime state, and privacy checks are clean. Duplicate-truth drift without runtime-ahead rows is labeled separately from registry pin drift. Dirty runtime compile evidence still invalidates the canary packet.
 
 When fresh runtime evidence is collected, the canary CLI joins registry-drift caveats to the redacted duplicate-truth handoff items from the compiled repo board. The observation packet notes name the owner repo, severity, classification, and next safe action without exposing local paths or commit refs.
 
