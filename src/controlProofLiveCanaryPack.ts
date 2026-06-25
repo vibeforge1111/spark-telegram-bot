@@ -1538,13 +1538,26 @@ function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): strin
 function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string[] {
   const parsed = parseFirstJsonObject(String(value || ''));
   if (!parsed) return [];
+  const handoffs: string[] = [];
+  const duplicateTruths = objectOrNull(parsed.duplicate_truths) ?? {};
+  const repoBoard = objectOrNull(parsed.repo_board) ?? {};
+  const classificationCounts = objectOrNull(duplicateTruths.classification_counts) ?? {};
+  const duplicateTruthCount = numberOrNull(repoBoard.duplicate_truth_count) ?? numberOrNull(duplicateTruths.item_count) ?? 0;
+  const localRuntimeTestCount = numberOrNull(classificationCounts.local_runtime_test_artifact) ?? 0;
+  if (localRuntimeTestCount > 0 && localRuntimeTestCount === duplicateTruthCount) {
+    const sourceLabel = localRuntimeTestCount === 1 ? 'source' : 'sources';
+    handoffs.push(
+      `spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep ${localRuntimeTestCount} installed ${sourceLabel} for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.`
+    );
+  }
   const current = objectOrNull(parsed.builder_trace_current_health);
-  if (!current) return [];
+  if (!current) return handoffs;
   const flags = Array.isArray(parsed.builder_trace_health_flags)
     ? parsed.builder_trace_health_flags.map((entry) => String(entry || '').trim())
     : [];
   if (flags.includes('open_high_severity_events')) {
     return [
+      ...handoffs,
       'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
     ];
   }
@@ -1558,10 +1571,11 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
   ) {
     const familyLabel = unresolvedHighSeverityOpen === 1 ? 'family' : 'families';
     return [
+      ...handoffs,
       `spark-intelligence-builder: warning builder_trace_health; next safe action: Audit ${unresolvedHighSeverityOpen} unresolved historical high-severity Builder integrity ${familyLabel}, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.`
     ];
   }
-  if (!flags.includes('missing_trace_refs')) return [];
+  if (!flags.includes('missing_trace_refs')) return handoffs;
   const latestMissingGroups =
     numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count) ?? 0;
   const latestCleanWindowGroups =
@@ -1574,7 +1588,7 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
     : latestCleanWindowGroups > 0
       ? `Let ${latestCleanWindowGroups} latest-clean historical-window groups age out or backfill the historical rows, then rerun spark os compile.`
       : 'Audit or backfill the remaining historical Builder trace rows, then rerun spark os compile.';
-  return [`spark-intelligence-builder: warning builder_trace_health; next safe action: ${nextSafeAction}`];
+  return [...handoffs, `spark-intelligence-builder: warning builder_trace_health; next safe action: ${nextSafeAction}`];
 }
 
 function handoffSectionLines(text: string, marker: string): string[] {

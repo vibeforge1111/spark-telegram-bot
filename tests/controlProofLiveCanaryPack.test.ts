@@ -1094,9 +1094,16 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     'repo_release_blocks | blocked_release_count=4 | critical_repo_count=0',
     'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
   ]);
+  assert.deepEqual(localRuntimeArtifacts.releaseHandoffs, [
+    'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+  ]);
   assert.match(
     formatControlProofCanaryObservationSummary(localRuntimeArtifacts),
     /local_runtime_test_artifacts \| classifications=local_runtime_test_artifact:2/
+  );
+  assert.match(
+    formatControlProofCanaryObservationSummary(localRuntimeArtifacts),
+    /spark-installer-registry: warning local_runtime_test_artifacts/
   );
 
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":1,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
