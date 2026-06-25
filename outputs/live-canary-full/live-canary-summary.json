@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T13:55:50.702Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T13:55:50.702Z",
+    "generatedAt": "2026-06-25T13:58:36.042Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T13:58:36.042Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T14:55:50.702Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T14:58:36.042Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
