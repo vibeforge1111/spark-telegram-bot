@@ -1635,7 +1635,26 @@ function observedReplyCaptureIssues(entry: ControlProofCanaryObservationCase): s
   if (isNaturalReplyShape(entry.expected.replyShape) && hasRoboticSurfaceHeading(text)) {
     issues.push('observed_reply_robotic_shape');
   }
+  if (entry.id === 'cp-streaming-001' && !hasStreamingStatusProofShape(text)) {
+    issues.push('observed_reply_streaming_status_shape');
+  }
+  if (entry.id === 'cp-streaming-002' && !hasRichMessageProofShape(text)) {
+    issues.push('observed_reply_rich_message_shape');
+  }
   return issues;
+}
+
+function hasStreamingStatusProofShape(value: string): boolean {
+  return /\bProfile:\s*[A-Za-z0-9._-]+\b/i.test(value) &&
+    /\bStatus:\s*on\b/i.test(value) &&
+    /\bRich messages:\s*on\b/i.test(value) &&
+    /\bDraft transport:\s*rich\b/i.test(value) &&
+    /\bFull-reply preview:\s*on\b/i.test(value) &&
+    /\bProcess telemetry:/i.test(value);
+}
+
+function hasRichMessageProofShape(value: string): boolean {
+  return /\bStatus:\s*\S+/i.test(value) && /\bToken:\s*\S+/i.test(value);
 }
 
 function isNaturalReplyShape(replyShape: ControlProofCanaryCase['expectedReplyShape']): boolean {

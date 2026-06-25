@@ -644,6 +644,77 @@ test('observation summary rejects unrelated mutations on action cases', () => {
   assert.deepEqual(unexpectedActionMutation.cases[0].missingCaptures, ['side_effects_unexpected_mutation']);
 });
 
+test('streaming canaries require runtime status and rich-message proof shape', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Telegram live chat Status: on Rich messages: on',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No setting changes observed.'
+    },
+    proofJoin: 'Telegram command reply joined the live runtime status.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+  template.cases[1].observed = {
+    ...template.cases[1].observed,
+    verdict: 'pass',
+    reply: 'Looks clean.',
+    sideEffects: {
+      ...template.cases[1].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Telegram final delivery joined the rich-message reply.',
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Verified in SparkRecursive_bot via Telegram.'
+  };
+
+  const missingProofShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProofShape.readyForRelease, false);
+  assert.deepEqual(missingProofShape.cases[0].missingCaptures, ['observed_reply_streaming_status_shape']);
+  assert.deepEqual(missingProofShape.cases[1].missingCaptures, ['observed_reply_rich_message_shape']);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Telegram live chat Profile: primary Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms',
+    '',
+    'Process telemetry: no rich/draft delivery attempt observed since start.',
+    '',
+    'Private chats only.'
+  ].join('\n');
+  template.cases[1].observed.reply = 'Spark Recursive\nStatus: clean.\n\nToken: ok';
+  const cleanStreamingProof = summarizeControlProofCanaryObservations(template);
+  assert.equal(cleanStreamingProof.readyForRelease, true);
+  assert.deepEqual(cleanStreamingProof.cases.map((entry) => entry.missingCaptures), [[], []]);
+});
+
 test('observation summary rejects dirty runtime evidence even when packet fields are filled', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
