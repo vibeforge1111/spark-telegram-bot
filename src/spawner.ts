@@ -271,7 +271,7 @@ function normalizeBucket(value: unknown): BoardEntry[] {
 
 function isFreshRunningEntry(entry: BoardEntry): boolean {
   const ageMs = Date.now() - Date.parse(entry.lastUpdated);
-  return !Number.isFinite(ageMs) || ageMs < STALE_RUNNING_MISSION_MS;
+  return Number.isFinite(ageMs) && ageMs < STALE_RUNNING_MISSION_MS;
 }
 
 async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
