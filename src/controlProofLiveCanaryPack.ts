@@ -1467,12 +1467,22 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     const window = String(current.window || '').trim();
     const missing = numberOrNull(current.missing_trace_ref_count);
     const historicalMissing = numberOrNull(current.historical_missing_trace_ref_count);
+    const latestMissingSourceGroups =
+      numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count);
+    const latestCleanHistoricalWindowGroups =
+      numberOrNull(current.latest_clean_historical_window_debt_group_count) ??
+      numberOrNull(current.latest_clean_window_debt_group_count) ??
+      numberOrNull(current.latest_clean_group_count);
     if (/^[a-z0-9_.-]+$/i.test(status)) details.push(`trace_status=${status}`);
     if (/^[a-z0-9_.-]+$/i.test(window)) details.push(`window=${window}`);
     if (missing !== null) details.push(`missing_trace_refs=${missing}`);
     const oneHourSummary = compileTraceWindowSummary(parsed.builder_trace_recent_windows, '1h');
     if (oneHourSummary) details.push(oneHourSummary);
     if (historicalMissing !== null) details.push(`historical_missing_trace_refs=${historicalMissing}`);
+    if (latestMissingSourceGroups !== null) details.push(`latest_missing_source_groups=${latestMissingSourceGroups}`);
+    if (latestCleanHistoricalWindowGroups !== null) {
+      details.push(`latest_clean_historical_window_groups=${latestCleanHistoricalWindowGroups}`);
+    }
   }
   return ['builder_trace_health', ...details].join(' | ');
 }
