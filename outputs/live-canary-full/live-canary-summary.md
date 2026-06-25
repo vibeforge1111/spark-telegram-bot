@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T15:11:39.742Z
-Runtime evidence collected: 2026-06-25T15:11:39.742Z
-Runtime evidence expires: 2026-06-25T16:11:39.742Z (1h window)
+Generated: 2026-06-25T15:17:45.874Z
+Runtime evidence collected: 2026-06-25T15:17:45.874Z
+Runtime evidence expires: 2026-06-25T16:17:45.874Z (1h window)
 Cases: 28
 Release gate: ready
 Publish gate: not ready
@@ -17,7 +17,7 @@ Verdicts:
 Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
-- builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=493 | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
+- builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=459 | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=0
 - registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 
