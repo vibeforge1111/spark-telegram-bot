@@ -121,6 +121,28 @@ async function run(): Promise<void> {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  await test('skips malformed JSONL lines without crashing', () => {
+    const validRecord = createNaturalRouteExecutionRecord({
+      decision: decideNaturalRoute('search your wiki for Telegram route mistakes'),
+      executedRoute: 'spark_wiki.query',
+      executedOwner: 'spark-intelligence-builder',
+      executedAction: 'spark_wiki.query'
+    });
+    const validLine = JSON.stringify(validRecord);
+    const jsonl = [
+      validLine,
+      'not valid json {{{',
+      '',
+      validLine,
+      'also broken json }}}',
+      validLine
+    ].join('\n');
+
+    const parsed = parseNaturalRouteExecutionLedger(jsonl);
+    assert.equal(parsed.length, 3);
+    assert.equal(parsed[0].shadow_route, validRecord.shadow_route);
+  });
 }
 
 void run();
