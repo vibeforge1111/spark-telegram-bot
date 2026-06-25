@@ -2585,6 +2585,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /local_runtime_test_artifacts/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /packetEvidenceDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /proof-gap reasons, timestamps, and freshness windows/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /summary `cases` array carries safe Harness metadata/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /expectedRoute/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /observed replies/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateDecisionDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /control_proof_audit_blocking_gaps/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /release_gate_not_ready/);
