@@ -3671,8 +3671,13 @@ async function run(): Promise<void> {
 					summary: { item_count: 1 },
 					items: [{
 						owner_repo: 'spark-telegram-bot',
-						classification: 'release_branch_pending_registry_batch',
-						next_safe_action: 'include this runtime in the next verified metadata batch'
+						severity: 'critical',
+						classification: 'runtime_ahead_of_registry_pin',
+						evidence_details: {
+							installed_head: '3551fbc34b1f1234567890abcdef1234567890abcd',
+							registry_commit: 'e5a1bd0409861234567890abcdef1234567890abcd'
+						},
+						next_safe_action: 'Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
 					}]
 				}
 			}, null, 2)
@@ -3704,8 +3709,8 @@ async function run(): Promise<void> {
 				},
 				{
 					text: 'Show current registry drift if any.',
-					matches: [/registry\/truth drift/i, /read-only evidence lookup/i],
-					not: [/Mission:/i]
+					matches: [/registry truth drift/i, /running code is not fully matched to published release metadata/i, /installed runtime is ahead of the published registry pin/i, /read-only evidence lookup/i],
+					not: [/Mission:|3551fbc34b1f|e5a1bd040986|runtime_ahead_of_registry_pin|registry_commit|installed_head/i]
 				},
 				{
 					text: 'Read memory preference for mission update style if available.',

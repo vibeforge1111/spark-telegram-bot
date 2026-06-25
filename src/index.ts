@@ -996,12 +996,15 @@ async function renderRegistryDriftAnswer(): Promise<string> {
     }
     const lines = items.slice(0, 4).map((item) => {
       const repo = String(item.owner_repo || item.fact || item.id || 'unknown');
-      const classification = String(item.classification || 'unknown');
-      const action = String(item.next_safe_action || 'review before changing registry metadata');
-      return `• ${repo}: ${classification}. ${action}`;
+      const classification = describeRegistryDriftClassification(String(item.classification || 'unknown'));
+      const action = describeRegistryDriftNextMove(String(item.next_safe_action || 'review before changing registry metadata'));
+      const severity = String(item.severity || '').toLowerCase() === 'critical' ? 'critical' : '';
+      return `• ${repo}: ${classification}${severity ? ` (${severity})` : ''}. ${action}`;
     });
     return [
-      count === 0 ? 'No registry drift is reported in the current evidence.' : `Current evidence reports ${count} registry/truth drift item${count === 1 ? '' : 's'}.`,
+      count === 0
+        ? 'No registry drift is reported in the current evidence.'
+        : `Current evidence shows ${count} registry truth drift item${count === 1 ? '' : 's'}; that means the running code is not fully matched to published release metadata yet.`,
       '',
       ...lines,
       '',
@@ -1016,6 +1019,27 @@ async function renderRegistryDriftAnswer(): Promise<string> {
       'No registry edit was made.'
     ].join('\n');
   }
+}
+
+function describeRegistryDriftClassification(classification: string): string {
+  if (classification === 'runtime_ahead_of_registry_pin') {
+    return 'installed runtime is ahead of the published registry pin';
+  }
+  if (classification === 'canonical_runtime_dirty') {
+    return 'installed runtime has local file drift';
+  }
+  return classification.replace(/[_-]+/g, ' ').trim() || 'registry metadata needs review';
+}
+
+function describeRegistryDriftNextMove(action: string): string {
+  const normalized = action.toLowerCase();
+  if (/port and push|registry\/release metadata|local runtime test artifact/.test(normalized)) {
+    return 'Publish or port the owner-repo commit first, then update release metadata, or explicitly mark this install as a local runtime test artifact.';
+  }
+  if (/metadata batch|registry metadata/.test(normalized)) {
+    return 'Keep it in the next verified metadata batch before claiming registry readiness.';
+  }
+  return action.replace(/\b[0-9a-f]{12,40}\b/gi, '<redacted-commit>');
 }
 
 async function renderMissionUpdatePreferenceReadAnswer(chatId: string | number): Promise<string> {
