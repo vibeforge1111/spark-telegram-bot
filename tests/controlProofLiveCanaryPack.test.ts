@@ -1055,6 +1055,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       blockers: [],
       caveats: [],
       caveatFamilies: [],
+      handoffDetails: null,
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1065,6 +1066,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       blockers: [],
       caveats: [],
       caveatFamilies: [],
+      handoffDetails: null,
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1191,6 +1193,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       blockers: [],
       caveats: [],
       caveatFamilies: [],
+      handoffDetails: null,
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1205,6 +1208,32 @@ test('observation summary rejects dirty runtime evidence even when packet fields
         'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
       ],
       caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffDetails: {
+        schema_version: 'spark.publish_handoffs.summary.v0',
+        family_count: 3,
+        families: ['repo_release_blocks', 'local_runtime_test_artifacts', 'builder_trace_health'],
+        blocked_release_repos: [
+          {
+            repo: 'spark-intelligence-builder',
+            risk_class: 'critical',
+            reason: 'behind upstream',
+            next_safe_action: 'pull or merge upstream before release',
+            behind: 12
+          }
+        ],
+        local_runtime_test_artifacts: {
+          count: 2,
+          owners: ['spark-telegram-bot', 'spawner-ui']
+        },
+        builder_trace_health: {
+          flags: ['historical_open_high_severity_events'],
+          high_severity_open_count: 46,
+          unresolved_high_severity_open_count: 1,
+          current_unresolved_high_severity_open_count: 0,
+          unresolved_high_severity_source_group_count: 1,
+          latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        }
+      },
       handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
       handoffCount: 3,
       packetEvidence: { missing: [], invalid: [], stale: [] },

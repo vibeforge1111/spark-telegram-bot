@@ -188,6 +188,7 @@ export interface ControlProofGateDecisionDetail {
   blockers: string[];
   caveats: string[];
   caveatFamilies: string[];
+  handoffDetails: Record<string, unknown> | null;
   handoffFamilies: string[];
   handoffCount: number;
   packetEvidence: {
@@ -1984,6 +1985,10 @@ function releaseCaveatFamilies(releaseCaveatDetails: Record<string, unknown> | n
   return Array.from(new Set(families)).sort();
 }
 
+function cloneRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
+  return value ? JSON.parse(JSON.stringify(value)) as Record<string, unknown> : null;
+}
+
 function gateDecisionDetails(input: {
   releaseReady: boolean;
   readyForPublish: boolean;
@@ -2024,6 +2029,7 @@ function gateDecisionDetails(input: {
       blockers: releaseGateBlockers,
       caveats: [],
       caveatFamilies: [],
+      handoffDetails: null,
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: {
@@ -2038,6 +2044,7 @@ function gateDecisionDetails(input: {
       blockers: publishBlockers,
       caveats: [...input.releaseCaveats],
       caveatFamilies,
+      handoffDetails: cloneRecord(input.publishHandoffs),
       handoffFamilies,
       handoffCount: input.releaseHandoffs.length,
       packetEvidence: {
