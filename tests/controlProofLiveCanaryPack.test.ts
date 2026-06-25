@@ -315,6 +315,8 @@ test('live run guide pairs Telegram prompts with record commands', () => {
   assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
   assert.match(guide, /--mission-started <true\|false\|unknown>/);
   assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
+  assert.match(guide, /cp-builder-001[\s\S]*Capture proof panel: yes/);
+  assert.match(guide, /cp-streaming-001[\s\S]*Capture proof panel: no/);
   assert.match(guide, /--screenshot-file '\/tmp\/cp-streaming-001\.png'/);
   assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
 });
@@ -325,6 +327,7 @@ test('live run guide omits proof inspection for cases without proof-panel captur
   ]);
 
   assert.match(guide, /cp-streaming-001/);
+  assert.match(guide, /Capture proof panel: no/);
   assert.doesNotMatch(guide, /Proof inspection prompt/);
   assert.doesNotMatch(guide, /--proof-panel/);
 });

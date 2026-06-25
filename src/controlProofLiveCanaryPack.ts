@@ -950,6 +950,7 @@ export function formatControlProofCanaryLiveRunGuide(
     lines.push(`Expected reply shape: ${entry.expectedReplyShape}`);
     lines.push(`Expected side effect: ${entry.expectedSideEffect}`);
     lines.push(`Expected proof join: ${entry.expectedProofJoin}`);
+    lines.push(`Capture proof panel: ${entry.capture.proofPanel ? 'yes' : 'no'}`);
     lines.push(`Capture screenshot: ${entry.capture.screenshot ? 'yes' : 'no'}`);
     lines.push(`Capture user confirmation: ${entry.capture.userConfirmation ? 'yes' : 'no'}`);
     lines.push('');
