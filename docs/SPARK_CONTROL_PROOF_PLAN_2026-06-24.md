@@ -418,7 +418,7 @@ npm run control:proof:audit -- --sample 100
 npm run control:proof:audit -- --sample 100 --fresh-strict
 ```
 
-`--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show structured fresh-strict counters for zero missing evidence, zero missing trace joins, zero missing proof capsules, zero incomplete legacy gap backing, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Prose summaries are not release proof. Legacy proof gaps may stay visible while they are backed by complete downgraded capsules and redacted proof refs.
+`--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must include a successful `--fresh-strict` command transcript plus structured counters for zero missing evidence, zero missing trace joins, zero missing proof capsules, zero incomplete legacy gap backing, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Prose summaries are not release proof. Legacy proof gaps may stay visible while they are backed by complete downgraded capsules and redacted proof refs.
 
 Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 

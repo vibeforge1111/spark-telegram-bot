@@ -31,6 +31,8 @@ function test(name: string, fn: () => void): void {
 
 const ROOT = resolve(__dirname, '..');
 const CLEAN_CONTROL_PROOF_AUDIT = [
+  '$ npm run control:proof:audit -- --sample 100 --fresh-strict',
+  'exit=0',
   'telegram_final_answer: 100/100 sampled | latest_gap no',
   'builder_gateway: 100/100 sampled | latest_gap no',
   'missing evidence: 0',
@@ -587,6 +589,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const proseAudit = summarizeControlProofCanaryObservations(template);
   assert.equal(proseAudit.readyForRelease, false);
   assert.deepEqual(proseAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
+    .replace('$ npm run control:proof:audit -- --sample 100 --fresh-strict\n', '')
+    .replace('exit=0\n', '');
+  const missingFreshStrictTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingFreshStrictTranscript.readyForRelease, false);
+  assert.deepEqual(missingFreshStrictTranscript.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('exit=0', 'exit=1');
+  const failedFreshStrictTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedFreshStrictTranscript.readyForRelease, false);
+  assert.deepEqual(failedFreshStrictTranscript.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = [
     'missing evidence: 0',
