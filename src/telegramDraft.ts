@@ -406,12 +406,16 @@ function renderTelegramLiveChatTelemetryLines(): string[] {
   const snapshot = telegramLiveChatTelemetrySnapshot();
   const observed = snapshot.lastFinalTransport !== 'none' || snapshot.lastDraftTransport !== 'none';
   if (!observed) {
-    return ['Process telemetry: no rich/draft delivery attempt observed since start.'];
+    return [
+      'Process telemetry: no rich/draft delivery attempt observed since start.',
+      'Transport proof: configured only until a final or draft delivery is observed.'
+    ];
   }
   return [
     'Process telemetry:',
     `Final transport observed: ${formatFinalTransport(snapshot.lastFinalTransport)} (${snapshot.richMessageDeliveries} rich, ${snapshot.richMessageFallbacks} fallback)`,
-    `Draft transport observed: ${formatDraftTransport(snapshot.lastDraftTransport)} (${snapshot.richDraftDeliveries} rich, ${snapshot.legacyDraftDeliveries} legacy, ${snapshot.legacyDraftFallbacks} rich fallback, ${snapshot.draftFailures} failed)`
+    `Draft transport observed: ${formatDraftTransport(snapshot.lastDraftTransport)} (${snapshot.richDraftDeliveries} rich, ${snapshot.legacyDraftDeliveries} legacy, ${snapshot.legacyDraftFallbacks} rich fallback, ${snapshot.draftFailures} failed)`,
+    'Transport proof: observed in this bot process.'
   ];
 }
 

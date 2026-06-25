@@ -505,6 +505,7 @@ Exit criteria:
 
 - `/streaming` reports the active Telegram profile, streaming, rich messages, rich draft transport, and full-reply preview on
 - `/streaming` also reports process telemetry for observed final and draft transports, so "configured on" is not mistaken for "rich path succeeded"
+- When no rich/draft transport has happened since process start, `/streaming` must say transport proof is only configured. Once a final or draft delivery is observed, it may say transport proof was observed in this bot process.
 - fallback LLM streaming still works
 - Builder chat final latency is not worse than the old path
 - direct `sendRichMessage` and `sendRichMessageDraft` smoke pass for the active profile, or clearly fall back to `sendMessage` / `sendMessageDraft`

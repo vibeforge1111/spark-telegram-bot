@@ -110,6 +110,7 @@ async function run(): Promise<void> {
     assert.match(status, /Full-reply preview: on/);
     assert.match(status, /Draft interval: 700ms/);
     assert.match(status, /Process telemetry: no rich\/draft delivery attempt observed since start/);
+    assert.match(status, /Transport proof: configured only until a final or draft delivery is observed/);
     assert.match(status, /Private chats only/);
   });
 
@@ -150,6 +151,7 @@ async function run(): Promise<void> {
     assert.match(status, /Process telemetry:/);
     assert.match(status, /Final transport observed: rich \(1 rich, 0 fallback\)/);
     assert.match(status, /Draft transport observed: rich \(1 rich, 0 legacy, 0 rich fallback, 0 failed\)/);
+    assert.match(status, /Transport proof: observed in this bot process/);
   });
 
   await test('streaming status reports rich fallback without exposing raw API errors', async () => {
