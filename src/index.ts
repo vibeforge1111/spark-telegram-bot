@@ -10483,6 +10483,17 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   const text = ctx.message.text;
 
   if (text.startsWith('/')) {
+    // Unknown slash command — Telegraf routes registered commands before this
+    // function runs, so reaching here means the command isn't recognised.
+    // Reply with a friendly hint instead of silently dropping, which makes
+    // first-time users (especially anyone reaching for the universal /help
+    // convention) think the bot is offline. Restrict to private chats so the
+    // bot does not answer unaddressed slash traffic in every group it sees.
+    if (ctx.chat?.type === 'private') {
+      await ctx.reply(
+        "I don't recognise that command. Try /start to see what I can do."
+      ).catch(() => {});
+    }
     return;
   }
   if (!isAddressedGroupText(ctx, text)) {
