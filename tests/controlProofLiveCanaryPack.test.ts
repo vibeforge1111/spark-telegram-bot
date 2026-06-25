@@ -501,6 +501,16 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(missingConfirmationSurface.readyForRelease, false);
   assert.deepEqual(missingConfirmationSurface.cases[0].missingCaptures, ['user_confirmation_surface']);
 
+  template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once at /Users/example/private with file_id hidden.';
+  const leakyConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyConfirmation.readyForRelease, false);
+  assert.deepEqual(leakyConfirmation.cases[0].missingCaptures, ['user_confirmation_raw_leak']);
+
+  template.cases[0].observed.userConfirmation = `User confirmed Telegram reply rendered once with screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestConfirmation = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestConfirmation.readyForRelease, true);
+  assert.deepEqual(digestConfirmation.cases[0].missingCaptures, []);
+
   template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once.';
   template.evidence.controlProofAudit = null;
   const missingPacketEvidence = summarizeControlProofCanaryObservations(template);

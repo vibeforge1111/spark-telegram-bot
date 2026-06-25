@@ -1419,7 +1419,17 @@ function userConfirmationCaptureIssues(value: string | null | undefined): string
   if (!/\b(?:SparkRecursive_bot|Telegram|live bot|Recursive)\b/i.test(text)) {
     issues.push('user_confirmation_surface');
   }
+  if (userConfirmationLeaksRawInternals(text)) {
+    issues.push('user_confirmation_raw_leak');
+  }
   return issues;
+}
+
+function userConfirmationLeaksRawInternals(value: string): boolean {
+  const withoutStableScreenshotRefs = value.replace(/screenshot:sha256:[a-f0-9]{64}/gi, 'screenshot:<digest>');
+  return proofPanelLeaksRawInternals(withoutStableScreenshotRefs) ||
+    /\b(?:BOT_TOKEN|TELEGRAM_BOT_TOKEN|file_id|chat_id|user_id)\b/i.test(withoutStableScreenshotRefs) ||
+    /\b[A-Za-z0-9_-]{48,}\b/.test(withoutStableScreenshotRefs);
 }
 
 type ControlProofObservedSideEffects = ControlProofCanaryObservationCase['observed']['sideEffects'];
