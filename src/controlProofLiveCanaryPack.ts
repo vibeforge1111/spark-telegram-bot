@@ -1548,6 +1548,18 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
       'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
     ];
   }
+  const unresolvedHighSeverityOpen = numberOrNull(current.unresolved_high_severity_open_count) ?? 0;
+  const currentUnresolvedHighSeverityOpen = numberOrNull(current.current_unresolved_high_severity_open_count) ?? 0;
+  if (
+    flags.includes('historical_open_high_severity_events') &&
+    unresolvedHighSeverityOpen > 0 &&
+    currentUnresolvedHighSeverityOpen === 0
+  ) {
+    const familyLabel = unresolvedHighSeverityOpen === 1 ? 'family' : 'families';
+    return [
+      `spark-intelligence-builder: warning builder_trace_health; next safe action: Audit ${unresolvedHighSeverityOpen} unresolved historical high-severity Builder integrity ${familyLabel}, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.`
+    ];
+  }
   if (!flags.includes('missing_trace_refs')) return [];
   const latestMissingGroups =
     numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count) ?? 0;
