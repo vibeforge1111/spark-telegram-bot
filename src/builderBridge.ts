@@ -466,6 +466,9 @@ function pythonSourceEnv(config: BuilderBridgeConfig): NodeJS.ProcessEnv {
   if (profileBotToken) {
     // Telegram file IDs are bot-scoped, so Builder must use the active runner profile token.
     env.TELEGRAM_BOT_TOKEN = profileBotToken;
+    // Do not leak the raw runner BOT_TOKEN into Builder child processes; the
+    // scoped TELEGRAM_BOT_TOKEN above is all the child needs.
+    delete env.BOT_TOKEN;
   }
   return env;
 }
