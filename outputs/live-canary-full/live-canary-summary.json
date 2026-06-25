@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T19:00:19.530Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T19:00:19.530Z",
+    "generatedAt": "2026-06-25T19:07:34.429Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T19:07:34.429Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T20:00:19.530Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T20:07:34.429Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -300,7 +300,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T19:00:19.498Z",
+      "generatedAt": "2026-06-25T19:07:34.400Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -322,11 +322,89 @@
           "spawner_prd_trace"
         ]
       },
+      "gapDetails": {
+        "legacy_proof_gaps": {
+          "count": 3,
+          "planeLabels": [
+            "telegram_route_confidence",
+            "builder_gateway",
+            "spawner_prd_trace"
+          ],
+          "planes": [
+            {
+              "label": "telegram_route_confidence",
+              "sampledRows": 100,
+              "totalRows": 145,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 100,
+              "proofNotApplicable": 0,
+              "proofGap": 97,
+              "gapCapsule": 97,
+              "gapCapsuleValid": 97,
+              "gapRef": 97,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            },
+            {
+              "label": "builder_gateway",
+              "sampledRows": 100,
+              "totalRows": 520,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 72,
+              "proofNotApplicable": 0,
+              "proofGap": 57,
+              "gapCapsule": 57,
+              "gapCapsuleValid": 57,
+              "gapRef": 57,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            },
+            {
+              "label": "spawner_prd_trace",
+              "sampledRows": 100,
+              "totalRows": 495,
+              "requestPresent": 100,
+              "tracePresent": 100,
+              "proofPresent": 100,
+              "proofRefPresent": 100,
+              "proofCapsulePresent": 96,
+              "proofNotApplicable": 0,
+              "proofGap": 94,
+              "gapCapsule": 94,
+              "gapCapsuleValid": 94,
+              "gapRef": 94,
+              "gapBacking": "complete",
+              "latestGap": false,
+              "rawRefs": 0,
+              "rawIdKeys": 0,
+              "reasonCodes": 0,
+              "parseErrors": 0
+            }
+          ],
+          "latestGapPlaneCount": 0,
+          "incompleteBackingPlaneCount": 0,
+          "completeBackingPlaneCount": 3
+        }
+      },
       "planes": [
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7035,
+          "totalRows": 7057,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -582,10 +660,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T19:00:19.530Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T19:00:19.530Z",
+      "generatedAt": "2026-06-25T19:07:34.429Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T19:07:34.429Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T20:00:19.530Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T20:07:34.429Z",
       "missing": [],
       "invalid": [],
       "stale": []
