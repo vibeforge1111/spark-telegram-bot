@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T17:49:14.753Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T17:49:14.753Z",
+    "generatedAt": "2026-06-25T18:02:29.301Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T18:02:29.301Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T18:49:14.753Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T19:02:29.301Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -118,6 +118,15 @@
     "missingPacketEvidence": [],
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
+    "packetEvidenceDetails": {
+      "generatedAt": "2026-06-25T18:02:29.301Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T18:02:29.301Z",
+      "runtimeEvidenceMaxAgeHours": 1,
+      "runtimeEvidenceExpiresAt": "2026-06-25T19:02:29.301Z",
+      "missing": [],
+      "invalid": [],
+      "stale": []
+    },
     "cases": [
       {
         "id": "cp-noaction-001",
