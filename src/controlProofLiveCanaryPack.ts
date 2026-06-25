@@ -1330,7 +1330,50 @@ function legacyProofGapsAreInspectable(value: string): boolean {
   const match = value.match(/legacy proof gaps:\s*(\d+)/i);
   if (!match) return true;
   if (Number(match[1]) === 0) return true;
-  return /Gap planes:/i.test(value) && /legacy proof gaps:\s*[a-z_]/i.test(value);
+  return /Gap planes:/i.test(value) &&
+    /legacy proof gaps:\s*[a-z_]/i.test(value) &&
+    legacyProofGapPlanesHaveValidCapsules(value);
+}
+
+function legacyProofGapPlanesHaveValidCapsules(value: string): boolean {
+  const planes = legacyProofGapPlaneLabels(value);
+  if (planes.length === 0) return false;
+  return planes.every((plane) => {
+    const row = auditPlaneRow(value, plane);
+    if (!row) return false;
+    const proofGap = numericAuditField(row, 'proof_gap');
+    const gapCapsuleValid = numericAuditField(row, 'gap_capsule_valid');
+    const gapRef = numericAuditField(row, 'gap_ref');
+    return proofGap > 0 &&
+      gapCapsuleValid === proofGap &&
+      gapRef === proofGap &&
+      /\bgap_backing\s+complete\b/i.test(row);
+  });
+}
+
+function legacyProofGapPlaneLabels(value: string): string[] {
+  const lines = value.split(/\r?\n/);
+  const legacyLine = lines
+    .map((line) => line.trim())
+    .find((line) => /^-?\s*legacy proof gaps:\s*[a-z_]/i.test(line));
+  if (!legacyLine) return [];
+  return legacyLine
+    .replace(/^-?\s*legacy proof gaps:\s*/i, '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => /^[a-z_]+$/i.test(entry));
+}
+
+function auditPlaneRow(value: string, plane: string): string | null {
+  const escapedPlane = plane.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = value.match(new RegExp(`(?:^|\\n)-?\\s*${escapedPlane}:\\s*([^\\n]+)`, 'i'));
+  return match ? match[1] : null;
+}
+
+function numericAuditField(row: string, field: string): number {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = row.match(new RegExp(`\\b${escapedField}\\s+(\\d+)\\b`, 'i'));
+  return match ? Number(match[1]) : NaN;
 }
 
 function validRuntimeEvidenceValue(

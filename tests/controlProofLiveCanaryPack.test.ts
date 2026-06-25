@@ -36,7 +36,9 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'exit=0',
   'Blocking status: clean',
   'telegram_final_answer: 100/100 sampled | latest_gap no',
-  'builder_gateway: 100/100 sampled | latest_gap no',
+  'telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
+  'builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no',
+  'spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no',
   'missing evidence: 0',
   'missing trace joins: 0',
   'missing proof capsules: 0',
@@ -687,6 +689,19 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
   assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
   assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
+    .replaceAll(' | gap_capsule_valid 97', '')
+    .replaceAll(' | gap_capsule_valid 62', '')
+    .replaceAll(' | gap_capsule_valid 94', '');
+  const staleAuditShape = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleAuditShape.readyForRelease, false);
+  assert.deepEqual(staleAuditShape.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('gap_capsule_valid 62', 'gap_capsule_valid 61');
+  const invalidGapCapsuleCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(invalidGapCapsuleCount.readyForRelease, false);
+  assert.deepEqual(invalidGapCapsuleCount.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
     'incomplete legacy gap backing: 0',
