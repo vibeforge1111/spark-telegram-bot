@@ -176,6 +176,21 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
   assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
   assert.deepEqual(summaryJson.summary.releaseHandoffs, summary.releaseHandoffs);
+  assert.deepEqual(summaryJson.summary.releaseCaveatDetails, summary.releaseCaveatDetails);
+  assert.deepEqual(summaryJson.summary.releaseHandoffDetails, summary.releaseHandoffDetails);
+  assert.deepEqual(summaryJson.summary.publishHandoffs, summary.publishHandoffs);
+  assert.ok(
+    summaryJson.summary.releaseCaveatDetails.repo_release_blocks.blocked_release_repos.length > 0,
+    'saved summary must preserve blocked repo caveat detail rows'
+  );
+  assert.ok(
+    Object.keys(summaryJson.summary.releaseCaveatDetails.duplicate_truths.owner_sets).length > 0,
+    'saved summary must preserve duplicate-truth owner sets'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: { familyDetails: unknown }) => entry.familyDetails),
+    'saved summary must preserve handoff familyDetails joins'
+  );
 });
 
 test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
