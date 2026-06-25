@@ -55,7 +55,7 @@ The JSON summary also carries `packetEvidenceDetails` beside the compatibility a
 
 The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
 
-The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat families, and publish handoff details instead of reconstructing the decision from prose lines.
+The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat details, and publish handoff details instead of reconstructing the decision from prose lines.
 
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 

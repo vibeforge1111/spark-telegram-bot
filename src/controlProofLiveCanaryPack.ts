@@ -187,6 +187,7 @@ export interface ControlProofGateDecisionDetail {
   ready: boolean;
   blockers: string[];
   caveats: string[];
+  caveatDetails: Record<string, unknown> | null;
   caveatFamilies: string[];
   handoffDetails: Record<string, unknown> | null;
   handoffFamilies: string[];
@@ -2028,6 +2029,7 @@ function gateDecisionDetails(input: {
       ready: input.releaseReady,
       blockers: releaseGateBlockers,
       caveats: [],
+      caveatDetails: null,
       caveatFamilies: [],
       handoffDetails: null,
       handoffFamilies: [],
@@ -2043,6 +2045,7 @@ function gateDecisionDetails(input: {
       ready: input.readyForPublish,
       blockers: publishBlockers,
       caveats: [...input.releaseCaveats],
+      caveatDetails: cloneRecord(input.releaseCaveatDetails),
       caveatFamilies,
       handoffDetails: cloneRecord(input.publishHandoffs),
       handoffFamilies,
