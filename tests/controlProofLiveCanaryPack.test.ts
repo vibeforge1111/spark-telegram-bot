@@ -431,6 +431,28 @@ test('observation summary requires pass verdicts and all requested capture evide
     'builder_gateway',
     'spawner_prd_trace'
   ]);
+  assert.deepEqual(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planeLabels, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.count, 3);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.latestGapPlaneCount, 0);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.incompleteBackingPlaneCount, 0);
+  assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.completeBackingPlaneCount, 3);
+  assert.deepEqual(
+    summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planes.map((entry) => ({
+      label: entry.label,
+      proofGap: entry.proofGap,
+      gapBacking: entry.gapBacking,
+      latestGap: entry.latestGap
+    })),
+    [
+      { label: 'telegram_route_confidence', proofGap: 97, gapBacking: 'complete', latestGap: false },
+      { label: 'builder_gateway', proofGap: 62, gapBacking: 'complete', latestGap: false },
+      { label: 'spawner_prd_trace', proofGap: 94, gapBacking: 'complete', latestGap: false }
+    ]
+  );
   assert.deepEqual(summary.controlProofAuditDetails?.planes.find((entry) => entry.label === 'builder_gateway'), {
     label: 'builder_gateway',
     sampledRows: 100,

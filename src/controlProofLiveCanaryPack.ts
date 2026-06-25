@@ -228,6 +228,15 @@ export interface ControlProofAuditPlaneDetail {
   parseErrors: number;
 }
 
+export interface ControlProofAuditGapFamilyDetail {
+  count: number | null;
+  planeLabels: string[];
+  planes: ControlProofAuditPlaneDetail[];
+  latestGapPlaneCount: number;
+  incompleteBackingPlaneCount: number;
+  completeBackingPlaneCount: number;
+}
+
 export interface ControlProofAuditDetails {
   generatedAt: string | null;
   status: string | null;
@@ -235,6 +244,7 @@ export interface ControlProofAuditDetails {
   gapPosture: string | null;
   gapCounts: Record<string, number>;
   gapPlanes: Record<string, string[]>;
+  gapDetails: Record<string, ControlProofAuditGapFamilyDetail>;
   planes: ControlProofAuditPlaneDetail[];
 }
 
@@ -1359,6 +1369,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
     gapPosture,
     gapCounts,
     gapPlanes,
+    gapDetails: controlProofAuditGapDetails(gapCounts, gapPlanes, planes),
     planes
   };
 }
@@ -1420,6 +1431,35 @@ function controlProofAuditGapPlanes(text: string): Record<string, string[]> {
     if (entries.length > 0) planes[key] = entries;
   }
   return planes;
+}
+
+function controlProofAuditGapDetails(
+  gapCounts: Record<string, number>,
+  gapPlanes: Record<string, string[]>,
+  planes: ControlProofAuditPlaneDetail[]
+): Record<string, ControlProofAuditGapFamilyDetail> {
+  const details: Record<string, ControlProofAuditGapFamilyDetail> = {};
+  const keys = Array.from(new Set([...Object.keys(gapCounts), ...Object.keys(gapPlanes)]))
+    .filter((key) => (gapCounts[key] || 0) > 0 || (gapPlanes[key] || []).length > 0)
+    .sort();
+  for (const key of keys) {
+    const planeLabels = [...(gapPlanes[key] || [])];
+    const joinedPlanes = planeLabels
+      .map((label) => planes.find((entry) => entry.label === label))
+      .filter((entry): entry is ControlProofAuditPlaneDetail => Boolean(entry));
+    details[key] = {
+      count: typeof gapCounts[key] === 'number' ? gapCounts[key] : null,
+      planeLabels,
+      planes: joinedPlanes,
+      latestGapPlaneCount: joinedPlanes.filter((entry) => entry.latestGap === true).length,
+      incompleteBackingPlaneCount: joinedPlanes.filter((entry) => {
+        if (entry.gapBacking === null || entry.gapBacking === 'n/a') return false;
+        return entry.gapBacking !== 'complete';
+      }).length,
+      completeBackingPlaneCount: joinedPlanes.filter((entry) => entry.gapBacking === 'complete').length
+    };
+  }
+  return details;
 }
 
 function controlProofAuditPlaneDetail(line: string): ControlProofAuditPlaneDetail | null {
