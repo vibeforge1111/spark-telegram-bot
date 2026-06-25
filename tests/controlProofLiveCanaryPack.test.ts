@@ -628,6 +628,10 @@ test('observation summary requires pass verdicts and all requested capture evide
     runtimeEvidenceCollectedAt: template.evidence.collectedAt,
     runtimeEvidenceExpiresAt: missingPacketEvidence.runtimeEvidenceExpiresAt
   }]);
+  assert.deepEqual(missingPacketEvidence.gateDecisionDetails.release.blockerDetails.missing_packet_evidence, {
+    keys: ['control_proof_audit'],
+    details: missingPacketEvidence.packetEvidenceDetails.missing
+  });
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
@@ -1671,7 +1675,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(staleEmbeddedCompile.readyForRelease, false);
   assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockers, ['invalid_packet_evidence']);
   assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockerDetails, {
-    invalid_packet_evidence: { keys: ['spark_os_compile'] }
+    invalid_packet_evidence: {
+      keys: ['spark_os_compile'],
+      details: staleEmbeddedCompile.packetEvidenceDetails.invalid
+    }
   });
   assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockers, [
     'release_gate_not_ready',

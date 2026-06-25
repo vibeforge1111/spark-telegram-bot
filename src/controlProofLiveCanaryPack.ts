@@ -2106,6 +2106,7 @@ function gateDecisionDetails(input: {
   missingEvidence: string[];
   invalidEvidence: string[];
   staleEvidence: string[];
+  packetEvidenceDetails: ControlProofPacketEvidenceDetails;
   cases: ControlProofCanaryObservationCaseSummary[];
 }): ControlProofGateDecisionDetails {
   const failingCases = input.cases
@@ -2133,13 +2134,22 @@ function gateDecisionDetails(input: {
   ];
   const releaseBlockerDetails: Record<string, unknown> = {};
   if (input.missingEvidence.length > 0) {
-    releaseBlockerDetails.missing_packet_evidence = { keys: [...input.missingEvidence] };
+    releaseBlockerDetails.missing_packet_evidence = {
+      keys: [...input.missingEvidence],
+      details: JSON.parse(JSON.stringify(input.packetEvidenceDetails.missing))
+    };
   }
   if (input.invalidEvidence.length > 0) {
-    releaseBlockerDetails.invalid_packet_evidence = { keys: [...input.invalidEvidence] };
+    releaseBlockerDetails.invalid_packet_evidence = {
+      keys: [...input.invalidEvidence],
+      details: JSON.parse(JSON.stringify(input.packetEvidenceDetails.invalid))
+    };
   }
   if (input.staleEvidence.length > 0) {
-    releaseBlockerDetails.stale_packet_evidence = { keys: [...input.staleEvidence] };
+    releaseBlockerDetails.stale_packet_evidence = {
+      keys: [...input.staleEvidence],
+      details: JSON.parse(JSON.stringify(input.packetEvidenceDetails.stale))
+    };
   }
   if (failingCases.length > 0) {
     releaseBlockerDetails.canary_case_failures = { cases: JSON.parse(JSON.stringify(failingCases)) };
@@ -2922,6 +2932,7 @@ export function summarizeControlProofCanaryObservations(
     missingEvidence,
     invalidEvidence,
     staleEvidence,
+    packetEvidenceDetails: structuredPacketEvidence,
     cases
   });
   return {
