@@ -172,16 +172,32 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
       expectedRoute?: unknown;
       expectedAuthority?: unknown;
       expectedMutationClass?: unknown;
+      sourceRefs?: unknown;
       observed?: unknown;
       prompt?: unknown;
     }) =>
       typeof entry.expectedRoute === 'string' &&
       typeof entry.expectedAuthority === 'string' &&
       typeof entry.expectedMutationClass === 'string' &&
+      (entry.sourceRefs === undefined || Array.isArray(entry.sourceRefs)) &&
       entry.observed === undefined &&
       entry.prompt === undefined
     ),
     'saved case summaries must preserve safe Harness metadata without raw prompts or observations'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+    ],
+    'saved summary must preserve streaming canary source refs'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+    ],
+    'saved summary must preserve rich-message canary source refs'
   );
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);

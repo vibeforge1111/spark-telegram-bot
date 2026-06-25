@@ -147,6 +147,7 @@ export interface ControlProofCanaryObservationCase {
 export interface ControlProofCanaryObservationCaseSummary {
   id: string;
   verdict: ControlProofCanaryVerdict;
+  sourceRefs?: ControlProofCanarySourceRef[];
   expectedRoute: string;
   expectedAuthority: ControlProofCanaryAuthorityExpectation;
   expectedMutationClass: ControlProofCanaryMutationClass;
@@ -2984,9 +2985,11 @@ export function summarizeControlProofCanaryObservations(
     seenCaseIds.add(entry.id);
     if (!verdictValues.has(entry.observed.verdict)) throw new Error(`Invalid verdict for ${entry.id}: ${entry.observed.verdict}`);
     verdictCounts[entry.observed.verdict] += 1;
+    const sourceRefs = entry.sourceRefs?.length ? entry.sourceRefs : undefined;
     return {
       id: entry.id,
       verdict: entry.observed.verdict,
+      ...(sourceRefs ? { sourceRefs } : {}),
       expectedRoute: entry.expected.route,
       expectedAuthority: entry.expected.authority,
       expectedMutationClass: entry.expected.mutationClass,
