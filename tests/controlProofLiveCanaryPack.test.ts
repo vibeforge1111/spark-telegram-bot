@@ -1291,6 +1291,35 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
             }
           },
+          handoffActionDetails: [
+            {
+              owner: 'spark-intelligence-builder',
+              status: 'release_blocked',
+              family: null,
+              reason: 'behind upstream',
+              behind: 12,
+              nextSafeAction: 'pull or merge upstream before release',
+              line: 'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
+            },
+            {
+              owner: 'spark-installer-registry',
+              status: 'warning',
+              family: 'local_runtime_test_artifacts',
+              reason: null,
+              behind: null,
+              nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+              line: 'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+            },
+            {
+              owner: 'spark-intelligence-builder',
+              status: 'warning',
+              family: 'builder_trace_health',
+              reason: null,
+              behind: null,
+              nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
+              line: 'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+            }
+          ],
           handoffs: [
             'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
             'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
@@ -1367,6 +1396,39 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
     'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
     'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+  ]);
+  assert.deepEqual(structuredPublishHandoffs.releaseHandoffDetails.map((entry) => ({
+    owner: entry.owner,
+    status: entry.status,
+    family: entry.family,
+    reason: entry.reason,
+    behind: entry.behind,
+    nextSafeAction: entry.nextSafeAction
+  })), [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'release_blocked',
+      family: null,
+      reason: 'behind upstream',
+      behind: 12,
+      nextSafeAction: 'pull or merge upstream before release'
+    },
+    {
+      owner: 'spark-installer-registry',
+      status: 'warning',
+      family: 'local_runtime_test_artifacts',
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+    },
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'warning',
+      family: 'builder_trace_health',
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+    }
   ]);
   assert.deepEqual(structuredPublishHandoffs.releaseCaveatDetails, {
     builder_trace_health: {

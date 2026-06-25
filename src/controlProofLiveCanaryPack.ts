@@ -248,6 +248,16 @@ export interface ControlProofAuditDetails {
   planes: ControlProofAuditPlaneDetail[];
 }
 
+export interface ControlProofReleaseHandoffDetail {
+  owner: string;
+  status: string;
+  family: string | null;
+  reason: string | null;
+  behind: number | null;
+  nextSafeAction: string | null;
+  line: string;
+}
+
 export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
@@ -263,6 +273,7 @@ export interface ControlProofCanaryObservationSummary {
   releaseCaveatDetails: Record<string, unknown> | null;
   controlProofAuditDetails: ControlProofAuditDetails | null;
   releaseHandoffs: string[];
+  releaseHandoffDetails: ControlProofReleaseHandoffDetail[];
   publishHandoffs: Record<string, unknown> | null;
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
@@ -2038,6 +2049,7 @@ function gateDecisionDetails(input: {
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
   releaseHandoffs: string[];
+  releaseHandoffDetails: ControlProofReleaseHandoffDetail[];
   publishHandoffs: Record<string, unknown> | null;
   missingEvidence: string[];
   invalidEvidence: string[];
@@ -2102,6 +2114,7 @@ function gateDecisionDetails(input: {
       handoffCount: input.releaseHandoffs.length,
       handoffFamilies,
       handoffDetails: cloneRecord(input.publishHandoffs),
+      handoffActionDetails: JSON.parse(JSON.stringify(input.releaseHandoffDetails)),
       handoffs: [...input.releaseHandoffs]
     };
   }
@@ -2205,6 +2218,49 @@ function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>):
     }
   }
   return lines;
+}
+
+function safeHandoffDisplayText(value: unknown): string | null {
+  const text = String(value || '').trim();
+  return text && /^[A-Za-z0-9 ._/:;,+()='/-]+$/.test(text) ? text : null;
+}
+
+function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHandoffDetail[] {
+  return handoffs
+    .map((line) => {
+      const safeLine = safeHandoffDisplayText(line);
+      if (!safeLine) return null;
+      const firstSeparator = safeLine.indexOf(';');
+      const head = firstSeparator >= 0 ? safeLine.slice(0, firstSeparator).trim() : safeLine;
+      const tail = firstSeparator >= 0 ? safeLine.slice(firstSeparator + 1).trim() : '';
+      const headMatch = head.match(/^([a-z0-9_.-]+):\s+([a-z0-9_.-]+)(?:\s+([a-z0-9_.-]+))?$/i);
+      if (!headMatch) return null;
+      const owner = safeStringToken(headMatch[1]);
+      const status = safeStringToken(headMatch[2]);
+      const family = safeStringToken(headMatch[3]);
+      if (!owner || !status) return null;
+      let reason: string | null = null;
+      let behind: number | null = null;
+      let nextSafeAction: string | null = null;
+      const reasonMatch = tail.match(/(?:^|;\s*)reason:\s*([^;]+)/i);
+      if (reasonMatch) reason = safeHandoffDisplayText(reasonMatch[1]);
+      const behindMatch = tail.match(/(?:^|;\s*)behind=(\d+)(?:;|$)/i);
+      if (behindMatch) behind = Number(behindMatch[1]);
+      const nextMatch = tail.match(/(?:^|;\s*)next safe action:\s*(.+)$/i);
+      if (nextMatch) {
+        nextSafeAction = safeHandoffDisplayText(nextMatch[1]);
+      }
+      return {
+        owner,
+        status,
+        family,
+        reason,
+        behind,
+        nextSafeAction,
+        line: safeLine
+      };
+    })
+    .filter((entry): entry is ControlProofReleaseHandoffDetail => Boolean(entry));
 }
 
 function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string[] {
@@ -2751,6 +2807,7 @@ export function summarizeControlProofCanaryObservations(
     ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
     ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
   ]));
+  const releaseHandoffDetails = releaseHandoffActionDetails(releaseHandoffs);
   const releaseReady = readyForRelease && releaseBlockers.length === 0;
   const readyForPublish = releaseReady && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   const structuredGateDecisionDetails = gateDecisionDetails({
@@ -2760,6 +2817,7 @@ export function summarizeControlProofCanaryObservations(
     releaseCaveats,
     releaseCaveatDetails,
     releaseHandoffs,
+    releaseHandoffDetails,
     publishHandoffs,
     missingEvidence,
     invalidEvidence,
@@ -2781,6 +2839,7 @@ export function summarizeControlProofCanaryObservations(
     releaseCaveatDetails,
     controlProofAuditDetails: auditDetails,
     releaseHandoffs,
+    releaseHandoffDetails,
     publishHandoffs,
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
