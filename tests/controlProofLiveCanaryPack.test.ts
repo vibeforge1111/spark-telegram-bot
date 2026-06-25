@@ -94,6 +94,8 @@ const CLEAN_PROOF_PANEL = [
   'Audit blocking: clean',
   'Legacy proof gaps visible: 3'
 ].join('\n');
+const STABLE_SCREENSHOT_REF = 'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7';
+const STABLE_SCREENSHOT_REF_TWO = 'screenshot:sha256:2911385c0329829d3cd072611b0fb859e86e12018474614e38c1e73bd9b16968';
 
 test('control-proof canary pack stays small enough for live runs', () => {
   assert.ok(CONTROL_PROOF_LIVE_CANARY_CASES.length >= 20);
@@ -298,7 +300,7 @@ test('live run guide pairs Telegram prompts with record commands', () => {
   assert.match(guide, /--reply-file '\/tmp\/cp-builder-001-reply\.txt'/);
   assert.match(guide, /--mission-started <true\|false\|unknown>/);
   assert.match(guide, /--record-case cp-access-002[\s\S]*--access-changed <true\|false\|unknown>[\s\S]*--no-other-side-effects/);
-  assert.match(guide, /--screenshot-ref '\/tmp\/cp-streaming-001\.png'/);
+  assert.match(guide, /--screenshot-ref 'screenshot:sha256:<64-hex-digest>'/);
   assert.doesNotMatch(guide, /```text\n(?:(?!```).)*Expected route/s);
 });
 
@@ -372,7 +374,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
     proofPanel: CLEAN_PROOF_PANEL,
-    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
     userConfirmation: 'User confirmed Telegram reply rendered once.'
   };
 
@@ -416,23 +418,26 @@ test('observation summary requires pass verdicts and all requested capture evide
   template.cases[0].observed.screenshotRefs = ['telegram-screenshot: file_id hidden'];
   const rawScreenshotRef = summarizeControlProofCanaryObservations(template);
   assert.equal(rawScreenshotRef.readyForRelease, false);
-  assert.deepEqual(rawScreenshotRef.cases[0].missingCaptures, ['screenshot_raw_leak']);
+  assert.deepEqual(rawScreenshotRef.cases[0].missingCaptures, ['screenshot_ref', 'screenshot_raw_leak']);
 
-  template.cases[0].observed.screenshotRefs = [
-    'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7'
-  ];
+  template.cases[0].observed.screenshotRefs = [STABLE_SCREENSHOT_REF];
   const digestScreenshotRef = summarizeControlProofCanaryObservations(template);
   assert.equal(digestScreenshotRef.readyForRelease, true);
   assert.deepEqual(digestScreenshotRef.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  const localScreenshotPath = summarizeControlProofCanaryObservations(template);
+  assert.equal(localScreenshotPath.readyForRelease, false);
+  assert.deepEqual(localScreenshotPath.cases[0].missingCaptures, ['screenshot_ref']);
 
   template.cases[0].observed.screenshotRefs = [
     'screenshot:raw:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7'
   ];
   const rawDigestScreenshotRef = summarizeControlProofCanaryObservations(template);
   assert.equal(rawDigestScreenshotRef.readyForRelease, false);
-  assert.deepEqual(rawDigestScreenshotRef.cases[0].missingCaptures, ['screenshot_raw_leak']);
+  assert.deepEqual(rawDigestScreenshotRef.cases[0].missingCaptures, ['screenshot_ref', 'screenshot_raw_leak']);
 
-  template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
+  template.cases[0].observed.screenshotRefs = [STABLE_SCREENSHOT_REF];
   template.cases[0].observed.sideEffects.missionStarted = null;
   template.cases[0].observed.sideEffects.notes = 'No mission or mutation observed.';
   const sideEffectNotesOnly = summarizeControlProofCanaryObservations(template);
@@ -548,7 +553,7 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     },
     proofJoin: 'Access change joined with redacted proof ref.',
     proofPanel: CLEAN_PROOF_PANEL,
-    screenshotRefs: ['/tmp/spark-recursive-access.png'],
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
     userConfirmation: 'User confirmed Telegram access reply rendered once.'
   };
 
@@ -595,7 +600,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     },
     proofJoin: 'Builder joined.',
     proofPanel: CLEAN_PROOF_PANEL,
-    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
     userConfirmation: 'Confirmed in SparkRecursive_bot.'
   };
 
@@ -802,7 +807,7 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
     },
     proofJoin: '<proof join observed, or missing proof>',
     proofPanel: '<proof panel text, or not shown>',
-    screenshotRefs: ['<screenshot path>'],
+    screenshotRefs: ['<screenshot digest>'],
     userConfirmation: '<confirmed in SparkRecursive_bot>'
   };
 
@@ -841,21 +846,21 @@ test('observation recorder updates one case while preserving packet evidence', (
     },
     proofJoin: 'Builder gateway joined with redacted proof ref.',
     proofPanel: CLEAN_PROOF_PANEL,
-    screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
     userConfirmation: 'User confirmed Telegram reply rendered once.'
   });
 
   assert.equal(recorded.evidence.notes, 'Collected locally.');
   assert.equal(recorded.cases[0].observed.verdict, 'pass');
   assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
-  assert.deepEqual(recorded.cases[0].observed.screenshotRefs, ['/tmp/spark-recursive-builder.png']);
+  assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [STABLE_SCREENSHOT_REF]);
   assert.equal(summarizeControlProofCanaryObservations(recorded).readyForRelease, true);
 
   const partiallyUpdated = recordControlProofCanaryObservation(recorded, {
     id: 'cp-builder-001',
     notes: 'Retested after runtime sync.'
   });
-  assert.deepEqual(partiallyUpdated.cases[0].observed.screenshotRefs, ['/tmp/spark-recursive-builder.png']);
+  assert.deepEqual(partiallyUpdated.cases[0].observed.screenshotRefs, [STABLE_SCREENSHOT_REF]);
   assert.equal(partiallyUpdated.cases[0].observed.notes, 'Retested after runtime sync.');
 });
 
@@ -1171,7 +1176,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         },
         proofJoin: 'Builder joined.',
         proofPanel: CLEAN_PROOF_PANEL,
-        screenshotRefs: [`/tmp/${entry.id}.png`],
+        screenshotRefs: [STABLE_SCREENSHOT_REF],
         userConfirmation: 'Confirmed in SparkRecursive_bot.'
       }
     }));
@@ -1206,7 +1211,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       },
       proofJoin: 'Builder joined.',
       proofPanel: CLEAN_PROOF_PANEL,
-      screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+      screenshotRefs: [STABLE_SCREENSHOT_REF],
       userConfirmation: 'Confirmed in SparkRecursive_bot.'
     };
     observed.evidence = {
@@ -1279,9 +1284,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         '--proof-panel-file',
         proofPanelPath,
         '--screenshot-ref',
-        '/tmp/spark-recursive-builder.png',
+        STABLE_SCREENSHOT_REF,
         '--screenshot-ref',
-        '/tmp/spark-recursive-builder-proof.png',
+        STABLE_SCREENSHOT_REF_TWO,
         '--summary-out',
         recordedSummaryPath,
         '--summary-json-out',
@@ -1300,8 +1305,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
     assert.equal(recorded.cases[0].observed.sideEffects.missionStarted, false);
     assert.deepEqual(recorded.cases[0].observed.screenshotRefs, [
-      '/tmp/spark-recursive-builder.png',
-      '/tmp/spark-recursive-builder-proof.png'
+      STABLE_SCREENSHOT_REF,
+      STABLE_SCREENSHOT_REF_TWO
     ]);
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
     const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
@@ -1351,7 +1356,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         '--proof-panel-file',
         proofPanelPath,
         '--screenshot-ref',
-        '/tmp/spark-recursive-access.png',
+        STABLE_SCREENSHOT_REF,
         '--user-confirmation',
         'Confirmed in SparkRecursive_bot.'
       ],
@@ -1659,7 +1664,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       },
       proofJoin: 'Builder joined.',
       proofPanel: CLEAN_PROOF_PANEL,
-      screenshotRefs: ['/tmp/spark-recursive-builder.png'],
+      screenshotRefs: [STABLE_SCREENSHOT_REF],
       userConfirmation: 'Confirmed in SparkRecursive_bot.'
     };
     const summary = summarizeControlProofCanaryObservations(observed);

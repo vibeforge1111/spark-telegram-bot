@@ -60,7 +60,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --publish-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
-    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref screenshot:sha256:<64-hex-digest> --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --summary-out outputs/live-canary-summary.md --summary-json-out outputs/live-canary-summary.json',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',

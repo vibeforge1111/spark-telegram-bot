@@ -185,7 +185,7 @@ Audit plane rows now also print `gap_capsule`, `gap_ref`, and `gap_backing` next
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 
-Live visual canary evidence can use `screenshot:sha256:<digest>` refs instead of raw `/tmp` screenshot paths. That keeps Telegram rendering evidence durable and checkable without committing private chat imagery.
+Live visual canary evidence must use `screenshot:sha256:<digest>` refs in release packets instead of raw `/tmp` screenshot paths. Raw local paths are capture-stage artifacts only; hash the screenshot before recording release evidence so Telegram rendering proof stays durable and checkable without committing private chat imagery.
 
 The `/streaming` status card now needs to show the redacted active Telegram profile as well as streaming/rich-message settings and transport telemetry. Any older `cp-streaming-001` capture without the profile line is stale and must be recaptured before release claims.
 
@@ -402,8 +402,8 @@ npm run control:proof:canaries -- --json
 npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json
-npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --side-effects-notes "No mutation observed." --proof-join "Builder joined." --proof-panel "Harness Proof: Builder joined." --screenshot-ref /tmp/case.png --user-confirmation "Confirmed in SparkRecursive_bot."
-npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-access-002 --verdict pass --reply-file /tmp/reply.txt --access-changed true --no-other-side-effects --side-effects-notes "Access changed; no other mutation observed." --proof-join "Access change joined." --proof-panel "Harness Proof: Access joined." --screenshot-ref /tmp/case.png --user-confirmation "Confirmed in SparkRecursive_bot."
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --side-effects-notes "No mutation observed." --proof-join "Builder joined." --proof-panel "Harness Proof: Builder joined." --screenshot-ref screenshot:sha256:<64-hex-digest> --user-confirmation "Confirmed in SparkRecursive_bot."
+npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --record-case cp-access-002 --verdict pass --reply-file /tmp/reply.txt --access-changed true --no-other-side-effects --side-effects-notes "Access changed; no other mutation observed." --proof-join "Access change joined." --proof-panel "Harness Proof: Access joined." --screenshot-ref screenshot:sha256:<64-hex-digest> --user-confirmation "Confirmed in SparkRecursive_bot."
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --strict
 npm run control:proof:canaries -- --observations outputs/live-canary-observations.json --release-check
 ```
@@ -422,7 +422,7 @@ npm run control:proof:audit -- --sample 100 --fresh-strict
 
 Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 
-Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary. Use `--summary-out` during bundle runs to refresh the bundle summary file after each recorded case.
+Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, stable screenshot digest reference, and user confirmation back into the observation packet. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary. Use `--summary-out` during bundle runs to refresh the bundle summary file after each recorded case.
 
 For action cases, keep the generated `--no-other-side-effects` flag unless an unrelated mutation really happened. The flag records every non-expected mutation as false, so the packet proves the action did not quietly start a mission, write files or memory, switch providers, call the network, or handle media. If an unrelated mutation did happen, remove the flag, record the actual true side-effect flag, and mark the case fail or needs-retest.
 

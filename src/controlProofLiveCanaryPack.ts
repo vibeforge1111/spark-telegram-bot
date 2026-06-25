@@ -914,14 +914,14 @@ export function formatControlProofCanaryLiveRunGuide(
   const lines = [
     `# ${CONTROL_PROOF_CANARY_TARGET} Control-Proof Live Run Guide`,
     '',
-    'Run each Telegram block exactly as written. Then save the observed reply to a text file, keep any screenshot path, and run the matching record command with real values.',
+    'Run each Telegram block exactly as written. Then save the observed reply to a text file, hash any screenshot evidence, and run the matching record command with real values.',
     '',
     `Observation packet: ${observationsPath}`,
     ''
   ];
   cases.forEach((entry, index) => {
     const replyFile = `/tmp/${entry.id}-reply.txt`;
-    const screenshotRef = `/tmp/${entry.id}.png`;
+    const screenshotRef = 'screenshot:sha256:<64-hex-digest>';
     lines.push(`${index + 1}. ${entry.id}`);
     lines.push('');
     lines.push('Telegram prompt:');
@@ -1525,9 +1525,7 @@ function screenshotCaptureIssues(values: string[]): string[] {
 }
 
 function isPlausibleScreenshotRef(value: string): boolean {
-  return /\.(?:png|jpe?g|webp)$/i.test(value) ||
-    /^(?:screenshot|telegram-screenshot|peekaboo):/i.test(value) ||
-    /^screenshot:sha256:[a-f0-9]{64}$/i.test(value);
+  return /^screenshot:sha256:[a-f0-9]{64}$/i.test(value);
 }
 
 function screenshotRefLeaksRawInternals(value: string): boolean {
