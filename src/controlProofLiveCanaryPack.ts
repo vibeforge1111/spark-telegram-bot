@@ -1562,8 +1562,12 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
   const localRuntimeTestCount = numberOrNull(classificationCounts.local_runtime_test_artifact) ?? 0;
   if (localRuntimeTestCount > 0 && localRuntimeTestCount === duplicateTruthCount) {
     const sourceLabel = localRuntimeTestCount === 1 ? 'source' : 'sources';
+    const ownerList = safeOwnerSetList(duplicateTruths, 'local_runtime_test_artifact');
+    const ownerClause = ownerList.length
+      ? ` (${ownerList.join(', ')})`
+      : '';
     handoffs.push(
-      `spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep ${localRuntimeTestCount} installed ${sourceLabel} for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.`
+      `spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep ${localRuntimeTestCount} installed ${sourceLabel}${ownerClause} for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.`
     );
   }
   const current = objectOrNull(parsed.builder_trace_current_health);
@@ -1613,6 +1617,16 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
       ? `Let ${latestCleanWindowGroups} latest-clean historical-window groups age out or backfill the historical rows, then rerun spark os compile.`
       : 'Audit or backfill the remaining historical Builder trace rows, then rerun spark os compile.';
   return [...handoffs, `spark-intelligence-builder: warning builder_trace_health; next safe action: ${nextSafeAction}`];
+}
+
+function safeOwnerSetList(duplicateTruths: Record<string, unknown>, classification: string): string[] {
+  const ownerSets = objectOrNull(duplicateTruths.owner_sets);
+  const rawOwners = ownerSets ? ownerSets[classification] : null;
+  if (!Array.isArray(rawOwners)) return [];
+  return rawOwners
+    .map((entry) => String(entry || '').trim())
+    .filter((entry) => /^[a-z0-9_.-]+$/i.test(entry))
+    .sort();
 }
 
 function handoffSectionLines(text: string, marker: string): string[] {
