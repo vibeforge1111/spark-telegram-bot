@@ -28,6 +28,24 @@ function processOutputText(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+/**
+ * Safely parse JSON emitted by a subprocess on stdout. On invalid JSON this
+ * throws a descriptive error instead of letting the raw SyntaxError propagate,
+ * so a single malformed subprocess payload no longer crashes the bridge call.
+ * The embedded raw snippet is run through redactText() so secrets / internal
+ * paths never leak into the thrown error (consistent with the path-redaction
+ * work in the surrounding code).
+ */
+function safeParseJson(raw: string, context: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    const redacted = redactText(raw);
+    const snippet = redacted.length > 200 ? `${redacted.slice(0, 200)}...` : redacted;
+    throw new Error(`${context}: invalid JSON from subprocess. raw=${snippet}`);
+  }
+}
+
 function execFailureDetail(error: unknown): string {
   const record = error && typeof error === 'object' ? error as Record<string, unknown> : {};
   const message = error instanceof Error ? error.message : String(error);
@@ -2058,7 +2076,7 @@ export async function runBuilderDiagnosticsScan(): Promise<BuilderDiagnosticsSca
   if (!trimmedStdout) {
     throw new Error(`Diagnostics scan returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const parsed = JSON.parse(trimmedStdout) as BuilderDiagnosticsScanJson;
+  const parsed = safeParseJson(trimmedStdout, 'Diagnostics scan') as unknown as BuilderDiagnosticsScanJson;
   return {
     replyText: formatDiagnosticsScanReply(parsed),
     markdownPath: String(parsed.markdown_path || '').trim(),
@@ -2109,7 +2127,7 @@ export async function runBuilderSelfAwarenessStatus(
   if (!trimmedStdout) {
     throw new Error(`Builder self-awareness returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder self-awareness');
   if (input.currentMessage) {
     payload.current_message = input.currentMessage;
   }
@@ -2161,7 +2179,7 @@ export async function runBuilderSelfImprovementPlan(
   if (!trimmedStdout) {
     throw new Error(`Builder self-improvement plan returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder self-improvement plan');
   return {
     payload,
     replyText: formatSelfImprovementPlanReply(payload),
@@ -2282,7 +2300,7 @@ export async function runBuilderSourceUsed(input: BuilderSourceUsedInput): Promi
   if (!trimmedStdout) {
     throw new Error(`Builder source-used recorder returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder source-used recorder');
   return {
     eventId: String(payload.event_id || ''),
     payload,
@@ -2379,7 +2397,7 @@ export async function runBuilderAgentBlackBox(
   if (!trimmedStdout) {
     throw new Error(`Builder agent black box returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder agent black box');
   return {
     payload,
     replyText: formatAgentBlackBoxReply(payload),
@@ -2513,7 +2531,7 @@ export async function runBuilderRouteConfidenceGate(
   if (!trimmedStdout) {
     throw new Error(`Builder route confidence gate returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder route confidence gate');
   return {
     payload,
     replyText: formatRouteConfidenceGateReply(payload),
@@ -2570,7 +2588,7 @@ export async function runBuilderRouteProbe(capabilityKey: string): Promise<Build
     }
     throw new Error(`Builder route probe returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder route probe');
   return {
     payload,
     replyText: formatRouteProbeReply(payload),
@@ -2727,7 +2745,7 @@ export async function readLatestCapabilityProbeReceipt(
       maxBuffer: 1024 * 1024,
     })
   );
-  const payload = JSON.parse(stdout.trim() || '{}') as Record<string, unknown>;
+  const payload = safeParseJson(stdout.trim() || '{}', 'Builder capability probe receipt');
   return extractLatestCapabilityProbeReceiptFromBlackBoxPayload(payload, routeKey);
 }
 
@@ -2877,7 +2895,7 @@ export async function runBuilderAocPreflight(input: BuilderAocPreflightInput): P
     if (!trimmedStdout) {
       throw new Error(`Builder AOC preflight returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    payloads.push(JSON.parse(trimmedStdout) as Record<string, unknown>);
+    payloads.push(safeParseJson(trimmedStdout, 'Builder AOC preflight'));
   }
   return { recorded: payloads.length > 0, payloads };
 }
@@ -2928,7 +2946,7 @@ export async function runBuilderWikiStatus(input: { refresh?: boolean } = {}): P
   if (!trimmedStdout) {
     throw new Error(`Builder wiki status returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder wiki status');
   return {
     payload,
     replyText: formatWikiStatusReply(payload),
@@ -2969,7 +2987,7 @@ export async function runBuilderWikiInventory(input: { refresh?: boolean; limit?
   if (!trimmedStdout) {
     throw new Error(`Builder wiki inventory returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder wiki inventory');
   return {
     payload,
     replyText: formatWikiInventoryReply(payload),
@@ -3027,7 +3045,7 @@ export async function runBuilderWikiQuery(
   if (!trimmedStdout) {
     throw new Error(`Builder wiki query returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder wiki query');
   return {
     payload,
     replyText: formatWikiQueryReply(payload),
@@ -3100,7 +3118,7 @@ export async function runBuilderWikiAnswer(
   if (!trimmedStdout) {
     throw new Error(`Builder wiki answer returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder wiki answer');
   return {
     payload,
     replyText: formatWikiAnswerReply(payload),
@@ -3171,7 +3189,7 @@ export async function runBuilderWikiPromoteImprovement(
   if (!trimmedStdout) {
     throw new Error(`Builder wiki promotion returned empty stdout. stderr=${redactText(stderr.trim())}`);
   }
-  const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+  const payload = safeParseJson(trimmedStdout, 'Builder wiki promotion');
   return {
     payload,
     replyText: formatWikiPromotionReply(payload),
@@ -3241,7 +3259,7 @@ export async function runBuilderConversationColdContext(
     if (!trimmedStdout) {
       throw new Error(`Builder memory context returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    const formatted = formatConversationColdMemoryContext(JSON.parse(trimmedStdout));
+    const formatted = formatConversationColdMemoryContext(safeParseJson(trimmedStdout, 'Builder memory context'));
     return {
       used: formatted.sourceCount > 0,
       contextText: formatted.contextText,
@@ -3357,7 +3375,7 @@ export async function runBuilderTelegramMemoryWrite(
     if (!trimmedStdout) {
       throw new Error(`Builder memory writer returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const payload = safeParseJson(trimmedStdout, 'Builder memory writer');
     const acceptedCount = numericValue(payload.accepted_count);
     const rejectedCount = numericValue(payload.rejected_count);
     const skippedCount = numericValue(payload.skipped_count);
@@ -3456,7 +3474,7 @@ export async function runBuilderTelegramMemoryRecall(
     if (!trimmedStdout) {
       throw new Error(`Builder memory recall returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const payload = safeParseJson(trimmedStdout, 'Builder memory recall');
     const formatted = formatBuilderTelegramMemoryRecall(payload, input.queryText, input.limit || 5);
     return {
       used: formatted.recordCount > 0,
@@ -3547,7 +3565,7 @@ export async function runBuilderTelegramMemoryCapsuleRecall(
     if (!trimmedStdout) {
       throw new Error(`Builder memory capsule recall returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const payload = safeParseJson(trimmedStdout, 'Builder memory capsule recall');
     const formatted = formatBuilderTelegramMemoryCapsuleRecall(payload, input.queryText, input.limit || 5);
     return {
       used: formatted.recordCount > 0,
@@ -3660,7 +3678,7 @@ export async function runBuilderTelegramMemoryDelete(
     if (!trimmedStdout) {
       throw new Error(`Builder memory deleter returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
-    const payload = JSON.parse(trimmedStdout) as Record<string, unknown>;
+    const payload = safeParseJson(trimmedStdout, 'Builder memory deleter');
     const acceptedCount = numericValue(payload.accepted_count);
     const rejectedCount = numericValue(payload.rejected_count);
     const skippedCount = numericValue(payload.skipped_count);
@@ -3737,7 +3755,7 @@ async function runBuilderTelegramBridgeOneShot(
       throw new Error(`Builder bridge returned empty stdout. stderr=${redactText(stderr.trim())}`);
     }
 
-    return JSON.parse(trimmedStdout) as BuilderBridgeParsedPayload;
+    return safeParseJson(trimmedStdout, 'Builder bridge') as unknown as BuilderBridgeParsedPayload;
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
