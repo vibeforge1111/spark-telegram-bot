@@ -1080,6 +1080,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       caveatDetails: null,
       caveatFamilies: [],
       handoffDetails: null,
+      handoffActionDetails: [],
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1093,6 +1094,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       caveatDetails: null,
       caveatFamilies: [],
       handoffDetails: null,
+      handoffActionDetails: [],
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1211,6 +1213,35 @@ test('observation summary rejects dirty runtime evidence even when packet fields
 
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean","window":"1h","missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25"},"repo_board":{"dirty_repo_count":0,"blocked_release_count":1,"critical_repo_count":1,"duplicate_truth_count":2,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"local_runtime_test_artifact":2},"owner_sets":{"local_runtime_test_artifact":["spark-telegram-bot","spawner-ui"]}},"publish_handoffs":{"schema_version":"spark.publish_handoffs.summary.v0","family_count":3,"families":["repo_release_blocks","local_runtime_test_artifacts","builder_trace_health"],"blocked_release_repos":[{"repo":"spark-intelligence-builder","risk_class":"critical","reason":"behind upstream","next_safe_action":"pull or merge upstream before release","behind":12}],"local_runtime_test_artifacts":{"count":2,"owners":["spark-telegram-bot","spawner-ui"]},"builder_trace_health":{"flags":["historical_open_high_severity_events"],"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25"}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const structuredPublishHandoffs = summarizeControlProofCanaryObservations(template);
+  const expectedHandoffActionDetails = [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'release_blocked',
+      family: null,
+      reason: 'behind upstream',
+      behind: 12,
+      nextSafeAction: 'pull or merge upstream before release',
+      line: 'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
+    },
+    {
+      owner: 'spark-installer-registry',
+      status: 'warning',
+      family: 'local_runtime_test_artifacts',
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
+      line: 'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
+    },
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'warning',
+      family: 'builder_trace_health',
+      reason: null,
+      behind: null,
+      nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
+      line: 'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
+    }
+  ];
   assert.equal(structuredPublishHandoffs.readyForRelease, true);
   assert.equal(structuredPublishHandoffs.readyForPublish, false);
   assert.deepEqual(structuredPublishHandoffs.gateDecisionDetails, {
@@ -1277,6 +1308,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
         }
       },
+      handoffActionDetails: expectedHandoffActionDetails,
       handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
       handoffCount: 3,
       packetEvidence: { missing: [], invalid: [], stale: [] },
@@ -1346,35 +1378,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
             }
           },
-          handoffActionDetails: [
-            {
-              owner: 'spark-intelligence-builder',
-              status: 'release_blocked',
-              family: null,
-              reason: 'behind upstream',
-              behind: 12,
-              nextSafeAction: 'pull or merge upstream before release',
-              line: 'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
-            },
-            {
-              owner: 'spark-installer-registry',
-              status: 'warning',
-              family: 'local_runtime_test_artifacts',
-              reason: null,
-              behind: null,
-              nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
-              line: 'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
-            },
-            {
-              owner: 'spark-intelligence-builder',
-              status: 'warning',
-              family: 'builder_trace_health',
-              reason: null,
-              behind: null,
-              nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
-              line: 'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
-            }
-          ],
+          handoffActionDetails: expectedHandoffActionDetails,
           handoffs: [
             'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
             'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
@@ -1441,6 +1445,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
         }
       },
+      handoffActionDetails: expectedHandoffActionDetails,
       handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
       handoffCount: 3,
       packetEvidence: { missing: [], invalid: [], stale: [] },

@@ -191,6 +191,7 @@ export interface ControlProofGateDecisionDetail {
   caveatDetails: Record<string, unknown> | null;
   caveatFamilies: string[];
   handoffDetails: Record<string, unknown> | null;
+  handoffActionDetails: ControlProofReleaseHandoffDetail[];
   handoffFamilies: string[];
   handoffCount: number;
   packetEvidence: {
@@ -2127,6 +2128,7 @@ function gateDecisionDetails(input: {
       caveatDetails: cloneRecord(input.releaseCaveatDetails),
       caveatFamilies,
       handoffDetails: cloneRecord(input.publishHandoffs),
+      handoffActionDetails: JSON.parse(JSON.stringify(input.releaseHandoffDetails)),
       handoffFamilies,
       handoffCount: input.releaseHandoffs.length,
       packetEvidence: {
@@ -2144,6 +2146,7 @@ function gateDecisionDetails(input: {
       caveatDetails: cloneRecord(input.releaseCaveatDetails),
       caveatFamilies,
       handoffDetails: cloneRecord(input.publishHandoffs),
+      handoffActionDetails: JSON.parse(JSON.stringify(input.releaseHandoffDetails)),
       handoffFamilies,
       handoffCount: input.releaseHandoffs.length,
       packetEvidence: {
