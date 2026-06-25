@@ -15,8 +15,8 @@ This folder is the live Telegram release packet. It starts not ready until each 
 ## Run Order
 
 1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.
-2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.
-3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summaries.
+2. Capture the reply, local screenshot file, proof panel text, side effects, and user confirmation for each case.
+3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summaries and records screenshot files as digest refs.
 4. Re-run the release check:
 
 ```bash
@@ -37,7 +37,7 @@ When the observation packet includes duplicate-truth handoff notes, the markdown
 
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
-For live Telegram visual checks, prefer redacted `screenshot:sha256:<digest>` refs in the observation packet. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
+For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
 
 ## Side-Effect Proof
 

@@ -1425,6 +1425,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summaries/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /local screenshot file/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /records screenshot files as digest refs/);
+    assert.doesNotMatch(readFileSync(bundledReadmePath, 'utf8'), /screenshot path/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
