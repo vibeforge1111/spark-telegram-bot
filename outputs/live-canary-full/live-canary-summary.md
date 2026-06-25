@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T08:58:55.823Z
-Runtime evidence collected: 2026-06-25T08:58:55.823Z
-Runtime evidence expires: 2026-06-25T09:58:55.823Z (1h window)
+Generated: 2026-06-25T09:05:25.298Z
+Runtime evidence collected: 2026-06-25T09:05:25.298Z
+Runtime evidence expires: 2026-06-25T10:05:25.298Z (1h window)
 Cases: 28
 Release gate: ready
 Publish gate: not ready
@@ -21,6 +21,10 @@ Release caveats:
 - registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 
 Release handoffs:
+- domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
+- spark-intelligence-builder: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
+- spark-researcher: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
+- spawner-ui: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
 - spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
 - spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
 

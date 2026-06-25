@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T08:58:55.823Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T08:58:55.823Z",
+    "generatedAt": "2026-06-25T09:05:25.298Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T09:05:25.298Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T09:58:55.823Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T10:05:25.298Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -20,6 +20,10 @@
       "registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
     ],
     "releaseHandoffs": [
+      "domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release",
+      "spark-intelligence-builder: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release",
+      "spark-researcher: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release",
+      "spawner-ui: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release",
       "spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.",
       "spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact."
     ],
