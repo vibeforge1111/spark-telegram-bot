@@ -448,6 +448,15 @@ Use audit `--fresh-strict` when checking the current release-blocking state dire
 
 The audit header now includes `Gap posture` to prevent `Status: gaps found` from being misread as a current blocker. Treat `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` as the readable summary of the counters, not a replacement for them; release evidence still depends on `Blocking status: clean`, zero latest proof gaps, and complete legacy-gap backing.
 
+Machine-readable summary details are part of the proof contract, not decoration. `outputs/live-canary-full/live-canary-summary.json` must keep release and publish claims traceable without requiring a human to parse prose lines:
+
+- `releaseCaveatDetails.repo_release_blocks.blocked_release_repos` lists each blocked owner with sanitized `repo`, `risk_class`, `reason`, `behind`, and `next_safe_action` fields when compile evidence provides them.
+- `releaseCaveatDetails.duplicate_truths.owner_sets` lists the sanitized owner set for duplicate-truth families such as `local_runtime_test_artifact`.
+- `releaseHandoffDetails[].familyDetails` joins each handoff action back to its structured family record, including repo-release rows, local runtime artifact owners, and Builder trace-health lifecycle fields.
+- `gateDecisionDetails.release` and `gateDecisionDetails.publish` must carry the same caveat and handoff detail records so `release ready` and `publish not ready` can be explained from JSON alone.
+
+Do not replace these records with prose summaries. A prose release caveat can help an operator scan the result, but it is not enough to support a release or publish claim when the owner, count, behind value, lifecycle field, or next safe action exists in runtime evidence.
+
 Use `--record-case` after each live Telegram prompt to write the observed reply, side effects, proof join, screenshot evidence, and user confirmation back into the observation packet. Prefer `--screenshot-file /tmp/case.png`; the recorder hashes the file and writes a `screenshot:sha256:<digest>` ref, not the local path. Write to `--out` when you want a reviewed copy; otherwise the command updates the packet in place and immediately prints the release summary. Use `--summary-out` during bundle runs to refresh the bundle summary file after each recorded case.
 
 Keep the generated `--no-other-side-effects` flag for no-action, read-only, and action cases unless an unrelated mutation really happened. For no-action/read-only canaries, it records every mutation channel as false. For action cases, it records every non-expected mutation as false, so the packet proves the action did not quietly start a mission, write files or memory, switch providers, call the network, or handle media. If an unrelated mutation did happen, remove the flag, record the actual true side-effect flag, and mark the case fail or needs-retest.

@@ -123,6 +123,12 @@ Update after Telegram profile-env startup proof on 2026-06-25 11:58 +04:
 - Verification for this slice passed: focused profile/streaming/recursive tests, `npm run build`, full `npm test`, `npm run sync:check`, fresh-strict audit, full canary release check, `spark providers test --role chat`, and a retry of `spark live status`.
 - The first `spark live status` check hit a transient Telegram token-check `ECONNRESET`; the immediate retry reported `Spark Live is ready`, with two Telegram profiles running, Spawner UI healthy, and `spark-telegram-bot` polling active on the primary profile.
 - The remaining release caveat is unchanged: live behavior can be release-ready while publish remains blocked until the `spark-telegram-bot` and `spawner-ui` registry pin drift handoffs are resolved.
+
+Update after caveat and handoff detail joins on 2026-06-26:
+
+- The live canary JSON summary now treats structured caveat and handoff detail records as release evidence. `releaseCaveatDetails.repo_release_blocks.blocked_release_repos` carries sanitized blocked repo rows, `releaseCaveatDetails.duplicate_truths.owner_sets` carries duplicate-truth owner sets, and each `releaseHandoffDetails` entry carries `familyDetails` joined back to the matching publish-handoff family.
+- `gateDecisionDetails.release` and `gateDecisionDetails.publish` include the same structured detail records, so release-ready versus publish-not-ready can be explained from machine-readable evidence without relying on prose-only caveat or handoff lines.
+- The current packet still reports release ready and publish not ready. That means SparkRecursive_bot behavior is proven by the canary pack, while publish remains blocked by explicit repo, local runtime artifact, and historical Builder trace-health handoffs.
 - Post-commit `spark os compile --json` still reports `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`; publish remains blocked by the known runtime-ahead registry pins, not by local proof gaps.
 
 Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +04:
