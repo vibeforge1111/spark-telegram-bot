@@ -177,6 +177,38 @@ export interface ControlProofPacketEvidenceDetails {
   stale: ControlProofPacketEvidenceDetail[];
 }
 
+export interface ControlProofAuditPlaneDetail {
+  label: string;
+  sampledRows: number;
+  totalRows: number;
+  requestPresent: number;
+  tracePresent: number;
+  proofPresent: number;
+  proofRefPresent: number;
+  proofCapsulePresent: number;
+  proofNotApplicable: number;
+  proofGap: number;
+  gapCapsule: number;
+  gapCapsuleValid: number;
+  gapRef: number;
+  gapBacking: string | null;
+  latestGap: boolean | null;
+  rawRefs: number;
+  rawIdKeys: number;
+  reasonCodes: number;
+  parseErrors: number;
+}
+
+export interface ControlProofAuditDetails {
+  generatedAt: string | null;
+  status: string | null;
+  blockingStatus: string | null;
+  gapPosture: string | null;
+  gapCounts: Record<string, number>;
+  gapPlanes: Record<string, string[]>;
+  planes: ControlProofAuditPlaneDetail[];
+}
+
 export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
@@ -189,6 +221,7 @@ export interface ControlProofCanaryObservationSummary {
   readyForPublish: boolean;
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
+  controlProofAuditDetails: ControlProofAuditDetails | null;
   releaseHandoffs: string[];
   publishHandoffs: Record<string, unknown> | null;
   missingPacketEvidence: string[];
@@ -1271,6 +1304,119 @@ function packetEvidenceDetails(
     missing: context.missing.map((key) => detail('missing', key)),
     invalid: context.invalid.map((key) => detail('invalid', key)),
     stale: context.stale.map((key) => detail('stale', key))
+  };
+}
+
+function controlProofAuditDetails(text: string | null | undefined): ControlProofAuditDetails | null {
+  const value = String(text || '').trim();
+  if (!value) return null;
+  const generatedAt = lineValue(value, 'Generated');
+  const status = lineValue(value, 'Status');
+  const blockingStatus = lineValue(value, 'Blocking status');
+  const gapPosture = lineValue(value, 'Gap posture');
+  const gapCounts = controlProofAuditGapCounts(value);
+  const gapPlanes = controlProofAuditGapPlanes(value);
+  const planes = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map(controlProofAuditPlaneDetail)
+    .filter((entry): entry is ControlProofAuditPlaneDetail => Boolean(entry));
+  if (!generatedAt && !status && !blockingStatus && planes.length === 0 && Object.keys(gapCounts).length === 0) return null;
+  return {
+    generatedAt,
+    status,
+    blockingStatus,
+    gapPosture,
+    gapCounts,
+    gapPlanes,
+    planes
+  };
+}
+
+function lineValue(text: string, label: string): string | null {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = text.match(new RegExp(`(?:^|\\n)${escaped}:\\s*([^\\n]+)`, 'i'));
+  return match ? safeAuditDisplayToken(match[1]) || null : null;
+}
+
+function safeAuditDisplayToken(value: unknown): string | null {
+  const text = String(value || '').trim();
+  return text && /^[A-Za-z0-9 ._:/;+-]+$/.test(text) ? text : null;
+}
+
+function controlProofAuditGapCounts(text: string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  const labels: Record<string, string> = {
+    missing_evidence: 'missing evidence',
+    missing_trace_joins: 'missing trace joins',
+    missing_proof_capsules: 'missing proof capsules',
+    legacy_proof_gaps: 'legacy proof gaps',
+    incomplete_legacy_gap_backing: 'incomplete legacy gap backing',
+    latest_proof_gaps: 'latest proof gaps',
+    raw_ref_leaks: 'raw ref leaks',
+    robotic_failure_reasons: 'robotic failure reasons',
+    stack_like_leaks: 'stack-like leaks'
+  };
+  for (const [key, label] of Object.entries(labels)) {
+    const match = text.match(new RegExp(`(?:^|\\n)-?\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*(\\d+)\\b`, 'i'));
+    if (match) counts[key] = Number(match[1]);
+  }
+  return counts;
+}
+
+function controlProofAuditGapPlanes(text: string): Record<string, string[]> {
+  const planes: Record<string, string[]> = {};
+  const gapPlaneSection = text.match(/(?:^|\n)Gap planes:\s*\n([\s\S]+?)(?:\n\n|$)/i)?.[1] || '';
+  if (!gapPlaneSection.trim()) return planes;
+  const gapLabels: Record<string, string> = {
+    missing_evidence: 'missing evidence',
+    missing_trace_joins: 'missing trace joins',
+    missing_proof_capsules: 'missing proof capsules',
+    legacy_proof_gaps: 'legacy proof gaps',
+    incomplete_legacy_gap_backing: 'incomplete legacy gap backing',
+    latest_proof_gaps: 'latest proof gaps',
+    raw_ref_leaks: 'raw ref leaks',
+    robotic_failure_reasons: 'robotic failure reasons',
+    stack_like_leaks: 'stack-like leaks'
+  };
+  for (const [key, label] of Object.entries(gapLabels)) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = gapPlaneSection.match(new RegExp(`(?:^|\\n)-\\s*${escaped}:\\s*([^\\n]+)`, 'i'));
+    if (!match) continue;
+    const entries = match[1]
+      .split(',')
+      .map((entry) => safeStringToken(entry))
+      .filter((entry): entry is string => Boolean(entry));
+    if (entries.length > 0) planes[key] = entries;
+  }
+  return planes;
+}
+
+function controlProofAuditPlaneDetail(line: string): ControlProofAuditPlaneDetail | null {
+  const match = line.match(/^-\s*([a-z0-9_]+):\s+(\d+)\/(\d+)\s+sampled\b(.*)$/i);
+  if (!match) return null;
+  const row = match[4] || '';
+  const latestMatch = row.match(/\blatest_gap\s+(yes|no)\b/i);
+  return {
+    label: safeStringToken(match[1]) || '',
+    sampledRows: Number(match[2]),
+    totalRows: Number(match[3]),
+    requestPresent: numericAuditField(row, 'request'),
+    tracePresent: numericAuditField(row, 'trace'),
+    proofPresent: numericAuditField(row, 'proof'),
+    proofRefPresent: numericAuditField(row, 'proof_ref'),
+    proofCapsulePresent: numericAuditField(row, 'proof_capsule'),
+    proofNotApplicable: numericAuditField(row, 'proof_n/a'),
+    proofGap: numericAuditField(row, 'proof_gap'),
+    gapCapsule: numericAuditField(row, 'gap_capsule'),
+    gapCapsuleValid: numericAuditField(row, 'gap_capsule_valid'),
+    gapRef: numericAuditField(row, 'gap_ref'),
+    gapBacking: safeStringToken(row.match(/\bgap_backing\s+([a-z/]+)\b/i)?.[1]) || null,
+    latestGap: latestMatch ? latestMatch[1].toLowerCase() === 'yes' : null,
+    rawRefs: numericAuditField(row, 'raw_refs'),
+    rawIdKeys: numericAuditField(row, 'raw_id_keys'),
+    reasonCodes: numericAuditField(row, 'reason_codes'),
+    parseErrors: numericAuditField(row, 'parse_errors')
   };
 }
 
@@ -2384,6 +2530,7 @@ export function summarizeControlProofCanaryObservations(
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   const releaseCaveatDetails = sparkOsCompileReleaseCaveatDetails(observations.evidence?.sparkOsCompile);
+  const auditDetails = controlProofAuditDetails(observations.evidence?.controlProofAudit);
   const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
   const publishHandoffs = sparkOsCompilePublishHandoffs(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = Array.from(new Set([
@@ -2404,6 +2551,7 @@ export function summarizeControlProofCanaryObservations(
     readyForPublish,
     releaseCaveats,
     releaseCaveatDetails,
+    controlProofAuditDetails: auditDetails,
     releaseHandoffs,
     publishHandoffs,
     missingPacketEvidence: missingEvidence,

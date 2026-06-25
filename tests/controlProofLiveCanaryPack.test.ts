@@ -38,13 +38,14 @@ function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string
   'exit=0',
   `Generated: ${generatedAt}`,
   'Blocking status: clean',
-  'telegram_final_answer: 100/100 sampled | latest_gap no',
-  'telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
-  'builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no',
-  'spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no',
-  'memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
-  'voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
-  'voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  'Gap posture: backed legacy gaps only; no blocking or latest proof gaps',
+  '- telegram_final_answer: 100/100 sampled | latest_gap no',
+  '- telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
+  '- builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no',
+  '- spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no',
+  '- memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  '- voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  '- voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
   'missing evidence: 0',
   'missing trace joins: 0',
   'missing proof capsules: 0',
@@ -171,6 +172,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
+  assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
   assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
   assert.deepEqual(summaryJson.summary.releaseHandoffs, summary.releaseHandoffs);
 });
@@ -420,6 +422,35 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(summary.verdictCounts.pass, 1);
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
+  assert.equal(summary.controlProofAuditDetails?.blockingStatus, 'clean');
+  assert.equal(summary.controlProofAuditDetails?.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+  assert.equal(summary.controlProofAuditDetails?.gapCounts.legacy_proof_gaps, 3);
+  assert.deepEqual(summary.controlProofAuditDetails?.gapPlanes.legacy_proof_gaps, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+  assert.deepEqual(summary.controlProofAuditDetails?.planes.find((entry) => entry.label === 'builder_gateway'), {
+    label: 'builder_gateway',
+    sampledRows: 100,
+    totalRows: 100,
+    requestPresent: NaN,
+    tracePresent: NaN,
+    proofPresent: NaN,
+    proofRefPresent: NaN,
+    proofCapsulePresent: NaN,
+    proofNotApplicable: NaN,
+    proofGap: 62,
+    gapCapsule: 62,
+    gapCapsuleValid: 62,
+    gapRef: 62,
+    gapBacking: 'complete',
+    latestGap: false,
+    rawRefs: NaN,
+    rawIdKeys: NaN,
+    reasonCodes: NaN,
+    parseErrors: NaN
+  });
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Publish gate: not ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);

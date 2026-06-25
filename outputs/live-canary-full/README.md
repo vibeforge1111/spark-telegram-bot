@@ -53,6 +53,8 @@ The same JSON summary carries sanitized `releaseCaveatDetails` for release cavea
 
 The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.
 
+The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
