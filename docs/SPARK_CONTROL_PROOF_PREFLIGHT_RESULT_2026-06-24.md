@@ -140,6 +140,11 @@ Update after publish handoff proof-shape hardening on 2026-06-25 13:43 +04:
 - The refreshed packet reports runtime evidence collected at `2026-06-25T09:43:31.793Z`, release gate ready, and publish gate not ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
 - Remaining visible proof gaps are historical and backed in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`. They should stay visible rather than being rewritten into fresh authority.
 
+Update after rich-message delivery proof hardening on 2026-06-25 14:54 +04:
+
+- Commits through `c524293` made `cp-streaming-002` reject generic rich-message proof joins. The case definition, tests, and live evidence now require proof that the rich-message reply was delivered through the live Telegram profile path, not merely that the reply text rendered.
+- The refreshed packet reports runtime evidence collected at `2026-06-25T10:54:44.460Z`, release gate ready, and publish gate not ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -177,6 +182,9 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
 
 - `publish_handoff_shape`: publish/registry drift must not be summarized as a vague caveat in Telegram-facing evidence.
   - Durable slice: `cp-publish-001` now requires a human handoff that separates release-ready from publish-not-ready, names owner surfaces, gives a next safe action, and confirms read-only evidence lookup without raw commits, registry keys, or paths.
+
+- `rich_message_delivery_proof`: rich-message canaries must prove the runtime delivery path, not only the rendered text shape.
+  - Durable slice: `cp-streaming-002` now requires proof join wording that names Telegram final delivery, the rich-message reply, and the live profile path. Generic "reply joined" evidence is rejected.
 
 - `media_payload_gap`: photo, captioned photo, audio-file, and real voice-note boundaries are live-proven as evidence-only routes.
   - Durable slice: keep richer document handling beyond metadata separate from the proven media boundary claims; do not promote document bodies or raw media into proof capsules.

@@ -197,6 +197,8 @@ Live visual canary evidence must use `screenshot:sha256:<digest>` refs in releas
 
 The `/streaming` status card now needs to show the redacted active Telegram profile as well as streaming/rich-message settings and transport telemetry. Any older `cp-streaming-001` capture without the profile line is stale and must be recaptured before release claims.
 
+The rich-message visual canary now also requires delivery proof, not just rich-looking text. `cp-streaming-002` is release-ready only when the proof join says the rich-message reply was delivered through the live Telegram profile path. A generic "reply joined" note is stale because it does not prove rich messages are active in the running profile.
+
 Proof-panel captures in canary packets must agree with the fresh runtime audit legacy-gap count. If a saved Telegram proof panel still says an older legacy-gap total, the packet needs a new live proof-panel capture before it can claim release readiness.
 
 Builder gateway and Spawner PRD trace rows now have a reusable legacy proof-gap repair command: `npm run control:proof:repair:legacy -- --plane builder_gateway|spawner_prd_trace`. It only adds compact downgraded gap capsules to historical rows already marked as legacy gaps, preserves redacted proof refs, and does not promote those rows into fresh Harness authority. A 2026-06-25 dry run found the current live Builder and Spawner legacy gap rows already capsule-backed, so no state rewrite was needed.
