@@ -226,6 +226,80 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   );
 });
 
+test('checked-in safe-first canary summary JSON matches the selected observation packet', () => {
+  const bundleDir = resolve(ROOT, 'outputs/live-canary-safe-first');
+  const observationsPath = resolve(bundleDir, 'live-canary-observations.json');
+  const summaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+  const runGuidePath = resolve(bundleDir, 'live-canary-run-guide.md');
+  const readmePath = resolve(bundleDir, 'README.md');
+  const observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
+  const summaryJson = JSON.parse(readFileSync(summaryJsonPath, 'utf8'));
+  const summary = summarizeControlProofCanaryObservations(observations, {
+    maxRuntimeEvidenceAgeHours: 1,
+    now: observations.evidence.collectedAt
+  });
+  const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: observations.cases.map((entry: { id: string }) => entry.id),
+    includeActions: true
+  });
+  const coverage = summarizeControlProofCanaryCoverage(observedCases);
+  const runGuide = readFileSync(runGuidePath, 'utf8');
+  const readme = readFileSync(readmePath, 'utf8');
+
+  assert.equal(summaryJson.summary.runtimeEvidenceCollectedAt, observations.evidence.collectedAt);
+  assert.equal(summaryJson.summary.runtimeEvidenceMaxAgeHours, summary.runtimeEvidenceMaxAgeHours);
+  assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
+  assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
+  assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
+  assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
+  assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
+  assert.deepEqual(summaryJson.summary.cases, summary.cases);
+  assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.releasePackComplete, false);
+  assert.equal(summaryJson.summary.readyForRelease, false);
+  assert.equal(summaryJson.summary.readyForPublish, false);
+  assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
+  assert.equal((runGuide.match(/--summary-json-out/g) || []).length, observations.cases.length);
+  assert.match(readme, /Current summary JSON:/);
+  assert.match(readme, /selected-case gate/);
+  assert.match(readme, /not the full release gate/);
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+    ],
+    'safe-first summary must preserve streaming source refs'
+  );
+  assert.deepEqual(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
+    [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+    ],
+    'safe-first summary must preserve rich-message source refs'
+  );
+  assert.ok(
+    summaryJson.summary.cases.every((entry: {
+      expectedRoute?: unknown;
+      expectedAuthority?: unknown;
+      expectedMutationClass?: unknown;
+      observed?: unknown;
+      prompt?: unknown;
+      proofPanel?: unknown;
+      userConfirmation?: unknown;
+    }) =>
+      typeof entry.expectedRoute === 'string' &&
+      typeof entry.expectedAuthority === 'string' &&
+      typeof entry.expectedMutationClass === 'string' &&
+      entry.observed === undefined &&
+      entry.prompt === undefined &&
+      entry.proofPanel === undefined &&
+      entry.userConfirmation === undefined
+    ),
+    'safe-first summary must keep safe Harness metadata without raw live captures'
+  );
+});
+
 test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
   for (const entry of CONTROL_PROOF_LIVE_CANARY_CASES) {
     assert.ok(entry.expectedAuthority, `${entry.id} missing expectedAuthority`);
