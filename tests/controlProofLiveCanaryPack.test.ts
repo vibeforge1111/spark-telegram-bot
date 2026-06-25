@@ -253,6 +253,14 @@ test('promoted canaries keep traceable legacy source references', () => {
     byId.get('cp-mission-001')?.sourceRefs?.some((ref) => ref.catalog === 'genesis-live-telegram-100.json' && ref.caseId === 'genesis-061'),
     'cp-mission-001 should point back to the Genesis no-edit mission smoke'
   );
+  assert.ok(
+    byId.get('cp-streaming-001')?.sourceRefs?.some((ref) => ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md' && ref.caseId === 'streaming-status-defaults'),
+    'cp-streaming-001 should point back to the streaming defaults/status contract'
+  );
+  assert.ok(
+    byId.get('cp-streaming-002')?.sourceRefs?.some((ref) => ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md' && ref.caseId === 'rich-message-delivery-proof'),
+    'cp-streaming-002 should point back to the rich-message delivery proof contract'
+  );
 });
 
 test('default selection excludes intentional live actions but explicit selection can include them', () => {

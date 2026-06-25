@@ -63,7 +63,11 @@ export interface ControlProofCanaryCase {
 }
 
 export interface ControlProofCanarySourceRef {
-  catalog: 'natural-language-live-commands.json' | 'genesis-live-telegram-100.json' | 'spark-qa-release-gate';
+  catalog:
+    | 'natural-language-live-commands.json'
+    | 'genesis-live-telegram-100.json'
+    | 'spark-qa-release-gate'
+    | 'docs/LIVE_CHAT_STREAMING_DESIGN.md';
   caseId: string;
   relationship: 'promoted_from' | 'derived_from' | 'coverage_for';
 }
@@ -552,6 +556,9 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     id: 'cp-streaming-001',
     category: 'streaming',
     risk: 'inspect_only',
+    sourceRefs: [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+    ],
     prompt: '/streaming',
     expectedRoute: 'streaming.status',
     expectedReplyShape: 'compact_card',
@@ -569,6 +576,9 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     id: 'cp-streaming-002',
     category: 'rich_messages',
     risk: 'inspect_only',
+    sourceRefs: [
+      { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+    ],
     prompt: 'Give me a two-line rich-message check: bold one word and include one short code token. Do not run anything.',
     expectedRoute: 'plain_chat.rich_message_render',
     expectedReplyShape: 'natural',
