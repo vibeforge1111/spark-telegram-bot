@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T20:25:39.448Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T20:25:39.448Z",
+    "generatedAt": "2026-06-25T20:33:07.018Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T20:33:07.018Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T21:25:39.448Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T21:33:07.018Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -78,6 +78,8 @@
           "blocked_release_repos": [
             {
               "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "high",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -85,6 +87,8 @@
             },
             {
               "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "critical",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -92,6 +96,8 @@
             },
             {
               "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "high",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -99,6 +105,8 @@
             },
             {
               "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "critical",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -106,6 +114,8 @@
             }
           ],
           "local_runtime_test_artifacts": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "count": 2,
             "owners": [
               "spark-telegram-bot",
@@ -113,6 +123,8 @@
             ]
           },
           "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "flags": [
               "historical_open_high_severity_events"
             ],
@@ -274,6 +286,8 @@
               "blocked_release_repos": [
                 {
                   "repo": "domain-chip-memory",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
                   "risk_class": "high",
                   "reason": "behind upstream",
                   "next_safe_action": "pull or merge upstream before release",
@@ -281,6 +295,8 @@
                 },
                 {
                   "repo": "spark-intelligence-builder",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
                   "risk_class": "critical",
                   "reason": "behind upstream",
                   "next_safe_action": "pull or merge upstream before release",
@@ -288,6 +304,8 @@
                 },
                 {
                   "repo": "spark-researcher",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
                   "risk_class": "high",
                   "reason": "behind upstream",
                   "next_safe_action": "pull or merge upstream before release",
@@ -295,6 +313,8 @@
                 },
                 {
                   "repo": "spawner-ui",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
                   "risk_class": "critical",
                   "reason": "behind upstream",
                   "next_safe_action": "pull or merge upstream before release",
@@ -302,6 +322,8 @@
                 }
               ],
               "local_runtime_test_artifacts": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
                 "count": 2,
                 "owners": [
                   "spark-telegram-bot",
@@ -309,6 +331,8 @@
                 ]
               },
               "builder_trace_health": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
                 "flags": [
                   "historical_open_high_severity_events"
                 ],
@@ -455,6 +479,8 @@
           "blocked_release_repos": [
             {
               "repo": "domain-chip-memory",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "high",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -462,6 +488,8 @@
             },
             {
               "repo": "spark-intelligence-builder",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "critical",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -469,6 +497,8 @@
             },
             {
               "repo": "spark-researcher",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "high",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -476,6 +506,8 @@
             },
             {
               "repo": "spawner-ui",
+              "releaseBlocking": false,
+              "publishBlocking": true,
               "risk_class": "critical",
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
@@ -483,6 +515,8 @@
             }
           ],
           "local_runtime_test_artifacts": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "count": 2,
             "owners": [
               "spark-telegram-bot",
@@ -490,6 +524,8 @@
             ]
           },
           "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "flags": [
               "historical_open_high_severity_events"
             ],
@@ -625,7 +661,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T20:25:39.420Z",
+      "generatedAt": "2026-06-25T20:33:07.004Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -731,7 +767,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7266,
+          "totalRows": 7288,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1006,6 +1042,8 @@
       "blocked_release_repos": [
         {
           "repo": "domain-chip-memory",
+          "releaseBlocking": false,
+          "publishBlocking": true,
           "risk_class": "high",
           "reason": "behind upstream",
           "next_safe_action": "pull or merge upstream before release",
@@ -1013,6 +1051,8 @@
         },
         {
           "repo": "spark-intelligence-builder",
+          "releaseBlocking": false,
+          "publishBlocking": true,
           "risk_class": "critical",
           "reason": "behind upstream",
           "next_safe_action": "pull or merge upstream before release",
@@ -1020,6 +1060,8 @@
         },
         {
           "repo": "spark-researcher",
+          "releaseBlocking": false,
+          "publishBlocking": true,
           "risk_class": "high",
           "reason": "behind upstream",
           "next_safe_action": "pull or merge upstream before release",
@@ -1027,6 +1069,8 @@
         },
         {
           "repo": "spawner-ui",
+          "releaseBlocking": false,
+          "publishBlocking": true,
           "risk_class": "critical",
           "reason": "behind upstream",
           "next_safe_action": "pull or merge upstream before release",
@@ -1034,6 +1078,8 @@
         }
       ],
       "local_runtime_test_artifacts": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
         "count": 2,
         "owners": [
           "spark-telegram-bot",
@@ -1041,6 +1087,8 @@
         ]
       },
       "builder_trace_health": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
         "flags": [
           "historical_open_high_severity_events"
         ],
@@ -1055,10 +1103,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T20:25:39.448Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T20:25:39.448Z",
+      "generatedAt": "2026-06-25T20:33:07.018Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T20:33:07.018Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T21:25:39.448Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T21:33:07.018Z",
       "missing": [],
       "invalid": [],
       "stale": []
