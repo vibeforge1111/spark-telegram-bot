@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T09:08:40.341Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T09:08:40.341Z",
+    "generatedAt": "2026-06-25T09:17:00.180Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T09:17:00.180Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T10:08:40.341Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T10:17:00.180Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -13,7 +13,7 @@
       "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": false,
+    "readyForRelease": true,
     "readyForPublish": false,
     "releaseCaveats": [
       "repo_release_blocks | blocked_release_count=4 | critical_repo_count=0",
@@ -28,9 +28,7 @@
       "spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact."
     ],
     "missingPacketEvidence": [],
-    "invalidPacketEvidence": [
-      "source_snapshot"
-    ],
+    "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "cases": [
       {

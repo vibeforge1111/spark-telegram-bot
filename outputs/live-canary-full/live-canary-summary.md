@@ -1,10 +1,10 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T09:08:40.341Z
-Runtime evidence collected: 2026-06-25T09:08:40.341Z
-Runtime evidence expires: 2026-06-25T10:08:40.341Z (1h window)
+Generated: 2026-06-25T09:17:00.180Z
+Runtime evidence collected: 2026-06-25T09:17:00.180Z
+Runtime evidence expires: 2026-06-25T10:17:00.180Z (1h window)
 Cases: 28
-Release gate: not ready
+Release gate: ready
 Publish gate: not ready
 
 Verdicts:
@@ -14,7 +14,7 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Packet evidence invalid: source_snapshot
+Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=0
