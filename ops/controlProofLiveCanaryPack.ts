@@ -292,7 +292,7 @@ function releaseBlockHandoffLine(item: unknown): string | null {
   const nextSafeAction = safeHandoffText(record.next_safe_action);
   if (!repo) return null;
   return [
-    `${repo}: release_blocked`,
+    `${repo}: release_blocked repo_release_blocks`,
     reason ? `reason: ${reason}` : null,
     behind !== null ? `behind=${behind}` : null,
     nextSafeAction ? `next safe action: ${nextSafeAction}` : null
