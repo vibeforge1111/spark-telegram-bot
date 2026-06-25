@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T08:20:14.917Z
-Runtime evidence collected: 2026-06-25T08:20:14.917Z
-Runtime evidence expires: 2026-06-25T09:20:14.917Z (1h window)
+Generated: 2026-06-25T08:26:43.201Z
+Runtime evidence collected: 2026-06-25T08:26:43.201Z
+Runtime evidence expires: 2026-06-25T09:26:43.201Z (1h window)
 Cases: 28
 Release gate: ready
 Publish gate: not ready
@@ -17,7 +17,7 @@ Verdicts:
 Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
-- registry_pin_drift | runtime_ahead_of_registry_pin=2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
+- registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 
 Release handoffs:
 - spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
