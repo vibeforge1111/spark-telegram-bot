@@ -80,6 +80,8 @@ export interface LiveNlHarnessCoreMapping {
 export interface LiveNlHarnessCoreMapOptions {
   catalog?: string;
   title?: string;
+  totalCases?: number;
+  includeRisky?: boolean;
 }
 
 type LiveNlPacketCase = TelegramLiveQaEvidencePacketV1['cases'][number];
@@ -379,11 +381,15 @@ export function formatLiveNlHarnessCoreMap(
   ]);
   const title = options.title || 'Natural Language Harness Core Map';
   const catalog = options.catalog || 'selected catalog';
+  const totalCases = options.totalCases && options.totalCases >= mapped.length ? options.totalCases : null;
+  const selectionLine = totalCases
+    ? `Selected cases: ${mapped.length} of ${totalCases}${options.includeRisky ? ' (risky cases included)' : ' (risky cases excluded unless explicitly selected)'}`
+    : `Selected cases: ${mapped.length}`;
   const lines = [
     `# ${title}`,
     '',
     `Catalog: ${catalog}`,
-    `Cases: ${mapped.length}`,
+    selectionLine,
     '',
     'Decision: keep the old natural-language suite as fast legacy breadth. Do not treat this map or a passing `nl:live` run as Harness Core release proof.',
     '',

@@ -247,3 +247,29 @@ Result:
 - Streaming and rich-message checks remain explicit canary categories with screenshot or user-confirmation capture. They should not be judged through the synthetic route-boundary harness because that path does not prove the live Telegram rendering experience.
 - The control-proof canary pack now also rejects stale source snapshots and keeps duplicate-truth publish caveats classified, so promoted NL prompts must land in that pack or an equivalent Harness-shaped packet before they can support release claims.
 - Keep refurbishing by promotion, not conversion: old NL cases stay fast breadth coverage, while promoted cases carry authority, mutation class, proof join, side-effect expectation, reply shape, and live evidence.
+
+## 2026-06-25 Selection-Count Recheck
+
+The decision still holds after the publish handoff proof-shape and docs-refresh slices. The latest `nl:harness-map` output now prints selected case count versus full catalog count, so operators can see when the safe-default lane is being audited instead of the complete catalog.
+
+Commands checked:
+
+```bash
+npm run nl:harness-map
+npm run nl:harness-map -- --include-risky
+npm run nl:harness-map -- --catalog genesis100 --include-risky
+npx ts-node tests/liveNlVerdict.test.ts
+```
+
+Current counts:
+
+- Standard default map: `61 of 73` selected, with risky cases excluded unless explicitly selected.
+- Standard full map: `73 of 73` selected, with risky cases included.
+- Genesis full map: `100 of 100` selected, with risky cases included.
+
+Result:
+
+- Keep the standard and Genesis NL catalogs as breadth and promotion source material.
+- Do not treat the default `61` selected cases as the full standard inventory; the full catalog remains `73` cases.
+- Do not treat `nl:harness-map` or `nl:live` as release proof. Use them to choose promotion candidates, then move only the useful representatives into `control:proof:canaries` or an equivalent Harness-shaped packet.
+- The current high-value promotion candidates remain the cases marked `promote_after_refurbish`; intentional action cases stay out of default live runs unless the operator explicitly includes and proves them.

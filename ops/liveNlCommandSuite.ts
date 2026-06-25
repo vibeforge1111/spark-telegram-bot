@@ -140,7 +140,11 @@ async function main(): Promise<void> {
   }
 
   if (hasFlag('harness-map')) {
-    console.log(formatLiveNlHarnessCoreMap(selected, { catalog: catalogFileName() }));
+    console.log(formatLiveNlHarnessCoreMap(selected, {
+      catalog: catalogFileName(),
+      totalCases: cases.length,
+      includeRisky: hasFlag('include-risky')
+    }));
     if (hasFlag('harness-strict')) {
       const promoted = selected
         .map(deriveLiveNlHarnessCoreMapping)
