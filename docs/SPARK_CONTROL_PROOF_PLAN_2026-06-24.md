@@ -179,6 +179,8 @@ Fresh-strict audit summaries now report `latest proof gaps` separately from hist
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 
+Live visual canary evidence can use `screenshot:sha256:<digest>` refs instead of raw `/tmp` screenshot paths. That keeps Telegram rendering evidence durable and checkable without committing private chat imagery.
+
 Proof-panel captures in canary packets must agree with the fresh runtime audit legacy-gap count. If a saved Telegram proof panel still says an older legacy-gap total, the packet needs a new live proof-panel capture before it can claim release readiness.
 
 Builder gateway and Spawner PRD trace rows now have a reusable legacy proof-gap repair command: `npm run control:proof:repair:legacy -- --plane builder_gateway|spawner_prd_trace`. It only adds compact downgraded gap capsules to historical rows already marked as legacy gaps, preserves redacted proof refs, and does not promote those rows into fresh Harness authority. A 2026-06-25 dry run found the current live Builder and Spawner legacy gap rows already capsule-backed, so no state rewrite was needed.

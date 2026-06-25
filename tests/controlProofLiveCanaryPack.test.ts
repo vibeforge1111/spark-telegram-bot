@@ -390,6 +390,20 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(rawScreenshotRef.readyForRelease, false);
   assert.deepEqual(rawScreenshotRef.cases[0].missingCaptures, ['screenshot_raw_leak']);
 
+  template.cases[0].observed.screenshotRefs = [
+    'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7'
+  ];
+  const digestScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestScreenshotRef.readyForRelease, true);
+  assert.deepEqual(digestScreenshotRef.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.screenshotRefs = [
+    'screenshot:raw:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7'
+  ];
+  const rawDigestScreenshotRef = summarizeControlProofCanaryObservations(template);
+  assert.equal(rawDigestScreenshotRef.readyForRelease, false);
+  assert.deepEqual(rawDigestScreenshotRef.cases[0].missingCaptures, ['screenshot_raw_leak']);
+
   template.cases[0].observed.screenshotRefs = ['/tmp/spark-recursive-builder.png'];
   template.cases[0].observed.sideEffects.missionStarted = null;
   template.cases[0].observed.sideEffects.notes = 'No mission or mutation observed.';

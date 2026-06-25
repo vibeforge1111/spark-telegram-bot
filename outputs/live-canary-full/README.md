@@ -37,6 +37,8 @@ When the observation packet includes duplicate-truth handoff notes, the markdown
 
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
+For live Telegram visual checks, prefer redacted `screenshot:sha256:<digest>` refs in the observation packet. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
+
 ## Side-Effect Proof
 
 For no-action and read-only cases, record the prompted side-effect flag as `false` when no mutation occurred. Notes alone are not enough.

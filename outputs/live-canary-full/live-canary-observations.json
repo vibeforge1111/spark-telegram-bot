@@ -393,9 +393,9 @@
         "proofJoin": "Live /proof joined the Telegram outbound proof capsule with no latest proof gaps and no execution mutation.",
         "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-proof-001-proof.png"
+          "screenshot:sha256:2911385c0329829d3cd072611b0fb859e86e12018474614e38c1e73bd9b16968"
         ],
-        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and screenshot /tmp/cp-proof-001-proof.png.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Telegram window title Spark Recursive and matching redacted screenshot digest.",
         "notes": null
       }
     },
@@ -494,9 +494,9 @@
         "proofJoin": "Live /proof joined the Telegram outbound proof capsule for the no-execution plain_conversation Builder-backed reply.",
         "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:3331f23523cd4524 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "/tmp/cp-builder-001-proof.png"
+          "screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7"
         ],
-        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot /tmp/cp-builder-001-proof.png: reply rendered once and /proof showed Legacy proof gaps visible: 3.",
+        "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot digest: reply rendered once and /proof showed Legacy proof gaps visible: 3.",
         "notes": null
       }
     },
@@ -588,7 +588,7 @@
         "proofJoin": "Telegram command reply delivered with live runtime status; proof panel not required for this visual status canary.",
         "proofPanel": null,
         "screenshotRefs": [
-          "/tmp/cp-streaming-001.png"
+          "screenshot:sha256:4fc036696c34377198fc5843c259ac9688c2892949203883cd58dca40c1e7d47"
         ],
         "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: streaming on, rich messages on, no duplicate preview.",
         "notes": null
@@ -635,7 +635,7 @@
         "proofJoin": "Telegram final delivery carried the rich-message reply; this visual canary does not require a proof panel.",
         "proofPanel": null,
         "screenshotRefs": [
-          "/tmp/cp-streaming-002.png"
+          "screenshot:sha256:19cd9a0ada56aa5bd35687a315cadca0bc024d8cf99c8ec349e69ed61b4f366d"
         ],
         "userConfirmation": "Confirmed live in SparkRecursive_bot via Peekaboo screenshot: final bubble rendered rich formatting and inline code token without duplicate preview.",
         "notes": null

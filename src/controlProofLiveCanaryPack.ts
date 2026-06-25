@@ -1483,10 +1483,13 @@ function screenshotCaptureIssues(values: string[]): string[] {
 }
 
 function isPlausibleScreenshotRef(value: string): boolean {
-  return /\.(?:png|jpe?g|webp)$/i.test(value) || /^(?:screenshot|telegram-screenshot|peekaboo):/i.test(value);
+  return /\.(?:png|jpe?g|webp)$/i.test(value) ||
+    /^(?:screenshot|telegram-screenshot|peekaboo):/i.test(value) ||
+    /^screenshot:sha256:[a-f0-9]{64}$/i.test(value);
 }
 
 function screenshotRefLeaksRawInternals(value: string): boolean {
+  if (/^screenshot:sha256:[a-f0-9]{64}$/i.test(value)) return false;
   return /\b(?:BOT_TOKEN|TELEGRAM_BOT_TOKEN|file_id|chat_id|user_id)\b/i.test(value) ||
     /\b[A-Za-z0-9_-]{48,}\b/.test(value);
 }
