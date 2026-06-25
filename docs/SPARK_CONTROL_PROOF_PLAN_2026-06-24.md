@@ -181,7 +181,7 @@ Use `npm run control:proof:canaries -- --observations <packet> --publish-check` 
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
-Audit plane rows now also print `gap_capsule` and `gap_ref` next to `proof_gap`. These counts show whether sampled historical gap rows are backed by downgraded proof capsules and redacted proof refs. They are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.
+Audit plane rows now also print `gap_capsule`, `gap_ref`, and `gap_backing` next to `proof_gap`. A historical gap is release-inspectable only when `gap_backing complete` proves every sampled gap row has both a downgraded proof capsule and a redacted proof ref. These are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 
@@ -418,7 +418,7 @@ npm run control:proof:audit -- --sample 100
 npm run control:proof:audit -- --sample 100 --fresh-strict
 ```
 
-`--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are tracked separately.
+`--strict` checks both presence and clean contents for packet evidence: live status/provider/sync evidence must be positive, and the control-proof audit must show zero missing evidence, zero missing trace joins, zero missing proof capsules, zero incomplete legacy gap backing, zero raw ref leaks, zero robotic failure reasons, and zero stack-like leaks. Legacy proof gaps may stay visible while they are backed by complete downgraded capsules and redacted proof refs.
 
 Use audit `--fresh-strict` when checking the current release-blocking state directly: it fails silent missing evidence, trace joins, proof capsules, raw-ref leaks, robotic reason leaks, stack-like leaks, and any latest producer row that still carries a proof-gap marker, while allowing historical legacy proof-gap capsules to stay visible.
 

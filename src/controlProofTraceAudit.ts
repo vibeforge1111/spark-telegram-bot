@@ -35,6 +35,8 @@ export interface ControlProofTracePlaneSummary {
   proofGapMarked: number;
   proofGapCapsulePresent: number;
   proofGapRefPresent: number;
+  proofGapBackingIncomplete: number;
+  proofGapBacking: 'n/a' | 'complete' | 'partial' | 'missing';
   latestProofGapMarked: boolean;
   latestRecordAt: string | null;
   proofCapsuleMissing: number;
@@ -50,6 +52,7 @@ export interface ControlProofGapCounts {
   missingTraceJoin: number;
   missingProofCapsule: number;
   legacyProofGap: number;
+  incompleteLegacyProofGapBacking: number;
   latestProofGap: number;
   rawRefLeak: number;
   roboticFailureReply: number;
@@ -189,6 +192,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `proof_gap ${plane.proofGapMarked}`,
         `gap_capsule ${plane.proofGapCapsulePresent}`,
         `gap_ref ${plane.proofGapRefPresent}`,
+        `gap_backing ${plane.proofGapBacking}`,
         `latest_gap ${plane.latestProofGapMarked ? 'yes' : 'no'}`,
         `raw_refs ${plane.rawPathLikeRows}`,
         `raw_id_keys ${plane.rawIdKeyRows}`,
@@ -204,6 +208,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `- missing trace joins: ${result.gapCounts.missingTraceJoin}`,
     `- missing proof capsules: ${result.gapCounts.missingProofCapsule}`,
     `- legacy proof gaps: ${result.gapCounts.legacyProofGap}`,
+    `- incomplete legacy gap backing: ${result.gapCounts.incompleteLegacyProofGapBacking}`,
     `- latest proof gaps: ${result.gapCounts.latestProofGap}`,
     `- raw ref leaks: ${result.gapCounts.rawRefLeak}`,
     `- robotic failure reasons: ${result.gapCounts.roboticFailureReply}`,
@@ -271,6 +276,7 @@ function summarizeRecords(
   let proofGapMarked = 0;
   let proofGapCapsulePresent = 0;
   let proofGapRefPresent = 0;
+  let proofGapBackingIncomplete = 0;
   let rawIdKeyRows = 0;
   let rawPathLikeRows = 0;
   let policyReasonCodeRows = 0;
@@ -284,6 +290,7 @@ function summarizeRecords(
       proofGapMarked += 1;
       if (hasProofCapsule) proofGapCapsulePresent += 1;
       if (hasProofRef) proofGapRefPresent += 1;
+      if (!hasProofCapsule || !hasProofRef) proofGapBackingIncomplete += 1;
     }
     if (hasProofCapsule || hasProofRef) {
       proofCoveredRows += 1;
@@ -322,6 +329,8 @@ function summarizeRecords(
     proofGapMarked,
     proofGapCapsulePresent,
     proofGapRefPresent,
+    proofGapBackingIncomplete,
+    proofGapBacking: legacyProofGapBacking(proofGapMarked, proofGapCapsulePresent, proofGapRefPresent),
     latestProofGapMarked: isProofGapMarkedRecord(latestRecord),
     latestRecordAt: recordTimestampString(latestRecord),
     proofCapsuleMissing: Math.max(0, sampled.length - proofCoveredRows - proofNotApplicable),
@@ -366,12 +375,24 @@ function recordTimestampString(value: unknown): string | null {
   return null;
 }
 
+function legacyProofGapBacking(
+  proofGapMarked: number,
+  proofGapCapsulePresent: number,
+  proofGapRefPresent: number
+): ControlProofTracePlaneSummary['proofGapBacking'] {
+  if (proofGapMarked === 0) return 'n/a';
+  if (proofGapCapsulePresent === proofGapMarked && proofGapRefPresent === proofGapMarked) return 'complete';
+  if (proofGapCapsulePresent > 0 || proofGapRefPresent > 0) return 'partial';
+  return 'missing';
+}
+
 function summarizeGapCounts(planes: ControlProofTracePlaneSummary[]): ControlProofGapCounts {
   return {
     missingEvidence: planes.filter((plane) => plane.missing).length,
     missingTraceJoin: planes.filter((plane) => !plane.missing && (plane.requestIdMissing > 0 || plane.traceRefMissing > 0)).length,
     missingProofCapsule: planes.filter((plane) => !plane.missing && plane.proofCapsuleMissing > 0).length,
     legacyProofGap: planes.filter((plane) => !plane.missing && plane.proofGapMarked > 0).length,
+    incompleteLegacyProofGapBacking: planes.filter((plane) => !plane.missing && plane.proofGapBackingIncomplete > 0).length,
     latestProofGap: planes.filter((plane) => !plane.missing && plane.latestProofGapMarked).length,
     rawRefLeak: planes.filter((plane) => plane.rawPathLikeRows > 0 || plane.rawIdKeyRows > 0).length,
     roboticFailureReply: planes.filter((plane) => plane.policyReasonCodeRows > 0).length,
@@ -390,6 +411,9 @@ function summarizeGapPlanes(planes: ControlProofTracePlaneSummary[]): Record<key
       .map((plane) => plane.label),
     legacyProofGap: planes
       .filter((plane) => !plane.missing && plane.proofGapMarked > 0)
+      .map((plane) => plane.label),
+    incompleteLegacyProofGapBacking: planes
+      .filter((plane) => !plane.missing && plane.proofGapBackingIncomplete > 0)
       .map((plane) => plane.label),
     latestProofGap: planes
       .filter((plane) => !plane.missing && plane.latestProofGapMarked)
@@ -418,6 +442,7 @@ function gapCountLabel(key: keyof ControlProofGapCounts): string {
     missingTraceJoin: 'missing trace joins',
     missingProofCapsule: 'missing proof capsules',
     legacyProofGap: 'legacy proof gaps',
+    incompleteLegacyProofGapBacking: 'incomplete legacy gap backing',
     latestProofGap: 'latest proof gaps',
     rawRefLeak: 'raw ref leaks',
     roboticFailureReply: 'robotic failure reasons',
@@ -430,6 +455,7 @@ function releaseBlockingGapCounts(gapCounts: ControlProofGapCounts): number[] {
     gapCounts.missingEvidence,
     gapCounts.missingTraceJoin,
     gapCounts.missingProofCapsule,
+    gapCounts.incompleteLegacyProofGapBacking,
     gapCounts.rawRefLeak,
     gapCounts.roboticFailureReply,
     gapCounts.stackLikeLeak
@@ -455,6 +481,8 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     proofGapMarked: 0,
     proofGapCapsulePresent: 0,
     proofGapRefPresent: 0,
+    proofGapBackingIncomplete: 0,
+    proofGapBacking: 'n/a',
     latestProofGapMarked: false,
     latestRecordAt: null,
     proofCapsuleMissing: 0,

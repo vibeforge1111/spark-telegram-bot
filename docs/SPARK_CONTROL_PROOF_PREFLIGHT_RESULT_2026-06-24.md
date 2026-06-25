@@ -85,8 +85,8 @@ Update after continuity repairs:
 - Spawner PRD trace, Builder gateway trace, route-confidence, and turn-bound outbound delivery rows now use explicit legacy gap capsules for historical rows that cannot be joined to fresh Harness authority.
 - Telegram outbound delivery-local rows remain `not_execution_proof`; synthetic request/trace refs for those rows must not be promoted into execution proof gaps.
 - Latest sampled audit now reports no missing trace joins and no raw ref/reason-code leaks. Remaining proof gaps are visible `proof_gap` rows, not silent missing metadata.
-- The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible and inspectable; it does not mean the capsule is silently absent.
-- Audit plane summaries now include `gap_capsule` and `gap_ref` counts. These prove whether sampled historical gap rows carry downgraded proof capsules and redacted proof refs, while still keeping the rows classified as legacy gaps rather than fresh Harness authority.
+- The audit now reports true missing proof capsules separately from legacy proof gaps. A `legacy proof gaps` count means the historical gap is deliberately visible; it does not mean the capsule is silently absent.
+- Audit plane summaries now include `gap_capsule`, `gap_ref`, and `gap_backing`. Historical gap rows are release-inspectable only when `gap_backing complete` proves every sampled gap row carries both a downgraded proof capsule and a redacted proof ref, while still keeping the rows classified as legacy gaps rather than fresh Harness authority.
 - Use `npm run control:proof:audit -- --sample 100 --fresh-strict` for the current release gate. It allows explicit historical legacy proof-gap capsules to remain visible, but fails silent missing proof/control evidence, leaks, or any latest producer row that still carries a proof-gap marker.
 
 Update after full live canary refresh:
@@ -94,7 +94,7 @@ Update after full live canary refresh:
 - `outputs/live-canary-full/live-canary-summary.md` is now the current live release packet for SparkRecursive_bot control-proof canaries.
 - The full pack has 27/27 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, and real voice-note boundary proof.
 - The canary packet separates live behavior readiness from publish readiness. `Release gate: ready` can coexist with `Publish gate: not ready` when registry pin drift or duplicate-truth handoffs remain open.
-- Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
+- Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, incomplete legacy gap backing, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
 - Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
 - The earlier baseline notes about pending inbound Builder/Spawner/media/voice proof are superseded by the full live canary packet. Keep those notes as historical sequence, but use `outputs/live-canary-full/live-canary-summary.md` plus fresh-strict audit as the current proof state.
 

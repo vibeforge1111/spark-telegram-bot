@@ -210,12 +210,17 @@ test('counts explicit missing Harness proof markers without treating them as pro
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofGapCapsulePresent, 0);
     assert.equal(plane.proofGapRefPresent, 0);
+    assert.equal(plane.proofGapBackingIncomplete, 1);
+    assert.equal(plane.proofGapBacking, 'missing');
     assert.equal(plane.proofCapsuleMissing, 1);
     assert.equal(result.gapCounts.missingProofCapsule, 1);
     assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 1);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, false);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_backing missing/);
+    assert.match(formatControlProofTraceAuditReport(result), /incomplete legacy gap backing: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
   });
 });
@@ -256,10 +261,13 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofGapCapsulePresent, 1);
     assert.equal(plane.proofGapRefPresent, 1);
+    assert.equal(plane.proofGapBackingIncomplete, 0);
+    assert.equal(plane.proofGapBacking, 'complete');
     assert.equal(plane.latestProofGapMarked, true);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 0);
     assert.equal(result.gapCounts.latestProofGap, 1);
     assert.deepEqual(result.gapPlanes.legacyProofGap, ['telegram_route_confidence']);
     assert.deepEqual(result.gapPlanes.latestProofGap, ['telegram_route_confidence']);
@@ -269,11 +277,53 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_ref 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_backing complete/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /legacy proof gaps: telegram_route_confidence/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: telegram_route_confidence/);
+  });
+});
+
+test('blocks legacy proof gaps when backing is only partial', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'builder_gateway',
+        filePath: path.join(sparkHome, 'gateway-trace.jsonl'),
+        kind: 'jsonl' as const
+      }
+    ];
+    writeJsonl(evidenceFiles[0].filePath, [
+      {
+        requestId: 'req-partial-gap',
+        traceRef: 'trace-partial-gap',
+        proofStatus: 'missing_harness_authority',
+        proofStorage: 'legacy_gap_capsule',
+        proofCapsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: 'turn:sha256:abcdef1234567890'
+        }
+      }
+    ]);
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofCoveragePresent, 1);
+    assert.equal(plane.proofCapsuleMissing, 0);
+    assert.equal(plane.proofGapBackingIncomplete, 1);
+    assert.equal(plane.proofGapBacking, 'partial');
+    assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 1);
+    assert.equal(result.blockingOk, false);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_backing partial/);
+    assert.match(formatControlProofTraceAuditReport(result), /incomplete legacy gap backing: 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /incomplete legacy gap backing: builder_gateway/);
   });
 });
 
@@ -320,12 +370,14 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofGapCapsulePresent, 1);
     assert.equal(plane.proofGapRefPresent, 1);
+    assert.equal(plane.proofGapBackingIncomplete, 0);
+    assert.equal(plane.proofGapBacking, 'complete');
     assert.equal(plane.latestProofGapMarked, false);
     assert.equal(plane.latestRecordAt, '2026-06-24T12:05:00.000Z');
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
-    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_ref 1 .* latest_gap no/);
+    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 0/);
   });
 });
