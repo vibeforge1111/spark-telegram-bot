@@ -51,6 +51,8 @@ The machine-readable `live-canary-summary.json` summary carries the sanitized `p
 
 The same JSON summary carries sanitized `releaseCaveatDetails` for release caveat counts and Builder trace-health aggregates. Automation should use those structured counts instead of parsing the human `releaseCaveats` strings.
 
+The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.

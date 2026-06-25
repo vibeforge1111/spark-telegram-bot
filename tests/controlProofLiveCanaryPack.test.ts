@@ -170,6 +170,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
   assert.deepEqual(summaryJson.summary.releaseHandoffs, summary.releaseHandoffs);
 });
@@ -562,6 +563,14 @@ test('observation summary requires pass verdicts and all requested capture evide
   const missingPacketEvidence = summarizeControlProofCanaryObservations(template);
   assert.equal(missingPacketEvidence.readyForRelease, false);
   assert.deepEqual(missingPacketEvidence.missingPacketEvidence, ['control_proof_audit']);
+  assert.deepEqual(missingPacketEvidence.packetEvidenceDetails.missing, [{
+    key: 'control_proof_audit',
+    state: 'missing',
+    reason: 'control_proof_audit runtime proof is absent',
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: missingPacketEvidence.runtimeEvidenceExpiresAt
+  }]);
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
@@ -579,6 +588,14 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(stalePacketEvidence.readyForRelease, false);
   assert.equal(stalePacketEvidence.runtimeEvidenceExpiresAt, '2026-06-24T00:00:00.000Z');
   assert.deepEqual(stalePacketEvidence.stalePacketEvidence, ['runtime_evidence_collected_at']);
+  assert.deepEqual(stalePacketEvidence.packetEvidenceDetails.stale, [{
+    key: 'runtime_evidence_collected_at',
+    state: 'stale',
+    reason: 'runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window',
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: '2026-06-23T00:00:00.000Z',
+    runtimeEvidenceExpiresAt: '2026-06-24T00:00:00.000Z'
+  }]);
   assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
 
   template.evidence.collectedAt = 'June 24, 2026 00:30 UTC';
@@ -600,6 +617,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   const missingCollectedAt = summarizeControlProofCanaryObservations(template);
   assert.equal(missingCollectedAt.readyForRelease, false);
   assert.deepEqual(missingCollectedAt.missingPacketEvidence, ['runtime_evidence_collected_at']);
+  assert.equal(missingCollectedAt.packetEvidenceDetails.runtimeEvidenceCollectedAt, null);
 });
 
 test('observation summary rejects unrelated mutations on action cases', () => {
@@ -1184,6 +1202,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(staleEmbeddedCompile.readyForRelease, false);
   assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
+  assert.deepEqual(staleEmbeddedCompile.packetEvidenceDetails.invalid, [{
+    key: 'spark_os_compile',
+    state: 'invalid',
+    reason: 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched',
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: staleEmbeddedCompile.runtimeEvidenceExpiresAt
+  }]);
 
   template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
   template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-23T23:40:00.000Z');

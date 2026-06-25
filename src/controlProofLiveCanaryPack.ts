@@ -158,6 +158,25 @@ export interface ControlProofCanaryObservationUpdate {
   sideEffects?: Partial<ControlProofCanaryObservationCase['observed']['sideEffects']>;
 }
 
+export interface ControlProofPacketEvidenceDetail {
+  key: string;
+  state: 'missing' | 'invalid' | 'stale';
+  reason: string;
+  generatedAt: string | null;
+  runtimeEvidenceCollectedAt: string | null;
+  runtimeEvidenceExpiresAt: string | null;
+}
+
+export interface ControlProofPacketEvidenceDetails {
+  generatedAt: string;
+  runtimeEvidenceCollectedAt: string | null;
+  runtimeEvidenceMaxAgeHours: number;
+  runtimeEvidenceExpiresAt: string | null;
+  missing: ControlProofPacketEvidenceDetail[];
+  invalid: ControlProofPacketEvidenceDetail[];
+  stale: ControlProofPacketEvidenceDetail[];
+}
+
 export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
@@ -175,6 +194,7 @@ export interface ControlProofCanaryObservationSummary {
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
   stalePacketEvidence: string[];
+  packetEvidenceDetails: ControlProofPacketEvidenceDetails;
   cases: ControlProofCanaryObservationCaseSummary[];
 }
 
@@ -1199,6 +1219,59 @@ function runtimeEvidenceExpiresAt(
   const collectedMs = Date.parse(collectedAt);
   if (!Number.isFinite(collectedMs)) return null;
   return new Date(collectedMs + maxAgeHours * 60 * 60 * 1000).toISOString();
+}
+
+function packetEvidenceReason(
+  state: ControlProofPacketEvidenceDetail['state'],
+  key: string
+): string {
+  if (state === 'missing') {
+    if (key === 'runtime_evidence_collected_at') return 'runtime evidence collection timestamp is absent';
+    return `${key} runtime proof is absent`;
+  }
+  if (state === 'stale') {
+    return 'runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window';
+  }
+  if (key === 'packet_generated_at') return 'packet generated timestamp is invalid, future-dated, or older than runtime evidence';
+  if (key === 'source_snapshot') return 'source files changed after runtime evidence was collected';
+  if (key === 'runtime_evidence_notes') return 'runtime evidence notes contain raw internal details';
+  if (key === 'spark_os_compile') return 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched';
+  if (key === 'control_proof_audit') return 'control-proof audit is dirty, incomplete, failed, or timestamp-mismatched';
+  return `${key} runtime proof is failed, incomplete, or does not match the expected command`;
+}
+
+function packetEvidenceDetails(
+  observations: ControlProofCanaryObservationTemplate,
+  context: {
+    maxAgeHours: number;
+    expiresAt: string | null;
+    missing: string[];
+    invalid: string[];
+    stale: string[];
+  }
+): ControlProofPacketEvidenceDetails {
+  const generatedAt = String(observations.generatedAt || '').trim();
+  const collectedAt = String(observations.evidence?.collectedAt || '').trim() || null;
+  const detail = (
+    state: ControlProofPacketEvidenceDetail['state'],
+    key: string
+  ): ControlProofPacketEvidenceDetail => ({
+    key,
+    state,
+    reason: packetEvidenceReason(state, key),
+    generatedAt: generatedAt || null,
+    runtimeEvidenceCollectedAt: collectedAt,
+    runtimeEvidenceExpiresAt: context.expiresAt
+  });
+  return {
+    generatedAt: generatedAt || '',
+    runtimeEvidenceCollectedAt: collectedAt,
+    runtimeEvidenceMaxAgeHours: context.maxAgeHours,
+    runtimeEvidenceExpiresAt: context.expiresAt,
+    missing: context.missing.map((key) => detail('missing', key)),
+    invalid: context.invalid.map((key) => detail('invalid', key)),
+    stale: context.stale.map((key) => detail('stale', key))
+  };
 }
 
 const SOURCE_SNAPSHOT_PATHS = [
@@ -2296,6 +2369,14 @@ export function summarizeControlProofCanaryObservations(
     now: options.now,
     maxAgeHours
   });
+  const evidenceExpiresAt = runtimeEvidenceExpiresAt(observations, maxAgeHours);
+  const structuredPacketEvidence = packetEvidenceDetails(observations, {
+    maxAgeHours,
+    expiresAt: evidenceExpiresAt,
+    missing: missingEvidence,
+    invalid: invalidEvidence,
+    stale: staleEvidence
+  });
   const readyForRelease = cases.length > 0 &&
     missingEvidence.length === 0 &&
     invalidEvidence.length === 0 &&
@@ -2316,7 +2397,7 @@ export function summarizeControlProofCanaryObservations(
     generatedAt: observations.generatedAt,
     runtimeEvidenceCollectedAt: observations.evidence?.collectedAt || null,
     runtimeEvidenceMaxAgeHours: maxAgeHours,
-    runtimeEvidenceExpiresAt: runtimeEvidenceExpiresAt(observations, maxAgeHours),
+    runtimeEvidenceExpiresAt: evidenceExpiresAt,
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease: releaseReady,
@@ -2328,6 +2409,7 @@ export function summarizeControlProofCanaryObservations(
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
     stalePacketEvidence: staleEvidence,
+    packetEvidenceDetails: structuredPacketEvidence,
     cases
   };
 }
