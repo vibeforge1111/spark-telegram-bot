@@ -36,13 +36,13 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'missing evidence: 0',
   'missing trace joins: 0',
   'missing proof capsules: 0',
-  'legacy proof gaps: 4',
+  'legacy proof gaps: 3',
   'latest proof gaps: 0',
   'raw ref leaks: 0',
   'robotic failure reasons: 0',
   'stack-like leaks: 0',
   'Gap planes:',
-  '- legacy proof gaps: telegram_outbound, telegram_route_confidence, builder_gateway, spawner_prd_trace'
+  '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace'
 ].join('\n');
 const CLEAN_SPARK_OS_COMPILE = [
   '$ spark os compile --json',
@@ -69,7 +69,7 @@ const CLEAN_PROOF_PANEL = [
   'Execution: not_started',
   'Reply: delivered as natural',
   'Audit blocking: clean',
-  'Legacy proof gaps visible: 4'
+  'Legacy proof gaps visible: 3'
 ].join('\n');
 
 test('control-proof canary pack stays small enough for live runs', () => {
@@ -390,7 +390,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     'proof_panel_legacy_gap_status'
   ]);
 
-  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 4', 'legacy proof gaps: 3');
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2');
   template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
   const staleProofPanelAuditCount = summarizeControlProofCanaryObservations(template);
   assert.equal(staleProofPanelAuditCount.readyForRelease, false);
@@ -534,7 +534,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     'missing evidence: 0',
     'missing trace joins: 0',
     'missing proof capsules: 0',
-    'legacy proof gaps: 4',
+    'legacy proof gaps: 3',
     'raw ref leaks: 0',
     'robotic failure reasons: 0',
     'stack-like leaks: 0'
@@ -899,7 +899,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       providerStatus: 'Provider ping OK.',
       runtimeSync: 'runtime in sync.',
       sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
-      controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 4', 'legacy proof gaps: 3'),
+      controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2'),
       notes: null
     });
     staleProofObservations.cases = staleProofObservations.cases.map((entry) => ({
@@ -1227,13 +1227,13 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "- missing evidence: 0"',
       '  echo "- missing trace joins: 0"',
       '  echo "- missing proof capsules: 0"',
-      '  echo "- legacy proof gaps: 4"',
+      '  echo "- legacy proof gaps: 3"',
       '  echo "- latest proof gaps: 0"',
       '  echo "- raw ref leaks: 0"',
       '  echo "- robotic failure reasons: 0"',
       '  echo "- stack-like leaks: 0"',
       '  echo "Gap planes:"',
-      '  echo "- legacy proof gaps: telegram_outbound, telegram_route_confidence, builder_gateway, spawner_prd_trace"',
+      '  echo "- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace"',
       '  exit 0',
       'fi',
       'echo "unexpected npm args: $*" >&2',
@@ -1266,7 +1266,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
-    assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_outbound/);
+    assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace/);
     assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
