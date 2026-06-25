@@ -1043,6 +1043,16 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     /Release handoffs:\n- spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check\./
   );
 
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean_historical_backlog","window":"24h","row_count":1048,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":1783,"total_missing_trace_ref_count":1783,"missing_trace_ref_ratio":0,"latest_missing_group_count":0,"latest_clean_group_count":0,"repair_temporal_state_counts":{"latest_clean":9,"stale_missing_trace_ref":9}},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":1048,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"7d","row_count":6992,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const builderHistoricalBacklog = summarizeControlProofCanaryObservations(template);
+  assert.deepEqual(builderHistoricalBacklog.releaseHandoffs, [
+    'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit or backfill the remaining historical Builder trace rows, then rerun spark os compile.'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(builderHistoricalBacklog),
+    /Audit or backfill the remaining historical Builder trace rows/
+  );
+
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2,"canonical_runtime_dirty":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const registryPinDrift = summarizeControlProofCanaryObservations(template);
   assert.equal(registryPinDrift.readyForRelease, true);

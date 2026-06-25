@@ -1515,7 +1515,7 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
     ? `Repair or replay ${latestMissingGroups} latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.`
     : latestCleanWindowGroups > 0
       ? `Let ${latestCleanWindowGroups} latest-clean historical-window groups age out or backfill the historical rows, then rerun spark os compile.`
-      : 'Rerun spark os compile after Builder trace producers emit clean rows.';
+      : 'Audit or backfill the remaining historical Builder trace rows, then rerun spark os compile.';
   return [`spark-intelligence-builder: warning builder_trace_health; next safe action: ${nextSafeAction}`];
 }
 
