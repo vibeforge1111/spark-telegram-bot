@@ -1932,7 +1932,13 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '    "missing_trace_ref_count": 480,',
       '    "historical_missing_trace_ref_count": 12721,',
       '    "total_missing_trace_ref_count": 13201,',
-      '    "missing_trace_ref_ratio": 0.462',
+      '    "missing_trace_ref_ratio": 0.462,',
+      '    "latest_missing_group_count": 2,',
+      '    "latest_clean_group_count": 1,',
+      '    "repair_temporal_state_counts": {',
+      '      "latest_missing_trace_ref": 2,',
+      '      "latest_clean_historical_window_debt": 1',
+      '    }',
       '  },',
       '  "duplicate_truths": { "item_count": 2 },',
       '  "repo_board": { "dirty_repo_count": 0, "blocked_release_count": 1, "critical_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
@@ -2135,11 +2141,13 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.equal(summary.readyForPublish, false);
     assert.deepEqual(summary.invalidPacketEvidence, []);
     assert.deepEqual(summary.releaseHandoffs, [
+      'spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.',
       'domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release',
       'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
       'spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
     ]);
-    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- domain-chip-memory: release_blocked/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- spark-intelligence-builder: warning builder_trace_health/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Repair or replay 2 latest-missing Builder trace source groups/);
     assert.match(formatControlProofCanaryObservationSummary(summary), /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
