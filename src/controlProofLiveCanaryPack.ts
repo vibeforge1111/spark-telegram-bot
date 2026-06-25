@@ -1797,6 +1797,8 @@ function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): R
   const current = objectOrNull(parsed.builder_trace_current_health);
   const builderTraceHealth = builderFlags.length > 0 && current
     ? {
+        releaseBlocking: builderFlags.includes('open_high_severity_events'),
+        publishBlocking: true,
         flags: builderFlags,
         status: safeStringToken(current.status),
         window: safeStringToken(current.window),
@@ -1821,10 +1823,16 @@ function sparkOsCompileReleaseCaveatDetails(value: string | null | undefined): R
   return {
     builder_trace_health: builderTraceHealth,
     repo_release_blocks: {
+      releaseBlocking: false,
+      publishBlocking: blockedReleaseCount > 0 || criticalRepoCount > 0,
       blocked_release_count: blockedReleaseCount,
       critical_repo_count: criticalRepoCount
     },
     duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: duplicateTruthCount > 0 ||
+        criticalDuplicateTruthCount > 0 ||
+        Object.keys(duplicateClassificationCounts).length > 0,
       label: duplicateTruthCaveatLabel({
         runtimeAheadCount: numberOrNull(classificationCounts.runtime_ahead_of_registry_pin) ?? 0,
         localRuntimeTestCount: numberOrNull(classificationCounts.local_runtime_test_artifact) ?? 0,

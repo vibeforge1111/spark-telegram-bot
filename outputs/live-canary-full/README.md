@@ -49,7 +49,7 @@ When `spark os compile --json` includes `publish_handoffs`, the canary summary s
 
 The machine-readable `live-canary-summary.json` summary carries the sanitized `publishHandoffs` object, structured `releaseHandoffDetails`, and the human `releaseHandoffs` lines. Automation should read the structured objects first and use the display lines only for operator-facing reports.
 
-The same JSON summary carries sanitized `releaseCaveatDetails` for release caveat counts and Builder trace-health aggregates. Automation should use those structured counts instead of parsing the human `releaseCaveats` strings.
+The same JSON summary carries sanitized `releaseCaveatDetails` for release caveat counts, Builder trace-health aggregates, and normalized `releaseBlocking`/`publishBlocking` decisions. Automation should use those structured fields instead of parsing the human `releaseCaveats` strings.
 
 The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.
 

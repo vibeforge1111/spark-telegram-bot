@@ -1258,6 +1258,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       ],
       caveatDetails: {
         builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
           flags: ['historical_open_high_severity_events'],
           status: 'current_clean',
           window: '1h',
@@ -1273,10 +1275,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           latest_clean_historical_window_group_count: null
         },
         repo_release_blocks: {
+          releaseBlocking: false,
+          publishBlocking: true,
           blocked_release_count: 1,
           critical_repo_count: 1
         },
         duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
           label: 'local_runtime_test_artifacts',
           classification_counts: { local_runtime_test_artifact: 2 },
           duplicate_truth_count: 2,
@@ -1325,6 +1331,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           caveatFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
           caveatDetails: {
             builder_trace_health: {
+              releaseBlocking: false,
+              publishBlocking: true,
               flags: ['historical_open_high_severity_events'],
               status: 'current_clean',
               window: '1h',
@@ -1340,10 +1348,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               latest_clean_historical_window_group_count: null
             },
             repo_release_blocks: {
+              releaseBlocking: false,
+              publishBlocking: true,
               blocked_release_count: 1,
               critical_repo_count: 1
             },
             duplicate_truths: {
+              releaseBlocking: false,
+              publishBlocking: true,
               label: 'local_runtime_test_artifacts',
               classification_counts: { local_runtime_test_artifact: 2 },
               duplicate_truth_count: 2,
@@ -1395,6 +1407,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       ],
       caveatDetails: {
         builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
           flags: ['historical_open_high_severity_events'],
           status: 'current_clean',
           window: '1h',
@@ -1410,10 +1424,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           latest_clean_historical_window_group_count: null
         },
         repo_release_blocks: {
+          releaseBlocking: false,
+          publishBlocking: true,
           blocked_release_count: 1,
           critical_repo_count: 1
         },
         duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
           label: 'local_runtime_test_artifacts',
           classification_counts: { local_runtime_test_artifact: 2 },
           duplicate_truth_count: 2,
@@ -1494,6 +1512,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   ]);
   assert.deepEqual(structuredPublishHandoffs.releaseCaveatDetails, {
     builder_trace_health: {
+      releaseBlocking: false,
+      publishBlocking: true,
       flags: ['historical_open_high_severity_events'],
       status: 'current_clean',
       window: '1h',
@@ -1509,10 +1529,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       latest_clean_historical_window_group_count: null
     },
     repo_release_blocks: {
+      releaseBlocking: false,
+      publishBlocking: true,
       blocked_release_count: 1,
       critical_repo_count: 1
     },
     duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: true,
       label: 'local_runtime_test_artifacts',
       classification_counts: { local_runtime_test_artifact: 2 },
       duplicate_truth_count: 2,
