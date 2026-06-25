@@ -1199,8 +1199,10 @@ function hasCleanControlProofAudit(value: string): boolean {
   if (!/(?:^|\n)(?:[$>]\s*)?(?:npm\s+run\s+control:proof:audit|ts-node\s+ops\/controlProofTraceAudit\.ts)[^\n]*--fresh-strict\b/i.test(value)) return false;
   if (commandEvidencePassed(value) !== true) return false;
   if (/latest_gap\s+yes/i.test(value)) return false;
-  const blockingStatusMatch = value.match(/^Blocking status:[^\S\n]*(.+)$/im);
-  if (blockingStatusMatch && !/^clean\b/i.test(blockingStatusMatch[1].trim())) return false;
+  const blockingStatusMatches = Array.from(value.matchAll(/^Blocking status:[^\S\n]*(.+)$/gim));
+  if (blockingStatusMatches.length === 0 || blockingStatusMatches.some((match) => !/^clean\b/i.test(match[1].trim()))) {
+    return false;
+  }
   if (/\b(?:raw_refs|raw_id_keys|reason_codes|parse_errors)\s+[1-9]\d*/i.test(value)) return false;
   const requiredZeroPatterns = [
     /missing evidence:\s*0/i,

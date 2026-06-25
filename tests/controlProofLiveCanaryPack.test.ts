@@ -33,6 +33,7 @@ const ROOT = resolve(__dirname, '..');
 const CLEAN_CONTROL_PROOF_AUDIT = [
   '$ npm run control:proof:audit -- --sample 100 --fresh-strict',
   'exit=0',
+  'Blocking status: clean',
   'telegram_final_answer: 100/100 sampled | latest_gap no',
   'builder_gateway: 100/100 sampled | latest_gap no',
   'missing evidence: 0',
@@ -601,6 +602,11 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const failedFreshStrictTranscript = summarizeControlProofCanaryObservations(template);
   assert.equal(failedFreshStrictTranscript.readyForRelease, false);
   assert.deepEqual(failedFreshStrictTranscript.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('Blocking status: clean\n', '');
+  const missingBlockingStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingBlockingStatus.readyForRelease, false);
+  assert.deepEqual(missingBlockingStatus.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = [
     'missing evidence: 0',
