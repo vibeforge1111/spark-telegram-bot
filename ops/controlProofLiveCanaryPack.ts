@@ -58,6 +58,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canary/live-canary-observations.json --refresh-runtime-evidence',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --publish-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --summary-out outputs/live-canary-summary.md --summary-json-out outputs/live-canary-summary.json',
@@ -469,6 +470,7 @@ function main(): void {
     let summaryOutPath = argValue(args, 'summary-out');
     let summaryJsonOutPath = argValue(args, 'summary-json-out');
     const releaseCheck = hasFlag(args, 'release-check');
+    const publishCheck = hasFlag(args, 'publish-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
     if (refreshRuntimeEvidence) {
       observations = withControlProofCanaryRuntimeEvidence(observations, collectRuntimeEvidence());
@@ -489,7 +491,7 @@ function main(): void {
     }
     const summary = summarizeControlProofCanaryObservations(
       observations,
-      releaseCheck || refreshRuntimeEvidence ? { maxRuntimeEvidenceAgeHours: 1 } : {}
+      releaseCheck || publishCheck || refreshRuntimeEvidence ? { maxRuntimeEvidenceAgeHours: 1 } : {}
     );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases
@@ -510,7 +512,7 @@ function main(): void {
       }
       return;
     }
-    const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict') || releaseCheck;
+    const coverageRequested = hasFlag(args, 'coverage') || hasFlag(args, 'coverage-strict') || releaseCheck || publishCheck;
     const coverage = coverageRequested
       ? summarizeControlProofCanaryCoverage(canaryCasesFromObservations(observations))
       : null;
@@ -540,8 +542,11 @@ function main(): void {
     }
     if (
       (!summary.readyForRelease && (hasFlag(args, 'strict') || releaseCheck))
+      || (!summary.readyForPublish && publishCheck)
       || (coverage && (hasFlag(args, 'coverage-strict') || releaseCheck) && !coverage.coverageComplete)
       || (coverage && releaseCheck && !coverage.releasePackComplete)
+      || (coverage && publishCheck && !coverage.coverageComplete)
+      || (coverage && publishCheck && !coverage.releasePackComplete)
     ) {
       process.exitCode = 1;
     }

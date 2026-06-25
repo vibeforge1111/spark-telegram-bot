@@ -177,6 +177,8 @@ When non-blocking caveats or handoffs are present, the human canary summary now 
 
 Canary summaries now distinguish `Release gate` from `Publish gate`. `Release gate: ready` means the live Telegram/control-proof canary packet is locally complete. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
 
+Use `npm run control:proof:canaries -- --observations <packet> --publish-check` for publish or registry claims. It applies the same full-pack/fresh-evidence checks as `--release-check`, then exits nonzero while `Publish gate: not ready`.
+
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
 Audit plane rows now also print `gap_capsule` and `gap_ref` next to `proof_gap`. These counts show whether sampled historical gap rows are backed by downgraded proof capsules and redacted proof refs. They are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.

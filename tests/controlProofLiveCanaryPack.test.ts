@@ -929,6 +929,41 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(staleFullReleaseCheck.stdout, /Run with `--refresh-runtime-evidence` before making a release claim/);
     assert.match(staleFullReleaseCheck.stdout, /Full release pack: complete/);
 
+    const publishCaveatPath = resolve(tempRoot, 'publish-caveat-full-release.json');
+    const publishCaveatPacket = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+    publishCaveatPacket.evidence.collectedAt = new Date().toISOString();
+    writeFileSync(publishCaveatPath, JSON.stringify(publishCaveatPacket, null, 2), 'utf8');
+    const caveatReleaseCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        publishCaveatPath,
+        '--release-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(caveatReleaseCheck.status, 0, caveatReleaseCheck.stderr);
+    assert.match(caveatReleaseCheck.stdout, /Release gate: ready/);
+    assert.match(caveatReleaseCheck.stdout, /Publish gate: not ready/);
+    const caveatPublishCheck = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        publishCaveatPath,
+        '--publish-check'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(caveatPublishCheck.status, 1);
+    assert.match(caveatPublishCheck.stdout, /Release gate: ready/);
+    assert.match(caveatPublishCheck.stdout, /Publish gate: not ready/);
+    assert.match(caveatPublishCheck.stdout, /Release handoffs:/);
+    assert.match(caveatPublishCheck.stdout, /Full release pack: complete/);
+
     const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
     writeFileSync(
       duplicateObservationsPath,
