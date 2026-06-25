@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T16:45:35.321Z
-Runtime evidence collected: 2026-06-25T16:45:35.321Z
-Runtime evidence expires: 2026-06-25T17:45:35.321Z (1h window)
+Generated: 2026-06-25T16:48:22.190Z
+Runtime evidence collected: 2026-06-25T16:48:22.190Z
+Runtime evidence expires: 2026-06-25T17:48:22.190Z (1h window)
 Cases: 28
 Release gate: ready
 Publish gate: not ready
@@ -22,6 +22,7 @@ Release caveats:
 - local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0
 
 Release handoffs:
+- spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.
 - spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.
 - domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
 - spark-intelligence-builder: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
