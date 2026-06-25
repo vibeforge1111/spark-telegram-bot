@@ -162,6 +162,10 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - The warning item is `spawner-ui-runtime-registry-pin-drift`: installed Spawner runtime source is ahead of its registry pin, with an owner-repo release metadata update still needed.
   - Durable slice: do not claim registry/release readiness until owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
 
+- `builder_trace_health`: `spark os compile --json` still reports Builder trace health flags `missing_trace_refs` and `open_high_severity_events`, even while the Telegram control-proof audit has no latest-row gaps.
+  - Current evidence from the generated operating cockpit: the top current repair card is `builder-agent-event-model-source-used-missing-trace-ref`, owner repo `spark-intelligence-builder`, source module `agent_event_model event emission`, with recent 24h missing trace refs and no recent 1h misses.
+  - Durable slice: keep this as a source-owned Builder repair card. Do not hide it in Telegram docs, do not treat it as SparkRecursive_bot release proof failure, and do not patch around it from Telegram unless a fresh trace shows Telegram is the producer.
+
 - `default_suite_gap`: all stable current `tests/*.test.ts` files are now in the default `npm test` runner.
   - Durable slice: keep new proof, routing, Telegram surface, media, streaming, and drift suites in `scripts/run-tests.cjs` unless they require live credentials or intentional live action. Optional/live suites must state why they are excluded.
 
