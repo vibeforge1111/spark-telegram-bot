@@ -1005,6 +1005,9 @@ async function renderRegistryDriftAnswer(): Promise<string> {
       count === 0
         ? 'No registry drift is reported in the current evidence.'
         : `Current evidence shows ${count} registry truth drift item${count === 1 ? '' : 's'}; that means the running code is not fully matched to published release metadata yet.`,
+      count === 0
+        ? 'Publish claims are not blocked by registry drift in this evidence.'
+        : 'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
       '',
       ...lines,
       '',

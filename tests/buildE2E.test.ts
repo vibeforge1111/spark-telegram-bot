@@ -3709,7 +3709,7 @@ async function run(): Promise<void> {
 				},
 				{
 					text: 'Show current registry drift if any.',
-					matches: [/registry truth drift/i, /running code is not fully matched to published release metadata/i, /installed runtime is ahead of the published registry pin/i, /read-only evidence lookup/i],
+					matches: [/registry truth drift/i, /running code is not fully matched to published release metadata/i, /publish stays not ready/i, /installed runtime is ahead of the published registry pin/i, /read-only evidence lookup/i],
 					not: [/Mission:|3551fbc34b1f|e5a1bd040986|runtime_ahead_of_registry_pin|registry_commit|installed_head/i]
 				},
 				{
