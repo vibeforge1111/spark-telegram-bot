@@ -103,7 +103,12 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
   const mediaKind = telegramMediaTurnKind(message);
   const mimeType = stringValue(document.mime_type || voice.mime_type || audio.mime_type || video.mime_type || animation.mime_type);
   const caption = boundedCaption(message.caption);
-  const canRead = mediaKind !== 'unsupported';
+  const mediaMimeFamily = mimeFamily(mimeType);
+  const canRead =
+    mediaKind === 'photo' ||
+    mediaKind === 'voice' ||
+    mediaKind === 'audio' ||
+    (mediaKind === 'document' && mediaMimeFamily === 'image');
   return {
     schema: 'spark.media_turn.v1',
     media_kind: mediaKind,
@@ -128,7 +133,7 @@ export function buildTelegramMediaTurnEnvelope(messageInput: unknown): TelegramM
       has_animation: Object.keys(animation).length > 0,
       has_sticker: Object.keys(sticker).length > 0,
       has_video_note: Object.keys(videoNote).length > 0,
-      ...(mimeFamily(mimeType) ? { mime_family: mimeFamily(mimeType) } : {}),
+      ...(mediaMimeFamily ? { mime_family: mediaMimeFamily } : {}),
       ...(stringValue(document.file_name) ? { filename_present: true } : {})
     }
   };

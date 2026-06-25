@@ -49,16 +49,29 @@ test('builds document and unsupported envelopes without raw filenames', () => {
       mime_type: 'application/pdf'
     }
   });
+  const imageDocument = buildTelegramMediaTurnEnvelope({
+    message_id: 24,
+    document: {
+      file_id: 'private-image-doc-id',
+      file_name: 'private-screenshot.png',
+      mime_type: 'image/png'
+    }
+  });
   const unsupported = buildTelegramMediaTurnEnvelope({ message_id: 23 });
 
   assert.equal(telegramMediaTurnKind({ document: { mime_type: 'application/pdf' } }), 'document');
   assert.equal(document.media_kind, 'document');
   assert.equal(document.source.mime_family, 'application');
   assert.equal(document.source.filename_present, true);
+  assert.equal(document.analysis_policy.can_read, false);
   assert.equal(document.analysis_policy.can_execute, false);
+  assert.equal(imageDocument.media_kind, 'document');
+  assert.equal(imageDocument.source.mime_family, 'image');
+  assert.equal(imageDocument.analysis_policy.can_read, true);
+  assert.equal(imageDocument.analysis_policy.can_execute, false);
   assert.equal(unsupported.media_kind, 'unsupported');
   assert.equal(unsupported.analysis_policy.can_read, false);
-  assert.doesNotMatch(JSON.stringify(document), /private-plan|private-doc-id/);
+  assert.doesNotMatch(JSON.stringify({ document, imageDocument }), /private-plan|private-doc-id|private-image-doc-id|private-screenshot/);
 });
 
 test('builds voice and audio envelopes as evidence-only media turns', () => {
@@ -105,13 +118,17 @@ test('builds typed unsupported media envelopes without raw file identifiers', ()
   assert.equal(video.media_kind, 'video');
   assert.equal(video.source.has_video, true);
   assert.equal(video.source.mime_family, 'video');
+  assert.equal(video.analysis_policy.can_read, false);
   assert.equal(video.analysis_policy.can_execute, false);
   assert.equal(animation.media_kind, 'animation');
   assert.equal(animation.source.has_animation, true);
+  assert.equal(animation.analysis_policy.can_read, false);
   assert.equal(sticker.media_kind, 'sticker');
   assert.equal(sticker.source.has_sticker, true);
+  assert.equal(sticker.analysis_policy.can_read, false);
   assert.equal(videoNote.media_kind, 'video_note');
   assert.equal(videoNote.source.has_video_note, true);
+  assert.equal(videoNote.analysis_policy.can_read, false);
   assert.doesNotMatch(JSON.stringify({ video, animation, sticker, videoNote }), /private-|secret-demo|emoji/);
 });
 

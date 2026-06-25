@@ -1135,6 +1135,7 @@ async function run(): Promise<void> {
 		assert.equal(record.reply_kind, 'unsupported_media');
 		assert.equal((record.media_turn as any).schema, 'spark.media_turn.v1');
 		assert.equal((record.media_turn as any).media_kind, 'document');
+		assert.equal((record.media_turn as any).analysis_policy.can_read, false);
 		assert.equal((record.media_turn as any).analysis_policy.can_execute, false);
 		assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
 		assert.equal((record.proof_capsule as any).execution.tool, 'telegram.media.evidence');
@@ -1185,6 +1186,7 @@ async function run(): Promise<void> {
 		assert.equal((record.media_turn as any).schema, 'spark.media_turn.v1');
 		assert.equal((record.media_turn as any).media_kind, 'video');
 		assert.equal((record.media_turn as any).source.has_video, true);
+		assert.equal((record.media_turn as any).analysis_policy.can_read, false);
 		assert.equal((record.media_turn as any).analysis_policy.can_execute, false);
 		assert.equal(record.harness_proof_ref, traceContext.proofCapsule.turnRef);
 		assert.equal((record.proof_capsule as any).execution.tool, 'telegram.media.evidence');

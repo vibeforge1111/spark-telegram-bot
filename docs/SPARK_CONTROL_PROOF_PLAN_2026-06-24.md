@@ -159,6 +159,8 @@ Harness Proof panels now keep non-execution evidence separate from execution-pro
 
 Telegram unsupported media now has typed evidence-only envelopes for video, animation, sticker, and video-note turns as well as documents. These paths acknowledge the media with redacted proof context and still do not analyze, store, or execute anything from the payload.
 
+Media envelope `analysis_policy.can_read` must only mean Spark can actually inspect that payload on the current Telegram path. Photos, image documents, voice, and audio can be readable evidence; PDFs, videos, animations, stickers, video notes, and unknown media stay `can_read: false`, `can_store: false`, and `can_execute: false` while still carrying redacted trace/proof context.
+
 Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, `spark os compile --json`, and fresh-strict proof audit before it can claim release readiness.
 
 The `--release-check` path now enforces a one-hour runtime evidence window. Older packets can still be inspected, but they cannot support a fresh release claim until runtime evidence is refreshed.
