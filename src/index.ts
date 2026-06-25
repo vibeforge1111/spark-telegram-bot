@@ -8130,6 +8130,15 @@ function buildLatestAssistantOriginReply(currentText: string, pending: PendingBu
   ].join('\n');
 }
 
+export function isLocalhostUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
 export function formatCanvasReadySummary(args: {
 	projectName: string;
 	taskCount: unknown;
@@ -8154,7 +8163,12 @@ export function formatCanvasReadySummary(args: {
   return telegramBlocks(
     telegramHtmlBold(`Canvas is ready for ${args.projectName}.`),
     buildStepLine,
-    telegramHtmlLink('Open canvas', args.readyCanvasUrl)
+    isLocalhostUrl(args.readyCanvasUrl)
+      ? [
+          telegramHtmlLink('Open canvas', args.readyCanvasUrl),
+          'This link only works on the machine running Spark. On another device, open it there or set SPAWNER_UI_PUBLIC_URL for a shareable address.'
+        ].join('\n')
+      : telegramHtmlLink('Open canvas', args.readyCanvasUrl)
   );
 }
 
