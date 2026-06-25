@@ -408,6 +408,33 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.cases[0].observed.userConfirmation, null);
 });
 
+test('runtime evidence refresh backfills canonical canary source refs', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!,
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.cases = template.cases.map((entry) => ({
+    ...entry,
+    sourceRefs: undefined
+  }));
+
+  const refreshed = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+
+  assert.deepEqual(refreshed.cases[0].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+  ]);
+  assert.deepEqual(refreshed.cases[1].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
+  ]);
+});
+
 test('observation summary rejects duplicate canary rows', () => {
   const template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,

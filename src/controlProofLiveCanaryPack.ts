@@ -1208,6 +1208,7 @@ export function withControlProofCanaryRuntimeEvidence(
   return {
     ...observations,
     generatedAt: collectedAt,
+    cases: observations.cases.map(normalizeControlProofCanaryObservationCase),
     evidence: {
       collectedAt,
       sparkLiveStatus: evidence.sparkLiveStatus,
@@ -1217,6 +1218,17 @@ export function withControlProofCanaryRuntimeEvidence(
       controlProofAudit: evidence.controlProofAudit,
       notes: evidence.notes || observations.evidence.notes || null
     }
+  };
+}
+
+function normalizeControlProofCanaryObservationCase(
+  entry: ControlProofCanaryObservationCase
+): ControlProofCanaryObservationCase {
+  const canonical = CONTROL_PROOF_LIVE_CANARY_CASES.find((canary) => canary.id === entry.id);
+  if (!canonical?.sourceRefs?.length) return entry;
+  return {
+    ...entry,
+    sourceRefs: canonical.sourceRefs
   };
 }
 
