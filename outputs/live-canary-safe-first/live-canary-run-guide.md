@@ -18,7 +18,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md' --summary-json-out 'outputs/live-canary-safe-first/live-canary-summary.json'
 ```
 
 Expected route: plain_conversation
@@ -45,7 +45,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-proof-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md' --summary-json-out 'outputs/live-canary-safe-first/live-canary-summary.json'
 ```
 
 Expected route: proof.inspect
@@ -67,7 +67,7 @@ Telegram prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-001.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md' --summary-json-out 'outputs/live-canary-safe-first/live-canary-summary.json'
 ```
 
 Expected route: streaming.status
@@ -89,7 +89,7 @@ Give me a two-line rich-message check: bold one word and include one short code 
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-002.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-file '/tmp/cp-streaming-002.png' --summary-out 'outputs/live-canary-safe-first/live-canary-summary.md' --summary-json-out 'outputs/live-canary-safe-first/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.rich_message_render
@@ -97,7 +97,7 @@ Expected authority: read_only_allowed
 Expected mutation class: read_only
 Expected reply shape: natural
 Expected side effect: No mutation.
-Expected proof join: Telegram delivery audit should carry request/trace for the reply.
+Expected proof join: Telegram final delivery should prove the rich-message reply came through the live Telegram profile path.
 Capture proof panel: no
 Capture screenshot: yes
 Capture user confirmation: yes

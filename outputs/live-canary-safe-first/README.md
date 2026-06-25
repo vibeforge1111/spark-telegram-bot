@@ -10,12 +10,13 @@ This folder is the live Telegram release packet. It starts not ready until each 
 - Checklist: outputs/live-canary-safe-first/live-canary-checklist.md
 - Coverage: outputs/live-canary-safe-first/live-canary-coverage.md
 - Current summary: outputs/live-canary-safe-first/live-canary-summary.md
+- Current summary JSON: outputs/live-canary-safe-first/live-canary-summary.json
 
 ## Run Order
 
 1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.
-2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.
-3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.
+2. Capture the reply, local screenshot file, proof panel text, side effects, and user confirmation for each case.
+3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summaries and records screenshot files as digest refs.
 4. Re-run the selected-case strict check:
 
 ```bash
@@ -23,6 +24,28 @@ npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first
 ```
 
 This selected-case gate is ready when every case in this bundle passed with required captures present and top-level runtime evidence is clean. It is not the full release gate until the complete canary pack is run.
+
+`--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.
+
+The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.
+
+If `spark os compile --json` is otherwise clean but reports repo release blocks or duplicate-truth drift, the summary stays selected-case proof accurate and prints the drift under `Release caveats`. Treat these as publish/registry handoff items, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.
+
+When caveats or handoffs exist, the human summary prints the owner repo and next safe action so the Telegram canary gate cannot be mistaken for publish/registry completion.
+
+The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.
+
+The JSON summary `cases` array carries safe Harness metadata for each canary: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, optional sanitized `sourceRefs`, verdict, and missing capture names. It intentionally omits raw Telegram prompts, observed replies, proof-panel bodies, screenshots, and user confirmations; read the observation packet only when reviewed live evidence is needed.
+
+The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, joined `gapDetails`, normalized `releaseBlocking`/`publishBlocking`/`backingStatus`, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
+
+The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat details, handoff details, per-action `handoffActionDetails` with normalized `releaseBlocking`/`publishBlocking` impact, and per-blocker `blockerDetails` joins instead of reconstructing the decision from prose lines.
+
+Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
+
+For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
+
+Refreshing runtime evidence also refreshes the packet `generatedAt` timestamp to the strict `evidence.collectedAt` value. A release packet whose generated timestamp predates its runtime evidence, uses loose timestamp prose, or is more than five minutes future-dated is stale metadata and must not be used for release claims.
 
 ## Side-Effect Proof
 
