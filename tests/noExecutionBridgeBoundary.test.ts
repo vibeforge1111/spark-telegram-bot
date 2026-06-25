@@ -59,7 +59,7 @@ test('no-execution meta action words bypass Builder bridge detours', async () =>
 
     assert.equal(bridgeCalls, 0);
     assert.equal(replies.length, 1);
-    assert.match(replies[0], /examples or context|example words, not commands/i);
+    assert.match(replies[0], /language evidence, not as the action itself|examples or context|example words, not commands/i);
     assert.doesNotMatch(replies[0], /search the web|browser session/i);
   } finally {
     llmModule.llm.chat = originalChat;
