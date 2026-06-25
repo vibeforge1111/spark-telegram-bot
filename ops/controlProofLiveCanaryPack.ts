@@ -489,7 +489,7 @@ function main(): void {
     }
     const summary = summarizeControlProofCanaryObservations(
       observations,
-      releaseCheck ? { maxRuntimeEvidenceAgeHours: 1 } : {}
+      releaseCheck || refreshRuntimeEvidence ? { maxRuntimeEvidenceAgeHours: 1 } : {}
     );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases

@@ -1455,6 +1455,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.doesNotMatch(readFileSync(bundleSummaryPath, 'utf8'), /stale markdown/);
     const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, JSON.parse(readFileSync(bundleObservationsPath, 'utf8')).evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
     assert.equal(refreshedBundleSummaryJson.coverage.totalCases, 1);
 
     observed.cases[0].observed = {
