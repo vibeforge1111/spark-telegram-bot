@@ -19,7 +19,7 @@ import {
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 function argValue(args: string[], name: string): string | null {
   const index = args.indexOf(`--${name}`);
@@ -56,7 +56,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observation-template --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observation-template --collect-runtime-evidence --out outputs/live-canary-observations.json',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json',
-    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --refresh-runtime-evidence',
+    '  npm run control:proof:canaries -- --observations outputs/live-canary/live-canary-observations.json --refresh-runtime-evidence',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
@@ -84,6 +84,15 @@ function serializeControlProofCanarySummaryJson(
       authorityCounts: Object.fromEntries(coverage.authorityCounts)
     }
   }, null, 2)}\n`;
+}
+
+function inferredBundleSummaryPaths(observationsPath: string): { summaryPath: string; summaryJsonPath: string } | null {
+  if (basename(observationsPath) !== 'live-canary-observations.json') return null;
+  const baseDir = dirname(observationsPath);
+  return {
+    summaryPath: join(baseDir, 'live-canary-summary.md'),
+    summaryJsonPath: join(baseDir, 'live-canary-summary.json')
+  };
 }
 
 function readTextArg(args: string[], name: string): string | undefined {
@@ -378,8 +387,8 @@ function main(): void {
   if (observationsPath && !hasFlag(args, 'run-guide')) {
     let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
     const recordCaseId = argValue(args, 'record-case');
-    const summaryOutPath = argValue(args, 'summary-out');
-    const summaryJsonOutPath = argValue(args, 'summary-json-out');
+    let summaryOutPath = argValue(args, 'summary-out');
+    let summaryJsonOutPath = argValue(args, 'summary-json-out');
     const releaseCheck = hasFlag(args, 'release-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
     if (refreshRuntimeEvidence) {
@@ -387,6 +396,11 @@ function main(): void {
       const outputPath = outPath || observationsPath;
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Refreshed control-proof runtime evidence: ${outputPath}`);
+      const inferredSummaryPaths = inferredBundleSummaryPaths(outputPath);
+      if (inferredSummaryPaths) {
+        summaryOutPath ||= inferredSummaryPaths.summaryPath;
+        summaryJsonOutPath ||= inferredSummaryPaths.summaryJsonPath;
+      }
     }
     if (recordCaseId) {
       observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));

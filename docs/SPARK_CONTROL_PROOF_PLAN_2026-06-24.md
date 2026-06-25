@@ -183,6 +183,8 @@ Default `npm test` now includes every stable local `tests/*.test.ts` file in thi
 
 The full live canary bundle now keeps both human and machine-readable summaries current. `live-canary-summary.md` is the operator-facing report, and `live-canary-summary.json` is generated from the same summary and coverage logic used by `--release-check`. Run-guide record commands include both `--summary-out` and `--summary-json-out`, so a live recapture cannot refresh the markdown summary while leaving the JSON release packet stale.
 
+For a standard bundle path named `live-canary-observations.json`, `--refresh-runtime-evidence` also refreshes the sibling markdown and JSON summaries automatically. Scratch observation files still need explicit `--summary-out` and `--summary-json-out` flags when summary artifacts should be written.
+
 Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
 Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel capture: `/proof` in SparkRecursive_bot showed a read-only, no-mutation Telegram proof panel with `Latest proof gaps: none`, reducing stale proof-panel blockers from 24 to 23.

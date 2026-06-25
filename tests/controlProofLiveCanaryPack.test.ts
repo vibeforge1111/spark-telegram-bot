@@ -1346,6 +1346,37 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
     assert.equal(refreshedObserved.cases[0].observed.reply, 'preserve this recorded reply');
 
+    const bundleDir = resolve(tempRoot, 'bundle-refresh');
+    mkdirSync(bundleDir);
+    const bundleObservationsPath = resolve(bundleDir, 'live-canary-observations.json');
+    const bundleSummaryPath = resolve(bundleDir, 'live-canary-summary.md');
+    const bundleSummaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
+    writeFileSync(bundleObservationsPath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    writeFileSync(bundleSummaryPath, 'stale markdown summary', 'utf8');
+    writeFileSync(bundleSummaryJsonPath, '{"stale":true}\n', 'utf8');
+    const refreshedBundle = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        bundleObservationsPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refreshedBundle.status, 0, refreshedBundle.stderr);
+    assert.match(refreshedBundle.stdout, /Wrote control-proof observation summary:/);
+    assert.match(refreshedBundle.stdout, /Wrote control-proof observation summary JSON:/);
+    assert.doesNotMatch(readFileSync(bundleSummaryPath, 'utf8'), /stale markdown/);
+    const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
+    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, JSON.parse(readFileSync(bundleObservationsPath, 'utf8')).evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.coverage.totalCases, 1);
+
     observed.cases[0].observed = {
       ...observed.cases[0].observed,
       verdict: 'pass',
