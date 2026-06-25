@@ -1569,6 +1569,11 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   }
   if (summary.stalePacketEvidence.length > 0) {
     lines.push(`Packet evidence stale: ${summary.stalePacketEvidence.join(', ')}`, '');
+    if (summary.stalePacketEvidence.includes('runtime_evidence_collected_at')) {
+      lines.push('Refresh hint:');
+      lines.push('- Run with `--refresh-runtime-evidence` before making a release claim.');
+      lines.push('');
+    }
   }
   if (summary.releaseCaveats.length > 0) {
     lines.push('Release caveats:');

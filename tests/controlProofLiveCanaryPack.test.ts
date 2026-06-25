@@ -893,6 +893,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     );
     assert.equal(staleFullReleaseCheck.status, 1);
     assert.match(staleFullReleaseCheck.stdout, /Packet evidence stale: runtime_evidence_collected_at/);
+    assert.match(staleFullReleaseCheck.stdout, /Run with `--refresh-runtime-evidence` before making a release claim/);
     assert.match(staleFullReleaseCheck.stdout, /Full release pack: complete/);
 
     const duplicateObservationsPath = resolve(tempRoot, 'duplicate-observations.json');
