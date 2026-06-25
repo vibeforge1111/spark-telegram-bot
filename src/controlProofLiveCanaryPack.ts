@@ -2166,7 +2166,8 @@ function gateDecisionDetails(input: {
   if (!input.releaseReady) {
     publishBlockerDetails.release_gate_not_ready = {
       releaseReady: input.releaseReady,
-      releaseBlockers: [...releaseGateBlockers]
+      releaseBlockers: [...releaseGateBlockers],
+      releaseBlockerDetails: JSON.parse(JSON.stringify(releaseBlockerDetails))
     };
   }
   if (input.releaseCaveats.length > 0) {

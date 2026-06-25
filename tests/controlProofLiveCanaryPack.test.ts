@@ -1004,7 +1004,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       releaseBlockers: [
         'invalid_packet_evidence',
         'control_proof_audit_blocking_gaps'
-      ]
+      ],
+      releaseBlockerDetails: incompleteLegacyGapBacking.gateDecisionDetails.release.blockerDetails
     }
   );
 
@@ -1686,7 +1687,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   ]);
   assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockerDetails.release_gate_not_ready, {
     releaseReady: false,
-    releaseBlockers: ['invalid_packet_evidence']
+    releaseBlockers: ['invalid_packet_evidence'],
+    releaseBlockerDetails: staleEmbeddedCompile.gateDecisionDetails.release.blockerDetails
   });
   assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
   assert.deepEqual(staleEmbeddedCompile.packetEvidenceDetails.invalid, [{
