@@ -1425,6 +1425,19 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   return caveats;
 }
 
+function sparkOsCompileReleaseBlockers(value: string | null | undefined): string[] {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  if (!parsed) return [];
+  const flags = Array.isArray(parsed.builder_trace_health_flags)
+    ? parsed.builder_trace_health_flags.map((entry) => String(entry || '').trim())
+    : [];
+  const blockers: string[] = [];
+  if (flags.includes('open_high_severity_events')) {
+    blockers.push('builder_trace_health_open_high_severity_events');
+  }
+  return blockers;
+}
+
 function safeClassificationCountSummary(classificationCounts: Record<string, unknown>): string {
   return Object.entries(classificationCounts)
     .map(([key, value]) => {
@@ -1503,6 +1516,11 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
   const flags = Array.isArray(parsed.builder_trace_health_flags)
     ? parsed.builder_trace_health_flags.map((entry) => String(entry || '').trim())
     : [];
+  if (flags.includes('open_high_severity_events')) {
+    return [
+      'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
+    ];
+  }
   if (!flags.includes('missing_trace_refs')) return [];
   const latestMissingGroups =
     numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count) ?? 0;
@@ -1969,11 +1987,13 @@ export function summarizeControlProofCanaryObservations(
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
+  const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = [
     ...sparkOsCompileReleaseHandoffs(observations.evidence?.sparkOsCompile),
     ...runtimeEvidenceReleaseHandoffs(observations.evidence?.notes)
   ];
-  const readyForPublish = readyForRelease && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
+  const releaseReady = readyForRelease && releaseBlockers.length === 0;
+  const readyForPublish = releaseReady && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -1982,7 +2002,7 @@ export function summarizeControlProofCanaryObservations(
     runtimeEvidenceExpiresAt: runtimeEvidenceExpiresAt(observations, maxAgeHours),
     totalCases: observations.cases.length,
     verdictCounts,
-    readyForRelease,
+    readyForRelease: releaseReady,
     readyForPublish,
     releaseCaveats,
     releaseHandoffs,
