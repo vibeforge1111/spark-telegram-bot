@@ -1197,7 +1197,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       ready: false,
       blockers: ['release_caveats', 'release_handoffs'],
       caveats: [
-        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0',
+        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z',
         'repo_release_blocks | blocked_release_count=1 | critical_repo_count=1',
         'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
       ],
