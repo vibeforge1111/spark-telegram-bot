@@ -132,7 +132,7 @@ Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +
 Update after repo release-block handoff promotion on 2026-06-25 13:05 +04:
 
 - Commits through `bdb5ebd` made the canary packet promote repo release-block handoffs alongside registry drift handoffs. `Release handoffs` now names the release-blocked owner repos and next safe action without exposing local paths or commit refs.
-- The current packet reports runtime evidence collected at `2026-06-25T09:05:25.298Z`, release gate ready, and publish gate not ready because `domain-chip-memory`, `spark-intelligence-builder`, `spark-researcher`, and `spawner-ui` are behind upstream, while `spark-telegram-bot` and `spawner-ui` still have registry pin drift handoffs.
+- That packet reported runtime evidence collected at `2026-06-25T09:05:25.298Z`, release gate ready, and publish gate not ready because `domain-chip-memory`, `spark-intelligence-builder`, `spark-researcher`, and `spawner-ui` were behind upstream, while `spark-telegram-bot` and `spawner-ui` still had registry pin drift handoffs.
 
 Update after publish handoff proof-shape hardening on 2026-06-25 13:43 +04:
 
@@ -192,10 +192,9 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
 - `non_execution_evidence`: memory movement, voice surface, and voice runtime evidence stay explicitly separated from execution proof.
   - Durable slice: keep these planes joined/redacted where useful, but continue marking them `not_execution_proof` or non-execution so they cannot authorize actions.
 
-- `runtime_capability_drift`: `spark os compile` reports one critical duplicate-truth issue and two duplicate truths from runtime ahead of registry pin.
-  - Current evidence from `spark os compile --json`: compiler `ok: true`, gaps `0`, duplicate truth count `2`, critical duplicate truth count `1`.
-  - The critical item is `spark-telegram-bot-runtime-registry-pin-drift`: installed Telegram runtime source is clean on `harness-discipline-line-count-gate` at `9431dbfb1015`; the public registry pin remains `e5a1bd040986`, and no remote release branch head is published for that installed head yet.
-  - The warning item is `spawner-ui-runtime-registry-pin-drift`: installed Spawner runtime source is clean on `release/stability-2026-06-02-spawner-authority` at `56671b10cd7b`; the public registry pin remains `19b7d0bff144`, and the remote branch head is `fdb8fded4744`.
+- `runtime_capability_drift`: `spark os compile` can report duplicate-truth or registry-pin drift while the Telegram behavior release gate remains clean.
+  - Current evidence belongs in `outputs/live-canary-full/live-canary-summary.md` and the embedded `spark os compile --json` transcript in `outputs/live-canary-full/live-canary-observations.json`; do not rely on static commit hashes in this doc for registry readiness.
+  - The recurring handoff shape is `spark-telegram-bot` critical registry-pin drift and `spawner-ui` warning registry-pin drift until the owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
   - Durable slice: do not claim registry/release readiness until owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
 
 - `builder_trace_health`: `spark os compile --json` still reports Builder trace health flags `missing_trace_refs` and `historical_open_high_severity_events`, even while the Telegram control-proof audit has no latest-row gaps.
