@@ -382,8 +382,11 @@ function summarizeCommandResult(
 }
 
 const SAFE_LONG_RUNTIME_EVIDENCE_TOKENS = new Set([
+  'current_unresolved_high_severity_open_count',
   'historical_missing_trace_ref_count',
   'historical_open_high_severity_events',
+  'latest_clean_historical_window_debt',
+  'unresolved_high_severity_open_count',
 ]);
 
 function redactLongToken(token: string): string {

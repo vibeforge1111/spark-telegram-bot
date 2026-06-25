@@ -1969,6 +1969,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '    "historical_missing_trace_ref_count": 12721,',
       '    "total_missing_trace_ref_count": 13201,',
       '    "missing_trace_ref_ratio": 0.462,',
+      '    "high_severity_open_count": 46,',
+      '    "unresolved_high_severity_open_count": 1,',
+      '    "current_unresolved_high_severity_open_count": 0,',
       '    "latest_missing_group_count": 2,',
       '    "latest_clean_group_count": 1,',
       '    "repair_temporal_state_counts": {',
@@ -2061,8 +2064,11 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
     assert.match(observed.evidence.sparkOsCompile, /historical_open_high_severity_events/);
     assert.match(observed.evidence.sparkOsCompile, /historical_missing_trace_ref_count/);
+    assert.match(observed.evidence.sparkOsCompile, /unresolved_high_severity_open_count/);
+    assert.match(observed.evidence.sparkOsCompile, /current_unresolved_high_severity_open_count/);
     assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
     assert.match(observed.evidence.sparkOsCompile, /"repo_board": "<tmp>"/);
+    assert.doesNotMatch(observed.evidence.sparkOsCompile, /<redacted-token>/);
     assert.doesNotMatch(observed.evidence.sparkOsCompile, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
