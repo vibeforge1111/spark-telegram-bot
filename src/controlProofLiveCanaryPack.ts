@@ -186,6 +186,7 @@ export interface ControlProofGateDecisionCaseDetail {
 export interface ControlProofGateDecisionDetail {
   ready: boolean;
   blockers: string[];
+  blockerDetails: Record<string, unknown>;
   caveats: string[];
   caveatDetails: Record<string, unknown> | null;
   caveatFamilies: string[];
@@ -2024,10 +2025,51 @@ function gateDecisionDetails(input: {
     ...(input.releaseCaveats.length > 0 ? ['release_caveats'] : []),
     ...(input.releaseHandoffs.length > 0 ? ['release_handoffs'] : [])
   ];
+  const releaseBlockerDetails: Record<string, unknown> = {};
+  if (input.missingEvidence.length > 0) {
+    releaseBlockerDetails.missing_packet_evidence = { keys: [...input.missingEvidence] };
+  }
+  if (input.invalidEvidence.length > 0) {
+    releaseBlockerDetails.invalid_packet_evidence = { keys: [...input.invalidEvidence] };
+  }
+  if (input.staleEvidence.length > 0) {
+    releaseBlockerDetails.stale_packet_evidence = { keys: [...input.staleEvidence] };
+  }
+  if (failingCases.length > 0) {
+    releaseBlockerDetails.canary_case_failures = { cases: JSON.parse(JSON.stringify(failingCases)) };
+  }
+  for (const blocker of input.releaseBlockers) {
+    if (!releaseBlockerDetails[blocker]) {
+      releaseBlockerDetails[blocker] = { source: 'spark_os_compile' };
+    }
+  }
+  const publishBlockerDetails: Record<string, unknown> = {};
+  if (!input.releaseReady) {
+    publishBlockerDetails.release_gate_not_ready = {
+      releaseReady: input.releaseReady,
+      releaseBlockers: [...releaseGateBlockers]
+    };
+  }
+  if (input.releaseCaveats.length > 0) {
+    publishBlockerDetails.release_caveats = {
+      caveatCount: input.releaseCaveats.length,
+      caveatFamilies,
+      caveatDetails: cloneRecord(input.releaseCaveatDetails)
+    };
+  }
+  if (input.releaseHandoffs.length > 0) {
+    publishBlockerDetails.release_handoffs = {
+      handoffCount: input.releaseHandoffs.length,
+      handoffFamilies,
+      handoffDetails: cloneRecord(input.publishHandoffs),
+      handoffs: [...input.releaseHandoffs]
+    };
+  }
   return {
     release: {
       ready: input.releaseReady,
       blockers: releaseGateBlockers,
+      blockerDetails: releaseBlockerDetails,
       caveats: [],
       caveatDetails: null,
       caveatFamilies: [],
@@ -2044,6 +2086,7 @@ function gateDecisionDetails(input: {
     publish: {
       ready: input.readyForPublish,
       blockers: publishBlockers,
+      blockerDetails: publishBlockerDetails,
       caveats: [...input.releaseCaveats],
       caveatDetails: cloneRecord(input.releaseCaveatDetails),
       caveatFamilies,
