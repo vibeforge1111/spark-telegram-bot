@@ -166,6 +166,23 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
+  assert.deepEqual(summaryJson.summary.cases, summary.cases);
+  assert.ok(
+    summaryJson.summary.cases.every((entry: {
+      expectedRoute?: unknown;
+      expectedAuthority?: unknown;
+      expectedMutationClass?: unknown;
+      observed?: unknown;
+      prompt?: unknown;
+    }) =>
+      typeof entry.expectedRoute === 'string' &&
+      typeof entry.expectedAuthority === 'string' &&
+      typeof entry.expectedMutationClass === 'string' &&
+      entry.observed === undefined &&
+      entry.prompt === undefined
+    ),
+    'saved case summaries must preserve safe Harness metadata without raw prompts or observations'
+  );
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
   assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
