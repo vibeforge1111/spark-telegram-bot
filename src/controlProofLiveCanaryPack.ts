@@ -1352,7 +1352,10 @@ function validRuntimeEvidenceValue(
   return hasPositiveRuntimeStatus(normalized);
 }
 
-function invalidPacketEvidence(observations: ControlProofCanaryObservationTemplate): string[] {
+function invalidPacketEvidence(
+  observations: ControlProofCanaryObservationTemplate,
+  options: { now?: Date | string } = {}
+): string[] {
   const evidence = observations.evidence || {
     collectedAt: null,
     sparkLiveStatus: null,
@@ -1364,13 +1367,23 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
   const invalid: string[] = [];
   const generatedAt = String(observations.generatedAt || '').trim();
   const collectedAt = String(evidence.collectedAt || '').trim();
+  const nowMs = options.now instanceof Date
+    ? options.now.getTime()
+    : options.now
+      ? Date.parse(options.now)
+      : Date.now();
   if (!isStrictIsoTimestamp(generatedAt)) {
     invalid.push('packet_generated_at');
-  } else if (
-    isStrictIsoTimestamp(collectedAt) &&
-    Date.parse(generatedAt) + 5 * 60 * 1000 < Date.parse(collectedAt)
-  ) {
-    invalid.push('packet_generated_at');
+  } else {
+    const generatedMs = Date.parse(generatedAt);
+    if (Number.isFinite(nowMs) && generatedMs - nowMs > 5 * 60 * 1000) {
+      invalid.push('packet_generated_at');
+    } else if (
+      isStrictIsoTimestamp(collectedAt) &&
+      generatedMs + 5 * 60 * 1000 < Date.parse(collectedAt)
+    ) {
+      invalid.push('packet_generated_at');
+    }
   }
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
@@ -1600,7 +1613,7 @@ export function summarizeControlProofCanaryObservations(
     };
   });
   const missingEvidence = missingPacketEvidence(observations);
-  const invalidEvidence = invalidPacketEvidence(observations);
+  const invalidEvidence = invalidPacketEvidence(observations, { now: options.now });
   const maxAgeHours = runtimeEvidenceMaxAgeHours(options.maxRuntimeEvidenceAgeHours);
   const staleEvidence = stalePacketEvidence(observations, {
     now: options.now,

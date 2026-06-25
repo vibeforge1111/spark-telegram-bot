@@ -842,7 +842,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(strictGeneratedAt.readyForRelease, true);
   assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);
 
+  template.generatedAt = '2026-06-24T00:12:00.000Z';
+  const futureGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(futureGeneratedAt.readyForRelease, false);
+  assert.deepEqual(futureGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+
+  template.generatedAt = '2026-06-24T00:11:00.000Z';
+  const skewGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(skewGeneratedAt.readyForRelease, true);
+  assert.deepEqual(skewGeneratedAt.invalidPacketEvidence, []);
+
   template.evidence.notes = 'Collected locally; raw repo board was /Users/example/private and chat_id was hidden.';
+  template.generatedAt = '2026-06-24T00:06:00.000Z';
   const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(leakyRuntimeEvidenceNotes.readyForRelease, false);
   assert.deepEqual(leakyRuntimeEvidenceNotes.invalidPacketEvidence, ['runtime_evidence_notes']);
