@@ -832,18 +832,24 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.match(formatControlProofCanaryObservationSummary(looseGeneratedAt), /Packet evidence invalid: packet_generated_at/);
 
   template.generatedAt = '2026-06-24T00:00:00.000Z';
-  const strictGeneratedAt = summarizeControlProofCanaryObservations(template);
+  template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
+  const staleGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
+  assert.equal(staleGeneratedAt.readyForRelease, false);
+  assert.deepEqual(staleGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
+
+  template.generatedAt = '2026-06-24T00:06:00.000Z';
+  const strictGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(strictGeneratedAt.readyForRelease, true);
   assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);
 
   template.evidence.notes = 'Collected locally; raw repo board was /Users/example/private and chat_id was hidden.';
-  const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template);
+  const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(leakyRuntimeEvidenceNotes.readyForRelease, false);
   assert.deepEqual(leakyRuntimeEvidenceNotes.invalidPacketEvidence, ['runtime_evidence_notes']);
   assert.match(formatControlProofCanaryObservationSummary(leakyRuntimeEvidenceNotes), /Packet evidence invalid: runtime_evidence_notes/);
 
   template.evidence.notes = `Collected locally; screenshot ${STABLE_SCREENSHOT_REF}.`;
-  const digestRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template);
+  const digestRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(digestRuntimeEvidenceNotes.readyForRelease, true);
   assert.deepEqual(digestRuntimeEvidenceNotes.invalidPacketEvidence, []);
 });
@@ -1102,6 +1108,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const publishCaveatPath = resolve(tempRoot, 'publish-caveat-full-release.json');
     const publishCaveatPacket = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
     publishCaveatPacket.evidence.collectedAt = new Date().toISOString();
+    publishCaveatPacket.generatedAt = publishCaveatPacket.evidence.collectedAt;
     const publishCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-publish-001');
     if (publishCanary) {
       publishCanary.observed = {
@@ -1714,6 +1721,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(refreshedObserved.evidence.sparkOsCompile, /"ok": true/);
     assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
+    assert.equal(refreshedObserved.generatedAt, refreshedObserved.evidence.collectedAt);
     assert.equal(refreshedObserved.cases[0].observed.reply, 'preserve this recorded reply');
 
     const bundleDir = resolve(tempRoot, 'bundle-refresh');
@@ -1744,7 +1752,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedBundle.stdout, /Wrote control-proof observation summary JSON:/);
     assert.doesNotMatch(readFileSync(bundleSummaryPath, 'utf8'), /stale markdown/);
     const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
-    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, JSON.parse(readFileSync(bundleObservationsPath, 'utf8')).evidence.collectedAt);
+    const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
+    assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
     assert.equal(refreshedBundleSummaryJson.coverage.totalCases, 1);
 

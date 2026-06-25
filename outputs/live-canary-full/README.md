@@ -39,6 +39,8 @@ Refreshing runtime evidence for this standard bundle observation file also refre
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.
 
+Refreshing runtime evidence also refreshes the packet `generatedAt` timestamp to the strict `evidence.collectedAt` value. A release packet whose generated timestamp predates its runtime evidence is stale metadata and must not be used for release claims.
+
 ## Side-Effect Proof
 
 For no-action and read-only cases, record the prompted side-effect flag as `false` when no mutation occurred. Notes alone are not enough.

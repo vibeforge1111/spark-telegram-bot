@@ -1073,10 +1073,12 @@ export function withControlProofCanaryRuntimeEvidence(
   observations: ControlProofCanaryObservationTemplate,
   evidence: ControlProofCanaryRuntimeEvidence
 ): ControlProofCanaryObservationTemplate {
+  const collectedAt = evidence.collectedAt || new Date().toISOString();
   return {
     ...observations,
+    generatedAt: collectedAt,
     evidence: {
-      collectedAt: evidence.collectedAt || new Date().toISOString(),
+      collectedAt,
       sparkLiveStatus: evidence.sparkLiveStatus,
       providerStatus: evidence.providerStatus,
       runtimeSync: evidence.runtimeSync,
@@ -1360,7 +1362,16 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
     controlProofAudit: null
   };
   const invalid: string[] = [];
-  if (!isStrictIsoTimestamp(String(observations.generatedAt || '').trim())) invalid.push('packet_generated_at');
+  const generatedAt = String(observations.generatedAt || '').trim();
+  const collectedAt = String(evidence.collectedAt || '').trim();
+  if (!isStrictIsoTimestamp(generatedAt)) {
+    invalid.push('packet_generated_at');
+  } else if (
+    isStrictIsoTimestamp(collectedAt) &&
+    Date.parse(generatedAt) + 5 * 60 * 1000 < Date.parse(collectedAt)
+  ) {
+    invalid.push('packet_generated_at');
+  }
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
