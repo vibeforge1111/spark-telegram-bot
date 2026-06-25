@@ -1358,6 +1358,7 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
   if (String(evidence.sparkOsCompile || '').trim() && !validRuntimeEvidenceValue(evidence.sparkOsCompile, 'spark_os_compile')) invalid.push('spark_os_compile');
   if (String(evidence.controlProofAudit || '').trim() && !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit')) invalid.push('control_proof_audit');
+  if (String(evidence.notes || '').trim() && canaryFreeTextLeaksRawInternals(String(evidence.notes))) invalid.push('runtime_evidence_notes');
   return invalid;
 }
 

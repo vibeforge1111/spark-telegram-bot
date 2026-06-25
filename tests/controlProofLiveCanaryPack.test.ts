@@ -809,6 +809,17 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
     /Publish gate: not ready/
   );
+
+  template.evidence.notes = 'Collected locally; raw repo board was /Users/example/private and chat_id was hidden.';
+  const leakyRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyRuntimeEvidenceNotes.readyForRelease, false);
+  assert.deepEqual(leakyRuntimeEvidenceNotes.invalidPacketEvidence, ['runtime_evidence_notes']);
+  assert.match(formatControlProofCanaryObservationSummary(leakyRuntimeEvidenceNotes), /Packet evidence invalid: runtime_evidence_notes/);
+
+  template.evidence.notes = `Collected locally; screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestRuntimeEvidenceNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestRuntimeEvidenceNotes.readyForRelease, true);
+  assert.deepEqual(digestRuntimeEvidenceNotes.invalidPacketEvidence, []);
 });
 
 test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {
