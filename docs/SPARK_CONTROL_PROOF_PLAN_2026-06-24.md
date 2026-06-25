@@ -179,6 +179,8 @@ Use `npm run control:proof:canaries -- --observations <packet> --stale-proof-run
 
 The stale-proof run guide prioritizes the safe starter canaries first when they are stale, especially `cp-builder-001` and `cp-proof-001`, before continuing through the rest of the recapture list.
 
+Default `npm test` now includes every stable local `tests/*.test.ts` file in this repo. That makes the broad natural-language, routing, conversation-frame, shipped-project, streaming/rich-message, media, and proof-surface suites part of the normal release-gate evidence instead of optional side checks. Live-credential or intentional-live-action checks still belong in the canary/live lanes, not the offline default runner.
+
 Live recapture of `cp-builder-001` on 2026-06-24 cleared its stale legacy-gap count and confirmed the correct contract: route-confidence definitions are no-execution `plain_conversation` turns with a Builder-backed answer, not `builder_gateway.plain_chat` execution proof.
 
 Live recapture of `cp-proof-001` on 2026-06-24 cleared another stale proof-panel capture: `/proof` in SparkRecursive_bot showed a read-only, no-mutation Telegram proof panel with `Latest proof gaps: none`, reducing stale proof-panel blockers from 24 to 23.

@@ -96,6 +96,16 @@ Update after full live canary refresh:
 - Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
 - The earlier baseline notes about pending inbound Builder/Spawner/media/voice proof are superseded by the full live canary packet. Keep those notes as historical sequence, but use `outputs/live-canary-full/live-canary-summary.md` plus fresh-strict audit as the current proof state.
 
+Update after default-runner proof refresh on 2026-06-25 00:27 +04:
+
+- Commit `82c8021` brought the remaining stable drift/proof suites into the default `npm test` runner. A filesystem check now reports all `tests/*.test.ts` files listed in `scripts/run-tests.cjs`.
+- The added default coverage includes conversation frame compaction, natural-language capability separation, shipped-project context, shipped-project polish routing, Spawner loop bug-hunt coverage, capability garden rendering, chip creation parsing, and X token boundary checks.
+- The shipped-project polish route now has a matching firewall authorization for explicit "polish pass" wording, so visible-project iteration does not fall through to plain chat when the request is build-adjacent but refers to the current shipped artifact.
+- Shipped-project context extraction again accepts markdown file links as response-derived evidence, alongside JSON project paths and preview URLs.
+- Verification for this slice passed: `npm test`, `npm run build`, `npm run control:proof:audit -- --sample 100 --fresh-strict`, full live-canary release check against `outputs/live-canary-full/live-canary-observations.json`, `npm run sync:check`, `spark live status`, `spark providers test --role chat`, `git diff --check`, and `spark os compile --json`.
+- Post-commit `spark os compile --json` reported `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`. The remaining compiler gate issue is the known duplicate-truth registry drift, not an uncommitted local repo state.
+- The release rule is unchanged: the live canary packet is usable evidence, but PR/publish claims still require user confirmation of the intended live Telegram behavior.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -142,6 +152,9 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - The critical item is `spark-telegram-bot-runtime-registry-pin-drift`: installed Telegram runtime source is on `harness-discipline-line-count-gate` and ahead of the public registry pin; the release branch/metadata is not published from this installed head yet.
   - The warning item is `spawner-ui-runtime-registry-pin-drift`: installed Spawner runtime source is ahead of its registry pin, with an owner-repo release metadata update still needed.
   - Durable slice: do not claim registry/release readiness until owner repo commits are ported/pushed and registry or release metadata is updated, or the installed runtime is explicitly classified as a local runtime test artifact.
+
+- `default_suite_gap`: all stable current `tests/*.test.ts` files are now in the default `npm test` runner.
+  - Durable slice: keep new proof, routing, Telegram surface, media, streaming, and drift suites in `scripts/run-tests.cjs` unless they require live credentials or intentional live action. Optional/live suites must state why they are excluded.
 
 ## First Slice Completed
 
