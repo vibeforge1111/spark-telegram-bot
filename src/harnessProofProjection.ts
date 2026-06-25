@@ -50,11 +50,17 @@ export interface HarnessProofAuditSummary {
   latestProofGapPlanes: number;
   latestProofGapPlaneLabels: string[];
   missingEvidencePlanes: number;
+  missingEvidencePlaneLabels: string[];
   missingTraceJoinPlanes: number;
+  missingTraceJoinPlaneLabels: string[];
   missingProofCapsulePlanes: number;
+  missingProofCapsulePlaneLabels: string[];
   rawRefLeakPlanes: number;
+  rawRefLeakPlaneLabels: string[];
   roboticFailureReplyPlanes: number;
+  roboticFailureReplyPlaneLabels: string[];
   stackLikeLeakPlanes: number;
+  stackLikeLeakPlaneLabels: string[];
 }
 
 const PROOF_CAPSULE_KEYS = ['proof_capsule', 'proofCapsule', 'harness_proof', 'harnessProof'];
@@ -154,11 +160,17 @@ function summarizeCurrentAudit(
       .filter((plane) => !plane.missing && plane.latestProofGapMarked)
       .map((plane) => displayNameForEvidencePlane(plane.label)),
     missingEvidencePlanes: result.gapCounts.missingEvidence,
+    missingEvidencePlaneLabels: result.gapPlanes.missingEvidence.map(displayNameForEvidencePlane),
     missingTraceJoinPlanes: result.gapCounts.missingTraceJoin,
+    missingTraceJoinPlaneLabels: result.gapPlanes.missingTraceJoin.map(displayNameForEvidencePlane),
     missingProofCapsulePlanes: result.gapCounts.missingProofCapsule,
+    missingProofCapsulePlaneLabels: result.gapPlanes.missingProofCapsule.map(displayNameForEvidencePlane),
     rawRefLeakPlanes: result.gapCounts.rawRefLeak,
+    rawRefLeakPlaneLabels: result.gapPlanes.rawRefLeak.map(displayNameForEvidencePlane),
     roboticFailureReplyPlanes: result.gapCounts.roboticFailureReply,
-    stackLikeLeakPlanes: result.gapCounts.stackLikeLeak
+    roboticFailureReplyPlaneLabels: result.gapPlanes.roboticFailureReply.map(displayNameForEvidencePlane),
+    stackLikeLeakPlanes: result.gapCounts.stackLikeLeak,
+    stackLikeLeakPlaneLabels: result.gapPlanes.stackLikeLeak.map(displayNameForEvidencePlane)
   };
 }
 
@@ -169,11 +181,24 @@ function renderAuditSummary(audit: HarnessProofAuditSummary): string {
   const latestGapDetail = audit.latestProofGapPlaneLabels.length > 0
     ? audit.latestProofGapPlaneLabels.join(', ')
     : 'none';
+  const blockingGapDetails = [
+    blockingGapDetail('missing evidence', audit.missingEvidencePlaneLabels),
+    blockingGapDetail('missing trace joins', audit.missingTraceJoinPlaneLabels),
+    blockingGapDetail('missing proof capsules', audit.missingProofCapsulePlaneLabels),
+    blockingGapDetail('raw ref leaks', audit.rawRefLeakPlaneLabels),
+    blockingGapDetail('robotic failure reasons', audit.roboticFailureReplyPlaneLabels),
+    blockingGapDetail('stack-like leaks', audit.stackLikeLeakPlaneLabels)
+  ].filter(Boolean);
   return [
     `Audit blocking: ${audit.blockingOk ? 'clean' : 'gaps found'}`,
+    `Blocking gap planes: ${blockingGapDetails.length ? blockingGapDetails.join('; ') : 'none'}`,
     `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}${legacyGapDetail}`,
     `Latest proof gaps: ${latestGapDetail}`
   ].join('\n');
+}
+
+function blockingGapDetail(label: string, planes: string[]): string {
+  return planes.length > 0 ? `${label}: ${planes.join(', ')}` : '';
 }
 
 function findHarnessProofCapsule(

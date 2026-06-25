@@ -78,7 +78,7 @@ npm run control:proof:panel -- --ref turn:sha256:<hash>
 
 It renders the latest or requested redacted Harness proof capsule without printing raw trace rows. Telegram source also has an inspect-only `/proof` command that uses the same panel; live confirmation is still required after deployment/runtime sync.
 
-The panel source now also reports redacted evidence-plane joins. Current historical Builder/Spawner rows without a proof ref stay marked missing. Future Spawner PRD rows now carry `harnessProofRef` from Telegram build dispatch; future text/image/voice Builder gateway rows now carry and preserve a valid `harnessProofRef`. If a requested proof ref appears only in a trace row and no capsule is available yet, the panel now says `Status: proof capsule missing` while showing the joined evidence plane. Joined rows do not expose raw request ids, local paths, or reason codes in the proof panel.
+The panel source now also reports redacted evidence-plane joins and audit health. Current historical Builder/Spawner rows without a proof ref stay marked missing. Future Spawner PRD rows now carry `harnessProofRef` from Telegram build dispatch; future text/image/voice Builder gateway rows now carry and preserve a valid `harnessProofRef`. If a requested proof ref appears only in a trace row and no capsule is available yet, the panel now says `Status: proof capsule missing` while showing the joined evidence plane. The audit section shows `Audit blocking` and `Blocking gap planes`; clean panels say `none`, while dirty panels name the affected evidence planes by blocking gap class without exposing raw request ids, local paths, or reason codes.
 
 Update after continuity repairs:
 
