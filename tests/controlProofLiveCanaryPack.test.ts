@@ -103,6 +103,28 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
   }
 });
 
+test('checked-in full canary summary JSON matches the observation packet', () => {
+  const observations = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
+  const summaryJson = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.json'), 'utf8'));
+  const summary = summarizeControlProofCanaryObservations(observations);
+  const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
+    caseIds: observations.cases.map((entry: { id: string }) => entry.id),
+    includeActions: true
+  });
+  const coverage = summarizeControlProofCanaryCoverage(observedCases);
+
+  assert.equal(summaryJson.summary.runtimeEvidenceCollectedAt, observations.evidence.collectedAt);
+  assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
+  assert.equal(summaryJson.summary.totalCases, summary.totalCases);
+  assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
+  assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
+  assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
+  assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
+});
+
 test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
   for (const entry of CONTROL_PROOF_LIVE_CANARY_CASES) {
     assert.ok(entry.expectedAuthority, `${entry.id} missing expectedAuthority`);
