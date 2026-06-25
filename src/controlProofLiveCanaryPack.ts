@@ -255,6 +255,8 @@ export interface ControlProofReleaseHandoffDetail {
   owner: string;
   status: string;
   family: string | null;
+  releaseBlocking: boolean;
+  publishBlocking: boolean;
   reason: string | null;
   behind: number | null;
   nextSafeAction: string | null;
@@ -2279,6 +2281,7 @@ function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHan
       const status = safeStringToken(headMatch[2]);
       const family = safeStringToken(headMatch[3]);
       if (!owner || !status) return null;
+      const releaseBlocking = releaseHandoffReleaseBlocking(status, family);
       let reason: string | null = null;
       let behind: number | null = null;
       let nextSafeAction: string | null = null;
@@ -2294,6 +2297,8 @@ function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHan
         owner,
         status,
         family,
+        releaseBlocking,
+        publishBlocking: true,
         reason,
         behind,
         nextSafeAction,
@@ -2301,6 +2306,11 @@ function releaseHandoffActionDetails(handoffs: string[]): ControlProofReleaseHan
       };
     })
     .filter((entry): entry is ControlProofReleaseHandoffDetail => Boolean(entry));
+}
+
+function releaseHandoffReleaseBlocking(status: string, family: string | null): boolean {
+  if (status !== 'blocked') return false;
+  return family === 'builder_trace_health';
 }
 
 function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string[] {

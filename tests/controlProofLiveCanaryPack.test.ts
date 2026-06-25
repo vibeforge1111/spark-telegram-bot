@@ -1157,6 +1157,21 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(currentHighSeverity.releaseHandoffs, [
     'spark-intelligence-builder: blocked builder_trace_health; next safe action: Resolve or replay current open high-severity Builder event families, then rerun spark os compile and the canary release-check.'
   ]);
+  assert.deepEqual(currentHighSeverity.releaseHandoffDetails.map((entry) => ({
+    owner: entry.owner,
+    status: entry.status,
+    family: entry.family,
+    releaseBlocking: entry.releaseBlocking,
+    publishBlocking: entry.publishBlocking
+  })), [
+    {
+      owner: 'spark-intelligence-builder',
+      status: 'blocked',
+      family: 'builder_trace_health',
+      releaseBlocking: true,
+      publishBlocking: true
+    }
+  ]);
   assert.match(formatControlProofCanaryObservationSummary(currentHighSeverity), /Release gate: not ready/);
 
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_clean","window":"1h","row_count":2,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0,"high_severity_open_count":46,"unresolved_high_severity_open_count":1,"current_unresolved_high_severity_open_count":0,"unresolved_high_severity_source_group_count":1,"latest_unresolved_high_severity_event_created_at":"2026-06-02 09:03:25","latest_missing_group_count":0,"latest_clean_group_count":0,"repair_temporal_state_counts":{}},"builder_trace_recent_windows":[{"window":"1h","row_count":2,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":2474,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
@@ -1220,6 +1235,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-intelligence-builder',
       status: 'release_blocked',
       family: 'repo_release_blocks',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: 'behind upstream',
       behind: 12,
       nextSafeAction: 'pull or merge upstream before release',
@@ -1229,6 +1246,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-installer-registry',
       status: 'warning',
       family: 'local_runtime_test_artifacts',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: null,
       behind: null,
       nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
@@ -1238,6 +1257,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-intelligence-builder',
       status: 'warning',
       family: 'builder_trace_health',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: null,
       behind: null,
       nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.',
@@ -1481,6 +1502,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     owner: entry.owner,
     status: entry.status,
     family: entry.family,
+    releaseBlocking: entry.releaseBlocking,
+    publishBlocking: entry.publishBlocking,
     reason: entry.reason,
     behind: entry.behind,
     nextSafeAction: entry.nextSafeAction
@@ -1489,6 +1512,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-intelligence-builder',
       status: 'release_blocked',
       family: 'repo_release_blocks',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: 'behind upstream',
       behind: 12,
       nextSafeAction: 'pull or merge upstream before release'
@@ -1497,6 +1522,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-installer-registry',
       status: 'warning',
       family: 'local_runtime_test_artifacts',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: null,
       behind: null,
       nextSafeAction: 'Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.'
@@ -1505,6 +1532,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       owner: 'spark-intelligence-builder',
       status: 'warning',
       family: 'builder_trace_health',
+      releaseBlocking: false,
+      publishBlocking: true,
       reason: null,
       behind: null,
       nextSafeAction: 'Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
