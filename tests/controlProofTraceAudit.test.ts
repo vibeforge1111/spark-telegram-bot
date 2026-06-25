@@ -42,6 +42,23 @@ function withTempSparkHome(fn: (sparkHome: string) => void): void {
   }
 }
 
+function legacyGapCapsule(turnRef = 'turn:sha256:abcdef1234567890'): Record<string, unknown> {
+  return {
+    schema: 'spark.harness_proof.v1',
+    turnRef,
+    authority: {
+      decision: 'downgraded',
+      contract: 'none',
+      riskTier: 'read',
+      reasonSummary: 'Historical row is inspectable only; it is not fresh Harness authority.'
+    },
+    governor: {
+      decision: 'not_applicable',
+      verified: false
+    }
+  };
+}
+
 test('summarizes trace joins and raw-ref gaps without printing raw rows', () => {
   withTempSparkHome((sparkHome) => {
     writeJsonl(path.join(sparkHome, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl'), [
@@ -241,11 +258,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
         harness_proof_ref: 'turn:sha256:abcdef1234567890',
         proof_status: 'missing_harness_authority',
         proof_storage: 'legacy_gap_capsule',
-        proof_capsule: {
-          schema: 'spark.harness_proof.v1',
-          authority: { contract: 'none' },
-          governor: { verified: false }
-        }
+        proof_capsule: legacyGapCapsule()
       }
     ]);
 
@@ -260,6 +273,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofRefPresent, 1);
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofGapCapsulePresent, 1);
+    assert.equal(plane.proofGapCapsuleValid, 1);
     assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.proofGapBackingIncomplete, 0);
     assert.equal(plane.proofGapBacking, 'complete');
@@ -276,6 +290,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_capsule_valid 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_ref 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_backing complete/);
     assert.match(formatControlProofTraceAuditReport(result), /Blocking status: clean/);
@@ -286,7 +301,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
   });
 });
 
-test('blocks legacy proof gaps when backing is only partial', () => {
+test('blocks legacy proof gaps when backing capsule is not a downgrade capsule', () => {
   withTempSparkHome((sparkHome) => {
     const evidenceFiles = [
       {
@@ -299,6 +314,7 @@ test('blocks legacy proof gaps when backing is only partial', () => {
       {
         requestId: 'req-partial-gap',
         traceRef: 'trace-partial-gap',
+        harnessProofRef: 'turn:sha256:abcdef1234567890',
         proofStatus: 'missing_harness_authority',
         proofStorage: 'legacy_gap_capsule',
         proofCapsule: {
@@ -317,11 +333,13 @@ test('blocks legacy proof gaps when backing is only partial', () => {
     assert.equal(plane.proofCoveragePresent, 1);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(plane.proofGapBackingIncomplete, 1);
-    assert.equal(plane.proofGapBacking, 'partial');
+    assert.equal(plane.proofGapCapsuleValid, 0);
+    assert.equal(plane.proofGapBacking, 'invalid');
     assert.equal(result.gapCounts.missingProofCapsule, 0);
     assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 1);
     assert.equal(result.blockingOk, false);
-    assert.match(formatControlProofTraceAuditReport(result), /gap_backing partial/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_capsule_valid 0/);
+    assert.match(formatControlProofTraceAuditReport(result), /gap_backing invalid/);
     assert.match(formatControlProofTraceAuditReport(result), /incomplete legacy gap backing: 1/);
     assert.match(formatControlProofTraceAuditReport(result), /incomplete legacy gap backing: builder_gateway/);
   });
@@ -344,10 +362,7 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
         harnessProofRef: 'turn:sha256:abcdef1234567890',
         proofStatus: 'missing_harness_authority',
         proofStorage: 'source_gap_capsule',
-        proofCapsule: {
-          schema: 'spark.harness_proof.v1',
-          turnRef: 'turn:sha256:abcdef1234567890'
-        }
+        proofCapsule: legacyGapCapsule()
       },
       {
         timestamp: '2026-06-24T12:05:00.000Z',
@@ -369,6 +384,7 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     const plane = result.planes[0];
     assert.equal(plane.proofGapMarked, 1);
     assert.equal(plane.proofGapCapsulePresent, 1);
+    assert.equal(plane.proofGapCapsuleValid, 1);
     assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.proofGapBackingIncomplete, 0);
     assert.equal(plane.proofGapBacking, 'complete');
@@ -377,7 +393,7 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
-    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
+    assert.match(formatControlProofTraceAuditReport(result), /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
     assert.match(formatControlProofTraceAuditReport(result), /latest proof gaps: 0/);
   });
 });
@@ -433,13 +449,11 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
         proof_status: 'missing_harness_authority',
         proof_storage: 'legacy_gap_capsule',
         proof_capsule: {
-          schema: 'spark.harness_proof.v1',
+          ...legacyGapCapsule(),
           turnRef: 'turn:sha256:abcdef1234567890',
           route: 'legacy.route_confidence',
           owner: 'spark-telegram-bot',
           intent: { kind: 'chat', confidence: 'heuristic', noExecution: true },
-          authority: { decision: 'denied', contract: 'none', riskTier: 'none', reasonSummary: 'legacy authority gap' },
-          governor: { decision: 'deny', verified: false },
           execution: { status: 'not_started', mutationClass: 'none' },
           reply: { delivered: false, shape: 'none', rawReasonsHidden: true },
           joins: { telegram: 'joined' }
@@ -505,7 +519,7 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
         traceRef: 'trace-old',
         harnessProofRef: 'turn:sha256:abcdef1234567890',
         proofStatus: 'missing_harness_authority',
-        proofCapsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+        proofCapsule: legacyGapCapsule()
       },
       {
         requestId: 'req-new',
@@ -572,7 +586,7 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
         traceRef: 'trace-latest-gap',
         harnessProofRef: 'turn:sha256:1111111111111111',
         proofStatus: 'missing_harness_authority',
-        proofCapsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:1111111111111111' }
+        proofCapsule: legacyGapCapsule('turn:sha256:1111111111111111')
       }
     ]);
 

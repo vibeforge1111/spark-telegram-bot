@@ -52,6 +52,25 @@ function proofCapsule(turnRef: string) {
   });
 }
 
+function legacyGapCapsule(turnRef: string) {
+  return buildHarnessProofCapsule({
+    turnRef,
+    route: 'legacy.proof_gap',
+    owner: 'spark-telegram-bot',
+    intent: { kind: 'legacy.proof_gap', confidence: 'medium', noExecution: true },
+    authority: {
+      decision: 'downgraded',
+      contract: 'none',
+      riskTier: 'read',
+      reasonSummary: 'Historical row is inspectable only; it is not fresh Harness authority.'
+    },
+    governor: { decision: 'not_applicable', verified: false },
+    execution: { status: 'completed', tool: 'legacy.proof_gap', mutationClass: 'read_only' },
+    reply: { delivered: false, shape: 'none', rawReasonsHidden: true },
+    joins: { telegram: 'joined', spawner: 'joined', builder: 'not_applicable' }
+  });
+}
+
 test('renders the latest redacted Harness Proof panel without raw trace rows', () => {
   withTempSparkHome((sparkHome) => {
     const older = proofCapsule('turn:older');
@@ -248,6 +267,7 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
   withTempSparkHome((sparkHome) => {
     const traceRef = 'trace:sha256:legacyvisible';
     const latest = proofCapsule('turn:latest');
+    const legacyGap = legacyGapCapsule(latest.turnRef);
     const finalAnswerPath = path.join(sparkHome, 'final-answer.jsonl');
     const spawnerPath = path.join(sparkHome, 'spawner.jsonl');
     writeJsonl(finalAnswerPath, [
@@ -265,7 +285,7 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
         harness_proof_ref: latest.turnRef,
         proof_status: 'missing_harness_authority',
         proof_storage: 'legacy_gap_capsule',
-        proof_capsule: latest
+        proof_capsule: legacyGap
       },
       {
         request_ref: 'request:sha256:latest-clean',

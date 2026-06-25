@@ -185,7 +185,7 @@ Use `npm run control:proof:canaries -- --observations <packet> --publish-check` 
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 
-Audit plane rows now also print `gap_capsule`, `gap_ref`, and `gap_backing` next to `proof_gap`. A historical gap is release-inspectable only when `gap_backing complete` proves every sampled gap row has both a downgraded proof capsule and a redacted proof ref. These are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.
+Audit plane rows now also print `gap_capsule`, `gap_capsule_valid`, `gap_ref`, and `gap_backing` next to `proof_gap`. A historical gap is release-inspectable only when `gap_backing complete` proves every sampled gap row has a redacted proof ref and a valid downgraded proof capsule: `authority.decision: downgraded`, `authority.contract: none`, `governor.decision: not_applicable`, and `governor.verified: false`. These are inspection evidence only; they must not be read as fresh Harness authority or used to hide a legacy gap.
 
 Canary release summaries print the runtime evidence collection timestamp separately from the packet generation timestamp, so a reader can see whether a green packet is backed by fresh proof.
 

@@ -34,9 +34,10 @@ export interface ControlProofTracePlaneSummary {
   proofNotApplicable: number;
   proofGapMarked: number;
   proofGapCapsulePresent: number;
+  proofGapCapsuleValid: number;
   proofGapRefPresent: number;
   proofGapBackingIncomplete: number;
-  proofGapBacking: 'n/a' | 'complete' | 'partial' | 'missing';
+  proofGapBacking: 'n/a' | 'complete' | 'partial' | 'invalid' | 'missing';
   latestProofGapMarked: boolean;
   latestRecordAt: string | null;
   proofCapsuleMissing: number;
@@ -191,6 +192,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
         `proof_n/a ${plane.proofNotApplicable}`,
         `proof_gap ${plane.proofGapMarked}`,
         `gap_capsule ${plane.proofGapCapsulePresent}`,
+        `gap_capsule_valid ${plane.proofGapCapsuleValid}`,
         `gap_ref ${plane.proofGapRefPresent}`,
         `gap_backing ${plane.proofGapBacking}`,
         `latest_gap ${plane.latestProofGapMarked ? 'yes' : 'no'}`,
@@ -275,6 +277,7 @@ function summarizeRecords(
   let proofNotApplicable = 0;
   let proofGapMarked = 0;
   let proofGapCapsulePresent = 0;
+  let proofGapCapsuleValid = 0;
   let proofGapRefPresent = 0;
   let proofGapBackingIncomplete = 0;
   let rawIdKeyRows = 0;
@@ -287,10 +290,12 @@ function summarizeRecords(
     const hasProofCapsule = hasAnyKey(record, PROOF_CAPSULE_KEYS) || isHarnessProofCapsuleRecord(record);
     const hasProofRef = hasAnyKey(record, PROOF_REF_KEYS);
     if (isProofGapMarkedRecord(record)) {
+      const hasValidLegacyGapCapsule = hasValidLegacyProofGapCapsule(record);
       proofGapMarked += 1;
       if (hasProofCapsule) proofGapCapsulePresent += 1;
+      if (hasValidLegacyGapCapsule) proofGapCapsuleValid += 1;
       if (hasProofRef) proofGapRefPresent += 1;
-      if (!hasProofCapsule || !hasProofRef) proofGapBackingIncomplete += 1;
+      if (!hasProofCapsule || !hasProofRef || !hasValidLegacyGapCapsule) proofGapBackingIncomplete += 1;
     }
     if (hasProofCapsule || hasProofRef) {
       proofCoveredRows += 1;
@@ -328,9 +333,10 @@ function summarizeRecords(
     proofNotApplicable,
     proofGapMarked,
     proofGapCapsulePresent,
+    proofGapCapsuleValid,
     proofGapRefPresent,
     proofGapBackingIncomplete,
-    proofGapBacking: legacyProofGapBacking(proofGapMarked, proofGapCapsulePresent, proofGapRefPresent),
+    proofGapBacking: legacyProofGapBacking(proofGapMarked, proofGapCapsulePresent, proofGapCapsuleValid, proofGapRefPresent),
     latestProofGapMarked: isProofGapMarkedRecord(latestRecord),
     latestRecordAt: recordTimestampString(latestRecord),
     proofCapsuleMissing: Math.max(0, sampled.length - proofCoveredRows - proofNotApplicable),
@@ -365,6 +371,26 @@ function isProofGapMarkedRecord(value: unknown): boolean {
   });
 }
 
+function hasValidLegacyProofGapCapsule(value: unknown): boolean {
+  const capsule = firstObjectForKeys(value, PROOF_CAPSULE_KEYS);
+  if (!capsule && isHarnessProofCapsuleRecord(value)) return isValidLegacyProofGapCapsule(value);
+  return isValidLegacyProofGapCapsule(capsule);
+}
+
+function isValidLegacyProofGapCapsule(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (record.schema !== 'spark.harness_proof.v1') return false;
+  const authority = objectField(record.authority);
+  const governor = objectField(record.governor);
+  return (
+    normalizedString(authority.decision) === 'downgraded' &&
+    normalizedString(authority.contract) === 'none' &&
+    normalizedString(governor.decision) === 'not_applicable' &&
+    governor.verified === false
+  );
+}
+
 function recordTimestampString(value: unknown): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -378,10 +404,12 @@ function recordTimestampString(value: unknown): string | null {
 function legacyProofGapBacking(
   proofGapMarked: number,
   proofGapCapsulePresent: number,
+  proofGapCapsuleValid: number,
   proofGapRefPresent: number
 ): ControlProofTracePlaneSummary['proofGapBacking'] {
   if (proofGapMarked === 0) return 'n/a';
-  if (proofGapCapsulePresent === proofGapMarked && proofGapRefPresent === proofGapMarked) return 'complete';
+  if (proofGapCapsuleValid === proofGapMarked && proofGapRefPresent === proofGapMarked) return 'complete';
+  if (proofGapCapsulePresent === proofGapMarked && proofGapRefPresent === proofGapMarked) return 'invalid';
   if (proofGapCapsulePresent > 0 || proofGapRefPresent > 0) return 'partial';
   return 'missing';
 }
@@ -480,6 +508,7 @@ function emptySummary(file: ControlProofEvidenceFile, missing: boolean): Control
     proofNotApplicable: 0,
     proofGapMarked: 0,
     proofGapCapsulePresent: 0,
+    proofGapCapsuleValid: 0,
     proofGapRefPresent: 0,
     proofGapBackingIncomplete: 0,
     proofGapBacking: 'n/a',
@@ -520,6 +549,26 @@ function hasKeyValue(value: unknown, keyPattern: RegExp, predicate: (value: unkn
   return false;
 }
 
+function firstObjectForKeys(value: unknown, keys: string[]): Record<string, unknown> | null {
+  const wanted = new Set(keys);
+  const queue: unknown[] = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object') continue;
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    for (const [key, child] of Object.entries(current as Record<string, unknown>)) {
+      if (wanted.has(key) && child && typeof child === 'object' && !Array.isArray(child)) {
+        return child as Record<string, unknown>;
+      }
+      if (child && typeof child === 'object') queue.push(child);
+    }
+  }
+  return null;
+}
+
 function walkObjects(value: unknown, predicate: (key: string) => boolean): boolean {
   const queue: unknown[] = [value];
   while (queue.length > 0) {
@@ -535,6 +584,14 @@ function walkObjects(value: unknown, predicate: (key: string) => boolean): boole
     }
   }
   return false;
+}
+
+function objectField(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function normalizedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function topLevelKeysFor(value: unknown): string[] {
