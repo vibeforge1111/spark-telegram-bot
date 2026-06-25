@@ -183,25 +183,37 @@ function observationUpdateFromArgs(args: string[]): ControlProofCanaryObservatio
   };
 }
 
+type RuntimeEvidenceCommand = {
+  label: string;
+  command: string;
+  args: string[];
+  timeoutMs?: number;
+};
+
 function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromCommands> {
   return collectRuntimeEvidenceFromCommands([
-    ['spark_live_status', 'spark', ['live', 'status']],
-    ['provider_status', 'spark', ['providers', 'test', '--role', 'chat']],
-    ['runtime_sync', 'npm', ['run', 'sync:check']],
-    ['spark_os_compile', 'spark', ['os', 'compile', '--json']],
-    ['control_proof_audit', 'npm', ['run', 'control:proof:audit', '--', '--sample', '100', '--fresh-strict']]
+    { label: 'spark_live_status', command: 'spark', args: ['live', 'status'] },
+    { label: 'provider_status', command: 'spark', args: ['providers', 'test', '--role', 'chat'] },
+    { label: 'runtime_sync', command: 'npm', args: ['run', 'sync:check'] },
+    { label: 'spark_os_compile', command: 'spark', args: ['os', 'compile', '--json'], timeoutMs: 120_000 },
+    {
+      label: 'control_proof_audit',
+      command: 'npm',
+      args: ['run', 'control:proof:audit', '--', '--sample', '100', '--fresh-strict'],
+      timeoutMs: 60_000
+    }
   ]);
 }
 
-function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]][]) {
+function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) {
   const byLabel = new Map<string, string>();
   const rawStdoutByLabel = new Map<string, string>();
-  for (const [label, command, args] of commands) {
+  for (const { label, command, args, timeoutMs = 30_000 } of commands) {
     const result = spawnSync(command, args, {
       cwd: process.cwd(),
       encoding: 'utf8',
       maxBuffer: 1024 * 1024,
-      timeout: 30_000
+      timeout: timeoutMs
     });
     rawStdoutByLabel.set(label, result.stdout || '');
     byLabel.set(label, summarizeCommandResult(label, command, args, result.status, result.stdout, result.stderr, result.error));
