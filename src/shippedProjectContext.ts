@@ -87,6 +87,13 @@ function projectPathFromPreviewUrl(previewUrl: string): string | null {
   }
 }
 
+function projectPathFromFilePath(filePath: string): string {
+  const normalized = normalizeLocalProjectPath(filePath);
+  return /\.[A-Za-z0-9]{1,12}$/.test(path.posix.basename(normalized))
+    ? path.posix.dirname(normalized)
+    : normalized;
+}
+
 export function extractProjectPathFromMissionText(text: string): string | null {
   const parsed = parseJsonObject(text);
   const jsonPath = parsed
@@ -102,13 +109,16 @@ export function extractProjectPathFromMissionText(text: string): string | null {
 
   const patterns = [
     /(?:built|verified|created)[\s\S]{0,240}?(?:in|at)\s+`([^`\r\n]+)`/i,
+    /\[[^\]]+\]\((C:\/Users\/[^)\r\n]+)\)/i,
+    /\[[^\]]+\]\((C:\\Users\\[^)\r\n]+)\)/i,
     /Project:\s*([A-Za-z]:\\[^\r\n]+)/i,
     /Project folder:\s*([A-Za-z]:\\[^\r\n]+)/i,
-    /(?:at|in)\s+([A-Za-z]:\\Users\\[^\r\n`]+)/i
+    /(?:at|in)\s+([A-Za-z]:\\Users\\[^\r\n`]+)/i,
+    /(?:at|in)\s+([A-Za-z]:\/Users\/[^\r\n`]+)/i
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match?.[1]) return normalizeLocalProjectPath(match[1].trim().replace(/[.。]\s*$/, ''));
+    if (match?.[1]) return projectPathFromFilePath(match[1].trim().replace(/[.。]\s*$/, ''));
   }
   return null;
 }

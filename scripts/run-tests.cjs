@@ -22,6 +22,7 @@ const tests = [
   'tests/routeFirewall.test.ts',
   'tests/routeArbiter.test.ts',
   'tests/conversationSmoke.test.ts',
+  'tests/conversationFrame.test.ts',
   'tests/naturalRouteTelemetry.test.ts',
   'tests/naturalRouteLedger.test.ts',
   'tests/naturalRouteReplay.test.ts',
@@ -53,7 +54,11 @@ const tests = [
   'tests/runtimeSyncCompatibility.test.ts',
   'tests/runnerPreflight.test.ts',
   'tests/turnIntent350Matrix.test.ts',
+  'tests/capabilityNaturalLanguageMatrix.test.ts',
+  'tests/projectImprovementRouting.test.ts',
+  'tests/spawnerLoopBugHunt.test.ts',
   'tests/conversationMemory.test.ts',
+  'tests/shippedProjectContext.test.ts',
   'tests/commandTelemetry.test.ts',
   'tests/accessPolicy.test.ts',
   'tests/accessActions.test.ts',
@@ -91,6 +96,9 @@ const tests = [
   'tests/telegramVoiceBridge.test.ts',
   'tests/voiceCaption.test.ts',
   'tests/pythonCommand.test.ts',
+  'tests/capabilityGarden.test.ts',
+  'tests/chipCreate.test.ts',
+  'tests/xBasic.test.ts',
   'tests/hiddenProcess.test.ts'
 ];
 

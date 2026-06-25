@@ -209,7 +209,8 @@ function isExplicitScheduleDelete(normalized: string): boolean {
 
 function isExplicitProjectIteration(normalized: string): boolean {
   return /\b(?:improve|polish|iterate|revise|update|fix|change|upgrade)\b.{0,80}\b(?:latest|current|existing|this|that|it|project|app|build|site|dashboard|tool)\b/.test(normalized) ||
-    /\b(?:latest|current|existing|this|that|it|project|app|build|site|dashboard|tool)\b.{0,80}\b(?:improve|polish|iterate|revise|update|fix|change|upgrade)\b/.test(normalized);
+    /\b(?:latest|current|existing|this|that|it|project|app|build|site|dashboard|tool)\b.{0,80}\b(?:improve|polish|iterate|revise|update|fix|change|upgrade)\b/.test(normalized) ||
+    /\b(?:make|do|run|take)?\s*(?:one\s+)?(?:tiny\s+|small\s+|quick\s+)?polish\s+pass\b/.test(normalized);
 }
 
 function isExplicitDefaultBuildChoice(normalized: string): boolean {

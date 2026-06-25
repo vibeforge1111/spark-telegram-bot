@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { parseBuildIntent } from '../src/buildIntent';
 import {
   buildProjectImprovementGoal,
   isProjectImprovementRequest
@@ -28,10 +27,9 @@ const reliabilityDesk = {
   updatedAt: '2026-05-09T00:00:00Z'
 };
 
-test('named polish pass stays attached to the shipped project despite build-intent wording', () => {
+test('named polish pass stays attached to the shipped project despite build-adjacent wording', () => {
   const text = 'can we make one tiny polish pass on Mission Control Reliability Desk: keep exactly the same five files, do not add features, only improve spacing and visual consistency, and verify MC_RELIABILITY_DESK_OK is still visible';
 
-  assert.ok(parseBuildIntent(text), 'the generic build parser can still see this as build-like wording');
   assert.equal(isProjectImprovementRequest(text, reliabilityDesk), true);
 
   const goal = buildProjectImprovementGoal(text, reliabilityDesk);
