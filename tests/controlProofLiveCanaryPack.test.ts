@@ -1219,11 +1219,11 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     {
       owner: 'spark-intelligence-builder',
       status: 'release_blocked',
-      family: null,
+      family: 'repo_release_blocks',
       reason: 'behind upstream',
       behind: 12,
       nextSafeAction: 'pull or merge upstream before release',
-      line: 'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
+      line: 'spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release'
     },
     {
       owner: 'spark-installer-registry',
@@ -1382,7 +1382,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           },
           handoffActionDetails: expectedHandoffActionDetails,
           handoffs: [
-            'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
+            'spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
             'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
             'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
           ]
@@ -1455,7 +1455,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     }
   });
   assert.deepEqual(structuredPublishHandoffs.releaseHandoffs, [
-    'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
+    'spark-intelligence-builder: release_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
     'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
     'spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.'
   ]);
@@ -1470,7 +1470,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     {
       owner: 'spark-intelligence-builder',
       status: 'release_blocked',
-      family: null,
+      family: 'repo_release_blocks',
       reason: 'behind upstream',
       behind: 12,
       nextSafeAction: 'pull or merge upstream before release'
@@ -2562,7 +2562,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
     assert.match(observed.evidence.notes, /Repo release-block handoff:/);
-    assert.match(observed.evidence.notes, /domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release/);
+    assert.match(observed.evidence.notes, /domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release/);
     assert.doesNotMatch(observed.evidence.notes, /spark-world-editor: release_blocked/);
     assert.match(observed.evidence.notes, /Duplicate-truth handoff:/);
     assert.match(observed.evidence.notes, /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
@@ -2574,7 +2574,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.doesNotMatch(observed.evidence.notes, /5acaeb9e5538|e5a1bd040986/);
     assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
     const observedSummary = summarizeControlProofCanaryObservations(observed, { now: observed.evidence.collectedAt });
-    assert.ok(observedSummary.releaseHandoffs.includes('domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release'));
+    assert.ok(observedSummary.releaseHandoffs.includes('domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release'));
     assert.ok(observedSummary.releaseHandoffs.includes('spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'));
 
     const staleObservations = buildControlProofCanaryObservationTemplate([
@@ -2672,7 +2672,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.deepEqual(summary.invalidPacketEvidence, []);
     assert.deepEqual(summary.releaseHandoffs, [
       'spark-intelligence-builder: warning builder_trace_health; next safe action: Repair or replay 2 latest-missing Builder trace source groups, then rerun spark os compile and the canary release-check.',
-      'domain-chip-memory: release_blocked; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release',
+      'domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release',
       'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
       'spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
     ]);

@@ -2204,7 +2204,7 @@ function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>):
     const nextSafeAction = String(entry.next_safe_action || '').trim();
     const behind = numberOrNull(entry.behind);
     const details = [
-      `${repo}: release_blocked`,
+      `${repo}: release_blocked repo_release_blocks`,
       ...(reason && /^[A-Za-z0-9 ._/-]+$/.test(reason) ? [`reason: ${reason}`] : []),
       ...(behind !== null && behind >= 0 ? [`behind=${behind}`] : []),
       ...(nextSafeAction && /^[A-Za-z0-9 ._/-]+$/.test(nextSafeAction) ? [`next safe action: ${nextSafeAction}`] : [])
