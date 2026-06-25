@@ -772,6 +772,19 @@ test('publish canary requires release-ready versus publish-not-ready handoff sha
     'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
     '',
     'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
+    '',
+    'This was a read-only evidence lookup; no registry edit was made.'
+  ].join('\n');
+  const oneOwnerHandoff = summarizeControlProofCanaryObservations(template);
+  assert.equal(oneOwnerHandoff.readyForRelease, false);
+  assert.deepEqual(oneOwnerHandoff.cases[0].missingCaptures, ['observed_reply_publish_handoff_shape']);
+
+  template.cases[0].observed.reply = [
+    'Spark Recursive',
+    'Current evidence shows 2 registry truth drift items; that means the running code is not fully matched to published release metadata yet.',
+    'Live behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.',
+    '',
+    'spark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
     'spawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.',
     '',
     'This was a read-only evidence lookup; no registry edit was made.'

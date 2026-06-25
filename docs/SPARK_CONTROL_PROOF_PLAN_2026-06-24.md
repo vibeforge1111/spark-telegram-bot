@@ -185,7 +185,7 @@ Canary summaries now distinguish `Release gate` from `Publish gate`. `Release ga
 
 Use `npm run control:proof:canaries -- --observations <packet> --publish-check` for publish or registry claims. It applies the same full-pack/fresh-evidence checks as `--release-check`, then exits nonzero while `Publish gate: not ready`.
 
-Publish-drift canaries must also prove the human handoff shape. The observed Telegram reply for `cp-publish-001` is release-ready only when it distinguishes release-ready behavior from publish-not-ready registry truth drift, names the owner surface, gives a next safe action such as the next verified metadata batch or explicit local-runtime-test classification, and states that the lookup was read-only. Weak replies that merely say "registry drift exists" are not enough release evidence because they leave the control-proof handoff ambiguous.
+Publish-drift canaries must also prove the human handoff shape. The observed Telegram reply for `cp-publish-001` is release-ready only when it distinguishes release-ready behavior from publish-not-ready registry truth drift, names each owner surface reported by the current registry drift handoff, gives a next safe action such as the next verified metadata batch or explicit local-runtime-test classification, and states that the lookup was read-only. Weak replies that merely say "registry drift exists" are not enough release evidence because they leave the control-proof handoff ambiguous.
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 

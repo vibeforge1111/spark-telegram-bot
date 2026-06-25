@@ -1675,7 +1675,8 @@ function hasPublishHandoffProofShape(value: string): boolean {
   return /\bregistry truth drift\b/i.test(value) &&
     /\brelease-ready\b/i.test(value) &&
     /\bpublish stays not ready\b/i.test(value) &&
-    /\b(?:spark-telegram-bot|spawner-ui)\b/i.test(value) &&
+    /\bspark-telegram-bot\b/i.test(value) &&
+    /\bspawner-ui\b/i.test(value) &&
     /\b(?:next verified metadata batch|publish or port|update release metadata|local runtime test artifact)\b/i.test(value) &&
     /\bread-only evidence lookup\b/i.test(value);
 }
