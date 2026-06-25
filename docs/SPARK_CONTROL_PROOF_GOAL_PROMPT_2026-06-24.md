@@ -6,7 +6,7 @@ Date: 2026-06-24
 - `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
 
 ```text
-Goal: Make Spark's Telegram, Recursive, Spawner, Builder, and mission-relay surfaces dependable, readable, and release-safe under the new Harness Core.
+Goal: Make Spark's Telegram, Recursive, Spawner, Builder, mission-relay, and control-proof systems dependable under the new Harness Core, with conversational surfaces that feel human while the underlying machinery stays exact.
 
 Highest priority:
 First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or new features unless they directly close a measured control-proof gap.
@@ -25,12 +25,14 @@ Current baseline:
 - Remaining proof gaps are visible historical legacy rows in route-confidence, Builder gateway, and Spawner trace planes. Keep them inspectable; do not relabel them as fresh Harness authority.
 - Canary evidence is in `outputs/live-canary-full/live-canary-summary.md/.json`. Release gate can be ready while publish gate remains not ready because registry or repo handoffs are still open.
 - Publish/registry answers must distinguish release-ready behavior from publish-not-ready metadata drift, name owner surfaces and next safe action, and state read-only evidence lookup without leaking raw commits, registry keys, or local paths.
+- Current publish blockers are proof handoffs, not Telegram behavior failures: repo upstream drift must name each blocked owner and `behind=N`; local runtime test artifacts must name their owner set; Builder historical integrity debt must name unresolved family count and latest unresolved event when present.
 - Keep NL suites as fast breadth/drift coverage only where they strengthen the new Harness Core. Archive or narrow parts that conflict with deterministic routing, trace proof, or modern Spark behavior.
 
 Step 1: Reduce measured gaps
 - Run `npm run control:proof:audit -- --sample 100 --fresh-strict`.
 - Fix current or latest-row gaps before adding surfaces. Do not hide historical gaps; make them inspectable.
 - Keep non-execution memory/voice/media evidence separate from execution proof.
+- Treat docs drift as a proof gap when it could cause a future release/publish claim to ignore current caveats, owner sets, behind counts, or trace-family lifecycle fields.
 
 Step 2: Live canary proof
 - Use safe SparkRecursive_bot canaries first: `cp-builder-001`, `cp-proof-001`, `cp-streaming-001`, `cp-streaming-002`.

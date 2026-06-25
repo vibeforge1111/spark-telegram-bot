@@ -41,6 +41,10 @@ When caveats or handoffs exist, the human summary also prints `Release note: rea
 
 When the observation packet includes release-block or duplicate-truth handoff notes, the markdown and JSON summaries also print `Release handoffs` so the owner repo and next safe action are visible without reading raw system-map artifacts.
 
+Repo release-block handoffs should include `behind=N` when the repo board reports a safe upstream behind count. Local runtime test artifact handoffs should name the owning installed sources from the compile summary `owner_sets`, so local proof runtimes stay separate from publish/registry truth.
+
+Builder trace-health handoffs should preserve unresolved historical family evidence, including unresolved source-group count and latest unresolved event timestamp when available. Do not resolve those caveats by editing state directly; either land an owner-approved lifecycle repair or keep the publish handoff explicit.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.

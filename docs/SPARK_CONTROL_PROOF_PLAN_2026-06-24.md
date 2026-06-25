@@ -179,7 +179,13 @@ When fresh runtime evidence is collected, the canary CLI joins repo release-bloc
 
 Canary summaries now promote those redacted release-block and duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
 
+Repo release-block handoffs must include safe upstream drift counts when the repo board exposes them. Use `behind=N` for non-negative behind counts so a release/publish operator can tell whether the blocker is a vague owner handoff or a measured upstream-sync gap.
+
 When duplicate-truth evidence is fully classified as `local_runtime_test_artifact`, the canary summary must emit a `spark-installer-registry` handoff. That handoff keeps local SparkRecursive proof separate from publish truth: local installed sources can remain for proof, but publish claims require ported owner commits plus registry or release metadata updates.
+
+The duplicate-truth compile summary must also preserve safe `owner_sets` by classification. For `local_runtime_test_artifact`, the canary handoff should name the owning installed sources, such as `spark-telegram-bot` and `spawner-ui`, so local proof runtimes are not mistaken for anonymous registry drift.
+
+Builder high-severity trace caveats must distinguish active producer gaps from historical integrity debt. The release caveat should carry current unresolved counts, historical unresolved family count, and the latest unresolved event timestamp when present; the handoff should ask for an owner-approved lifecycle resolution or an explicit publish handoff, not a one-off state rewrite.
 
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 
