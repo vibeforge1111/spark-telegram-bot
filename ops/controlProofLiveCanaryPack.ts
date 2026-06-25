@@ -458,6 +458,7 @@ function formatReleaseBundleReadme(paths: {
 }): string {
   const checkFlag = paths.fullReleasePack ? '--release-check' : '--strict';
   const checkName = paths.fullReleasePack ? 'release check' : 'selected-case strict check';
+  const publishCheckCommand = `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --publish-check`;
   const readinessRule = paths.fullReleasePack
     ? 'The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.'
     : 'This selected-case gate is ready when every case in this bundle passed with required captures present and top-level runtime evidence is clean. It is not the full release gate until the complete canary pack is run.';
@@ -487,6 +488,14 @@ function formatReleaseBundleReadme(paths: {
     `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' ${checkFlag}`,
     '```',
     '',
+    ...(paths.fullReleasePack ? [
+      'For publish or registry claims, run the publish check too:',
+      '',
+      '```bash',
+      publishCheckCommand,
+      '```',
+      '',
+    ] : []),
     readinessRule,
     '',
     '`--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.',

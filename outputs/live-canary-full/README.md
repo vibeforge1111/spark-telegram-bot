@@ -23,6 +23,12 @@ This folder is the live Telegram release packet. It starts not ready until each 
 npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --release-check
 ```
 
+For publish or registry claims, run the publish check too:
+
+```bash
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --publish-check
+```
+
 The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.
 
 `--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.

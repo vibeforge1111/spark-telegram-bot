@@ -1896,6 +1896,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--release-check/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /For publish or registry claims, run the publish check too:/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--publish-check/);
 
     observed.evidence.controlProofAudit = null;
     writeFileSync(observationsPath, JSON.stringify(observed, null, 2), 'utf8');
