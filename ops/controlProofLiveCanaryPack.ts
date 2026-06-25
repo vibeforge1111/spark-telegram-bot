@@ -522,6 +522,8 @@ function formatReleaseBundleReadme(paths: {
     '',
     'When the observation packet includes release-block or duplicate-truth handoff notes, the markdown and JSON summaries also print `Release handoffs` so the owner repo and next safe action are visible without reading raw system-map artifacts.',
     '',
+    'The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use `gateDecisionDetails.release.blockerDetails.control_proof_audit_blocking_gaps` when audit gap families are release-blocking, because that object joins the audit family, backing status, plane labels, and release/publish impact without scraping the raw audit transcript.',
+    '',
     'Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.',
     '',
     'For live Telegram visual checks, pass local captures with `--screenshot-file`; the observation packet should keep redacted `screenshot:sha256:<digest>` refs. Keep raw screenshots outside the repo unless the user explicitly asks to preserve the image itself.',
