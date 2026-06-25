@@ -27,6 +27,7 @@
     "nl:replay": "ts-node ops/naturalRouteReplay.ts",
     "context:live": "ts-node ops/contextWindowLiveHarness.ts",
     "context:ux": "ts-node ops/contextWindowLiveHarness.ts --ux",
+    "pretest": "npm run check:line-count",
     "test": "node scripts/run-tests.cjs",
     "test:live-token": "node scripts/run-tests.cjs --require-real-token"
   },
