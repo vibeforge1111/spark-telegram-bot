@@ -56,7 +56,7 @@ const GENERIC_CHATBOX_PATTERNS: RegExp[] = [
 const STATUS_ICON_PATTERN = /[✅⚠️🟢🟡🔴⚪🛠️✨]/u;
 const TELEGRAM_STATUS_ICON_GLOBAL = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
 
-const REPORT_CARD_HEADING_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay|Title)$/im;
+const REPORT_CARD_HEADING_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay|Title):?\s*$/im;
 const RAW_REASON_CODE_PATTERN =
   /\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?|raw-request|trace:raw)\b/i;
 

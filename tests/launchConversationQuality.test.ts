@@ -224,6 +224,8 @@ test('launch conversation style lint catches common drift shapes', () => {
 
   const reportCard = issueCodes('Provider\n• Codex\n\nMission\n• Token Launch Dashboard\n\nMove\n• Open the board');
   assert.equal(reportCard.has('report_card_voice'), true);
+  const colonReportCard = issueCodes('Provider:\n• Codex\n\nMission:\n• Token Launch Dashboard\n\nMove:\n• Open the board');
+  assert.equal(colonReportCard.has('report_card_voice'), true);
 
   const rawReason = issueCodes('Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.');
   assert.equal(rawReason.has('raw_reason_code'), true);
