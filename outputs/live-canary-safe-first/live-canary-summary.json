@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T23:52:08.779Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T23:52:08.779Z",
+    "generatedAt": "2026-06-25T23:56:38.410Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T23:56:38.410Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T00:52:08.779Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T00:56:38.410Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -32,9 +32,9 @@
                 "key": "spark_os_compile",
                 "state": "invalid",
                 "reason": "spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched",
-                "generatedAt": "2026-06-25T23:52:08.779Z",
-                "runtimeEvidenceCollectedAt": "2026-06-25T23:52:08.779Z",
-                "runtimeEvidenceExpiresAt": "2026-06-26T00:52:08.779Z"
+                "generatedAt": "2026-06-25T23:56:38.410Z",
+                "runtimeEvidenceCollectedAt": "2026-06-25T23:56:38.410Z",
+                "runtimeEvidenceExpiresAt": "2026-06-26T00:56:38.410Z"
               }
             ]
           },
@@ -432,9 +432,9 @@
                     "key": "spark_os_compile",
                     "state": "invalid",
                     "reason": "spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched",
-                    "generatedAt": "2026-06-25T23:52:08.779Z",
-                    "runtimeEvidenceCollectedAt": "2026-06-25T23:52:08.779Z",
-                    "runtimeEvidenceExpiresAt": "2026-06-26T00:52:08.779Z"
+                    "generatedAt": "2026-06-25T23:56:38.410Z",
+                    "runtimeEvidenceCollectedAt": "2026-06-25T23:56:38.410Z",
+                    "runtimeEvidenceExpiresAt": "2026-06-26T00:56:38.410Z"
                   }
                 ]
               },
@@ -1261,7 +1261,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T23:52:08.763Z",
+      "generatedAt": "2026-06-25T23:56:38.393Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -1804,19 +1804,19 @@
     ],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T23:52:08.779Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T23:52:08.779Z",
+      "generatedAt": "2026-06-25T23:56:38.410Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T23:56:38.410Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T00:52:08.779Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T00:56:38.410Z",
       "missing": [],
       "invalid": [
         {
           "key": "spark_os_compile",
           "state": "invalid",
           "reason": "spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched",
-          "generatedAt": "2026-06-25T23:52:08.779Z",
-          "runtimeEvidenceCollectedAt": "2026-06-25T23:52:08.779Z",
-          "runtimeEvidenceExpiresAt": "2026-06-26T00:52:08.779Z"
+          "generatedAt": "2026-06-25T23:56:38.410Z",
+          "runtimeEvidenceCollectedAt": "2026-06-25T23:56:38.410Z",
+          "runtimeEvidenceExpiresAt": "2026-06-26T00:56:38.410Z"
         }
       ],
       "stale": []
