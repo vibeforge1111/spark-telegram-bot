@@ -123,6 +123,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
   assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
 });
 
 test('control-proof canaries carry Harness-shaped expectations and capture fields', () => {
@@ -617,10 +618,22 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(compileRawPrivacyRead.readyForRelease, false);
   assert.deepEqual(compileRawPrivacyRead.invalidPacketEvidence, ['spark_os_compile']);
 
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":1},"privacy":{"raw_logs_read":false}}';
+  const dirtyRuntimeCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyRuntimeCompile.readyForRelease, false);
+  assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
+
   template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
   const compileDriftVisibleButClean = summarizeControlProofCanaryObservations(template);
   assert.equal(compileDriftVisibleButClean.readyForRelease, true);
   assert.deepEqual(compileDriftVisibleButClean.invalidPacketEvidence, []);
+  assert.deepEqual(compileDriftVisibleButClean.releaseCaveats, [
+    'registry_pin_drift | runtime_ahead_of_registry_pin=0 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
+    /Release caveats:\n- registry_pin_drift/
+  );
 });
 
 test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {

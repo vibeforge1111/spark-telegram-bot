@@ -161,6 +161,7 @@ export interface ControlProofCanaryObservationSummary {
   totalCases: number;
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
+  releaseCaveats: string[];
   missingPacketEvidence: string[];
   invalidPacketEvidence: string[];
   stalePacketEvidence: string[];
@@ -1197,11 +1198,50 @@ function hasCleanSparkOsCompile(value: string): boolean {
   }
   if (parsed.ok !== true) return false;
   if (Number(parsed.gaps) !== 0) return false;
+  const repoBoard = parsed.repo_board && typeof parsed.repo_board === 'object' && !Array.isArray(parsed.repo_board)
+    ? parsed.repo_board as Record<string, unknown>
+    : null;
+  if (repoBoard && Number(repoBoard.dirty_repo_count || 0) > 0) return false;
+  const gate = parsed.gate && typeof parsed.gate === 'object' && !Array.isArray(parsed.gate)
+    ? parsed.gate as Record<string, unknown>
+    : null;
+  if (gate && Number(gate.dirty_repo_count || 0) > 0) return false;
+  if (gate && Number(gate.broad_dirty_repo_count || 0) > 0) return false;
   const privacy = parsed.privacy && typeof parsed.privacy === 'object' && !Array.isArray(parsed.privacy)
     ? parsed.privacy as Record<string, unknown>
     : null;
   if (privacy && Object.values(privacy).some((entry) => entry === true)) return false;
   return true;
+}
+
+function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[] {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  if (!parsed) return [];
+  const repoBoard = parsed.repo_board && typeof parsed.repo_board === 'object' && !Array.isArray(parsed.repo_board)
+    ? parsed.repo_board as Record<string, unknown>
+    : {};
+  const duplicateTruths = parsed.duplicate_truths && typeof parsed.duplicate_truths === 'object' && !Array.isArray(parsed.duplicate_truths)
+    ? parsed.duplicate_truths as Record<string, unknown>
+    : {};
+  const classificationCounts = duplicateTruths.classification_counts &&
+    typeof duplicateTruths.classification_counts === 'object' &&
+    !Array.isArray(duplicateTruths.classification_counts)
+    ? duplicateTruths.classification_counts as Record<string, unknown>
+    : {};
+  const duplicateTruthCount = Number(repoBoard.duplicate_truth_count ?? duplicateTruths.item_count ?? 0);
+  const criticalDuplicateTruthCount = Number(repoBoard.critical_duplicate_truth_count ?? 0);
+  const runtimeAheadCount = Number(classificationCounts.runtime_ahead_of_registry_pin ?? 0);
+  if (!duplicateTruthCount && !criticalDuplicateTruthCount && !runtimeAheadCount) return [];
+  const caveats: string[] = [];
+  if (runtimeAheadCount > 0 || duplicateTruthCount > 0 || criticalDuplicateTruthCount > 0) {
+    caveats.push([
+      'registry_pin_drift',
+      `runtime_ahead_of_registry_pin=${Number.isFinite(runtimeAheadCount) ? runtimeAheadCount : 0}`,
+      `duplicate_truth_count=${Number.isFinite(duplicateTruthCount) ? duplicateTruthCount : 0}`,
+      `critical_duplicate_truth_count=${Number.isFinite(criticalDuplicateTruthCount) ? criticalDuplicateTruthCount : 0}`
+    ].join(' | '));
+  }
+  return caveats;
 }
 
 function legacyProofGapsAreInspectable(value: string): boolean {
@@ -1452,6 +1492,7 @@ export function summarizeControlProofCanaryObservations(
     invalidEvidence.length === 0 &&
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
+  const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -1459,6 +1500,7 @@ export function summarizeControlProofCanaryObservations(
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease,
+    releaseCaveats,
     missingPacketEvidence: missingEvidence,
     invalidPacketEvidence: invalidEvidence,
     stalePacketEvidence: staleEvidence,
@@ -1487,6 +1529,13 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   }
   if (summary.stalePacketEvidence.length > 0) {
     lines.push(`Packet evidence stale: ${summary.stalePacketEvidence.join(', ')}`, '');
+  }
+  if (summary.releaseCaveats.length > 0) {
+    lines.push('Release caveats:');
+    for (const caveat of summary.releaseCaveats) {
+      lines.push(`- ${caveat}`);
+    }
+    lines.push('');
   }
   const attention = summary.cases.filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0);
   if (attention.length === 0) {

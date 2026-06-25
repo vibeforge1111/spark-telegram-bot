@@ -25,6 +25,8 @@ npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-
 
 The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.
 
+If `spark os compile --json` is otherwise clean but reports runtime-ahead-of-registry-pin drift, the summary stays release-check ready and prints the drift under `Release caveats`. Treat that as a publish/registry handoff item, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.
+
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.
 
 ## Side-Effect Proof
