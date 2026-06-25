@@ -314,6 +314,8 @@ I can see the answer was delivered, but the Spawner join is missing from this tr
 3. Tests that ordinary follow-ups do not contain standalone `Mission`, `Provider`, `Move`, or raw reason-code headings.
 4. `/diagnose` and raw-detail commands still show compact cards when appropriate.
 
+The report-only Telegram style lint now treats raw Harness/Governor reason codes such as `tool_not_allowed_by_policy`, `owner_mismatch`, `route_not_selected_by_turn_envelope`, and `harness_core:*` as user-surface bugs for ordinary replies. Raw details can stay behind `/diagnose`, `/proof`, or explicit debug surfaces.
+
 ### Acceptance
 
 - No ordinary Telegram reply exposes raw `tool_not_allowed_by_policy`, `owner_mismatch`, stack traces, local paths, or raw provider details.
