@@ -1467,7 +1467,7 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     const window = String(current.window || '').trim();
     const missing = numberOrNull(current.missing_trace_ref_count);
     const historicalMissing = numberOrNull(current.historical_missing_trace_ref_count);
-    if (/^[a-z0-9_.-]+$/i.test(status)) details.push(`current_status=${status}`);
+    if (/^[a-z0-9_.-]+$/i.test(status)) details.push(`trace_status=${status}`);
     if (/^[a-z0-9_.-]+$/i.test(window)) details.push(`window=${window}`);
     if (missing !== null) details.push(`missing_trace_refs=${missing}`);
     const oneHourSummary = compileTraceWindowSummary(parsed.builder_trace_recent_windows, '1h');
