@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-25T20:07:24.692Z",
-    "runtimeEvidenceCollectedAt": "2026-06-25T20:07:24.692Z",
+    "generatedAt": "2026-06-25T20:17:53.004Z",
+    "runtimeEvidenceCollectedAt": "2026-06-25T20:17:53.004Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-25T21:07:24.692Z",
+    "runtimeEvidenceExpiresAt": "2026-06-25T21:17:53.004Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -27,6 +27,8 @@
         ],
         "caveatDetails": {
           "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "flags": [
               "historical_open_high_severity_events"
             ],
@@ -44,10 +46,14 @@
             "latest_clean_historical_window_group_count": 0
           },
           "repo_release_blocks": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "blocked_release_count": 4,
             "critical_repo_count": 3
           },
           "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "label": "local_runtime_test_artifacts",
             "classification_counts": {
               "local_runtime_test_artifact": 2
@@ -202,6 +208,8 @@
             ],
             "caveatDetails": {
               "builder_trace_health": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
                 "flags": [
                   "historical_open_high_severity_events"
                 ],
@@ -219,10 +227,14 @@
                 "latest_clean_historical_window_group_count": 0
               },
               "repo_release_blocks": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
                 "blocked_release_count": 4,
                 "critical_repo_count": 3
               },
               "duplicate_truths": {
+                "releaseBlocking": false,
+                "publishBlocking": true,
                 "label": "local_runtime_test_artifacts",
                 "classification_counts": {
                   "local_runtime_test_artifact": 2
@@ -368,6 +380,8 @@
         ],
         "caveatDetails": {
           "builder_trace_health": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "flags": [
               "historical_open_high_severity_events"
             ],
@@ -385,10 +399,14 @@
             "latest_clean_historical_window_group_count": 0
           },
           "repo_release_blocks": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "blocked_release_count": 4,
             "critical_repo_count": 3
           },
           "duplicate_truths": {
+            "releaseBlocking": false,
+            "publishBlocking": true,
             "label": "local_runtime_test_artifacts",
             "classification_counts": {
               "local_runtime_test_artifact": 2
@@ -535,6 +553,8 @@
     ],
     "releaseCaveatDetails": {
       "builder_trace_health": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
         "flags": [
           "historical_open_high_severity_events"
         ],
@@ -552,10 +572,14 @@
         "latest_clean_historical_window_group_count": 0
       },
       "repo_release_blocks": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
         "blocked_release_count": 4,
         "critical_repo_count": 3
       },
       "duplicate_truths": {
+        "releaseBlocking": false,
+        "publishBlocking": true,
         "label": "local_runtime_test_artifacts",
         "classification_counts": {
           "local_runtime_test_artifact": 2
@@ -565,7 +589,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-25T20:07:24.677Z",
+      "generatedAt": "2026-06-25T20:17:52.974Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -671,7 +695,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7211,
+          "totalRows": 7244,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -983,10 +1007,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-25T20:07:24.692Z",
-      "runtimeEvidenceCollectedAt": "2026-06-25T20:07:24.692Z",
+      "generatedAt": "2026-06-25T20:17:53.004Z",
+      "runtimeEvidenceCollectedAt": "2026-06-25T20:17:53.004Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-25T21:07:24.692Z",
+      "runtimeEvidenceExpiresAt": "2026-06-25T21:17:53.004Z",
       "missing": [],
       "invalid": [],
       "stale": []
