@@ -1245,24 +1245,28 @@ function parseFirstJsonObject(value: string): Record<string, unknown> | null {
 
 function hasCleanSparkOsCompile(value: string): boolean {
   const parsed = parseFirstJsonObject(value);
-  if (!parsed) {
-    return /"ok"\s*:\s*true/i.test(value) && /"gaps"\s*:\s*0/i.test(value);
-  }
+  if (!parsed) return false;
   if (parsed.ok !== true) return false;
   if (Number(parsed.gaps) !== 0) return false;
   const repoBoard = parsed.repo_board && typeof parsed.repo_board === 'object' && !Array.isArray(parsed.repo_board)
     ? parsed.repo_board as Record<string, unknown>
     : null;
-  if (repoBoard && Number(repoBoard.dirty_repo_count || 0) > 0) return false;
+  if (!repoBoard || Number(repoBoard.dirty_repo_count) !== 0) return false;
   const gate = parsed.gate && typeof parsed.gate === 'object' && !Array.isArray(parsed.gate)
     ? parsed.gate as Record<string, unknown>
     : null;
-  if (gate && Number(gate.dirty_repo_count || 0) > 0) return false;
-  if (gate && Number(gate.broad_dirty_repo_count || 0) > 0) return false;
+  if (!gate || Number(gate.dirty_repo_count) !== 0 || Number(gate.broad_dirty_repo_count) !== 0) return false;
   const privacy = parsed.privacy && typeof parsed.privacy === 'object' && !Array.isArray(parsed.privacy)
     ? parsed.privacy as Record<string, unknown>
     : null;
-  if (privacy && Object.values(privacy).some((entry) => entry === true)) return false;
+  const requiredPrivacyFlags = [
+    'raw_secret_values_read',
+    'raw_logs_read',
+    'raw_conversation_content_read',
+    'raw_memory_evidence_read',
+    'sqlite_row_contents_read'
+  ];
+  if (!privacy || requiredPrivacyFlags.some((key) => privacy[key] !== false)) return false;
   return true;
 }
 

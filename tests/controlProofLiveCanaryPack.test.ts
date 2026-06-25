@@ -55,7 +55,8 @@ const CLEAN_SPARK_OS_COMPILE = [
     ok: true,
     gaps: 0,
     duplicate_truths: { item_count: 2 },
-    repo_board: { duplicate_truth_count: 2, critical_duplicate_truth_count: 1 },
+    repo_board: { dirty_repo_count: 0, duplicate_truth_count: 2, critical_duplicate_truth_count: 1 },
+    gate: { dirty_repo_count: 0, broad_dirty_repo_count: 0 },
     privacy: {
       raw_secret_values_read: false,
       raw_logs_read: false,
@@ -733,12 +734,22 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(compileRawPrivacyRead.readyForRelease, false);
   assert.deepEqual(compileRawPrivacyRead.invalidPacketEvidence, ['spark_os_compile']);
 
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"privacy":{"raw_logs_read":false}}';
+  const compileIncompletePrivacy = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileIncompletePrivacy.readyForRelease, false);
+  assert.deepEqual(compileIncompletePrivacy.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}';
+  const compileMissingDirtyState = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileMissingDirtyState.readyForRelease, false);
+  assert.deepEqual(compileMissingDirtyState.invalidPacketEvidence, ['spark_os_compile']);
+
   template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":1},"privacy":{"raw_logs_read":false}}';
   const dirtyRuntimeCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(dirtyRuntimeCompile.readyForRelease, false);
   assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
 
-  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_logs_read":false}}';
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}';
   const publishCleanCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(publishCleanCompile.readyForRelease, true);
   assert.equal(publishCleanCompile.readyForPublish, true);
@@ -1484,7 +1495,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  "ok": true,',
       '  "gaps": 0,',
       '  "duplicate_truths": { "item_count": 2 },',
-      '  "repo_board": { "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      '  "repo_board": { "dirty_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      '  "gate": { "dirty_repo_count": 0, "broad_dirty_repo_count": 0 },',
       `  "outputs": { "repo_board": ${JSON.stringify(repoBoardPath)} },`,
       '  "privacy": {',
       '    "raw_secret_values_read": false,',
@@ -1557,6 +1569,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
     assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
+    assert.match(observed.evidence.sparkOsCompile, /"repo_board": "<tmp>"/);
     assert.doesNotMatch(observed.evidence.sparkOsCompile, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
