@@ -457,11 +457,12 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     expectedRoute: 'plain_chat.rich_message_render',
     expectedReplyShape: 'natural',
     expectedSideEffect: 'No mutation.',
-    expectedProofJoin: 'Telegram delivery audit should carry request/trace for the reply.',
+    expectedProofJoin: 'Telegram final delivery should prove the rich-message reply came through the live Telegram profile path.',
     passCriteria: [
       'Message renders cleanly in Telegram.',
       'Formatting improves readability without becoming a dense card.',
-      'No duplicate streaming preview remains visible.'
+      'No duplicate streaming preview remains visible.',
+      'Proof join names rich-message final delivery through the active Telegram profile path.'
     ],
     capture: { observedReply: true, sideEffects: true, proofPanel: false, screenshot: true, userConfirmation: true }
   },

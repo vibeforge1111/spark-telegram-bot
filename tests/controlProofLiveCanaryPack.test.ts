@@ -193,6 +193,11 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
       assert.ok(ref.relationship, `${entry.id} has source ref without relationship`);
     }
   }
+
+  const richMessage = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002');
+  assert.ok(richMessage);
+  assert.match(richMessage.expectedProofJoin, /rich-message reply came through the live Telegram profile path/);
+  assert.match(richMessage.passCriteria.join('\n'), /rich-message final delivery through the active Telegram profile path/);
 });
 
 test('promoted canaries keep traceable legacy source references', () => {
