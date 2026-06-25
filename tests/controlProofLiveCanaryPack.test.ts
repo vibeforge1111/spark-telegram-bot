@@ -39,6 +39,9 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
   'builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no',
   'spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no',
+  'memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  'voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
+  'voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no',
   'missing evidence: 0',
   'missing trace joins: 0',
   'missing proof capsules: 0',
@@ -702,6 +705,11 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const invalidGapCapsuleCount = summarizeControlProofCanaryObservations(template);
   assert.equal(invalidGapCapsuleCount.readyForRelease, false);
   assert.deepEqual(invalidGapCapsuleCount.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1', 'voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 0');
+  const unclassifiedVoiceEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(unclassifiedVoiceEvidence.readyForRelease, false);
+  assert.deepEqual(unclassifiedVoiceEvidence.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
     'incomplete legacy gap backing: 0',
@@ -1655,6 +1663,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
       '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
       '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
+      '  echo "memory_movement_index: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
+      '  echo "voice_surface_view: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
+      '  echo "voice_runtime_state: 1/1 sampled | proof 0/1 | proof_n/a 1 | proof_gap 0 | gap_backing n/a | latest_gap no"',
       '  echo "Gap counts:"',
       '  echo "- missing evidence: 0"',
       '  echo "- missing trace joins: 0"',
@@ -1699,6 +1710,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
     assert.match(observed.evidence.controlProofAudit, /gap_capsule_valid 97/);
+    assert.match(observed.evidence.controlProofAudit, /voice_runtime_state: 1\/1 sampled .*proof_n\/a 1/);
     assert.match(observed.evidence.controlProofAudit, /incomplete legacy gap backing: 0/);
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
     assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace/);

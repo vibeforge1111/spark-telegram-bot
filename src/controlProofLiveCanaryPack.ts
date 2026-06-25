@@ -1234,7 +1234,7 @@ function hasCleanControlProofAudit(value: string): boolean {
     /stack-like leaks:\s*0/i
   ];
   if (requiredZeroPatterns.every((pattern) => pattern.test(value))) {
-    return legacyProofGapsAreInspectable(value);
+    return legacyProofGapsAreInspectable(value) && nonExecutionEvidencePlanesAreClassified(value);
   }
   return false;
 }
@@ -1364,6 +1364,18 @@ function legacyProofGapPlaneLabels(value: string): string[] {
     .filter((entry) => /^[a-z_]+$/i.test(entry));
 }
 
+function nonExecutionEvidencePlanesAreClassified(value: string): boolean {
+  return ['memory_movement_index', 'voice_surface_view', 'voice_runtime_state'].every((plane) => {
+    const row = auditPlaneRow(value, plane);
+    if (!row) return true;
+    const sampled = sampledRowsForAuditPlane(row);
+    if (sampled <= 0) return true;
+    return numericAuditField(row, 'proof_n/a') === sampled &&
+      numericAuditField(row, 'proof_gap') === 0 &&
+      /\bgap_backing\s+n\/a\b/i.test(row);
+  });
+}
+
 function auditPlaneRow(value: string, plane: string): string | null {
   const escapedPlane = plane.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = value.match(new RegExp(`(?:^|\\n)-?\\s*${escapedPlane}:\\s*([^\\n]+)`, 'i'));
@@ -1373,6 +1385,11 @@ function auditPlaneRow(value: string, plane: string): string | null {
 function numericAuditField(row: string, field: string): number {
   const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = row.match(new RegExp(`\\b${escapedField}\\s+(\\d+)\\b`, 'i'));
+  return match ? Number(match[1]) : NaN;
+}
+
+function sampledRowsForAuditPlane(row: string): number {
+  const match = row.match(/\b(\d+)\/\d+\s+sampled\b/i);
   return match ? Number(match[1]) : NaN;
 }
 
