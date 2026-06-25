@@ -1478,6 +1478,12 @@ function objectOrNull(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function safeTimestampToken(value: unknown): string | null {
+  const text = String(value || '').trim();
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/);
+  return match ? `${match[1]}T${match[2]}Z` : null;
+}
+
 function compileTraceWindowSummary(value: unknown, windowName: string): string | null {
   const windows = Array.isArray(value) ? value : [];
   const row = windows
@@ -1500,6 +1506,10 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     const highSeverityOpen = numberOrNull(current.high_severity_open_count);
     const unresolvedHighSeverityOpen = numberOrNull(current.unresolved_high_severity_open_count);
     const currentUnresolvedHighSeverityOpen = numberOrNull(current.current_unresolved_high_severity_open_count);
+    const unresolvedHighSeveritySourceGroups = numberOrNull(current.unresolved_high_severity_source_group_count);
+    const latestUnresolvedHighSeverityEventCreatedAt = safeTimestampToken(
+      current.latest_unresolved_high_severity_event_created_at
+    );
     const latestMissingSourceGroups =
       numberOrNull(current.latest_missing_source_group_count) ?? numberOrNull(current.latest_missing_group_count);
     const latestCleanHistoricalWindowGroups =
@@ -1518,6 +1528,12 @@ function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknow
     }
     if (currentUnresolvedHighSeverityOpen !== null) {
       details.push(`current_unresolved_high_severity_events=${currentUnresolvedHighSeverityOpen}`);
+    }
+    if (unresolvedHighSeveritySourceGroups !== null) {
+      details.push(`unresolved_high_severity_source_groups=${unresolvedHighSeveritySourceGroups}`);
+    }
+    if (latestUnresolvedHighSeverityEventCreatedAt) {
+      details.push(`latest_unresolved_high_severity_event=${latestUnresolvedHighSeverityEventCreatedAt}`);
     }
     if (latestMissingSourceGroups !== null) details.push(`latest_missing_source_groups=${latestMissingSourceGroups}`);
     if (latestCleanHistoricalWindowGroups !== null) {
@@ -1563,16 +1579,24 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
   }
   const unresolvedHighSeverityOpen = numberOrNull(current.unresolved_high_severity_open_count) ?? 0;
   const currentUnresolvedHighSeverityOpen = numberOrNull(current.current_unresolved_high_severity_open_count) ?? 0;
+  const unresolvedHighSeveritySourceGroups =
+    numberOrNull(current.unresolved_high_severity_source_group_count) ?? unresolvedHighSeverityOpen;
+  const latestUnresolvedHighSeverityEventCreatedAt = safeTimestampToken(
+    current.latest_unresolved_high_severity_event_created_at
+  );
   if (
     flags.includes('historical_open_high_severity_events') &&
     !flags.includes('missing_trace_refs') &&
     unresolvedHighSeverityOpen > 0 &&
     currentUnresolvedHighSeverityOpen === 0
   ) {
-    const familyLabel = unresolvedHighSeverityOpen === 1 ? 'family' : 'families';
+    const familyLabel = unresolvedHighSeveritySourceGroups === 1 ? 'family' : 'families';
+    const latestClause = latestUnresolvedHighSeverityEventCreatedAt
+      ? `; latest unresolved event ${latestUnresolvedHighSeverityEventCreatedAt}`
+      : '';
     return [
       ...handoffs,
-      `spark-intelligence-builder: warning builder_trace_health; next safe action: Audit ${unresolvedHighSeverityOpen} unresolved historical high-severity Builder integrity ${familyLabel}, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.`
+      `spark-intelligence-builder: warning builder_trace_health; next safe action: Audit ${unresolvedHighSeveritySourceGroups} unresolved historical high-severity Builder integrity ${familyLabel}${latestClause}, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.`
     ];
   }
   if (!flags.includes('missing_trace_refs')) return handoffs;

@@ -388,7 +388,9 @@ const SAFE_LONG_RUNTIME_EVIDENCE_TOKENS = new Set([
   'latest_clean_historical_window_debt',
   'latest_clean_historical_window_debt_group_count',
   'latest_clean_window_debt_group_count',
+  'latest_unresolved_high_severity_event_created_at',
   'latest_missing_source_group_count',
+  'unresolved_high_severity_source_group_count',
   'unresolved_high_severity_open_count',
 ]);
 
