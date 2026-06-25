@@ -704,6 +704,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
   ]);
   assert.deepEqual(missingProofShape.cases[1].missingCaptures, [
     'observed_reply_rich_message_shape',
+    'proof_join_rich_message_delivery_shape',
     'user_confirmation_duplicate_preview'
   ]);
 
@@ -717,6 +718,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
   ].join('\n');
   template.cases[0].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram with no duplicate preview.';
   template.cases[1].observed.reply = 'Spark Recursive\nStatus: clean.\n\nToken: ok';
+  template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';
   template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
   const cleanStreamingProof = summarizeControlProofCanaryObservations(template);
   assert.equal(cleanStreamingProof.readyForRelease, true);

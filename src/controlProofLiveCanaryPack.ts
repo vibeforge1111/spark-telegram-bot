@@ -1624,6 +1624,9 @@ function proofJoinCaptureIssues(entry: ControlProofCanaryObservationCase): strin
     issues.push('proof_join_missing');
   }
   if (proofPanelLeaksRawInternals(text)) issues.push('proof_join_raw_leak');
+  if (entry.id === 'cp-streaming-002' && !hasRichMessageDeliveryProofJoin(text)) {
+    issues.push('proof_join_rich_message_delivery_shape');
+  }
   return issues;
 }
 
@@ -1659,6 +1662,12 @@ function hasStreamingStatusProofShape(value: string): boolean {
 
 function hasRichMessageProofShape(value: string): boolean {
   return /\bStatus:\s*\S+/i.test(value) && /\bToken:\s*\S+/i.test(value);
+}
+
+function hasRichMessageDeliveryProofJoin(value: string): boolean {
+  return /\bTelegram final delivery\b/i.test(value) &&
+    /\brich-message reply\b/i.test(value) &&
+    /\b(?:active|primary|profile|restarted primary)\b/i.test(value);
 }
 
 function hasPublishHandoffProofShape(value: string): boolean {
