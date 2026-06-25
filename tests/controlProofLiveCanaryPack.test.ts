@@ -1993,6 +1993,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '    "high_severity_open_count": 46,',
       '    "unresolved_high_severity_open_count": 1,',
       '    "current_unresolved_high_severity_open_count": 0,',
+      '    "latest_missing_source_group_count": 2,',
+      '    "latest_clean_historical_window_debt_group_count": 1,',
+      '    "latest_clean_window_debt_group_count": 1,',
       '    "latest_missing_group_count": 2,',
       '    "latest_clean_group_count": 1,',
       '    "repair_temporal_state_counts": {',
@@ -2087,6 +2090,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkOsCompile, /historical_missing_trace_ref_count/);
     assert.match(observed.evidence.sparkOsCompile, /unresolved_high_severity_open_count/);
     assert.match(observed.evidence.sparkOsCompile, /current_unresolved_high_severity_open_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_missing_source_group_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_clean_historical_window_debt_group_count/);
+    assert.match(observed.evidence.sparkOsCompile, /latest_clean_window_debt_group_count/);
     assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
     assert.match(observed.evidence.sparkOsCompile, /"repo_board": "<tmp>"/);
     assert.doesNotMatch(observed.evidence.sparkOsCompile, /<redacted-token>/);
