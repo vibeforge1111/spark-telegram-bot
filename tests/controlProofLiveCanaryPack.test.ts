@@ -1652,6 +1652,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  i=0',
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
       '  echo "Blocking status: clean"',
+      '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
+      '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
+      '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
       '  echo "Gap counts:"',
       '  echo "- missing evidence: 0"',
       '  echo "- missing trace joins: 0"',
@@ -1695,6 +1698,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /audit detail line 0 before summary/);
     assert.match(observed.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(observed.evidence.controlProofAudit, /missing proof capsules: 0/);
+    assert.match(observed.evidence.controlProofAudit, /gap_capsule_valid 97/);
     assert.match(observed.evidence.controlProofAudit, /incomplete legacy gap backing: 0/);
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
     assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace/);
