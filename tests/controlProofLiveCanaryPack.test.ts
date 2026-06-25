@@ -106,7 +106,10 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
 test('checked-in full canary summary JSON matches the observation packet', () => {
   const observations = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
   const summaryJson = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.json'), 'utf8'));
-  const summary = summarizeControlProofCanaryObservations(observations, { maxRuntimeEvidenceAgeHours: 1 });
+  const summary = summarizeControlProofCanaryObservations(observations, {
+    maxRuntimeEvidenceAgeHours: 1,
+    now: observations.evidence.collectedAt
+  });
   const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
     caseIds: observations.cases.map((entry: { id: string }) => entry.id),
     includeActions: true
