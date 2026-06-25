@@ -996,6 +996,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');
     const recordedPath = resolve(tempRoot, 'recorded.json');
     const recordedSummaryPath = resolve(tempRoot, 'recorded-summary.md');
+    const recordedSummaryJsonPath = resolve(tempRoot, 'recorded-summary.json');
     const proofPanelPath = resolve(tempRoot, 'proof-panel.txt');
     writeFileSync(proofPanelPath, `${CLEAN_PROOF_PANEL}\n`, 'utf8');
     const record = spawnSync(
@@ -1027,6 +1028,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         '/tmp/spark-recursive-builder-proof.png',
         '--summary-out',
         recordedSummaryPath,
+        '--summary-json-out',
+        recordedSummaryJsonPath,
         '--user-confirmation',
         'Confirmed in SparkRecursive_bot.'
       ],
@@ -1035,6 +1038,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(record.status, 0, record.stderr);
     assert.match(record.stdout, /Recorded control-proof observation for cp-builder-001/);
     assert.match(record.stdout, /Wrote control-proof observation summary/);
+    assert.match(record.stdout, /Wrote control-proof observation summary JSON/);
     assert.match(record.stdout, /Release gate: ready/);
     const recorded = JSON.parse(readFileSync(recordedPath, 'utf8'));
     assert.equal(recorded.cases[0].observed.reply, 'Route confidence means Spark is justified in taking this route now.');
@@ -1044,6 +1048,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       '/tmp/spark-recursive-builder-proof.png'
     ]);
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
+    const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
+    assert.equal(recordedSummaryJson.summary.readyForRelease, true);
+    assert.equal(recordedSummaryJson.coverage.totalCases, 1);
 
     const accessTemplate = withControlProofCanaryRuntimeEvidence(
       buildControlProofCanaryObservationTemplate([
@@ -1127,7 +1134,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
-    assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summary/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /refreshes the current summaries/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Side-Effect Proof/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Notes alone are not enough/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /--no-other-side-effects/);
@@ -1138,6 +1145,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
+    assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-json-out '${escapeRegExp(bundledSummaryJsonPath)}'`));
     assert.match(readFileSync(bundledCoveragePath, 'utf8'), /Cases: 1/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-copy-paste.md'), 'utf8'), /Control-Proof Canary Prompts/);
     assert.match(readFileSync(resolve(bundleDir, 'live-canary-checklist.md'), 'utf8'), /Control-Proof Canary Checklist/);

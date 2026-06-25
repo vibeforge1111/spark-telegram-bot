@@ -49,7 +49,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --checklist',
     '  npm run control:proof:canaries -- --coverage',
     '  npm run control:proof:canaries -- --include-actions --coverage --coverage-strict',
-    '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json',
+    '  npm run control:proof:canaries -- --run-guide --observations outputs/live-canary-observations.json --summary-out outputs/live-canary-summary.md --summary-json-out outputs/live-canary-summary.json',
     '  npm run control:proof:canaries -- --include-actions --release-bundle --out-dir outputs/live-canary --collect-runtime-evidence',
     '  npm run control:proof:canaries -- --json',
     '  npm run control:proof:canaries -- --observation-template',
@@ -60,6 +60,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-ref /tmp/case.png --user-confirmation "confirmed"',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --summary-out outputs/live-canary-summary.md --summary-json-out outputs/live-canary-summary.json',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
     '  npm run control:proof:canaries -- --cases cp-builder-001,cp-proof-001 --copy-paste',
     '  npm run control:proof:canaries -- --category streaming --list',
@@ -67,6 +68,22 @@ function usage(): string {
     '',
     'Default selection excludes intentional live actions. Explicit --case/--cases can select them.'
   ].join('\n');
+}
+
+function serializeControlProofCanarySummaryJson(
+  summary: ReturnType<typeof summarizeControlProofCanaryObservations>,
+  coverage: ReturnType<typeof summarizeControlProofCanaryCoverage>
+): string {
+  return `${JSON.stringify({
+    summary,
+    coverage: {
+      ...coverage,
+      categoryCounts: Object.fromEntries(coverage.categoryCounts),
+      riskCounts: Object.fromEntries(coverage.riskCounts),
+      mutationCounts: Object.fromEntries(coverage.mutationCounts),
+      authorityCounts: Object.fromEntries(coverage.authorityCounts)
+    }
+  }, null, 2)}\n`;
 }
 
 function readTextArg(args: string[], name: string): string | undefined {
@@ -242,21 +259,12 @@ function writeReleaseBundle(
   const coverage = summarizeControlProofCanaryCoverage(cases);
 
   writeFileSync(observationsPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
-  writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath, summaryPath })}\n`, 'utf8');
+  writeFileSync(runGuidePath, `${formatControlProofCanaryLiveRunGuide(cases, { observationsPath, summaryPath, summaryJsonPath })}\n`, 'utf8');
   writeFileSync(copyPastePath, `${formatControlProofCanaryCopyPaste(cases)}\n`, 'utf8');
   writeFileSync(checklistPath, `${formatControlProofCanaryChecklist(cases)}\n`, 'utf8');
   writeFileSync(coveragePath, `${formatControlProofCanaryCoverage(cases)}\n`, 'utf8');
   writeFileSync(summaryPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
-  writeFileSync(summaryJsonPath, `${JSON.stringify({
-    summary,
-    coverage: {
-      ...coverage,
-      categoryCounts: Object.fromEntries(coverage.categoryCounts),
-      riskCounts: Object.fromEntries(coverage.riskCounts),
-      mutationCounts: Object.fromEntries(coverage.mutationCounts),
-      authorityCounts: Object.fromEntries(coverage.authorityCounts)
-    }
-  }, null, 2)}\n`, 'utf8');
+  writeFileSync(summaryJsonPath, serializeControlProofCanarySummaryJson(summary, coverage), 'utf8');
   writeFileSync(readmePath, formatReleaseBundleReadme({
     observationsPath,
     runGuidePath,
@@ -316,7 +324,7 @@ function formatReleaseBundleReadme(paths: {
     '',
     '1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.',
     '2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.',
-    '3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.',
+    '3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summaries.',
     `4. Re-run the ${checkName}:`,
     '',
     '```bash',
@@ -371,6 +379,7 @@ function main(): void {
     let observations = JSON.parse(readFileSync(observationsPath, 'utf8'));
     const recordCaseId = argValue(args, 'record-case');
     const summaryOutPath = argValue(args, 'summary-out');
+    const summaryJsonOutPath = argValue(args, 'summary-json-out');
     const releaseCheck = hasFlag(args, 'release-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
     if (refreshRuntimeEvidence) {
@@ -399,7 +408,8 @@ function main(): void {
         });
         console.log(formatControlProofCanaryLiveRunGuide(cases, {
           observationsPath,
-          summaryPath: summaryOutPath || undefined
+          summaryPath: summaryOutPath || undefined,
+          summaryJsonPath: summaryJsonOutPath || undefined
         }));
       }
       return;
@@ -411,6 +421,11 @@ function main(): void {
     if (summaryOutPath) {
       writeFileSync(summaryOutPath, formatControlProofCanaryObservationSummary(summary), 'utf8');
       console.log(`Wrote control-proof observation summary: ${summaryOutPath}`);
+    }
+    if (summaryJsonOutPath) {
+      const summaryCoverage = coverage || summarizeControlProofCanaryCoverage(canaryCasesFromObservations(observations));
+      writeFileSync(summaryJsonOutPath, serializeControlProofCanarySummaryJson(summary, summaryCoverage), 'utf8');
+      console.log(`Wrote control-proof observation summary JSON: ${summaryJsonOutPath}`);
     }
     if (hasFlag(args, 'json')) {
       console.log(JSON.stringify(coverage ? { summary, coverage: {
@@ -496,9 +511,17 @@ function main(): void {
   }
 
   if (hasFlag(args, 'run-guide')) {
-    console.log(formatControlProofCanaryLiveRunGuide(selected, {
-      observationsPath: observationsPath || outPath || undefined
-    }));
+    const runGuide = formatControlProofCanaryLiveRunGuide(selected, {
+      observationsPath: observationsPath || undefined,
+      summaryPath: argValue(args, 'summary-out') || undefined,
+      summaryJsonPath: argValue(args, 'summary-json-out') || undefined
+    });
+    if (outPath) {
+      writeFileSync(outPath, `${runGuide}\n`, 'utf8');
+      console.log(`Wrote control-proof run guide: ${outPath}`);
+    } else {
+      console.log(runGuide);
+    }
     return;
   }
 

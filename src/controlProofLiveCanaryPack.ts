@@ -881,7 +881,7 @@ function formatCounts(counts: Map<string, number>): string[] {
 
 export function formatControlProofCanaryLiveRunGuide(
   cases: ControlProofCanaryCase[],
-  options: { observationsPath?: string; summaryPath?: string } = {}
+  options: { observationsPath?: string; summaryPath?: string; summaryJsonPath?: string } = {}
 ): string {
   const observationsPath = options.observationsPath || 'outputs/live-canary-observations.json';
   const lines = [
@@ -911,7 +911,7 @@ export function formatControlProofCanaryLiveRunGuide(
     }
     lines.push('Record command:');
     lines.push('```bash');
-    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef, options.summaryPath));
+    lines.push(formatControlProofCanaryRecordCommand(entry, observationsPath, replyFile, screenshotRef, options.summaryPath, options.summaryJsonPath));
     lines.push('```');
     lines.push('');
     lines.push(`Expected route: ${entry.expectedRoute}`);
@@ -932,7 +932,8 @@ function formatControlProofCanaryRecordCommand(
   observationsPath: string,
   replyFile: string,
   screenshotRef: string,
-  summaryPath?: string
+  summaryPath?: string,
+  summaryJsonPath?: string
 ): string {
   const args = [
     'npm run control:proof:canaries --',
@@ -963,6 +964,9 @@ function formatControlProofCanaryRecordCommand(
   }
   if (summaryPath) {
     args.push('--summary-out', shellQuote(summaryPath));
+  }
+  if (summaryJsonPath) {
+    args.push('--summary-json-out', shellQuote(summaryJsonPath));
   }
   return args.join(' ');
 }

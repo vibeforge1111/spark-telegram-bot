@@ -18,7 +18,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.risk_profile
@@ -44,7 +44,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.routing_failure_class
@@ -70,7 +70,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-003 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-003-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-003.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-003 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-003-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-003.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.no_execution_boundary
@@ -96,7 +96,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-004 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-004-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-004.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-noaction-004 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-noaction-004-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-noaction-004.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.read_only_repair_status
@@ -122,7 +122,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-authority-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-authority-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.authority_answer
@@ -148,7 +148,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-authority-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-authority-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-authority-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-authority-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: fresh_state.live_status
@@ -174,7 +174,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-proof-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-proof-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: proof.inspect
@@ -200,7 +200,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-proof-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-proof-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-proof-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-proof-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: proof.inspect
@@ -226,7 +226,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-builder-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_conversation
@@ -252,7 +252,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-builder-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-builder-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-builder-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-builder-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: builder_gateway.memory_diagnostic_boundary
@@ -273,7 +273,7 @@ Telegram prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-streaming-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-streaming-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: streaming.status
@@ -294,7 +294,7 @@ Give me a two-line rich-message check: bold one word and include one short code 
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-streaming-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-streaming-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-streaming-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-streaming-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: plain_chat.rich_message_render
@@ -320,7 +320,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-memory-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-memory-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: memory_recall
@@ -346,7 +346,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-memory-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-memory-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-memory-002-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-memory-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: memory.doctor
@@ -372,7 +372,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-access-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-access-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: access.capability_status
@@ -398,7 +398,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-002-reply.txt' --access-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-access-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-access-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-access-002-reply.txt' --access-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-access-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: access.level_change
@@ -424,7 +424,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-model-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-model-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: model_switch.boundary_explanation
@@ -450,7 +450,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-002-reply.txt' --provider-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-model-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-model-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-model-002-reply.txt' --provider-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-model-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: model_switch.mission_provider
@@ -476,7 +476,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-web-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-web-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: external_research.boundary
@@ -502,7 +502,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-002-reply.txt' --external-network-called <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-web-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-web-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-web-002-reply.txt' --external-network-called <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-web-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: external_research.direct_or_clarify
@@ -528,7 +528,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-spawner-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-spawner-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner_build.ideation_boundary
@@ -554,7 +554,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-002-reply.txt' --files-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-spawner-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-spawner-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-spawner-002-reply.txt' --files-changed <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-spawner-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner.build
@@ -580,7 +580,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-mission-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-mission-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-mission-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-mission-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-mission-001-reply.txt' --mission-started <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-mission-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: spawner.run
@@ -606,7 +606,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-media-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-media-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.image_boundary
@@ -632,7 +632,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-002-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-media-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-media-002 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-media-002-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-media-002.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.image_analyze_or_boundary
@@ -658,7 +658,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-voice-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-voice-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-voice-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-voice-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-voice-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-voice-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.voice_transcribe_or_boundary
@@ -684,7 +684,7 @@ Proof inspection prompt:
 
 Record command:
 ```bash
-npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-audio-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-audio-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-audio-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md'
+npm run control:proof:canaries -- --observations 'outputs/live-canary-full/live-canary-observations.json' --record-case cp-audio-001 --verdict <pass|fail|blocked|needs-retest> --reply-file '/tmp/cp-audio-001-reply.txt' --media-handled <true|false|unknown> --side-effects-notes '<what changed, or no mutation observed>' --proof-join '<proof join observed, or missing proof>' --no-other-side-effects --proof-panel '<proof panel text, or not shown>' --user-confirmation '<confirmed in SparkRecursive_bot>' --screenshot-ref '/tmp/cp-audio-001.png' --summary-out 'outputs/live-canary-full/live-canary-summary.md' --summary-json-out 'outputs/live-canary-full/live-canary-summary.json'
 ```
 
 Expected route: media.audio_transcribe_or_boundary

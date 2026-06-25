@@ -15,7 +15,7 @@ This folder is the live Telegram release packet. It starts not ready until each 
 
 1. Open the run guide and copy only the Telegram prompt blocks into SparkRecursive_bot.
 2. Capture the reply, screenshot path, proof panel text, side effects, and user confirmation for each case.
-3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summary.
+3. Run the matching `--record-case` command from the run guide after each prompt. The command refreshes the current summaries.
 4. Re-run the release check:
 
 ```bash
