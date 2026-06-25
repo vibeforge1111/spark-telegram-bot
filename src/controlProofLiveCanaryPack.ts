@@ -177,6 +177,31 @@ export interface ControlProofPacketEvidenceDetails {
   stale: ControlProofPacketEvidenceDetail[];
 }
 
+export interface ControlProofGateDecisionCaseDetail {
+  id: string;
+  verdict: ControlProofCanaryVerdict;
+  missingCaptures: string[];
+}
+
+export interface ControlProofGateDecisionDetail {
+  ready: boolean;
+  blockers: string[];
+  caveats: string[];
+  handoffFamilies: string[];
+  handoffCount: number;
+  packetEvidence: {
+    missing: string[];
+    invalid: string[];
+    stale: string[];
+  };
+  failingCases: ControlProofGateDecisionCaseDetail[];
+}
+
+export interface ControlProofGateDecisionDetails {
+  release: ControlProofGateDecisionDetail;
+  publish: ControlProofGateDecisionDetail;
+}
+
 export interface ControlProofAuditPlaneDetail {
   label: string;
   sampledRows: number;
@@ -219,6 +244,7 @@ export interface ControlProofCanaryObservationSummary {
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
   readyForPublish: boolean;
+  gateDecisionDetails: ControlProofGateDecisionDetails;
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
   controlProofAuditDetails: ControlProofAuditDetails | null;
@@ -1929,6 +1955,75 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
   };
 }
 
+function publishHandoffFamilies(publishHandoffs: Record<string, unknown> | null): string[] {
+  const families = Array.isArray(publishHandoffs?.families)
+    ? publishHandoffs.families.map(safeStringToken).filter((entry): entry is string => Boolean(entry))
+    : [];
+  return Array.from(new Set(families)).sort();
+}
+
+function gateDecisionDetails(input: {
+  releaseReady: boolean;
+  readyForPublish: boolean;
+  releaseBlockers: string[];
+  releaseCaveats: string[];
+  releaseHandoffs: string[];
+  publishHandoffs: Record<string, unknown> | null;
+  missingEvidence: string[];
+  invalidEvidence: string[];
+  staleEvidence: string[];
+  cases: ControlProofCanaryObservationCaseSummary[];
+}): ControlProofGateDecisionDetails {
+  const failingCases = input.cases
+    .filter((entry) => entry.verdict !== 'pass' || entry.missingCaptures.length > 0)
+    .map((entry) => ({
+      id: entry.id,
+      verdict: entry.verdict,
+      missingCaptures: [...entry.missingCaptures]
+    }));
+  const releaseGateBlockers = [
+    ...(input.missingEvidence.length > 0 ? ['missing_packet_evidence'] : []),
+    ...(input.invalidEvidence.length > 0 ? ['invalid_packet_evidence'] : []),
+    ...(input.staleEvidence.length > 0 ? ['stale_packet_evidence'] : []),
+    ...(failingCases.length > 0 ? ['canary_case_failures'] : []),
+    ...input.releaseBlockers
+  ];
+  const handoffFamilies = publishHandoffFamilies(input.publishHandoffs);
+  const publishBlockers = [
+    ...(!input.releaseReady ? ['release_gate_not_ready'] : []),
+    ...(input.releaseCaveats.length > 0 ? ['release_caveats'] : []),
+    ...(input.releaseHandoffs.length > 0 ? ['release_handoffs'] : [])
+  ];
+  return {
+    release: {
+      ready: input.releaseReady,
+      blockers: releaseGateBlockers,
+      caveats: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: {
+        missing: [...input.missingEvidence],
+        invalid: [...input.invalidEvidence],
+        stale: [...input.staleEvidence]
+      },
+      failingCases
+    },
+    publish: {
+      ready: input.readyForPublish,
+      blockers: publishBlockers,
+      caveats: [...input.releaseCaveats],
+      handoffFamilies,
+      handoffCount: input.releaseHandoffs.length,
+      packetEvidence: {
+        missing: [...input.missingEvidence],
+        invalid: [...input.invalidEvidence],
+        stale: [...input.staleEvidence]
+      },
+      failingCases
+    }
+  };
+}
+
 function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>): string[] {
   const publishHandoffs = objectOrNull(parsed.publish_handoffs);
   if (!publishHandoffs) return [];
@@ -2539,6 +2634,18 @@ export function summarizeControlProofCanaryObservations(
   ]));
   const releaseReady = readyForRelease && releaseBlockers.length === 0;
   const readyForPublish = releaseReady && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
+  const structuredGateDecisionDetails = gateDecisionDetails({
+    releaseReady,
+    readyForPublish,
+    releaseBlockers,
+    releaseCaveats,
+    releaseHandoffs,
+    publishHandoffs,
+    missingEvidence,
+    invalidEvidence,
+    staleEvidence,
+    cases
+  });
   return {
     target: observations.target,
     generatedAt: observations.generatedAt,
@@ -2549,6 +2656,7 @@ export function summarizeControlProofCanaryObservations(
     verdictCounts,
     readyForRelease: releaseReady,
     readyForPublish,
+    gateDecisionDetails: structuredGateDecisionDetails,
     releaseCaveats,
     releaseCaveatDetails,
     controlProofAuditDetails: auditDetails,

@@ -163,6 +163,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
@@ -1048,6 +1049,26 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const publishCleanCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(publishCleanCompile.readyForRelease, true);
   assert.equal(publishCleanCompile.readyForPublish, true);
+  assert.deepEqual(publishCleanCompile.gateDecisionDetails, {
+    release: {
+      ready: true,
+      blockers: [],
+      caveats: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    },
+    publish: {
+      ready: true,
+      blockers: [],
+      caveats: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    }
+  });
   assert.deepEqual(publishCleanCompile.releaseCaveats, []);
   assert.match(formatControlProofCanaryObservationSummary(publishCleanCompile), /Publish gate: ready/);
 
@@ -1162,6 +1183,30 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const structuredPublishHandoffs = summarizeControlProofCanaryObservations(template);
   assert.equal(structuredPublishHandoffs.readyForRelease, true);
   assert.equal(structuredPublishHandoffs.readyForPublish, false);
+  assert.deepEqual(structuredPublishHandoffs.gateDecisionDetails, {
+    release: {
+      ready: true,
+      blockers: [],
+      caveats: [],
+      handoffFamilies: [],
+      handoffCount: 0,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    },
+    publish: {
+      ready: false,
+      blockers: ['release_caveats', 'release_handoffs'],
+      caveats: [
+        'builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0',
+        'repo_release_blocks | blocked_release_count=1 | critical_repo_count=1',
+        'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+      ],
+      handoffFamilies: ['builder_trace_health', 'local_runtime_test_artifacts', 'repo_release_blocks'],
+      handoffCount: 3,
+      packetEvidence: { missing: [], invalid: [], stale: [] },
+      failingCases: []
+    }
+  });
   assert.deepEqual(structuredPublishHandoffs.releaseHandoffs, [
     'spark-intelligence-builder: release_blocked; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release',
     'spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.',
@@ -1232,6 +1277,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-23T23:40:00.000Z');
   const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(staleEmbeddedCompile.readyForRelease, false);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.release.blockers, ['invalid_packet_evidence']);
+  assert.deepEqual(staleEmbeddedCompile.gateDecisionDetails.publish.blockers, ['release_gate_not_ready']);
   assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
   assert.deepEqual(staleEmbeddedCompile.packetEvidenceDetails.invalid, [{
     key: 'spark_os_compile',
