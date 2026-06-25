@@ -883,7 +883,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(staleGeneratedAt.readyForRelease, false);
   assert.deepEqual(staleGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
 
+  template.generatedAt = '2000-01-01T00:00:00.000Z';
+  template.evidence.collectedAt = '2000-01-01T00:00:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2000-01-01T00:00:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2000-01-01T00:00:00.000Z');
+  const staleSourceSnapshot = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleSourceSnapshot.readyForRelease, false);
+  assert.ok(staleSourceSnapshot.invalidPacketEvidence.includes('source_snapshot'));
+
   template.generatedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-24T00:06:00.000Z');
   const strictGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(strictGeneratedAt.readyForRelease, true);
   assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);

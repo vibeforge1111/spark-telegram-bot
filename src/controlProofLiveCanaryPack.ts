@@ -1,3 +1,6 @@
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
 export type ControlProofCanaryRisk = 'safe' | 'inspect_only' | 'manual_media' | 'intentional_action';
 
 export type ControlProofCanaryAuthorityExpectation =
@@ -1194,6 +1197,52 @@ function runtimeEvidenceExpiresAt(
   return new Date(collectedMs + maxAgeHours * 60 * 60 * 1000).toISOString();
 }
 
+const SOURCE_SNAPSHOT_PATHS = [
+  'src',
+  'ops',
+  'scripts',
+  'tests',
+  'docs',
+  'package.json',
+  'package-lock.json',
+  'tsconfig.json'
+];
+const SOURCE_SNAPSHOT_IGNORE_DIRS = new Set(['node_modules', 'dist', 'outputs', '.git']);
+
+function sourceSnapshotNewerThanCollectedAt(collectedAt: string): boolean {
+  const collectedMs = parseRuntimeEvidenceTimestamp(collectedAt);
+  if (collectedMs === null) return false;
+  const latestSourceMs = latestSourceSnapshotMtimeMs(process.cwd());
+  if (latestSourceMs === null) return false;
+  return latestSourceMs - collectedMs > 1000;
+}
+
+function latestSourceSnapshotMtimeMs(root: string): number | null {
+  let latest: number | null = null;
+  const visit = (filePath: string): void => {
+    let stat;
+    try {
+      stat = statSync(filePath);
+    } catch {
+      return;
+    }
+    if (stat.isDirectory()) {
+      const name = filePath.split(/[\\/]/).pop() || '';
+      if (SOURCE_SNAPSHOT_IGNORE_DIRS.has(name)) return;
+      for (const child of readdirSync(filePath)) {
+        visit(join(filePath, child));
+      }
+      return;
+    }
+    if (!stat.isFile()) return;
+    latest = latest === null ? stat.mtimeMs : Math.max(latest, stat.mtimeMs);
+  };
+  for (const entry of SOURCE_SNAPSHOT_PATHS) {
+    visit(join(root, entry));
+  }
+  return latest;
+}
+
 function commandEvidencePassed(value: string): boolean | null {
   const match = value.match(/(?:^|\n)exit=(-?\d+)(?:\n|$)/);
   if (!match) return null;
@@ -1485,6 +1534,7 @@ function invalidPacketEvidence(
     }
   }
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
+  if (options.now === undefined && sourceSnapshotNewerThanCollectedAt(collectedAt)) invalid.push('source_snapshot');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
   if (
