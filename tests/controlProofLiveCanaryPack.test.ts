@@ -2586,6 +2586,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
     const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
     assert.equal(recordedSummaryJson.summary.readyForRelease, true);
+    assert.equal(recordedSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
     assert.equal(recordedSummaryJson.coverage.totalCases, 1);
 
     const missingScreenshotRecord = spawnSync(

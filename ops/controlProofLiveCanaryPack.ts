@@ -601,9 +601,10 @@ function main(): void {
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
+    const strictFreshSummary = releaseCheck || publishCheck || refreshRuntimeEvidence || Boolean(recordCaseId);
     const summary = summarizeControlProofCanaryObservations(
       observations,
-      releaseCheck || publishCheck || refreshRuntimeEvidence ? { maxRuntimeEvidenceAgeHours: 1 } : {}
+      strictFreshSummary ? { maxRuntimeEvidenceAgeHours: 1 } : {}
     );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases
