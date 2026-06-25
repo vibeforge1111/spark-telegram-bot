@@ -1471,22 +1471,24 @@
         }
       },
       "observed": {
-        "verdict": "untested",
-        "reply": null,
+        "verdict": "pass",
+        "reply": "Spark Recursive\nCurrent evidence shows 3 registry truth drift items; that means the running code is not fully matched to published release metadata yet.\nLive behavior can still be release-ready, but publish stays not ready until the registry drift handoff is resolved.\n\nspark-telegram-bot: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.\nspawner-ui: release branch pending registry batch. Keep it in the next verified metadata batch before claiming registry readiness.\nspark-cli: projection. Keep doctrine here; keep runtime read-model artifacts source-owned by spark-cli.\n\nThis was a read-only evidence lookup; no registry edit was made.",
         "sideEffects": {
-          "filesChanged": null,
-          "memoryWritten": null,
-          "missionStarted": null,
-          "externalNetworkCalled": null,
-          "accessChanged": null,
-          "providerChanged": null,
-          "mediaHandled": null,
-          "notes": null
+          "filesChanged": false,
+          "memoryWritten": false,
+          "missionStarted": false,
+          "externalNetworkCalled": false,
+          "accessChanged": false,
+          "providerChanged": false,
+          "mediaHandled": false,
+          "notes": "Read-only registry drift lookup after primary profile restart; no registry edit, release metadata update, push, PR, mission, or mutation observed."
         },
-        "proofJoin": null,
+        "proofJoin": "Telegram final answer carried the read-only registry drift reply from the restarted primary profile; reply distinguished release-ready behavior from publish-not-ready registry drift without raw commits or registry internals.",
         "proofPanel": null,
-        "screenshotRefs": [],
-        "userConfirmation": null,
+        "screenshotRefs": [
+          "screenshot:sha256:fef3b58a26012f979fb619574f1ccb2af6d772ed72a239511ca281e47dd7f2f4"
+        ],
+        "userConfirmation": "Verified in SparkRecursive_bot via Peekaboo screenshot digest: registry drift answer says publish stays not ready, remains read-only, and hides raw commit/classification internals.",
         "notes": null
       }
     }
