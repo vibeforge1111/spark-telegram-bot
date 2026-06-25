@@ -1024,16 +1024,16 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     /Publish gate: not ready/
   );
 
-  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"builder_trace_current_health":{"status":"current_missing_trace_refs","window":"24h","row_count":1039,"missing_trace_ref_count":480,"historical_missing_trace_ref_count":12721,"total_missing_trace_ref_count":13201,"missing_trace_ref_ratio":0.462},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":1039,"missing_trace_ref_count":480,"missing_trace_ref_ratio":0.462}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const builderTraceHealthCaveat = summarizeControlProofCanaryObservations(template);
   assert.equal(builderTraceHealthCaveat.readyForRelease, true);
   assert.equal(builderTraceHealthCaveat.readyForPublish, false);
   assert.deepEqual(builderTraceHealthCaveat.releaseCaveats, [
-    'builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs'
+    'builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs | current_status=current_missing_trace_refs | window=24h | missing_trace_refs=480 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=12721'
   ]);
   assert.match(
     formatControlProofCanaryObservationSummary(builderTraceHealthCaveat),
-    /Release caveats:\n- builder_trace_health \| flags=historical_open_high_severity_events,missing_trace_refs/
+    /Release caveats:\n- builder_trace_health \| flags=historical_open_high_severity_events,missing_trace_refs \| current_status=current_missing_trace_refs \| window=24h \| missing_trace_refs=480 \| 1h_missing_trace_refs=0 \| historical_missing_trace_refs=12721/
   );
 
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2,"canonical_runtime_dirty":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;

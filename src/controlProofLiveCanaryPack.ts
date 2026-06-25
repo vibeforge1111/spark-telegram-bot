@@ -1404,7 +1404,7 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   ) return [];
   const caveats: string[] = [];
   if (builderTraceHealthFlags.length > 0) {
-    caveats.push(`builder_trace_health | flags=${builderTraceHealthFlags.join(',')}`);
+    caveats.push(builderTraceHealthCaveat(builderTraceHealthFlags, parsed));
   }
   if (blockedReleaseCount > 0 || criticalRepoCount > 0) {
     caveats.push([
@@ -1435,6 +1435,46 @@ function safeClassificationCountSummary(classificationCounts: Record<string, unk
     .filter((entry): entry is string => Boolean(entry))
     .sort()
     .join(',');
+}
+
+function numberOrNull(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function objectOrNull(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function compileTraceWindowSummary(value: unknown, windowName: string): string | null {
+  const windows = Array.isArray(value) ? value : [];
+  const row = windows
+    .map(objectOrNull)
+    .find((entry) => String(entry?.window || '') === windowName);
+  if (!row) return null;
+  const missing = numberOrNull(row.missing_trace_ref_count);
+  if (missing === null) return null;
+  return `${windowName}_missing_trace_refs=${missing}`;
+}
+
+function builderTraceHealthCaveat(flags: string[], parsed: Record<string, unknown>): string {
+  const current = objectOrNull(parsed.builder_trace_current_health);
+  const details: string[] = [`flags=${flags.join(',')}`];
+  if (current) {
+    const status = String(current.status || '').trim();
+    const window = String(current.window || '').trim();
+    const missing = numberOrNull(current.missing_trace_ref_count);
+    const historicalMissing = numberOrNull(current.historical_missing_trace_ref_count);
+    if (/^[a-z0-9_.-]+$/i.test(status)) details.push(`current_status=${status}`);
+    if (/^[a-z0-9_.-]+$/i.test(window)) details.push(`window=${window}`);
+    if (missing !== null) details.push(`missing_trace_refs=${missing}`);
+    const oneHourSummary = compileTraceWindowSummary(parsed.builder_trace_recent_windows, '1h');
+    if (oneHourSummary) details.push(oneHourSummary);
+    if (historicalMissing !== null) details.push(`historical_missing_trace_refs=${historicalMissing}`);
+  }
+  return ['builder_trace_health', ...details].join(' | ');
 }
 
 function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): string[] {
