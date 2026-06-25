@@ -108,3 +108,4 @@ The documentation is current when:
 - No canonical doc says tracing, memory, keywords, pending state, provider output, or mission ids authorize action.
 - Every shipped control-proof slice has matching tests and matching docs.
 - The live canary suite links to current docs and records where proof should appear.
+- Builder trace-health docs distinguish active producer failures from historical integrity debt; current release evidence must show whether high-severity debt is unresolved now or only historical.

@@ -33,7 +33,7 @@ This packet captures the baseline before running the control-proof goal prompt. 
 
 Harness compile conclusion: authority coverage exists, but the trace/voice/duplicate-truth gaps are real preflight blockers for calling the cockpit recorder complete.
 
-Current-state note, 2026-06-25: this section is the original read-only baseline, not the latest release claim. The current evidence is the checked-in canary packet at `outputs/live-canary-full/live-canary-summary.md` and the embedded `spark os compile --json` transcript in `outputs/live-canary-full/live-canary-observations.json`. After the Builder guardrail-denial lifecycle repair and Spark CLI lifecycle-health update, the active compile state is `ok=true`, `gaps=0`, `dirty_repo_count=0`, and Builder trace health reports only `historical_open_high_severity_events`; current 1h trace health is clean with no missing trace refs.
+Current-state note, 2026-06-25: this section is the original read-only baseline, not the latest release claim. The current evidence is the checked-in canary packet at `outputs/live-canary-full/live-canary-summary.md` and the embedded `spark os compile --json` transcript in `outputs/live-canary-full/live-canary-observations.json`. After the Builder guardrail-denial lifecycle repair and Spark CLI lifecycle-health update, the active compile state is `ok=true`, `gaps=0`, `dirty_repo_count=0`, and Builder trace health reports only `historical_open_high_severity_events`; current 1h trace health is clean with no missing trace refs. Current compile evidence also separates historical high-severity count shape from active breakage: `high_severity_open_count=46`, `unresolved_high_severity_open_count=1`, and `current_unresolved_high_severity_open_count=0`.
 
 ## Trace Continuity
 
@@ -152,6 +152,13 @@ Update after audit gap-posture clarity on 2026-06-25 17:56 +04:
 - Commits through `0126183` added the fresh-strict audit header line `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` and refreshed the full SparkRecursive_bot canary evidence packet from a clean tree.
 - This is report clarity only: gates still depend on the structured counters and `Blocking status`. Current audit output remains blocking-clean while preserving visible historical legacy gaps in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`.
 
+Update after Builder trace caveat count hardening on 2026-06-25:
+
+- Spark CLI commit `6707e29` exposes Builder high-severity lifecycle counts in `spark os compile --json`: total historical high-severity rows, unresolved high-severity families, and current unresolved high-severity families.
+- Telegram commits `ac1e974` and `2027243` surface those aggregate counts in `builder_trace_health` release caveats and preserve the safe aggregate key names in redacted canary evidence.
+- Canary evidence commit `84ab792` refreshed the full SparkRecursive_bot packet from a clean source state. The release gate remains ready and the publish gate remains not ready; the Builder caveat now says `high_severity_open_events=46`, `unresolved_high_severity_events=1`, and `current_unresolved_high_severity_events=0`.
+- Treat `current_unresolved_high_severity_events=0` as proof that this is not a current Builder trace producer failure. Treat `unresolved_high_severity_events=1` as a Builder-owned historical integrity handoff; do not erase it from Telegram summaries and do not auto-resolve it through the expected guardrail-denial repair script.
+
 ## Surface
 
 - Raw policy reason leaks were not found in the last 100 final-answer audit rows.
@@ -219,6 +226,7 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - 2026-06-25 live smoke: writing one metadata-only `source_used` row through the Builder CLI produced a request-scoped trace ref and moved the largest `agent_event_model/source_used` repair card to `latest_clean_historical_window_debt`. Focused source-ledger CLI/model tests passed. Remaining `missing_trace_refs` are 24h/historical rows, not a current `source_used` producer failure.
   - 2026-06-25 Spark CLI/Telegram update: local CLI commit `0de4f2f` exposes Builder trace current-health and recent-window aggregates in `spark os compile --json`, and Telegram commit `d4ad344` prints those aggregates in release caveats. Current canary evidence now shows `1h_missing_trace_refs=0` alongside the 24h missing-trace debt, so future handoffs can distinguish active producer gaps from historical backlog.
   - 2026-06-25 Builder/CLI/Telegram update: Builder commit `86173c0` records expected Harness Core guardrail denials such as `tool_not_allowed_by_policy` as medium `recorded` proof while preserving integrity denials such as `owner_mismatch` as high `blocked`; it also adds `ops/resolve_expected_guardrail_denials.py` for append-only lifecycle repair. Spark CLI commit `76fed5e` makes Builder trace health honor latest lifecycle rows, so resolved high-severity families stop surfacing as active `open_high_severity_events`. Telegram commit `3257659` refreshes SparkRecursive_bot canary evidence from a clean source state; the release gate is ready with caveats and the publish gate remains not ready because repo/pin handoffs are still open.
+  - 2026-06-25 CLI/Telegram update: Spark CLI commit `6707e29` and Telegram commits `ac1e974`, `2027243`, and `84ab792` make the release caveat distinguish historical high-severity rows from unresolved historical families and current unresolved families. Current evidence reports `high_severity_open_events=46`, `unresolved_high_severity_events=1`, and `current_unresolved_high_severity_events=0`, so the publish caveat is now traceable to historical Builder integrity debt rather than active Telegram or Builder trace production.
 
 - `default_suite_gap`: all stable current `tests/*.test.ts` files are now in the default `npm test` runner.
   - Durable slice: keep new proof, routing, Telegram surface, media, streaming, and drift suites in `scripts/run-tests.cjs` unless they require live credentials or intentional live action. Optional/live suites must state why they are excluded.
@@ -231,9 +239,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Generate true inbound SparkRecursive_bot canary evidence for the proof-ref producer rows now wired in source.
+Resolve or explicitly hand off the remaining publish blockers without weakening the release gate.
 
-Reason: build/run acknowledgements, suppressed Builder final-answer rows, new route-confidence/action rows, default outbound text replies, future Spawner PRD rows, and future text/image/voice Builder gateway rows now carry, inherit, or preserve redacted proof/trace metadata locally. A local proof panel command and inspect-only `/proof` Telegram command exist, and the panel now distinguishes proof-ref joins from missing capsules. The next durable move is to send a fresh SparkRecursive_bot Builder canary and build canary, then live-confirm `/proof`.
+Reason: current SparkRecursive_bot canary evidence is release-ready, fresh-strict audit is blocking-clean, and live proof joins are represented in the full canary packet. Publish remains not ready because four owner repos are behind upstream, two installed runtimes are explicitly classified as local runtime test artifacts, and Builder has one unresolved historical high-severity integrity family. The next durable move is to reduce one of those measured publish handoffs at its owner boundary, or document why it remains intentionally deferred.
 
 ## Gate To Start Goal Prompt
 
