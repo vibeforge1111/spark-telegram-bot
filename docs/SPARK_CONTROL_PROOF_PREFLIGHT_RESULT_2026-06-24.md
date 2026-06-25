@@ -117,11 +117,17 @@ Update after embedded runtime-evidence timestamp gate on 2026-06-25 11:36 +04:
 Update after Telegram profile-env startup proof on 2026-06-25 11:58 +04:
 
 - Commit `ca128ac` loads the active Spark Telegram profile env in the main bot runtime before `.env.override`, with existing process env keys preserved. This makes `/streaming` profile persistence durable across bot restarts instead of only proven in helper commands.
-- Commit `a8f18d1` refreshed the full SparkRecursive_bot canary runtime evidence from a clean tree. The current packet reports runtime evidence collected at `2026-06-25T07:58:51.790Z`, release gate ready, and publish gate not ready because registry pin drift remains open.
+- Commit `a8f18d1` refreshed the full SparkRecursive_bot canary runtime evidence from a clean tree. That packet reported runtime evidence collected at `2026-06-25T07:58:51.790Z`, release gate ready, and publish gate not ready because registry pin drift remained open.
 - Verification for this slice passed: focused profile/streaming/recursive tests, `npm run build`, full `npm test`, `npm run sync:check`, fresh-strict audit, full canary release check, `spark providers test --role chat`, and a retry of `spark live status`.
 - The first `spark live status` check hit a transient Telegram token-check `ECONNRESET`; the immediate retry reported `Spark Live is ready`, with two Telegram profiles running, Spawner UI healthy, and `spark-telegram-bot` polling active on the primary profile.
 - The remaining release caveat is unchanged: live behavior can be release-ready while publish remains blocked until the `spark-telegram-bot` and `spawner-ui` registry pin drift handoffs are resolved.
 - Post-commit `spark os compile --json` still reports `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`; publish remains blocked by the known runtime-ahead registry pins, not by local proof gaps.
+
+Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +04:
+
+- Commits through `da9cedd` made the full SparkRecursive_bot canary packet reject stale source snapshots, classify runtime-ahead registry pin drift as `registry_pin_drift`, print release handoffs, and refresh the current runtime evidence from a clean tree.
+- The current packet reports runtime evidence collected at `2026-06-25T08:38:04.504Z`, release gate ready, and publish gate not ready because `spark-telegram-bot` and `spawner-ui` still need registry pin drift handoff or explicit local-runtime-test classification.
+- Current fresh-strict audit remains blocking-clean with zero missing evidence, trace joins, proof capsules, incomplete legacy gap backing, latest proof gaps, raw ref leaks, robotic failure reasons, or stack-like leaks. The remaining visible legacy proof-gap planes are `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`; keep them visible rather than relabeling them as green execution proof.
 
 ## Surface
 
