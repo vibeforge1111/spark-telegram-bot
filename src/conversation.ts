@@ -669,6 +669,18 @@ export class ConversationMemory {
   async isAvailable(): Promise<boolean> {
     return true;
   }
+
+  async resetUser(user: TelegramUser, keepNotes: boolean = false): Promise<void> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    this.recentByUser.delete(key);
+    this.interruptedByUser.delete(key);
+    this.frameStateByUser.delete(key);
+    if (!keepNotes) {
+      this.notesByUser.delete(key);
+    }
+    await this.persist();
+  }
 }
 
 export const conversation = new ConversationMemory();
