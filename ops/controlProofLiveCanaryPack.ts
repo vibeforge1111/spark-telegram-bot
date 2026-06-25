@@ -436,7 +436,7 @@ function formatReleaseBundleReadme(paths: {
     '',
     'The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.',
     '',
-    'If `spark os compile --json` is otherwise clean but reports duplicate-truth drift, the summary stays release-check ready and prints the drift under `Release caveats`. Runtime-ahead-of-registry-pin rows are labeled `registry_pin_drift` with safe classification counts; other duplicate-truth rows are labeled `duplicate_truth_drift`. Treat these as publish/registry handoff items, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.',
+    'If `spark os compile --json` is otherwise clean but reports repo release blocks or duplicate-truth drift, the summary stays release-check ready and prints the drift under `Release caveats`. Blocked repo release counts are labeled `repo_release_blocks`; runtime-ahead-of-registry-pin rows are labeled `registry_pin_drift` with safe classification counts; other duplicate-truth rows are labeled `duplicate_truth_drift`. Treat these as publish/registry handoff items, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.',
     '',
     'When caveats or handoffs exist, the human summary also prints `Release note: ready with caveats` so the Telegram canary gate cannot be mistaken for publish/registry completion.',
     '',

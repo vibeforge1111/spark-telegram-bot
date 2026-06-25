@@ -1384,9 +1384,18 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
     : {};
   const duplicateTruthCount = Number(repoBoard.duplicate_truth_count ?? duplicateTruths.item_count ?? 0);
   const criticalDuplicateTruthCount = Number(repoBoard.critical_duplicate_truth_count ?? 0);
+  const blockedReleaseCount = Number(repoBoard.blocked_release_count ?? 0);
+  const criticalRepoCount = Number(repoBoard.critical_repo_count ?? 0);
   const runtimeAheadCount = Number(classificationCounts.runtime_ahead_of_registry_pin ?? 0);
-  if (!duplicateTruthCount && !criticalDuplicateTruthCount && !runtimeAheadCount) return [];
+  if (!duplicateTruthCount && !criticalDuplicateTruthCount && !runtimeAheadCount && !blockedReleaseCount && !criticalRepoCount) return [];
   const caveats: string[] = [];
+  if (blockedReleaseCount > 0 || criticalRepoCount > 0) {
+    caveats.push([
+      'repo_release_blocks',
+      `blocked_release_count=${Number.isFinite(blockedReleaseCount) ? blockedReleaseCount : 0}`,
+      `critical_repo_count=${Number.isFinite(criticalRepoCount) ? criticalRepoCount : 0}`
+    ].join(' | '));
+  }
   if (runtimeAheadCount > 0 || duplicateTruthCount > 0 || criticalDuplicateTruthCount > 0) {
     const classificationSummary = safeClassificationCountSummary(classificationCounts);
     caveats.push([
