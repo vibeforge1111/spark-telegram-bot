@@ -187,6 +187,7 @@ export interface ControlProofGateDecisionDetail {
   ready: boolean;
   blockers: string[];
   caveats: string[];
+  caveatFamilies: string[];
   handoffFamilies: string[];
   handoffCount: number;
   packetEvidence: {
@@ -1962,11 +1963,33 @@ function publishHandoffFamilies(publishHandoffs: Record<string, unknown> | null)
   return Array.from(new Set(families)).sort();
 }
 
+function releaseCaveatFamilies(releaseCaveatDetails: Record<string, unknown> | null): string[] {
+  if (!releaseCaveatDetails) return [];
+  const families: string[] = [];
+  const builderTraceHealth = objectOrNull(releaseCaveatDetails.builder_trace_health);
+  if (builderTraceHealth && Array.isArray(builderTraceHealth.flags) && builderTraceHealth.flags.length > 0) {
+    families.push('builder_trace_health');
+  }
+  const repoReleaseBlocks = objectOrNull(releaseCaveatDetails.repo_release_blocks);
+  if (
+    repoReleaseBlocks &&
+    ((numberOrNull(repoReleaseBlocks.blocked_release_count) ?? 0) > 0 ||
+      (numberOrNull(repoReleaseBlocks.critical_repo_count) ?? 0) > 0)
+  ) {
+    families.push('repo_release_blocks');
+  }
+  const duplicateTruths = objectOrNull(releaseCaveatDetails.duplicate_truths);
+  const duplicateLabel = safeStringToken(duplicateTruths?.label);
+  if (duplicateLabel) families.push(duplicateLabel);
+  return Array.from(new Set(families)).sort();
+}
+
 function gateDecisionDetails(input: {
   releaseReady: boolean;
   readyForPublish: boolean;
   releaseBlockers: string[];
   releaseCaveats: string[];
+  releaseCaveatDetails: Record<string, unknown> | null;
   releaseHandoffs: string[];
   publishHandoffs: Record<string, unknown> | null;
   missingEvidence: string[];
@@ -1989,6 +2012,7 @@ function gateDecisionDetails(input: {
     ...input.releaseBlockers
   ];
   const handoffFamilies = publishHandoffFamilies(input.publishHandoffs);
+  const caveatFamilies = releaseCaveatFamilies(input.releaseCaveatDetails);
   const publishBlockers = [
     ...(!input.releaseReady ? ['release_gate_not_ready'] : []),
     ...(input.releaseCaveats.length > 0 ? ['release_caveats'] : []),
@@ -1999,6 +2023,7 @@ function gateDecisionDetails(input: {
       ready: input.releaseReady,
       blockers: releaseGateBlockers,
       caveats: [],
+      caveatFamilies: [],
       handoffFamilies: [],
       handoffCount: 0,
       packetEvidence: {
@@ -2012,6 +2037,7 @@ function gateDecisionDetails(input: {
       ready: input.readyForPublish,
       blockers: publishBlockers,
       caveats: [...input.releaseCaveats],
+      caveatFamilies,
       handoffFamilies,
       handoffCount: input.releaseHandoffs.length,
       packetEvidence: {
@@ -2639,6 +2665,7 @@ export function summarizeControlProofCanaryObservations(
     readyForPublish,
     releaseBlockers,
     releaseCaveats,
+    releaseCaveatDetails,
     releaseHandoffs,
     publishHandoffs,
     missingEvidence,
