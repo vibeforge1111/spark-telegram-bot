@@ -92,7 +92,7 @@ Update after continuity repairs:
 Update after full live canary refresh:
 
 - `outputs/live-canary-full/live-canary-summary.md` is now the current live release packet for SparkRecursive_bot control-proof canaries.
-- The full pack has 27/27 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, and real voice-note boundary proof.
+- The full pack has 28/28 passing cases with required captures present, including streaming, rich-message rendering, photo, captioned photo, audio file, real voice-note boundary proof, and the current publish/registry handoff canary.
 - The canary packet separates live behavior readiness from publish readiness. `Release gate: ready` can coexist with `Publish gate: not ready` when registry pin drift or duplicate-truth handoffs remain open.
 - Fresh-strict audit remains the current latest-row proof gate: missing evidence, missing trace joins, missing proof capsules, incomplete legacy gap backing, latest proof gaps, raw refs, raw id keys, reason-code leaks, and stack-like leaks must stay at zero.
 - Remaining `legacy proof gaps` are historical and visible in route-confidence, Builder gateway, and Spawner trace planes. They must remain inspectable; do not erase or relabel them as green execution proof.
@@ -108,6 +108,12 @@ Update after default-runner proof refresh on 2026-06-25 00:27 +04:
 - Post-commit `spark os compile --json` reported `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`. The remaining compiler gate issue is the known duplicate-truth registry drift, not an uncommitted local repo state.
 - The release rule is unchanged: the live canary packet is usable evidence, but PR/publish claims still require user confirmation of the intended live Telegram behavior.
 - The live canary bundle now includes a real machine-readable `outputs/live-canary-full/live-canary-summary.json` generated from the same summary and coverage logic as `--release-check`; future record-case commands in the run guide refresh both markdown and JSON summaries.
+
+Update after embedded runtime-evidence timestamp gate on 2026-06-25 11:36 +04:
+
+- Commit `948bb7e` made canary release validation join freshness into the embedded command transcripts, not just the packet wrapper. `spark os compile --json` must include `generated_at` or `generatedAt`, and the fresh-strict audit transcript must include its `Generated:` line; both command timestamps must be close to `evidence.collectedAt`.
+- Verification for this slice passed: focused canary-pack tests, `npm run build`, `npm run control:proof:audit -- --sample 100 --fresh-strict`, full live-canary release check, and `git diff --check`.
+- Post-commit `spark os compile --json` still reports `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`; publish remains blocked by the known runtime-ahead registry pins, not by local proof gaps.
 
 ## Surface
 
@@ -142,7 +148,7 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - Durable slice: keep these inspectable in audit and proof panels; do not relabel them as fresh authority or hide them from release packets.
 
 - `release_packet_integrity`: live canary packets must carry current, complete runtime evidence.
-  - Durable slice: release packets now reject stale runtime evidence, truncated control-proof audit bodies, non-clean blocking status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
+  - Durable slice: release packets now reject stale runtime evidence, stale embedded compile/audit command timestamps, truncated control-proof audit bodies, non-clean blocking status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
 
 - `media_payload_gap`: photo, captioned photo, audio-file, and real voice-note boundaries are live-proven as evidence-only routes.
   - Durable slice: keep richer document handling beyond metadata separate from the proven media boundary claims; do not promote document bodies or raw media into proof capsules.
