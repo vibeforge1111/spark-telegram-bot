@@ -1318,6 +1318,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
         blocked_release_repos: [
           {
             repo: 'spark-intelligence-builder',
+            releaseBlocking: false,
+            publishBlocking: true,
             risk_class: 'critical',
             reason: 'behind upstream',
             next_safe_action: 'pull or merge upstream before release',
@@ -1325,10 +1327,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           }
         ],
         local_runtime_test_artifacts: {
+          releaseBlocking: false,
+          publishBlocking: true,
           count: 2,
           owners: ['spark-telegram-bot', 'spawner-ui']
         },
         builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
           flags: ['historical_open_high_severity_events'],
           high_severity_open_count: 46,
           unresolved_high_severity_open_count: 1,
@@ -1394,6 +1400,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
             blocked_release_repos: [
               {
                 repo: 'spark-intelligence-builder',
+                releaseBlocking: false,
+                publishBlocking: true,
                 risk_class: 'critical',
                 reason: 'behind upstream',
                 next_safe_action: 'pull or merge upstream before release',
@@ -1401,10 +1409,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               }
             ],
             local_runtime_test_artifacts: {
+              releaseBlocking: false,
+              publishBlocking: true,
               count: 2,
               owners: ['spark-telegram-bot', 'spawner-ui']
             },
             builder_trace_health: {
+              releaseBlocking: false,
+              publishBlocking: true,
               flags: ['historical_open_high_severity_events'],
               high_severity_open_count: 46,
               unresolved_high_severity_open_count: 1,
@@ -1467,6 +1479,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
         blocked_release_repos: [
           {
             repo: 'spark-intelligence-builder',
+            releaseBlocking: false,
+            publishBlocking: true,
             risk_class: 'critical',
             reason: 'behind upstream',
             next_safe_action: 'pull or merge upstream before release',
@@ -1474,10 +1488,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           }
         ],
         local_runtime_test_artifacts: {
+          releaseBlocking: false,
+          publishBlocking: true,
           count: 2,
           owners: ['spark-telegram-bot', 'spawner-ui']
         },
         builder_trace_health: {
+          releaseBlocking: false,
+          publishBlocking: true,
           flags: ['historical_open_high_severity_events'],
           high_severity_open_count: 46,
           unresolved_high_severity_open_count: 1,
@@ -1579,6 +1597,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     blocked_release_repos: [
       {
         repo: 'spark-intelligence-builder',
+        releaseBlocking: false,
+        publishBlocking: true,
         risk_class: 'critical',
         reason: 'behind upstream',
         next_safe_action: 'pull or merge upstream before release',
@@ -1586,10 +1606,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       }
     ],
     local_runtime_test_artifacts: {
+      releaseBlocking: false,
+      publishBlocking: true,
       count: 2,
       owners: ['spark-telegram-bot', 'spawner-ui']
     },
     builder_trace_health: {
+      releaseBlocking: false,
+      publishBlocking: true,
       flags: ['historical_open_high_severity_events'],
       high_severity_open_count: 46,
       unresolved_high_severity_open_count: 1,

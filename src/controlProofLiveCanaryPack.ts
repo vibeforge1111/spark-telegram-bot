@@ -2002,7 +2002,11 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
       if (!entry) return null;
       const repo = safeStringToken(entry.repo);
       if (!repo) return null;
-      const item: Record<string, unknown> = { repo };
+      const item: Record<string, unknown> = {
+        repo,
+        releaseBlocking: false,
+        publishBlocking: true
+      };
       const riskClass = safeStringToken(entry.risk_class);
       const reason = safeDisplayToken(entry.reason);
       const nextSafeAction = safeDisplayToken(entry.next_safe_action);
@@ -2030,10 +2034,14 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
     families,
     blocked_release_repos: blockedReleaseRepos,
     local_runtime_test_artifacts: {
+      releaseBlocking: false,
+      publishBlocking: (numberOrNull(localRuntime?.count) || 0) > 0,
       count: numberOrNull(localRuntime?.count) || 0,
       owners: localRuntimeOwners
     },
     builder_trace_health: {
+      releaseBlocking: builderFlags.includes('open_high_severity_events'),
+      publishBlocking: builderFlags.length > 0,
       flags: builderFlags,
       high_severity_open_count: numberOrNull(builderTrace?.high_severity_open_count),
       unresolved_high_severity_open_count: numberOrNull(builderTrace?.unresolved_high_severity_open_count),

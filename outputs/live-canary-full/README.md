@@ -47,7 +47,7 @@ Builder trace-health handoffs should preserve unresolved historical family evide
 
 When `spark os compile --json` includes `publish_handoffs`, the canary summary should prefer that structured object over prose notes for release handoffs. Prose note parsing remains a compatibility path for older packets, not the primary publish-proof contract.
 
-The machine-readable `live-canary-summary.json` summary carries the sanitized `publishHandoffs` object, structured `releaseHandoffDetails`, and the human `releaseHandoffs` lines. Automation should read the structured objects first and use the display lines only for operator-facing reports.
+The machine-readable `live-canary-summary.json` summary carries the sanitized `publishHandoffs` object with normalized `releaseBlocking`/`publishBlocking` impact, structured `releaseHandoffDetails`, and the human `releaseHandoffs` lines. Automation should read the structured objects first and use the display lines only for operator-facing reports.
 
 The same JSON summary carries sanitized `releaseCaveatDetails` for release caveat counts, Builder trace-health aggregates, and normalized `releaseBlocking`/`publishBlocking` decisions. Automation should use those structured fields instead of parsing the human `releaseCaveats` strings.
 
