@@ -1552,6 +1552,7 @@ function sparkOsCompileReleaseHandoffs(value: string | null | undefined): string
   const currentUnresolvedHighSeverityOpen = numberOrNull(current.current_unresolved_high_severity_open_count) ?? 0;
   if (
     flags.includes('historical_open_high_severity_events') &&
+    !flags.includes('missing_trace_refs') &&
     unresolvedHighSeverityOpen > 0 &&
     currentUnresolvedHighSeverityOpen === 0
   ) {
