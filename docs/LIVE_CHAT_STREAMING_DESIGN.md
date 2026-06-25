@@ -521,7 +521,7 @@ Durability update, 2026-06-25:
 - The main Telegram runtime now loads the active Spark Telegram profile env before `.env.override`, with explicit process env values preserved. This closes the gap where `/streaming` could save profile defaults but a restarted bot process could still run from repo `.env` alone.
 - Profile env files are the durable source for the default-on settings above; `.env.override` remains the operator escape hatch.
 - Regression coverage now proves the main runtime loads profile env before override env, loads streaming/rich defaults from profile config, and does not overwrite an explicitly supplied runtime `BOT_TOKEN` or admin env.
-- The refreshed SparkRecursive_bot release packet at `outputs/live-canary-full/live-canary-observations.json` has runtime evidence collected at `2026-06-25T08:38:04.504Z`; it keeps release readiness separate from publish readiness.
+- The refreshed SparkRecursive_bot release packet at `outputs/live-canary-full/live-canary-observations.json` keeps release readiness separate from publish readiness; use `outputs/live-canary-full/live-canary-summary.md` for the current runtime-evidence timestamp.
 - The packet now rejects stale source snapshots and prints registry-pin drift as an explicit release caveat and handoff, so a docs/source edit must be committed and followed by a fresh runtime-evidence recapture before the packet can support a current release claim.
 
 ### Phase 1: Builder Status Events
