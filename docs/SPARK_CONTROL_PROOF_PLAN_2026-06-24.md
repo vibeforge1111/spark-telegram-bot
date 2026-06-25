@@ -179,6 +179,8 @@ When fresh runtime evidence is collected, the canary CLI joins repo release-bloc
 
 Canary summaries now promote those redacted release-block and duplicate-truth lines into `Release handoffs`, including the machine-readable JSON summary, so release tooling can inspect the same owner-repo handoff without parsing freeform notes.
 
+When duplicate-truth evidence is fully classified as `local_runtime_test_artifact`, the canary summary must emit a `spark-installer-registry` handoff. That handoff keeps local SparkRecursive proof separate from publish truth: local installed sources can remain for proof, but publish claims require ported owner commits plus registry or release metadata updates.
+
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 
 Canary summaries now distinguish `Release gate` from `Publish gate`. `Release gate: ready` means the live Telegram/control-proof canary packet is locally complete. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
