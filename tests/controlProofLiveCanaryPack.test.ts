@@ -1663,6 +1663,22 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     mkdirSync(stateRoot);
     const repoBoardPath = resolve(stateRoot, 'repo-board.json');
     writeFileSync(repoBoardPath, JSON.stringify({
+      repos: [
+        {
+          repo: 'source',
+          path: '/Users/example/.spark/modules/domain-chip-memory/source',
+          release_eligibility: 'blocked',
+          do_not_merge_reason: 'behind upstream',
+          next_safe_action: 'pull or merge upstream before release'
+        },
+        {
+          repo: 'spark-world-editor',
+          path: '/Users/example/Desktop/spark-world-editor',
+          release_eligibility: 'inspect',
+          do_not_merge_reason: 'not in installer registry',
+          next_safe_action: 'decide whether this repo should remain local, become a capability, or be ignored'
+        }
+      ],
       duplicate_truths: {
         items: [
           {
@@ -1696,7 +1712,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  "ok": true,',
       '  "gaps": 0,',
       '  "duplicate_truths": { "item_count": 2 },',
-      '  "repo_board": { "dirty_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      '  "repo_board": { "dirty_repo_count": 0, "blocked_release_count": 1, "critical_repo_count": 0, "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
       '  "gate": { "dirty_repo_count": 0, "broad_dirty_repo_count": 0 },',
       `  "outputs": { "repo_board": ${JSON.stringify(repoBoardPath)} },`,
       '  "privacy": {',
@@ -1784,14 +1800,21 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
+    assert.match(observed.evidence.notes, /Repo release-block handoff:/);
+    assert.match(observed.evidence.notes, /domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release/);
+    assert.doesNotMatch(observed.evidence.notes, /spark-world-editor: release_blocked/);
     assert.match(observed.evidence.notes, /Duplicate-truth handoff:/);
     assert.match(observed.evidence.notes, /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
     assert.match(observed.evidence.notes, /spawner-ui: warning runtime_ahead_of_registry_pin/);
     assert.match(observed.evidence.notes, /next safe action: Port and push the owner repo commit/);
     assert.doesNotMatch(observed.evidence.notes, /before live Telegram observation/);
     assert.doesNotMatch(observed.evidence.notes, new RegExp(escapeRegExp(repoBoardPath)));
+    assert.doesNotMatch(observed.evidence.notes, /\/Users\/example/);
     assert.doesNotMatch(observed.evidence.notes, /5acaeb9e5538|e5a1bd040986/);
     assert.doesNotMatch(observed.evidence.sparkLiveStatus, /primary@8789|pid=86802|127\.0\.0\.1:3333/);
+    const observedSummary = summarizeControlProofCanaryObservations(observed, { now: observed.evidence.collectedAt });
+    assert.ok(observedSummary.releaseHandoffs.includes('domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release'));
+    assert.ok(observedSummary.releaseHandoffs.includes('spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'));
 
     const staleObservations = buildControlProofCanaryObservationTemplate([
       CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
@@ -1881,10 +1904,12 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.equal(summary.readyForPublish, false);
     assert.deepEqual(summary.invalidPacketEvidence, []);
     assert.deepEqual(summary.releaseHandoffs, [
+      'domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release',
       'spark-telegram-bot: critical runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.',
       'spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.'
     ]);
-    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /Release handoffs:\n- domain-chip-memory: release_blocked/);
+    assert.match(formatControlProofCanaryObservationSummary(summary), /spark-telegram-bot: critical runtime_ahead_of_registry_pin/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

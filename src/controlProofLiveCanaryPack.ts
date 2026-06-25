@@ -1420,20 +1420,39 @@ function safeClassificationCountSummary(classificationCounts: Record<string, unk
     .join(',');
 }
 
-function duplicateTruthReleaseHandoffs(value: string | null | undefined): string[] {
+function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): string[] {
   const text = String(value || '');
-  const marker = 'Duplicate-truth handoff:';
+  return [
+    ...releaseBlockHandoffLines(text),
+    ...duplicateTruthHandoffLines(text)
+  ];
+}
+
+function handoffSectionLines(text: string, marker: string): string[] {
   const markerIndex = text.indexOf(marker);
   if (markerIndex === -1) return [];
-  return text
-    .slice(markerIndex + marker.length)
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('- '))
-    .map((line) => line.slice(2).trim())
+  const lines: string[] = [];
+  for (const rawLine of text.slice(markerIndex + marker.length).split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (!line.startsWith('- ')) break;
+    const handoff = line.slice(2).trim();
+    if (handoff && !proofPanelLeaksRawInternals(handoff)) lines.push(handoff);
+  }
+  return lines;
+}
+
+function releaseBlockHandoffLines(text: string): string[] {
+  return handoffSectionLines(text, 'Repo release-block handoff:')
     .filter((line) =>
-      /^[a-z0-9_.-]+:\s+(?:critical|warning|info)\s+[a-z0-9_.-]+(?:;\s+next safe action:\s+.+)?$/i.test(line) &&
-      !proofPanelLeaksRawInternals(line)
+      /^[a-z0-9_.-]+:\s+release_blocked(?:;\s+reason:\s+.+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
+    );
+}
+
+function duplicateTruthHandoffLines(text: string): string[] {
+  return handoffSectionLines(text, 'Duplicate-truth handoff:')
+    .filter((line) =>
+      /^[a-z0-9_.-]+:\s+(?:critical|warning|info)\s+[a-z0-9_.-]+(?:;\s+next safe action:\s+.+)?$/i.test(line)
     );
 }
 
@@ -1809,7 +1828,7 @@ export function summarizeControlProofCanaryObservations(
     staleEvidence.length === 0 &&
     cases.every((entry) => entry.verdict === 'pass' && entry.missingCaptures.length === 0);
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
-  const releaseHandoffs = duplicateTruthReleaseHandoffs(observations.evidence?.notes);
+  const releaseHandoffs = runtimeEvidenceReleaseHandoffs(observations.evidence?.notes);
   const readyForPublish = readyForRelease && releaseCaveats.length === 0 && releaseHandoffs.length === 0;
   return {
     target: observations.target,

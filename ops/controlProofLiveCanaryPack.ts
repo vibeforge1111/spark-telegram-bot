@@ -229,9 +229,12 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
     rawStdoutByLabel.set(label, result.stdout || '');
     byLabel.set(label, summarizeCommandResult(label, command, args, result.status, result.stdout, result.stderr, result.error));
   }
-  const duplicateTruthHandoff = duplicateTruthHandoffFromSparkOsCompile(rawStdoutByLabel.get('spark_os_compile') || '');
+  const sparkOsCompileStdout = rawStdoutByLabel.get('spark_os_compile') || '';
+  const releaseBlockHandoff = releaseBlockHandoffFromSparkOsCompile(sparkOsCompileStdout);
+  const duplicateTruthHandoff = duplicateTruthHandoffFromSparkOsCompile(sparkOsCompileStdout);
   const notes = [
     'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    releaseBlockHandoff,
     duplicateTruthHandoff
   ].filter(Boolean).join('\n');
   return {
@@ -245,7 +248,7 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
   };
 }
 
-function duplicateTruthHandoffFromSparkOsCompile(stdout: string): string | null {
+function repoBoardFromSparkOsCompile(stdout: string): Record<string, unknown> | null {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(stdout) as Record<string, unknown>;
@@ -257,12 +260,50 @@ function duplicateTruthHandoffFromSparkOsCompile(stdout: string): string | null 
     : {};
   const repoBoardPath = typeof outputs.repo_board === 'string' ? outputs.repo_board : null;
   if (!repoBoardPath) return null;
-  let repoBoard: Record<string, unknown>;
   try {
-    repoBoard = JSON.parse(readFileSync(repoBoardPath, 'utf8')) as Record<string, unknown>;
+    return JSON.parse(readFileSync(repoBoardPath, 'utf8')) as Record<string, unknown>;
   } catch {
     return null;
   }
+}
+
+function releaseBlockHandoffFromSparkOsCompile(stdout: string): string | null {
+  const repoBoard = repoBoardFromSparkOsCompile(stdout);
+  if (!repoBoard) return null;
+  const repos = Array.isArray(repoBoard.repos) ? repoBoard.repos : [];
+  const lines = repos
+    .map((item) => releaseBlockHandoffLine(item))
+    .filter((line): line is string => Boolean(line));
+  if (lines.length === 0) return null;
+  return ['Repo release-block handoff:', ...lines.map((line) => `- ${line}`)].join('\n');
+}
+
+function releaseBlockHandoffLine(item: unknown): string | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const record = item as Record<string, unknown>;
+  if (safeHandoffToken(record.release_eligibility) !== 'blocked') return null;
+  const repo = safeRepoNameFromBoardItem(record);
+  const reason = safeHandoffText(record.do_not_merge_reason);
+  const nextSafeAction = safeHandoffText(record.next_safe_action);
+  if (!repo) return null;
+  return [
+    `${repo}: release_blocked`,
+    reason ? `reason: ${reason}` : null,
+    nextSafeAction ? `next safe action: ${nextSafeAction}` : null
+  ].filter(Boolean).join('; ');
+}
+
+function safeRepoNameFromBoardItem(record: Record<string, unknown>): string | null {
+  const repo = safeHandoffToken(record.repo);
+  if (repo && repo !== 'source') return repo;
+  const path = String(record.path || '');
+  const moduleMatch = path.match(/\/modules\/([^/]+)\/source$/);
+  return safeHandoffToken(moduleMatch?.[1]);
+}
+
+function duplicateTruthHandoffFromSparkOsCompile(stdout: string): string | null {
+  const repoBoard = repoBoardFromSparkOsCompile(stdout);
+  if (!repoBoard) return null;
   const duplicateTruths = repoBoard.duplicate_truths && typeof repoBoard.duplicate_truths === 'object' && !Array.isArray(repoBoard.duplicate_truths)
     ? repoBoard.duplicate_truths as Record<string, unknown>
     : {};
@@ -440,7 +481,7 @@ function formatReleaseBundleReadme(paths: {
     '',
     'When caveats or handoffs exist, the human summary also prints `Release note: ready with caveats` so the Telegram canary gate cannot be mistaken for publish/registry completion.',
     '',
-    'When the observation packet includes duplicate-truth handoff notes, the markdown and JSON summaries also print `Release handoffs` so the owner repo and next safe action are visible without reading raw system-map artifacts.',
+    'When the observation packet includes release-block or duplicate-truth handoff notes, the markdown and JSON summaries also print `Release handoffs` so the owner repo and next safe action are visible without reading raw system-map artifacts.',
     '',
     'Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.',
     '',
