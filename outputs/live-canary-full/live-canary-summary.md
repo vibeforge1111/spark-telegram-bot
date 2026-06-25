@@ -17,6 +17,7 @@ Verdicts:
 Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
+- builder_trace_health | flags=missing_trace_refs
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=0
 - registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1
 

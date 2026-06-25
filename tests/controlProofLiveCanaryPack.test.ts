@@ -1024,6 +1024,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     /Publish gate: not ready/
   );
 
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":["missing_trace_refs","historical_open_high_severity_events"],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const builderTraceHealthCaveat = summarizeControlProofCanaryObservations(template);
+  assert.equal(builderTraceHealthCaveat.readyForRelease, true);
+  assert.equal(builderTraceHealthCaveat.readyForPublish, false);
+  assert.deepEqual(builderTraceHealthCaveat.releaseCaveats, [
+    'builder_trace_health | flags=historical_open_high_severity_events,missing_trace_refs'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(builderTraceHealthCaveat),
+    /Release caveats:\n- builder_trace_health \| flags=historical_open_high_severity_events,missing_trace_refs/
+  );
+
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2,"canonical_runtime_dirty":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const registryPinDrift = summarizeControlProofCanaryObservations(template);
   assert.equal(registryPinDrift.readyForRelease, true);

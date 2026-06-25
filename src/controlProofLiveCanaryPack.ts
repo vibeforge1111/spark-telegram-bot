@@ -1378,6 +1378,12 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   const duplicateTruths = parsed.duplicate_truths && typeof parsed.duplicate_truths === 'object' && !Array.isArray(parsed.duplicate_truths)
     ? parsed.duplicate_truths as Record<string, unknown>
     : {};
+  const builderTraceHealthFlags = Array.isArray(parsed.builder_trace_health_flags)
+    ? parsed.builder_trace_health_flags
+      .map((entry) => String(entry || '').trim())
+      .filter((entry) => /^[a-z0-9_.-]+$/i.test(entry))
+      .sort()
+    : [];
   const classificationCounts = duplicateTruths.classification_counts &&
     typeof duplicateTruths.classification_counts === 'object' &&
     !Array.isArray(duplicateTruths.classification_counts)
@@ -1388,8 +1394,18 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   const blockedReleaseCount = Number(repoBoard.blocked_release_count ?? 0);
   const criticalRepoCount = Number(repoBoard.critical_repo_count ?? 0);
   const runtimeAheadCount = Number(classificationCounts.runtime_ahead_of_registry_pin ?? 0);
-  if (!duplicateTruthCount && !criticalDuplicateTruthCount && !runtimeAheadCount && !blockedReleaseCount && !criticalRepoCount) return [];
+  if (
+    !duplicateTruthCount &&
+    !criticalDuplicateTruthCount &&
+    !runtimeAheadCount &&
+    !blockedReleaseCount &&
+    !criticalRepoCount &&
+    builderTraceHealthFlags.length === 0
+  ) return [];
   const caveats: string[] = [];
+  if (builderTraceHealthFlags.length > 0) {
+    caveats.push(`builder_trace_health | flags=${builderTraceHealthFlags.join(',')}`);
+  }
   if (blockedReleaseCount > 0 || criticalRepoCount > 0) {
     caveats.push([
       'repo_release_blocks',
