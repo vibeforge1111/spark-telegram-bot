@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-25T16:17:14.659Z
-Runtime evidence collected: 2026-06-25T16:17:14.659Z
-Runtime evidence expires: 2026-06-25T17:17:14.659Z (1h window)
+Generated: 2026-06-25T16:21:59.807Z
+Runtime evidence collected: 2026-06-25T16:21:59.807Z
+Runtime evidence expires: 2026-06-25T17:21:59.807Z (1h window)
 Cases: 28
 Release gate: ready
 Publish gate: not ready
@@ -19,13 +19,12 @@ Release note: ready with caveats; complete the listed handoffs before publish/re
 Release caveats:
 - builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
 - repo_release_blocks | blocked_release_count=4 | critical_repo_count=0
-- registry_pin_drift | classifications=local_runtime_test_artifact:1,runtime_ahead_of_registry_pin:1 | duplicate_truth_count=2 | critical_duplicate_truth_count=0
+- duplicate_truth_drift | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0
 
 Release handoffs:
 - domain-chip-memory: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
 - spark-intelligence-builder: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
 - spark-researcher: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
 - spawner-ui: release_blocked; reason: behind upstream; next safe action: pull or merge upstream before release
-- spawner-ui: warning runtime_ahead_of_registry_pin; next safe action: Port and push the owner repo commit, update registry/release metadata, or explicitly keep this installed source classified as a local runtime test artifact.
 
 All selected canaries passed with required captures present.
