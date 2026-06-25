@@ -158,6 +158,8 @@ export interface ControlProofCanaryObservationSummary {
   target: string;
   generatedAt: string;
   runtimeEvidenceCollectedAt: string | null;
+  runtimeEvidenceMaxAgeHours: number;
+  runtimeEvidenceExpiresAt: string | null;
   totalCases: number;
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
@@ -1146,6 +1148,20 @@ function stalePacketEvidence(
   return nowMs - collectedMs > maxAgeMs ? ['runtime_evidence_collected_at'] : [];
 }
 
+function runtimeEvidenceMaxAgeHours(value: number | undefined): number {
+  return Math.max(1, value || 24);
+}
+
+function runtimeEvidenceExpiresAt(
+  observations: ControlProofCanaryObservationTemplate,
+  maxAgeHours: number
+): string | null {
+  const collectedAt = String(observations.evidence?.collectedAt || '').trim();
+  const collectedMs = Date.parse(collectedAt);
+  if (!Number.isFinite(collectedMs)) return null;
+  return new Date(collectedMs + maxAgeHours * 60 * 60 * 1000).toISOString();
+}
+
 function commandEvidencePassed(value: string): boolean | null {
   const match = value.match(/(?:^|\n)exit=(-?\d+)(?:\n|$)/);
   if (!match) return null;
@@ -1501,9 +1517,10 @@ export function summarizeControlProofCanaryObservations(
   });
   const missingEvidence = missingPacketEvidence(observations);
   const invalidEvidence = invalidPacketEvidence(observations);
+  const maxAgeHours = runtimeEvidenceMaxAgeHours(options.maxRuntimeEvidenceAgeHours);
   const staleEvidence = stalePacketEvidence(observations, {
     now: options.now,
-    maxAgeHours: options.maxRuntimeEvidenceAgeHours
+    maxAgeHours
   });
   const readyForRelease = cases.length > 0 &&
     missingEvidence.length === 0 &&
@@ -1516,6 +1533,8 @@ export function summarizeControlProofCanaryObservations(
     target: observations.target,
     generatedAt: observations.generatedAt,
     runtimeEvidenceCollectedAt: observations.evidence?.collectedAt || null,
+    runtimeEvidenceMaxAgeHours: maxAgeHours,
+    runtimeEvidenceExpiresAt: runtimeEvidenceExpiresAt(observations, maxAgeHours),
     totalCases: observations.cases.length,
     verdictCounts,
     readyForRelease,
@@ -1534,6 +1553,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     '',
     `Generated: ${summary.generatedAt}`,
     `Runtime evidence collected: ${summary.runtimeEvidenceCollectedAt || 'missing'}`,
+    `Runtime evidence expires: ${summary.runtimeEvidenceExpiresAt || 'missing'} (${summary.runtimeEvidenceMaxAgeHours}h window)`,
     `Cases: ${summary.totalCases}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
     '',

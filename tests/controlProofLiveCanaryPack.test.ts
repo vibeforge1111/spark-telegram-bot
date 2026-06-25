@@ -106,7 +106,7 @@ test('control-proof canary pack covers the current Harness Core behavior areas',
 test('checked-in full canary summary JSON matches the observation packet', () => {
   const observations = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
   const summaryJson = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-summary.json'), 'utf8'));
-  const summary = summarizeControlProofCanaryObservations(observations);
+  const summary = summarizeControlProofCanaryObservations(observations, { maxRuntimeEvidenceAgeHours: 1 });
   const observedCases = selectControlProofCanaryCases(CONTROL_PROOF_LIVE_CANARY_CASES, {
     caseIds: observations.cases.map((entry: { id: string }) => entry.id),
     includeActions: true
@@ -114,6 +114,8 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   const coverage = summarizeControlProofCanaryCoverage(observedCases);
 
   assert.equal(summaryJson.summary.runtimeEvidenceCollectedAt, observations.evidence.collectedAt);
+  assert.equal(summaryJson.summary.runtimeEvidenceMaxAgeHours, summary.runtimeEvidenceMaxAgeHours);
+  assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -348,12 +350,15 @@ test('observation summary requires pass verdicts and all requested capture evide
   const summary = summarizeControlProofCanaryObservations(template);
   assert.equal(summary.readyForRelease, true);
   assert.match(String(summary.runtimeEvidenceCollectedAt), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(summary.runtimeEvidenceMaxAgeHours, 24);
+  assert.match(String(summary.runtimeEvidenceExpiresAt), /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(summary.stalePacketEvidence, []);
   assert.equal(summary.verdictCounts.pass, 1);
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
+  assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence expires: \d{4}-\d{2}-\d{2}T.*\(24h window\)/);
 
   template.cases[0].observed.reply = 'Mission\nProvider\nMove';
   const roboticReply = summarizeControlProofCanaryObservations(template);
@@ -465,6 +470,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     now: '2026-06-24T01:00:00.000Z'
   });
   assert.equal(stalePacketEvidence.readyForRelease, false);
+  assert.equal(stalePacketEvidence.runtimeEvidenceExpiresAt, '2026-06-24T00:00:00.000Z');
   assert.deepEqual(stalePacketEvidence.stalePacketEvidence, ['runtime_evidence_collected_at']);
   assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
 
