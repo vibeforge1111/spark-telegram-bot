@@ -162,6 +162,7 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
     ['spark_live_status', 'spark', ['live', 'status']],
     ['provider_status', 'spark', ['providers', 'test', '--role', 'chat']],
     ['runtime_sync', 'npm', ['run', 'sync:check']],
+    ['spark_os_compile', 'spark', ['os', 'compile', '--json']],
     ['control_proof_audit', 'npm', ['run', 'control:proof:audit', '--', '--sample', '100', '--fresh-strict']]
   ]);
 }
@@ -182,6 +183,7 @@ function collectRuntimeEvidenceFromCommands(commands: [string, string, string[]]
     sparkLiveStatus: byLabel.get('spark_live_status') || null,
     providerStatus: byLabel.get('provider_status') || null,
     runtimeSync: byLabel.get('runtime_sync') || null,
+    sparkOsCompile: byLabel.get('spark_os_compile') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
     notes: 'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.'
   };
@@ -207,7 +209,7 @@ function summarizeCommandResult(
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<redacted-token>')
     .replace(/\s+\n/g, '\n')
     .trim();
-  const maxOutputLength = label === 'control_proof_audit' ? 24_000 : 2400;
+  const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' ? 24_000 : 2400;
   const snippet = output.length > maxOutputLength
     ? `${output.slice(0, 1200)}\n...\n${output.slice(-1200)}`
     : output;

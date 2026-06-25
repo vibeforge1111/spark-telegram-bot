@@ -159,7 +159,9 @@ Harness Proof panels now keep non-execution evidence separate from execution-pro
 
 Telegram unsupported media now has typed evidence-only envelopes for video, animation, sticker, and video-note turns as well as documents. These paths acknowledge the media with redacted proof context and still do not analyze, store, or execute anything from the payload.
 
-Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, and fresh-strict proof audit before it can claim release readiness.
+Canary release packets now record when runtime evidence was collected and reject stale evidence. A previously green observation file must be refreshed with current `spark live status`, provider status, runtime sync, `spark os compile --json`, and fresh-strict proof audit before it can claim release readiness.
+
+Canary runtime evidence treats `spark os compile --json` as a first-class proof contract: the packet must show `ok: true`, `gaps: 0`, and no privacy raw-read flags. Registry duplicate-truth drift stays visible in the captured compiler output, but it does not by itself block the Telegram live canary gate unless it produces measured compile gaps.
 
 Fresh-strict audit summaries now report `latest proof gaps` separately from historical `legacy proof gaps`. Release evidence must show `latest proof gaps: 0`; historical gaps remain visible instead of being rewritten into fresh authority.
 

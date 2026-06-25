@@ -44,6 +44,23 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'Gap planes:',
   '- legacy proof gaps: telegram_outbound, telegram_route_confidence, builder_gateway, spawner_prd_trace'
 ].join('\n');
+const CLEAN_SPARK_OS_COMPILE = [
+  '$ spark os compile --json',
+  'exit=0',
+  JSON.stringify({
+    ok: true,
+    gaps: 0,
+    duplicate_truths: { item_count: 2 },
+    repo_board: { duplicate_truth_count: 2, critical_duplicate_truth_count: 1 },
+    privacy: {
+      raw_secret_values_read: false,
+      raw_logs_read: false,
+      raw_conversation_content_read: false,
+      raw_memory_evidence_read: false,
+      sqlite_row_contents_read: false
+    }
+  }, null, 2)
+].join('\n');
 const CLEAN_PROOF_PANEL = [
   'Harness Proof',
   'Intent: builder_gateway.plain_chat',
@@ -285,6 +302,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     sparkLiveStatus: 'Spark Live healthy: primary and sparkqa-bot running.',
     providerStatus: 'chat provider ping OK.',
     runtimeSync: 'runtime in sync.',
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
@@ -411,6 +429,13 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.sparkOsCompile = null;
+  const missingCompileEvidence = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingCompileEvidence.readyForRelease, false);
+  assert.deepEqual(missingCompileEvidence.missingPacketEvidence, ['spark_os_compile']);
+  assert.match(formatControlProofCanaryObservationSummary(missingCompileEvidence), /Packet evidence missing: spark_os_compile/);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
   template.evidence.collectedAt = '2026-06-23T00:00:00.000Z';
   const stalePacketEvidence = summarizeControlProofCanaryObservations(template, {
     now: '2026-06-24T01:00:00.000Z'
@@ -433,6 +458,7 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     sparkLiveStatus: 'Spark Live healthy.',
     providerStatus: 'Provider ping OK.',
     runtimeSync: 'runtime in sync.',
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
@@ -479,6 +505,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     sparkLiveStatus: 'Spark Live healthy.',
     providerStatus: 'Provider ping OK.',
     runtimeSync: 'runtime in sync.',
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
@@ -555,6 +582,23 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const dirtyProvider = summarizeControlProofCanaryObservations(template);
   assert.equal(dirtyProvider.readyForRelease, false);
   assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = 'Provider ping OK.';
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":false,"gaps":1}';
+  const dirtyCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyCompile.readyForRelease, false);
+  assert.deepEqual(dirtyCompile.invalidPacketEvidence, ['spark_os_compile']);
+  assert.match(formatControlProofCanaryObservationSummary(dirtyCompile), /Packet evidence invalid: spark_os_compile/);
+
+  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"privacy":{"raw_logs_read":true}}';
+  const compileRawPrivacyRead = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileRawPrivacyRead.readyForRelease, false);
+  assert.deepEqual(compileRawPrivacyRead.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
+  const compileDriftVisibleButClean = summarizeControlProofCanaryObservations(template);
+  assert.equal(compileDriftVisibleButClean.readyForRelease, true);
+  assert.deepEqual(compileDriftVisibleButClean.invalidPacketEvidence, []);
 });
 
 test('observation summary rejects unfilled run-guide placeholders as missing captures', () => {
@@ -565,6 +609,7 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
     sparkLiveStatus: 'Spark Live healthy.',
     providerStatus: 'Provider ping OK.',
     runtimeSync: 'runtime in sync.',
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
@@ -603,6 +648,7 @@ test('observation recorder updates one case while preserving packet evidence', (
     sparkLiveStatus: 'Spark Live healthy.',
     providerStatus: 'Provider ping OK.',
     runtimeSync: 'runtime in sync.',
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: 'Collected locally.'
   });
@@ -852,6 +898,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       sparkLiveStatus: 'Spark Live healthy.',
       providerStatus: 'Provider ping OK.',
       runtimeSync: 'runtime in sync.',
+      sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 4', 'legacy proof gaps: 3'),
       notes: null
     });
@@ -911,6 +958,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       sparkLiveStatus: 'Spark Live healthy.',
       providerStatus: 'Provider ping OK.',
       runtimeSync: 'runtime in sync.',
+      sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
       notes: null
     };
@@ -1005,6 +1053,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         sparkLiveStatus: 'Spark Live healthy.',
         providerStatus: 'Provider ping OK.',
         runtimeSync: 'runtime in sync.',
+        sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
         controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
         notes: null
       }
@@ -1147,6 +1196,22 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '#!/bin/sh',
       'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; echo "Relay runtime: OK (primary@8789 pid=86802 polling=active)"; echo "Board: http://127.0.0.1:3333/kanban"; exit 0; fi',
       'if [ "$1 $2 $3" = "providers test --role" ]; then echo "chat provider PING_OK"; exit 0; fi',
+      'if [ "$1 $2 $3" = "os compile --json" ]; then cat <<JSON',
+      '{',
+      '  "ok": true,',
+      '  "gaps": 0,',
+      '  "duplicate_truths": { "item_count": 2 },',
+      '  "repo_board": { "duplicate_truth_count": 2, "critical_duplicate_truth_count": 1 },',
+      '  "privacy": {',
+      '    "raw_secret_values_read": false,',
+      '    "raw_logs_read": false,',
+      '    "raw_conversation_content_read": false,',
+      '    "raw_memory_evidence_read": false,',
+      '    "sqlite_row_contents_read": false',
+      '  }',
+      '}',
+      'JSON',
+      'exit 0; fi',
       'echo "unexpected spark args: $*" >&2',
       'exit 1'
     ].join('\n'), 'utf8');
@@ -1203,6 +1268,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
     assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_outbound/);
     assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
+    assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
+    assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
+    assert.match(observed.evidence.sparkOsCompile, /"duplicate_truth_count": 2/);
+    assert.doesNotMatch(observed.evidence.sparkOsCompile, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
@@ -1238,6 +1307,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshed.stdout, /Refreshed control-proof runtime evidence/);
     const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.match(refreshedObserved.evidence.sparkOsCompile, /"ok": true/);
     assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
     assert.equal(refreshedObserved.cases[0].observed.reply, 'preserve this recorded reply');
 

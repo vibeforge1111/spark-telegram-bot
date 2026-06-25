@@ -82,6 +82,7 @@ export interface ControlProofCanaryObservationTemplate {
     sparkLiveStatus: string | null;
     providerStatus: string | null;
     runtimeSync: string | null;
+    sparkOsCompile: string | null;
     controlProofAudit: string | null;
     notes: string | null;
   };
@@ -93,6 +94,7 @@ export interface ControlProofCanaryRuntimeEvidence {
   sparkLiveStatus: string | null;
   providerStatus: string | null;
   runtimeSync: string | null;
+  sparkOsCompile: string | null;
   controlProofAudit: string | null;
   notes?: string | null;
 }
@@ -993,6 +995,7 @@ export function buildControlProofCanaryObservationTemplate(
       sparkLiveStatus: null,
       providerStatus: null,
       runtimeSync: null,
+      sparkOsCompile: null,
       controlProofAudit: null,
       notes: null
     },
@@ -1046,6 +1049,7 @@ export function withControlProofCanaryRuntimeEvidence(
       sparkLiveStatus: evidence.sparkLiveStatus,
       providerStatus: evidence.providerStatus,
       runtimeSync: evidence.runtimeSync,
+      sparkOsCompile: evidence.sparkOsCompile,
       controlProofAudit: evidence.controlProofAudit,
       notes: evidence.notes || observations.evidence.notes || null
     }
@@ -1104,6 +1108,7 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
     sparkLiveStatus: null,
     providerStatus: null,
     runtimeSync: null,
+    sparkOsCompile: null,
     controlProofAudit: null
   };
   const missing: string[] = [];
@@ -1111,6 +1116,7 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
   if (!String(evidence.sparkLiveStatus || '').trim()) missing.push('spark_live_status');
   if (!String(evidence.providerStatus || '').trim()) missing.push('provider_status');
   if (!String(evidence.runtimeSync || '').trim()) missing.push('runtime_sync');
+  if (!String(evidence.sparkOsCompile || '').trim()) missing.push('spark_os_compile');
   if (!String(evidence.controlProofAudit || '').trim()) missing.push('control_proof_audit');
   return missing;
 }
@@ -1167,6 +1173,33 @@ function hasCleanControlProofAudit(value: string): boolean {
     !/\bmissing (?:evidence|trace joins|proof capsules):\s*[1-9]/i.test(value);
 }
 
+function parseFirstJsonObject(value: string): Record<string, unknown> | null {
+  const start = value.indexOf('{');
+  const end = value.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(value.slice(start, end + 1));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function hasCleanSparkOsCompile(value: string): boolean {
+  const parsed = parseFirstJsonObject(value);
+  if (!parsed) {
+    return /"ok"\s*:\s*true/i.test(value) && /"gaps"\s*:\s*0/i.test(value);
+  }
+  if (parsed.ok !== true) return false;
+  if (Number(parsed.gaps) !== 0) return false;
+  const privacy = parsed.privacy && typeof parsed.privacy === 'object' && !Array.isArray(parsed.privacy)
+    ? parsed.privacy as Record<string, unknown>
+    : null;
+  if (privacy && Object.values(privacy).some((entry) => entry === true)) return false;
+  return true;
+}
+
 function legacyProofGapsAreInspectable(value: string): boolean {
   const match = value.match(/legacy proof gaps:\s*(\d+)/i);
   if (!match) return true;
@@ -1174,11 +1207,15 @@ function legacyProofGapsAreInspectable(value: string): boolean {
   return /Gap planes:/i.test(value) && /legacy proof gaps:\s*[a-z_]/i.test(value);
 }
 
-function validRuntimeEvidenceValue(value: string | null | undefined, kind: 'spark_live_status' | 'provider_status' | 'runtime_sync' | 'control_proof_audit'): boolean {
+function validRuntimeEvidenceValue(
+  value: string | null | undefined,
+  kind: 'spark_live_status' | 'provider_status' | 'runtime_sync' | 'spark_os_compile' | 'control_proof_audit'
+): boolean {
   const normalized = String(value || '').trim();
   if (!normalized) return false;
   const commandStatus = commandEvidencePassed(normalized);
   if (commandStatus === false) return false;
+  if (kind === 'spark_os_compile') return hasCleanSparkOsCompile(normalized);
   if (kind === 'control_proof_audit') return hasCleanControlProofAudit(normalized);
   if (commandStatus === true) return true;
   if (kind === 'runtime_sync') return /\bruntime in sync\b/i.test(normalized);
@@ -1192,12 +1229,14 @@ function invalidPacketEvidence(observations: ControlProofCanaryObservationTempla
     sparkLiveStatus: null,
     providerStatus: null,
     runtimeSync: null,
+    sparkOsCompile: null,
     controlProofAudit: null
   };
   const invalid: string[] = [];
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
+  if (String(evidence.sparkOsCompile || '').trim() && !validRuntimeEvidenceValue(evidence.sparkOsCompile, 'spark_os_compile')) invalid.push('spark_os_compile');
   if (String(evidence.controlProofAudit || '').trim() && !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit')) invalid.push('control_proof_audit');
   return invalid;
 }
