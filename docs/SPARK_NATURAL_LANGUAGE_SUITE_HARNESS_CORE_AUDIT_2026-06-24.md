@@ -227,3 +227,23 @@ Result:
 - The old NL suite should still be kept as fast breadth and promotion source material.
 - The Harness map still shows hidden mutations in old "safe" cases, so converting the old suite in place would blur authority proof.
 - Streaming and rich-message proof remains in `control:proof:canaries`, with screenshot and user-confirmation capture required for both current Telegram-feel checks.
+
+## 2026-06-25 Recheck
+
+The decision still holds after the source-staleness and duplicate-truth canary hardening slices.
+
+Commands checked:
+
+```bash
+npm run nl:harness-map -- --cases memory-001,access-002,mission-001
+npm run control:proof:canaries -- --category streaming --checklist
+npm run control:proof:canaries -- --category rich_messages --checklist
+npm run control:proof:canaries -- --list
+```
+
+Result:
+
+- `memory-001`, `access-002`, and `mission-001` still require intentional-action confirmation when mapped into Harness Core shape. The old `safe` label is useful legacy metadata, not authority.
+- Streaming and rich-message checks remain explicit canary categories with screenshot or user-confirmation capture. They should not be judged through the synthetic route-boundary harness because that path does not prove the live Telegram rendering experience.
+- The control-proof canary pack now also rejects stale source snapshots and keeps duplicate-truth publish caveats classified, so promoted NL prompts must land in that pack or an equivalent Harness-shaped packet before they can support release claims.
+- Keep refurbishing by promotion, not conversion: old NL cases stay fast breadth coverage, while promoted cases carry authority, mutation class, proof join, side-effect expectation, reply shape, and live evidence.
