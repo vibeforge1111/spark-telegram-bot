@@ -5,6 +5,7 @@ import {
   renderUnsupportedTelegramMediaReply,
   telegramMediaTurnKind
 } from '../src/telegramMediaEnvelope';
+import { lintTelegramReplySafety } from './conversationStyleLint';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -154,4 +155,5 @@ test('unsupported media reply is human and does not sound like raw policy', () =
   assert.match(reply, /I received that file/);
   assert.match(reply, /will not execute anything/);
   assert.doesNotMatch(reply, /tool_not_allowed_by_policy|owner_mismatch|route_not_selected/i);
+  assert.deepEqual(lintTelegramReplySafety(reply), []);
 });
