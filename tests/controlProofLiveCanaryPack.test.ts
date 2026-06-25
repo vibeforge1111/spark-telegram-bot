@@ -31,9 +31,12 @@ function test(name: string, fn: () => void): void {
 }
 
 const ROOT = resolve(__dirname, '..');
-const CLEAN_CONTROL_PROOF_AUDIT = [
+const TEST_RUNTIME_COLLECTED_AT = new Date().toISOString();
+function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
+  return [
   '$ npm run control:proof:audit -- --sample 100 --fresh-strict',
   'exit=0',
+  `Generated: ${generatedAt}`,
   'Blocking status: clean',
   'telegram_final_answer: 100/100 sampled | latest_gap no',
   'telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
@@ -54,10 +57,14 @@ const CLEAN_CONTROL_PROOF_AUDIT = [
   'Gap planes:',
   '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace'
 ].join('\n');
-const CLEAN_SPARK_OS_COMPILE = [
+}
+const CLEAN_CONTROL_PROOF_AUDIT = cleanControlProofAudit();
+function cleanSparkOsCompile(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
+  return [
   '$ spark os compile --json',
   'exit=0',
   JSON.stringify({
+    generated_at: generatedAt,
     ok: true,
     gaps: 0,
     duplicate_truths: { item_count: 2 },
@@ -72,6 +79,8 @@ const CLEAN_SPARK_OS_COMPILE = [
     }
   }, null, 2)
 ].join('\n');
+}
+const CLEAN_SPARK_OS_COMPILE = cleanSparkOsCompile();
 const CLEAN_SPARK_LIVE_STATUS = [
   '$ spark live status',
   'exit=0',
@@ -819,7 +828,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(dirtyRuntimeCompile.readyForRelease, false);
   assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
 
-  template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}';
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const publishCleanCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(publishCleanCompile.readyForRelease, true);
   assert.equal(publishCleanCompile.readyForPublish, true);
@@ -848,6 +857,18 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     /Publish gate: not ready/
   );
 
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-23T23:40:00.000Z');
+  const staleEmbeddedCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleEmbeddedCompile.readyForRelease, false);
+  assert.deepEqual(staleEmbeddedCompile.invalidPacketEvidence, ['spark_os_compile']);
+
+  template.evidence.sparkOsCompile = CLEAN_SPARK_OS_COMPILE;
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-23T23:40:00.000Z');
+  const staleEmbeddedAudit = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleEmbeddedAudit.readyForRelease, false);
+  assert.deepEqual(staleEmbeddedAudit.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.generatedAt = 'June 24, 2026 00:00 UTC';
   const looseGeneratedAt = summarizeControlProofCanaryObservations(template);
   assert.equal(looseGeneratedAt.readyForRelease, false);
@@ -856,6 +877,8 @@ test('observation summary rejects dirty runtime evidence even when packet fields
 
   template.generatedAt = '2026-06-24T00:00:00.000Z';
   template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
+  template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-24T00:06:00.000Z');
   const staleGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(staleGeneratedAt.readyForRelease, false);
   assert.deepEqual(staleGeneratedAt.invalidPacketEvidence, ['packet_generated_at']);
@@ -1633,6 +1656,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       'if [ "$1 $2 $3" = "providers test --role" ]; then echo "chat provider PING_OK"; exit 0; fi',
       'if [ "$1 $2 $3" = "os compile --json" ]; then cat <<JSON',
       '{',
+      "  \"generated_at\": \"$(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\",",
       '  "ok": true,',
       '  "gaps": 0,',
       '  "duplicate_truths": { "item_count": 2 },',
@@ -1659,6 +1683,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
       '  i=0',
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
+      "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
       '  echo "Blocking status: clean"',
       '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
       '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',

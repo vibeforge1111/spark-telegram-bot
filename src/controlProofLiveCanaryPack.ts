@@ -1239,6 +1239,45 @@ function hasCleanControlProofAudit(value: string): boolean {
   return false;
 }
 
+const RUNTIME_EVIDENCE_COMMAND_MAX_PAST_SKEW_MS = 15 * 60 * 1000;
+const RUNTIME_EVIDENCE_COMMAND_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+
+function parseRuntimeEvidenceTimestamp(value: string): number | null {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(normalized)) return null;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function controlProofAuditGeneratedAt(value: string): string | null {
+  const match = String(value || '').match(/^Generated:\s*(\S+)$/im);
+  return match ? match[1].trim() : null;
+}
+
+function sparkOsCompileGeneratedAt(value: string): string | null {
+  const parsed = parseFirstJsonObject(String(value || ''));
+  const generatedAt = parsed?.generated_at ?? parsed?.generatedAt;
+  return typeof generatedAt === 'string' ? generatedAt.trim() : null;
+}
+
+function runtimeEvidenceCommandTimestampIsFresh(
+  transcript: string | null | undefined,
+  kind: 'spark_os_compile' | 'control_proof_audit',
+  collectedAt: string
+): boolean {
+  const collectedMs = parseRuntimeEvidenceTimestamp(collectedAt);
+  if (collectedMs === null) return false;
+  const embeddedAt = kind === 'spark_os_compile'
+    ? sparkOsCompileGeneratedAt(String(transcript || ''))
+    : controlProofAuditGeneratedAt(String(transcript || ''));
+  const embeddedMs = parseRuntimeEvidenceTimestamp(String(embeddedAt || ''));
+  if (embeddedMs === null) return false;
+  const deltaMs = embeddedMs - collectedMs;
+  return deltaMs <= RUNTIME_EVIDENCE_COMMAND_MAX_FUTURE_SKEW_MS &&
+    deltaMs >= -RUNTIME_EVIDENCE_COMMAND_MAX_PAST_SKEW_MS;
+}
+
 function parseFirstJsonObject(value: string): Record<string, unknown> | null {
   const start = value.indexOf('{');
   const end = value.lastIndexOf('}');
@@ -1448,8 +1487,20 @@ function invalidPacketEvidence(
   if (String(evidence.sparkLiveStatus || '').trim() && !validRuntimeEvidenceValue(evidence.sparkLiveStatus, 'spark_live_status')) invalid.push('spark_live_status');
   if (String(evidence.providerStatus || '').trim() && !validRuntimeEvidenceValue(evidence.providerStatus, 'provider_status')) invalid.push('provider_status');
   if (String(evidence.runtimeSync || '').trim() && !validRuntimeEvidenceValue(evidence.runtimeSync, 'runtime_sync')) invalid.push('runtime_sync');
-  if (String(evidence.sparkOsCompile || '').trim() && !validRuntimeEvidenceValue(evidence.sparkOsCompile, 'spark_os_compile')) invalid.push('spark_os_compile');
-  if (String(evidence.controlProofAudit || '').trim() && !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit')) invalid.push('control_proof_audit');
+  if (
+    String(evidence.sparkOsCompile || '').trim() &&
+    (
+      !validRuntimeEvidenceValue(evidence.sparkOsCompile, 'spark_os_compile') ||
+      !runtimeEvidenceCommandTimestampIsFresh(evidence.sparkOsCompile, 'spark_os_compile', collectedAt)
+    )
+  ) invalid.push('spark_os_compile');
+  if (
+    String(evidence.controlProofAudit || '').trim() &&
+    (
+      !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit') ||
+      !runtimeEvidenceCommandTimestampIsFresh(evidence.controlProofAudit, 'control_proof_audit', collectedAt)
+    )
+  ) invalid.push('control_proof_audit');
   if (String(evidence.notes || '').trim() && canaryFreeTextLeaksRawInternals(String(evidence.notes))) invalid.push('runtime_evidence_notes');
   return invalid;
 }
