@@ -1195,6 +1195,16 @@ function hasPositiveRuntimeStatus(value: string): boolean {
   return /\b(ok|healthy|ready|running|PING_OK|in sync)\b/i.test(value);
 }
 
+function hasRuntimeEvidenceCommand(value: string, kind: 'spark_live_status' | 'provider_status' | 'runtime_sync' | 'spark_os_compile'): boolean {
+  const commandPatterns = {
+    spark_live_status: /(?:^|\n)(?:[$>]\s*)?spark\s+live\s+status\b/i,
+    provider_status: /(?:^|\n)(?:[$>]\s*)?spark\s+providers\s+test\s+--role\s+chat\b/i,
+    runtime_sync: /(?:^|\n)(?:[$>]\s*)?npm\s+run\s+sync:check\b/i,
+    spark_os_compile: /(?:^|\n)(?:[$>]\s*)?spark\s+os\s+compile\s+--json\b/i
+  };
+  return commandPatterns[kind].test(value);
+}
+
 function hasCleanControlProofAudit(value: string): boolean {
   if (!/(?:^|\n)(?:[$>]\s*)?(?:npm\s+run\s+control:proof:audit|ts-node\s+ops\/controlProofTraceAudit\.ts)[^\n]*--fresh-strict\b/i.test(value)) return false;
   if (commandEvidencePassed(value) !== true) return false;
@@ -1318,9 +1328,12 @@ function validRuntimeEvidenceValue(
   if (!normalized) return false;
   const commandStatus = commandEvidencePassed(normalized);
   if (commandStatus === false) return false;
+  if (kind !== 'control_proof_audit') {
+    if (!hasRuntimeEvidenceCommand(normalized, kind)) return false;
+    if (commandStatus !== true) return false;
+  }
   if (kind === 'spark_os_compile') return hasCleanSparkOsCompile(normalized);
   if (kind === 'control_proof_audit') return hasCleanControlProofAudit(normalized);
-  if (commandStatus === true) return true;
   if (kind === 'runtime_sync') return /\bruntime in sync\b/i.test(normalized);
   if (kind === 'provider_status') return /\b(PING_OK|provider ping OK|chat provider ping OK|ok true)\b/i.test(normalized);
   return hasPositiveRuntimeStatus(normalized);

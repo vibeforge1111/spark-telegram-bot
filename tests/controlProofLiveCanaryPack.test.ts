@@ -65,6 +65,24 @@ const CLEAN_SPARK_OS_COMPILE = [
     }
   }, null, 2)
 ].join('\n');
+const CLEAN_SPARK_LIVE_STATUS = [
+  '$ spark live status',
+  'exit=0',
+  'Spark Live',
+  '[OK] Spark Live is ready.',
+  '[OK] spark-telegram-bot: Relay runtime: OK (primary@<redacted-port> pid=<redacted-pid> polling=active)'
+].join('\n');
+const CLEAN_PROVIDER_STATUS = [
+  '$ spark providers test --role chat',
+  'exit=0',
+  'Spark provider test',
+  '[OK] chat -> codex: PING_OK'
+].join('\n');
+const CLEAN_RUNTIME_SYNC = [
+  '$ npm run sync:check',
+  'exit=0',
+  '[check] runtime in sync.'
+].join('\n');
 const CLEAN_PROOF_PANEL = [
   'Harness Proof',
   'Intent: builder_gateway.plain_chat',
@@ -335,9 +353,9 @@ test('observation summary requires pass verdicts and all requested capture evide
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template = withControlProofCanaryRuntimeEvidence(template, {
-    sparkLiveStatus: 'Spark Live healthy: primary and sparkqa-bot running.',
-    providerStatus: 'chat provider ping OK.',
-    runtimeSync: 'runtime in sync.',
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
@@ -511,9 +529,9 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template = withControlProofCanaryRuntimeEvidence(template, {
-    sparkLiveStatus: 'Spark Live healthy.',
-    providerStatus: 'Provider ping OK.',
-    runtimeSync: 'runtime in sync.',
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
@@ -558,9 +576,9 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template = withControlProofCanaryRuntimeEvidence(template, {
-    sparkLiveStatus: 'Spark Live healthy.',
-    providerStatus: 'Provider ping OK.',
-    runtimeSync: 'runtime in sync.',
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
@@ -666,12 +684,44 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.sparkLiveStatus = 'Spark Live healthy.';
+  const missingLiveStatusTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingLiveStatusTranscript.readyForRelease, false);
+  assert.deepEqual(missingLiveStatusTranscript.invalidPacketEvidence, ['spark_live_status']);
+
+  template.evidence.sparkLiveStatus = CLEAN_SPARK_LIVE_STATUS.replace('exit=0', 'exit=1');
+  const failedLiveStatusTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedLiveStatusTranscript.readyForRelease, false);
+  assert.deepEqual(failedLiveStatusTranscript.invalidPacketEvidence, ['spark_live_status']);
+
+  template.evidence.sparkLiveStatus = CLEAN_SPARK_LIVE_STATUS;
   template.evidence.providerStatus = 'Provider ping failed.';
   const dirtyProvider = summarizeControlProofCanaryObservations(template);
   assert.equal(dirtyProvider.readyForRelease, false);
   assert.deepEqual(dirtyProvider.invalidPacketEvidence, ['provider_status']);
 
   template.evidence.providerStatus = 'Provider ping OK.';
+  const missingProviderTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingProviderTranscript.readyForRelease, false);
+  assert.deepEqual(missingProviderTranscript.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = CLEAN_PROVIDER_STATUS.replace('exit=0', 'exit=1');
+  const failedProviderTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedProviderTranscript.readyForRelease, false);
+  assert.deepEqual(failedProviderTranscript.invalidPacketEvidence, ['provider_status']);
+
+  template.evidence.providerStatus = CLEAN_PROVIDER_STATUS;
+  template.evidence.runtimeSync = 'runtime in sync.';
+  const missingSyncTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingSyncTranscript.readyForRelease, false);
+  assert.deepEqual(missingSyncTranscript.invalidPacketEvidence, ['runtime_sync']);
+
+  template.evidence.runtimeSync = CLEAN_RUNTIME_SYNC.replace('exit=0', 'exit=1');
+  const failedSyncTranscript = summarizeControlProofCanaryObservations(template);
+  assert.equal(failedSyncTranscript.readyForRelease, false);
+  assert.deepEqual(failedSyncTranscript.invalidPacketEvidence, ['runtime_sync']);
+
+  template.evidence.runtimeSync = CLEAN_RUNTIME_SYNC;
   template.evidence.sparkOsCompile = '$ spark os compile --json\nexit=0\n{"ok":false,"gaps":1}';
   const dirtyCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(dirtyCompile.readyForRelease, false);
@@ -723,9 +773,9 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template = withControlProofCanaryRuntimeEvidence(template, {
-    sparkLiveStatus: 'Spark Live healthy.',
-    providerStatus: 'Provider ping OK.',
-    runtimeSync: 'runtime in sync.',
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
@@ -762,9 +812,9 @@ test('observation recorder updates one case while preserving packet evidence', (
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template = withControlProofCanaryRuntimeEvidence(template, {
-    sparkLiveStatus: 'Spark Live healthy.',
-    providerStatus: 'Provider ping OK.',
-    runtimeSync: 'runtime in sync.',
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: 'Collected locally.'
@@ -1090,9 +1140,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-proof-001')!
     ], { generatedAt: '2026-06-24T00:00:00.000Z' });
     staleProofObservations = withControlProofCanaryRuntimeEvidence(staleProofObservations, {
-      sparkLiveStatus: 'Spark Live healthy.',
-      providerStatus: 'Provider ping OK.',
-      runtimeSync: 'runtime in sync.',
+      sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+      providerStatus: CLEAN_PROVIDER_STATUS,
+      runtimeSync: CLEAN_RUNTIME_SYNC,
       sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2'),
       notes: null
@@ -1150,9 +1200,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     };
     observed.evidence = {
       collectedAt: new Date().toISOString(),
-      sparkLiveStatus: 'Spark Live healthy.',
-      providerStatus: 'Provider ping OK.',
-      runtimeSync: 'runtime in sync.',
+      sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+      providerStatus: CLEAN_PROVIDER_STATUS,
+      runtimeSync: CLEAN_RUNTIME_SYNC,
       sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
       notes: null
@@ -1252,9 +1302,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-access-002')!
       ], { generatedAt: '2026-06-24T00:00:00.000Z' }),
       {
-        sparkLiveStatus: 'Spark Live healthy.',
-        providerStatus: 'Provider ping OK.',
-        runtimeSync: 'runtime in sync.',
+        sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+        providerStatus: CLEAN_PROVIDER_STATUS,
+        runtimeSync: CLEAN_RUNTIME_SYNC,
         sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
         controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
         notes: null
