@@ -938,6 +938,7 @@ function createTelegramLiveQaEvidencePacket(input) {
         authority_claim_boundary: [
             'This packet is a live QA evidence container.',
             'It does not prove release readiness until each case has observed replies, side-effect checks, ledger or trace evidence where required, and a human verdict.',
+            'Even when every selected case passes, it remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet.',
             'It must not be treated as authority to execute high-agency actions.'
         ].join(' '),
         required_session_evidence: sessionEvidence,

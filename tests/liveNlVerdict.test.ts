@@ -368,6 +368,7 @@ test('Genesis live Telegram evidence packet is a structured untested run contain
   assert.equal(packet.cases[99].side_effects.mission_started, null);
   assert.equal(packet.required_session_evidence.overall_verdict, 'untested');
   assert.match(packet.authority_claim_boundary, /does not prove release readiness/);
+  assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet/);
 });
 
 test('Genesis live Telegram observation template hides scoring expectations', () => {
@@ -702,6 +703,7 @@ test('live NL verdict CLI emits an observed Genesis evidence packet from observa
     assert.equal(packet.summary.pass, 1);
     assert.equal(packet.summary.untested, 0);
     assert.equal(packet.required_session_evidence.profile, 'sparkqa-bot');
+    assert.match(packet.authority_claim_boundary, /remains legacy breadth evidence unless promoted into a Harness-shaped control-proof canary packet/);
     assert.equal(packet.cases[0].observed_turns[0].reply, 'Yes, use it when you have a concrete startup proof target.');
     assert.equal(packet.cases[0].side_effects.mission_started, false);
     assert.deepEqual(packet.cases[0].evidence_refs.screenshots, ['/tmp/genesis-001.png']);
