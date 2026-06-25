@@ -1611,6 +1611,7 @@ function missingCapturesForCase(
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel, context));
   if (capture.screenshot) missing.push(...screenshotCaptureIssues(entry.observed.screenshotRefs));
   if (capture.userConfirmation) missing.push(...userConfirmationCaptureIssues(entry.observed.userConfirmation));
+  if (capture.userConfirmation) missing.push(...streamingDuplicatePreviewConfirmationIssues(entry));
   return missing;
 }
 
@@ -1679,6 +1680,14 @@ function userConfirmationCaptureIssues(value: string | null | undefined): string
     issues.push('user_confirmation_raw_leak');
   }
   return issues;
+}
+
+function streamingDuplicatePreviewConfirmationIssues(entry: ControlProofCanaryObservationCase): string[] {
+  if (entry.id !== 'cp-streaming-001' && entry.id !== 'cp-streaming-002') return [];
+  const text = String(entry.observed.userConfirmation || '');
+  return /\b(?:no|without|not|none|zero)\b.{0,80}\b(?:duplicate|double).{0,80}\b(?:preview|message|artifact|final)\b/i.test(text)
+    ? []
+    : ['user_confirmation_duplicate_preview'];
 }
 
 function userConfirmationLeaksRawInternals(value: string): boolean {
