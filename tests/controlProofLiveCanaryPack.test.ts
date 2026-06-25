@@ -511,6 +511,22 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(digestConfirmation.readyForRelease, true);
   assert.deepEqual(digestConfirmation.cases[0].missingCaptures, []);
 
+  template.cases[0].observed.sideEffects.notes = 'No mutation observed; raw detail was /Users/example/private.';
+  const leakySideEffectNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakySideEffectNotes.readyForRelease, false);
+  assert.deepEqual(leakySideEffectNotes.cases[0].missingCaptures, ['side_effects_notes_raw_leak']);
+
+  template.cases[0].observed.sideEffects.notes = `No mutation observed; screenshot ${STABLE_SCREENSHOT_REF}.`;
+  const digestSideEffectNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(digestSideEffectNotes.readyForRelease, true);
+  assert.deepEqual(digestSideEffectNotes.cases[0].missingCaptures, []);
+
+  template.cases[0].observed.notes = 'Operator note included chat_id hidden.';
+  const leakyObservedNotes = summarizeControlProofCanaryObservations(template);
+  assert.equal(leakyObservedNotes.readyForRelease, false);
+  assert.deepEqual(leakyObservedNotes.cases[0].missingCaptures, ['observed_notes_raw_leak']);
+
+  template.cases[0].observed.notes = null;
   template.cases[0].observed.userConfirmation = 'User confirmed Telegram reply rendered once.';
   template.evidence.controlProofAudit = null;
   const missingPacketEvidence = summarizeControlProofCanaryObservations(template);

@@ -1370,6 +1370,7 @@ function missingCapturesForCase(
   const capture = entry.expected.capture;
   if (capture.observedReply) missing.push(...observedReplyCaptureIssues(entry));
   if (capture.sideEffects) missing.push(...sideEffectCaptureIssues(entry));
+  missing.push(...observedNotesCaptureIssues(entry.observed.notes));
   missing.push(...proofJoinCaptureIssues(entry));
   if (capture.proofPanel) missing.push(...proofPanelCaptureIssues(entry.observed.proofPanel, context));
   if (capture.screenshot) missing.push(...screenshotCaptureIssues(entry.observed.screenshotRefs));
@@ -1426,6 +1427,10 @@ function userConfirmationCaptureIssues(value: string | null | undefined): string
 }
 
 function userConfirmationLeaksRawInternals(value: string): boolean {
+  return canaryFreeTextLeaksRawInternals(value);
+}
+
+function canaryFreeTextLeaksRawInternals(value: string): boolean {
   const withoutStableScreenshotRefs = value.replace(/screenshot:sha256:[a-f0-9]{64}/gi, 'screenshot:<digest>');
   return proofPanelLeaksRawInternals(withoutStableScreenshotRefs) ||
     /\b(?:BOT_TOKEN|TELEGRAM_BOT_TOKEN|file_id|chat_id|user_id)\b/i.test(withoutStableScreenshotRefs) ||
@@ -1453,7 +1458,13 @@ function sideEffectCaptureIssues(entry: ControlProofCanaryObservationCase): stri
     issues.push('side_effects_unobserved');
   }
   if (isUnexpectedMutationObserved(entry.expected.mutationClass, sideEffects)) issues.push('side_effects_unexpected_mutation');
+  if (sideEffects.notes && canaryFreeTextLeaksRawInternals(sideEffects.notes)) issues.push('side_effects_notes_raw_leak');
   return issues;
+}
+
+function observedNotesCaptureIssues(value: string | null | undefined): string[] {
+  if (!hasCapturedText(value)) return [];
+  return canaryFreeTextLeaksRawInternals(String(value)) ? ['observed_notes_raw_leak'] : [];
 }
 
 function sideEffectKeyForMutationClass(mutationClass: ControlProofCanaryMutationClass): ControlProofSideEffectKey {
