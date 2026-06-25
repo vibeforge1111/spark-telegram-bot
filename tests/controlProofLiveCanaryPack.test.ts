@@ -1074,6 +1074,19 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     'registry_pin_drift | classifications=runtime_ahead_of_registry_pin:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=1'
   ]);
 
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":4,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"local_runtime_test_artifact":2}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const localRuntimeArtifacts = summarizeControlProofCanaryObservations(template);
+  assert.equal(localRuntimeArtifacts.readyForRelease, true);
+  assert.equal(localRuntimeArtifacts.readyForPublish, false);
+  assert.deepEqual(localRuntimeArtifacts.releaseCaveats, [
+    'repo_release_blocks | blocked_release_count=4 | critical_repo_count=0',
+    'local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0'
+  ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(localRuntimeArtifacts),
+    /local_runtime_test_artifacts \| classifications=local_runtime_test_artifact:2/
+  );
+
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":1,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const blockedReleaseOnly = summarizeControlProofCanaryObservations(template);
   assert.equal(blockedReleaseOnly.readyForRelease, true);
@@ -1830,7 +1843,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /repo_release_blocks/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /duplicate-truth drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /registry_pin_drift/);
-    assert.match(readFileSync(bundledReadmePath, 'utf8'), /safe classification counts/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /local_runtime_test_artifacts/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);

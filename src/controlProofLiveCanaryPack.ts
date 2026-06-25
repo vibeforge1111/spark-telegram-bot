@@ -1394,6 +1394,7 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   const blockedReleaseCount = Number(repoBoard.blocked_release_count ?? 0);
   const criticalRepoCount = Number(repoBoard.critical_repo_count ?? 0);
   const runtimeAheadCount = Number(classificationCounts.runtime_ahead_of_registry_pin ?? 0);
+  const localRuntimeTestCount = Number(classificationCounts.local_runtime_test_artifact ?? 0);
   if (
     !duplicateTruthCount &&
     !criticalDuplicateTruthCount &&
@@ -1416,13 +1417,29 @@ function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[
   if (runtimeAheadCount > 0 || duplicateTruthCount > 0 || criticalDuplicateTruthCount > 0) {
     const classificationSummary = safeClassificationCountSummary(classificationCounts);
     caveats.push([
-      runtimeAheadCount > 0 ? 'registry_pin_drift' : 'duplicate_truth_drift',
+      duplicateTruthCaveatLabel({
+        runtimeAheadCount,
+        localRuntimeTestCount,
+        duplicateTruthCount
+      }),
       ...(classificationSummary ? [`classifications=${classificationSummary}`] : []),
       `duplicate_truth_count=${Number.isFinite(duplicateTruthCount) ? duplicateTruthCount : 0}`,
       `critical_duplicate_truth_count=${Number.isFinite(criticalDuplicateTruthCount) ? criticalDuplicateTruthCount : 0}`
     ].join(' | '));
   }
   return caveats;
+}
+
+function duplicateTruthCaveatLabel(input: {
+  runtimeAheadCount: number;
+  localRuntimeTestCount: number;
+  duplicateTruthCount: number;
+}): string {
+  if (input.runtimeAheadCount > 0) return 'registry_pin_drift';
+  if (input.localRuntimeTestCount > 0 && input.localRuntimeTestCount === input.duplicateTruthCount) {
+    return 'local_runtime_test_artifacts';
+  }
+  return 'duplicate_truth_drift';
 }
 
 function sparkOsCompileReleaseBlockers(value: string | null | undefined): string[] {
