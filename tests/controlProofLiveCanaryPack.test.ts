@@ -164,6 +164,10 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
+  assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -283,6 +287,10 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
+  assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);

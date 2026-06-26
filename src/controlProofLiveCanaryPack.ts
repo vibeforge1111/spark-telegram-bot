@@ -295,6 +295,8 @@ export interface ControlProofCanaryObservationSummary {
   verdictCounts: Record<ControlProofCanaryVerdict, number>;
   readyForRelease: boolean;
   readyForPublish: boolean;
+  releaseBlockers: string[];
+  publishBlockers: string[];
   gateDecisionDetails: ControlProofGateDecisionDetails;
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
@@ -3146,6 +3148,8 @@ export function summarizeControlProofCanaryObservations(
     verdictCounts,
     readyForRelease: releaseReady,
     readyForPublish,
+    releaseBlockers: structuredGateDecisionDetails.release.blockers,
+    publishBlockers: structuredGateDecisionDetails.publish.blockers,
     gateDecisionDetails: structuredGateDecisionDetails,
     releaseCaveats,
     releaseCaveatDetails,

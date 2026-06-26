@@ -458,7 +458,7 @@ Machine-readable summary details are part of the proof contract, not decoration.
 - `releaseCaveatDetails.duplicate_truths.owner_sets` lists the sanitized owner set for duplicate-truth families such as `local_runtime_test_artifact`.
 - `releaseHandoffDetails[].familyDetails` joins each handoff action back to its structured family record, including repo-release rows, local runtime artifact owners, and Builder trace-health lifecycle fields.
 - `summary.cases[]` lists each canary's safe Harness metadata: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, `expectedReplyShape`, optional sanitized `sourceRefs`, verdict, and missing capture names. It must not include raw prompts, observed replies, proof-panel bodies, screenshot refs, or user confirmations.
-- `gateDecisionDetails.release` and `gateDecisionDetails.publish` must carry the same caveat and handoff detail records so `release ready` and `publish not ready` can be explained from JSON alone.
+- Top-level `releaseBlockers` and `publishBlockers` mirror `gateDecisionDetails.release.blockers` and `gateDecisionDetails.publish.blockers` for simple automation. Detailed consumers should still read `gateDecisionDetails.release` and `gateDecisionDetails.publish`, which carry the caveat and handoff detail records so `release ready` and `publish not ready` can be explained from JSON alone.
 
 Do not replace these records with prose summaries. A prose release caveat can help an operator scan the result, but it is not enough to support a release or publish claim when the owner, count, behind value, lifecycle field, or next safe action exists in runtime evidence.
 
