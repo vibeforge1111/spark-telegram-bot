@@ -119,6 +119,7 @@ const CLEAN_PROOF_PANEL = [
   'Audit blocking: clean',
   'Audit fresh-strict: clean',
   'Audit posture: backed legacy gaps only; no blocking or latest proof gaps',
+  'Blocking gap planes: none',
   'Evidence capsule gaps: none',
   'Legacy proof gaps visible: 3'
 ].join('\n');
@@ -972,6 +973,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     'proof_panel_audit_status',
     'proof_panel_fresh_strict_status',
     'proof_panel_gap_posture',
+    'proof_panel_blocking_gap_planes',
     'proof_panel_capsule_gap_status',
     'proof_panel_legacy_gap_status'
   ]);
@@ -2599,6 +2601,7 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
     'proof_panel_actionable_status',
     'proof_panel_fresh_strict_status',
     'proof_panel_gap_posture',
+    'proof_panel_blocking_gap_planes',
     'proof_panel_capsule_gap_status'
   ]);
 
@@ -2607,6 +2610,7 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit actionable: clean/);
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit fresh-strict: clean/);
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit posture: backed legacy gaps only; no blocking or latest proof gaps/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Blocking gap planes: none/);
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Evidence capsule gaps: none/);
   assert.deepEqual(summarizeControlProofCanaryObservations(result.observations).cases[0].missingCaptures, []);
 });
@@ -3310,6 +3314,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit actionable/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit fresh-strict/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit posture/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Blocking gap planes/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Evidence capsule gaps/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);

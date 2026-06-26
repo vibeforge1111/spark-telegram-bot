@@ -51,6 +51,7 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /control:proof:repair:final-answer/);
   assert.match(plan, /--repair-stale-proof-panels/);
   assert.match(plan, /clean embedded fresh-strict audit evidence/);
+  assert.match(plan, /`Blocking gap planes`/);
   assert.match(plan, /derived `Evidence capsule gaps` row/);
   assert.match(plan, /existing proof-panel\/audit evidence/);
   assert.match(plan, /Release gate: ready/);

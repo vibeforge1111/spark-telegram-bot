@@ -86,6 +86,7 @@ export const PROOF_PANEL_RECAPTURE_ISSUES = [
   'proof_panel_audit_status',
   'proof_panel_fresh_strict_status',
   'proof_panel_gap_posture',
+  'proof_panel_blocking_gap_planes',
   'proof_panel_capsule_gap_status',
   'proof_panel_trace_only_joined',
   'proof_panel_legacy_gap_status',
@@ -1403,6 +1404,7 @@ function isProofPanelAuditLineRepairIssue(issue: string): boolean {
     issue === 'proof_panel_audit_status' ||
     issue === 'proof_panel_fresh_strict_status' ||
     issue === 'proof_panel_gap_posture' ||
+    issue === 'proof_panel_blocking_gap_planes' ||
     issue === 'proof_panel_capsule_gap_status';
 }
 
@@ -1415,7 +1417,8 @@ function appendProofPanelAuditStatusLines(
     `Audit actionable: ${auditSummary.actionableStatus}`,
     `Audit blocking: ${auditSummary.blockingStatus}`,
     `Audit fresh-strict: ${auditSummary.freshStrictOk ? 'clean' : 'not ready'}`,
-    `Audit posture: ${auditSummary.gapPosture}`
+    `Audit posture: ${auditSummary.gapPosture}`,
+    'Blocking gap planes: none'
   ];
   const capsuleGapLine = deriveProofPanelCapsuleGapLine(lines.join('\n'));
   if (capsuleGapLine) statusLines.unshift(capsuleGapLine);
@@ -3374,6 +3377,9 @@ function proofPanelCaptureIssues(
   if (!/Audit fresh-strict:\s*(?:clean|not ready)/i.test(text)) issues.push('proof_panel_fresh_strict_status');
   if (!/Audit posture:\s*(?:clean|blocking gaps require repair|backed legacy gaps only; no blocking or latest proof gaps|non-blocking gaps visible)/i.test(text)) {
     issues.push('proof_panel_gap_posture');
+  }
+  if (!/Blocking gap planes:\s*(?:none|[A-Za-z][^\n]*)/i.test(text)) {
+    issues.push('proof_panel_blocking_gap_planes');
   }
   if (!/Evidence capsule gaps:\s*(?:none|[A-Za-z][^\n]*)/i.test(text)) {
     issues.push('proof_panel_capsule_gap_status');
