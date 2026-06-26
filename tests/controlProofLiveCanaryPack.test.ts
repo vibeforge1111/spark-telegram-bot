@@ -329,6 +329,15 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
 
 test('promoted canaries keep traceable legacy source references', () => {
   const byId = new Map(CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => [entry.id, entry]));
+  const naturalLanguageCaseIds = new Set(
+    JSON.parse(readFileSync(resolve(ROOT, 'ops/natural-language-live-commands.json'), 'utf8'))
+      .map((entry: { id: string }) => entry.id)
+  );
+  const genesisCaseIds = new Set(
+    JSON.parse(readFileSync(resolve(ROOT, 'ops/genesis-live-telegram-100.json'), 'utf8'))
+      .map((entry: { id: string }) => entry.id)
+  );
+  const streamingDesign = readFileSync(resolve(ROOT, 'docs/LIVE_CHAT_STREAMING_DESIGN.md'), 'utf8');
 
   assert.deepEqual(
     byId.get('cp-builder-001')?.sourceRefs,
@@ -352,6 +361,20 @@ test('promoted canaries keep traceable legacy source references', () => {
     byId.get('cp-streaming-002')?.sourceRefs?.some((ref) => ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md' && ref.caseId === 'rich-message-delivery-proof'),
     'cp-streaming-002 should point back to the rich-message delivery proof contract'
   );
+
+  for (const entry of CONTROL_PROOF_LIVE_CANARY_CASES) {
+    for (const ref of entry.sourceRefs || []) {
+      if (ref.catalog === 'natural-language-live-commands.json') {
+        assert.ok(naturalLanguageCaseIds.has(ref.caseId), `${entry.id} points to unknown natural-language case ${ref.caseId}`);
+      }
+      if (ref.catalog === 'genesis-live-telegram-100.json') {
+        assert.ok(genesisCaseIds.has(ref.caseId), `${entry.id} points to unknown Genesis case ${ref.caseId}`);
+      }
+      if (ref.catalog === 'docs/LIVE_CHAT_STREAMING_DESIGN.md') {
+        assert.match(streamingDesign, new RegExp(ref.caseId), `${entry.id} points to unknown streaming design contract ${ref.caseId}`);
+      }
+    }
+  }
 });
 
 test('default selection excludes intentional live actions but explicit selection can include them', () => {

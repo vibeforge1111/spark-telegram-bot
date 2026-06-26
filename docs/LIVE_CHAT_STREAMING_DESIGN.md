@@ -512,8 +512,8 @@ Exit criteria:
 
 Current SparkRecursive_bot proof:
 
-- `cp-streaming-001` confirms `/streaming` reports streaming on, rich messages on, rich draft transport, full-reply preview on, process telemetry, and no duplicate preview in the live Telegram surface.
-- `cp-streaming-002` confirms rich formatting renders in the top-level Telegram path without leaving a duplicate draft/final artifact, and its proof join must say the rich-message reply was delivered through the live Telegram profile path. A generic "reply joined" note is not enough proof that rich messages are active in runtime.
+- Contract id `streaming-status-defaults`: `cp-streaming-001` confirms `/streaming` reports streaming on, rich messages on, rich draft transport, full-reply preview on, process telemetry, and no duplicate preview in the live Telegram surface.
+- Contract id `rich-message-delivery-proof`: `cp-streaming-002` confirms rich formatting renders in the top-level Telegram path without leaving a duplicate draft/final artifact, and its proof join must say the rich-message reply was delivered through the live Telegram profile path. A generic "reply joined" note is not enough proof that rich messages are active in runtime.
 - `cp-streaming-002` reply text should stay natural while carrying a short code-token line; the screenshot and user confirmation prove the visual rich rendering rather than forcing the chat reply into a diagnostic status card.
 - These canaries prove the present Telegram surface and defaults. They do not claim Builder-native JSONL event streaming; that remains Phase 1.
 
