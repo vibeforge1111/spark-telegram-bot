@@ -350,6 +350,7 @@ test('capability evidence doc records last-success and boundary proof', () => {
   assert.match(doc, /npm run control:proof:capabilities -- --strict/);
   assert.match(doc, /last-success/);
   assert.match(doc, /last-failure\/boundary/);
+  assert.match(doc, /timestamps are withheld when a required case is merely marked `pass` but still has missing captures/);
   assert.match(doc, /full SparkRecursive_bot control-proof canary packet/);
   assert.match(doc, /Do not fix this by claiming registry visibility/);
 });

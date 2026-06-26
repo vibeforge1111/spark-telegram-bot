@@ -79,6 +79,28 @@ test('capability evidence reports missing boundary captures', () => {
 
   assert.equal(result.ok, false);
   assert.ok(result.gaps.some((gap) => gap.capabilityKey === 'memory' && gap.caseId === 'cp-memory-002' && gap.reason === 'missing_capture'));
+  const memoryRecord = result.records.find((record) => record.capabilityKey === 'memory');
+  assert.ok(memoryRecord);
+  assert.equal(memoryRecord.lastSuccessAt !== null, true);
+  assert.equal(memoryRecord.lastFailureOrBoundaryAt, null);
+  assert.match(formatCapabilityEvidenceReport(result), /memory: success .* \| failure\/boundary missing via cp-memory-002/);
+});
+
+test('capability evidence does not timestamp incomplete success captures', () => {
+  const template = passingTemplate();
+  const entry = template.cases.find((item: ControlProofCanaryObservationCase) => item.id === 'cp-builder-001');
+  assert.ok(entry);
+  entry.observed.proofJoin = null;
+
+  const result = checkCapabilityEvidence({ observations: template });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.capabilityKey === 'builder_gateway' && gap.caseId === 'cp-builder-001' && gap.reason === 'missing_capture'));
+  const builderRecord = result.records.find((record) => record.capabilityKey === 'builder_gateway');
+  assert.ok(builderRecord);
+  assert.equal(builderRecord.lastSuccessAt, null);
+  assert.equal(builderRecord.lastFailureOrBoundaryAt !== null, true);
+  assert.match(formatCapabilityEvidenceReport(result), /builder_gateway: success missing via cp-builder-001/);
 });
 
 test('publish capability requires publish-not-ready handoff evidence', () => {

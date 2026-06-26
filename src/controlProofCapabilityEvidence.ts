@@ -172,6 +172,16 @@ function checkCaseIds(
   return gaps;
 }
 
+function casesHaveCompletePassingEvidence(
+  caseIds: string[],
+  byId: Map<string, ControlProofCanaryObservationSummary['cases'][number]>
+): boolean {
+  return caseIds.length > 0 && caseIds.every((caseId) => {
+    const entry = byId.get(caseId);
+    return entry?.verdict === 'pass' && entry.missingCaptures.length === 0;
+  });
+}
+
 export function checkCapabilityEvidence(input: {
   repoRoot?: string;
   observationPath?: string;
@@ -233,12 +243,12 @@ export function checkCapabilityEvidence(input: {
     records.push({
       capabilityKey: policy.capabilityKey,
       label: policy.label,
-      lastSuccessAt: policy.successCaseIds.every((caseId) => byId.get(caseId)?.verdict === 'pass')
+      lastSuccessAt: casesHaveCompletePassingEvidence(policy.successCaseIds, byId)
         ? summary.runtimeEvidenceCollectedAt
         : null,
       lastSuccessCaseIds: [...policy.successCaseIds],
       lastFailureOrBoundaryAt: (
-        policy.failureOrBoundaryCaseIds.every((caseId) => byId.get(caseId)?.verdict === 'pass') ||
+        casesHaveCompletePassingEvidence(policy.failureOrBoundaryCaseIds, byId) ||
         hasPublishHandoffEvidence
       )
         ? summary.runtimeEvidenceCollectedAt
