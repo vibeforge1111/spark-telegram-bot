@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T13:21:43.759Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T13:21:43.759Z",
+    "generatedAt": "2026-06-26T14:51:02.091Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T14:51:02.091Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T14:21:43.759Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T15:51:02.091Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -27,7 +27,7 @@
         "blockerDetails": {},
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-          "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+          "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
           "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
         "caveatDetails": {
@@ -53,7 +53,7 @@
           "repo_release_blocks": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "blocked_release_count": 4,
+            "blocked_release_count": 5,
             "critical_repo_count": 3,
             "blocked_release_repos": [
               {
@@ -82,6 +82,15 @@
                 "reason": "behind upstream",
                 "next_safe_action": "pull or merge upstream before release",
                 "behind": 61
+              },
+              {
+                "repo": "spark-world-editor",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "dirty worktree",
+                "next_safe_action": "curate local changes before merge or release",
+                "behind": 0
               },
               {
                 "repo": "spawner-ui",
@@ -151,6 +160,15 @@
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
               "behind": 61
+            },
+            {
+              "repo": "spark-world-editor",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "dirty worktree",
+              "next_safe_action": "curate local changes before merge or release",
+              "behind": 0
             },
             {
               "repo": "spawner-ui",
@@ -246,6 +264,26 @@
             "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
+            "owner": "spark-world-editor",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "dirty worktree",
+            "behind": 0,
+            "nextSafeAction": "curate local changes before merge or release",
+            "familyDetails": {
+              "repo": "spark-world-editor",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "dirty worktree",
+              "next_safe_action": "curate local changes before merge or release",
+              "behind": 0
+            },
+            "line": "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
+          },
+          {
             "owner": "spawner-ui",
             "status": "publish_blocked",
             "family": "repo_release_blocks",
@@ -314,7 +352,7 @@
           "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
-        "handoffCount": 6,
+        "handoffCount": 7,
         "packetEvidence": {
           "missing": [],
           "invalid": [],
@@ -359,7 +397,7 @@
               "repo_release_blocks": {
                 "releaseBlocking": false,
                 "publishBlocking": true,
-                "blocked_release_count": 4,
+                "blocked_release_count": 5,
                 "critical_repo_count": 3,
                 "blocked_release_repos": [
                   {
@@ -388,6 +426,15 @@
                     "reason": "behind upstream",
                     "next_safe_action": "pull or merge upstream before release",
                     "behind": 61
+                  },
+                  {
+                    "repo": "spark-world-editor",
+                    "releaseBlocking": false,
+                    "publishBlocking": true,
+                    "risk_class": "high",
+                    "reason": "dirty worktree",
+                    "next_safe_action": "curate local changes before merge or release",
+                    "behind": 0
                   },
                   {
                     "repo": "spawner-ui",
@@ -419,7 +466,7 @@
             }
           },
           "release_handoffs": {
-            "handoffCount": 6,
+            "handoffCount": 7,
             "handoffFamilies": [
               "builder_trace_health",
               "local_runtime_test_artifacts",
@@ -460,6 +507,15 @@
                   "reason": "behind upstream",
                   "next_safe_action": "pull or merge upstream before release",
                   "behind": 61
+                },
+                {
+                  "repo": "spark-world-editor",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "dirty worktree",
+                  "next_safe_action": "curate local changes before merge or release",
+                  "behind": 0
                 },
                 {
                   "repo": "spawner-ui",
@@ -555,6 +611,26 @@
                 "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
               },
               {
+                "owner": "spark-world-editor",
+                "status": "publish_blocked",
+                "family": "repo_release_blocks",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "reason": "dirty worktree",
+                "behind": 0,
+                "nextSafeAction": "curate local changes before merge or release",
+                "familyDetails": {
+                  "repo": "spark-world-editor",
+                  "releaseBlocking": false,
+                  "publishBlocking": true,
+                  "risk_class": "high",
+                  "reason": "dirty worktree",
+                  "next_safe_action": "curate local changes before merge or release",
+                  "behind": 0
+                },
+                "line": "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
+              },
+              {
                 "owner": "spawner-ui",
                 "status": "publish_blocked",
                 "family": "repo_release_blocks",
@@ -622,6 +698,7 @@
               "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
               "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
               "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+              "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
               "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
               "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
               "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
@@ -630,7 +707,7 @@
         },
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-          "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+          "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
           "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
         "caveatDetails": {
@@ -656,7 +733,7 @@
           "repo_release_blocks": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "blocked_release_count": 4,
+            "blocked_release_count": 5,
             "critical_repo_count": 3,
             "blocked_release_repos": [
               {
@@ -685,6 +762,15 @@
                 "reason": "behind upstream",
                 "next_safe_action": "pull or merge upstream before release",
                 "behind": 61
+              },
+              {
+                "repo": "spark-world-editor",
+                "releaseBlocking": false,
+                "publishBlocking": true,
+                "risk_class": "high",
+                "reason": "dirty worktree",
+                "next_safe_action": "curate local changes before merge or release",
+                "behind": 0
               },
               {
                 "repo": "spawner-ui",
@@ -754,6 +840,15 @@
               "reason": "behind upstream",
               "next_safe_action": "pull or merge upstream before release",
               "behind": 61
+            },
+            {
+              "repo": "spark-world-editor",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "dirty worktree",
+              "next_safe_action": "curate local changes before merge or release",
+              "behind": 0
             },
             {
               "repo": "spawner-ui",
@@ -849,6 +944,26 @@
             "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
+            "owner": "spark-world-editor",
+            "status": "publish_blocked",
+            "family": "repo_release_blocks",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "reason": "dirty worktree",
+            "behind": 0,
+            "nextSafeAction": "curate local changes before merge or release",
+            "familyDetails": {
+              "repo": "spark-world-editor",
+              "releaseBlocking": false,
+              "publishBlocking": true,
+              "risk_class": "high",
+              "reason": "dirty worktree",
+              "next_safe_action": "curate local changes before merge or release",
+              "behind": 0
+            },
+            "line": "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
+          },
+          {
             "owner": "spawner-ui",
             "status": "publish_blocked",
             "family": "repo_release_blocks",
@@ -917,7 +1032,7 @@
           "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
-        "handoffCount": 6,
+        "handoffCount": 7,
         "packetEvidence": {
           "missing": [],
           "invalid": [],
@@ -928,7 +1043,7 @@
     },
     "releaseCaveats": [
       "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-      "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
+      "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
       "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
     ],
     "releaseCaveatDetails": {
@@ -954,7 +1069,7 @@
       "repo_release_blocks": {
         "releaseBlocking": false,
         "publishBlocking": true,
-        "blocked_release_count": 4,
+        "blocked_release_count": 5,
         "critical_repo_count": 3,
         "blocked_release_repos": [
           {
@@ -985,6 +1100,15 @@
             "behind": 61
           },
           {
+            "repo": "spark-world-editor",
+            "releaseBlocking": false,
+            "publishBlocking": true,
+            "risk_class": "high",
+            "reason": "dirty worktree",
+            "next_safe_action": "curate local changes before merge or release",
+            "behind": 0
+          },
+          {
             "repo": "spawner-ui",
             "releaseBlocking": false,
             "publishBlocking": true,
@@ -1013,7 +1137,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T13:21:40.978Z",
+      "generatedAt": "2026-06-26T14:50:59.981Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1373,6 +1497,7 @@
       "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
       "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
       "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
+      "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
       "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
       "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
       "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
@@ -1437,6 +1562,26 @@
           "behind": 61
         },
         "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
+      },
+      {
+        "owner": "spark-world-editor",
+        "status": "publish_blocked",
+        "family": "repo_release_blocks",
+        "releaseBlocking": false,
+        "publishBlocking": true,
+        "reason": "dirty worktree",
+        "behind": 0,
+        "nextSafeAction": "curate local changes before merge or release",
+        "familyDetails": {
+          "repo": "spark-world-editor",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "dirty worktree",
+          "next_safe_action": "curate local changes before merge or release",
+          "behind": 0
+        },
+        "line": "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
       },
       {
         "owner": "spawner-ui",
@@ -1539,6 +1684,15 @@
           "behind": 61
         },
         {
+          "repo": "spark-world-editor",
+          "releaseBlocking": false,
+          "publishBlocking": true,
+          "risk_class": "high",
+          "reason": "dirty worktree",
+          "next_safe_action": "curate local changes before merge or release",
+          "behind": 0
+        },
+        {
           "repo": "spawner-ui",
           "releaseBlocking": false,
           "publishBlocking": true,
@@ -1574,10 +1728,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T13:21:43.759Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T13:21:43.759Z",
+      "generatedAt": "2026-06-26T14:51:02.091Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T14:51:02.091Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T14:21:43.759Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T15:51:02.091Z",
       "missing": [],
       "invalid": [],
       "stale": []
