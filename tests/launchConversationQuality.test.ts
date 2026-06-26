@@ -91,6 +91,8 @@ test('streaming design preserves the measured rich-message proof shape', () => {
   assert.match(design, /Check: clean/);
   assert.match(design, /Token: ok/);
   assert.match(design, /one final Telegram message/);
+  assert.match(design, /live `\/streaming` runtime status and visible transport-proof line came through the active Telegram profile path/);
+  assert.match(design, /generic Telegram trace context is not enough/);
   assert.match(design, /TELEGRAM_STREAMING_DEFAULTS/);
   assert.match(design, /source-owned default policy/);
   assert.match(design, /profile env files persist runtime choices/);
