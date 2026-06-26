@@ -24,16 +24,24 @@ Already built or documented:
 - Natural-language suite audit: `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
 - Current canary evidence: `outputs/live-canary-full/live-canary-summary.md`
 
-Current blocker:
+Current proof state:
 
-- Live trace-join proof still needs real SparkRecursive_bot Telegram text turns joined from user intent through route decision, action/no-action, and reply/proof evidence. Empty route samples are not release proof.
+- Full behavior proof is release-ready in `outputs/live-canary-full/live-canary-summary.md` when it says `Gate scope: full release pack` and `Release gate: ready`.
+- Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows joined through user intent, route decision, action/no-action, and reply/proof evidence.
+- Publish readiness remains separate. `Publish gate: not ready` means owner handoffs remain open and must not be described as registry or publish readiness.
+
+Current open handoffs:
+
+- Publish handoffs listed in the full canary summary.
+- Historical Builder trace-health lifecycle resolution listed in the full canary summary.
+- Local runtime test artifact handoff listed in the full canary summary.
 
 ## Active Task Order
 
 1. Reduce proof gaps and trace-join gaps.
-   - Prove the live route ledger is present, current, and joined.
-   - Make missing live rows explain whether the ledger is absent, disabled, stale, or simply uncaptured.
-   - Keep `npm run control:proof:live-trace` as the strict proof gate for this slice.
+   - Preserve live trace proof as a release gate.
+   - Make missing, stale, mismatched, or unjoined live rows fail loudly.
+   - Keep `npm run control:proof:live-trace` as the strict proof gate.
 
 2. Lock hidden-source boundaries.
    - Keep legacy plans classified as active, read-only evidence, archive candidate, or delete candidate.

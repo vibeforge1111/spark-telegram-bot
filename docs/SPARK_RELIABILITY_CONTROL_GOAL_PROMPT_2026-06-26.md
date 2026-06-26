@@ -16,13 +16,14 @@ Prime rule: First reduce proof gaps and trace-join gaps. Do not expand UI, media
 
 Current baseline:
 - Start from `outputs/live-canary-full/live-canary-summary.md`, not stale history.
-- Full behavior proof is release-ready only when the checked packet says full release scope and `Release gate: ready`.
+- Full behavior proof is release-ready when the checked packet says `Gate scope: full release pack` and `Release gate: ready`.
 - Publish is separate. `Publish gate: not ready` means owner handoffs remain open.
-- Already present: legacy source inventory, render firewall, trace join checker, route-boundary join proof, proof-capsule coverage, reliability eval coverage, legacy prompt surface gate, capability evidence, surface eval, and full/safe-first packets.
-- Current live gap: `npm run control:proof:live-trace` still needs real SparkRecursive_bot Telegram text turns joined across intent -> route decision -> action/no-action -> reply/proof. Empty samples are not enough.
+- Current proof state: full and safe-first canary packets have `Release gate: ready`; `npm run control:proof:live-trace` has real SparkRecursive_bot Telegram rows joined across intent -> route decision -> action/no-action -> reply/proof.
+- Publish remains not ready because owner handoffs remain open; do not turn release-ready behavior proof into registry/publish readiness.
+- Already present: legacy source inventory, render firewall, trace join checker, live route join proof, proof-capsule coverage, reliability eval coverage, legacy prompt surface gate, capability evidence, surface eval, and full/safe-first packets.
 
 Task order:
-1. Live trace proof: make the live route ledger observable and strict. If rows are missing, prove whether the ledger is absent, disabled, stale, on a different path, or simply uncaptured.
+1. Preserve live trace proof: keep `npm run control:proof:live-trace` strict and treat missing, stale, mismatched, or unjoined rows as release blockers.
 2. Hidden-source firewall: keep legacy plans, read-only evidence, raw ids, file paths, provider internals, and stack-like details out of ordinary replies unless explicitly inspected.
 3. Source inventory: keep every legacy plan/source marked active, read-only evidence, archive candidate, or delete candidate. Do not let old docs silently define current behavior.
 4. Proof capsules: every action-capable route must emit or join one proof capsule, and no-action turns must explicitly prove no action happened.

@@ -88,7 +88,9 @@ test('active reliability control goal prompt stays compact and proof-first', () 
   assert.ok(prompt.length < 4000, `active reliability prompt is ${prompt.length} chars; must stay under 4000`);
   assert.match(prompt, /First reduce proof gaps and trace-join gaps\./);
   assert.match(prompt, /Do not expand UI, media support, or new features unless they directly close a measured control-proof gap\./);
-  assert.match(prompt, /Current live gap: `npm run control:proof:live-trace` still needs real SparkRecursive_bot Telegram text turns/);
+  assert.match(prompt, /Current proof state: full and safe-first canary packets have `Release gate: ready`/);
+  assert.match(prompt, /`npm run control:proof:live-trace` has real SparkRecursive_bot Telegram rows joined/);
+  assert.match(prompt, /Publish remains not ready because owner handoffs remain open/);
   assert.match(prompt, /Natural-language suite: keep the old NL catalog as fast breadth coverage and promotion source material/);
   assert.match(prompt, /Do not widen media, UI, or composition scope until proof gaps and trace joins are reduced/);
   assert.match(prompt, /Canary evidence distinguishes scoped release readiness from publish readiness/);
@@ -97,8 +99,10 @@ test('active reliability control goal prompt stays compact and proof-first', () 
 test('active reliability control workplan records status and task order', () => {
   const workplan = readFileSync(RELIABILITY_CONTROL_WORKPLAN_PATH, 'utf8');
 
-  assert.match(workplan, /Current blocker:/);
-  assert.match(workplan, /Live trace-join proof still needs real SparkRecursive_bot Telegram text turns/);
+  assert.match(workplan, /Current proof state:/);
+  assert.match(workplan, /Full behavior proof is release-ready/);
+  assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
+  assert.match(workplan, /Current open handoffs:/);
   assert.match(workplan, /Active Task Order/);
   assert.match(workplan, /Reduce proof gaps and trace-join gaps/);
   assert.match(workplan, /Lock hidden-source boundaries/);
