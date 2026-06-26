@@ -326,7 +326,9 @@ function summarizeEvidenceJoins(
 
 function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
   const visibleJoins = joins.filter((join) => PANEL_EVIDENCE_PLANES.has(join.plane) || join.status === 'joined' || join.status === 'non_execution');
-  const joined = visibleJoins.filter((join) => join.status === 'joined').map((join) => join.displayName);
+  const joined = visibleJoins
+    .filter((join) => join.status === 'joined' && (join.proofRefJoined || join.proofCapsuleJoined))
+    .map((join) => join.displayName);
   const proofRefs = visibleJoins.filter((join) => join.proofRefJoined).map((join) => join.displayName);
   const proofCapsules = visibleJoins.filter((join) => join.proofCapsuleJoined).map((join) => join.displayName);
   const traceOnly = visibleJoins

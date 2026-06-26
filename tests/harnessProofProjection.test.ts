@@ -439,6 +439,7 @@ test('reports trace-only joins separately from proof refs', () => {
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.traceJoined, true);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofRefJoined, false);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofCapsuleJoined, false);
+    assert.match(projection.panel, /Evidence joined: none/);
     assert.match(projection.panel, /Evidence trace-only: Builder gateway/);
     assert.match(projection.panel, /Evidence proof refs: none/);
     assert.match(projection.panel, /Evidence proof capsules: none/);
