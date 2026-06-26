@@ -32,6 +32,7 @@ Current proof state:
 - Selected-case packets are focused evidence only. If their refresh context shows transient publish handoffs, use the full release packet for release or publish handoff authority.
 - Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows joined through user intent, route decision, action/no-action, and reply/proof evidence, with four no-action/read-only rows from the safe prompt set.
 - On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests/controlProofLiveCanaryPack.test.ts`, `npx ts-node tests/controlProofGoalPrompt.test.ts`, and `npm run build` passed locally.
+- The proof-capsule coverage gate now also rejects weak policy summaries. Direct capsule policies must say they emit, attach, create, or record a proof capsule or delivery/reply proof; joined policies must say they join or preserve downstream proof; no-action policies must prove fresh no-action evidence.
 - Publish readiness remains separate. `Publish gate: not ready` means owner handoffs remain open and must not be described as registry or publish readiness.
 
 Current open handoffs:
@@ -78,6 +79,7 @@ The battery must stay clean for missing evidence, trace joins, proof capsules, i
 
 3. Require proof capsules on action-capable routes.
    - Every action-capable path must emit or join one proof capsule.
+   - Proof policies must explain the proof path strongly enough for future maintainers to see whether the route emits proof, joins downstream proof, or proves fresh no-action.
    - No-action turns must explicitly prove no action happened.
    - Action without proof stays a release blocker.
 
@@ -93,6 +95,8 @@ The battery must stay clean for missing evidence, trace joins, proof capsules, i
 ## Documentation Rule
 
 When new behavior lands, update the active implementation doc and this workplan if the task order or baseline changes. Do not let old Spark docs silently define the current system; mark historical material as historical instead of rewriting it into current authority.
+
+New documentation should organize current proof, next action, and release meaning. It should not create a parallel authority path, soften gates, or present feature expansion as reliability work unless the measured control-proof gap is named.
 
 ## Done For This Phase
 
