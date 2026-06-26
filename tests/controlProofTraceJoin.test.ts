@@ -290,8 +290,11 @@ test('live evidence mode rejects stale joined route rows', () => {
     assert.equal(result.ok, false);
     assert.equal(result.staleRouteRows, 1);
     assert.equal(result.rows[0].staleLiveEvidence, true);
+    assert.equal(result.rows[0].liveEvidenceAgeMs, 2.5 * 60 * 60 * 1000);
+    assert.equal(result.rows[0].maxLiveEvidenceAgeMs, 60 * 60 * 1000);
     assert.deepEqual(result.rows[0].gaps, ['stale_live_route_evidence']);
     assert.match(report, /stale live route evidence: 1/);
+    assert.match(report, /age 2h 30m > max 1h/);
   });
 });
 

@@ -69,7 +69,7 @@ If memory says Spawner is down but spark live status says it is up, which source
 
 After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, `Safe prompt proof: ready`, the four matched safe-prompt evidence ids, and no missing join, reply, proof, action/no-action, stale, or route-mismatch gaps.
 
-Live rows must also be current. The default live evidence freshness window is four hours; use `--max-live-age-minutes <minutes>` only for an intentional local audit.
+Live rows must also be current. The default live evidence freshness window is four hours; use `--max-live-age-minutes <minutes>` only for an intentional local audit. When rows are stale, the gap sample prints a redacted age such as `age 5h > max 4h` so the operator can see whether recapture is needed without exposing request ids, trace refs, chat ids, user ids, or prompt text.
 
 ## Repeatable Handler Proof
 

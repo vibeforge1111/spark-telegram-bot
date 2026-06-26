@@ -48,6 +48,8 @@ export interface ControlProofTraceJoinOptions {
 
 export interface ControlProofTraceJoinRow {
   recordedAt: string;
+  liveEvidenceAgeMs: number | null;
+  maxLiveEvidenceAgeMs: number;
   shadowRoute: string;
   executedRoute: string;
   executedAction: string;
@@ -261,7 +263,10 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
   if (gapRows.length > 0) {
     lines.push('', 'Gap samples:');
     for (const row of gapRows.slice(0, 10)) {
-      lines.push(`- ${row.executedRoute}: ${row.gaps.join(', ')} | delivery ${row.delivery} | outcome ${row.outcome}`);
+      const staleAge = row.gaps.includes('stale_live_route_evidence')
+        ? ` | age ${formatDuration(row.liveEvidenceAgeMs)} > max ${formatDuration(row.maxLiveEvidenceAgeMs)}`
+        : '';
+      lines.push(`- ${row.executedRoute}: ${row.gaps.join(', ')} | delivery ${row.delivery} | outcome ${row.outcome}${staleAge}`);
     }
   }
   return `${lines.join('\n')}\n`;
@@ -341,10 +346,11 @@ function summarizeRouteJoin(
   const actionOrNoActionEvidence = Boolean(record.executed_action && record.delivery && record.delivery !== 'unknown');
   const noActionEvidence = actionOrNoActionEvidence && isNoActionRouteEvidence(record);
   const routeMatched = record.outcome !== 'mismatch';
-  const staleLiveEvidence = options.liveEvidenceRequired && isStaleLiveRouteEvidence(
-    record.recorded_at,
-    options.generatedAt,
-    options.maxLiveEvidenceAgeMs
+  const liveEvidenceAgeMs = liveRouteEvidenceAgeMs(record.recorded_at, options.generatedAt);
+  const staleLiveEvidence = options.liveEvidenceRequired && (
+    liveEvidenceAgeMs === null ||
+    liveEvidenceAgeMs > options.maxLiveEvidenceAgeMs ||
+    liveEvidenceAgeMs < -60_000
   );
   const gaps: string[] = [];
   if (!hasJoinKeys) gaps.push('missing_join_keys');
@@ -355,6 +361,8 @@ function summarizeRouteJoin(
   if (staleLiveEvidence) gaps.push('stale_live_route_evidence');
   return {
     recordedAt: record.recorded_at || '',
+    liveEvidenceAgeMs,
+    maxLiveEvidenceAgeMs: options.maxLiveEvidenceAgeMs,
     shadowRoute: record.shadow_route || 'unknown',
     executedRoute: record.executed_route || 'unknown',
     executedAction: record.executed_action || 'unknown',
@@ -372,11 +380,22 @@ function summarizeRouteJoin(
   };
 }
 
-function isStaleLiveRouteEvidence(recordedAt: string, generatedAt: string, maxAgeMs: number): boolean {
+function liveRouteEvidenceAgeMs(recordedAt: string, generatedAt: string): number | null {
   const recorded = Date.parse(recordedAt);
   const generated = Date.parse(generatedAt);
-  if (!Number.isFinite(recorded) || !Number.isFinite(generated)) return true;
-  return generated - recorded > maxAgeMs || recorded - generated > 60_000;
+  if (!Number.isFinite(recorded) || !Number.isFinite(generated)) return null;
+  return generated - recorded;
+}
+
+function formatDuration(valueMs: number | null): string {
+  if (valueMs === null) return 'unknown';
+  const sign = valueMs < 0 ? '-' : '';
+  const absoluteMs = Math.abs(valueMs);
+  const totalMinutes = Math.round(absoluteMs / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${sign}${hours}h${minutes ? ` ${minutes}m` : ''}`;
+  return `${sign}${minutes}m`;
 }
 
 function isNoActionRouteEvidence(record: NaturalRouteExecutionRecord): boolean {
