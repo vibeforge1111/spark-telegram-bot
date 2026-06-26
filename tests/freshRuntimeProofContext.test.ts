@@ -198,6 +198,20 @@ async function run(): Promise<void> {
     }
   });
 
+  await test('mission-routing bug explanation writes matched natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    try {
+      await assertTraceRouteLedgerJoin(
+        'I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class.',
+        'conversation.mission_routing_failure_class',
+        /route/i
+      );
+    } finally {
+      restoreEnv();
+    }
+  });
+
   await test('live-state and repair-status answers override keyword proof routes', async () => {
     restoreEnv();
     prepareEnv();

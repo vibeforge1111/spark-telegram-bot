@@ -9161,8 +9161,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isMissionRoutingFailureClassQuestion(text)) {
     const reply = renderMissionRoutingFailureClassReply(text);
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.mission_routing_failure_class', 'spark-telegram-bot', 'plain_chat.qa_boundary');
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.mission_routing_failure_class',
+      intentKind: 'conversation.mission_routing_failure_class',
+      command: 'telegram_mission_routing_failure_class',
+      reasonSummary: 'Telegram explained a mission-routing failure class; no mission launch or owner execution was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.mission_routing_failure_class',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      signal: 'mission_routing_failure_explanation'
+    }), 'conversation.mission_routing_failure_class', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
@@ -9170,8 +9182,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && isNoExecutionExplanationPrompt(text)) {
     const reply = renderMissionRoutingFailureClassReply(text);
     await conversation.remember(user, text).catch(() => {});
-    recordNaturalRouteExecution(ctx, naturalRouteShadow, 'conversation.no_execution_explanation', 'spark-telegram-bot', 'plain_chat.qa_boundary');
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'conversation.no_execution_explanation',
+      intentKind: 'conversation.no_execution_explanation',
+      command: 'telegram_no_execution_explanation',
+      reasonSummary: 'Telegram explained the no-execution boundary; no mission launch or owner execution was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'conversation.no_execution_explanation',
+      owner: 'spark-telegram-bot',
+      action: 'plain_chat.qa_boundary',
+      signal: 'no_execution_explanation'
+    }), 'conversation.no_execution_explanation', 'spark-telegram-bot', 'plain_chat.qa_boundary');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
   }
