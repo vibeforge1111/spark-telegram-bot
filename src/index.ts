@@ -5132,7 +5132,11 @@ export async function handleRememberCommand(ctx: any): Promise<void> {
   const text = ctx.message.text.replace(/^\/remember(?:@\w+)?\s*/i, '').trim();
 
   if (!text) {
-    return ctx.reply('Usage: /remember <something to remember>');
+    return ctx.reply(
+      'Usage: /remember <something to remember>\n' +
+        'Stores a fact your Spark agent should reuse on later runs.\n' +
+        'Example: /remember I prefer SaaS pitches that lead with the metric, not the founder story'
+    );
   }
 
   const authorization = authorizeMemoryWriteCommand(ctx, ctx.message.text);
@@ -5168,7 +5172,11 @@ export async function handleRecallCommand(ctx: any): Promise<void> {
   const query = ctx.message.text.replace(/^\/recall(?:@\w+)?\s*/i, '').trim();
 
   if (!query) {
-    return ctx.reply('Usage: /recall <topic to recall>');
+    return ctx.reply(
+      'Usage: /recall <topic to recall>\n' +
+        'Searches stored memory for facts that match the topic and replies with what it finds.\n' +
+        'Example: /recall pitch preferences'
+    );
   }
 
   const authorization = authorizeMemoryRecallCommand(ctx, ctx.message.text);
