@@ -17,6 +17,7 @@ const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
 const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
+const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -48,6 +49,7 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /reduce proof gaps and trace-join gaps before expanding UI, media support, or new visible features/);
   assert.match(index, /directly closes a measured control-proof gap/);
   assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
+  assert.match(index, /SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md/);
   assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
@@ -105,6 +107,24 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /None in this pass/);
   assert.match(inventory, /Add a render firewall/);
   assert.match(inventory, /user intent -> route decision -> action\/no-action -> reply/);
+});
+
+test('reliability ladder goal prompt sequences enforcement before expansion', () => {
+  const promptDoc = readFileSync(RELIABILITY_GOAL_PROMPT_PATH, 'utf8');
+  const prompt = promptDoc.match(/```text\n([\s\S]*?)\n```/)?.[1] || '';
+
+  assert.ok(prompt.length > 0, 'reliability goal prompt block missing');
+  assert.ok(prompt.length < 4000, `reliability goal prompt is ${prompt.length} chars; must stay under 4000`);
+  assert.match(prompt, /control program, not a cleanup sprint/);
+  assert.match(prompt, /Reduce proof gaps, trace-join gaps, and hidden-source influence first/);
+  assert.match(prompt, /Source inventory/);
+  assert.match(prompt, /Render firewall/);
+  assert.match(prompt, /every action-capable route must emit or join exactly one appropriate proof capsule/);
+  assert.match(prompt, /user intent -> route decision -> action\/no-action -> reply/);
+  assert.match(prompt, /do not run/);
+  assert.match(prompt, /just explain/);
+  assert.match(prompt, /last-success and last-failure evidence per capability/);
+  assert.match(prompt, /logically correct but robotic replies fail/);
 });
 
 test('preflight result marks stale safe-first recapture advice as superseded', () => {

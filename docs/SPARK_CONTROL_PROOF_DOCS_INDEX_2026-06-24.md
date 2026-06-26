@@ -44,19 +44,23 @@ Read these in order:
    - Source-boundary inventory for legacy plans, catalogs, runbooks, and evidence.
    - Source for classifying material as active, read-only evidence, archive candidate, or delete candidate.
 
-9. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+9. `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md`
+   - Compact goal prompt for the next reliability hardening phase.
+   - Source for render firewall, trace join checker, capability evidence, and surface eval sequencing.
+
+10. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-10. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+11. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-11. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+12. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-12. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+13. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
