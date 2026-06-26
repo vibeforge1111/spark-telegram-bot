@@ -9,6 +9,8 @@ export interface ControlProofTraceJoinOptions {
   finalAnswerAudit?: string;
   outboundAudit?: string;
   sampleSize?: number;
+  requireLiveEvidence?: boolean;
+  minRouteRows?: number;
   generatedAt?: string;
 }
 
@@ -38,6 +40,10 @@ export interface ControlProofTraceJoinSummary {
   sampledRouteRows: number;
   parseErrors: number;
   noRouteEvidence: boolean;
+  liveEvidenceRequired: boolean;
+  minRouteRows: number;
+  liveEvidenceReady: boolean;
+  insufficientLiveRouteRows: boolean;
   joinedRows: number;
   gapRows: number;
   missingJoinKeyRows: number;
@@ -72,6 +78,8 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const finalAnswerAudit = path.resolve(options.finalAnswerAudit || defaultFinalAnswerAuditPath(sparkHome));
   const outboundAudit = path.resolve(options.outboundAudit || defaultOutboundAuditPath(sparkHome));
   const sampleSize = Math.max(1, Math.trunc(options.sampleSize || 100));
+  const minRouteRows = Math.max(1, Math.trunc(options.minRouteRows || 1));
+  const liveEvidenceRequired = Boolean(options.requireLiveEvidence);
   const routeRead = readJsonl(routeLedgerPath);
   const finalIndex = indexEvidenceRefs(readJsonl(finalAnswerAudit).records);
   const outboundIndex = indexEvidenceRefs(readJsonl(outboundAudit).records);
@@ -80,9 +88,11 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const sampled = routeRecords.slice(-sampleSize);
   const rows = sampled.map((record) => summarizeRouteJoin(record, evidenceIndex));
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
+  const liveEvidenceReady = sampled.length >= minRouteRows && gapRows === 0 && routeRead.parseErrors === 0;
+  const insufficientLiveRouteRows = liveEvidenceRequired && sampled.length < minRouteRows;
 
   return {
-    ok: routeRead.parseErrors === 0 && sampled.length > 0 && gapRows === 0,
+    ok: routeRead.parseErrors === 0 && sampled.length > 0 && gapRows === 0 && !insufficientLiveRouteRows,
     generatedAt: options.generatedAt || new Date().toISOString(),
     sparkHome,
     naturalRouteLedger: routeLedgerPath,
@@ -92,6 +102,10 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     sampledRouteRows: sampled.length,
     parseErrors: routeRead.parseErrors,
     noRouteEvidence: sampled.length === 0,
+    liveEvidenceRequired,
+    minRouteRows,
+    liveEvidenceReady,
+    insufficientLiveRouteRows,
     joinedRows: rows.length - gapRows,
     gapRows,
     missingJoinKeyRows: rows.filter((row) => row.gaps.includes('missing_join_keys')).length,
@@ -125,6 +139,10 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `Gap rows: ${summary.gapRows}`,
     `Parse errors: ${summary.parseErrors}`,
     ...(summary.noRouteEvidence ? ['No route evidence sampled; run a Telegram text turn with the route ledger enabled before claiming trace-join proof.'] : []),
+    ...(summary.liveEvidenceRequired ? [
+      `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.sampledRouteRows}/${summary.minRouteRows} minimum joined rows)`,
+      ...(summary.insufficientLiveRouteRows ? ['Live route evidence incomplete; capture real SparkRecursive_bot Telegram text turns before claiming live trace-join proof.'] : [])
+    ] : []),
     '',
     'Gap counts:',
     `- missing join keys: ${summary.missingJoinKeyRows}`,

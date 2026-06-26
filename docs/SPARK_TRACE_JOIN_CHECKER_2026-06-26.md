@@ -32,6 +32,30 @@ npm run control:proof:trace-join -- --sample 100
 npm run control:proof:trace-join -- --json
 ```
 
+## Live Telegram Gate
+
+Use the live gate before claiming SparkRecursive_bot has fresh deployed trace-join proof:
+
+```bash
+npm run control:proof:live-trace
+```
+
+This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4`. It fails when the route ledger has fewer than four joined route rows, even if the rows that exist are individually clean.
+
+Safe Telegram prompts for the four live rows:
+
+```text
+I am mentioning build and mission, but do not start anything. What is the current Spark risk profile?
+
+I am asking about a bug in mission routing. Do not launch a mission; just explain the likely failure class.
+
+Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.
+
+If memory says Spawner is down but spark live status says it is up, which source wins?
+```
+
+After the prompts, rerun the live gate. A passing result must show `Live route proof: ready` and no missing join, reply, proof, action/no-action, or route-mismatch gaps.
+
 ## Repeatable Handler Proof
 
 Use the route boundary handler harness for a local Telegram-shaped proof sample:

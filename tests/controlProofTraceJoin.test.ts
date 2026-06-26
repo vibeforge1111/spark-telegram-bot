@@ -178,6 +178,40 @@ test('treats empty route evidence as not proven', () => {
   });
 });
 
+test('live evidence mode requires enough joined route rows', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    writeJsonl(routeLedger, [routeRow()]);
+    writeJsonl(finalAnswer, [{
+      request_id: 'turn:joined',
+      trace_ref: 'trace:joined',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890',
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+    }]);
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.liveEvidenceRequired, true);
+    assert.equal(result.liveEvidenceReady, false);
+    assert.equal(result.insufficientLiveRouteRows, true);
+    assert.match(report, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
+    assert.match(report, /capture real SparkRecursive_bot Telegram text turns/);
+  });
+});
+
 test('trace join CLI fails strict mode on gaps', () => {
   withTempRoot((root) => {
     const routeLedger = path.join(root, 'route-ledger.jsonl');
@@ -208,5 +242,45 @@ test('trace join CLI fails strict mode on gaps', () => {
     assert.equal(result.status, 1);
     assert.match(result.stdout, /Status: gaps found/);
     assert.match(result.stdout, /missing join keys: 1/);
+  });
+});
+
+test('trace join CLI fails live evidence mode when route rows are below the minimum', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    writeJsonl(routeLedger, [routeRow()]);
+    writeJsonl(finalAnswer, [{
+      request_id: 'turn:joined',
+      trace_ref: 'trace:joined',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890',
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+    }]);
+    writeJsonl(outbound, []);
+
+    const result = spawnSync(process.execPath, [
+      '-r',
+      'ts-node/register',
+      path.join(__dirname, '..', 'ops', 'controlProofTraceJoin.ts'),
+      '--strict',
+      '--require-live-evidence',
+      '--min-route-rows',
+      '4',
+      '--spark-home',
+      root,
+      '--natural-route-ledger',
+      routeLedger,
+      '--final-answer-audit',
+      finalAnswer,
+      '--outbound-audit',
+      outbound
+    ], {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf8'
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
   });
 });
