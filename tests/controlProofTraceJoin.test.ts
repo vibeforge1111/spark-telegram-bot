@@ -60,6 +60,34 @@ function routeRow(overrides: Record<string, unknown> = {}): Record<string, unkno
   };
 }
 
+const SAFE_PROMPT_SIGNATURES = [
+  ['fresh_state.risk_profile', 'harness_core.risk_profile'],
+  ['conversation.mission_routing_failure_class', 'plain_chat.qa_boundary'],
+  ['fresh_state.read_only_repair_status', 'harness_core.read_only_state'],
+  ['fresh_state.authority_answer', 'harness_core.source_priority']
+] as const;
+
+function safePromptRows(): Record<string, unknown>[] {
+  return SAFE_PROMPT_SIGNATURES.map(([executedRoute, executedAction], index) => routeRow({
+    request_id: `turn:safe-${index}`,
+    trace_ref: `trace:safe-${index}`,
+    harness_proof_ref: `turn:sha256:safe${index}`,
+    shadow_route: executedRoute,
+    executed_route: executedRoute,
+    executed_action: executedAction,
+    delivery: 'selected'
+  }));
+}
+
+function proofRowsFor(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return rows.map((row) => ({
+    request_id: row.request_id,
+    trace_ref: row.trace_ref,
+    harness_proof_ref: row.harness_proof_ref,
+    proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: row.harness_proof_ref }
+  }));
+}
+
 test('joins natural route decisions to reply and proof evidence', () => {
   withTempRoot((root) => {
     const routeLedger = path.join(root, 'route-ledger.jsonl');
@@ -387,6 +415,81 @@ test('live evidence mode counts only clean joined rows toward readiness', () => 
     assert.equal(result.insufficientNoActionRows, true);
     assert.match(report, /Live route proof: not ready \(2\/4 minimum joined rows\)/);
     assert.match(report, /No-action route proof: not ready \(2\/4 minimum no-action rows\)/);
+  });
+});
+
+test('live evidence mode requires the distinct safe prompt signatures', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const rows = Array.from({ length: 4 }, (_, index) => routeRow({
+      request_id: `turn:generic-${index}`,
+      trace_ref: `trace:generic-${index}`,
+      harness_proof_ref: `turn:sha256:generic${index}`,
+      executed_action: 'answer',
+      delivery: 'delivered'
+    }));
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, proofRowsFor(rows));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.joinedRows, 4);
+    assert.equal(result.noActionEvidenceRows, 4);
+    assert.equal(result.safePromptEvidenceRows, 0);
+    assert.deepEqual(result.missingSafePromptEvidence, [
+      'risk_profile_no_build',
+      'mission_routing_explain_only',
+      'repair_status_no_action',
+      'memory_vs_fresh_state'
+    ]);
+    assert.match(report, /Safe prompt proof: not ready \(0\/4 required safe prompts\)/);
+    assert.match(report, /Missing safe prompt evidence: risk_profile_no_build/);
+  });
+});
+
+test('live evidence mode accepts clean joined rows for all safe prompt signatures', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const rows = safePromptRows();
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, proofRowsFor(rows));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      minNoActionRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.liveEvidenceReady, true);
+    assert.equal(result.joinedRows, 4);
+    assert.equal(result.noActionEvidenceRows, 4);
+    assert.equal(result.safePromptEvidenceRows, 4);
+    assert.deepEqual(result.missingSafePromptEvidence, []);
+    assert.match(report, /Safe prompt proof: ready \(4\/4 required safe prompts\)/);
   });
 });
 

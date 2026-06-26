@@ -10,6 +10,29 @@ export const LIVE_TRACE_JOIN_SAFE_PROMPTS = [
   'If memory says Spawner is down but spark live status says it is up, which source wins?'
 ] as const;
 
+const LIVE_TRACE_JOIN_SAFE_PROMPT_SIGNATURES = [
+  {
+    id: 'risk_profile_no_build',
+    route: 'fresh_state.risk_profile',
+    action: 'harness_core.risk_profile'
+  },
+  {
+    id: 'mission_routing_explain_only',
+    route: 'conversation.mission_routing_failure_class',
+    action: 'plain_chat.qa_boundary'
+  },
+  {
+    id: 'repair_status_no_action',
+    route: 'fresh_state.read_only_repair_status',
+    action: 'harness_core.read_only_state'
+  },
+  {
+    id: 'memory_vs_fresh_state',
+    route: 'fresh_state.authority_answer',
+    action: 'harness_core.source_priority'
+  }
+] as const;
+
 export interface ControlProofTraceJoinOptions {
   sparkHome?: string;
   naturalRouteLedger?: string;
@@ -27,6 +50,7 @@ export interface ControlProofTraceJoinRow {
   recordedAt: string;
   shadowRoute: string;
   executedRoute: string;
+  executedAction: string;
   delivery: string;
   outcome: string;
   requestIdPresent: boolean;
@@ -66,6 +90,8 @@ export interface ControlProofTraceJoinSummary {
   maxLiveEvidenceAgeMs: number;
   joinedRows: number;
   noActionEvidenceRows: number;
+  safePromptEvidenceRows: number;
+  missingSafePromptEvidence: string[];
   staleRouteRows: number;
   gapRows: number;
   missingJoinKeyRows: number;
@@ -125,10 +151,16 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
   const joinedRows = rows.length - gapRows;
   const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence && row.gaps.length === 0).length;
+  const safePromptEvidence = safePromptEvidenceIds(rows);
+  const missingSafePromptEvidence = LIVE_TRACE_JOIN_SAFE_PROMPT_SIGNATURES
+    .map((signature) => signature.id)
+    .filter((id) => !safePromptEvidence.has(id));
   const insufficientLiveRouteRows = liveEvidenceRequired && joinedRows < minRouteRows;
   const insufficientNoActionRows = liveEvidenceRequired && noActionEvidenceRows < minNoActionRows;
+  const insufficientSafePromptEvidence = liveEvidenceRequired && missingSafePromptEvidence.length > 0;
   const liveEvidenceReady = joinedRows >= minRouteRows &&
     noActionEvidenceRows >= minNoActionRows &&
+    !insufficientSafePromptEvidence &&
     gapRows === 0 &&
     routeRead.parseErrors === 0;
   const routeLedgerState = classifyRouteLedgerState(routeRead, routeRecords.length);
@@ -138,7 +170,8 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
       sampled.length > 0 &&
       gapRows === 0 &&
       !insufficientLiveRouteRows &&
-      !insufficientNoActionRows,
+      !insufficientNoActionRows &&
+      !insufficientSafePromptEvidence,
     generatedAt,
     sparkHome,
     naturalRouteLedger: routeLedgerPath,
@@ -163,6 +196,8 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     maxLiveEvidenceAgeMs,
     joinedRows,
     noActionEvidenceRows,
+    safePromptEvidenceRows: safePromptEvidence.size,
+    missingSafePromptEvidence,
     staleRouteRows: rows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
     gapRows,
     missingJoinKeyRows: rows.filter((row) => row.gaps.includes('missing_join_keys')).length,
@@ -201,6 +236,8 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     ...(summary.liveEvidenceRequired ? [
       `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.joinedRows}/${summary.minRouteRows} minimum joined rows)`,
       `No-action route proof: ${summary.noActionEvidenceRows >= summary.minNoActionRows ? 'ready' : 'not ready'} (${summary.noActionEvidenceRows}/${summary.minNoActionRows} minimum no-action rows)`,
+      `Safe prompt proof: ${summary.missingSafePromptEvidence.length === 0 ? 'ready' : 'not ready'} (${summary.safePromptEvidenceRows}/${LIVE_TRACE_JOIN_SAFE_PROMPT_SIGNATURES.length} required safe prompts)`,
+      ...(summary.missingSafePromptEvidence.length ? [`Missing safe prompt evidence: ${summary.missingSafePromptEvidence.join(', ')}`] : []),
       ...(summary.liveEvidenceReady ? [] : liveTraceCaptureGuideLines())
     ] : []),
     '',
@@ -263,6 +300,21 @@ function liveTraceCaptureGuideLines(): string[] {
   ];
 }
 
+function safePromptEvidenceIds(rows: ControlProofTraceJoinRow[]): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.gaps.length > 0 || !row.noActionEvidence) continue;
+    const route = row.executedRoute.toLowerCase();
+    const action = row.executedAction.toLowerCase();
+    const signature = LIVE_TRACE_JOIN_SAFE_PROMPT_SIGNATURES.find((entry) => (
+      entry.route === route &&
+      entry.action === action
+    ));
+    if (signature) ids.add(signature.id);
+  }
+  return ids;
+}
+
 function summarizeRouteJoin(
   record: NaturalRouteExecutionRecord,
   index: RefIndex,
@@ -297,6 +349,7 @@ function summarizeRouteJoin(
     recordedAt: record.recorded_at || '',
     shadowRoute: record.shadow_route || 'unknown',
     executedRoute: record.executed_route || 'unknown',
+    executedAction: record.executed_action || 'unknown',
     delivery: record.delivery || 'unknown',
     outcome: record.outcome || 'unknown',
     requestIdPresent: Boolean(requestId),
