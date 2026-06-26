@@ -38,6 +38,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md` | active | Current old-edge reliability eval coverage behavior. |
 | `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md` | active | Current gate for keeping legacy plans out of prompt-facing source and human canary summaries unless explicitly inspected. |
 | `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md` | active | Current gate for deriving capability last-success and last-failure/boundary evidence from full canary observations. |
+| `docs/SPARK_SURFACE_EVAL_2026-06-26.md` | active | Current human-feel eval gate for canary replies that are logically correct but robotic or leaky. |
 | `docs/LIVE_CHAT_STREAMING_DESIGN.md` | active | Active for proven Telegram streaming/rich defaults; future Builder-native phases stay gated by measured proof gaps. |
 | `docs/QA_OPERATOR_TELEGRAM_RECURSION.md` | active | Recursive/QA Operator Telegram behavior source. |
 | `docs/VOICE_RUNTIME_ARCHITECTURE.md` | active | Voice evidence boundary source; voice evidence remains non-execution unless a future proof gap changes that. |
@@ -89,4 +90,4 @@ Turn this inventory into enforcement:
 4. Keep reliability eval coverage checked for old-edge categories before claiming control-proof readiness.
 5. Keep the legacy prompt surface gate covered so read-only evidence cannot become hidden prompt or UI-summary authority.
 6. Keep capability evidence checked so each capability lane has last-success and last-failure/boundary proof before reliability claims.
-7. Add the weekly human-feel surface eval after capability evidence is enforced.
+7. Keep the surface eval checked so logically correct but robotic replies fail ordinary conversation readiness.

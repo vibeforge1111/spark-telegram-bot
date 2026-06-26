@@ -77,15 +77,19 @@ Read these in order:
    - Active capability last-success and last-failure/boundary evidence gate.
    - Source for capability reliability claims from full canary evidence rather than registry visibility.
 
-17. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+17. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
+   - Active human-feel surface eval gate.
+   - Source for failing logically correct but robotic ordinary replies.
+
+18. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-18. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+19. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-19. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+20. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -133,6 +137,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Reliability eval coverage behavior updates `SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`.
 - Legacy prompt/UI summary surface behavior updates `SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`.
 - Capability evidence behavior updates `SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`.
+- Surface eval behavior updates `SPARK_SURFACE_EVAL_2026-06-26.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
 - Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`.
 - Streaming or Rich Message behavior updates `LIVE_CHAT_STREAMING_DESIGN.md`.
