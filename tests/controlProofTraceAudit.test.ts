@@ -466,7 +466,12 @@ test('CLI JSON includes machine-readable gap posture', () => {
       { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
     );
     assert.equal(jsonAudit.status, 0, jsonAudit.stderr);
-    const parsed = JSON.parse(jsonAudit.stdout) as { gapPosture?: string; legacyGapBackingDetails?: unknown[] };
+    const parsed = JSON.parse(jsonAudit.stdout) as {
+      freshStrictOk?: boolean;
+      gapPosture?: string;
+      legacyGapBackingDetails?: unknown[];
+    };
+    assert.equal(parsed.freshStrictOk, true);
     assert.equal(parsed.gapPosture, 'clean');
     assert.deepEqual(parsed.legacyGapBackingDetails, []);
   });
@@ -621,6 +626,35 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
     assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
     assert.match(freshStrictClean.stdout, /latest proof gaps: 0/);
     assert.match(freshStrictClean.stdout, /latest_gap no/);
+
+    const freshStrictCleanJson = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--sample',
+        '10',
+        '--fresh-strict',
+        '--json'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(freshStrictCleanJson.status, 0, freshStrictCleanJson.stderr);
+    const parsedFreshStrictClean = JSON.parse(freshStrictCleanJson.stdout) as {
+      ok?: boolean;
+      blockingOk?: boolean;
+      freshStrictOk?: boolean;
+      gapPosture?: string;
+      gapCounts?: { legacyProofGap?: number; latestProofGap?: number };
+    };
+    assert.equal(parsedFreshStrictClean.ok, false);
+    assert.equal(parsedFreshStrictClean.blockingOk, true);
+    assert.equal(parsedFreshStrictClean.freshStrictOk, true);
+    assert.equal(parsedFreshStrictClean.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(parsedFreshStrictClean.gapCounts?.legacyProofGap, 1);
+    assert.equal(parsedFreshStrictClean.gapCounts?.latestProofGap, 0);
 
     const finalAnswerPath = path.join(sparkHome, 'state', 'spark-telegram-bot', 'final-answer-gate-audit.jsonl');
     writeJsonl(finalAnswerPath, [

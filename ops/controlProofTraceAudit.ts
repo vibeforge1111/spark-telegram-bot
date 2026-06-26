@@ -56,10 +56,7 @@ function main(): void {
     process.exitCode = 1;
   } else if (!result.blockingOk && hasFlag(args, 'blocking-strict')) {
     process.exitCode = 1;
-  } else if (
-    hasFlag(args, 'fresh-strict') &&
-    (!result.blockingOk || result.planes.some((plane) => !plane.missing && plane.latestProofGapMarked))
-  ) {
+  } else if (hasFlag(args, 'fresh-strict') && !result.freshStrictOk) {
     process.exitCode = 1;
   }
 }

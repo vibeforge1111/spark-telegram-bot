@@ -448,7 +448,7 @@ Use audit `--fresh-strict` when checking the current release-blocking state dire
 
 The audit header now includes `Gap posture` to prevent `Status: gaps found` from being misread as a current blocker. Treat `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` as the readable summary of the counters, not a replacement for them; release evidence still depends on `Blocking status: clean`, zero latest proof gaps, and complete legacy-gap backing.
 
-The audit JSON result also carries `gapPosture` with the same value as the human report. Downstream gates should read that field directly instead of re-inferring the posture from `ok`, `blockingOk`, and legacy-gap counters when they need a compact machine-readable summary.
+The audit JSON result also carries `gapPosture` with the same value as the human report and `freshStrictOk` with the exact pass/fail value used by `--fresh-strict`. Downstream gates should read those fields directly instead of re-inferring the posture from `ok`, `blockingOk`, and legacy-gap counters when they need a compact machine-readable summary. `ok=false` can still be correct for backed historical gaps; `freshStrictOk=true` is the machine-readable release-blocking proof gate when those gaps are complete, non-latest, and non-blocking.
 
 The audit JSON and markdown report also carry `legacyGapBackingDetails` / `Legacy gap backing`. Each historical proof-gap plane must name its backing status, latest-gap status, release-blocking impact, repair source, and dry-run repair command. Use that detail when explaining why visible legacy gaps are allowed: acceptable release evidence requires `releaseBlocking=false`, complete backing, and zero latest gaps.
 

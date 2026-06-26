@@ -81,6 +81,7 @@ export type ControlProofGapPosture =
 export interface ControlProofTraceAuditResult {
   ok: boolean;
   blockingOk: boolean;
+  freshStrictOk: boolean;
   gapPosture: ControlProofGapPosture;
   generatedAt: string;
   sampleSize: number;
@@ -173,10 +174,12 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
   const legacyGapBackingDetails = summarizeLegacyGapBackingDetails(planes);
   const ok = Object.values(gapCounts).every((count) => count === 0);
   const blockingOk = releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
+  const freshStrictOk = blockingOk && gapCounts.latestProofGap === 0;
   const gapPosture = summarizeGapPosture(ok, blockingOk, gapCounts);
   return {
     ok,
     blockingOk,
+    freshStrictOk,
     gapPosture,
     generatedAt: options.generatedAt || new Date().toISOString(),
     sampleSize,
