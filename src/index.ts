@@ -4302,7 +4302,7 @@ function requireAdmin(ctx: any): boolean {
     return true;
   }
 
-  ctx.reply('Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first.').catch(() => {});
+  ctx.reply('Admin only. Run /myid to see your Telegram ID, then add it to ADMIN_TELEGRAM_IDS in .env.').catch(() => {});
   return false;
 }
 
