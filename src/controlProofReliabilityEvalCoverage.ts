@@ -34,6 +34,8 @@ export interface ReliabilityEvalCoverageGap {
     | 'mutation_mismatch'
     | 'reply_shape_mismatch'
     | 'capture_mismatch'
+    | 'duplicate_requirement_id'
+    | 'duplicate_requirement_case'
     | 'missing_requirement_cases'
     | 'missing_requirement_policy';
   detail: string;
@@ -166,8 +168,10 @@ export function checkReliabilityEvalCoverage(input: {
   const byId = caseById(cases);
   const gaps: ReliabilityEvalCoverageGap[] = [];
   const checkedCaseIds = new Set<string>();
+  const requirementIds = new Map<string, number>();
 
   for (const requirement of requirements) {
+    requirementIds.set(requirement.id, (requirementIds.get(requirement.id) ?? 0) + 1);
     if (requirement.requiredCaseIds.length === 0) {
       gaps.push({
         requirementId: requirement.id,
@@ -222,6 +226,19 @@ export function checkReliabilityEvalCoverage(input: {
         requirementId: requirement.id,
         reason: 'missing_requirement_policy',
         detail: 'Reliability requirement must define allowed reply shapes.'
+      });
+    }
+    const requirementCaseCounts = new Map<string, number>();
+    for (const caseId of requirement.requiredCaseIds) {
+      requirementCaseCounts.set(caseId, (requirementCaseCounts.get(caseId) ?? 0) + 1);
+    }
+    for (const [caseId, count] of requirementCaseCounts) {
+      if (count <= 1) continue;
+      gaps.push({
+        requirementId: requirement.id,
+        caseId,
+        reason: 'duplicate_requirement_case',
+        detail: `Reliability requirement lists ${caseId} ${count} times; repeated cases do not add coverage.`
       });
     }
     for (const capture of ['observedReply', 'sideEffects'] as const) {
@@ -298,6 +315,15 @@ export function checkReliabilityEvalCoverage(input: {
         }
       }
     }
+  }
+
+  for (const [requirementId, count] of requirementIds) {
+    if (count <= 1) continue;
+    gaps.push({
+      requirementId,
+      reason: 'duplicate_requirement_id',
+      detail: `Reliability requirement id appears ${count} times; requirement ids must be unique.`
+    });
   }
 
   return {

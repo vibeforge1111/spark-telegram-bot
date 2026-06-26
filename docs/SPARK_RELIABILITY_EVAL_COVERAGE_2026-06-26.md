@@ -37,6 +37,8 @@ The gate also checks the capture shape needed to prove the route boundary: obser
 
 Each requirement must name at least one canary case and must define category, prompt, route, risk, authority, mutation, reply-shape, observed-reply, and side-effect expectations. A requirement without those policies is not real coverage; it is an unjoined label and must fail the gate.
 
+Requirement ids must be unique, and each requirement's case list must contain unique canary ids. Repeating the same requirement or the same case does not add old-edge coverage and must fail the gate.
+
 Category joins keep a reliability requirement from borrowing a valid but unrelated canary. For example, streaming/rich-message coverage must draw from `streaming` or `rich_messages` cases, not a memory or publish case that happens to pass.
 
 If a canary prompt, category, route, or required capture is changed, this checker should fail until the replacement still proves the same old-edge boundary.

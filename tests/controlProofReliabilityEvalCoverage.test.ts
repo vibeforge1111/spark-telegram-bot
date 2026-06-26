@@ -93,6 +93,39 @@ test('coverage checker rejects requirements without canary cases', () => {
   assert.match(formatReliabilityEvalCoverageReport(result), /missing_requirement_cases/);
 });
 
+test('coverage checker rejects duplicate requirement ids', () => {
+  const requirement = RELIABILITY_EVAL_REQUIREMENTS.find((entry) => entry.id === 'just_explain');
+  assert.ok(requirement);
+  const result = checkReliabilityEvalCoverage({
+    requirements: [requirement, { ...requirement }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'just_explain' &&
+    gap.reason === 'duplicate_requirement_id'
+  )));
+  assert.match(formatReliabilityEvalCoverageReport(result), /duplicate_requirement_id/);
+});
+
+test('coverage checker rejects repeated canary ids within a requirement', () => {
+  const requirement = RELIABILITY_EVAL_REQUIREMENTS.find((entry) => entry.id === 'just_explain');
+  assert.ok(requirement);
+  const result = checkReliabilityEvalCoverage({
+    requirements: [{
+      ...requirement,
+      requiredCaseIds: ['cp-noaction-002', 'cp-noaction-002']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'just_explain' &&
+    gap.caseId === 'cp-noaction-002' &&
+    gap.reason === 'duplicate_requirement_case'
+  )));
+});
+
 test('coverage checker rejects requirements without boundary policy expectations', () => {
   const result = checkReliabilityEvalCoverage({
     requirements: [{
