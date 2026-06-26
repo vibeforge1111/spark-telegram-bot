@@ -86,3 +86,34 @@ test('coverage checker reports source marker gaps', () => {
   assert.equal(result.ok, false);
   assert.ok(result.gaps.some((gap) => gap.planeId === 'legacy-plane:telegram-action-authority' && gap.reason === 'missing_marker'));
 });
+
+test('coverage checker rejects no-action-only policy on execution routes', () => {
+  const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
+    policy.planeId === 'legacy-plane:telegram-action-authority'
+      ? {
+          ...policy,
+          proofPath: {
+            kind: 'explicit_no_action' as const,
+            summary: 'This execution-capable authority route is incorrectly marked as no-action only.'
+          }
+        }
+      : policy
+  ));
+  const result = checkProofCapsuleCoverage({ repoRoot: process.cwd(), policies });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.planeId === 'legacy-plane:telegram-action-authority' &&
+    gap.reason === 'incompatible_policy_kind'
+  )));
+});
+
+test('coverage checker allows explicit no-action policy for pending-state followups', () => {
+  const result = checkProofCapsuleCoverage({ repoRoot: process.cwd() });
+
+  assert.equal(result.ok, true);
+  assert.ok(ACTION_PROOF_CAPSULE_POLICIES.some((policy) => (
+    policy.planeId === 'legacy-plane:telegram-pending-state-followups' &&
+    policy.proofPath.kind === 'explicit_no_action'
+  )));
+});

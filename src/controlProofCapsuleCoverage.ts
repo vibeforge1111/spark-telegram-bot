@@ -16,7 +16,13 @@ export interface ProofCapsuleCoveragePolicy {
 
 export interface ProofCapsuleCoverageGap {
   planeId: string;
-  reason: 'missing_policy' | 'extra_policy' | 'ambiguous_policy' | 'missing_source' | 'missing_marker';
+  reason:
+    | 'missing_policy'
+    | 'extra_policy'
+    | 'ambiguous_policy'
+    | 'missing_source'
+    | 'missing_marker'
+    | 'incompatible_policy_kind';
   detail: string;
 }
 
@@ -39,8 +45,8 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
   {
     planeId: 'legacy-plane:telegram-action-authority',
     proofPath: {
-      kind: 'explicit_no_action',
-      summary: 'Action authority records a Harness Core ledger for allowed and blocked decisions before owner execution.'
+      kind: 'joined_capsule',
+      summary: 'Action authority records a Harness Core ledger, then joins allowed and blocked decisions to the downstream delivery proof chain.'
     },
     requiredSourceMarkers: ['recordHarnessCoreAuthorizationLedger', 'createHarnessCoreGovernorDecision']
   },
@@ -130,6 +136,18 @@ function policyForPlane(policies: ProofCapsuleCoveragePolicy[], planeId: string)
   return policies.filter((policy) => policy.planeId === planeId);
 }
 
+function explicitNoActionAllowedForPlane(plane: LegacyAuthorityPlaneV1): boolean {
+  return plane.plane_type === 'pending_state_helper';
+}
+
+function proofPathKindIsCompatible(
+  plane: LegacyAuthorityPlaneV1,
+  policy: ProofCapsuleCoveragePolicy
+): boolean {
+  if (policy.proofPath.kind !== 'explicit_no_action') return true;
+  return explicitNoActionAllowedForPlane(plane);
+}
+
 function readPlaneSource(repoRoot: string, plane: LegacyAuthorityPlaneV1): string | null {
   const sourcePath = plane.source_ref.path_or_uri;
   if (!sourcePath || /^https?:\/\//i.test(sourcePath)) return null;
@@ -158,6 +176,13 @@ export function checkProofCapsuleCoverage(input: {
     if (matches.length > 1) {
       gaps.push({ planeId: plane.plane_id, reason: 'ambiguous_policy', detail: 'Action-capable inventory plane has more than one proof-capsule policy.' });
       continue;
+    }
+    if (!proofPathKindIsCompatible(plane, matches[0])) {
+      gaps.push({
+        planeId: plane.plane_id,
+        reason: 'incompatible_policy_kind',
+        detail: `${matches[0].proofPath.kind} is only valid for pending/no-action planes; execution-capable routes must emit or join a proof capsule.`
+      });
     }
 
     const source = readPlaneSource(repoRoot, plane);
