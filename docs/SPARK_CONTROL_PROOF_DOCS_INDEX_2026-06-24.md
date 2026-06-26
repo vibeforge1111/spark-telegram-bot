@@ -34,7 +34,7 @@ Read these in order:
 
 6. `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
    - Compact under-4,000-character execution prompt.
-   - Use only after the preflight audit is captured or intentionally skipped.
+   - Original Harness Core refurbishment prompt. Use as historical/current baseline context, then run the newer reliability ladder prompt for the active control program.
 
 7. `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
    - Audit of the older `nl:live` and Genesis natural-language suites.
@@ -45,8 +45,9 @@ Read these in order:
    - Source for classifying material as active, read-only evidence, archive candidate, or delete candidate.
 
 9. `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md`
-   - Compact goal prompt for the next reliability hardening phase.
-   - Source for render firewall, trace join checker, capability evidence, and surface eval sequencing.
+   - Current compact goal prompt for the reliability hardening phase.
+   - Source for render firewall, trace join checker, legacy prompt removal, capability evidence, and surface eval sequencing.
+   - Use this as the active writable-lane prompt after reading this index, the legacy source inventory, and the latest full canary summary.
 
 10. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.

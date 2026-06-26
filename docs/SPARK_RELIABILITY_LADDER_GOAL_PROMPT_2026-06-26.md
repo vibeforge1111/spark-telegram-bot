@@ -2,14 +2,14 @@
 
 Date: 2026-06-26
 
-Use after reading:
+Use this as the current writable-lane goal prompt after reading:
 
 - `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`
 - `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`
 - `outputs/live-canary-full/live-canary-summary.md`
 
 ```text
-Goal: Continue Spark reliability hardening as a control program, not a cleanup sprint. The fresh stack is behavior-release ready, so the next work is proving old edges cannot silently affect current Telegram, Recursive, Spawner, Builder, mission relay, or documentation behavior.
+Goal: Continue Spark reliability hardening as a control program, not a cleanup sprint. The fresh stack is behavior-release ready; the next work is proving old edges cannot silently affect current Telegram, Recursive, Spawner, Builder, mission relay, or documentation behavior.
 
 Prime rule: Reduce proof gaps, trace-join gaps, and hidden-source influence first. Do not expand UI, media support, rich composition, or new features unless the change directly closes a measured control-proof gap.
 
@@ -19,6 +19,7 @@ Current proof baseline:
 - Publish is still separate. `Publish gate: not ready` means owner handoffs remain open; do not turn release-ready behavior proof into publish or registry readiness.
 - Fresh-strict audit must stay clean for missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, and stack-like leaks.
 - Backed historical legacy gaps may remain visible. Do not hide them or relabel them as fresh Harness authority.
+- Already added: legacy source inventory, render firewall docs/tests, trace-join checker, proof-capsule coverage gate, reliability eval coverage gate, and refreshed full/safe-first canary packets.
 
 Reliability ladder:
 1. Source inventory: keep `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md` current. Every legacy plan, catalog, runbook, prompt source, or handoff that can affect a fresh turn must be marked `active`, `read-only evidence`, `archive candidate`, or `delete candidate`.
@@ -29,6 +30,10 @@ Reliability ladder:
 6. Legacy prompt removal: move legacy plans out of prompts and UI summaries unless the user explicitly asks to inspect history.
 7. Capability evidence: add last-success and last-failure evidence per capability only after source boundaries and trace joins are enforced.
 8. Surface eval: add a regular human-feel eval where logically correct but robotic replies fail ordinary conversation checks.
+
+Next local slice:
+- Turn legacy prompt/UI-summary removal into a checked gate before adding capability evidence or surface-eval breadth.
+- Treat empty trace-join route samples as not enough for live proof; strict live confidence needs real SparkRecursive_bot route rows joined to reply/proof evidence.
 
 Operating posture:
 - Work in small committed steps.
