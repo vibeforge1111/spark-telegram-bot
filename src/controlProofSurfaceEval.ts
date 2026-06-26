@@ -47,6 +47,8 @@ const CHECKED_REPLY_SHAPES = new Set(['natural', 'compact_card', 'media_reply', 
 const INSPECT_REPLY_SHAPES = new Set(['proof_panel']);
 const MAX_PARAGRAPH_WORDS = 70;
 const STATUS_ICON_PATTERN = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
+const NATURAL_SURFACE_REPLY_SHAPES = new Set(['natural', 'media_reply', 'clarification']);
+const REPORT_CARD_LINE_PATTERN = /^(?:Mission|Provider|Move|Status|Result|Tasks|Relay):(?:\s+\S.*)?$/gim;
 
 const ISSUE_RULES: Array<{ code: SurfaceEvalIssueCode; pattern: RegExp; detail: string }> = [
   {
@@ -114,12 +116,22 @@ function defaultObservationPath(repoRoot: string): string {
   return path.join(repoRoot, 'outputs', 'live-canary-full', 'live-canary-observations.json');
 }
 
-function issueCodesForReply(text: string): Array<Omit<SurfaceEvalIssue, 'caseId'>> {
+function issueCodesForReply(text: string, replyShape: string): Array<Omit<SurfaceEvalIssue, 'caseId'>> {
   const issues: Array<Omit<SurfaceEvalIssue, 'caseId'>> = [];
   for (const rule of ISSUE_RULES) {
     if (rule.pattern.test(text)) {
       issues.push({ code: rule.code, detail: rule.detail });
     }
+  }
+
+  if (
+    NATURAL_SURFACE_REPLY_SHAPES.has(replyShape) &&
+    ((text.match(REPORT_CARD_LINE_PATTERN) || []).length >= 2)
+  ) {
+    issues.push({
+      code: 'report_card_voice',
+      detail: 'Natural surface uses multiple report-card label lines instead of conversational wording.'
+    });
   }
 
   const lowerText = text.toLocaleLowerCase();
@@ -195,7 +207,7 @@ export function checkSurfaceEval(input: {
     if (!reply) {
       caseIssues.push({ caseId: entry.id, code: 'missing_reply', detail: 'Observed reply is missing.' });
     } else {
-      for (const issue of issueCodesForReply(reply)) {
+      for (const issue of issueCodesForReply(reply, replyShape)) {
         caseIssues.push({ caseId: entry.id, ...issue });
       }
     }

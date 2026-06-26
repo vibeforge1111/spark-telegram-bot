@@ -25,7 +25,7 @@ The gate fails:
 - raw Harness reason codes, proof refs, trace refs, Telegram platform ids, local paths, or stack traces
 - legacy plan, catalog, runbook, or handoff names/titles in observed replies
 - generic chatbot phrases
-- ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings
+- ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings or label lines; compact-card surfaces remain the place for dense labels
 - bold Markdown, dash-family punctuation, emoji spam, or oversized paragraph dumps
 - proof-panel and canary-summary status rows leaking into natural surfaces, such as `Blocking gap planes`, `Legacy proof gaps visible`, `Gate scope`, `Release gate`, or `Publish gate`
 - new or unknown reply shapes that are not explicitly checked and are not proof-panel inspect surfaces

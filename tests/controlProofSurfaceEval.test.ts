@@ -48,6 +48,40 @@ test('surface eval ignores proof panels but checks natural replies', () => {
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-builder-001' && issue.code === 'report_card_voice'));
 });
 
+test('surface eval rejects report-card label lines in natural replies', () => {
+  const packet = fullPacket();
+  const natural = packet.cases.find((entry) => entry.id === 'cp-builder-001');
+  assert.ok(natural);
+  natural.observed.reply = [
+    'Mission: latest builder reply',
+    'Provider: Spark',
+    'Move: continue'
+  ].join('\n');
+
+  const result = checkSurfaceEval({ observations: packet });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((issue) =>
+    issue.caseId === 'cp-builder-001' &&
+    issue.code === 'report_card_voice'
+  ));
+});
+
+test('surface eval allows report-card label lines on compact-card surfaces', () => {
+  const packet = fullPacket();
+  const compact = packet.cases.find((entry) => entry.expected.replyShape === 'compact_card');
+  assert.ok(compact);
+  compact.observed.reply = [
+    'Status: ready',
+    'Result: current',
+    'Tasks: none'
+  ].join('\n');
+
+  const result = checkSurfaceEval({ observations: packet });
+
+  assert.equal(result.ok, true);
+});
+
 test('surface eval fails unknown unchecked reply shapes instead of treating them as inspect surfaces', () => {
   const packet = fullPacket();
   const entry = packet.cases.find((item) => item.id === 'cp-builder-001');
