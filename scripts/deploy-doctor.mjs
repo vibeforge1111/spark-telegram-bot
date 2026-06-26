@@ -14,7 +14,20 @@ function readArg(name) {
 
 function loadEnvFile(filePath) {
   if (!filePath) return;
-  const text = readFileSync(filePath, "utf8");
+  let text;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch (error) {
+    // Surface a one-line actionable message instead of letting an
+    // ENOENT stack trace fall out of the script. The operator typically
+    // ran `node scripts/deploy-doctor.mjs --env-file .env.prod` and
+    // mistyped the path; the raw Node stack trace looks like a doctor
+    // crash rather than a user error.
+    const code = error && error.code ? error.code : "ENOENT";
+    const reason = code === "ENOENT" ? "file not found" : code;
+    console.error(`FAIL --env-file: ${filePath}: ${reason}`);
+    process.exit(2);
+  }
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
