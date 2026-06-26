@@ -184,6 +184,8 @@ Update after proof-panel readiness projection on 2026-06-26:
 - The focused safe-first recapture guide is `outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md`. It currently narrows the next live SparkRecursive_bot step to `cp-builder-001` and `cp-proof-001`, because those two recorded panels are missing `proof_panel_actionable_status`, `proof_panel_fresh_strict_status`, and `proof_panel_gap_posture`.
 - This is a live-capture recapture gap, not a source/runtime proof gap. Refresh the real Telegram `/proof` captures, record the observed reply/screenshot/proof panel/user confirmation, then rerun the selected-case release gate before making broader publish or feature claims.
 
+Current-state supersession, 2026-06-26: the checked safe-first packet has since been recaptured/refreshed and is selected-case ready. Treat this section as historical sequence, not the current next slice. Current safe-first proof says `Gate scope: selected-case gate` and `Release-check scope: selected cases only; not a full release claim`; use it for focused streaming/rich/proof confidence only, not complete release readiness.
+
 Update after Builder trace caveat count hardening on 2026-06-25:
 
 - Spark CLI commit `6707e29` exposes Builder high-severity lifecycle counts in `spark os compile --json`: total historical high-severity rows, unresolved high-severity families, and current unresolved high-severity families.
@@ -273,9 +275,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Refresh the stale safe-first SparkRecursive_bot `/proof` captures before publish cleanup or feature expansion.
+Keep reducing proof and trace-join ambiguity before publish cleanup or feature expansion.
 
-Reason: current fresh-strict audit is blocking-clean and `spark os compile --json` reports `ok=true`, but the selected safe-first canary release gate is not ready because two live `/proof` captures predate the new proof-panel readiness lines. Run `outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md` against SparkRecursive_bot for `cp-builder-001` and `cp-proof-001`, record the real captures, and rerun `npm run control:proof:canaries -- --observations outputs/live-canary-safe-first/live-canary-observations.json --release-check`. Publish blockers remain owner handoffs after that; they should not distract from the measured proof-panel recapture gap.
+Reason: current fresh-strict audit is blocking-clean and the checked safe-first packet is selected-case ready, but selected-case readiness is not a complete release claim. Continue from the full canary packet plus `npm run control:proof:audit -- --sample 100 --fresh-strict`: close any new latest proof gaps, incomplete legacy backing, source-snapshot drift, stale proof-panel captures, or trace-join regressions before changing UI, media, or composition features.
 
 ## Gate To Start Goal Prompt
 

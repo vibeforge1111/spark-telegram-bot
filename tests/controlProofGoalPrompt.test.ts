@@ -16,6 +16,7 @@ const ROOT = resolve(__dirname, '..');
 const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md');
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
+const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
 
 test('control-proof goal prompt stays under the handoff limit', () => {
   const prompt = readFileSync(PROMPT_PATH, 'utf8');
@@ -63,4 +64,13 @@ test('natural-language refurbishment keeps promotion proof-first', () => {
   assert.match(audit, /Do not use an old NL prompt to justify expanded UI, media handling, or new composition features unless the mapped case directly closes a measured control-proof or trace-join gap\./);
   assert.match(audit, /Treat the `Promotion gap` column as the proof-first stop sign/);
   assert.match(audit, /keep it as legacy breadth or archive it until a proof gap names the missing authority, side effect, trace join, proof join, reply shape, or live Telegram evidence\./);
+});
+
+test('preflight result marks stale safe-first recapture advice as superseded', () => {
+  const result = readFileSync(PREFLIGHT_RESULT_PATH, 'utf8');
+
+  assert.match(result, /Current-state supersession, 2026-06-26/);
+  assert.match(result, /checked safe-first packet has since been recaptured\/refreshed and is selected-case ready/);
+  assert.match(result, /Release-check scope: selected cases only; not a full release claim/);
+  assert.match(result, /Continue from the full canary packet plus `npm run control:proof:audit -- --sample 100 --fresh-strict`/);
 });
