@@ -9,6 +9,11 @@ export interface TelegramDraftStreamer {
   push(text: string): Promise<boolean>;
 }
 
+export interface TelegramDraftPreviewPolicyInput {
+  route?: string | null;
+  env?: NodeJS.ProcessEnv;
+}
+
 export type TelegramDraftTransport = 'rich' | 'legacy';
 export type TelegramFinalTransport = 'rich' | 'legacy_fallback' | 'disabled' | 'none';
 export type TelegramObservedDraftTransport = 'rich' | 'legacy' | 'legacy_fallback' | 'failed' | 'none';
@@ -44,6 +49,31 @@ export interface TelegramLiveChatTelemetrySnapshot {
 
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
+const DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES = [
+  'spawner',
+  'creator',
+  'domain.chip',
+  'schedule',
+  'recursive',
+  'sparkqa',
+  'access',
+  'model.switch',
+  'memory.write',
+  'memory.delete',
+  'operator.safe.action',
+  'proof',
+  'diagnostic',
+  'diagnostics',
+  'route.probe',
+  'spark.process',
+  'spark.reflect',
+  'media.image',
+  'media.voice',
+  'media.audio',
+  'external.research',
+  'registry.drift',
+  'release.publish',
+];
 const liveChatTelemetry: TelegramLiveChatTelemetrySnapshot = {
   richMessageDeliveries: 0,
   richMessageFallbacks: 0,
@@ -133,6 +163,14 @@ export function buildTelegramDraftPreviewTexts(text: string): string[] {
   ].filter(Boolean);
 
   return [...new Set(previews)];
+}
+
+export function telegramFullReplyDraftPreviewAllowed(input: TelegramDraftPreviewPolicyInput = {}): boolean {
+  const env = input.env || process.env;
+  if (env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === '0') return false;
+  const route = String(input.route || '').trim().toLowerCase().replace(/_/g, '.');
+  if (!route) return true;
+  return !DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}.`));
 }
 
 function buildTelegramRichTextPayload(text: string): Record<string, unknown> {
@@ -238,10 +276,11 @@ export async function replayTelegramDraftPreview(
   ctx: any,
   api: TelegramDraftApi | undefined,
   text: string,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  policy: Omit<TelegramDraftPreviewPolicyInput, 'env'> = {}
 ): Promise<void> {
   if (!api?.callApi || !telegramDraftsSupportedForContext(ctx, env)) return;
-  if (env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === '0') return;
+  if (!telegramFullReplyDraftPreviewAllowed({ ...policy, env })) return;
 
   const previews = buildTelegramDraftPreviewTexts(text);
   if (!previews.length) return;

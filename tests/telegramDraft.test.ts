@@ -12,6 +12,7 @@ import {
   telegramDraftsSupportedForContext,
   telegramDraftStreamingEnabled,
   telegramDraftTransport,
+  telegramFullReplyDraftPreviewAllowed,
   telegramRichDraftsEnabled,
   telegramRichMessagesEnabled
 } from '../src/telegramDraft';
@@ -49,6 +50,37 @@ async function run(): Promise<void> {
       telegramDraftsSupportedForContext({ chat: { id: 1, type: 'private' } }, { SPARK_TELEGRAM_CHAT_STREAMING: '0' }),
       false
     );
+  });
+
+  await test('full-reply draft previews are blocked for unsafe control routes', async () => {
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'plain_conversation' }), true);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'spawner.build' }), false);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'access.change' }), false);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'memory.write' }), false);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'proof.inspect' }), false);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({ route: 'media.image_analyze_or_boundary' }), false);
+    assert.equal(
+      telegramFullReplyDraftPreviewAllowed({
+        route: 'plain_conversation',
+        env: { SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES: '0' }
+      }),
+      false
+    );
+
+    const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+    await replayTelegramDraftPreview(
+      { chat: { id: 42, type: 'private' } },
+      {
+        async callApi(method, payload) {
+          calls.push({ method, payload });
+        },
+      },
+      'Starting a build mission should not be previewed through Telegram drafts.',
+      { SPARK_TELEGRAM_CHAT_STREAMING: '1', SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '0' },
+      { route: 'spawner.build' }
+    );
+
+    assert.equal(calls.length, 0);
   });
 
   await test('draft text is sanitized before Telegram sees it', () => {

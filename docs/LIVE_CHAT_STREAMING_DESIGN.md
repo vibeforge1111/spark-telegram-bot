@@ -529,6 +529,7 @@ Durability update, 2026-06-26:
 
 - The checked full and safe-first canary summaries now preserve `expectedReplyShape` in `summary.cases[]`, so streaming/rich-message proof keeps the intended conversational shape visible without exposing raw prompts or observed replies.
 - Current SparkRecursive_bot evidence records `cp-streaming-001` as `compact_card` for `/streaming` status and `cp-streaming-002` as `natural` for rich-message delivery. Do not turn the rich-message proof into a diagnostic card just to make the summary easier to inspect.
+- Full-reply draft previews are now route-policy gated. Rich final delivery remains default-on, but presentation-only draft previews are skipped for mission/build, access, memory mutation, proof/diagnostic, media, publish, schedule, recursive, and other control routes. This closes the proof gap where a route-unsafe action reply could briefly appear as a draft preview before final delivery.
 
 ### Phase 1: Builder Status Events
 
