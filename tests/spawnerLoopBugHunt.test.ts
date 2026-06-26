@@ -535,7 +535,8 @@ test('bug hunt: provider completion does not make failures look shipped', () => 
   });
   assert.match(unknownError, /(?:hit a blocker|got blocked|could not finish that one|quick look)/i);
   assert.match(unknownError, /unknown error/i);
-  assert.match(unknownError, /The board has the raw trace if you want to inspect it\./);
+  assert.match(unknownError, /The board has the full trace if you want to inspect it\./);
+  assert.doesNotMatch(unknownError, /raw trace|raw record/i);
   assert.doesNotMatch(unknownError, /^Move$/m);
   assert.doesNotMatch(unknownError, /✨ Spark (?:shipped|finished|wrapped|has the result)/i);
   assert.doesNotMatch(unknownError, /Mission: mission-unknown-error/);
