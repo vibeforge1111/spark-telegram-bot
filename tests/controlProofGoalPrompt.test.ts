@@ -31,6 +31,8 @@ test('control-proof goal prompt preserves proof-first operating constraints', ()
   assert.match(prompt, /Treat every issue as proof first, implementation second, publishing last\./);
   assert.match(prompt, /Do not push, merge, publish, or open\/update PRs unless explicitly asked and the local proof gate is satisfied\./);
   assert.match(prompt, /Refresh evidence only from a clean\/source-committed state\./);
+  assert.match(prompt, /Full release claims require `Gate scope: full release pack` and `Release-check scope: full release readiness`/);
+  assert.match(prompt, /selected-case gates prove selected cases only/);
 });
 
 test('control-proof plan documents current proof repair and release boundaries', () => {
