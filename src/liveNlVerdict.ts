@@ -399,6 +399,7 @@ export function formatLiveNlHarnessCoreMap(
     selectionLine,
     '',
     'Decision: keep the old natural-language suite as fast legacy breadth. Do not treat this map or a passing `nl:live` run as Harness Core release proof.',
+    `Authority boundary: ${LIVE_NL_AUTHORITY_CLAIM_BOUNDARY}`,
     '',
     'Refurbishment rule: promote selected prompts by copying them into the control-proof canary schema with authority, mutation, proof join, side-effect, reply-shape, and live Telegram evidence fields.',
     '',
