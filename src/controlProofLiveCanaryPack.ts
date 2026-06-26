@@ -1022,6 +1022,7 @@ export function formatControlProofCanaryCoverage(cases: ControlProofCanaryCase[]
     `Required category coverage: ${coverage.coverageComplete ? 'complete' : 'missing'}`,
     `Missing required categories: ${coverage.missingRequiredCategories.length ? coverage.missingRequiredCategories.join(', ') : 'none'}`,
     `Full release pack: ${coverage.releasePackComplete ? 'complete' : 'missing'}`,
+    `Release-check scope: ${coverage.releasePackComplete ? 'full release readiness' : 'selected cases only; not a full release claim'}`,
     `Missing release cases: ${coverage.missingReleaseCaseIds.length ? coverage.missingReleaseCaseIds.join(', ') : 'none'}`,
     '',
     'Categories:',

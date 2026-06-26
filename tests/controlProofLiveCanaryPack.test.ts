@@ -536,6 +536,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   assert.match(coverage, /Required category coverage: complete/);
   assert.match(coverage, /Missing required categories: none/);
   assert.match(coverage, /Full release pack: complete/);
+  assert.match(coverage, /Release-check scope: full release readiness/);
   assert.match(coverage, /Missing release cases: none/);
   assert.match(coverage, /- mission: 1/);
   assert.match(coverage, /- publish: 1/);
@@ -556,6 +557,7 @@ test('coverage output summarizes categories, action risk, and mutation classes',
   assert.ok(narrowSummary.missingReleaseCaseIds.includes('cp-proof-001'));
   assert.match(narrow, /Required category coverage: missing/);
   assert.match(narrow, /Full release pack: missing/);
+  assert.match(narrow, /Release-check scope: selected cases only; not a full release claim/);
   assert.match(narrow, /Missing required categories: .*mission/);
 });
 
@@ -2682,6 +2684,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(partialReleaseCheck.status, 1);
     assert.match(partialReleaseCheck.stdout, /Required category coverage: complete/);
     assert.match(partialReleaseCheck.stdout, /Full release pack: missing/);
+    assert.match(partialReleaseCheck.stdout, /Release-check scope: selected cases only; not a full release claim/);
 
     const staleFullReleasePath = resolve(tempRoot, 'stale-full-release.json');
     const staleFullRelease = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
@@ -2702,6 +2705,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(staleFullReleaseCheck.stdout, /Packet evidence stale: runtime_evidence_collected_at/);
     assert.match(staleFullReleaseCheck.stdout, /Run with `--refresh-runtime-evidence` before making a release claim/);
     assert.match(staleFullReleaseCheck.stdout, /Full release pack: complete/);
+    assert.match(staleFullReleaseCheck.stdout, /Release-check scope: full release readiness/);
 
     const publishCaveatPath = resolve(tempRoot, 'publish-caveat-full-release.json');
     const publishCaveatPacket = JSON.parse(readFileSync(resolve(ROOT, 'outputs/live-canary-full/live-canary-observations.json'), 'utf8'));
@@ -3003,6 +3007,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(releaseCheck.status, 1);
     assert.match(releaseCheck.stdout, /Release gate: ready/);
     assert.match(releaseCheck.stdout, /Required category coverage: missing/);
+    assert.match(releaseCheck.stdout, /Release-check scope: selected cases only; not a full release claim/);
 
     const replyPath = resolve(tempRoot, 'reply.txt');
     writeFileSync(replyPath, 'Route confidence means Spark is justified in taking this route now.\n', 'utf8');

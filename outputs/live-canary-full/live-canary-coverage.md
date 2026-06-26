@@ -6,6 +6,7 @@ Manual media cases: 4
 Required category coverage: complete
 Missing required categories: none
 Full release pack: complete
+Release-check scope: full release readiness
 Missing release cases: none
 
 Categories:
