@@ -45,6 +45,8 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /do not turn release-ready behavior proof into a publish or registry claim/);
   assert.match(plan, /ref-only evidence as joined when a redacted proof ref is present/);
   assert.match(plan, /trace-only rows stay under `Evidence trace-only` and must not be counted as `Evidence joined`/);
+  assert.match(plan, /matching `Legacy gap backing` detail row with complete backing/);
+  assert.match(plan, /proof panels must name `incomplete legacy gap backing` in `Blocking gap planes`/);
 });
 
 test('natural-language refurbishment keeps promotion proof-first', () => {
