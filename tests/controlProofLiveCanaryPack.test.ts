@@ -2810,6 +2810,29 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(staleProofRunGuide.stdout, /3\. cp-noaction-001/);
     assert.match(staleProofRunGuide.stdout, /Proof inspection prompt:\n```text\n\/proof\n```/);
     assert.match(staleProofRunGuide.stdout, /--record-case cp-builder-001/);
+    const staleProofBundleDir = resolve(tempRoot, 'stale-proof-bundle');
+    mkdirSync(staleProofBundleDir, { recursive: true });
+    const staleProofBundleObservationsPath = resolve(staleProofBundleDir, 'live-canary-observations.json');
+    const staleProofBundleGuidePath = resolve(staleProofBundleDir, 'live-canary-proof-recapture-guide.md');
+    writeFileSync(staleProofBundleObservationsPath, JSON.stringify(staleProofObservations, null, 2), 'utf8');
+    const staleProofBundleRunGuide = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        staleProofBundleObservationsPath,
+        '--stale-proof-run-guide',
+        '--out',
+        staleProofBundleGuidePath
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(staleProofBundleRunGuide.status, 0, staleProofBundleRunGuide.stderr);
+    assert.match(staleProofBundleRunGuide.stdout, /Wrote control-proof stale proof run guide/);
+    const staleProofBundleGuide = readFileSync(staleProofBundleGuidePath, 'utf8');
+    assert.match(staleProofBundleGuide, new RegExp(`--summary-out '${escapeRegExp(resolve(staleProofBundleDir, 'live-canary-summary.md'))}'`));
+    assert.match(staleProofBundleGuide, new RegExp(`--summary-json-out '${escapeRegExp(resolve(staleProofBundleDir, 'live-canary-summary.json'))}'`));
 
     observed.cases[0].observed = {
       ...observed.cases[0].observed,

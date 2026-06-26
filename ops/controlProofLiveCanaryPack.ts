@@ -669,16 +669,16 @@ function main(): void {
     const releaseCheck = hasFlag(args, 'release-check');
     const publishCheck = hasFlag(args, 'publish-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
+    const inferredSummaryPaths = inferredBundleSummaryPaths(observationsPath);
+    if (inferredSummaryPaths) {
+      summaryOutPath ||= inferredSummaryPaths.summaryPath;
+      summaryJsonOutPath ||= inferredSummaryPaths.summaryJsonPath;
+    }
     if (refreshRuntimeEvidence) {
       observations = withControlProofCanaryRuntimeEvidence(observations, collectRuntimeEvidence());
       const outputPath = outPath || observationsPath;
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Refreshed control-proof runtime evidence: ${outputPath}`);
-      const inferredSummaryPaths = inferredBundleSummaryPaths(outputPath);
-      if (inferredSummaryPaths) {
-        summaryOutPath ||= inferredSummaryPaths.summaryPath;
-        summaryJsonOutPath ||= inferredSummaryPaths.summaryJsonPath;
-      }
     }
     if (recordCaseId) {
       observations = recordControlProofCanaryObservation(observations, observationUpdateFromArgs(args));
@@ -702,11 +702,17 @@ function main(): void {
           caseIds: prioritizeStaleProofCaseIds(staleProofCaseIds),
           includeActions: true
         });
-        console.log(formatControlProofCanaryLiveRunGuide(cases, {
+        const runGuide = formatControlProofCanaryLiveRunGuide(cases, {
           observationsPath,
           summaryPath: summaryOutPath || undefined,
           summaryJsonPath: summaryJsonOutPath || undefined
-        }));
+        });
+        if (outPath) {
+          writeFileSync(outPath, `${runGuide}\n`, 'utf8');
+          console.log(`Wrote control-proof stale proof run guide: ${outPath}`);
+        } else {
+          console.log(runGuide);
+        }
       }
       return;
     }
