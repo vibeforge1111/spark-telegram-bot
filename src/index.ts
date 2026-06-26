@@ -940,10 +940,15 @@ function cleanSparkStatusLine(line: string, label: string): string {
 }
 
 function parseSparkLiveSummary(liveStatus: string, deepVerify: string): SparkLiveSummary {
-  const spawnerLine = firstMatchingLine(liveStatus, /\[OK\]\s+spawner-ui|spawner-ui:/i);
-  const telegramLine = firstMatchingLine(liveStatus, /\[OK\]\s+spark-telegram-bot|spark-telegram-bot:/i);
-  const profilesLine = firstMatchingLine(liveStatus, /Telegram profiles:/i);
-  const rolesLine = firstMatchingLine(liveStatus, /LLM roles:/i);
+  // Split + trim once and reuse for all four firstMatchingLine lookups
+  // instead of re-splitting and re-mapping the live-status text per call.
+  // Each helper call previously did its own .split + .map + .find pass.
+  const liveStatusLines = liveStatus.split(/\r?\n/).map((line) => line.trim());
+  const firstLine = (pattern: RegExp): string => liveStatusLines.find((line) => pattern.test(line)) || '';
+  const spawnerLine = firstLine(/\[OK\]\s+spawner-ui|spawner-ui:/i);
+  const telegramLine = firstLine(/\[OK\]\s+spark-telegram-bot|spark-telegram-bot:/i);
+  const profilesLine = firstLine(/Telegram profiles:/i);
+  const rolesLine = firstLine(/LLM roles:/i);
   const supervised = deepVerify.match(/Runtime processes are running under Spark supervision:\s*([^\n]+)/i)?.[1]?.trim() || '';
   const liveReady = /\[OK\]\s+Spark Live is ready/i.test(liveStatus);
   const spawnerOk = /\[OK\]\s+spawner-ui/i.test(spawnerLine);
