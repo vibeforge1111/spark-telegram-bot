@@ -136,7 +136,7 @@ Update after reply-shape summary hardening on 2026-06-26:
 
 - Commits through `e56969c` made the checked full and safe-first live canary summaries preserve `expectedReplyShape` for each case while still omitting raw prompts, observed replies, proof-panel bodies, screenshots, and user confirmations.
 - This closes a control-proof projection gap for streaming and rich messages: `cp-streaming-001` now carries `compact_card` in the summary evidence, while `cp-streaming-002` carries `natural`.
-- The refreshed full and safe-first packets remain release-ready and publish-not-ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
+- The refreshed full packet remains release-ready and publish-not-ready. The safe-first packet is selected-case ready only; it is not a complete release claim until the full release pack is run. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
 
 Update after reply-shape contract and full evidence refresh on 2026-06-26:
 

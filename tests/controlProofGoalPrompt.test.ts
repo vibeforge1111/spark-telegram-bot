@@ -71,6 +71,7 @@ test('preflight result marks stale safe-first recapture advice as superseded', (
 
   assert.match(result, /Current-state supersession, 2026-06-26/);
   assert.match(result, /checked safe-first packet has since been recaptured\/refreshed and is selected-case ready/);
+  assert.match(result, /The safe-first packet is selected-case ready only; it is not a complete release claim until the full release pack is run/);
   assert.match(result, /Release-check scope: selected cases only; not a full release claim/);
   assert.match(result, /Continue from the full canary packet plus `npm run control:proof:audit -- --sample 100 --fresh-strict`/);
 });
