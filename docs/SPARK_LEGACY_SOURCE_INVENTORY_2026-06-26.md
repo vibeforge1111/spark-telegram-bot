@@ -13,6 +13,8 @@ The goal is not deletion first. The goal is source control: each source must be 
 
 Legacy material must not reach prompts, Telegram replies, UI summaries, canary release claims, or publish claims unless it is explicitly inspected and joined to current Harness Core proof.
 
+The strict inventory checker also joins this document to the legacy prompt-surface blocklist. Any repo-local source blocked from prompt/UI summaries must have an inventory row here before `npm run control:proof:source-inventory` can pass.
+
 - `active`: current source of rules, proof, or release gates.
 - `read-only evidence`: useful for history, regression breadth, or promotion decisions; not authority by itself.
 - `archive candidate`: keep for now, but only as historical context after current rules are extracted or linked.
@@ -88,7 +90,7 @@ Deletion requires a separate owner-reviewed change proving the source is duplica
 
 ## Next Reliability Slice
 
-Turn this inventory into enforcement:
+Keep this inventory enforced:
 
 1. Keep the render firewall covered by tests so read-only evidence cannot leak into ordinary Telegram replies unless explicitly inspected.
 2. Keep the end-to-end trace join checker covered for `user intent -> route decision -> action/no-action -> reply`.

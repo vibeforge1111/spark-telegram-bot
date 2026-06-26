@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from './controlProofLegacyPromptSurface';
 
 export type SourceInventoryStatus = 'active' | 'read-only evidence' | 'archive candidate' | 'delete candidate';
 
@@ -21,6 +22,7 @@ export type SourceInventoryCheckResult = {
   docsIndexPath: string;
   entries: SourceInventoryEntry[];
   canonicalDocs: string[];
+  legacyPromptBlockedSources: string[];
   gaps: SourceInventoryGap[];
 };
 
@@ -56,6 +58,18 @@ export function parseCanonicalDocs(markdown: string): string[] {
   return [...docs].sort();
 }
 
+export function deriveLegacyPromptBlockedSources(blockedRefs = LEGACY_PROMPT_SURFACE_BLOCKED_REFS): string[] {
+  const sources = new Set<string>();
+  for (const ref of blockedRefs) {
+    for (const pattern of ref.patterns) {
+      if (/^(docs|ops|outputs|src)\//.test(pattern)) {
+        sources.add(pattern);
+      }
+    }
+  }
+  return [...sources].sort();
+}
+
 function entryMatchesSource(entry: SourceInventoryEntry, source: string): boolean {
   if (entry.source === source) return true;
   return entry.source.endsWith('/*') && source.startsWith(entry.source.slice(0, -1));
@@ -75,6 +89,7 @@ export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
   docsIndexPath?: string;
+  legacyPromptBlockedSources?: string[];
 }): SourceInventoryCheckResult {
   const inventoryPath = options.inventoryPath ?? resolve(options.repoRoot, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
   const docsIndexPath = options.docsIndexPath ?? resolve(options.repoRoot, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
@@ -82,6 +97,7 @@ export function checkSourceInventory(options: {
   const docsIndex = readFileSync(docsIndexPath, 'utf8');
   const entries = parseSourceInventory(inventory);
   const canonicalDocs = parseCanonicalDocs(docsIndex);
+  const legacyPromptBlockedSources = options.legacyPromptBlockedSources ?? deriveLegacyPromptBlockedSources();
   const gaps: SourceInventoryGap[] = [];
 
   if (entries.length === 0) {
@@ -118,6 +134,15 @@ export function checkSourceInventory(options: {
     }
   }
 
+  for (const source of legacyPromptBlockedSources) {
+    if (!entries.some((entry) => entryMatchesSource(entry, source))) {
+      gaps.push({
+        code: 'missing_legacy_prompt_source_classification',
+        message: `${source} is blocked from prompt/UI surfaces but not classified in the legacy source inventory.`
+      });
+    }
+  }
+
   const statusesBySource = new Map<string, Set<string>>();
   for (const entry of entries) {
     const statuses = statusesBySource.get(entry.source) ?? new Set<string>();
@@ -143,6 +168,7 @@ export function checkSourceInventory(options: {
     docsIndexPath,
     entries,
     canonicalDocs,
+    legacyPromptBlockedSources,
     gaps
   };
 }
@@ -153,6 +179,7 @@ export function formatSourceInventoryReport(result: SourceInventoryCheckResult):
     `Status: ${result.ok ? 'clean' : 'gaps found'}`,
     `Inventory entries: ${result.entries.length}`,
     `Canonical docs checked: ${result.canonicalDocs.length}`,
+    `Legacy prompt blocked sources checked: ${result.legacyPromptBlockedSources.length}`,
     `Gaps: ${result.gaps.length}`
   ];
 

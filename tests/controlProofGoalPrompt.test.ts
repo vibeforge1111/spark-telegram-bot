@@ -237,6 +237,8 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
 
   assert.match(inventory, /active`, `read-only evidence`, `archive candidate`, or `delete candidate`/);
   assert.match(inventory, /Legacy material must not reach prompts, Telegram replies, UI summaries, canary release claims, or publish claims unless it is explicitly inspected and joined to current Harness Core proof/);
+  assert.match(inventory, /legacy prompt-surface blocklist/);
+  assert.match(inventory, /Any repo-local source blocked from prompt\/UI summaries must have an inventory row/);
   assert.match(inventory, /`ops\/natural-language-live-commands\.json` \| read-only evidence/);
   assert.match(inventory, /`ops\/genesis-live-telegram-100\.json` \| read-only evidence/);
   assert.match(inventory, /`docs\/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md` \| active/);
@@ -256,6 +258,7 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`docs\/SPARK_SURFACE_EVAL_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
   assert.match(inventory, /None in this pass/);
+  assert.match(inventory, /Keep this inventory enforced/);
   assert.match(inventory, /Keep the render firewall covered by tests/);
   assert.match(inventory, /Keep the end-to-end trace join checker covered/);
   assert.match(inventory, /Keep proof-capsule coverage checked/);

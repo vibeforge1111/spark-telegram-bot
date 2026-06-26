@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
   checkSourceInventory,
+  deriveLegacyPromptBlockedSources,
   formatSourceInventoryReport,
   parseCanonicalDocs,
   parseSourceInventory
@@ -40,6 +41,23 @@ test('parses inventory entries and canonical docs', () => {
   assert.deepEqual(parseCanonicalDocs(docsIndex), ['docs/current.md', 'docs/history.md']);
 });
 
+test('derives repo-local legacy prompt blocked sources', () => {
+  const sources = deriveLegacyPromptBlockedSources([
+    {
+      id: 'legacy_plan',
+      label: 'legacy plan',
+      patterns: ['ops/legacy-plan.md', 'legacy-plan.md']
+    },
+    {
+      id: 'historical_doc_folder',
+      label: 'historical docs',
+      patterns: ['docs/old-handoffs/', 'old-handoffs/']
+    }
+  ]);
+
+  assert.deepEqual(sources, ['docs/old-handoffs/', 'ops/legacy-plan.md']);
+});
+
 test('fails when a canonical doc is not classified in the inventory', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');
@@ -56,11 +74,38 @@ test('fails when a canonical doc is not classified in the inventory', () => {
     '2. `docs/missing.md`'
   ].join('\n'));
 
-  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, false);
   assert.deepEqual(result.gaps.map((gap) => gap.code), ['missing_canonical_doc_classification']);
   assert.match(formatSourceInventoryReport(result), /docs\/missing\.md is listed in the docs index/);
+});
+
+test('fails when a prompt-surface blocked legacy source is not classified', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/current.md` | active | Current source. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, [
+    '1. `docs/current.md`'
+  ].join('\n'));
+
+  const result = checkSourceInventory({
+    repoRoot: dir,
+    inventoryPath,
+    docsIndexPath,
+    legacyPromptBlockedSources: ['ops/legacy-plan.md']
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gaps.some((gap) => gap.code === 'missing_legacy_prompt_source_classification'), true);
+  assert.match(formatSourceInventoryReport(result), /is blocked from prompt\/UI surfaces but not classified/);
 });
 
 test('fails when a classified source path does not exist', () => {
@@ -77,7 +122,7 @@ test('fails when a classified source path does not exist', () => {
   ].join('\n'));
   writeFileSync(docsIndexPath, '');
 
-  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, false);
   assert.deepEqual(result.gaps.map((gap) => gap.code), ['missing_source']);
@@ -97,7 +142,7 @@ test('accepts wildcard source rows only when the directory has entries', () => {
   ].join('\n'));
   writeFileSync(docsIndexPath, '');
 
-  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, true);
 });
@@ -120,7 +165,7 @@ test('accepts read-only evidence plus archive candidate as a historical duplicat
     '1. `docs/current.md`'
   ].join('\n'));
 
-  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, true);
 });
@@ -133,6 +178,7 @@ test('current source inventory classifies every canonical doc index entry', () =
     'Status: clean',
     `Inventory entries: ${result.entries.length}`,
     `Canonical docs checked: ${result.canonicalDocs.length}`,
+    `Legacy prompt blocked sources checked: ${result.legacyPromptBlockedSources.length}`,
     'Gaps: 0'
   ].join('\n'));
 });
