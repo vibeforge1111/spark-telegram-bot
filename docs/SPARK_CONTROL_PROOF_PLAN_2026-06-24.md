@@ -191,7 +191,7 @@ Builder high-severity trace caveats must distinguish active producer gaps from h
 
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 
-Canary summaries now distinguish `Gate scope`, `Release gate`, and `Publish gate`. `Release gate: ready` means the scoped live Telegram/control-proof canary packet is locally complete; read it as full release readiness only when `Gate scope: full release pack` or `gateScope=full_release_pack`. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
+Canary summaries now distinguish `Gate scope`, `Release-check scope`, `Release gate`, and `Publish gate`. `Release gate: ready` means the scoped live Telegram/control-proof canary packet is locally complete; read it as full release readiness only when `Gate scope: full release pack`, `Release-check scope: full release readiness`, or `gateScope=full_release_pack` is present. `Release-check scope: selected cases only; not a full release claim` means the packet proves focused safe-first confidence only. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
 
 Use `npm run control:proof:canaries -- --observations <packet> --publish-check` for publish or registry claims. It applies the same full-pack/fresh-evidence checks as `--release-check`, then exits nonzero while `Publish gate: not ready`.
 
@@ -467,7 +467,7 @@ Machine-readable summary details are part of the proof contract, not decoration.
 - `summary.cases[]` lists each canary's safe Harness metadata: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, `expectedReplyShape`, optional sanitized `sourceRefs`, verdict, and missing capture names. It must not include raw prompts, observed replies, proof-panel bodies, screenshot refs, or user confirmations.
 - Top-level `releaseBlockers` and `publishBlockers` mirror `gateDecisionDetails.release.blockers` and `gateDecisionDetails.publish.blockers` for simple automation. Detailed consumers should still read `gateDecisionDetails.release` and `gateDecisionDetails.publish`, which carry the caveat and handoff detail records so `release ready` and `publish not ready` can be explained from JSON alone.
 - When `gateDecisionDetails.release.blockerDetails.control_proof_audit_blocking_gaps` appears, it must carry the joined audit gap families plus `legacyGapBackingDetails`, so automation can explain an audit block from the same object that blocks release.
-- The summary JSON must carry `gateScope`. Read `readyForRelease=true` as full release readiness only when `gateScope=full_release_pack`. When `gateScope=selected_case_gate`, the packet proves the selected canaries only; use it for focused safe-first confidence, not as the complete release gate.
+- The summary JSON must carry `gateScope`, and the human coverage report must carry `Release-check scope`. Read `readyForRelease=true` as full release readiness only when `gateScope=full_release_pack` or the report says `Release-check scope: full release readiness`. When `gateScope=selected_case_gate` or the report says `Release-check scope: selected cases only; not a full release claim`, the packet proves the selected canaries only; use it for focused safe-first confidence, not as the complete release gate.
 
 Do not replace these records with prose summaries. A prose release caveat can help an operator scan the result, but it is not enough to support a release or publish claim when the owner, count, behind value, lifecycle field, or next safe action exists in runtime evidence.
 
@@ -477,7 +477,7 @@ Keep the generated `--no-other-side-effects` flag for no-action, read-only, and 
 
 Use `--repair-stale-proof-panels` only for already-reviewed canary cases whose saved `/proof` panel text is missing the current audit readiness lines (`Audit actionable`, `Audit blocking`, `Audit fresh-strict`, or `Audit posture`). The command refuses to repair unless the packet already contains clean embedded fresh-strict audit evidence, then updates only the proof-panel audit status lines from that evidence. It is for stale evidence maintenance, not for bypassing a missing live reply, screenshot, proof join, side-effect capture, or user confirmation.
 
-As of the refreshed full SparkRecursive_bot packet, `outputs/live-canary-full/live-canary-observations.json` is the current complete control-proof release packet. `npm run control:proof:canaries -- --observations outputs/live-canary-full/live-canary-observations.json --release-check` must report `Release gate: ready`, `Gate scope: full release pack`, and every case passed with required captures present before making a local release-readiness claim. `Publish gate: not ready` remains expected while repo release blocks, local-runtime-test artifact handoffs, and the unresolved historical Builder trace-health family are present; do not turn release-ready behavior proof into a publish or registry claim.
+As of the refreshed full SparkRecursive_bot packet, `outputs/live-canary-full/live-canary-observations.json` is the current complete control-proof release packet. `npm run control:proof:canaries -- --observations outputs/live-canary-full/live-canary-observations.json --release-check` must report `Release gate: ready`, `Gate scope: full release pack`, `Release-check scope: full release readiness`, and every case passed with required captures present before making a local release-readiness claim. `Publish gate: not ready` remains expected while repo release blocks, local-runtime-test artifact handoffs, and the unresolved historical Builder trace-health family are present; do not turn release-ready behavior proof into a publish or registry claim.
 
 Use `--run-guide` for the operator-facing live pass: it pairs each Telegram prompt with the matching `--record-case` command template while keeping scoring expectations outside the Telegram copy block.
 
@@ -572,7 +572,7 @@ Then send one photo with a caption.
 - Streaming shows one draft path and one final answer.
 - Raw policy reason codes do not appear in normal chat.
 - Each canary records pass/fail, observed reply, side effects, proof join, and screenshot/user confirmation when required.
-- The observations report says `Release gate: ready` only when every selected case passed and all required captures are present. Treat it as a complete release claim only when the same report says `Gate scope: full release pack`.
+- The observations report says `Release gate: ready` only when every selected case passed and all required captures are present. Treat it as a complete release claim only when the same report says `Gate scope: full release pack` and `Release-check scope: full release readiness`.
 
 ## Suggested Work Order
 

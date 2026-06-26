@@ -43,6 +43,8 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /clean embedded fresh-strict audit evidence/);
   assert.match(plan, /Release gate: ready/);
   assert.match(plan, /Gate scope: full release pack/);
+  assert.match(plan, /Release-check scope: full release readiness/);
+  assert.match(plan, /Release-check scope: selected cases only; not a full release claim/);
   assert.match(plan, /Publish gate: not ready/);
   assert.match(plan, /do not turn release-ready behavior proof into a publish or registry claim/);
   assert.match(plan, /ref-only evidence as joined when a redacted proof ref is present/);
