@@ -21,6 +21,7 @@ export interface ProofCapsuleCoverageGap {
     | 'extra_policy'
     | 'ambiguous_policy'
     | 'missing_marker_policy'
+    | 'weak_source_marker_policy'
     | 'weak_policy_summary'
     | 'missing_source'
     | 'missing_marker'
@@ -90,7 +91,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       kind: 'joined_capsule',
       summary: 'Builder bridge responses are joined back to Telegram delivery proof rather than minting a second capsule.'
     },
-    requiredSourceMarkers: ['source_ledger', 'metadata']
+    requiredSourceMarkers: ['source_ledger', 'contextSourceCountsFromSelfAwareness']
   },
   {
     planeId: 'legacy-plane:telegram-memory-wiki-bridge',
@@ -106,7 +107,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       kind: 'direct_capsule',
       summary: 'Schedule, access, and operator branches record Harness Core execution and reply proof at dispatch.'
     },
-    requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'schedule']
+    requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'schedule.create']
   },
   {
     planeId: 'legacy-plane:telegram-recursive-sparkqa-startup',
@@ -114,7 +115,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       kind: 'direct_capsule',
       summary: 'Recursive, Spark QA, startup, and self-improvement routes record execution ledgers and attach reply proof capsules before replies.'
     },
-    requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'recursive']
+    requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'recursive.loop']
   },
   {
     planeId: 'legacy-plane:telegram-pending-state-followups',
@@ -122,9 +123,19 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
       kind: 'explicit_no_action',
       summary: 'Pending state is evidence only until a fresh branch authority creates a new authorized action envelope.'
     },
-    requiredSourceMarkers: ['telegramBranchActionAuthorityDecision', 'pending']
+    requiredSourceMarkers: ['telegramBranchActionAuthorityDecision', 'pendingBuildClarificationForMessage']
   }
 ];
+
+const GENERIC_SOURCE_MARKERS = new Set([
+  'metadata',
+  'pending',
+  'recursive',
+  'schedule',
+  'status',
+  'proof',
+  'trace'
+]);
 
 function hasHighAgencyRisk(risk: LegacyAuthorityRisk): boolean {
   return Object.values(risk).some(Boolean);
@@ -163,6 +174,15 @@ function proofPathSummaryIsStrong(policy: ProofCapsuleCoveragePolicy): boolean {
   }
   return /\b(?:no[-\s]?action|not[-\s]?started|blocked|skipped|evidence only)\b/i.test(summary) &&
     /\bfresh\b/i.test(summary);
+}
+
+function sourceMarkerIsSpecific(marker: string): boolean {
+  const normalized = marker.trim().toLowerCase();
+  if (!normalized) return false;
+  if (GENERIC_SOURCE_MARKERS.has(normalized)) return false;
+  return /[.(]/.test(marker) ||
+    /(?:^|[_\W])(?:harness|authority|authorized|authorization|governor|ledger|execution|capsule|envelope|proofref|proofcapsule)(?:$|[_\W])/i.test(marker) ||
+    /[a-z][A-Z]/.test(marker);
 }
 
 function readPlaneSource(repoRoot: string, plane: LegacyAuthorityPlaneV1): string | null {
@@ -214,6 +234,15 @@ export function checkProofCapsuleCoverage(input: {
         reason: 'missing_marker_policy',
         detail: 'Proof-capsule policy must name at least one source marker so coverage stays source-backed.'
       });
+    }
+    for (const marker of matches[0].requiredSourceMarkers) {
+      if (!sourceMarkerIsSpecific(marker)) {
+        gaps.push({
+          planeId: plane.plane_id,
+          reason: 'weak_source_marker_policy',
+          detail: `Proof-capsule policy marker ${marker} is too broad; use a function, route, ledger, authority, or proof-specific source marker.`
+        });
+      }
     }
 
     const source = readPlaneSource(repoRoot, plane);
