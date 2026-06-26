@@ -74,6 +74,8 @@ function usage(): string {
     '  npm run control:proof:canaries -- --include-actions --checklist',
     '',
     'Default selection excludes intentional live actions. Explicit --case/--cases can select them.',
+    '--release-check is the full release gate only when the packet is the complete canary pack; selected-case packets prove selected cases only.',
+    '--publish-check additionally requires publish readiness: no release caveats, no handoffs, and fresh full-pack evidence.',
     '--summary-frozen-at-collected is for checked fixture regeneration only; do not use it for live release claims or to bypass --refresh-runtime-evidence.'
   ].join('\n');
 }
