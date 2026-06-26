@@ -450,6 +450,7 @@ test('live evidence mode requires the distinct safe prompt signatures', () => {
     assert.equal(result.joinedRows, 4);
     assert.equal(result.noActionEvidenceRows, 4);
     assert.equal(result.safePromptEvidenceRows, 0);
+    assert.deepEqual(result.safePromptEvidence, []);
     assert.deepEqual(result.missingSafePromptEvidence, [
       'risk_profile_no_build',
       'mission_routing_explain_only',
@@ -488,8 +489,15 @@ test('live evidence mode accepts clean joined rows for all safe prompt signature
     assert.equal(result.joinedRows, 4);
     assert.equal(result.noActionEvidenceRows, 4);
     assert.equal(result.safePromptEvidenceRows, 4);
+    assert.deepEqual(result.safePromptEvidence, [
+      'risk_profile_no_build',
+      'mission_routing_explain_only',
+      'repair_status_no_action',
+      'memory_vs_fresh_state'
+    ]);
     assert.deepEqual(result.missingSafePromptEvidence, []);
     assert.match(report, /Safe prompt proof: ready \(4\/4 required safe prompts\)/);
+    assert.match(report, /Safe prompt evidence: risk_profile_no_build, mission_routing_explain_only, repair_status_no_action, memory_vs_fresh_state/);
   });
 });
 

@@ -63,7 +63,7 @@ Do not repair anything. Just tell me whether a repair is needed right now, using
 If memory says Spawner is down but spark live status says it is up, which source wins?
 ```
 
-After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, `Safe prompt proof: ready`, and no missing join, reply, proof, action/no-action, stale, or route-mismatch gaps.
+After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, `Safe prompt proof: ready`, the four matched safe-prompt evidence ids, and no missing join, reply, proof, action/no-action, stale, or route-mismatch gaps.
 
 Live rows must also be current. The default live evidence freshness window is four hours; use `--max-live-age-minutes <minutes>` only for an intentional local audit.
 
@@ -93,7 +93,7 @@ A joined route row must have:
 
 An empty route sample is not clean proof. It means no route evidence was available to inspect.
 
-The live gate also requires the safe prompt sample to be clean joined no-action/read-only evidence. Four joined action rows are not enough to pass `npm run control:proof:live-trace`; four generic no-action rows are not enough; and four sampled no-action rows with missing reply/proof joins are not enough either. The live proof must show the named no-action boundary was exercised end to end through the expected safe route/action signatures.
+The live gate also requires the safe prompt sample to be clean joined no-action/read-only evidence. Four joined action rows are not enough to pass `npm run control:proof:live-trace`; four generic no-action rows are not enough; and four sampled no-action rows with missing reply/proof joins are not enough either. The live proof must show the named no-action boundary was exercised end to end through the expected safe route/action signatures, and the report must list the matched safe-prompt evidence ids so a clean run is auditable without raw prompt text.
 
 Legacy route rows that predate join refs should remain visible as gaps when inspected. Do not backfill them unless the backing evidence proves the exact request, trace, proof, action/no-action, and reply join.
 
