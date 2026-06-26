@@ -33,7 +33,7 @@ Task order:
 
 Operating posture:
 - Prefer durable truth fixes, tests, docs, and evidence over save-the-day patches.
-- Treat docs as the control map: update the active implementation doc, workplan, and index as behavior, gates, or baselines change; new docs must organize the next steps, not replace proof.
+- Treat docs as the control map: update the active implementation doc, workplan, and index as behavior, gates, or baselines change; organize new docs into this map instead of creating parallel authority.
 - Do not widen UI, media, rich composition, or feature scope until proof gaps and trace joins are reduced.
 - Compact cards are for status, diagnose, proof, queues, picker choices, and dense summaries; ordinary follow-ups stay short and natural.
 
