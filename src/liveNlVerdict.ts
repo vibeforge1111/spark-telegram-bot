@@ -89,10 +89,14 @@ type LiveNlObservedTurn = LiveNlPacketCase['observed_turns'][number];
 type LiveNlSideEffects = LiveNlPacketCase['side_effects'];
 type LiveNlEvidenceRefs = LiveNlPacketCase['evidence_refs'];
 
+export const LIVE_NL_AUTHORITY_CLAIM_BOUNDARY =
+  'This is a legacy natural-language live QA observation container, not Harness Core release proof. Even when every selected case passes, it remains legacy breadth evidence unless the case is promoted into a Harness-shaped control-proof canary packet, and it must not authorize high-agency actions.';
+
 export interface LiveNlObservationFile {
   generatedAt?: string;
   runId?: string;
   title?: string;
+  authorityClaimBoundary?: string;
   session?: Partial<TelegramLiveQaEvidencePacketV1['required_session_evidence']>;
   cases: LiveNlCaseObservation[];
 }
@@ -489,6 +493,7 @@ export function buildLiveNlObservationTemplate(
     generatedAt,
     runId: options.runId,
     title: options.title || 'Spark Telegram Live QA Observation Template',
+    authorityClaimBoundary: LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
     session: options.requiredSessionEvidence,
     cases: cases.map((entry) => ({
       id: entry.id,
@@ -701,6 +706,7 @@ export function parseLiveNlObservationFile(value: unknown): LiveNlObservationFil
     generatedAt: stringField(record, 'generatedAt') || stringField(record, 'generated_at') || undefined,
     runId: stringField(record, 'runId') || stringField(record, 'run_id') || undefined,
     title: stringField(record, 'title') || undefined,
+    authorityClaimBoundary: stringField(record, 'authorityClaimBoundary') || stringField(record, 'authority_claim_boundary') || undefined,
     session: session as LiveNlObservationFile['session'],
     cases: rawCases.map(parseCaseObservation)
   };

@@ -11,6 +11,7 @@ import {
   formatLiveNlHarnessCoreMap,
   formatLiveNlCopyPastePrompts,
   formatLiveNlVerdictReport,
+  LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
   liveNlCaseTurns,
   parseLiveNlCommandCases,
   parseLiveNlObservationFile,
@@ -383,6 +384,8 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
 
   assert.equal(template.generatedAt, '2026-06-02T00:00:00.000Z');
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.equal(template.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
+  assert.match(template.authorityClaimBoundary || '', /not Harness Core release proof/);
   assert.equal(template.cases.length, 2);
   assert.equal(template.cases[0].id, 'genesis-002');
   assert.equal(template.cases[0].verdict, 'untested');
@@ -395,6 +398,7 @@ test('Genesis live Telegram observation template hides scoring expectations', ()
   assert.doesNotMatch(serialized, /chat_plan|chat_draft_text/);
 
   const parsed = parseLiveNlObservationFile(template);
+  assert.equal(parsed.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
   assert.deepEqual(parsed.cases.map((entry) => entry.id), ['genesis-002', 'genesis-010']);
 });
 
@@ -629,6 +633,8 @@ test('live NL verdict CLI emits a Genesis observation template', () => {
   const template = JSON.parse(result.stdout);
   const serialized = JSON.stringify(template);
   assert.equal(template.title, 'Spark Genesis Telegram Live QA Observation Template');
+  assert.match(template.authorityClaimBoundary, /not Harness Core release proof/);
+  assert.match(template.authorityClaimBoundary, /must not authorize high-agency actions/);
   assert.equal(template.cases.length, 1);
   assert.equal(template.cases[0].id, 'genesis-002');
   assert.equal(template.cases[0].verdict, 'untested');
