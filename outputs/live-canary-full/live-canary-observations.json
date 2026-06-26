@@ -636,7 +636,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Spark Recursive\nTelegram live chat Profile: primary Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms\n\nProcess telemetry: no rich/draft delivery attempt observed since start.\n\nPrivate chats only. Builder-routed replies are final-only until Builder stream events are wired.",
+        "reply": "Telegram live chat Profile: primary Status: on Rich messages: on\nDraft transport: rich Full-reply preview: on Draft interval: 500ms\n\nProcess telemetry: no rich/draft delivery attempt observed since start. Transport proof: configured only until a final or draft delivery is observed.\n\nPrivate chats only. Builder-routed replies are final-only until Builder stream events are wired.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -645,14 +645,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "Inspect-only streaming status command after primary profile restart; no setting changes, no mission, and no duplicate preview observed."
+          "notes": "Read-only /streaming status after build/sync and primary restart; no mutation observed."
         },
-        "proofJoin": "Telegram command reply delivered from the active primary profile with redacted profile status and live runtime telemetry.",
+        "proofJoin": "Telegram command reply joined live /streaming runtime status in SparkRecursive_bot after primary profile restart; transport proof line was visible in the final Telegram message.",
         "proofPanel": null,
         "screenshotRefs": [
-          "screenshot:sha256:152435e3cef25b868fe18886845519f711d7886e1be54323e6864d87b95f2c64"
+          "screenshot:sha256:ee038d63a94fa1fd84657fe367a313fd20f8c8547c93b120d2ca3fe01526513f"
         ],
-        "userConfirmation": "Verified in SparkRecursive_bot via Peekaboo screenshot digest: Profile: primary rendered, streaming and rich messages stayed on, no raw env paths or secrets, and no duplicate preview remained.",
+        "userConfirmation": "Verified in SparkRecursive_bot via Peekaboo screenshot after primary restart: Profile primary, streaming and rich messages on, Transport proof configured-only line visible, one final /streaming status reply and no duplicate preview remained.",
         "notes": "Recaptured after /streaming status began reporting the redacted active Telegram profile."
       },
       "sourceRefs": [
