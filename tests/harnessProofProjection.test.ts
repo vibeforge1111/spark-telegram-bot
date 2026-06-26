@@ -116,6 +116,7 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.match(projection.panel, /Evidence joined: Telegram final/);
     assert.match(projection.panel, /Evidence proof refs: Telegram final/);
     assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
+    assert.match(projection.panel, /Evidence capsule gaps: none/);
     assert.match(projection.panel, /Evidence missing: .*Builder gateway/);
     assert.match(projection.panel, /Evidence missing: .*Spawner trace/);
     assert.match(projection.panel, /Audit actionable: repair required/);
@@ -274,6 +275,7 @@ test('marks future Builder and Spawner rows joined when they carry a redacted pr
     assert.match(projection.panel, /Evidence proof refs: .*Builder gateway/);
     assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
+    assert.match(projection.panel, /Evidence capsule gaps: Builder gateway, Spawner trace/);
     assert.match(projection.panel, /Audit actionable: repair required/);
     assert.match(projection.panel, /Audit blocking: gaps found/);
     assert.match(projection.panel, /Audit fresh-strict: not ready/);
@@ -342,6 +344,7 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
     assert.match(projection.panel, /Evidence joined: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof capsules: .*Spawner trace/);
+    assert.match(projection.panel, /Evidence capsule gaps: none/);
     assert.match(projection.panel, /Evidence proof gaps: none/);
     assert.doesNotMatch(projection.panel, /legacyvisible|request:sha256:latest/);
   });
@@ -441,6 +444,7 @@ test('reports ref-only Builder evidence when the proof capsule is missing', () =
     assert.match(projection.panel, /Evidence joined: Builder gateway/);
     assert.match(projection.panel, /Evidence proof refs: Builder gateway/);
     assert.match(projection.panel, /Evidence proof capsules: none/);
+    assert.match(projection.panel, /Evidence capsule gaps: Builder gateway/);
     assert.match(projection.panel, /Evidence missing: .*Telegram final/);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'joined');
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.proofRefJoined, true);
@@ -501,6 +505,7 @@ test('reports trace-only joins separately from proof refs', () => {
     assert.match(projection.panel, /Evidence trace-only: Builder gateway/);
     assert.match(projection.panel, /Evidence proof refs: none/);
     assert.match(projection.panel, /Evidence proof capsules: none/);
+    assert.match(projection.panel, /Evidence capsule gaps: none/);
     assert.doesNotMatch(projection.panel, /raw-request-trace-only|\/Users\/example/);
   });
 });

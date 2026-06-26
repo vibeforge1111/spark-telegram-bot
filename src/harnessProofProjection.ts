@@ -336,6 +336,9 @@ function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
     .map((join) => join.displayName);
   const proofRefs = visibleJoins.filter((join) => join.proofRefJoined).map((join) => join.displayName);
   const proofCapsules = visibleJoins.filter((join) => join.proofCapsuleJoined).map((join) => join.displayName);
+  const capsuleGaps = visibleJoins
+    .filter((join) => join.proofRefJoined && !join.proofCapsuleJoined)
+    .map((join) => join.displayName);
   const traceOnly = visibleJoins
     .filter((join) => join.status === 'joined' && join.traceJoined && !join.proofRefJoined && !join.proofCapsuleJoined)
     .map((join) => join.displayName);
@@ -346,6 +349,7 @@ function renderEvidenceJoinSummary(joins: HarnessProofEvidenceJoin[]): string {
     `Evidence joined: ${joined.length ? joined.join(', ') : 'none'}`,
     `Evidence proof refs: ${proofRefs.length ? proofRefs.join(', ') : 'none'}`,
     `Evidence proof capsules: ${proofCapsules.length ? proofCapsules.join(', ') : 'none'}`,
+    `Evidence capsule gaps: ${capsuleGaps.length ? capsuleGaps.join(', ') : 'none'}`,
     `Evidence trace-only: ${traceOnly.length ? traceOnly.join(', ') : 'none'}`,
     `Evidence proof gaps: ${proofGaps.length ? proofGaps.join(', ') : 'none'}`,
     `Evidence non-execution: ${nonExecution.length ? nonExecution.join(', ') : 'none'}`,
