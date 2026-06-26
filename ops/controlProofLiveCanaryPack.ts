@@ -9,6 +9,7 @@ import {
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
+  summarizeControlProofAuditRuntimeEvidence,
   summarizeControlProofCanaryCoverage,
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
@@ -248,6 +249,7 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
     runtimeSync: byLabel.get('runtime_sync') || null,
     sparkOsCompile: byLabel.get('spark_os_compile') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
+    controlProofAuditSummary: summarizeControlProofAuditRuntimeEvidence(byLabel.get('control_proof_audit') || null),
     notes
   };
 }

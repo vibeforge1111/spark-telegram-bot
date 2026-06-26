@@ -92,6 +92,7 @@ export interface ControlProofCanaryObservationTemplate {
     runtimeSync: string | null;
     sparkOsCompile: string | null;
     controlProofAudit: string | null;
+    controlProofAuditSummary?: ControlProofAuditRuntimeSummary | null;
     notes: string | null;
   };
   cases: ControlProofCanaryObservationCase[];
@@ -104,6 +105,7 @@ export interface ControlProofCanaryRuntimeEvidence {
   runtimeSync: string | null;
   sparkOsCompile: string | null;
   controlProofAudit: string | null;
+  controlProofAuditSummary?: ControlProofAuditRuntimeSummary | null;
   notes?: string | null;
 }
 
@@ -258,6 +260,15 @@ export interface ControlProofAuditDetails {
   gapPlanes: Record<string, string[]>;
   gapDetails: Record<string, ControlProofAuditGapFamilyDetail>;
   planes: ControlProofAuditPlaneDetail[];
+}
+
+export interface ControlProofAuditRuntimeSummary {
+  generatedAt: string | null;
+  status: string | null;
+  blockingStatus: string | null;
+  gapPosture: string | null;
+  gapCounts: Record<string, number>;
+  gapPlanes: Record<string, string[]>;
 }
 
 export interface ControlProofReleaseHandoffDetail {
@@ -1160,6 +1171,7 @@ export function buildControlProofCanaryObservationTemplate(
       runtimeSync: null,
       sparkOsCompile: null,
       controlProofAudit: null,
+      controlProofAuditSummary: null,
       notes: null
     },
     cases: cases.map((entry) => ({
@@ -1217,6 +1229,10 @@ export function withControlProofCanaryRuntimeEvidence(
       runtimeSync: evidence.runtimeSync,
       sparkOsCompile: evidence.sparkOsCompile,
       controlProofAudit: evidence.controlProofAudit,
+      controlProofAuditSummary: evidence.controlProofAuditSummary ||
+        summarizeControlProofAuditRuntimeEvidence(evidence.controlProofAudit) ||
+        observations.evidence.controlProofAuditSummary ||
+        null,
       notes: evidence.notes || observations.evidence.notes || null
     }
   };
@@ -1286,7 +1302,8 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
     providerStatus: null,
     runtimeSync: null,
     sparkOsCompile: null,
-    controlProofAudit: null
+    controlProofAudit: null,
+    controlProofAuditSummary: null
   };
   const missing: string[] = [];
   if (!String(evidence.collectedAt || '').trim()) missing.push('runtime_evidence_collected_at');
@@ -1416,6 +1433,29 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
     gapDetails: controlProofAuditGapDetails(gapCounts, gapPlanes, planes),
     planes
   };
+}
+
+export function summarizeControlProofAuditRuntimeEvidence(
+  text: string | null | undefined
+): ControlProofAuditRuntimeSummary | null {
+  const details = controlProofAuditDetails(text);
+  if (!details) return null;
+  return {
+    generatedAt: details.generatedAt,
+    status: details.status,
+    blockingStatus: details.blockingStatus,
+    gapPosture: details.gapPosture,
+    gapCounts: details.gapCounts,
+    gapPlanes: details.gapPlanes
+  };
+}
+
+function controlProofAuditRuntimeSummaryMatches(
+  actual: ControlProofAuditRuntimeSummary,
+  expected: ControlProofAuditRuntimeSummary | null
+): boolean {
+  if (!expected) return false;
+  return JSON.stringify(actual) === JSON.stringify(expected);
 }
 
 function lineValue(text: string, label: string): string | null {
@@ -2678,7 +2718,8 @@ function invalidPacketEvidence(
     providerStatus: null,
     runtimeSync: null,
     sparkOsCompile: null,
-    controlProofAudit: null
+    controlProofAudit: null,
+    controlProofAuditSummary: null
   };
   const invalid: string[] = [];
   const generatedAt = String(observations.generatedAt || '').trim();
@@ -2712,13 +2753,20 @@ function invalidPacketEvidence(
       !runtimeEvidenceCommandTimestampIsFresh(evidence.sparkOsCompile, 'spark_os_compile', collectedAt)
     )
   ) invalid.push('spark_os_compile');
+  const controlProofAuditValid = String(evidence.controlProofAudit || '').trim()
+    ? validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit') &&
+      runtimeEvidenceCommandTimestampIsFresh(evidence.controlProofAudit, 'control_proof_audit', collectedAt)
+    : true;
+  if (!controlProofAuditValid) invalid.push('control_proof_audit');
   if (
-    String(evidence.controlProofAudit || '').trim() &&
-    (
-      !validRuntimeEvidenceValue(evidence.controlProofAudit, 'control_proof_audit') ||
-      !runtimeEvidenceCommandTimestampIsFresh(evidence.controlProofAudit, 'control_proof_audit', collectedAt)
+    controlProofAuditValid &&
+    invalid.length === 0 &&
+    evidence.controlProofAuditSummary &&
+    !controlProofAuditRuntimeSummaryMatches(
+      evidence.controlProofAuditSummary,
+      summarizeControlProofAuditRuntimeEvidence(evidence.controlProofAudit)
     )
-  ) invalid.push('control_proof_audit');
+  ) invalid.push('control_proof_audit_summary');
   if (String(evidence.notes || '').trim() && canaryFreeTextLeaksRawInternals(String(evidence.notes))) invalid.push('runtime_evidence_notes');
   return invalid;
 }

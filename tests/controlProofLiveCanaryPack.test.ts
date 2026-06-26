@@ -14,6 +14,7 @@ import {
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
+  summarizeControlProofAuditRuntimeEvidence,
   summarizeControlProofCanaryCoverage,
   summarizeControlProofCanaryObservations,
   withControlProofCanaryRuntimeEvidence,
@@ -549,6 +550,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     notes: null
   });
+  assert.deepEqual(template.evidence.controlProofAuditSummary, summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT));
   template.cases[0].observed = {
     ...template.cases[0].observed,
     verdict: 'pass',
@@ -1202,6 +1204,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.controlProofAuditSummary = {
+    ...summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!,
+    gapPosture: 'blocking gaps require repair'
+  };
+  const mismatchedAuditSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedAuditSummary.readyForRelease, false);
+  assert.deepEqual(mismatchedAuditSummary.invalidPacketEvidence, ['control_proof_audit_summary']);
+
+  template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT);
   template.evidence.sparkLiveStatus = 'Spark Live healthy.';
   const missingLiveStatusTranscript = summarizeControlProofCanaryObservations(template);
   assert.equal(missingLiveStatusTranscript.readyForRelease, false);
@@ -1997,6 +2008,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   template.evidence.collectedAt = '2026-06-24T00:06:00.000Z';
   template.evidence.sparkOsCompile = cleanSparkOsCompile('2026-06-24T00:06:00.000Z');
   template.evidence.controlProofAudit = cleanControlProofAudit('2026-06-24T00:06:00.000Z');
+  template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(template.evidence.controlProofAudit);
   const strictGeneratedAt = summarizeControlProofCanaryObservations(template, { now: '2026-06-24T00:06:00.000Z' });
   assert.equal(strictGeneratedAt.readyForRelease, true);
   assert.deepEqual(strictGeneratedAt.invalidPacketEvidence, []);
@@ -2887,7 +2899,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  i=0',
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
       "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
+      '  echo "Status: gaps found"',
       '  echo "Blocking status: clean"',
+      '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
       '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
       '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
       '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
@@ -3004,6 +3018,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshed.stdout, /Refreshed control-proof runtime evidence/);
     const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapCounts.latest_proof_gaps, 0);
     assert.match(refreshedObserved.evidence.sparkOsCompile, /"ok": true/);
     assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
     assert.equal(refreshedObserved.generatedAt, refreshedObserved.evidence.collectedAt);
@@ -3039,6 +3055,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
     const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
     assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
