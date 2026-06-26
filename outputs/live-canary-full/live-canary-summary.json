@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T01:07:22.395Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T01:07:22.395Z",
+    "generatedAt": "2026-06-26T01:17:03.374Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T01:17:03.374Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T02:07:22.395Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T02:17:03.374Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -1008,7 +1008,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T01:07:22.381Z",
+      "generatedAt": "2026-06-26T01:17:03.360Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -1485,10 +1485,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T01:07:22.395Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T01:07:22.395Z",
+      "generatedAt": "2026-06-26T01:17:03.374Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T01:17:03.374Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T02:07:22.395Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T02:17:03.374Z",
       "missing": [],
       "invalid": [],
       "stale": []
@@ -1512,6 +1512,7 @@
         "expectedRoute": "plain_chat.risk_profile",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1527,6 +1528,7 @@
         "expectedRoute": "plain_chat.routing_failure_class",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1542,6 +1544,7 @@
         "expectedRoute": "plain_chat.no_execution_boundary",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1562,6 +1565,7 @@
         "expectedRoute": "fresh_state.read_only_repair_status",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1577,6 +1581,7 @@
         "expectedRoute": "fresh_state.authority_answer",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1592,6 +1597,7 @@
         "expectedRoute": "fresh_state.live_status",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1600,6 +1606,7 @@
         "expectedRoute": "proof.inspect",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "proof_panel",
         "missingCaptures": []
       },
       {
@@ -1608,6 +1615,7 @@
         "expectedRoute": "proof.inspect",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "proof_panel",
         "missingCaptures": []
       },
       {
@@ -1623,6 +1631,7 @@
         "expectedRoute": "plain_conversation",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1631,6 +1640,7 @@
         "expectedRoute": "builder_gateway.memory_diagnostic_boundary",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1646,6 +1656,7 @@
         "expectedRoute": "streaming.status",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "compact_card",
         "missingCaptures": []
       },
       {
@@ -1661,6 +1672,7 @@
         "expectedRoute": "plain_chat.rich_message_render",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1669,6 +1681,7 @@
         "expectedRoute": "memory_recall",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1677,6 +1690,7 @@
         "expectedRoute": "memory.doctor",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1685,6 +1699,7 @@
         "expectedRoute": "access.capability_status",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1705,6 +1720,7 @@
         "expectedRoute": "access.level_change",
         "expectedAuthority": "confirmation_required_or_allowed",
         "expectedMutationClass": "updates_access_setting",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1713,6 +1729,7 @@
         "expectedRoute": "model_switch.boundary_explanation",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1721,6 +1738,7 @@
         "expectedRoute": "model_switch.mission_provider",
         "expectedAuthority": "confirmation_required_or_allowed",
         "expectedMutationClass": "switches_provider",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1736,6 +1754,7 @@
         "expectedRoute": "external_research.boundary",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1744,6 +1763,7 @@
         "expectedRoute": "external_research.direct_or_clarify",
         "expectedAuthority": "confirmation_required_or_allowed",
         "expectedMutationClass": "external_network",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1764,6 +1784,7 @@
         "expectedRoute": "spawner_build.ideation_boundary",
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1779,6 +1800,7 @@
         "expectedRoute": "spawner.build",
         "expectedAuthority": "confirmation_required_or_allowed",
         "expectedMutationClass": "writes_files",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1804,6 +1826,7 @@
         "expectedRoute": "spawner.run",
         "expectedAuthority": "confirmation_required_or_allowed",
         "expectedMutationClass": "launches_mission",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1819,6 +1842,7 @@
         "expectedRoute": "media.image_boundary",
         "expectedAuthority": "media_evidence_only",
         "expectedMutationClass": "media_read",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1827,6 +1851,7 @@
         "expectedRoute": "media.image_analyze_or_boundary",
         "expectedAuthority": "media_evidence_only",
         "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
         "missingCaptures": []
       },
       {
@@ -1842,6 +1867,7 @@
         "expectedRoute": "media.voice_transcribe_or_boundary",
         "expectedAuthority": "media_evidence_only",
         "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
         "missingCaptures": []
       },
       {
@@ -1857,6 +1883,7 @@
         "expectedRoute": "media.audio_transcribe_or_boundary",
         "expectedAuthority": "media_evidence_only",
         "expectedMutationClass": "media_read",
+        "expectedReplyShape": "media_reply",
         "missingCaptures": []
       },
       {
@@ -1872,6 +1899,7 @@
         "expectedRoute": "registry_drift.read_only",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       }
     ]
