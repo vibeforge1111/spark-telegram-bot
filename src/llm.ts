@@ -621,6 +621,26 @@ function extractAnthropicText(response: AnthropicMessagesResponse): string {
     .join('\n\n');
 }
 
+// Anthropic prompt caching: send long, stable system prompts as a structured
+// block with cache_control so repeat calls within the 5-minute ephemeral
+// window reuse the cached prefix instead of re-billing it as fresh input
+// tokens. Anthropic requires ~1024+ tokens (~4KB chars) for the marker to be
+// honored; below that it is silently ignored, so the threshold is safe.
+const ANTHROPIC_SYSTEM_CACHE_MIN_CHARS = 4096;
+
+function buildAnthropicSystemField(systemPrompt: string): string | Array<Record<string, unknown>> {
+  if (systemPrompt.length >= ANTHROPIC_SYSTEM_CACHE_MIN_CHARS) {
+    return [
+      {
+        type: 'text',
+        text: systemPrompt,
+        cache_control: { type: 'ephemeral' }
+      }
+    ];
+  }
+  return systemPrompt;
+}
+
 async function anthropicMessage(
   config: ChatProviderConfig,
   input: { system: string; user: string; temperature: number; maxTokens: number; timeoutMs: number }
@@ -633,7 +653,7 @@ async function anthropicMessage(
     joinUrl(config.baseUrl, '/messages'),
     {
       model: config.model,
-      system: input.system,
+      system: buildAnthropicSystemField(input.system),
       messages: [{ role: 'user', content: input.user }],
       temperature: input.temperature,
       max_tokens: input.maxTokens
