@@ -97,6 +97,11 @@ Styling does not change the shape. In a natural follow-up, `**Mission**`,
 report-card surface. Rewrite them as one or two human sentences unless the turn
 is a status, diagnose, proof, queue, picker, or raw-detail surface.
 
+Rich-message checks follow the same rule. Do not answer an ordinary rich-message
+render check with `Status: clean`; that is a status packet wearing styling. Use
+plain check wording such as `Check: clean` plus the requested short token only
+when the user is explicitly testing rich-message rendering.
+
 ## Emoji Ergonomics
 
 Use emoji as an affordance, not decoration.

@@ -74,6 +74,21 @@ test('repo carries the Telegram composition standard as mergeable product guidan
   assert.match(standard, /Do not combine icons with bullets/);
   assert.match(standard, /Put raw evidence behind Workspace, Decisions, Canvas, Board, logs, or trace links/);
   assert.match(standard, /Does it sound like Spark helping a person/);
+  assert.match(standard, /Status: clean/);
+  assert.match(standard, /Check: clean/);
+  assert.match(standard, /rich-message rendering/);
+});
+
+test('streaming design preserves the measured rich-message proof shape', () => {
+  const design = readFileSync(path.join(__dirname, '..', 'docs', 'LIVE_CHAT_STREAMING_DESIGN.md'), 'utf8');
+
+  assert.match(design, /rich-message-delivery-proof/);
+  assert.match(design, /cp-streaming-002/);
+  assert.match(design, /Status: clean/);
+  assert.match(design, /rejected here/);
+  assert.match(design, /Check: clean/);
+  assert.match(design, /Token: ok/);
+  assert.match(design, /one final Telegram message/);
 });
 
 test('repo carries a readability ergonomics and vibe rubric', () => {
