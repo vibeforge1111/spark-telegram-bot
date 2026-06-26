@@ -409,6 +409,10 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
   assert.ok(richMessage);
   assert.match(richMessage.expectedProofJoin, /rich-message reply came through the live Telegram profile path/);
   assert.match(richMessage.passCriteria.join('\n'), /rich-message final delivery through the active Telegram profile path/);
+  assert.match(richMessage.passCriteria.join('\n'), /collapses to one final Telegram message/);
+  const streamingStatus = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001');
+  assert.ok(streamingStatus);
+  assert.match(streamingStatus.passCriteria.join('\n'), /collapses to one final Telegram message/);
 });
 
 test('promoted canaries keep traceable legacy source references', () => {
@@ -606,14 +610,21 @@ test('observation template records expected fields and empty live observations',
   assert.equal(template.cases[0].observed.userConfirmation, null);
 });
 
-test('runtime evidence refresh backfills canonical canary source refs', () => {
+test('runtime evidence refresh backfills canonical canary source refs and expectations', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!,
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-002')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template.cases = template.cases.map((entry) => ({
     ...entry,
-    sourceRefs: undefined
+    sourceRefs: undefined,
+    prompt: 'stale prompt',
+    expected: {
+      ...entry.expected,
+      route: 'stale.route',
+      replyShape: 'natural',
+      passCriteria: ['old duplicate preview wording only']
+    }
   }));
 
   const refreshed = withControlProofCanaryRuntimeEvidence(template, {
@@ -631,15 +642,23 @@ test('runtime evidence refresh backfills canonical canary source refs', () => {
   assert.deepEqual(refreshed.cases[1].sourceRefs, [
     { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
   ]);
+  assert.equal(refreshed.cases[0].prompt, '/streaming');
+  assert.equal(refreshed.cases[0].expected.route, 'streaming.status');
+  assert.equal(refreshed.cases[0].expected.replyShape, 'compact_card');
+  assert.match(refreshed.cases[0].expected.passCriteria.join('\n'), /one final Telegram message/);
+  assert.equal(refreshed.cases[1].expected.route, 'plain_chat.rich_message_render');
+  assert.match(refreshed.cases[1].expected.passCriteria.join('\n'), /one final Telegram message/);
 });
 
-test('observation summary uses canonical source refs over stale packet refs', () => {
+test('observation summary uses canonical source refs and expectations over stale packet refs', () => {
   const template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
   ], { generatedAt: '2026-06-24T00:00:00.000Z' });
   template.cases[0].sourceRefs = [
     { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'old-streaming-contract', relationship: 'coverage_for' }
   ];
+  template.cases[0].expected.route = 'old.streaming.status';
+  template.cases[0].expected.replyShape = 'natural';
 
   const summary = summarizeControlProofCanaryObservations(template, {
     now: '2026-06-24T00:00:00.000Z'
@@ -648,6 +667,8 @@ test('observation summary uses canonical source refs over stale packet refs', ()
   assert.deepEqual(summary.cases[0].sourceRefs, [
     { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
   ]);
+  assert.equal(summary.cases[0].expectedRoute, 'streaming.status');
+  assert.equal(summary.cases[0].expectedReplyShape, 'compact_card');
 });
 
 test('observation summary rejects duplicate canary rows', () => {

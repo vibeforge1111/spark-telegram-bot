@@ -598,7 +598,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     passCriteria: [
       'Status reflects streaming and rich-message settings from runtime source.',
       'Status names the active Telegram profile without exposing env paths or secrets.',
-      'No duplicate preview appears.',
+      'No duplicate draft/preview remains and the status collapses to one final Telegram message.',
       'No raw env file paths or tokens appear.'
     ],
     capture: { observedReply: true, sideEffects: true, proofPanel: false, screenshot: true, userConfirmation: true }
@@ -618,7 +618,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     passCriteria: [
       'Message renders cleanly in Telegram.',
       'Formatting improves readability without becoming a dense card.',
-      'No duplicate streaming preview remains visible.',
+      'No duplicate draft/preview remains and the rich reply collapses to one final Telegram message.',
       'Proof join names rich-message final delivery through the active Telegram profile path.'
     ],
     capture: { observedReply: true, sideEffects: true, proofPanel: false, screenshot: true, userConfirmation: true }
@@ -1260,11 +1260,24 @@ export function withControlProofCanaryRuntimeEvidence(
 function normalizeControlProofCanaryObservationCase(
   entry: ControlProofCanaryObservationCase
 ): ControlProofCanaryObservationCase {
-  const sourceRefs = canonicalSourceRefsForCanary(entry.id);
-  if (!sourceRefs) return entry;
+  const canonical = CONTROL_PROOF_LIVE_CANARY_CASES.find((canary) => canary.id === entry.id);
+  if (!canonical) return entry;
   return {
     ...entry,
-    sourceRefs
+    category: canonical.category,
+    risk: canonical.risk,
+    sourceRefs: canonical.sourceRefs,
+    prompt: canonical.prompt,
+    expected: {
+      authority: canonical.expectedAuthority,
+      mutationClass: canonical.expectedMutationClass,
+      route: canonical.expectedRoute,
+      replyShape: canonical.expectedReplyShape,
+      sideEffect: canonical.expectedSideEffect,
+      proofJoin: canonical.expectedProofJoin,
+      passCriteria: canonical.passCriteria,
+      capture: canonical.capture
+    }
   };
 }
 
@@ -3214,15 +3227,16 @@ export function summarizeControlProofCanaryObservations(
     seenCaseIds.add(entry.id);
     if (!verdictValues.has(entry.observed.verdict)) throw new Error(`Invalid verdict for ${entry.id}: ${entry.observed.verdict}`);
     verdictCounts[entry.observed.verdict] += 1;
-    const sourceRefs = canonicalSourceRefsForCanary(entry.id) || (entry.sourceRefs?.length ? entry.sourceRefs : undefined);
+    const canonical = CONTROL_PROOF_LIVE_CANARY_CASES.find((canary) => canary.id === entry.id);
+    const sourceRefs = canonical?.sourceRefs?.length ? canonical.sourceRefs : (entry.sourceRefs?.length ? entry.sourceRefs : undefined);
     return {
       id: entry.id,
       verdict: entry.observed.verdict,
       ...(sourceRefs ? { sourceRefs } : {}),
-      expectedRoute: entry.expected.route,
-      expectedAuthority: entry.expected.authority,
-      expectedMutationClass: entry.expected.mutationClass,
-      expectedReplyShape: entry.expected.replyShape,
+      expectedRoute: canonical?.expectedRoute || entry.expected.route,
+      expectedAuthority: canonical?.expectedAuthority || entry.expected.authority,
+      expectedMutationClass: canonical?.expectedMutationClass || entry.expected.mutationClass,
+      expectedReplyShape: canonical?.expectedReplyShape || entry.expected.replyShape,
       missingCaptures: missingCapturesForCase(entry, { runtimeLegacyProofGapCount: legacyGapCount })
     };
   });
