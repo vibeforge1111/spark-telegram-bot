@@ -571,6 +571,8 @@ test('live NL CLI emits Harness Core refurbishment map for selected legacy cases
   assert.match(result.stdout, /Selected cases: 3 of 73 \(risky cases excluded unless explicitly selected\)/);
   assert.match(result.stdout, /Authority boundary: claim_scope=legacy_breadth; release_gate=none; promotion_target=control_proof_canary/);
   assert.match(result.stdout, /not Harness Core release proof/);
+  assert.match(result.stdout, /promote selected prompts only when they close a measured control-proof or trace-join gap/);
+  assert.match(result.stdout, /do not use legacy NL cases to expand UI, media support, rich composition, or new features/);
   assert.match(result.stdout, /\| memory-001 \| memory \| safe \| writes_memory \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
   assert.match(result.stdout, /\| access-002 \| access \| safe \| updates_access_setting \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
   assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| yes \| observed_reply, side_effects, proof_panel, screenshot_or_user_confirmation \|/);
