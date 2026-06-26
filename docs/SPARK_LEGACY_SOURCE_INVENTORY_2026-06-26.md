@@ -35,6 +35,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md` | active | Current ordinary-vs-inspect Telegram render firewall behavior. |
 | `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md` | active | Current user intent to route/action/reply trace-join checker behavior. |
 | `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md` | active | Current action-capable authority plane proof-capsule coverage behavior. |
+| `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md` | active | Current old-edge reliability eval coverage behavior. |
 | `docs/LIVE_CHAT_STREAMING_DESIGN.md` | active | Active for proven Telegram streaming/rich defaults; future Builder-native phases stay gated by measured proof gaps. |
 | `docs/QA_OPERATOR_TELEGRAM_RECURSION.md` | active | Recursive/QA Operator Telegram behavior source. |
 | `docs/VOICE_RUNTIME_ARCHITECTURE.md` | active | Voice evidence boundary source; voice evidence remains non-execution unless a future proof gap changes that. |
@@ -83,4 +84,5 @@ Turn this inventory into enforcement:
 1. Keep the render firewall covered by tests so read-only evidence cannot leak into ordinary Telegram replies unless explicitly inspected.
 2. Keep the end-to-end trace join checker covered for `user intent -> route decision -> action/no-action -> reply`.
 3. Keep proof-capsule coverage checked for every action-capable authority plane before adding new execution routes.
-4. Add capability last-success and last-failure evidence after the source-boundary rules are enforced.
+4. Keep reliability eval coverage checked for old-edge categories before claiming control-proof readiness.
+5. Add capability last-success and last-failure evidence after the source-boundary rules are enforced.

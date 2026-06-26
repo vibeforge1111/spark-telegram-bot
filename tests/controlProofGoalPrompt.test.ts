@@ -21,6 +21,7 @@ const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDE
 const RENDER_FIREWALL_PATH = resolve(ROOT, 'docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md');
 const TRACE_JOIN_CHECKER_PATH = resolve(ROOT, 'docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md');
 const PROOF_CAPSULE_COVERAGE_PATH = resolve(ROOT, 'docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md');
+const RELIABILITY_EVAL_COVERAGE_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -56,9 +57,11 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md/);
   assert.match(index, /SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md/);
   assert.match(index, /SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md/);
+  assert.match(index, /SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md/);
   assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
   assert.match(index, /Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md`/);
   assert.match(index, /Proof capsule coverage behavior updates `SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md`/);
+  assert.match(index, /Reliability eval coverage behavior updates `SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md`/);
   assert.match(index, /Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
@@ -115,11 +118,13 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`docs\/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
   assert.match(inventory, /None in this pass/);
   assert.match(inventory, /Keep the render firewall covered by tests/);
   assert.match(inventory, /Keep the end-to-end trace join checker covered/);
   assert.match(inventory, /Keep proof-capsule coverage checked/);
+  assert.match(inventory, /Keep reliability eval coverage checked/);
 });
 
 test('render firewall doc records ordinary and inspect boundaries', () => {
@@ -159,6 +164,18 @@ test('proof capsule coverage doc records action-capable policy boundary', () => 
   assert.match(doc, /explicit_no_action/);
   assert.match(doc, /Duplicate proof paths are treated as drift/);
   assert.match(doc, /control:proof:trace-join/);
+});
+
+test('reliability eval coverage doc records old-edge eval categories', () => {
+  const doc = readFileSync(RELIABILITY_EVAL_COVERAGE_PATH, 'utf8');
+
+  assert.match(doc, /do not run/);
+  assert.match(doc, /just explain/);
+  assert.match(doc, /build\/mission mentions/);
+  assert.match(doc, /stale memory conflicts/);
+  assert.match(doc, /streaming\/rich messages/);
+  assert.match(doc, /publish handoffs/);
+  assert.match(doc, /npm run control:proof:evals -- --strict/);
 });
 
 test('reliability ladder goal prompt sequences enforcement before expansion', () => {
