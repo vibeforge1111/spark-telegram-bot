@@ -7,6 +7,8 @@ Status: working documentation map
 
 This is the organizing layer for the control-proof work. Use it before running the goal prompt so Spark starts from current documentation, a read-only audit baseline, and the new R28 rule: Harness Core decides; tracing proves.
 
+Entry condition: reduce proof gaps and trace-join gaps before expanding UI, media support, or new visible features. A new surface belongs in this work only when it directly closes a measured control-proof gap.
+
 ## Canonical Docs
 
 Read these in order:

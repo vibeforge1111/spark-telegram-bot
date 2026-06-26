@@ -15,6 +15,7 @@ function test(name: string, fn: () => void): void {
 const ROOT = resolve(__dirname, '..');
 const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md');
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
+const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
 
@@ -34,6 +35,13 @@ test('control-proof goal prompt preserves proof-first operating constraints', ()
   assert.match(prompt, /Refresh evidence only from a clean\/source-committed state\./);
   assert.match(prompt, /Full release claims require `Gate scope: full release pack` and `Release-check scope: full release readiness`/);
   assert.match(prompt, /selected-case gates prove selected cases only/);
+});
+
+test('docs index routes future work through the proof-first entry condition', () => {
+  const index = readFileSync(DOCS_INDEX_PATH, 'utf8');
+
+  assert.match(index, /reduce proof gaps and trace-join gaps before expanding UI, media support, or new visible features/);
+  assert.match(index, /directly closes a measured control-proof gap/);
 });
 
 test('control-proof plan documents current proof repair and release boundaries', () => {
