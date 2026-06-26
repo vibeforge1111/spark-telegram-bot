@@ -39,7 +39,7 @@ import {
 } from './builderBridge';
 import { spark } from './spark';
 import { generateBuildClarificationMicrocopy, llm, type BuildClarificationMicrocopy } from './llm';
-import { sanitizeAndSplitTelegramText } from './outboundSanitize';
+import { sanitizeAndSplitTelegramText, type TelegramRenderSurface } from './outboundSanitize';
 import { applyPlainWordsSurfaceRequest } from './telegramSurface';
 import {
   createTelegramDraftStreamer,
@@ -2478,6 +2478,22 @@ function outboundTraceExtra(traceContext: NodeOutboundTraceContext): Record<stri
   };
 }
 
+function telegramRenderSurfaceForTraceContext(traceContext?: NodeOutboundTraceContext | null): TelegramRenderSurface {
+  const route = String(traceContext?.route || '').trim().toLowerCase().replace(/_/g, '.');
+  const command = String(traceContext?.command || '').trim().toLowerCase().replace(/_/g, '.');
+  const replyKind = String(traceContext?.replyKind || '').trim().toLowerCase().replace(/_/g, '.');
+  const inspectSignals = [route, command, replyKind].filter(Boolean).join(' ');
+  if (
+    /\b(?:proof|diagnose|diagnostic|diagnostics|status|raw|review|picker|inspect)\b/.test(inspectSignals) ||
+    route.endsWith('.status') ||
+    route.endsWith('.inspect') ||
+    replyKind.endsWith('.panel')
+  ) {
+    return 'inspect';
+  }
+  return 'ordinary';
+}
+
 function isHarnessProofRef(value: unknown): value is string {
   return typeof value === 'string' && HARNESS_PROOF_REF_PATTERN.test(value.trim());
 }
@@ -2971,7 +2987,9 @@ bot.telegram.sendMessage = (async (chatId: any, text: any, extra?: any) => {
     return delivery;
   }
 
-  const chunks = sanitizeAndSplitTelegramText(text);
+  const chunks = sanitizeAndSplitTelegramText(text, undefined, {
+    surface: telegramRenderSurfaceForTraceContext(traceContext)
+  });
   let lastDelivery: Awaited<ReturnType<typeof _origSendMessage>> | null = null;
   for (const chunk of chunks) {
     if (
@@ -3013,7 +3031,9 @@ bot.use(async (ctx, next) => {
       return delivery;
     }
 
-    const chunks = sanitizeAndSplitTelegramText(text);
+    const chunks = sanitizeAndSplitTelegramText(text, undefined, {
+      surface: telegramRenderSurfaceForTraceContext(traceContext)
+    });
     let lastReply: Awaited<ReturnType<typeof originalReply>> | null = null;
     for (const chunk of chunks) {
       if (!telegramDraftStreamAlreadyStarted(ctx) && telegramFullReplyDraftPreviewAllowed({ route: traceContext?.route })) {
@@ -3344,8 +3364,10 @@ function isTelegramMessageTooLongError(error: unknown): boolean {
 }
 
 async function replyWithSanitizedTelegramText(ctx: any, text: string, extra?: any): Promise<void> {
+  const traceContext = extractOutboundTraceContext(extra);
+  const surface = telegramRenderSurfaceForTraceContext(traceContext);
   try {
-    for (const chunk of sanitizeAndSplitTelegramText(text)) {
+    for (const chunk of sanitizeAndSplitTelegramText(text, undefined, { surface })) {
       await ctx.reply(chunk, extra);
     }
     return;
@@ -3355,7 +3377,7 @@ async function replyWithSanitizedTelegramText(ctx: any, text: string, extra?: an
     }
   }
 
-  for (const chunk of sanitizeAndSplitTelegramText(text, 900)) {
+  for (const chunk of sanitizeAndSplitTelegramText(text, 900, { surface })) {
     await ctx.reply(chunk, extra);
   }
 }

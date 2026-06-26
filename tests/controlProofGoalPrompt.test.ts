@@ -18,6 +18,7 @@ const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
 const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
 const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md');
+const RENDER_FIREWALL_PATH = resolve(ROOT, 'docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -50,7 +51,9 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /directly closes a measured control-proof gap/);
   assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md/);
+  assert.match(index, /SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md/);
   assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
+  assert.match(index, /Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
 
@@ -103,10 +106,25 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`ops\/genesis-live-telegram-100\.json` \| read-only evidence/);
   assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
   assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
+  assert.match(inventory, /`docs\/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
   assert.match(inventory, /None in this pass/);
-  assert.match(inventory, /Add a render firewall/);
+  assert.match(inventory, /Keep the render firewall covered by tests/);
   assert.match(inventory, /user intent -> route decision -> action\/no-action -> reply/);
+});
+
+test('render firewall doc records ordinary and inspect boundaries', () => {
+  const doc = readFileSync(RENDER_FIREWALL_PATH, 'utf8');
+
+  assert.match(doc, /The render firewall is the Telegram delivery boundary for ordinary replies/);
+  assert.match(doc, /This is not a copy-style rule/);
+  assert.match(doc, /`ordinary`: default for natural replies/);
+  assert.match(doc, /`inspect`: allowed for explicit proof\/status\/diagnose\/raw\/review\/picker surfaces/);
+  assert.match(doc, /raw reason codes such as `tool_not_allowed_by_policy`/);
+  assert.match(doc, /raw proof refs such as `turn:sha256:\.\.\.`/);
+  assert.match(doc, /Inspect replies may keep proof and trace refs when useful/);
+  assert.match(doc, /ctx\.reply/);
+  assert.match(doc, /trace join checker: user intent -> route decision -> action\/no-action -> reply/);
 });
 
 test('reliability ladder goal prompt sequences enforcement before expansion', () => {

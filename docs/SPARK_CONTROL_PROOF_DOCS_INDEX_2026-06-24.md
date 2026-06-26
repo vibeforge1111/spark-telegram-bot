@@ -52,15 +52,19 @@ Read these in order:
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-11. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+11. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
+   - Active Telegram render firewall implementation note.
+   - Source for ordinary-vs-inspect redaction behavior.
+
+12. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-12. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+13. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-13. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+14. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -104,6 +108,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Proof capsule changes update `SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`.
 - Trace audit commands update `SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
+- Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`.
 - Streaming or Rich Message behavior updates `LIVE_CHAT_STREAMING_DESIGN.md`.
 - Recursive/QA Operator behavior updates `QA_OPERATOR_TELEGRAM_RECURSION.md`.
 - Harness boundary changes update `TURNINTENT_HARNESS_RULESET.md` or `SPARK_HARNESS_CONTRACT.md`.

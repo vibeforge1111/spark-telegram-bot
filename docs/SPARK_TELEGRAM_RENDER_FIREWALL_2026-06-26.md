@@ -1,0 +1,57 @@
+# Spark Telegram Render Firewall
+
+Date: 2026-06-26
+Status: active implementation note
+
+## Purpose
+
+The render firewall is the Telegram delivery boundary for ordinary replies. It keeps hidden context, raw proof or trace details, local paths, stack traces, provider secret keys, legacy source names, and raw Harness policy reason codes out of the chat surface.
+
+This is not a copy-style rule. It is an enforcement layer in `src/outboundSanitize.ts`, applied before Telegram final delivery, rich message delivery, and draft preview text.
+
+## Surface Rule
+
+- `ordinary`: default for natural replies, Builder replies, Spawner follow-ups, mission relay text, and normal chat.
+- `inspect`: allowed for explicit proof/status/diagnose/raw/review/picker surfaces when trace context marks the reply as inspect-like.
+
+Ordinary replies redact:
+
+- raw reason codes such as `tool_not_allowed_by_policy`
+- raw proof refs such as `turn:sha256:...`
+- raw trace refs such as `trace:...`
+- hidden context keys such as `context_packet`
+- legacy source filenames and old doc names
+- local file paths and stack traces
+- provider credential key names
+
+Inspect replies may keep proof and trace refs when useful, but still hide local paths, stack traces, and provider credential key names.
+
+## Wiring
+
+Central wrappers in `src/index.ts` infer the surface from outbound trace context:
+
+- proof, diagnose, diagnostic, status, raw, review, picker, and inspect signals use the inspect surface
+- everything else uses the ordinary surface
+
+This means `ctx.reply`, `bot.telegram.sendMessage`, rich final messages, and draft previews share the same default protection.
+
+## Verification
+
+Regression coverage lives in `tests/outboundSanitize.test.ts`.
+
+Expected local checks for this slice:
+
+1. `npm test -- --run tests/outboundSanitize.test.ts`
+2. `npm run build`
+3. `npm run control:proof:audit -- --sample 100 --fresh-strict`
+
+## Remaining Reliability Work
+
+This closes the ordinary-render leak boundary. It does not complete the full reliability ladder.
+
+Next measured gaps:
+
+- trace join checker: user intent -> route decision -> action/no-action -> reply
+- action-capable route proof capsule coverage
+- capability last-success and last-failure evidence
+- weekly surface eval for human feel after proof/control gaps are reduced

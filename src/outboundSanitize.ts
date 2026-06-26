@@ -21,6 +21,147 @@ const EM_DASH_FAMILY = [
 export const TELEGRAM_HARD_MESSAGE_LIMIT = 4096;
 export const TELEGRAM_SAFE_MESSAGE_LIMIT = 3600;
 
+export type TelegramRenderSurface =
+  | 'ordinary'
+  | 'inspect'
+  | 'status'
+  | 'diagnose'
+  | 'proof'
+  | 'raw_detail'
+  | 'review_queue'
+  | 'picker'
+  | 'dense_summary';
+
+export type TelegramRenderFirewallIssueCode =
+  | 'local_path'
+  | 'stack_trace'
+  | 'provider_internal'
+  | 'raw_reason_code'
+  | 'raw_proof_ref'
+  | 'raw_trace_ref'
+  | 'hidden_context'
+  | 'legacy_source';
+
+export type TelegramRenderFirewallIssue = {
+  code: TelegramRenderFirewallIssueCode;
+  message: string;
+};
+
+export type TelegramRenderFirewallOptions = {
+  surface?: TelegramRenderSurface;
+};
+
+type TelegramRenderFirewallRule = {
+  code: TelegramRenderFirewallIssueCode;
+  pattern: RegExp;
+  replacement: string | ((substring: string, ...args: string[]) => string);
+  message: string;
+};
+
+const ALWAYS_REDACT_RULES: TelegramRenderFirewallRule[] = [
+  {
+    code: 'stack_trace',
+    pattern: /^.*\b(?:Traceback \(most recent call last\)|(?:at\s+\S.*(?:\([^)]+:\d+:\d+\)|\s(?:\/|[A-Za-z]:\\)[^\s]+:\d+:\d+))).*$/gim,
+    replacement: '[stack trace hidden]',
+    message: 'Hide stack traces from Telegram render output.'
+  },
+  {
+    code: 'local_path',
+    pattern: /\bfile:\/\/[^\s"'`<>)]*|(?:^|[\s"'`(])(?:\/(?:Users|var\/folders|private\/tmp|tmp|Volumes)\/[^\s"'`<>)]*|[A-Za-z]:\\[^\s"'`<>)]*)/g,
+    replacement: (match: string) => /^[\s"'`(]/.test(match)
+      ? `${match.slice(0, 1)}<path>`
+      : '<path>',
+    message: 'Hide local filesystem paths from Telegram render output.'
+  },
+  {
+    code: 'provider_internal',
+    pattern: /\b(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|TELEGRAM_BOT_TOKEN|BOT_TOKEN|AUTHORIZATION|X-API-KEY|SPARK_[A-Z0-9_]*(?:TOKEN|SECRET|PRIVATE_KEY|API_KEY))\b/gi,
+    replacement: 'provider credential',
+    message: 'Hide provider credentials and secret-bearing keys from Telegram render output.'
+  }
+];
+
+const ORDINARY_ONLY_REDACT_RULES: TelegramRenderFirewallRule[] = [
+  {
+    code: 'raw_reason_code',
+    pattern: /\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?)\b/gi,
+    replacement: 'internal policy reason',
+    message: 'Keep raw Harness and policy reason codes out of ordinary replies.'
+  },
+  {
+    code: 'raw_proof_ref',
+    pattern: /\b(?:turn:sha256:[a-f0-9]{12,}|harness[_-]?proof[_-]?ref|harnessProofRef|proof_capsule|proofCapsule)\b/gi,
+    replacement: 'proof detail',
+    message: 'Keep raw proof references behind inspect surfaces.'
+  },
+  {
+    code: 'raw_trace_ref',
+    pattern: /\b(?:trace:(?:sha256:)?[a-z0-9][a-z0-9_.:-]{7,}|trace_id|request_id|requestId|traceRef|trace_ref)\b/gi,
+    replacement: 'trace detail',
+    message: 'Keep raw trace references behind inspect surfaces.'
+  },
+  {
+    code: 'hidden_context',
+    pattern: /\b(?:context_packet|source_ledger|tool_result_received|raw_turn|memory inspect-capsule|builder_bridge_mode|routing_decision)\b/gi,
+    replacement: 'hidden context',
+    message: 'Keep hidden context keys out of ordinary replies.'
+  },
+  {
+    code: 'legacy_source',
+    pattern: /\b(?:ops\/natural-language-live-commands\.json|codex-handoffs\/[^\s"'`<>)]*|docs\/[A-Z0-9_/-]*(?:LEGACY|NATURAL|HARNESS|CONTROL|SOURCE)[A-Z0-9_./-]*)\b/gi,
+    replacement: 'legacy source evidence',
+    message: 'Keep legacy source names out of ordinary replies unless inspected.'
+  }
+];
+
+function firewallRulesForSurface(surface: TelegramRenderSurface = 'ordinary'): TelegramRenderFirewallRule[] {
+  const inspectSurface = surface !== 'ordinary';
+  return inspectSurface ? ALWAYS_REDACT_RULES : [...ALWAYS_REDACT_RULES, ...ORDINARY_ONLY_REDACT_RULES];
+}
+
+function patternMatches(pattern: RegExp, text: string): boolean {
+  pattern.lastIndex = 0;
+  const matched = pattern.test(text);
+  pattern.lastIndex = 0;
+  return matched;
+}
+
+function addIssueOnce(issues: TelegramRenderFirewallIssue[], rule: TelegramRenderFirewallRule): void {
+  if (!issues.some((issue) => issue.code === rule.code)) {
+    issues.push({ code: rule.code, message: rule.message });
+  }
+}
+
+export function inspectTelegramRenderFirewall(
+  text: string,
+  options: TelegramRenderFirewallOptions = {}
+): TelegramRenderFirewallIssue[] {
+  const issues: TelegramRenderFirewallIssue[] = [];
+  if (!text) return issues;
+  for (const rule of firewallRulesForSurface(options.surface)) {
+    if (patternMatches(rule.pattern, text)) {
+      addIssueOnce(issues, rule);
+    }
+  }
+  return issues;
+}
+
+export function applyTelegramRenderFirewall(
+  text: string,
+  options: TelegramRenderFirewallOptions = {}
+): string {
+  if (!text) return text;
+  let out = text;
+  for (const rule of firewallRulesForSurface(options.surface)) {
+    rule.pattern.lastIndex = 0;
+    out = typeof rule.replacement === 'function'
+      ? out.replace(rule.pattern, rule.replacement)
+      : out.replace(rule.pattern, rule.replacement);
+    rule.pattern.lastIndex = 0;
+  }
+  return out;
+}
+
 export function replaceEmDashes(text: string, replacement: string = ' - '): string {
   if (!text) return text;
   let out = text;
@@ -60,8 +201,21 @@ export function rewriteSpawnerSurfaceStandaloneQuestion(text: string): string {
     );
 }
 
-export function sanitizeOutbound(text: string): string {
-  return redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text))));
+export function sanitizeOutbound(
+  text: string,
+  options: TelegramRenderFirewallOptions = {}
+): string {
+  return sanitizeOutboundForTelegramSurface(text, options);
+}
+
+export function sanitizeOutboundForTelegramSurface(
+  text: string,
+  options: TelegramRenderFirewallOptions = {}
+): string {
+  return applyTelegramRenderFirewall(
+    redactText(rewriteSpawnerSurfaceStandaloneQuestion(stripMarkdownEmphasis(replaceEmDashes(text)))),
+    options
+  );
 }
 
 function splitExistingNumberedChunks(text: string, maxChars: number): string[] | null {
@@ -112,6 +266,10 @@ export function splitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE
   return chunks.length ? chunks : [''];
 }
 
-export function sanitizeAndSplitTelegramText(text: string, maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT): string[] {
-  return splitTelegramText(sanitizeOutbound(text), maxChars);
+export function sanitizeAndSplitTelegramText(
+  text: string,
+  maxChars = TELEGRAM_SAFE_MESSAGE_LIMIT,
+  options: TelegramRenderFirewallOptions = {}
+): string[] {
+  return splitTelegramText(sanitizeOutboundForTelegramSurface(text, options), maxChars);
 }

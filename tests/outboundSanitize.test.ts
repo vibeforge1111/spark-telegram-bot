@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  inspectTelegramRenderFirewall,
   rewriteSpawnerSurfaceStandaloneQuestion,
   sanitizeAndSplitTelegramText,
   sanitizeOutbound,
@@ -77,6 +78,43 @@ test('keeps bullets while removing bold emphasis', () => {
 test('still replaces dash family characters', () => {
   assert.equal(sanitizeOutbound('One — two – three'), 'One - two - three');
 });
+
+test('firewalls raw control internals from ordinary Telegram replies', () => {
+  const cleaned = sanitizeOutbound([
+    'Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.',
+    'Proof ref: turn:sha256:abcdef1234567890 and trace:telegram-run:abcdef1234567890.',
+    'Read docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md and context_packet.',
+    'Path: /Users/example/private/source.ts',
+    '    at run (/Users/example/private/source.ts:12:3)'
+  ].join('\n'));
+
+  assert.doesNotMatch(cleaned, /route_not_selected_by_turn_envelope|harness_core|owner_mismatch/);
+  assert.doesNotMatch(cleaned, /turn:sha256|trace:telegram-run|context_packet/);
+  assert.doesNotMatch(cleaned, /SPARK_LEGACY_SOURCE_INVENTORY|\/Users\/example|source\.ts:12:3/);
+  assert.match(cleaned, /internal policy reason/);
+  assert.match(cleaned, /proof detail/);
+  assert.match(cleaned, /trace detail/);
+  assert.match(cleaned, /legacy source evidence/);
+  assert.match(cleaned, /\[stack trace hidden\]/);
+});
+
+test('allows inspect surfaces to keep proof refs while still hiding paths and stack traces', () => {
+  const text = [
+    'Proof ref: turn:sha256:abcdef1234567890',
+    'Trace ref: trace:telegram-run:abcdef1234567890',
+    'Path: /Users/example/private/source.ts',
+    '    at inspect (/Users/example/private/source.ts:12:3)'
+  ].join('\n');
+  const issues = inspectTelegramRenderFirewall(text, { surface: 'inspect' });
+  const cleaned = sanitizeOutbound(text, { surface: 'inspect' });
+
+  assert.deepEqual(issues.map((issue) => issue.code).sort(), ['local_path', 'stack_trace']);
+  assert.match(cleaned, /turn:sha256:abcdef1234567890/);
+  assert.match(cleaned, /trace:telegram-run:abcdef1234567890/);
+  assert.doesNotMatch(cleaned, /\/Users\/example|source\.ts:12:3/);
+  assert.match(cleaned, /\[stack trace hidden\]/);
+});
+
 test('chunks long Telegram text under the safe message limit', () => {
   const text = Array.from({ length: 90 }, (_, index) => `Paragraph ${index}: ${'useful context '.repeat(8)}`).join('\n\n');
   const chunks = splitTelegramText(text, 500);
