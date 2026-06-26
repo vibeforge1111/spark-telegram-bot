@@ -832,6 +832,10 @@ test('observation summary requires pass verdicts and all requested capture evide
     details: missingPacketEvidence.packetEvidenceDetails.missing
   });
   assert.match(formatControlProofCanaryObservationSummary(missingPacketEvidence), /Packet evidence missing: control_proof_audit/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(missingPacketEvidence),
+    /- control_proof_audit: control_proof_audit runtime proof is absent/
+  );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
   template.evidence.sparkOsCompile = null;
@@ -857,6 +861,10 @@ test('observation summary requires pass verdicts and all requested capture evide
     runtimeEvidenceExpiresAt: '2026-06-24T00:00:00.000Z'
   }]);
   assert.match(formatControlProofCanaryObservationSummary(stalePacketEvidence), /Packet evidence stale: runtime_evidence_collected_at/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(stalePacketEvidence),
+    /- runtime_evidence_collected_at: runtime evidence collection timestamp is invalid, future-dated, or outside the allowed freshness window/
+  );
 
   template.evidence.collectedAt = 'June 24, 2026 00:30 UTC';
   const looseCollectedAt = summarizeControlProofCanaryObservations(template, {
@@ -1271,6 +1279,10 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     runtimeEvidenceCollectedAt: template.evidence.collectedAt,
     runtimeEvidenceExpiresAt: mismatchedAuditSummary.runtimeEvidenceExpiresAt
   }]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(mismatchedAuditSummary),
+    /- control_proof_audit_summary: control-proof audit summary does not match the audit transcript/
+  );
 
   template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT);
   template.evidence.sparkLiveStatus = 'Spark Live healthy.';

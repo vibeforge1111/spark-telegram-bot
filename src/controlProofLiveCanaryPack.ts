@@ -3174,12 +3174,15 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
   ];
   if (summary.missingPacketEvidence.length > 0) {
     lines.push(`Packet evidence missing: ${summary.missingPacketEvidence.join(', ')}`, '');
+    lines.push(...formatPacketEvidenceDetailLines(summary.packetEvidenceDetails.missing), '');
   }
   if (summary.invalidPacketEvidence.length > 0) {
     lines.push(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`, '');
+    lines.push(...formatPacketEvidenceDetailLines(summary.packetEvidenceDetails.invalid), '');
   }
   if (summary.stalePacketEvidence.length > 0) {
     lines.push(`Packet evidence stale: ${summary.stalePacketEvidence.join(', ')}`, '');
+    lines.push(...formatPacketEvidenceDetailLines(summary.packetEvidenceDetails.stale), '');
     if (summary.stalePacketEvidence.includes('runtime_evidence_collected_at')) {
       lines.push('Refresh hint:');
       lines.push('- Run with `--refresh-runtime-evidence` before making a release claim.');
@@ -3230,6 +3233,10 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     }
   }
   return `${lines.join('\n')}\n`;
+}
+
+function formatPacketEvidenceDetailLines(details: ControlProofPacketEvidenceDetail[]): string[] {
+  return details.map((entry) => `- ${entry.key}: ${entry.reason}`);
 }
 
 function summarizeMissingCaptureCounts(
