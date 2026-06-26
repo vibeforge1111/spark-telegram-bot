@@ -33,17 +33,17 @@ export const LEGACY_PROMPT_SURFACE_BLOCKED_REFS: LegacyPromptSurfaceRef[] = [
   {
     id: 'legacy_nl_catalog',
     label: 'legacy natural-language live catalog',
-    patterns: ['ops/natural-language-live-commands.json', 'natural-language-live-commands.json']
+    patterns: ['ops/natural-language-live-commands.json', 'natural-language-live-commands.json', 'natural language live catalog']
   },
   {
     id: 'genesis_telegram_100',
     label: 'Genesis live Telegram 100 benchmark',
-    patterns: ['ops/genesis-live-telegram-100.json', 'genesis-live-telegram-100.json']
+    patterns: ['ops/genesis-live-telegram-100.json', 'genesis-live-telegram-100.json', 'Genesis live Telegram 100 benchmark']
   },
   {
     id: 'legacy_nl_plan',
     label: 'legacy natural-language live test plan',
-    patterns: ['ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md', 'NATURAL_LANGUAGE_LIVE_TEST_PLAN.md']
+    patterns: ['ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md', 'NATURAL_LANGUAGE_LIVE_TEST_PLAN.md', 'natural-language live test plan']
   },
   {
     id: 'route_boundary_harness',
@@ -68,7 +68,7 @@ export const LEGACY_PROMPT_SURFACE_BLOCKED_REFS: LegacyPromptSurfaceRef[] = [
   {
     id: 'context_window_plan',
     label: 'legacy context-window live test plan',
-    patterns: ['ops/CONTEXT_WINDOW_LIVE_TEST_PLAN.md', 'CONTEXT_WINDOW_LIVE_TEST_PLAN.md']
+    patterns: ['ops/CONTEXT_WINDOW_LIVE_TEST_PLAN.md', 'CONTEXT_WINDOW_LIVE_TEST_PLAN.md', 'context-window live test plan']
   },
   {
     id: 'realtime_conversation_smoke',
@@ -78,17 +78,17 @@ export const LEGACY_PROMPT_SURFACE_BLOCKED_REFS: LegacyPromptSurfaceRef[] = [
   {
     id: 'turnintent_agents_adoption',
     label: 'superseded TurnIntent adoption history',
-    patterns: ['docs/TURNINTENT_AGENTS_ADOPTION.md', 'TURNINTENT_AGENTS_ADOPTION.md']
+    patterns: ['docs/TURNINTENT_AGENTS_ADOPTION.md', 'TURNINTENT_AGENTS_ADOPTION.md', 'TurnIntent adoption history']
   },
   {
     id: 'launch_conversation_qa',
     label: 'launch conversation QA history',
-    patterns: ['docs/LAUNCH_CONVERSATION_QA_2026-05-08.md', 'LAUNCH_CONVERSATION_QA_2026-05-08.md']
+    patterns: ['docs/LAUNCH_CONVERSATION_QA_2026-05-08.md', 'LAUNCH_CONVERSATION_QA_2026-05-08.md', 'launch conversation QA history']
   },
   {
     id: 'startup_bench_showcase',
     label: 'startup bench showcase runbook',
-    patterns: ['docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md', 'SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md']
+    patterns: ['docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md', 'SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md', 'startup bench showcase runbook']
   },
   {
     id: 'codex_handoffs',
@@ -115,7 +115,7 @@ function lineNumberForIndex(contents: string, index: number): number {
 }
 
 function findPattern(contents: string, pattern: string): number {
-  return contents.indexOf(pattern);
+  return contents.toLocaleLowerCase().indexOf(pattern.toLocaleLowerCase());
 }
 
 export function checkLegacyPromptSurface(input: {

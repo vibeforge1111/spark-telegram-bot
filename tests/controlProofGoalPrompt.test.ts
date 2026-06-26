@@ -338,7 +338,9 @@ test('legacy prompt surface doc records prompt and summary boundary', () => {
   assert.match(doc, /npm run control:proof:legacy-prompts -- --strict/);
   assert.match(doc, /prompt-facing source files/);
   assert.match(doc, /human canary summary markdown/);
+  assert.match(doc, /common human-readable titles/);
   assert.match(doc, /does not scan docs, tests, ops scripts, or raw JSON evidence packets/);
+  assert.match(doc, /legacy plan\/source name or title reached a prompt or human summary surface/);
   assert.match(doc, /Do not silence the failure by renaming old evidence as current authority/);
 });
 

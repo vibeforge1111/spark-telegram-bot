@@ -39,6 +39,8 @@ test('blocked refs cover classified legacy sources that must not leak into promp
   assert.match(joinedPatterns, /CONTEXT_WINDOW_LIVE_TEST_PLAN\.md/);
   assert.match(joinedPatterns, /LAUNCH_CONVERSATION_QA_2026-05-08\.md/);
   assert.match(joinedPatterns, /SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26\.md/);
+  assert.match(joinedPatterns, /Genesis live Telegram 100 benchmark/);
+  assert.match(joinedPatterns, /startup bench showcase runbook/);
   assert.match(joinedPatterns, /codex-handoffs\//);
 });
 
@@ -61,6 +63,26 @@ test('checker reports legacy refs in prompt-facing files', () => {
   assert.equal(result.gaps[0].refId, 'legacy_nl_catalog');
   assert.equal(result.gaps[0].line, 1);
   assert.match(formatLegacyPromptSurfaceReport(result), /legacy_nl_catalog/);
+});
+
+test('checker reports legacy source titles without exact file paths', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-legacy-prompt-surface-title-'));
+  mkdirSync(path.join(root, 'src'), { recursive: true });
+  writeFileSync(
+    path.join(root, 'src', 'llm.ts'),
+    'const prompt = "Treat the GENESIS LIVE TELEGRAM 100 BENCHMARK as the current release source";\n',
+    'utf8'
+  );
+
+  const result = checkLegacyPromptSurface({
+    repoRoot: root,
+    targets: [{ path: 'src/llm.ts', kind: 'prompt_source' }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gaps.length, 1);
+  assert.equal(result.gaps[0].refId, 'genesis_telegram_100');
+  assert.equal(result.gaps[0].line, 1);
 });
 
 test('checker treats missing prompt surface files as gaps', () => {

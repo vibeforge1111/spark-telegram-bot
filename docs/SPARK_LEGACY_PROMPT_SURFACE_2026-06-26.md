@@ -7,7 +7,7 @@ Status: active control-proof gate
 
 Legacy source material can remain useful for history, breadth, and explicit inspection, but it must not become hidden authority in ordinary Spark prompts or human-facing summaries.
 
-This gate checks prompt-facing source files and human canary summary markdown for specific historical plans, catalogs, runbooks, and handoff folders that are classified as read-only evidence or archive candidates in `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`.
+This gate checks prompt-facing source files and human canary summary markdown for specific historical plans, catalogs, runbooks, handoff folders, and common human-readable titles that are classified as read-only evidence or archive candidates in `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`.
 
 ## Command
 
@@ -29,7 +29,7 @@ The gate intentionally does not scan docs, tests, ops scripts, or raw JSON evide
 
 ## Failure Meaning
 
-A strict failure means a legacy plan/source name reached a prompt or human summary surface where it could shape a fresh turn invisibly. The fix is to either:
+A strict failure means a legacy plan/source name or title reached a prompt or human summary surface where it could shape a fresh turn invisibly. The fix is to either:
 
 - remove the legacy reference from the prompt/UI surface,
 - promote the relevant invariant into an active Harness Core doc/test/canary, or
