@@ -118,7 +118,8 @@ if (requireRealToken && (!token || token === '123:test' || token === '0:telegram
 
 const env = {
   ...process.env,
-  BOT_TOKEN: token || '123:test'
+  BOT_TOKEN: token || '123:test',
+  SPARK_NATURAL_ROUTE_LEDGER: process.env.SPARK_NATURAL_ROUTE_LEDGER || '0'
 };
 
 const tsNodeBin = path.join(__dirname, '..', 'node_modules', 'ts-node', 'dist', 'bin.js');

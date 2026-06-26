@@ -20,6 +20,7 @@ test('runtime sync includes capability upgrade/eval fixtures', () => {
   assert.match(script, /tsconfig\.json/);
   assert.match(script, /spark\.toml/);
   assert.match(testRunner, /tests\/telegramVoiceBridge\.test\.ts/);
+  assert.match(testRunner, /SPARK_NATURAL_ROUTE_LEDGER/);
   assert.match(script, /dir:\s*'src'/);
   assert.match(script, /dir:\s*'dist'/);
   assert.match(script, /dir:\s*'ops'/);
