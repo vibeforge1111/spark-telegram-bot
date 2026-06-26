@@ -3347,6 +3347,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     `Gate scope: ${gateScope}`,
     `Release gate: ${summary.readyForRelease ? 'ready' : 'not ready'}`,
     `Publish gate: ${summary.readyForPublish ? 'ready' : 'not ready'}`,
+    'Structured gate details: summary JSON `summary.gateDecisionDetails`',
     '',
     'Verdicts:',
     ...CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => `- ${verdict}: ${summary.verdictCounts[verdict]}`),

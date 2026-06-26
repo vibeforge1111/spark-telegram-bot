@@ -863,6 +863,10 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.match(formatControlProofCanaryObservationSummary(summary), /Release gate: ready/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Gate scope: selected-case gate/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Publish gate: not ready/);
+  assert.match(
+    formatControlProofCanaryObservationSummary(summary),
+    /Structured gate details: summary JSON `summary\.gateDecisionDetails`/
+  );
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence collected: \d{4}-\d{2}-\d{2}T/);
   assert.match(formatControlProofCanaryObservationSummary(summary), /Runtime evidence expires: \d{4}-\d{2}-\d{2}T.*\(24h window\)/);
 
