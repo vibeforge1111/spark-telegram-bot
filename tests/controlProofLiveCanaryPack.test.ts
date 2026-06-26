@@ -2691,6 +2691,25 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(summary.status, 0, summary.stderr);
     assert.match(summary.stdout, /Release gate: ready/);
 
+    const summaryJson = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        observationsPath,
+        '--json',
+        '--coverage'
+      ],
+      { cwd: ROOT, encoding: 'utf8' }
+    );
+    assert.equal(summaryJson.status, 0, summaryJson.stderr);
+    const parsedSummaryJson = JSON.parse(summaryJson.stdout);
+    assert.equal(parsedSummaryJson.summary.gateScope, 'selected_case_gate');
+    assert.equal(parsedSummaryJson.coverage.gateScope, 'selected_case_gate');
+    assert.equal(parsedSummaryJson.summary.readyForRelease, true);
+    assert.equal(parsedSummaryJson.coverage.releasePackComplete, false);
+
     const releaseCheck = spawnSync(
       process.execPath,
       [
@@ -2770,6 +2789,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(recordedSummaryPath, 'utf8'), /Release gate: ready/);
     const recordedSummaryJson = JSON.parse(readFileSync(recordedSummaryJsonPath, 'utf8'));
     assert.equal(recordedSummaryJson.summary.readyForRelease, true);
+    assert.equal(recordedSummaryJson.summary.gateScope, 'selected_case_gate');
+    assert.equal(recordedSummaryJson.coverage.gateScope, 'selected_case_gate');
     assert.equal(recordedSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
     assert.equal(recordedSummaryJson.coverage.totalCases, 1);
 

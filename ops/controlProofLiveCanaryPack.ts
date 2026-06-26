@@ -77,7 +77,14 @@ function serializeControlProofCanarySummaryJson(
   summary: ReturnType<typeof summarizeControlProofCanaryObservations>,
   coverage: ReturnType<typeof summarizeControlProofCanaryCoverage>
 ): string {
-  return `${JSON.stringify({
+  return `${JSON.stringify(controlProofCanarySummaryJsonPayload(summary, coverage), null, 2)}\n`;
+}
+
+function controlProofCanarySummaryJsonPayload(
+  summary: ReturnType<typeof summarizeControlProofCanaryObservations>,
+  coverage: ReturnType<typeof summarizeControlProofCanaryCoverage>
+): Record<string, unknown> {
+  return {
     summary: {
       ...summary,
       gateScope: coverage.releasePackComplete ? 'full_release_pack' : 'selected_case_gate'
@@ -90,7 +97,7 @@ function serializeControlProofCanarySummaryJson(
       mutationCounts: Object.fromEntries(coverage.mutationCounts),
       authorityCounts: Object.fromEntries(coverage.authorityCounts)
     }
-  }, null, 2)}\n`;
+  };
 }
 
 function inferredBundleSummaryPaths(observationsPath: string): { summaryPath: string; summaryJsonPath: string } | null {
@@ -645,13 +652,11 @@ function main(): void {
       console.log(`Wrote control-proof observation summary JSON: ${summaryJsonOutPath}`);
     }
     if (hasFlag(args, 'json')) {
-      console.log(JSON.stringify(coverage ? { summary, coverage: {
-        ...coverage,
-        categoryCounts: Object.fromEntries(coverage.categoryCounts),
-        riskCounts: Object.fromEntries(coverage.riskCounts),
-        mutationCounts: Object.fromEntries(coverage.mutationCounts),
-        authorityCounts: Object.fromEntries(coverage.authorityCounts)
-      } } : summary, null, 2));
+      if (coverage) {
+        console.log(JSON.stringify(controlProofCanarySummaryJsonPayload(summary, coverage), null, 2));
+      } else {
+        console.log(JSON.stringify(summary, null, 2));
+      }
     } else {
       console.log(formatControlProofCanaryObservationSummary(summary).trimEnd());
       if (coverageRequested) {
