@@ -30,7 +30,9 @@ export interface ReliabilityEvalCoverageGap {
     | 'authority_mismatch'
     | 'mutation_mismatch'
     | 'reply_shape_mismatch'
-    | 'capture_mismatch';
+    | 'capture_mismatch'
+    | 'missing_requirement_cases'
+    | 'missing_requirement_policy';
   detail: string;
 }
 
@@ -155,6 +157,65 @@ export function checkReliabilityEvalCoverage(input: {
   const checkedCaseIds = new Set<string>();
 
   for (const requirement of requirements) {
+    if (requirement.requiredCaseIds.length === 0) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_cases',
+        detail: 'Reliability requirement must name at least one canary case.'
+      });
+    }
+    if (!requirement.promptPattern) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define a prompt pattern so coverage cannot drift to unrelated prompts.'
+      });
+    }
+    if (!requirement.routePattern) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define a route pattern so coverage stays at the real route boundary.'
+      });
+    }
+    if (!requirement.allowedRisks?.length) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define allowed risk classes.'
+      });
+    }
+    if (!requirement.allowedAuthorities?.length) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define allowed authority expectations.'
+      });
+    }
+    if (!requirement.allowedMutationClasses?.length) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define allowed mutation classes.'
+      });
+    }
+    if (!requirement.allowedReplyShapes?.length) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define allowed reply shapes.'
+      });
+    }
+    for (const capture of ['observedReply', 'sideEffects'] as const) {
+      if (!requirement.requiredCaptures?.includes(capture)) {
+        gaps.push({
+          requirementId: requirement.id,
+          reason: 'missing_requirement_policy',
+          detail: `Reliability requirement must require ${capture} capture.`
+        });
+      }
+    }
+
     for (const caseId of requirement.requiredCaseIds) {
       const entry = byId.get(caseId);
       if (!entry) {

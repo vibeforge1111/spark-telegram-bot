@@ -65,6 +65,54 @@ test('coverage checker reports missing canary cases', () => {
   assert.ok(result.gaps.some((gap) => gap.requirementId === 'just_explain' && gap.reason === 'missing_case'));
 });
 
+test('coverage checker rejects requirements without canary cases', () => {
+  const result = checkReliabilityEvalCoverage({
+    requirements: [{
+      id: 'empty_requirement',
+      label: 'Empty requirement',
+      requiredCaseIds: [],
+      promptPattern: /empty/i,
+      routePattern: /plain_chat/,
+      allowedRisks: ['safe'],
+      allowedAuthorities: ['chat_only'],
+      allowedMutationClasses: ['none'],
+      allowedReplyShapes: ['natural'],
+      requiredCaptures: ['observedReply', 'sideEffects']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'empty_requirement' &&
+    gap.reason === 'missing_requirement_cases'
+  )));
+  assert.match(formatReliabilityEvalCoverageReport(result), /missing_requirement_cases/);
+});
+
+test('coverage checker rejects requirements without boundary policy expectations', () => {
+  const result = checkReliabilityEvalCoverage({
+    requirements: [{
+      id: 'weak_requirement',
+      label: 'Weak requirement',
+      requiredCaseIds: ['cp-noaction-001'],
+      requiredCaptures: ['observedReply']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'weak_requirement' &&
+    gap.reason === 'missing_requirement_policy' &&
+    /route pattern/.test(gap.detail)
+  )));
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'weak_requirement' &&
+    gap.reason === 'missing_requirement_policy' &&
+    /sideEffects/.test(gap.detail)
+  )));
+  assert.match(formatReliabilityEvalCoverageReport(result), /missing_requirement_policy/);
+});
+
 test('coverage checker reports prompt and route drift', () => {
   const cases = CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => (
     entry.id === 'cp-publish-001'
