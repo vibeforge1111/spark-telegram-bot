@@ -22,6 +22,8 @@ Use this before promoting an old case into the new live canary pack. The map mak
 
 Generated NL evidence packets and observation templates carry `claim_scope=legacy_breadth`, `release_gate=none`, and `promotion_target=control_proof_canary`. Treat those fields as the proof boundary: they can guide refurbishment, but they cannot authorize release readiness or high-agency execution.
 
+Feature boundary: do not use legacy NL cases to expand UI, media support, rich composition, or new features unless the mapped case names the measured control-proof or trace-join gap it closes.
+
 ## Current Improvement Targets
 
 1. Command vocabulary: decide which phrases should launch, plan, remember, diagnose, or refuse.
