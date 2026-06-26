@@ -1552,7 +1552,7 @@ function controlProofAuditGapPlanes(text: string): Record<string, string[]> {
     if (!match) continue;
     const entries = match[1]
       .split(',')
-      .map((entry) => safeStringToken(entry))
+      .map((entry) => safeGapPlaneToken(entry))
       .filter((entry): entry is string => Boolean(entry));
     if (entries.length > 0) planes[key] = entries;
   }
@@ -2095,6 +2095,11 @@ function runtimeEvidenceReleaseHandoffs(value: string | null | undefined): strin
 function safeStringToken(value: unknown): string | null {
   const text = String(value || '').trim();
   return /^[a-z0-9_.-]+$/i.test(text) ? text : null;
+}
+
+function safeGapPlaneToken(value: unknown): string | null {
+  const text = String(value || '').trim().replace(/\s+\(.+$/, '');
+  return safeStringToken(text);
 }
 
 function safeDisplayToken(value: unknown): string | null {
@@ -2669,9 +2674,12 @@ function canonicalReleaseBlockHandoffLine(line: string): string {
 function legacyProofGapsAreInspectable(value: string): boolean {
   const match = value.match(/legacy proof gaps:\s*(\d+)/i);
   if (!match) return true;
-  if (Number(match[1]) === 0) return true;
+  const gapCount = Number(match[1]);
+  if (gapCount === 0) return true;
+  const planes = legacyProofGapPlaneLabels(value);
   return /Gap planes:/i.test(value) &&
     /legacy proof gaps:\s*[a-z_]/i.test(value) &&
+    planes.length === gapCount &&
     legacyProofGapPlanesHaveValidCapsules(value);
 }
 
@@ -2700,8 +2708,8 @@ function legacyProofGapPlaneLabels(value: string): string[] {
   return legacyLine
     .replace(/^-?\s*legacy proof gaps:\s*/i, '')
     .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => /^[a-z_]+$/i.test(entry));
+    .map((entry) => safeGapPlaneToken(entry))
+    .filter((entry): entry is string => Boolean(entry));
 }
 
 function nonExecutionEvidencePlanesAreClassified(value: string): boolean {

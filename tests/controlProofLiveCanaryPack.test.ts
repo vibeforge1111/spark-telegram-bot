@@ -648,6 +648,20 @@ test('observation summary rejects duplicate canary rows', () => {
   );
 });
 
+test('control-proof audit parser preserves legacy gap planes with summary suffix metadata', () => {
+  const auditWithSuffix = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace (backing complete; latest gaps 0; release blocking no)'
+  );
+  const summary = summarizeControlProofAuditRuntimeEvidence(auditWithSuffix);
+
+  assert.deepEqual(summary?.gapPlanes.legacy_proof_gaps, [
+    'telegram_route_confidence',
+    'builder_gateway',
+    'spawner_prd_trace'
+  ]);
+});
+
 test('observation summary requires pass verdicts and all requested capture evidence', () => {
   let template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
@@ -1224,6 +1238,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const hiddenLegacyGapPlanes = summarizeControlProofCanaryObservations(template);
   assert.equal(hiddenLegacyGapPlanes.readyForRelease, false);
   assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+    '- legacy proof gaps: telegram_route_confidence, builder_gateway'
+  );
+  const mismatchedLegacyGapPlaneCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedLegacyGapPlaneCount.readyForRelease, false);
+  assert.deepEqual(mismatchedLegacyGapPlaneCount.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
     .replaceAll(' | gap_capsule_valid 97', '')
