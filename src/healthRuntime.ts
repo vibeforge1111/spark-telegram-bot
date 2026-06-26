@@ -6,7 +6,18 @@ export function relayHealthUrl(env: NodeJS.ProcessEnv = process.env): string {
   const { port, url } = telegramRelayIdentityFromEnv(env);
   if (url) {
     const healthUrl = new URL(url);
-    healthUrl.pathname = '/health';
+    // Preserve the operator-configured path prefix (e.g. a reverse proxy that
+    // routes /api/spark/spawner-events to the relay) and swap only the final
+    // /spawner-events segment for /health. Stripping the entire pathname to
+    // /health hits the proxy root, which the proxy does not route, and makes
+    // every relay-runtime health probe falsely report unreachable.
+    const segments = healthUrl.pathname.split('/').filter(Boolean);
+    if (segments.length > 0 && segments[segments.length - 1] === 'spawner-events') {
+      segments[segments.length - 1] = 'health';
+      healthUrl.pathname = `/${segments.join('/')}`;
+    } else {
+      healthUrl.pathname = '/health';
+    }
     healthUrl.search = '';
     healthUrl.hash = '';
     return healthUrl.toString();
