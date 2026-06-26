@@ -1371,6 +1371,7 @@ function packetEvidenceReason(
   if (key === 'runtime_evidence_notes') return 'runtime evidence notes contain raw internal details';
   if (key === 'spark_os_compile') return 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched';
   if (key === 'control_proof_audit') return 'control-proof audit is dirty, incomplete, failed, or timestamp-mismatched';
+  if (key === 'control_proof_audit_summary') return 'control-proof audit summary does not match the audit transcript';
   return `${key} runtime proof is failed, incomplete, or does not match the expected command`;
 }
 

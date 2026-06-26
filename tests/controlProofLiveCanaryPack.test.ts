@@ -1211,6 +1211,14 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   const mismatchedAuditSummary = summarizeControlProofCanaryObservations(template);
   assert.equal(mismatchedAuditSummary.readyForRelease, false);
   assert.deepEqual(mismatchedAuditSummary.invalidPacketEvidence, ['control_proof_audit_summary']);
+  assert.deepEqual(mismatchedAuditSummary.packetEvidenceDetails.invalid, [{
+    key: 'control_proof_audit_summary',
+    state: 'invalid',
+    reason: 'control-proof audit summary does not match the audit transcript',
+    generatedAt: template.generatedAt,
+    runtimeEvidenceCollectedAt: template.evidence.collectedAt,
+    runtimeEvidenceExpiresAt: mismatchedAuditSummary.runtimeEvidenceExpiresAt
+  }]);
 
   template.evidence.controlProofAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT);
   template.evidence.sparkLiveStatus = 'Spark Live healthy.';
@@ -2300,6 +2308,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     publishCaveatPacket.generatedAt = publishCaveatPacket.evidence.collectedAt;
     publishCaveatPacket.evidence.controlProofAudit = String(publishCaveatPacket.evidence.controlProofAudit || '')
       .replace(/Generated: .+/, `Generated: ${publishCaveatPacket.evidence.collectedAt}`);
+    publishCaveatPacket.evidence.controlProofAuditSummary =
+      summarizeControlProofAuditRuntimeEvidence(publishCaveatPacket.evidence.controlProofAudit);
     publishCaveatPacket.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${publishCaveatPacket.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":[],"builder_trace_current_health":{"status":"current_clean","window":"24h","row_count":100,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":100,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
     const publishCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-publish-001');
     if (publishCanary) {
