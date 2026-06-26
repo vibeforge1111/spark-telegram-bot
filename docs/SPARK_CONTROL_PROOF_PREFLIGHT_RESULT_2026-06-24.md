@@ -170,12 +170,12 @@ Update after rich-message delivery proof hardening on 2026-06-25 14:54 +04:
 Update after audit gap-posture clarity on 2026-06-25 17:56 +04:
 
 - Commits through `0126183` added the fresh-strict audit header line `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` and refreshed the full SparkRecursive_bot canary evidence packet from a clean tree.
-- This is report clarity only: gates still depend on the structured counters and `Blocking status`. Current audit output remains blocking-clean while preserving visible historical legacy gaps in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`.
+- This is report clarity only: gates still depend on the structured counters, `Actionable status`, `Blocking status`, and `freshStrictOk`. Current audit output remains actionable-clean and blocking-clean while preserving visible historical legacy gaps in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`.
 
 Update after actionable audit status hardening on 2026-06-26:
 
 - The audit header now includes `Actionable status: clean` when backed legacy gaps remain visible but blocking and fresh-strict gates are clean.
-- Canary packets preserve that field in `evidence.controlProofAuditSummary`, so release evidence can join the human transcript to machine-readable readiness without reinterpreting `Status: gaps found`.
+- Canary packets preserve that field in `evidence.controlProofAuditSummary`, so release evidence can join the human transcript to machine-readable readiness without reinterpreting `Status: gaps found`. Treat missing or non-clean `Actionable status` as an evidence-quality gap even when `Blocking status` looks clean.
 
 Update after Builder trace caveat count hardening on 2026-06-25:
 
@@ -217,7 +217,7 @@ Docs drift scan found mostly intentional new-rule references. The older handoff 
   - Durable slice: keep these inspectable in audit and proof panels; do not relabel them as fresh authority or hide them from release packets.
 
 - `release_packet_integrity`: live canary packets must carry current, complete runtime evidence.
-  - Durable slice: release packets now reject stale runtime evidence, stale embedded compile/audit command timestamps, truncated control-proof audit bodies, non-clean blocking status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
+  - Durable slice: release packets now reject stale runtime evidence, stale embedded compile/audit command timestamps, truncated control-proof audit bodies, missing or non-clean actionable status, non-clean blocking status, non-clean fresh-strict status, latest proof gaps, raw ref/id/reason/parse markers, and hidden legacy-gap planes.
 
 - `publish_handoff_shape`: publish/registry drift must not be summarized as a vague caveat in Telegram-facing evidence.
   - Durable slice: `cp-publish-001` now requires a human handoff that separates release-ready from publish-not-ready, names owner surfaces, gives a next safe action, and confirms read-only evidence lookup without raw commits, registry keys, or paths.
