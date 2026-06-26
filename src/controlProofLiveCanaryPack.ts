@@ -104,6 +104,7 @@ export interface ControlProofCanaryObservationTemplate {
     runtimeSync: string | null;
     sparkOsCompile: string | null;
     controlProofAudit: string | null;
+    routeBoundaryTraceJoin: string | null;
     controlProofAuditSummary?: ControlProofAuditRuntimeSummary | null;
     notes: string | null;
   };
@@ -117,6 +118,7 @@ export interface ControlProofCanaryRuntimeEvidence {
   runtimeSync: string | null;
   sparkOsCompile: string | null;
   controlProofAudit: string | null;
+  routeBoundaryTraceJoin?: string | null;
   controlProofAuditSummary?: ControlProofAuditRuntimeSummary | null;
   notes?: string | null;
 }
@@ -1214,6 +1216,7 @@ export function buildControlProofCanaryObservationTemplate(
       runtimeSync: null,
       sparkOsCompile: null,
       controlProofAudit: null,
+      routeBoundaryTraceJoin: null,
       controlProofAuditSummary: null,
       notes: null
     },
@@ -1272,6 +1275,7 @@ export function withControlProofCanaryRuntimeEvidence(
       runtimeSync: evidence.runtimeSync,
       sparkOsCompile: evidence.sparkOsCompile,
       controlProofAudit: evidence.controlProofAudit,
+      routeBoundaryTraceJoin: evidence.routeBoundaryTraceJoin || observations.evidence.routeBoundaryTraceJoin || null,
       controlProofAuditSummary: evidence.controlProofAuditSummary ||
         summarizeControlProofAuditRuntimeEvidence(evidence.controlProofAudit) ||
         observations.evidence.controlProofAuditSummary ||
@@ -1455,6 +1459,7 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
     runtimeSync: null,
     sparkOsCompile: null,
     controlProofAudit: null,
+    routeBoundaryTraceJoin: null,
     controlProofAuditSummary: null
   };
   const missing: string[] = [];
@@ -1464,6 +1469,7 @@ function missingPacketEvidence(observations: ControlProofCanaryObservationTempla
   if (!String(evidence.runtimeSync || '').trim()) missing.push('runtime_sync');
   if (!String(evidence.sparkOsCompile || '').trim()) missing.push('spark_os_compile');
   if (!String(evidence.controlProofAudit || '').trim()) missing.push('control_proof_audit');
+  if (!String(evidence.routeBoundaryTraceJoin || '').trim()) missing.push('route_boundary_trace_join');
   return missing;
 }
 
@@ -1524,6 +1530,7 @@ function packetEvidenceReason(
   if (key === 'legacy_repair_dry_run') return 'legacy proof-gap repair dry-runs are missing, incomplete, or would still change current rows';
   if (key === 'spark_os_compile') return 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched';
   if (key === 'control_proof_audit') return 'control-proof audit is dirty, incomplete, failed, or timestamp-mismatched';
+  if (key === 'route_boundary_trace_join') return 'route boundary handler trace-join proof is dirty, incomplete, failed, or missing joined rows';
   if (key === 'control_proof_audit_summary') return 'control-proof audit summary does not match the audit transcript';
   return `${key} runtime proof is failed, incomplete, or does not match the expected command`;
 }
@@ -3080,6 +3087,22 @@ function validRuntimeEvidenceValue(
   return hasPositiveRuntimeStatus(normalized);
 }
 
+function hasCleanRouteBoundaryTraceJoin(value: string): boolean {
+  if (!/(?:^|\n)(?:[$>]\s*)?(?:npx\s+ts-node|ts-node)\s+ops\/routeBoundaryHandlerHarness\.ts\b/i.test(value)) return false;
+  if (commandEvidencePassed(value) !== true) return false;
+  return /Trace join:/i.test(value) &&
+    /Status:\s*clean/i.test(value) &&
+    /Summary:\s*([1-9]\d*)\/\1 cases passed\./i.test(value) &&
+    /Route rows:\s*([1-9]\d*)\/\1 sampled/i.test(value) &&
+    /Joined rows:\s*[1-9]\d*/i.test(value) &&
+    /Gap rows:\s*0/i.test(value) &&
+    /Parse errors:\s*0/i.test(value) &&
+    /missing reply joins:\s*0/i.test(value) &&
+    /missing proof joins:\s*0/i.test(value) &&
+    /missing action\/no-action evidence:\s*0/i.test(value) &&
+    /route mismatches:\s*0/i.test(value);
+}
+
 function invalidPacketEvidence(
   observations: ControlProofCanaryObservationTemplate,
   options: { now?: Date | string } = {}
@@ -3091,6 +3114,7 @@ function invalidPacketEvidence(
     runtimeSync: null,
     sparkOsCompile: null,
     controlProofAudit: null,
+    routeBoundaryTraceJoin: null,
     controlProofAuditSummary: null
   };
   const invalid: string[] = [];
@@ -3130,6 +3154,10 @@ function invalidPacketEvidence(
       runtimeEvidenceCommandTimestampIsFresh(evidence.controlProofAudit, 'control_proof_audit', collectedAt)
     : true;
   if (!controlProofAuditValid) invalid.push('control_proof_audit');
+  if (
+    String(evidence.routeBoundaryTraceJoin || '').trim() &&
+    !hasCleanRouteBoundaryTraceJoin(String(evidence.routeBoundaryTraceJoin || ''))
+  ) invalid.push('route_boundary_trace_join');
   if (
     controlProofAuditValid &&
     invalid.length === 0 &&

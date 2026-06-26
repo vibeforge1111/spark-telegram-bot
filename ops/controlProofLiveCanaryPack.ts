@@ -233,6 +233,12 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
       timeoutMs: 60_000
     },
     {
+      label: 'route_boundary_trace_join',
+      command: 'npx',
+      args: ['ts-node', 'ops/routeBoundaryHandlerHarness.ts', '--cases', 'guard-006,guard-007,build-004,domain-chip-003'],
+      timeoutMs: 60_000
+    },
+    {
       label: 'route_confidence_legacy_repair_dry_run',
       command: 'npm',
       args: ['run', 'control:proof:repair:route-confidence', '--', '--dry-run', '--json'],
@@ -287,6 +293,7 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
     runtimeSync: byLabel.get('runtime_sync') || null,
     sparkOsCompile: byLabel.get('spark_os_compile') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
+    routeBoundaryTraceJoin: byLabel.get('route_boundary_trace_join') || null,
     controlProofAuditSummary: summarizeControlProofAuditRuntimeEvidence(byLabel.get('control_proof_audit') || null),
     notes
   };
@@ -453,6 +460,7 @@ function summarizeCommandResult(
   const output = [stdout, stderr, error ? error.message : '']
     .join('\n')
     .replaceAll(homedir(), '<home>')
+    .replace(/\/tmp\/[^\s)"']+/g, '<tmp>')
     .replace(/\/var\/folders\/[^\s)"']+/g, '<tmp>')
     .replace(/\b([A-Za-z0-9_-]+)@\d{3,6}\b/g, '$1@<redacted-port>')
     .replace(/\bpid=\d+\b/gi, 'pid=<redacted-pid>')
@@ -461,7 +469,7 @@ function summarizeCommandResult(
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, redactLongToken)
     .replace(/\s+\n/g, '\n')
     .trim();
-  const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' ? 24_000 : 2400;
+  const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' || label === 'route_boundary_trace_join' ? 24_000 : 2400;
   const snippet = output.length > maxOutputLength
     ? `${output.slice(0, 1200)}\n...\n${output.slice(-1200)}`
     : output;

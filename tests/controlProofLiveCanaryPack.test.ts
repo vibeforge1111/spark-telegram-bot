@@ -68,6 +68,28 @@ function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string
 ].join('\n');
 }
 const CLEAN_CONTROL_PROOF_AUDIT = cleanControlProofAudit();
+const CLEAN_ROUTE_BOUNDARY_TRACE_JOIN = [
+  '$ npx ts-node ops/routeBoundaryHandlerHarness.ts --cases guard-006,guard-007,build-004,domain-chip-003',
+  'exit=0',
+  'PASS guard-006: agent_doctrine.global_blocked -> agent_doctrine.global_blocked',
+  'PASS guard-007: agent_doctrine.global_blocked -> agent_doctrine.global_blocked',
+  'PASS build-004: conversation.ideation -> conversation.ideation',
+  'PASS domain-chip-003: conversation.ideation -> conversation.ideation',
+  'Summary: 4/4 cases passed.',
+  'Trace join:',
+  'Control-proof trace join checker',
+  'Status: clean',
+  'Route rows: 4/4 sampled',
+  'Joined rows: 4',
+  'Gap rows: 0',
+  'Parse errors: 0',
+  'Gap counts:',
+  '- missing join keys: 0',
+  '- missing reply joins: 0',
+  '- missing proof joins: 0',
+  '- missing action/no-action evidence: 0',
+  '- route mismatches: 0'
+].join('\n');
 function cleanSparkOsCompile(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
   return [
   '$ spark os compile --json',
@@ -648,6 +670,7 @@ test('runtime evidence refresh backfills canonical canary source refs and expect
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
 
@@ -751,6 +774,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   assert.deepEqual(template.evidence.controlProofAuditSummary, summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT));
@@ -1147,6 +1171,7 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1195,6 +1220,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1288,6 +1314,7 @@ test('publish canary requires release-ready versus publish-not-ready handoff sha
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1352,6 +1379,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -2487,6 +2515,7 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -2527,6 +2556,7 @@ test('observation recorder updates one case while preserving packet evidence', (
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: 'Collected locally.'
   });
 
@@ -2574,6 +2604,7 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
     runtimeSync: CLEAN_RUNTIME_SYNC,
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -3062,6 +3093,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       runtimeSync: CLEAN_RUNTIME_SYNC,
       sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+      routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
       notes: null
     };
     const observationsPath = resolve(tempRoot, 'observations.json');
@@ -3216,6 +3248,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         runtimeSync: CLEAN_RUNTIME_SYNC,
         sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
         controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
         notes: null
       }
     );
@@ -3451,6 +3484,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     }, null, 2), 'utf8');
     const sparkPath = resolve(binRoot, 'spark');
     const npmPath = resolve(binRoot, 'npm');
+    const npxPath = resolve(binRoot, 'npx');
     writeFileSync(sparkPath, [
       '#!/bin/sh',
       'if [ "$1 $2" = "live status" ]; then echo "Spark Live healthy"; echo "Relay runtime: OK (primary@8789 pid=86802 polling=active)"; echo "Board: http://127.0.0.1:3333/kanban"; exit 0; fi',
@@ -3551,8 +3585,37 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       'echo "unexpected npm args: $*" >&2',
       'exit 1'
     ].join('\n'), 'utf8');
+    writeFileSync(npxPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "ts-node ops/routeBoundaryHandlerHarness.ts" ]; then',
+      '  echo "PASS guard-006: agent_doctrine.global_blocked -> agent_doctrine.global_blocked (global doctrine boundary)"',
+      '  echo "PASS guard-007: agent_doctrine.global_blocked -> agent_doctrine.global_blocked (global doctrine boundary)"',
+      '  echo "PASS build-004: conversation.ideation -> conversation.ideation (design-only boundary)"',
+      '  echo "PASS domain-chip-003: conversation.ideation -> conversation.ideation (chip shaping boundary)"',
+      '  echo "Report: /tmp/spark-route-boundary-handler/report.md"',
+      '  echo "# Route Boundary Handler Harness Report"',
+      '  echo "Summary: 4/4 cases passed."',
+      '  echo "Trace join:"',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Status: clean"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo "Joined rows: 4"',
+      '  echo "Gap rows: 0"',
+      '  echo "Parse errors: 0"',
+      '  echo "Gap counts:"',
+      '  echo "- missing join keys: 0"',
+      '  echo "- missing reply joins: 0"',
+      '  echo "- missing proof joins: 0"',
+      '  echo "- missing action/no-action evidence: 0"',
+      '  echo "- route mismatches: 0"',
+      '  exit 0',
+      'fi',
+      'echo "unexpected npx args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
     chmodSync(sparkPath, 0o755);
     chmodSync(npmPath, 0o755);
+    chmodSync(npxPath, 0o755);
 
     const collected = spawnSync(
       process.execPath,
@@ -3585,6 +3648,11 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /Legacy gap backing:/);
     assert.match(observed.evidence.controlProofAudit, /builder_gateway_trace_legacy_repair/);
     assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Summary: 4\/4 cases passed/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Status: clean/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
+    assert.match(observed.evidence.routeBoundaryTraceJoin, /missing proof joins: 0/);
+    assert.doesNotMatch(observed.evidence.routeBoundaryTraceJoin, /\/tmp\/spark-route-boundary-handler/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
     assert.match(observed.evidence.sparkOsCompile, /historical_open_high_severity_events/);
@@ -3651,6 +3719,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
+    assert.match(refreshedObserved.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');

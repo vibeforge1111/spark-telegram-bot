@@ -411,6 +411,20 @@ async function main(): Promise<void> {
   });
   await writeFile(reportPath, report, 'utf8');
   console.log(`Report: ${reportPath}`);
+  console.log(`Summary: ${turns.filter((turn) => turn.verdict === 'pass').length}/${turns.length} cases passed.`);
+  console.log([
+    'Trace join:',
+    `Status: ${traceJoin.ok ? 'clean' : 'gaps found'}`,
+    `Route rows: ${traceJoin.sampledRouteRows}/${traceJoin.totalRouteRows} sampled`,
+    `Joined rows: ${traceJoin.joinedRows}`,
+    `Gap rows: ${traceJoin.gapRows}`,
+    `Parse errors: ${traceJoin.parseErrors}`,
+    `- missing join keys: ${traceJoin.missingJoinKeyRows}`,
+    `- missing reply joins: ${traceJoin.missingReplyJoinRows}`,
+    `- missing proof joins: ${traceJoin.missingProofJoinRows}`,
+    `- missing action/no-action evidence: ${traceJoin.missingActionEvidenceRows}`,
+    `- route mismatches: ${traceJoin.routeMismatchRows}`
+  ].join('\n'));
 
   const failed = turns.filter((turn) => turn.verdict === 'fail');
   if ((failed.length > 0 || !traceJoin.ok) && !hasFlag('allow-fail')) {
