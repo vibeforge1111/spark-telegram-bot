@@ -320,7 +320,9 @@ export function deriveLiveNlHarnessCoreMapping(entry: LiveNlCommandCase): LiveNl
   ];
 
   if (mutationClass !== 'none' && mutationClass !== 'read_only') captureRequired.push('side_effects');
-  if (recommendedUse !== 'keep_legacy_breadth') captureRequired.push('proof_panel');
+  if (recommendedUse !== 'keep_legacy_breadth') {
+    captureRequired.push('trace_join', 'proof_join', 'reply_shape', 'proof_panel');
+  }
   if (recommendedUse !== 'keep_legacy_breadth' || mutationClass === 'media_read') {
     captureRequired.push('screenshot_or_user_confirmation');
   }
@@ -331,7 +333,7 @@ export function deriveLiveNlHarnessCoreMapping(entry: LiveNlCommandCase): LiveNl
     notes.push('Keep out of default live runs unless the operator intentionally tests this action boundary.');
   }
   if (recommendedUse === 'promote_after_refurbish') {
-    notes.push('Good source material for a smaller control-proof canary after adding authority, proof, side-effect, and reply-shape expectations.');
+    notes.push('Good source material for a smaller control-proof canary after adding authority, trace join, proof join, side-effect, and reply-shape expectations.');
   }
 
   return {

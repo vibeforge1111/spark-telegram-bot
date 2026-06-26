@@ -287,7 +287,7 @@ Result:
 
 The decision still holds after the trace-backlog proof wording slice.
 
-The promotion helper now prints capture requirements and a `Promotion gap` requirement beside each mapped case. This closes a proof usability gap: an operator can see that old prompts promoted into Harness-shaped canaries need `observed_reply`, `side_effects`, `proof_panel`, and `screenshot_or_user_confirmation`, and also must name the measured control-proof or trace-join gap they close, instead of reading a plain "proof yes" cell as release-ready evidence.
+The promotion helper now prints capture requirements and a `Promotion gap` requirement beside each mapped case. This closes a proof usability gap: an operator can see that old prompts promoted into Harness-shaped canaries need `observed_reply`, `side_effects`, `trace_join`, `proof_join`, `reply_shape`, `proof_panel`, and `screenshot_or_user_confirmation`, and also must name the measured control-proof or trace-join gap they close, instead of reading a plain "proof yes" cell as release-ready evidence.
 
 Commands checked:
 
