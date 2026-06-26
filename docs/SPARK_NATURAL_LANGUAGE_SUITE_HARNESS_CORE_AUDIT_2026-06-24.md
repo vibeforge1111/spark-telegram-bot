@@ -341,3 +341,5 @@ Required join:
 - Control-proof canaries: only promoted or derived representatives can support release claims, and only after authority, mutation class, side effects, proof join, trace join, reply shape, screenshot/user confirmation, and pass criteria are filled in.
 
 Treat those names as one proof boundary across repos. The wording differs slightly because Builder is describing the route-shape matrix and Telegram is describing legacy breadth evidence packets, but both mean the same thing: old natural-language cases are source material and drift coverage, not Harness Core release proof.
+
+Promotion remains proof-first. Do not use an old NL prompt to justify expanded UI, media handling, or new composition features unless the mapped case directly closes a measured control-proof or trace-join gap. If the case only proves that a surface would be nicer, keep it as legacy breadth or archive it until a proof gap names the missing authority, side effect, trace join, proof join, reply shape, or live Telegram evidence.

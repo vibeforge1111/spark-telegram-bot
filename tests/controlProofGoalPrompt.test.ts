@@ -15,6 +15,7 @@ function test(name: string, fn: () => void): void {
 const ROOT = resolve(__dirname, '..');
 const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md');
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
+const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 
 test('control-proof goal prompt stays under the handoff limit', () => {
   const prompt = readFileSync(PROMPT_PATH, 'utf8');
@@ -42,4 +43,14 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /Gate scope: full release pack/);
   assert.match(plan, /Publish gate: not ready/);
   assert.match(plan, /do not turn release-ready behavior proof into a publish or registry claim/);
+});
+
+test('natural-language refurbishment keeps promotion proof-first', () => {
+  const audit = readFileSync(NL_AUDIT_PATH, 'utf8');
+
+  assert.match(audit, /Builder catalog contract: `claim_scope=legacy_route_shape`, `release_gate=none`/);
+  assert.match(audit, /Telegram legacy NL packets and templates: `claim_scope=legacy_breadth`, `release_gate=none`/);
+  assert.match(audit, /Promotion remains proof-first\./);
+  assert.match(audit, /Do not use an old NL prompt to justify expanded UI, media handling, or new composition features unless the mapped case directly closes a measured control-proof or trace-join gap\./);
+  assert.match(audit, /keep it as legacy breadth or archive it until a proof gap names the missing authority, side effect, trace join, proof join, reply shape, or live Telegram evidence\./);
 });
