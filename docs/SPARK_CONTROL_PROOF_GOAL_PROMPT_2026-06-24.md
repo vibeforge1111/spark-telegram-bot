@@ -6,13 +6,13 @@ Date: 2026-06-24
 - `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
 
 ```text
-Goal: Make Spark Telegram, Recursive, Spawner, Builder, mission relay, and control-proof dependable under the new Harness Core, with human conversational surfaces and exact machinery underneath.
+Goal: Refurbish Spark around the new Harness Core by reducing proof gaps first, then improving Telegram, Recursive, Spawner, Builder, and mission relay conversation quality only where proof shows it is safe and useful.
 
-Governing priority: First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or new features unless they directly close a measured control-proof gap.
+Prime rule: First reduce proof gaps and trace-join gaps. Do not expand UI, media support, or new features unless they directly close a measured control-proof gap.
 
 Posture:
 - Treat every issue as proof first, implementation second, publishing last.
-- Prefer durable source-of-truth fixes, replayable evidence, tests, and docs over one-off edits or brittle prompts.
+- Never try to save the day with one-off patches. Prefer durable truth fixes, replayable evidence, tests, and docs.
 - Keep routing, state, access, providers, trace ids, proof joins, safety gates, mission ids, timestamps, and truth checks deterministic.
 - Keep Telegram/chat replies concise, warm, and readable. Hide raw ids, hashes, stack traces, paths, provider internals, and repeated mission numbers unless requested.
 - Use compact cards only for `/status`, `/diagnose`, `/proof`, raw details, queues, picker choices, or dense multi-system summaries.
