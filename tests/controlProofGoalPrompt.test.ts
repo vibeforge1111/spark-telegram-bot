@@ -65,6 +65,9 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /matching `Legacy gap backing` detail row with complete backing/);
   assert.match(plan, /proof panels must name `incomplete legacy gap backing` in `Blocking gap planes`/);
   assert.match(plan, /packet evidence is invalid under `legacy_repair_dry_run`/);
+  assert.match(plan, /--summary-frozen-at-collected/);
+  assert.match(plan, /only when regenerating checked-in summary fixtures/);
+  assert.match(plan, /must not be used to bypass `source_snapshot`, runtime freshness, or `--refresh-runtime-evidence`/);
 });
 
 test('natural-language refurbishment keeps promotion proof-first', () => {

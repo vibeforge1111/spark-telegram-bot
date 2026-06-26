@@ -2625,6 +2625,19 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
 });
 
 test('control-proof canary CLI lists and exports selected cases', () => {
+  const help = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/controlProofLiveCanaryPack.ts',
+      '--help'
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  );
+
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /--summary-frozen-at-collected/);
+
   const list = spawnSync(
     process.execPath,
     [
