@@ -421,6 +421,9 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
   assert.match(richMessage.passCriteria.join('\n'), /collapses to one final Telegram message/);
   const streamingStatus = CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001');
   assert.ok(streamingStatus);
+  assert.match(streamingStatus.expectedProofJoin, /live \/streaming runtime status/);
+  assert.match(streamingStatus.expectedProofJoin, /transport-proof line/);
+  assert.match(streamingStatus.expectedProofJoin, /active Telegram profile path/);
   assert.match(streamingStatus.passCriteria.join('\n'), /collapses to one final Telegram message/);
 });
 
