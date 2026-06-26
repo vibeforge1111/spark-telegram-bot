@@ -102,6 +102,22 @@ export function explainSparkError(error: unknown, context: SparkErrorContext = '
   }
 
   if (
+    lower.includes('http 404') ||
+    lower.includes('status code 404') ||
+    lower.includes('404 not found') ||
+    lower.includes('endpoint not found') ||
+    lower.includes('model endpoint not found')
+  ) {
+    return {
+      category: 'provider_endpoint',
+      userLine: 'Spark reached the model provider, but the configured endpoint returned 404 (not found).',
+      detail,
+      check: 'Run /diagnose so Spark can show which base URL and model name the chat path is targeting.',
+      repair: 'Operator fix: spark providers status to check the active base URL, then spark setup to re-pick a valid model name. A 404 here usually means the configured base URL points at the wrong host or the model name belongs to a different provider.'
+    };
+  }
+
+  if (
     lower.includes('rate limit') ||
     lower.includes('too many requests') ||
     lower.includes('quota') ||

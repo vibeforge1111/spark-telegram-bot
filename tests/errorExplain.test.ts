@@ -140,6 +140,28 @@ test('directs provider rate limits to quota or provider switching', () => {
   assert.match(explanation.repair, /switch providers/);
 });
 
+test('classifies HTTP 404 as provider_endpoint instead of unknown so operators see the wrong base URL', () => {
+  const axiosLike = Object.assign(new Error('Request failed with status code 404'), {
+    code: 'ERR_BAD_REQUEST',
+    response: { status: 404, statusText: 'Not Found', data: { error: 'Not Found' } }
+  });
+  const explanation = explainSparkError(axiosLike, 'chat');
+
+  assert.equal(explanation.category, 'provider_endpoint');
+  assert.match(explanation.userLine, /endpoint returned 404|not found/i);
+  assert.match(explanation.check, /base URL.*model|model.*base URL/);
+  assert.match(explanation.repair, /spark providers status|spark setup/);
+});
+
+test('routes plain "HTTP 404 Not Found" strings through provider_endpoint, not unknown', () => {
+  const reply = renderSparkErrorReply(new Error('HTTP 404 Not Found - Request failed with status code 404'), 'chat', true);
+
+  assert.match(reply, /endpoint returned 404|provider_endpoint/);
+  assert.match(reply, /spark providers status/);
+  assert.doesNotMatch(reply, /internal error before it could answer/);
+  assert.match(reply, /Spark chat failure: provider_endpoint/);
+});
+
 test('directs duplicate Telegram polling to one live process', () => {
   const reply = renderSparkErrorReply(
     new Error('409 Conflict: terminated by other getUpdates request'),
