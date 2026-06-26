@@ -525,6 +525,11 @@ Durability update, 2026-06-25:
 - The refreshed SparkRecursive_bot release packet at `outputs/live-canary-full/live-canary-observations.json` keeps release readiness separate from publish readiness; use `outputs/live-canary-full/live-canary-summary.md` for the current runtime-evidence timestamp.
 - The packet now rejects stale source snapshots and prints registry-pin drift as an explicit release caveat and handoff, so a docs/source edit must be committed and followed by a fresh runtime-evidence recapture before the packet can support a current release claim.
 
+Durability update, 2026-06-26:
+
+- The checked full and safe-first canary summaries now preserve `expectedReplyShape` in `summary.cases[]`, so streaming/rich-message proof keeps the intended conversational shape visible without exposing raw prompts or observed replies.
+- Current SparkRecursive_bot evidence records `cp-streaming-001` as `compact_card` for `/streaming` status and `cp-streaming-002` as `natural` for rich-message delivery. Do not turn the rich-message proof into a diagnostic card just to make the summary easier to inspect.
+
 ### Phase 1: Builder Status Events
 
 Add Builder JSONL streaming with status events only:

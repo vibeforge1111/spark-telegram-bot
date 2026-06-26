@@ -127,10 +127,16 @@ Update after Telegram profile-env startup proof on 2026-06-25 11:58 +04:
 Update after caveat and handoff detail joins on 2026-06-26:
 
 - The live canary JSON summary now treats structured caveat and handoff detail records as release evidence. `releaseCaveatDetails.repo_release_blocks.blocked_release_repos` carries sanitized blocked repo rows, `releaseCaveatDetails.duplicate_truths.owner_sets` carries duplicate-truth owner sets, and each `releaseHandoffDetails` entry carries `familyDetails` joined back to the matching publish-handoff family.
-- `summary.cases` now carries safe per-canary Harness metadata: expected route, expected authority, expected mutation class, optional sanitized source refs, verdict, and missing capture names. It intentionally omits raw prompts, observed replies, proof-panel text, screenshots, and user confirmations.
+- `summary.cases` now carries safe per-canary Harness metadata: expected route, expected authority, expected mutation class, expected reply shape, optional sanitized source refs, verdict, and missing capture names. It intentionally omits raw prompts, observed replies, proof-panel text, screenshots, and user confirmations.
 - `gateDecisionDetails.release` and `gateDecisionDetails.publish` include the same structured detail records, so release-ready versus publish-not-ready can be explained from machine-readable evidence without relying on prose-only caveat or handoff lines.
 - The current packet still reports release ready and publish not ready. That means SparkRecursive_bot behavior is proven by the canary pack, while publish remains blocked by explicit repo, local runtime artifact, and historical Builder trace-health handoffs.
 - Post-commit `spark os compile --json` still reports `ok: true`, `gaps: 0`, and `dirty_repo_count: 0`; publish remains blocked by the known runtime-ahead registry pins, not by local proof gaps.
+
+Update after reply-shape summary hardening on 2026-06-26:
+
+- Commits through `e56969c` made the checked full and safe-first live canary summaries preserve `expectedReplyShape` for each case while still omitting raw prompts, observed replies, proof-panel bodies, screenshots, and user confirmations.
+- This closes a control-proof projection gap for streaming and rich messages: `cp-streaming-001` now carries `compact_card` in the summary evidence, while `cp-streaming-002` carries `natural`.
+- The refreshed full and safe-first packets remain release-ready and publish-not-ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
 
 Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +04:
 
