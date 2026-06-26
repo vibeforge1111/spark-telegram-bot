@@ -3151,6 +3151,7 @@ function hasCleanLiveTraceJoin(value: string): boolean {
   return /Control-proof trace join checker/i.test(value) &&
     /Status:\s*clean/i.test(value) &&
     /Live route proof:\s*ready\s*\(([4-9]|\d{2,})\/4 minimum joined rows\)/i.test(value) &&
+    /No-action route proof:\s*ready\s*\(([4-9]|\d{2,})\/4 minimum no-action rows\)/i.test(value) &&
     /Route rows:\s*([4-9]|\d{2,})\/\d+\s+sampled/i.test(value) &&
     /Joined rows:\s*[4-9]\d*|Joined rows:\s*[4-9]/i.test(value) &&
     /Gap rows:\s*0/i.test(value) &&

@@ -30,7 +30,7 @@ Current proof state:
 
 - Full behavior proof is release-ready in `outputs/live-canary-full/live-canary-summary.md` when it says `Gate scope: full release pack` and `Release gate: ready`.
 - Selected-case packets are focused evidence only. If their refresh context shows transient publish handoffs, use the full release packet for release or publish handoff authority.
-- Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows joined through user intent, route decision, action/no-action, and reply/proof evidence.
+- Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows joined through user intent, route decision, action/no-action, and reply/proof evidence, with four no-action/read-only rows from the safe prompt set.
 - On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests/controlProofLiveCanaryPack.test.ts`, `npx ts-node tests/controlProofGoalPrompt.test.ts`, and `npm run build` passed locally.
 - Publish readiness remains separate. `Publish gate: not ready` means owner handoffs remain open and must not be described as registry or publish readiness.
 

@@ -124,6 +124,7 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Selected-case packets are focused evidence only/);
   assert.match(workplan, /use the full release packet for release or publish handoff authority/);
   assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
+  assert.match(workplan, /with four no-action\/read-only rows from the safe prompt set/);
   assert.match(workplan, /On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests\/controlProofLiveCanaryPack\.test\.ts`, `npx ts-node tests\/controlProofGoalPrompt\.test\.ts`, and `npm run build` passed locally/);
   assert.match(workplan, /Current open handoffs:/);
   assert.match(workplan, /Current Proof Battery/);
@@ -154,9 +155,12 @@ test('package exposes one-command reliability proof battery', () => {
     scripts?: Record<string, string>;
   };
   const script = packageJson.scripts?.['control:proof:reliability'] ?? '';
+  const liveTraceScript = packageJson.scripts?.['control:proof:live-trace'] ?? '';
 
   assert.match(script, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(script, /npm run control:proof:live-trace/);
+  assert.match(liveTraceScript, /--min-route-rows 4/);
+  assert.match(liveTraceScript, /--min-no-action-rows 4/);
   assert.match(script, /npm run control:proof:source-inventory/);
   assert.match(script, /npm run control:proof:render-firewall/);
   assert.match(script, /npm run control:proof:capsules -- --strict/);

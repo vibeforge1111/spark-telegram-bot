@@ -87,6 +87,7 @@ test('joins natural route decisions to reply and proof evidence', () => {
     assert.equal(result.gapRows, 0);
     assert.equal(result.rows[0].replyJoined, true);
     assert.equal(result.rows[0].proofJoined, true);
+    assert.equal(result.rows[0].noActionEvidence, true);
     assert.match(formatControlProofTraceJoinReport(result), /Status: clean/);
   });
 });
@@ -253,12 +254,59 @@ test('live evidence mode requires enough joined route rows', () => {
     assert.equal(result.liveEvidenceRequired, true);
     assert.equal(result.liveEvidenceReady, false);
     assert.equal(result.insufficientLiveRouteRows, true);
+    assert.equal(result.insufficientNoActionRows, true);
+    assert.equal(result.noActionEvidenceRows, 1);
     assert.match(report, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
+    assert.match(report, /No-action route proof: not ready \(1\/4 minimum no-action rows\)/);
     assert.match(report, /capture real SparkRecursive_bot Telegram text turns/);
     assert.match(report, /Safe SparkRecursive_bot prompts:/);
     assert.match(report, /1\. I am mentioning build and mission, but do not start anything/);
     assert.match(report, /4\. If memory says Spawner is down but spark live status says it is up, which source wins\?/);
     assert.match(report, /After Spark replies to all four, rerun: npm run control:proof:live-trace/);
+  });
+});
+
+test('live evidence mode requires joined no-action route rows, not only joined action rows', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    const rows = Array.from({ length: 4 }, (_, index) => routeRow({
+      request_id: `turn:action-${index}`,
+      trace_ref: `trace:action-${index}`,
+      harness_proof_ref: `turn:sha256:action${index}`,
+      executed_route: 'mission.launch',
+      executed_action: 'launch_mission',
+      delivery: 'selected'
+    }));
+    writeJsonl(routeLedger, rows);
+    writeJsonl(finalAnswer, rows.map((row) => ({
+      request_id: row.request_id,
+      trace_ref: row.trace_ref,
+      harness_proof_ref: row.harness_proof_ref,
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: row.harness_proof_ref }
+    })));
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.joinedRows, 4);
+    assert.equal(result.gapRows, 0);
+    assert.equal(result.insufficientLiveRouteRows, false);
+    assert.equal(result.noActionEvidenceRows, 0);
+    assert.equal(result.insufficientNoActionRows, true);
+    assert.match(report, /Live route proof: not ready \(4\/4 minimum joined rows\)/);
+    assert.match(report, /No-action route proof: not ready \(0\/4 minimum no-action rows\)/);
   });
 });
 
@@ -332,6 +380,7 @@ test('trace join CLI fails live evidence mode when route rows are below the mini
 
     assert.equal(result.status, 1);
     assert.match(result.stdout, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
+    assert.match(result.stdout, /No-action route proof: not ready \(1\/4 minimum no-action rows\)/);
     assert.match(result.stdout, /Safe SparkRecursive_bot prompts:/);
     assert.match(result.stdout, /After Spark replies to all four, rerun: npm run control:proof:live-trace/);
   });

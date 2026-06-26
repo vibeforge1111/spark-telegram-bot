@@ -21,7 +21,7 @@ function usage(): string {
     '  npx ts-node ops/controlProofTraceJoin.ts --json',
     '  npx ts-node ops/controlProofTraceJoin.ts --strict',
     '  npx ts-node ops/controlProofTraceJoin.ts --sample 100',
-    '  npx ts-node ops/controlProofTraceJoin.ts --strict --require-live-evidence --min-route-rows 4',
+    '  npx ts-node ops/controlProofTraceJoin.ts --strict --require-live-evidence --min-route-rows 4 --min-no-action-rows 4',
     '  npx ts-node ops/controlProofTraceJoin.ts --natural-route-ledger /path/routes.jsonl',
     '',
     'Checks user intent -> route decision -> action/no-action -> reply joins using redacted request, trace, and proof refs.'
@@ -44,6 +44,11 @@ function main(): void {
   if (minRouteRowsRaw && (!Number.isFinite(minRouteRows) || Number(minRouteRows) <= 0)) {
     throw new Error(`Invalid --min-route-rows value: ${minRouteRowsRaw}`);
   }
+  const minNoActionRowsRaw = argValue(args, 'min-no-action-rows');
+  const minNoActionRows = minNoActionRowsRaw ? Number(minNoActionRowsRaw) : undefined;
+  if (minNoActionRowsRaw && (!Number.isFinite(minNoActionRows) || Number(minNoActionRows) < 0)) {
+    throw new Error(`Invalid --min-no-action-rows value: ${minNoActionRowsRaw}`);
+  }
   const result = auditControlProofTraceJoins({
     sparkHome: argValue(args, 'spark-home') || undefined,
     naturalRouteLedger: argValue(args, 'natural-route-ledger') || undefined,
@@ -51,7 +56,8 @@ function main(): void {
     outboundAudit: argValue(args, 'outbound-audit') || undefined,
     sampleSize: sampleSize ? Math.trunc(sampleSize) : undefined,
     requireLiveEvidence: hasFlag(args, 'require-live-evidence'),
-    minRouteRows: minRouteRows ? Math.trunc(minRouteRows) : undefined
+    minRouteRows: minRouteRows ? Math.trunc(minRouteRows) : undefined,
+    minNoActionRows: minNoActionRows !== undefined ? Math.trunc(minNoActionRows) : undefined
   });
   if (hasFlag(args, 'json')) {
     console.log(JSON.stringify(result, null, 2));

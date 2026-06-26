@@ -18,6 +18,7 @@ export interface ControlProofTraceJoinOptions {
   sampleSize?: number;
   requireLiveEvidence?: boolean;
   minRouteRows?: number;
+  minNoActionRows?: number;
   generatedAt?: string;
 }
 
@@ -33,6 +34,7 @@ export interface ControlProofTraceJoinRow {
   replyJoined: boolean;
   proofJoined: boolean;
   actionOrNoActionEvidence: boolean;
+  noActionEvidence: boolean;
   gaps: string[];
 }
 
@@ -55,9 +57,12 @@ export interface ControlProofTraceJoinSummary {
   noRouteEvidence: boolean;
   liveEvidenceRequired: boolean;
   minRouteRows: number;
+  minNoActionRows: number;
   liveEvidenceReady: boolean;
   insufficientLiveRouteRows: boolean;
+  insufficientNoActionRows: boolean;
   joinedRows: number;
+  noActionEvidenceRows: number;
   gapRows: number;
   missingJoinKeyRows: number;
   missingReplyJoinRows: number;
@@ -93,6 +98,9 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const sampleSize = Math.max(1, Math.trunc(options.sampleSize || 100));
   const minRouteRows = Math.max(1, Math.trunc(options.minRouteRows || 1));
   const liveEvidenceRequired = Boolean(options.requireLiveEvidence);
+  const minNoActionRows = Math.max(0, Math.trunc(
+    options.minNoActionRows ?? (liveEvidenceRequired ? minRouteRows : 0)
+  ));
   const routeRead = readJsonl(routeLedgerPath);
   const finalRead = readJsonl(finalAnswerAudit);
   const outboundRead = readJsonl(outboundAudit);
@@ -103,12 +111,21 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const sampled = routeRecords.slice(-sampleSize);
   const rows = sampled.map((record) => summarizeRouteJoin(record, evidenceIndex));
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
-  const liveEvidenceReady = sampled.length >= minRouteRows && gapRows === 0 && routeRead.parseErrors === 0;
+  const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence).length;
+  const insufficientNoActionRows = liveEvidenceRequired && noActionEvidenceRows < minNoActionRows;
+  const liveEvidenceReady = sampled.length >= minRouteRows &&
+    noActionEvidenceRows >= minNoActionRows &&
+    gapRows === 0 &&
+    routeRead.parseErrors === 0;
   const insufficientLiveRouteRows = liveEvidenceRequired && sampled.length < minRouteRows;
   const routeLedgerState = classifyRouteLedgerState(routeRead, routeRecords.length);
 
   return {
-    ok: routeRead.parseErrors === 0 && sampled.length > 0 && gapRows === 0 && !insufficientLiveRouteRows,
+    ok: routeRead.parseErrors === 0 &&
+      sampled.length > 0 &&
+      gapRows === 0 &&
+      !insufficientLiveRouteRows &&
+      !insufficientNoActionRows,
     generatedAt: options.generatedAt || new Date().toISOString(),
     sparkHome,
     naturalRouteLedger: routeLedgerPath,
@@ -126,9 +143,12 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     noRouteEvidence: sampled.length === 0,
     liveEvidenceRequired,
     minRouteRows,
+    minNoActionRows,
     liveEvidenceReady,
     insufficientLiveRouteRows,
+    insufficientNoActionRows,
     joinedRows: rows.length - gapRows,
+    noActionEvidenceRows,
     gapRows,
     missingJoinKeyRows: rows.filter((row) => row.gaps.includes('missing_join_keys')).length,
     missingReplyJoinRows: rows.filter((row) => row.gaps.includes('missing_reply_join')).length,
@@ -165,6 +185,7 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     ...(summary.noRouteEvidence ? liveRouteLedgerDiagnosisLines(summary) : []),
     ...(summary.liveEvidenceRequired ? [
       `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.sampledRouteRows}/${summary.minRouteRows} minimum joined rows)`,
+      `No-action route proof: ${summary.noActionEvidenceRows >= summary.minNoActionRows ? 'ready' : 'not ready'} (${summary.noActionEvidenceRows}/${summary.minNoActionRows} minimum no-action rows)`,
       ...(summary.liveEvidenceReady ? [] : liveTraceCaptureGuideLines())
     ] : []),
     '',
@@ -238,6 +259,7 @@ function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex
   );
   const proofJoined = Boolean(proofRef && index.proofRefs.has(proofRef));
   const actionOrNoActionEvidence = Boolean(record.executed_action && record.delivery && record.delivery !== 'unknown');
+  const noActionEvidence = actionOrNoActionEvidence && isNoActionRouteEvidence(record);
   const routeMatched = record.outcome !== 'mismatch';
   const gaps: string[] = [];
   if (!hasJoinKeys) gaps.push('missing_join_keys');
@@ -257,8 +279,21 @@ function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex
     replyJoined,
     proofJoined,
     actionOrNoActionEvidence,
+    noActionEvidence,
     gaps
   };
+}
+
+function isNoActionRouteEvidence(record: NaturalRouteExecutionRecord): boolean {
+  const action = stringField(record, 'executed_action').toLowerCase();
+  const route = stringField(record, 'executed_route').toLowerCase();
+  const delivery = stringField(record, 'delivery').toLowerCase();
+  if (!delivery || delivery === 'unknown') return false;
+  if (action === 'answer' || action === 'no_action') return true;
+  if (/^(?:plain_chat|conversation|fresh_state)\b/.test(action)) return true;
+  if (/^harness_core\.(?:risk_profile|read_only_state|source_priority)\b/.test(action)) return true;
+  if (/^(?:plain_chat|conversation|fresh_state)\b/.test(route)) return true;
+  return false;
 }
 
 interface JsonlReadResult {

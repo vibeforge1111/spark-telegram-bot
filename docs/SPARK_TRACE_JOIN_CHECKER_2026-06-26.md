@@ -40,7 +40,7 @@ Use the live gate before claiming SparkRecursive_bot has fresh deployed trace-jo
 npm run control:proof:live-trace
 ```
 
-This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4`. It fails when the route ledger has fewer than four joined route rows, even if the rows that exist are individually clean.
+This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4 --min-no-action-rows 4`. It fails when the route ledger has fewer than four joined route rows, or when those rows do not also prove four no-action/read-only turns from the safe prompt set.
 
 The live report separates the route-ledger state from the join result:
 
@@ -63,7 +63,7 @@ Do not repair anything. Just tell me whether a repair is needed right now, using
 If memory says Spawner is down but spark live status says it is up, which source wins?
 ```
 
-After the prompts, rerun the live gate. A passing result must show `Live route proof: ready` and no missing join, reply, proof, action/no-action, or route-mismatch gaps.
+After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, and no missing join, reply, proof, action/no-action, or route-mismatch gaps.
 
 ## Repeatable Handler Proof
 
@@ -89,6 +89,8 @@ A joined route row must have:
 - no shadow-vs-executed route mismatch
 
 An empty route sample is not clean proof. It means no route evidence was available to inspect.
+
+The live gate also requires the safe prompt sample to be no-action/read-only evidence. Four joined action rows are not enough to pass `npm run control:proof:live-trace`; the live proof must show the no-action boundary was exercised end to end.
 
 Legacy route rows that predate join refs should remain visible as gaps when inspected. Do not backfill them unless the backing evidence proves the exact request, trace, proof, action/no-action, and reply join.
 
