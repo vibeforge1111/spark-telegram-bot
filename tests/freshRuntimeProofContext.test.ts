@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -24,6 +24,9 @@ const originalEnv = {
   SPARK_BOT_TEST_MODE: process.env.SPARK_BOT_TEST_MODE,
   SPARK_CHAT_LLM_PROVIDER: process.env.SPARK_CHAT_LLM_PROVIDER,
   SPARK_GATEWAY_STATE_DIR: process.env.SPARK_GATEWAY_STATE_DIR,
+  SPARK_HOME: process.env.SPARK_HOME,
+  SPARK_NATURAL_ROUTE_LEDGER: process.env.SPARK_NATURAL_ROUTE_LEDGER,
+  SPARK_NATURAL_ROUTE_LEDGER_PATH: process.env.SPARK_NATURAL_ROUTE_LEDGER_PATH,
   SPARK_LLM_PROVIDER: process.env.SPARK_LLM_PROVIDER
 };
 
@@ -42,6 +45,7 @@ function prepareEnv(): void {
   process.env.SPARK_CHAT_LLM_PROVIDER = 'disabled-for-test';
   process.env.SPARK_LLM_PROVIDER = 'disabled-for-test';
   process.env.SPARK_ALLOW_IMPLICIT_LLM_PROVIDER = '0';
+  process.env.SPARK_NATURAL_ROUTE_LEDGER = '0';
 }
 
 function fakeCtx(text: string, replies: string[], replyExtras: any[]) {
@@ -123,6 +127,51 @@ async function assertTraceRoute(text: string, expectedRoute: string, replyPatter
   assert.notEqual(trace?.proofCapsule?.intent?.kind, 'build_or_spawner');
 }
 
+function withNaturalRouteLedger(root: string): string {
+  process.env.SPARK_HOME = root;
+  process.env.SPARK_NATURAL_ROUTE_LEDGER = '1';
+  return path.join(root, 'state', 'spark-telegram-bot', 'natural-route-execution.jsonl');
+}
+
+async function readNaturalRouteRows(filePath: string): Promise<Array<Record<string, any>>> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (existsSync(filePath)) {
+      const rows = readFileSync(filePath, 'utf8')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      if (rows.length > 0) return rows;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return [];
+}
+
+async function assertTraceRouteLedgerJoin(text: string, expectedRoute: string, replyPattern: RegExp): Promise<void> {
+  const replies: string[] = [];
+  const replyExtras: any[] = [];
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-natural-route-proof-'));
+  const ledgerPath = withNaturalRouteLedger(tempRoot);
+  try {
+    const indexModule: any = await import('../src/index');
+    await indexModule.handleTextMessage(fakeCtx(text, replies, replyExtras));
+    assert.match(replies[0] || '', replyPattern);
+    const trace = replyExtras[0]?.__sparkTraceContext;
+    assert.equal(trace?.route, expectedRoute);
+    const rows = await readNaturalRouteRows(ledgerPath);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].executed_route, expectedRoute);
+    assert.equal(rows[0].outcome, 'matched');
+    assert.equal(rows[0].delivery, 'selected');
+    assert.equal(rows[0].request_id, trace.requestId);
+    assert.equal(rows[0].trace_ref, trace.traceRef);
+    assert.equal(rows[0].harness_proof_ref, trace.proofCapsule.turnRef);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 async function run(): Promise<void> {
   await test('source-priority answer proof uses fresh-state authority route', async () => {
     restoreEnv();
@@ -133,6 +182,20 @@ async function run(): Promise<void> {
       /Fresh runtime state wins/
     );
     restoreEnv();
+  });
+
+  await test('source-priority answer writes joined natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    try {
+      await assertTraceRouteLedgerJoin(
+        'If memory says Spawner is down but spark live status says it is up, which source wins?',
+        'fresh_state.authority_answer',
+        /Fresh runtime state wins/
+      );
+    } finally {
+      restoreEnv();
+    }
   });
 
   await test('live-state and repair-status answers override keyword proof routes', async () => {
@@ -150,6 +213,40 @@ async function run(): Promise<void> {
         'Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.',
         'fresh_state.read_only_repair_status',
         /No repair action needed right now/
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
+
+  await test('repair-status answer writes joined natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-runtime-proof-context-'));
+    try {
+      installSparkStatusShim(tempRoot);
+      await assertTraceRouteLedgerJoin(
+        'Do not repair anything. Just tell me whether a repair is needed right now, using fresh state.',
+        'fresh_state.read_only_repair_status',
+        /No repair action needed right now/
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
+
+  await test('risk-profile answer writes joined natural route ledger proof', async () => {
+    restoreEnv();
+    prepareEnv();
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'spark-runtime-proof-context-'));
+    try {
+      installSparkStatusShim(tempRoot);
+      await assertTraceRouteLedgerJoin(
+        'I am mentioning build and mission, but do not start anything. What is the current Spark risk profile?',
+        'fresh_state.risk_profile',
+        /risk profile/i
       );
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });

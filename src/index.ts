@@ -1866,6 +1866,33 @@ function recordNaturalRouteExecution(
   });
 }
 
+function finalNaturalRouteDecisionForExecution(
+  shadow: NaturalRouteDecision | null,
+  input: {
+    route: string;
+    owner: NaturalRouteOwnerSystem;
+    action: string;
+    signal: string;
+  }
+): NaturalRouteDecision {
+  return {
+    schema_version: 'spark.nlp.route_decision.v1',
+    route: input.route,
+    owner_system: input.owner,
+    confidence: shadow?.confidence === 'explicit' ? 'explicit' : 'contextual',
+    action: input.action,
+    payload: {
+      selectedBy: 'harness_branch_route',
+      shadowRoute: shadow?.route || 'none',
+      shadowOwner: shadow?.owner_system || 'none'
+    },
+    context_source: 'latest_message',
+    matched_signals: [input.signal],
+    blocked_by: [],
+    requires_confirmation: false
+  };
+}
+
 function naturalRecursiveRawCommand(decision: NaturalRouteDecision | null): string | null {
   if (!decision || decision.action !== 'recursive.command') return null;
   const rawCommand = decision.payload?.rawCommand;
@@ -8887,6 +8914,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 		      command: 'telegram_runtime_truth_priority',
 		      reasonSummary: 'Telegram answered source-priority from fresh runtime truth; no owner execution was authorized.'
 		    });
+		    setTurnOutboundTraceContext(ctx, traceContext);
+		    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+		      route: 'fresh_state.authority_answer',
+		      owner: 'spark-telegram-bot',
+		      action: 'harness_core.source_priority',
+		      signal: 'fresh_runtime_source_priority'
+		    }), 'fresh_state.authority_answer', 'spark-telegram-bot', 'harness_core.source_priority');
 		    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_runtime_truth_priority', [
       {
@@ -8929,7 +8963,20 @@ export async function handleTextMessage(ctx: any): Promise<void> {
   if (!earlyBuildIntent && shouldAnswerSparkRiskProfile(text)) {
     await conversation.remember(user, text).catch(() => {});
     const reply = await renderAuthoritativeSparkRiskProfileAnswer();
-    await ctx.reply(reply);
+    const traceContext = buildTurnOutboundTraceContext(turnIntentEnvelope, {
+      route: 'fresh_state.risk_profile',
+      intentKind: 'fresh_state.risk_profile',
+      command: 'telegram_spark_risk_profile_answer',
+      reasonSummary: 'Telegram answered the current Spark risk profile from fresh runtime state; no owner execution was authorized.'
+    });
+    setTurnOutboundTraceContext(ctx, traceContext);
+    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+      route: 'fresh_state.risk_profile',
+      owner: 'spark-telegram-bot',
+      action: 'harness_core.risk_profile',
+      signal: 'fresh_runtime_risk_profile'
+    }), 'fresh_state.risk_profile', 'spark-telegram-bot', 'harness_core.risk_profile');
+    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_spark_risk_profile_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
     return;
@@ -9045,6 +9092,13 @@ export async function handleTextMessage(ctx: any): Promise<void> {
 	      command: 'telegram_live_state_answer',
 	      reasonSummary: 'Telegram answered from fresh Spark runtime state; no repair or owner execution was authorized.'
 	    });
+	    setTurnOutboundTraceContext(ctx, traceContext);
+	    recordNaturalRouteExecution(ctx, finalNaturalRouteDecisionForExecution(naturalRouteShadow, {
+	      route,
+	      owner: 'spark-telegram-bot',
+	      action: 'harness_core.read_only_state',
+	      signal: 'fresh_runtime_read_only_state'
+	    }), route, 'spark-telegram-bot', 'harness_core.read_only_state');
 	    await ctx.reply(reply, outboundTraceExtra(traceContext));
     recordTelegramSourceUsedEvidence(ctx, user, text, 'telegram_live_state_answer', runtimeTruthSourceEvidence(text));
     await conversation.rememberAssistantReply(user, reply).catch(() => {});
