@@ -467,10 +467,14 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
     assert.equal(typeof entry.capture.proofPanel, 'boolean');
     assert.equal(typeof entry.capture.screenshot, 'boolean');
     assert.equal(typeof entry.capture.userConfirmation, 'boolean');
+    const sourceRefKeys = new Set<string>();
     for (const ref of entry.sourceRefs || []) {
       assert.ok(ref.catalog, `${entry.id} has source ref without catalog`);
       assert.ok(ref.caseId, `${entry.id} has source ref without case id`);
       assert.ok(ref.relationship, `${entry.id} has source ref without relationship`);
+      const key = `${ref.catalog}\0${ref.caseId}\0${ref.relationship}`;
+      assert.equal(sourceRefKeys.has(key), false, `${entry.id} has duplicate source ref ${ref.catalog}:${ref.caseId}:${ref.relationship}`);
+      sourceRefKeys.add(key);
     }
   }
 

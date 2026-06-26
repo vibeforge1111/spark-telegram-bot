@@ -214,6 +214,7 @@ Use this to keep the refurbished structure honest:
 - `genesis-live-telegram-100.json` remains the historical/periodic drift benchmark.
 - `control:proof:canaries` is the release-proof pack.
 - When an old prompt becomes a canary, preserve its origin as `promoted_from`, `derived_from`, or `coverage_for`.
+- Each canary source ref must be unique by catalog, case id, and relationship. Repeating the same old case does not add coverage and must fail the canary pack test.
 
 This gives the best of both systems: the old suite stays fast, and the new Harness Core structure can prove authority, mutation class, proof joins, side effects, reply shape, streaming/rich-message rendering, and live visual or user confirmation without losing the old regression lineage.
 
