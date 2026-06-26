@@ -206,10 +206,23 @@ export function checkSourceInventory(options: {
   }
 
   const statusesBySource = new Map<string, Set<string>>();
+  const countsBySourceStatus = new Map<string, number>();
   for (const entry of entries) {
     const statuses = statusesBySource.get(entry.source) ?? new Set<string>();
     statuses.add(entry.status);
     statusesBySource.set(entry.source, statuses);
+
+    const sourceStatusKey = `${entry.source}\u0000${entry.status}`;
+    countsBySourceStatus.set(sourceStatusKey, (countsBySourceStatus.get(sourceStatusKey) ?? 0) + 1);
+  }
+
+  for (const [sourceStatusKey, count] of countsBySourceStatus) {
+    if (count <= 1) continue;
+    const [source, status] = sourceStatusKey.split('\u0000');
+    gaps.push({
+      code: 'duplicate_source_status',
+      message: `${source} has ${count} inventory rows with status ${status}; each source/status boundary must be unique.`
+    });
   }
 
   for (const [source, statuses] of statusesBySource) {

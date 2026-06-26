@@ -21,6 +21,8 @@ Active canary evidence folders must also contain the core packet files before th
 
 Inventory boundaries must explain the status-specific control rule. Read-only evidence rows must say how they can be used as evidence, history, breadth, classification, or promotion material; archive candidates must say archive/extraction/no-prompt behavior; delete candidates must say owner-reviewed removal meaning.
 
+Each source/status pair must be unique. A source may appear with both `read-only evidence` and `archive candidate` when the archive decision is still pending, but duplicate rows with the same status create competing boundaries and fail the gate.
+
 - `active`: current source of rules, proof, or release gates.
 - `read-only evidence`: useful for history, regression breadth, or promotion decisions; not authority by itself.
 - `archive candidate`: keep for now, but only as historical context after current rules are extracted or linked.

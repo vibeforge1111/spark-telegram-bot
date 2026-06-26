@@ -277,6 +277,27 @@ test('accepts read-only evidence plus archive candidate as a historical duplicat
   assert.equal(result.ok, true);
 });
 
+test('fails duplicate rows with the same source and status', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/history.md` | read-only evidence | Not fresh-turn authority; historical source. |',
+    '| `docs/history.md` | read-only evidence | Not fresh-turn authority; source material only. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.code === 'duplicate_source_status'));
+  assert.match(formatSourceInventoryReport(result), /each source\/status boundary must be unique/);
+});
+
 test('current source inventory classifies every canonical doc index entry', () => {
   const result = checkSourceInventory({ repoRoot: ROOT });
 
