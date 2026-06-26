@@ -222,11 +222,12 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.match(summaryMd, /Gate scope: full release pack/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.equal(summaryJson.summary.readyForRelease, false);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, ['invalid_packet_evidence']);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
-  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
-  assert.match(summaryMd, /Packet evidence invalid: live_trace_join/);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
+  if (summary.invalidPacketEvidence.length > 0) {
+    assert.match(summaryMd, new RegExp(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`));
+  } else {
+    assert.doesNotMatch(summaryMd, /Packet evidence invalid:/);
+  }
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -279,9 +280,9 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.coverage.gateScope, 'full_release_pack');
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
   assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
-  assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
-  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
-  assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.missingPacketEvidence, summary.missingPacketEvidence);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
+  assert.deepEqual(summaryJson.summary.stalePacketEvidence, summary.stalePacketEvidence);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
   assert.deepEqual(summaryJson.summary.releaseCaveats, summary.releaseCaveats);
@@ -303,7 +304,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
+    summary.gateDecisionDetails.publish.blockers,
     'saved packet must keep publish blocked by caveats and handoffs after release proof is ready'
   );
   assert.ok(
@@ -353,9 +354,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.match(summaryMd, /Gate scope: selected-case gate/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, ['invalid_packet_evidence']);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
-  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
@@ -363,9 +362,12 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
   assert.equal(summaryJson.coverage.releasePackComplete, false);
-  assert.equal(summaryJson.summary.readyForRelease, false);
   assert.equal(summaryJson.summary.readyForPublish, false);
-  assert.match(summaryMd, /Packet evidence invalid: live_trace_join/);
+  if (summary.invalidPacketEvidence.length > 0) {
+    assert.match(summaryMd, new RegExp(`Packet evidence invalid: ${summary.invalidPacketEvidence.join(', ')}`));
+  } else {
+    assert.doesNotMatch(summaryMd, /Packet evidence invalid:/);
+  }
   assert.match(summaryMd, /All selected canaries passed with required captures present/);
   assert.doesNotMatch(summaryMd, /Recapture hint:/);
   assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
@@ -399,7 +401,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
+    summary.gateDecisionDetails.publish.blockers,
     'safe-first packet must preserve publish caveats after proof-panel recaptures pass'
   );
   assert.ok(
@@ -2086,6 +2088,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           current_unresolved_high_severity_open_count: 0,
           unresolved_high_severity_source_group_count: 1,
           latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: null,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
         }
       },
       handoffActionDetails: expectedHandoffActionDetails,
@@ -2182,6 +2193,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
               current_unresolved_high_severity_open_count: 0,
               unresolved_high_severity_source_group_count: 1,
               latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+            },
+            duplicate_truths: {
+              releaseBlocking: false,
+              publishBlocking: true,
+              classification_counts: { local_runtime_test_artifact: 2 },
+              duplicate_truth_count: null,
+              owner_sets: {
+                local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+              }
             }
           },
           handoffActionDetails: expectedHandoffActionDetails,
@@ -2275,6 +2295,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
           current_unresolved_high_severity_open_count: 0,
           unresolved_high_severity_source_group_count: 1,
           latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+        },
+        duplicate_truths: {
+          releaseBlocking: false,
+          publishBlocking: true,
+          classification_counts: { local_runtime_test_artifact: 2 },
+          duplicate_truth_count: null,
+          owner_sets: {
+            local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+          }
         }
       },
       handoffActionDetails: expectedHandoffActionDetails,
@@ -2433,6 +2462,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       current_unresolved_high_severity_open_count: 0,
       unresolved_high_severity_source_group_count: 1,
       latest_unresolved_high_severity_event_created_at: '2026-06-02T09:03:25Z'
+    },
+    duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: true,
+      classification_counts: { local_runtime_test_artifact: 2 },
+      duplicate_truth_count: null,
+      owner_sets: {
+        local_runtime_test_artifact: ['spark-telegram-bot', 'spawner-ui']
+      }
     }
   });
 

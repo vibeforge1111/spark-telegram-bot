@@ -2461,6 +2461,8 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
   const builderFlags = (Array.isArray(builderTrace?.flags) ? builderTrace.flags : [])
     .map(safeStringToken)
     .filter((entry): entry is string => Boolean(entry));
+  const duplicateTruths = objectOrNull(parsed.duplicate_truths) ?? {};
+  const duplicateClassificationCounts = objectOrNull(duplicateTruths.classification_counts) ?? {};
   return {
     schema_version: safeStringToken(publishHandoffs.schema_version) || 'spark.publish_handoffs.summary.v0',
     family_count: families.length || numberOrNull(publishHandoffs.family_count) || 0,
@@ -2487,6 +2489,23 @@ function sparkOsCompilePublishHandoffs(value: string | null | undefined): Record
       latest_unresolved_high_severity_event_created_at: safeTimestampToken(
         builderTrace?.latest_unresolved_high_severity_event_created_at
       )
+    },
+    duplicate_truths: {
+      releaseBlocking: false,
+      publishBlocking: (numberOrNull(duplicateTruths.item_count) || 0) > 0 ||
+        Object.keys(duplicateClassificationCounts).length > 0,
+      classification_counts: Object.fromEntries(
+        Object.entries(duplicateClassificationCounts)
+          .map(([key, value]) => {
+            const safeKey = safeStringToken(key);
+            const count = numberOrNull(value);
+            return safeKey && count !== null && count > 0 ? [safeKey, count] : null;
+          })
+          .filter((entry): entry is [string, number] => Boolean(entry))
+          .sort(([a], [b]) => a.localeCompare(b))
+      ),
+      duplicate_truth_count: numberOrNull(duplicateTruths.item_count),
+      owner_sets: sanitizedDuplicateTruthOwnerSets(duplicateTruths)
     }
   };
 }
@@ -2818,6 +2837,22 @@ function releaseHandoffFamilyDetails(
       .map(objectOrNull)
       .find((entry) => entry && entry.repo === owner);
     return repoDetail ? JSON.parse(JSON.stringify(repoDetail)) as Record<string, unknown> : null;
+  }
+  const duplicateTruths = objectOrNull(publishHandoffs.duplicate_truths);
+  const ownerSets = objectOrNull(duplicateTruths?.owner_sets);
+  const ownersForFamily = Array.isArray(ownerSets?.[family])
+    ? ownerSets[family].map((entry) => String(entry || '').trim())
+    : [];
+  if (ownersForFamily.includes(owner)) {
+    return {
+      classification: family,
+      owner,
+      releaseBlocking: false,
+      publishBlocking: true,
+      duplicateTruthCount: numberOrNull(duplicateTruths?.duplicate_truth_count) ?? numberOrNull(duplicateTruths?.item_count),
+      criticalDuplicateTruthCount: numberOrNull(duplicateTruths?.critical_duplicate_truth_count),
+      ownerSet: ownersForFamily
+    };
   }
   const familyDetail = objectOrNull(publishHandoffs[family]);
   return familyDetail ? JSON.parse(JSON.stringify(familyDetail)) as Record<string, unknown> : null;

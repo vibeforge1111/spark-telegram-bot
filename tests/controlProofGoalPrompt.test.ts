@@ -19,6 +19,7 @@ const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-
 const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
 const RELIABILITY_CONTROL_WORKPLAN_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md');
 const RELIABILITY_CONTROL_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md');
+const CURRENT_RELIABILITY_CONTROL_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md');
 const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md');
 const RENDER_FIREWALL_PATH = resolve(ROOT, 'docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md');
 const TRACE_JOIN_CHECKER_PATH = resolve(ROOT, 'docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md');
@@ -60,9 +61,10 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /directly closes a measured control-proof gap/);
   assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26\.md/);
+  assert.match(index, /SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27\.md/);
   assert.match(index, /SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md/);
-  assert.match(index, /Prefer the newer reliability control goal prompt for active lanes/);
+  assert.match(index, /Prefer the 2026-06-27 reliability control goal prompt for active lanes/);
   assert.match(index, /SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md/);
   assert.match(index, /SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md/);
   assert.match(index, /SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md/);
@@ -97,12 +99,30 @@ test('active reliability control goal prompt stays compact and proof-first', () 
   assert.match(prompt, /Canary evidence distinguishes scoped release readiness from publish readiness/);
 });
 
+test('current reliability control goal prompt records latest proof-first baseline', () => {
+  const promptDoc = readFileSync(CURRENT_RELIABILITY_CONTROL_GOAL_PROMPT_PATH, 'utf8');
+  const prompt = promptDoc.match(/```text\n([\s\S]*?)\n```/)?.[1] ?? '';
+
+  assert.ok(prompt.length > 0, 'current reliability control goal prompt block missing');
+  assert.ok(prompt.length < 4000, `current reliability prompt is ${prompt.length} chars; must stay under 4000`);
+  assert.match(prompt, /control program, not a cleanup sprint/);
+  assert.match(prompt, /First reduce proof gaps and trace-join gaps\./);
+  assert.match(prompt, /Do not expand UI, media support, or new features unless they directly close a measured control-proof gap\./);
+  assert.match(prompt, /On 2026-06-27, `npm run control:proof:reliability`/);
+  assert.match(prompt, /Publish is separate\./);
+  assert.match(prompt, /Missing, stale, mismatched, or unjoined live rows are release blockers/);
+  assert.match(prompt, /Use the natural-language suite as fast breadth coverage and promotion material only/);
+  assert.match(prompt, /Do not widen UI, media, rich composition, or feature scope until proof gaps and trace joins are reduced/);
+});
+
 test('active reliability control workplan records status and task order', () => {
   const workplan = readFileSync(RELIABILITY_CONTROL_WORKPLAN_PATH, 'utf8');
 
   assert.match(workplan, /Current proof state:/);
+  assert.match(workplan, /Current writable-lane prompt: `docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27\.md`/);
   assert.match(workplan, /Full behavior proof is release-ready/);
   assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
+  assert.match(workplan, /On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests\/controlProofLiveCanaryPack\.test\.ts`, `npx ts-node tests\/controlProofGoalPrompt\.test\.ts`, and `npm run build` passed locally/);
   assert.match(workplan, /Current open handoffs:/);
   assert.match(workplan, /Current Proof Battery/);
   assert.match(workplan, /npm run control:proof:reliability/);
@@ -218,7 +238,8 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
   assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
   assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26\.md` \| active/);
-  assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26\.md` \| read-only evidence/);
   assert.match(inventory, /`docs\/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md` \| read-only evidence/);
   assert.match(inventory, /`docs\/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md` \| active/);

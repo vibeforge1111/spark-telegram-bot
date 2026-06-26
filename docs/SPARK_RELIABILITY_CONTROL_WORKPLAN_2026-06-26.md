@@ -9,6 +9,8 @@ This doc keeps the reliability work organized while the active goal prompt stays
 
 The current rule is proof first: reduce proof gaps, trace-join gaps, and hidden-source influence before expanding UI, media support, rich composition, or other new features.
 
+Current writable-lane prompt: `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md`.
+
 ## Current Baseline
 
 Already built or documented:
@@ -28,6 +30,7 @@ Current proof state:
 
 - Full behavior proof is release-ready in `outputs/live-canary-full/live-canary-summary.md` when it says `Gate scope: full release pack` and `Release gate: ready`.
 - Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows joined through user intent, route decision, action/no-action, and reply/proof evidence.
+- On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests/controlProofLiveCanaryPack.test.ts`, `npx ts-node tests/controlProofGoalPrompt.test.ts`, and `npm run build` passed locally.
 - Publish readiness remains separate. `Publish gate: not ready` means owner handoffs remain open and must not be described as registry or publish readiness.
 
 Current open handoffs:

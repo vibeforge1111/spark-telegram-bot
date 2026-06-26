@@ -33,7 +33,8 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md` | active | Current audit command map and gap classes. |
 | `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md` | active | Current baseline and gap register, with supersession notes for refreshed evidence. |
 | `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md` | active | Current organized reliability workplan and release-vs-publish handoff source. |
-| `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md` | active | Current under-4,000-character writable-lane prompt; supersedes the earlier reliability ladder prompt for active lanes. |
+| `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md` | active | Current under-4,000-character writable-lane prompt; starts from the 2026-06-27 local proof battery and keeps publish readiness separate. |
+| `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability control prompt; useful baseline, but superseded by the 2026-06-27 active prompt for new lanes. |
 | `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md` | read-only evidence | Previous reliability ladder prompt; useful historical baseline, not the active prompt for new lanes. |
 | `docs/TELEGRAM_COMPOSITION_STANDARD.md` | active | Human Telegram surface rules. |
 | `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md` | active | Current ordinary-vs-inspect Telegram render firewall behavior. |
