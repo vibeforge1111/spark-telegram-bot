@@ -50,6 +50,8 @@ The JSON summary carries `controlProofAuditDetails` from the fresh-strict trace 
 
 The JSON summary carries `gateScope` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should read `readyForRelease=true` as full release readiness only when `gateScope=full_release_pack`; `gateScope=selected_case_gate` proves the selected cases only.
 
+The human coverage report carries `Release-check scope` beside `Full release pack`. Operators should read `Release-check scope: full release readiness` as the full-pack release boundary and `Release-check scope: selected cases only; not a full release claim` as focused confidence only.
+
 The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat details, handoff details, per-action `handoffActionDetails` with normalized `releaseBlocking`/`publishBlocking` impact, and per-blocker `blockerDetails` joins instead of reconstructing the decision from prose lines.
 
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.

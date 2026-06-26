@@ -3216,6 +3216,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=full_release_pack/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=selected_case_gate/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope: full release readiness/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Release-check scope: selected cases only; not a full release claim/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateDecisionDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /control_proof_audit_blocking_gaps/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /release_gate_not_ready/);
