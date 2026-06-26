@@ -138,6 +138,12 @@ Update after reply-shape summary hardening on 2026-06-26:
 - This closes a control-proof projection gap for streaming and rich messages: `cp-streaming-001` now carries `compact_card` in the summary evidence, while `cp-streaming-002` carries `natural`.
 - The refreshed full and safe-first packets remain release-ready and publish-not-ready. Fresh-strict audit remains blocking-clean with zero missing evidence, missing trace joins, missing proof capsules, incomplete legacy-gap backing, latest proof gaps, raw leaks, robotic failure reasons, or stack-like leaks.
 
+Update after reply-shape contract and full evidence refresh on 2026-06-26:
+
+- Commit `ac17784` updated the generated canary bundle README contract so `summary.cases[].expectedReplyShape` is documented beside route, authority, mutation class, source refs, verdict, and missing captures. The release-bundle test now protects that field in generated README output.
+- Commit `8a7c1d8` refreshed `outputs/live-canary-full` runtime evidence from a clean committed source state. The packet reports runtime evidence collected at `2026-06-26T05:25:31.214Z`, release gate ready, and publish gate not ready.
+- The current publish blocker families are structured as `repo_release_blocks`, `local_runtime_test_artifacts`, and `builder_trace_health`. In `releaseCaveatDetails`, local-runtime evidence is stored under `duplicate_truths` with `label=local_runtime_test_artifacts`; in `publishHandoffs` and `releaseHandoffDetails`, use `local_runtime_test_artifacts` as the operator-facing family.
+
 Update after source-snapshot and registry-caveat hardening on 2026-06-25 12:38 +04:
 
 - Commits through `da9cedd` made the full SparkRecursive_bot canary packet reject stale source snapshots, classify runtime-ahead registry pin drift as `registry_pin_drift`, print release handoffs, and refresh the current runtime evidence from a clean tree.
