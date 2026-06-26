@@ -27,7 +27,7 @@ The gate fails:
 - generic chatbot phrases
 - ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings
 - bold Markdown, dash-family punctuation, emoji spam, or oversized paragraph dumps
-- proof-panel text leaking into natural surfaces
+- proof-panel and canary-summary status rows leaking into natural surfaces, such as `Blocking gap planes`, `Legacy proof gaps visible`, `Gate scope`, `Release gate`, or `Publish gate`
 
 ## Use
 

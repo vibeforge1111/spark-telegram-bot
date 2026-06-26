@@ -93,7 +93,7 @@ const ISSUE_RULES: Array<{ code: SurfaceEvalIssueCode; pattern: RegExp; detail: 
   },
   {
     code: 'proof_panel_on_natural_surface',
-    pattern: /\bHarness Proof\b|\bEvidence proof refs\b|\bAudit fresh-strict\b/i,
+    pattern: /\b(?:Harness Proof|Evidence proof (?:refs|capsules|gaps)|Audit (?:actionable|blocking|fresh-strict|posture)|Blocking gap planes|Legacy proof gaps visible|Gap counts:|Gate scope:|Release gate:|Publish gate:)\b/i,
     detail: 'Proof-panel text leaked into a natural surface.'
   }
 ];

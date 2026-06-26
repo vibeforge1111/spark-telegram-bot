@@ -78,6 +78,26 @@ test('surface eval catches legacy source references in observed replies', () => 
   assert.match(formatSurfaceEvalReport(result), /legacy_source_reference/);
 });
 
+test('surface eval catches proof-panel status rows in ordinary replies', () => {
+  const packet = fullPacket();
+  const entry = packet.cases.find((item) => item.id === 'cp-builder-001');
+  assert.ok(entry);
+  entry.observed.reply = [
+    'Here is the short answer.',
+    '',
+    'Blocking gap planes: none',
+    'Legacy proof gaps visible: 3'
+  ].join('\n');
+
+  const result = checkSurfaceEval({ observations: packet });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((issue) =>
+    issue.caseId === 'cp-builder-001' &&
+    issue.code === 'proof_panel_on_natural_surface'
+  ));
+});
+
 test('surface eval catches missing replies and oversized paragraphs', () => {
   const packet = fullPacket();
   const missing = packet.cases.find((item) => item.id === 'cp-authority-001');
