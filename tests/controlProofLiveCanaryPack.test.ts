@@ -237,6 +237,25 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
     summaryJson.summary.releaseHandoffDetails.every((entry: { familyDetails: unknown }) => entry.familyDetails),
     'saved summary must preserve handoff familyDetails joins'
   );
+  assert.deepEqual(
+    summaryJson.summary.gateDecisionDetails.publish.blockers,
+    ['release_caveats', 'release_handoffs'],
+    'saved release-ready packet must explain publish blockers without marking the release gate not ready'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'saved release handoffs must keep publish-only impact explicit'
+  );
+  assert.ok(
+    Object.values(summaryJson.summary.releaseCaveatDetails as Record<string, {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }>).every((entry) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'saved release caveats must keep publish-only impact explicit'
+  );
 });
 
 test('checked-in safe-first canary summary JSON matches the selected observation packet', () => {
