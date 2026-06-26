@@ -19,6 +19,7 @@ export interface LegacyPromptSurfaceGap {
   label: string;
   pattern: string;
   line: number;
+  reason?: 'blocked_ref_duplicate_id' | 'blocked_ref_duplicate_pattern' | 'blocked_ref_missing_repo_pattern';
 }
 
 export interface LegacyPromptSurfaceResult {
@@ -50,6 +51,10 @@ function findPattern(contents: string, pattern: string): number {
   return contents.toLocaleLowerCase().indexOf(pattern.toLocaleLowerCase());
 }
 
+function isRepoLocalPattern(pattern: string): boolean {
+  return /^(?:docs|ops|outputs|src)\//.test(pattern.trim());
+}
+
 export function checkLegacyPromptSurface(input: {
   repoRoot?: string;
   targets?: LegacyPromptSurfaceTarget[];
@@ -61,6 +66,55 @@ export function checkLegacyPromptSurface(input: {
   const gaps: LegacyPromptSurfaceGap[] = [];
   const missingFiles: string[] = [];
   let checkedFiles = 0;
+  const ids = new Map<string, LegacyPromptSurfaceRef>();
+  const patterns = new Map<string, LegacyPromptSurfaceRef>();
+
+  for (const ref of blockedRefs) {
+    const existingId = ids.get(ref.id);
+    if (existingId) {
+      gaps.push({
+        file: 'LEGACY_PROMPT_SURFACE_BLOCKED_REFS',
+        kind: 'prompt_source',
+        refId: ref.id,
+        label: ref.label,
+        pattern: ref.id,
+        line: 0,
+        reason: 'blocked_ref_duplicate_id'
+      });
+    } else {
+      ids.set(ref.id, ref);
+    }
+
+    if (!ref.patterns.some(isRepoLocalPattern)) {
+      gaps.push({
+        file: 'LEGACY_PROMPT_SURFACE_BLOCKED_REFS',
+        kind: 'prompt_source',
+        refId: ref.id,
+        label: ref.label,
+        pattern: ref.patterns.join(', '),
+        line: 0,
+        reason: 'blocked_ref_missing_repo_pattern'
+      });
+    }
+
+    for (const pattern of ref.patterns) {
+      const normalizedPattern = pattern.trim().toLocaleLowerCase();
+      const existingPattern = patterns.get(normalizedPattern);
+      if (existingPattern) {
+        gaps.push({
+          file: 'LEGACY_PROMPT_SURFACE_BLOCKED_REFS',
+          kind: 'prompt_source',
+          refId: ref.id,
+          label: ref.label,
+          pattern,
+          line: 0,
+          reason: 'blocked_ref_duplicate_pattern'
+        });
+      } else {
+        patterns.set(normalizedPattern, ref);
+      }
+    }
+  }
 
   for (const target of targets) {
     const fullPath = path.join(repoRoot, target.path);
@@ -111,7 +165,7 @@ export function formatLegacyPromptSurfaceReport(result: LegacyPromptSurfaceResul
   if (result.gaps.length) {
     lines.push('', 'Gap samples:');
     for (const gap of result.gaps.slice(0, 12)) {
-      lines.push(`- ${gap.file}:${gap.line} ${gap.refId} (${gap.kind}) | ${gap.label}`);
+      lines.push(`- ${gap.file}:${gap.line} ${gap.refId} (${gap.kind})${gap.reason ? ` ${gap.reason}` : ''} | ${gap.label}`);
     }
   }
 

@@ -65,6 +65,60 @@ test('checker reports legacy refs in prompt-facing files', () => {
   assert.match(formatLegacyPromptSurfaceReport(result), /legacy_nl_catalog/);
 });
 
+test('checker rejects duplicate blocked ref ids', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-legacy-prompt-surface-duplicate-id-'));
+  mkdirSync(path.join(root, 'src'), { recursive: true });
+  writeFileSync(path.join(root, 'src', 'llm.ts'), 'const prompt = "current";\n', 'utf8');
+
+  const result = checkLegacyPromptSurface({
+    repoRoot: root,
+    targets: [{ path: 'src/llm.ts', kind: 'prompt_source' }],
+    blockedRefs: [
+      { id: 'legacy_plan', label: 'legacy plan', patterns: ['ops/legacy-plan.md'] },
+      { id: 'legacy_plan', label: 'legacy plan duplicate', patterns: ['ops/legacy-plan-2.md'] }
+    ]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.reason === 'blocked_ref_duplicate_id'));
+  assert.match(formatLegacyPromptSurfaceReport(result), /blocked_ref_duplicate_id/);
+});
+
+test('checker rejects duplicate blocked ref patterns', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-legacy-prompt-surface-duplicate-pattern-'));
+  mkdirSync(path.join(root, 'src'), { recursive: true });
+  writeFileSync(path.join(root, 'src', 'llm.ts'), 'const prompt = "current";\n', 'utf8');
+
+  const result = checkLegacyPromptSurface({
+    repoRoot: root,
+    targets: [{ path: 'src/llm.ts', kind: 'prompt_source' }],
+    blockedRefs: [
+      { id: 'legacy_plan_one', label: 'legacy plan one', patterns: ['ops/legacy-plan.md'] },
+      { id: 'legacy_plan_two', label: 'legacy plan two', patterns: ['OPS/LEGACY-PLAN.md'] }
+    ]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.reason === 'blocked_ref_duplicate_pattern'));
+});
+
+test('checker rejects blocked refs without repo-local inventory patterns', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'spark-legacy-prompt-surface-missing-repo-pattern-'));
+  mkdirSync(path.join(root, 'src'), { recursive: true });
+  writeFileSync(path.join(root, 'src', 'llm.ts'), 'const prompt = "current";\n', 'utf8');
+
+  const result = checkLegacyPromptSurface({
+    repoRoot: root,
+    targets: [{ path: 'src/llm.ts', kind: 'prompt_source' }],
+    blockedRefs: [
+      { id: 'legacy_title_only', label: 'legacy title only', patterns: ['legacy title only'] }
+    ]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.reason === 'blocked_ref_missing_repo_pattern'));
+});
+
 test('checker reports legacy source titles without exact file paths', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'spark-legacy-prompt-surface-title-'));
   mkdirSync(path.join(root, 'src'), { recursive: true });

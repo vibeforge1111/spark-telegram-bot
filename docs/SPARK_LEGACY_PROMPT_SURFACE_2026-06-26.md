@@ -9,6 +9,8 @@ Legacy source material can remain useful for history, breadth, and explicit insp
 
 This gate checks prompt-facing source files and human canary summary markdown for specific historical plans, catalogs, runbooks, handoff folders, and common human-readable titles that are classified as read-only evidence or archive candidates in `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`.
 
+The blocked-reference list is also checked as a control source. Each blocked ref must have a unique id, unique patterns, and at least one repo-local pattern under `docs/`, `ops/`, `outputs/`, or `src/` so the source inventory can join the prompt block back to a classified source.
+
 ## Command
 
 ```bash
@@ -36,3 +38,5 @@ A strict failure means a legacy plan/source name or title reached a prompt or hu
 - move the historical detail behind an explicit inspect/raw/debug surface.
 
 Do not silence the failure by renaming old evidence as current authority.
+
+If the failure names `LEGACY_PROMPT_SURFACE_BLOCKED_REFS`, repair the blocklist itself before trusting downstream prompt, render-firewall, or source-inventory gates.
