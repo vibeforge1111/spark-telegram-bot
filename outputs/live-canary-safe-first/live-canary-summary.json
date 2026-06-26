@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T01:08:45.244Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T01:08:45.244Z",
+    "generatedAt": "2026-06-26T01:18:26.419Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T01:18:26.419Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T02:08:45.244Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T02:18:26.419Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -1008,7 +1008,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T01:08:45.231Z",
+      "generatedAt": "2026-06-26T01:18:26.406Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -1485,10 +1485,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T01:08:45.244Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T01:08:45.244Z",
+      "generatedAt": "2026-06-26T01:18:26.419Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T01:18:26.419Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T02:08:45.244Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T02:18:26.419Z",
       "missing": [],
       "invalid": [],
       "stale": []
@@ -1507,6 +1507,7 @@
         "expectedRoute": "plain_conversation",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       },
       {
@@ -1515,6 +1516,7 @@
         "expectedRoute": "proof.inspect",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "proof_panel",
         "missingCaptures": []
       },
       {
@@ -1530,6 +1532,7 @@
         "expectedRoute": "streaming.status",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "compact_card",
         "missingCaptures": []
       },
       {
@@ -1545,6 +1548,7 @@
         "expectedRoute": "plain_chat.rich_message_render",
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
+        "expectedReplyShape": "natural",
         "missingCaptures": []
       }
     ]
