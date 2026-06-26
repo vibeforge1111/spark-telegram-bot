@@ -1210,7 +1210,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     'Private chats only.'
   ].join('\n');
   template.cases[0].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram with no duplicate preview.';
-  template.cases[1].observed.reply = 'Spark Recursive\nCheck received.\n\nShort code token: ok';
+  template.cases[1].observed.reply = 'Spark Recursive\nCheck: clean.\n\nToken: ok';
   template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';
   template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
   const cleanStreamingProof = summarizeControlProofCanaryObservations(template);

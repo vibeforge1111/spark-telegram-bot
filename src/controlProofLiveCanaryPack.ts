@@ -3028,7 +3028,7 @@ function hasStreamingStatusProofShape(value: string): boolean {
 }
 
 function hasRichMessageProofShape(value: string): boolean {
-  return /\b(?:Status:|Check (?:received|passed)|rich(?:-message|\s+formatting)|formatting)/i.test(value) &&
+  return /\b(?:Check\s*(?::|(?:received|passed))|rich(?:-message|\s+formatting)|formatting)/i.test(value) &&
     /\b(?:Short\s+code\s+token|Token):\s*\S+/i.test(value);
 }
 
