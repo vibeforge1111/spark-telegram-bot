@@ -29,6 +29,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md` | active | Current proof work plan and release/publish boundary record. |
 | `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md` | active | Compact execution prompt; stays under 4,000 characters. |
 | `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md` | active | Canonical doc router and stale-doc rule. |
+| `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md` | active | Source-boundary inventory; must classify itself and every canonical docs-index entry before fresh-turn use. |
 | `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md` | active | Current audit command map and gap classes. |
 | `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md` | active | Current baseline and gap register, with supersession notes for refreshed evidence. |
 | `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md` | active | Current organized reliability workplan and release-vs-publish handoff source. |
@@ -56,6 +57,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `ops/natural-language-live-commands.json` | read-only evidence | Broad legacy Telegram NL catalog; source material only until promoted into canaries. |
 | `ops/genesis-live-telegram-100.json` | read-only evidence | Historical breadth benchmark and periodic drift sweep, not everyday release proof. |
 | `ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md` | read-only evidence | Live prompt-card workflow and old matrix history; `nl:live` alone is not control-proof readiness. |
+| `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md` | read-only evidence | Audit of older natural-language suites; promotion source only until a named proof or trace gap promotes a case. |
 | `ops/routeBoundaryHandlerHarness.ts` | read-only evidence | Fast Telegram-shaped route-boundary and trace-join helper; it proves handler joins but still does not prove live Bot API delivery, streaming, or rich rendering. |
 | `ops/liveNlCommandSuite.ts` | read-only evidence | Legacy NL runner and Harness map helper; not release proof. |
 | `ops/liveNlVerdictReport.ts` | read-only evidence | Legacy evidence exporter with `claim_scope=legacy_breadth`, `release_gate=none`. |

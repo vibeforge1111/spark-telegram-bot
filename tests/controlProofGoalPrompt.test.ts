@@ -109,6 +109,7 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Expanded form:/);
   assert.match(workplan, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(workplan, /npm run control:proof:live-trace/);
+  assert.match(workplan, /npm run control:proof:source-inventory/);
   assert.match(workplan, /npm run control:proof:render-firewall/);
   assert.match(workplan, /npm run control:proof:capsules -- --strict/);
   assert.match(workplan, /npm run control:proof:evals -- --strict/);
@@ -116,7 +117,7 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /npm run control:proof:capabilities -- --strict/);
   assert.match(workplan, /npm run control:proof:surface -- --strict/);
   assert.match(workplan, /missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks/);
-  assert.match(workplan, /render-firewall redaction, action-capable proof policy coverage, old-edge eval coverage, legacy prompt\/UI summary leaks, capability last-success and last-failure\/boundary evidence/);
+  assert.match(workplan, /source-inventory classification, render-firewall redaction, action-capable proof policy coverage, old-edge eval coverage, legacy prompt\/UI summary leaks, capability last-success and last-failure\/boundary evidence/);
   assert.match(workplan, /Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete/);
   assert.match(workplan, /Active Task Order/);
   assert.match(workplan, /Reduce proof gaps and trace-join gaps/);
@@ -134,12 +135,24 @@ test('package exposes one-command reliability proof battery', () => {
 
   assert.match(script, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(script, /npm run control:proof:live-trace/);
+  assert.match(script, /npm run control:proof:source-inventory/);
   assert.match(script, /npm run control:proof:render-firewall/);
   assert.match(script, /npm run control:proof:capsules -- --strict/);
   assert.match(script, /npm run control:proof:evals -- --strict/);
   assert.match(script, /npm run control:proof:legacy-prompts -- --strict/);
   assert.match(script, /npm run control:proof:capabilities -- --strict/);
   assert.match(script, /npm run control:proof:surface -- --strict/);
+});
+
+test('package exposes named source inventory proof gate', () => {
+  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+
+  assert.equal(
+    packageJson.scripts?.['control:proof:source-inventory'],
+    'ts-node ops/controlProofSourceInventory.ts --strict'
+  );
 });
 
 test('package exposes named render firewall proof gate', () => {
@@ -200,6 +213,8 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /Legacy material must not reach prompts, Telegram replies, UI summaries, canary release claims, or publish claims unless it is explicitly inspected and joined to current Harness Core proof/);
   assert.match(inventory, /`ops\/natural-language-live-commands\.json` \| read-only evidence/);
   assert.match(inventory, /`ops\/genesis-live-telegram-100\.json` \| read-only evidence/);
+  assert.match(inventory, /`docs\/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24\.md` \| read-only evidence/);
   assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
   assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
   assert.match(inventory, /`docs\/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26\.md` \| active/);

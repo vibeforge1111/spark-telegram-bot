@@ -45,6 +45,7 @@ const tests = [
   'tests/telegramMediaTrace.test.ts',
   'tests/telegramImageBridge.test.ts',
   'tests/controlProofTraceAudit.test.ts',
+  'tests/controlProofSourceInventory.test.ts',
   'tests/controlProofCapsuleCoverage.test.ts',
   'tests/controlProofReliabilityEvalCoverage.test.ts',
   'tests/controlProofLegacyPromptSurface.test.ts',
