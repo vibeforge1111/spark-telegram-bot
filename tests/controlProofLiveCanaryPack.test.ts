@@ -320,6 +320,25 @@ test('checked-in safe-first canary summary JSON matches the selected observation
     'natural',
     'safe-first summary must preserve rich-message reply-shape expectation'
   );
+  assert.deepEqual(
+    summaryJson.summary.gateDecisionDetails.publish.blockers,
+    ['release_caveats', 'release_handoffs'],
+    'safe-first release-ready packet must explain publish blockers without marking the release gate not ready'
+  );
+  assert.ok(
+    summaryJson.summary.releaseHandoffDetails.every((entry: {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'safe-first release handoffs must keep publish-only impact explicit'
+  );
+  assert.ok(
+    Object.values(summaryJson.summary.releaseCaveatDetails as Record<string, {
+      releaseBlocking?: unknown;
+      publishBlocking?: unknown;
+    }>).every((entry) => entry.releaseBlocking === false && entry.publishBlocking === true),
+    'safe-first release caveats must keep publish-only impact explicit'
+  );
   assert.ok(
     summaryJson.summary.cases.every((entry: {
       expectedRoute?: unknown;
