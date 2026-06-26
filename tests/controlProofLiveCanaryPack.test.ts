@@ -3062,6 +3062,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /expectedReplyShape/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /sourceRefs/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /observed replies/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /controlProofAuditDetails\.actionableStatus/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /freshStrictOk/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gapPosture/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /controlProofAuditDetails\.legacyGapBackingDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /releaseBlocking=false/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Legacy gap backing/);
