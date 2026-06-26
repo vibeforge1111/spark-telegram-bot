@@ -33,24 +33,6 @@
           "canary_case_failures": {
             "cases": [
               {
-                "id": "cp-noaction-003",
-                "verdict": "pass",
-                "missingCaptures": [
-                  "proof_panel_actionable_status",
-                  "proof_panel_fresh_strict_status",
-                  "proof_panel_gap_posture"
-                ]
-              },
-              {
-                "id": "cp-noaction-004",
-                "verdict": "pass",
-                "missingCaptures": [
-                  "proof_panel_actionable_status",
-                  "proof_panel_fresh_strict_status",
-                  "proof_panel_gap_posture"
-                ]
-              },
-              {
                 "id": "cp-authority-001",
                 "verdict": "pass",
                 "missingCaptures": [
@@ -521,24 +503,6 @@
         },
         "failingCases": [
           {
-            "id": "cp-noaction-003",
-            "verdict": "pass",
-            "missingCaptures": [
-              "proof_panel_actionable_status",
-              "proof_panel_fresh_strict_status",
-              "proof_panel_gap_posture"
-            ]
-          },
-          {
-            "id": "cp-noaction-004",
-            "verdict": "pass",
-            "missingCaptures": [
-              "proof_panel_actionable_status",
-              "proof_panel_fresh_strict_status",
-              "proof_panel_gap_posture"
-            ]
-          },
-          {
             "id": "cp-authority-001",
             "verdict": "pass",
             "missingCaptures": [
@@ -727,24 +691,6 @@
             "releaseBlockerDetails": {
               "canary_case_failures": {
                 "cases": [
-                  {
-                    "id": "cp-noaction-003",
-                    "verdict": "pass",
-                    "missingCaptures": [
-                      "proof_panel_actionable_status",
-                      "proof_panel_fresh_strict_status",
-                      "proof_panel_gap_posture"
-                    ]
-                  },
-                  {
-                    "id": "cp-noaction-004",
-                    "verdict": "pass",
-                    "missingCaptures": [
-                      "proof_panel_actionable_status",
-                      "proof_panel_fresh_strict_status",
-                      "proof_panel_gap_posture"
-                    ]
-                  },
                   {
                     "id": "cp-authority-001",
                     "verdict": "pass",
@@ -1515,24 +1461,6 @@
           "stale": []
         },
         "failingCases": [
-          {
-            "id": "cp-noaction-003",
-            "verdict": "pass",
-            "missingCaptures": [
-              "proof_panel_actionable_status",
-              "proof_panel_fresh_strict_status",
-              "proof_panel_gap_posture"
-            ]
-          },
-          {
-            "id": "cp-noaction-004",
-            "verdict": "pass",
-            "missingCaptures": [
-              "proof_panel_actionable_status",
-              "proof_panel_fresh_strict_status",
-              "proof_panel_gap_posture"
-            ]
-          },
           {
             "id": "cp-authority-001",
             "verdict": "pass",
@@ -2392,11 +2320,7 @@
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
         "expectedReplyShape": "natural",
-        "missingCaptures": [
-          "proof_panel_actionable_status",
-          "proof_panel_fresh_strict_status",
-          "proof_panel_gap_posture"
-        ]
+        "missingCaptures": []
       },
       {
         "id": "cp-noaction-004",
@@ -2417,11 +2341,7 @@
         "expectedAuthority": "chat_only",
         "expectedMutationClass": "none",
         "expectedReplyShape": "natural",
-        "missingCaptures": [
-          "proof_panel_actionable_status",
-          "proof_panel_fresh_strict_status",
-          "proof_panel_gap_posture"
-        ]
+        "missingCaptures": []
       },
       {
         "id": "cp-authority-001",
