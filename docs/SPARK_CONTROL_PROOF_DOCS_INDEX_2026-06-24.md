@@ -40,19 +40,23 @@ Read these in order:
    - Audit of the older `nl:live` and Genesis natural-language suites.
    - Source for the decision to keep them as broad regression catalogs, not the new control-proof release gate.
 
-8. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+8. `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`
+   - Source-boundary inventory for legacy plans, catalogs, runbooks, and evidence.
+   - Source for classifying material as active, read-only evidence, archive candidate, or delete candidate.
+
+9. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-9. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+10. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-10. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+11. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-11. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+12. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -101,12 +105,14 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Harness boundary changes update `TURNINTENT_HARNESS_RULESET.md` or `SPARK_HARNESS_CONTRACT.md`.
 - Voice behavior updates `VOICE_RUNTIME_ARCHITECTURE.md`.
 - Natural-language suite usage changes update `SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`.
+- Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`.
 
 ## Done Definition
 
 The documentation is current when:
 
 - A new contributor can find the plan, the prompt, the audit, and the release gate from this index.
+- Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn.
 - No canonical doc says tracing, memory, keywords, pending state, provider output, or mission ids authorize action.
 - Every shipped control-proof slice has matching tests and matching docs.
 - The live canary suite links to current docs and records where proof should appear.

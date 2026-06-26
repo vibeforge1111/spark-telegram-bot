@@ -16,6 +16,7 @@ const ROOT = resolve(__dirname, '..');
 const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md');
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
+const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -46,6 +47,9 @@ test('docs index routes future work through the proof-first entry condition', ()
 
   assert.match(index, /reduce proof gaps and trace-join gaps before expanding UI, media support, or new visible features/);
   assert.match(index, /directly closes a measured control-proof gap/);
+  assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
+  assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
+  assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
 
 test('control-proof plan documents current proof repair and release boundaries', () => {
@@ -86,6 +90,21 @@ test('natural-language refurbishment keeps promotion proof-first', () => {
   assert.match(audit, /keep it as legacy breadth or archive it until a proof gap names the missing authority, side effect, trace join, proof join, reply shape, or live Telegram evidence\./);
   assert.match(plan, /Feature boundary: do not use legacy NL cases to expand UI, media support, rich composition, or new features/);
   assert.match(plan, /unless the mapped case names the measured control-proof or trace-join gap it closes/);
+});
+
+test('legacy source inventory classifies old plans before fresh-turn use', () => {
+  const inventory = readFileSync(LEGACY_SOURCE_INVENTORY_PATH, 'utf8');
+
+  assert.match(inventory, /active`, `read-only evidence`, `archive candidate`, or `delete candidate`/);
+  assert.match(inventory, /Legacy material must not reach prompts, Telegram replies, UI summaries, canary release claims, or publish claims unless it is explicitly inspected and joined to current Harness Core proof/);
+  assert.match(inventory, /`ops\/natural-language-live-commands\.json` \| read-only evidence/);
+  assert.match(inventory, /`ops\/genesis-live-telegram-100\.json` \| read-only evidence/);
+  assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
+  assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
+  assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
+  assert.match(inventory, /None in this pass/);
+  assert.match(inventory, /Add a render firewall/);
+  assert.match(inventory, /user intent -> route decision -> action\/no-action -> reply/);
 });
 
 test('preflight result marks stale safe-first recapture advice as superseded', () => {
