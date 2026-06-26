@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -922,16 +922,22 @@ export async function syncRecursiveArtifactToWorkspace(input: RecursiveArtifactS
     workspaceId: config.workspaceId,
     accessToken: config.accessToken
   });
-  const { stdout } = await execFileAsync(
-    python,
-    bridgeArgs,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
-    }
-  );
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      python,
+      bridgeArgs,
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    ));
+  } finally {
+    // Clean the per-run scratch directory so /tmp does not grow unbounded over many syncs.
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 
   return {
     synced: true,
@@ -1404,7 +1410,12 @@ async function syncBuilderChipLoopViaBridge(
   const tempDir = await mkdtemp(path.join(tmpdir(), 'spark-builder-chip-'));
   const inputPath = path.join(tempDir, 'chip-loop-result.json');
   const payloadPath = path.join(tempDir, 'collective-sync.json');
-  await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+  try {
+    await writeFile(inputPath, JSON.stringify(buildBuilderChipLoopBridgeInput(result, emittedAt), null, 2), 'utf-8');
+  } catch (writeError) {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    throw writeError;
+  }
 
   const python = (
     process.env.SPARK_SWARM_BRIDGE_PYTHON ||
@@ -1441,16 +1452,22 @@ async function syncBuilderChipLoopViaBridge(
   if (config.apiUrl) args.push('--api-url', config.apiUrl);
   if (config.accessToken) args.push('--access-token', config.accessToken);
 
-  const { stdout } = await execFileAsync(
-    python,
-    args,
-    {
-      env,
-      timeout: 30000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024
-    }
-  );
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      python,
+      args,
+      {
+        env,
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024
+      }
+    ));
+  } finally {
+    // Clean the per-run scratch directory so /tmp does not grow unbounded over many syncs.
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 
   return {
     synced: true,
@@ -2323,7 +2340,7 @@ export function buildRecursiveArtifactBridgeArgs(
 
 function truncate(value: string, limit: number): string {
   const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
-  return clean.length <= limit ? clean : `${clean.slice(0, limit - 1).trim()}...`;
+  return clean.length <= limit ? clean : `${clean.slice(0, limit - 3).trim()}...`;
 }
 
 function formatBestSignal(value: string): string {
@@ -2391,7 +2408,7 @@ function sentenceCaseFirst(value: string): string {
 function truncateAtWord(value: string, limit: number): string {
   const clean = normalizeKnownAcronyms(value.replace(/\s+/g, ' ').trim());
   if (clean.length <= limit) return clean;
-  const clipped = clean.slice(0, limit - 1);
+  const clipped = clean.slice(0, limit - 3);
   const lastSpace = clipped.lastIndexOf(' ');
   const prefix = lastSpace > Math.floor(limit * 0.6) ? clipped.slice(0, lastSpace) : clipped;
   return `${prefix.trim()}...`;
@@ -2464,7 +2481,6 @@ function inferOutcomeVerdict(rawVerdict: string | null | undefined, metric: numb
   if (/\b(regress\w*|worse|failed|revert\w*)\b/.test(normalized)) return 'regressed';
   if (/\b(flat|same|no[_ -]?gain)\b/.test(normalized)) return 'flat';
   if (/\b(improv\w*|kept|keep|accepted|better|pass\w*)\b/.test(normalized)) return 'improved';
-  if (typeof metric === 'number' && metric > 0) return 'improved';
   return 'flat';
 }
 
@@ -3182,12 +3198,18 @@ function bestComparableOutcome(
   );
   if (comparable.length === 0) return null;
 
+  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+
   const selectedBest = bestOutcomeId
     ? comparable.find((outcome) => outcome.id === bestOutcomeId)
     : null;
-  if (selectedBest) return selectedBest;
-
-  const lowerIsBetter = metricGoalPrefersLower(latestOutcome);
+  if (selectedBest) {
+    const bestMetric = selectedBest.metricValue as number;
+    const isActuallyBest = lowerIsBetter
+      ? comparable.every((o) => (o.metricValue as number) >= bestMetric)
+      : comparable.every((o) => (o.metricValue as number) <= bestMetric);
+    if (isActuallyBest) return selectedBest;
+  }
   return comparable.slice().sort((a, b) =>
     lowerIsBetter
       ? (a.metricValue as number) - (b.metricValue as number)

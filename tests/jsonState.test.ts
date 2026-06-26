@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  closeJsonState,
   readJsonFile,
   resetJsonStateForTests,
   resolveStatePath,
@@ -79,6 +80,21 @@ async function captureWarnings(fn: () => Promise<void>): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
+  await test('closeJsonState is idempotent and reopens lazily (#839)', async () => {
+    await withTempState(async () => {
+      const stateFile = resolveStatePath('.spark-conversation-memory.json');
+      // Opens the underlying DB handle.
+      await writeJsonAtomic(stateFile, { graceful: 'shutdown' });
+
+      // First close tears down the handle; second close must be a no-op.
+      closeJsonState();
+      assert.doesNotThrow(() => closeJsonState());
+
+      // A read after close must still succeed by reopening the DB lazily.
+      assert.deepEqual(await readJsonFile(stateFile), { graceful: 'shutdown' });
+    });
+  });
+
   await test('restores fresh gateway DB state rows', async () => {
     await withTempState(async () => {
       const stateFile = resolveStatePath('.spark-conversation-memory.json');

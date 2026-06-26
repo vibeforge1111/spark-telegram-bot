@@ -53,6 +53,9 @@ export async function buildVoiceBridgeUpdate(
     const startedAt = Date.now();
     const maxBytes = voiceDownloadMaxBytes();
     const fileLink = await ctx.telegram.getFileLink(fileId);
+    if (!fileLink.toString().startsWith('https://api.telegram.org/')) {
+      throw new Error('Invalid file link: expected api.telegram.org host.');
+    }
     const response = await fetchImpl(fileLink);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());

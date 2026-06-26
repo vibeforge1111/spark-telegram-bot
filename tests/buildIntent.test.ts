@@ -466,3 +466,22 @@ test('standalone decline verbs still veto build execution', () => {
   assert.equal(parseBuildIntent('Build me a todo app. Hold off and cancel that for now.'), null);
   assert.equal(parseBuildIntent('Build me a todo app. Stop, lets discuss first.'), null);
 });
+
+test('product-phrase project name extraction is unchanged after regex hoist (#830)', () => {
+  // Regression guard for hoisting inferProductPhraseProjectName's regexes to
+  // module scope (PRODUCT_PHRASE_PATTERNS / PRODUCT_TYPE_TAIL). The phrase
+  // forms (^, build/create..., i want...) and the product-type tail must keep
+  // producing the same names — including the dashboard tail and the board tail
+  // kept from the wave1 base productType list.
+  const landing = parseBuildIntent('Build a tiny static landing page for a cafe with a menu section.');
+  assert.ok(landing, 'landing-page build request must still parse');
+  assert.equal(landing.projectName, 'Cafe Landing Page');
+
+  const dashboard = parseBuildIntent('Build a revenue dashboard that tracks weekly sales.');
+  assert.ok(dashboard, 'dashboard build request must still parse');
+  assert.match(dashboard.projectName, /dashboard/i);
+
+  const board = parseBuildIntent('Build a kanban board that tracks open tickets.');
+  assert.ok(board, 'board build request must still parse (wave1 productType tail)');
+  assert.match(board.projectName, /board/i);
+});

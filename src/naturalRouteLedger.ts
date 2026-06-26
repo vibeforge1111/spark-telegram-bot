@@ -126,11 +126,17 @@ export function appendNaturalRouteExecutionRecordSync(
 }
 
 export function parseNaturalRouteExecutionLedger(jsonl: string): NaturalRouteExecutionRecord[] {
-  return jsonl
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as NaturalRouteExecutionRecord);
+  const records: NaturalRouteExecutionRecord[] = [];
+  for (const line of jsonl.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      records.push(JSON.parse(trimmed) as NaturalRouteExecutionRecord);
+    } catch {
+      // Skip malformed JSONL lines instead of crashing the entire bot
+    }
+  }
+  return records;
 }
 
 export async function readNaturalRouteExecutionLedger(filePath = naturalRouteLedgerPath()): Promise<NaturalRouteExecutionRecord[]> {

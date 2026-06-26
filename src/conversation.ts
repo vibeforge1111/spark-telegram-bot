@@ -329,6 +329,7 @@ export class ConversationMemory {
   private readonly maxRecent = 40;
   private readonly maxNotes = 20;
   private loaded = false;
+  private loadingPromise: Promise<void> | null = null;
   private readonly statePath = resolveStatePath('.spark-conversation-memory.json');
 
   isAdmin(user: TelegramUser): boolean {
@@ -349,6 +350,13 @@ export class ConversationMemory {
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
+    if (this.loadingPromise) return this.loadingPromise;
+    this.loadingPromise = this._doLoad();
+    await this.loadingPromise;
+    this.loadingPromise = null;
+  }
+
+  private async _doLoad(): Promise<void> {
     const snapshot = await readJsonFile<ConversationSnapshot>(this.statePath);
     if (snapshot?.recentByUser) {
       for (const [key, value] of Object.entries(snapshot.recentByUser)) {
@@ -414,12 +422,19 @@ export class ConversationMemory {
     for (const [key, value] of this.frameStateByUser.entries()) {
       frameStateByUser[String(key)] = value;
     }
-    await writeJsonAtomic(this.statePath, {
-      recentByUser: this.recordFromMap(this.recentByUser),
-      notesByUser: this.recordFromMap(this.notesByUser),
-      interruptedByUser,
-      frameStateByUser
-    });
+    try {
+      await writeJsonAtomic(this.statePath, {
+        recentByUser: this.recordFromMap(this.recentByUser),
+        notesByUser: this.recordFromMap(this.notesByUser),
+        interruptedByUser,
+        frameStateByUser
+      });
+    } catch (error) {
+      // Diagnostic only: callers already swallow persist() rejections, so this
+      // makes the failure visible in logs without changing control flow.
+      console.error('[ConversationMemory] persist failed:', error);
+      throw error;
+    }
   }
 
   private async pushBounded(map: Map<number, string[]>, key: number, value: string, limit: number): Promise<void> {
@@ -661,6 +676,18 @@ export class ConversationMemory {
 
   async isAvailable(): Promise<boolean> {
     return true;
+  }
+
+  async resetUser(user: TelegramUser, keepNotes: boolean = false): Promise<void> {
+    await this.ensureLoaded();
+    const key = this.userKey(user);
+    this.recentByUser.delete(key);
+    this.interruptedByUser.delete(key);
+    this.frameStateByUser.delete(key);
+    if (!keepNotes) {
+      this.notesByUser.delete(key);
+    }
+    await this.persist();
   }
 }
 
