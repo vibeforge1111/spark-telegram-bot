@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T03:14:22.058Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T03:14:22.058Z",
+    "generatedAt": "2026-06-26T03:30:00.832Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T03:30:00.832Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T04:14:22.058Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T04:30:00.832Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -26,7 +26,7 @@
         "blockers": [],
         "blockerDetails": {},
         "caveats": [
-          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
           "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
           "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
@@ -38,7 +38,7 @@
               "historical_open_high_severity_events"
             ],
             "status": "current_clean",
-            "window": "24h",
+            "window": "1h",
             "missing_trace_ref_count": 0,
             "one_hour_missing_trace_ref_count": 0,
             "historical_missing_trace_ref_count": 0,
@@ -344,7 +344,7 @@
                   "historical_open_high_severity_events"
                 ],
                 "status": "current_clean",
-                "window": "24h",
+                "window": "1h",
                 "missing_trace_ref_count": 0,
                 "one_hour_missing_trace_ref_count": 0,
                 "historical_missing_trace_ref_count": 0,
@@ -629,7 +629,7 @@
           }
         },
         "caveats": [
-          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+          "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
           "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
           "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
@@ -641,7 +641,7 @@
               "historical_open_high_severity_events"
             ],
             "status": "current_clean",
-            "window": "24h",
+            "window": "1h",
             "missing_trace_ref_count": 0,
             "one_hour_missing_trace_ref_count": 0,
             "historical_missing_trace_ref_count": 0,
@@ -927,7 +927,7 @@
       }
     },
     "releaseCaveats": [
-      "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=24h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
+      "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
       "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
       "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
     ],
@@ -939,7 +939,7 @@
           "historical_open_high_severity_events"
         ],
         "status": "current_clean",
-        "window": "24h",
+        "window": "1h",
         "missing_trace_ref_count": 0,
         "one_hour_missing_trace_ref_count": 0,
         "historical_missing_trace_ref_count": 0,
@@ -1013,7 +1013,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T03:14:20.290Z",
+      "generatedAt": "2026-06-26T03:29:58.947Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "freshStrictOk": true,
@@ -1072,17 +1072,17 @@
             {
               "label": "builder_gateway",
               "sampledRows": 100,
-              "totalRows": 522,
+              "totalRows": 524,
               "requestPresent": 100,
               "tracePresent": 100,
               "proofPresent": 100,
               "proofRefPresent": 100,
               "proofCapsulePresent": 72,
               "proofNotApplicable": 0,
-              "proofGap": 55,
-              "gapCapsule": 55,
-              "gapCapsuleValid": 55,
-              "gapRef": 55,
+              "proofGap": 53,
+              "gapCapsule": 53,
+              "gapCapsuleValid": 53,
+              "gapRef": 53,
               "gapBacking": "complete",
               "latestGap": false,
               "rawRefs": 0,
@@ -1135,9 +1135,9 @@
           "repairSource": "builder_gateway_trace_legacy_repair",
           "latestGap": false,
           "releaseBlocking": false,
-          "proofGapMarked": 55,
+          "proofGapMarked": 53,
           "incompleteBacking": 0,
-          "latestRecordAt": "2026-06-25T23:47:10+00:00",
+          "latestRecordAt": "2026-06-26T03:24:11+00:00",
           "repairCommand": "npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"
         },
         {
@@ -1156,7 +1156,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7554,
+          "totalRows": 7556,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1177,12 +1177,12 @@
         {
           "label": "telegram_outbound",
           "sampledRows": 100,
-          "totalRows": 1614,
+          "totalRows": 1616,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
           "proofRefPresent": 100,
-          "proofCapsulePresent": 88,
+          "proofCapsulePresent": 89,
           "proofNotApplicable": 0,
           "proofGap": 0,
           "gapCapsule": 0,
@@ -1219,17 +1219,17 @@
         {
           "label": "builder_gateway",
           "sampledRows": 100,
-          "totalRows": 522,
+          "totalRows": 524,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
           "proofRefPresent": 100,
           "proofCapsulePresent": 72,
           "proofNotApplicable": 0,
-          "proofGap": 55,
-          "gapCapsule": 55,
-          "gapCapsuleValid": 55,
-          "gapRef": 55,
+          "proofGap": 53,
+          "gapCapsule": 53,
+          "gapCapsuleValid": 53,
+          "gapRef": 53,
           "gapBacking": "complete",
           "latestGap": false,
           "rawRefs": 0,
@@ -1549,10 +1549,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T03:14:22.058Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T03:14:22.058Z",
+      "generatedAt": "2026-06-26T03:30:00.832Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T03:30:00.832Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T04:14:22.058Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T04:30:00.832Z",
       "missing": [],
       "invalid": [],
       "stale": []
