@@ -69,15 +69,19 @@ Read these in order:
    - Active reliability eval coverage implementation note.
    - Source for old-edge eval coverage categories.
 
-15. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+15. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
+   - Active legacy prompt/UI summary surface gate.
+   - Source for keeping read-only legacy plans out of ordinary prompt and human summary surfaces unless explicitly inspected.
+
+16. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-16. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+17. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-17. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+18. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -123,6 +127,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 - Trace audit commands update `SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`.
 - Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`.
 - Reliability eval coverage behavior updates `SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`.
+- Legacy prompt/UI summary surface behavior updates `SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
 - Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`.
 - Streaming or Rich Message behavior updates `LIVE_CHAT_STREAMING_DESIGN.md`.

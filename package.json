@@ -26,6 +26,7 @@
     "control:proof:trace-join": "ts-node ops/controlProofTraceJoin.ts",
     "control:proof:capsules": "ts-node ops/controlProofCapsuleCoverage.ts",
     "control:proof:evals": "ts-node ops/controlProofReliabilityEvalCoverage.ts",
+    "control:proof:legacy-prompts": "ts-node ops/controlProofLegacyPromptSurface.ts",
     "control:proof:panel": "ts-node ops/harnessProofPanel.ts",
     "control:proof:canaries": "ts-node ops/controlProofLiveCanaryPack.ts",
     "control:proof:repair:legacy": "ts-node ops/repairLegacyTraceProofGaps.ts",

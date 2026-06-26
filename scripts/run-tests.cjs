@@ -47,6 +47,7 @@ const tests = [
   'tests/controlProofTraceAudit.test.ts',
   'tests/controlProofCapsuleCoverage.test.ts',
   'tests/controlProofReliabilityEvalCoverage.test.ts',
+  'tests/controlProofLegacyPromptSurface.test.ts',
   'tests/traceAndMemoryDrilldowns.test.ts',
   'tests/outboundTraceRepair.test.ts',
   'tests/routeConfidenceTraceRepair.test.ts',
