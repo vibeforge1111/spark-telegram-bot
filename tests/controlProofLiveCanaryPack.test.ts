@@ -1194,6 +1194,13 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     'user_confirmation_duplicate_preview'
   ]);
 
+  template.cases[1].observed.reply = 'Spark Recursive\nStatus: clean.\n\nToken: ok';
+  template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';
+  template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
+  const roboticRichMessageProof = summarizeControlProofCanaryObservations(template);
+  assert.equal(roboticRichMessageProof.readyForRelease, false);
+  assert.deepEqual(roboticRichMessageProof.cases[1].missingCaptures, ['observed_reply_robotic_shape']);
+
   template.cases[0].observed.reply = [
     'Spark Recursive',
     'Telegram live chat Profile: primary Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms',

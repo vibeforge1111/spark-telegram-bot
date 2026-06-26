@@ -248,6 +248,9 @@ test('system prompt asks for skimmable Telegram formatting', () => {
   assert.match(prompt, /short paragraphs/);
   assert.match(prompt, /Avoid Markdown bold\/italic emphasis/);
   assert.match(prompt, /plain headings or simple numbered points/);
+  assert.match(prompt, /rich-message checks/);
+  assert.match(prompt, /Status: clean/);
+  assert.match(prompt, /human sentence/);
 });
 
 test('system prompt prioritizes local list references over older memory', () => {
