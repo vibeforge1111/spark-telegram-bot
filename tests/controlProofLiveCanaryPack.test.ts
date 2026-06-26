@@ -1235,6 +1235,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
   assert.equal(missingProofShape.readyForRelease, false);
   assert.deepEqual(missingProofShape.cases[0].missingCaptures, [
     'observed_reply_streaming_status_shape',
+    'proof_join_streaming_status_delivery_shape',
     'user_confirmation_duplicate_preview'
   ]);
   assert.deepEqual(missingProofShape.cases[1].missingCaptures, [
@@ -1262,6 +1263,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     '',
     'Private chats only.'
   ].join('\n');
+  template.cases[0].observed.proofJoin = 'Telegram command reply joined live /streaming runtime status through the active primary profile; transport proof line was visible in the final Telegram message.';
   template.cases[0].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram with no duplicate preview.';
   template.cases[1].observed.reply = 'Spark Recursive\nCheck: clean.\n\nToken: ok';
   template.cases[1].observed.proofJoin = 'Telegram final delivery carried the rich-message reply from the restarted primary profile.';

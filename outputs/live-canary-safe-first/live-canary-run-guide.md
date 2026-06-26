@@ -75,7 +75,7 @@ Expected authority: read_only_allowed
 Expected mutation class: read_only
 Expected reply shape: compact_card
 Expected side effect: No setting changes.
-Expected proof join: Command reply has Telegram trace context when delivered.
+Expected proof join: Telegram command reply should prove the live /streaming runtime status and visible transport-proof line came through the active Telegram profile path.
 Capture proof panel: no
 Capture screenshot: yes
 Capture user confirmation: yes

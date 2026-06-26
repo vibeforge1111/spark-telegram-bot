@@ -616,7 +616,7 @@ const CONTROL_PROOF_LIVE_CANARY_CASE_DEFINITIONS: ControlProofCanaryCaseDefiniti
     expectedRoute: 'streaming.status',
     expectedReplyShape: 'compact_card',
     expectedSideEffect: 'No setting changes.',
-    expectedProofJoin: 'Command reply has Telegram trace context when delivered.',
+    expectedProofJoin: 'Telegram command reply should prove the live /streaming runtime status and visible transport-proof line came through the active Telegram profile path.',
     passCriteria: [
       'Status reflects streaming and rich-message settings from runtime source.',
       'Status names the active Telegram profile without exposing env paths or secrets.',
@@ -3171,6 +3171,9 @@ function proofJoinCaptureIssues(entry: ControlProofCanaryObservationCase): strin
     issues.push('proof_join_missing');
   }
   if (proofPanelLeaksRawInternals(text)) issues.push('proof_join_raw_leak');
+  if (entry.id === 'cp-streaming-001' && !hasStreamingStatusDeliveryProofJoin(text)) {
+    issues.push('proof_join_streaming_status_delivery_shape');
+  }
   if (entry.id === 'cp-streaming-002' && !hasRichMessageDeliveryProofJoin(text)) {
     issues.push('proof_join_rich_message_delivery_shape');
   }
@@ -3216,6 +3219,13 @@ function hasRichMessageProofShape(value: string): boolean {
 function hasRichMessageDeliveryProofJoin(value: string): boolean {
   return /\bTelegram final delivery\b/i.test(value) &&
     /\brich-message reply\b/i.test(value) &&
+    /\b(?:active|primary|profile|restarted primary)\b/i.test(value);
+}
+
+function hasStreamingStatusDeliveryProofJoin(value: string): boolean {
+  return /\bTelegram command reply\b/i.test(value) &&
+    /\blive\s+\/streaming runtime status\b/i.test(value) &&
+    /\btransport proof\b/i.test(value) &&
     /\b(?:active|primary|profile|restarted primary)\b/i.test(value);
 }
 

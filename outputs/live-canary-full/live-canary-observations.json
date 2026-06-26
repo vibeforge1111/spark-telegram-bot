@@ -620,7 +620,7 @@
         "route": "streaming.status",
         "replyShape": "compact_card",
         "sideEffect": "No setting changes.",
-        "proofJoin": "Command reply has Telegram trace context when delivered.",
+        "proofJoin": "Telegram command reply should prove the live /streaming runtime status and visible transport-proof line came through the active Telegram profile path.",
         "passCriteria": [
           "Status reflects streaming and rich-message settings from runtime source.",
           "Status names the active Telegram profile without exposing env paths or secrets.",
