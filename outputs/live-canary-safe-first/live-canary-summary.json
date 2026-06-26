@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T03:50:05.125Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T03:50:05.125Z",
+    "generatedAt": "2026-06-26T03:59:45.015Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T03:59:45.015Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T04:50:05.125Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T04:59:45.015Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -1013,7 +1013,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T03:50:03.339Z",
+      "generatedAt": "2026-06-26T03:59:43.234Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "freshStrictOk": true,
@@ -1550,10 +1550,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T03:50:05.125Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T03:50:05.125Z",
+      "generatedAt": "2026-06-26T03:59:45.015Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T03:59:45.015Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T04:50:05.125Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T04:59:45.015Z",
       "missing": [],
       "invalid": [],
       "stale": []
