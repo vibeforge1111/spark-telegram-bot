@@ -1360,6 +1360,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
       source: 'control_proof_audit',
       blockingStatus: 'clean',
       gapPosture: 'backed legacy gaps only; no blocking or latest proof gaps',
+      legacyGapBackingDetails: incompleteLegacyGapBacking.controlProofAuditDetails?.legacyGapBackingDetails,
       gapFamilies: {
         incomplete_legacy_gap_backing: {
           count: 1,

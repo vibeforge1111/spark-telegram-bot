@@ -2516,6 +2516,7 @@ function controlProofAuditBlockingGapDetails(
     source: 'control_proof_audit',
     blockingStatus: auditDetails.blockingStatus,
     gapPosture: auditDetails.gapPosture,
+    legacyGapBackingDetails: JSON.parse(JSON.stringify(auditDetails.legacyGapBackingDetails)),
     gapFamilies
   };
 }
