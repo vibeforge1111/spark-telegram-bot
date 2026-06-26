@@ -581,6 +581,25 @@ test('live NL CLI emits Harness Core refurbishment map for selected legacy cases
   assert.match(result.stdout, /\| mission-001 \| mission \| mission \| launches_mission \| confirmation_required_or_allowed \| run_only_with_intentional_action_confirmation \| name measured control-proof or trace-join gap before promotion \| yes \| observed_reply, side_effects, trace_join, proof_join, reply_shape, proof_panel, screenshot_or_user_confirmation \|/);
 });
 
+test('live NL CLI help keeps the legacy suite out of release-proof claims', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+      'ops/liveNlCommandSuite.ts',
+      '--help'
+    ],
+    {
+      cwd: ROOT,
+      encoding: 'utf8'
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /legacy NL suite is breadth\/drift coverage, not Harness Core release proof/);
+  assert.match(result.stdout, /--harness-map classifies selected old cases into Harness Core authority and mutation fields; it is a promotion helper, not a release gate/);
+});
+
 test('live NL CLI strict Harness map fails cases that need promotion', () => {
   const result = spawnSync(
     process.execPath,
