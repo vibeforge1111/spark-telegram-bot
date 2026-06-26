@@ -86,6 +86,7 @@ export const PROOF_PANEL_RECAPTURE_ISSUES = [
   'proof_panel_audit_status',
   'proof_panel_fresh_strict_status',
   'proof_panel_gap_posture',
+  'proof_panel_trace_only_joined',
   'proof_panel_legacy_gap_status',
   'proof_panel_legacy_gap_stale'
 ] as const;
@@ -3298,6 +3299,7 @@ function proofPanelCaptureIssues(
   ) {
     issues.push('proof_panel_legacy_gap_stale');
   }
+  if (proofPanelCountsTraceOnlyAsJoined(text)) issues.push('proof_panel_trace_only_joined');
   if (proofPanelLeaksRawInternals(text)) issues.push('proof_panel_raw_leak');
   return issues;
 }
@@ -3314,6 +3316,30 @@ function runtimeLegacyProofGapCount(observations: ControlProofCanaryObservationT
 
 function proofPanelLeaksRawInternals(value: string): boolean {
   return /\/Users\/|\/var\/folders\/|file:\/\/|[A-Za-z]:\\|Traceback \(most recent call last\)|\b(?:tool_not_allowed_by_policy|owner_mismatch|route_not_selected_by_turn_envelope|governor_outcome_deny|harness_core(?::[A-Za-z0-9_-]+)?)\b|raw-request|trace:raw|chat_id|user_id/i.test(value);
+}
+
+function proofPanelCountsTraceOnlyAsJoined(value: string): boolean {
+  const joined = proofPanelEvidenceList(value, 'Evidence joined');
+  const traceOnly = proofPanelEvidenceList(value, 'Evidence trace-only');
+  if (joined.size === 0 || traceOnly.size === 0) return false;
+  for (const plane of traceOnly) {
+    if (joined.has(plane)) return true;
+  }
+  return false;
+}
+
+function proofPanelEvidenceList(value: string, label: string): Set<string> {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = value.match(new RegExp(`(?:^|\\n)${escapedLabel}:\\s*([^\\n]+)`, 'i'));
+  if (!match) return new Set();
+  const raw = match[1].trim();
+  if (!raw || /^none$/i.test(raw)) return new Set();
+  return new Set(
+    raw
+      .split(/\s*,\s*/)
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean)
+  );
 }
 
 function hasCapturedText(value: string | null | undefined): boolean {

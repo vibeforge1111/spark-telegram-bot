@@ -992,6 +992,21 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(leakyProofPanel.readyForRelease, false);
   assert.deepEqual(leakyProofPanel.cases[0].missingCaptures, ['proof_panel_raw_leak']);
 
+  template.cases[0].observed.proofPanel = [
+    CLEAN_PROOF_PANEL,
+    'Evidence joined: Builder gateway',
+    'Evidence proof refs: none',
+    'Evidence proof capsules: none',
+    'Evidence trace-only: Builder gateway'
+  ].join('\n');
+  const traceOnlyJoinedProofPanel = summarizeControlProofCanaryObservations(template);
+  assert.equal(traceOnlyJoinedProofPanel.readyForRelease, false);
+  assert.deepEqual(traceOnlyJoinedProofPanel.cases[0].missingCaptures, ['proof_panel_trace_only_joined']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(traceOnlyJoinedProofPanel),
+    /Attention summary:\n- proof_panel_trace_only_joined: 1 case/
+  );
+
   template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
   template.cases[0].observed.userConfirmation = 'Looks good.';
   const vagueConfirmation = summarizeControlProofCanaryObservations(template);
