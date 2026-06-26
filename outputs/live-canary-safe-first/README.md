@@ -39,6 +39,8 @@ The JSON summary `cases` array carries safe Harness metadata for each canary: `e
 
 The JSON summary carries `controlProofAuditDetails` parsed from the fresh-strict trace audit transcript. Automation should use it for audit generated time, blocking status, gap posture, gap counts, gap planes, joined `gapDetails`, normalized `releaseBlocking`/`publishBlocking`/`backingStatus`, and per-plane trace/proof coverage instead of scraping the raw `controlProofAudit` command output.
 
+The JSON summary carries `gateScope` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should read `readyForRelease=true` as full release readiness only when `gateScope=full_release_pack`; `gateScope=selected_case_gate` proves the selected cases only.
+
 The JSON summary carries `gateDecisionDetails` beside the compatibility booleans `readyForRelease` and `readyForPublish`. Automation should use it to explain gate readiness from structured packet-evidence blockers, failing case ids, release caveat details, handoff details, per-action `handoffActionDetails` with normalized `releaseBlocking`/`publishBlocking` impact, and per-blocker `blockerDetails` joins instead of reconstructing the decision from prose lines.
 
 Refreshing runtime evidence for this standard bundle observation file also refreshes `live-canary-summary.md` and `live-canary-summary.json`.

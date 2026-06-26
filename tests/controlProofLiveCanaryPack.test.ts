@@ -2927,6 +2927,9 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /expectedRoute/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /sourceRefs/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /observed replies/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=full_release_pack/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateScope=selected_case_gate/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gateDecisionDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /control_proof_audit_blocking_gaps/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /release_gate_not_ready/);
@@ -2962,6 +2965,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.equal(fullReleaseBundle.status, 0, fullReleaseBundle.stderr);
     assert.equal(JSON.parse(readFileSync(resolve(fullBundleDir, 'live-canary-observations.json'), 'utf8')).cases.length, 28);
     assert.match(readFileSync(resolve(fullBundleDir, 'live-canary-coverage.md'), 'utf8'), /Required category coverage: complete/);
+    assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /gateScope=full_release_pack/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /Re-run the release check/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /--release-check/);
     assert.match(readFileSync(resolve(fullBundleDir, 'README.md'), 'utf8'), /For publish or registry claims, run the publish check too:/);

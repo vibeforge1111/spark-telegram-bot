@@ -191,7 +191,7 @@ Builder high-severity trace caveats must distinguish active producer gaps from h
 
 When non-blocking caveats or handoffs are present, the human canary summary now prints `Release note: ready with caveats`; the Telegram behavior gate may be ready while publish/registry handoffs remain open.
 
-Canary summaries now distinguish `Release gate` from `Publish gate`. `Release gate: ready` means the live Telegram/control-proof canary packet is locally complete. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
+Canary summaries now distinguish `Gate scope`, `Release gate`, and `Publish gate`. `Release gate: ready` means the scoped live Telegram/control-proof canary packet is locally complete; read it as full release readiness only when `Gate scope: full release pack` or `gateScope=full_release_pack`. `Publish gate: ready` additionally requires no release caveats or handoffs, so registry pin drift keeps publish claims blocked without making the Telegram behavior packet look failed.
 
 Use `npm run control:proof:canaries -- --observations <packet> --publish-check` for publish or registry claims. It applies the same full-pack/fresh-evidence checks as `--release-check`, then exits nonzero while `Publish gate: not ready`.
 
@@ -560,7 +560,7 @@ Then send one photo with a caption.
 - Streaming shows one draft path and one final answer.
 - Raw policy reason codes do not appear in normal chat.
 - Each canary records pass/fail, observed reply, side effects, proof join, and screenshot/user confirmation when required.
-- The observations report says `Release gate: ready` only when every selected case passed and all required captures are present.
+- The observations report says `Release gate: ready` only when every selected case passed and all required captures are present. Treat it as a complete release claim only when the same report says `Gate scope: full release pack`.
 
 ## Suggested Work Order
 
