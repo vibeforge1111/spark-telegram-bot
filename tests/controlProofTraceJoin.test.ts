@@ -5,7 +5,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   auditControlProofTraceJoins,
-  formatControlProofTraceJoinReport
+  formatControlProofTraceJoinReport,
+  formatLiveTraceSafePromptGuide
 } from '../src/controlProofTraceJoin';
 
 function test(name: string, fn: () => void): void {
@@ -579,6 +580,16 @@ test('live evidence mode accepts clean joined rows for all safe prompt signature
   });
 });
 
+test('safe prompt guide keeps route expectations outside Telegram prompt blocks', () => {
+  const guide = formatLiveTraceSafePromptGuide();
+
+  assert.match(guide, /SparkRecursive_bot live trace safe prompts/);
+  assert.match(guide, /```text\nI am mentioning build and mission, but do not start anything/);
+  assert.match(guide, /```text\nIf memory says Spawner is down but spark live status says it is up, which source wins\?\n```/);
+  assert.match(guide, /npm run control:proof:live-trace/);
+  assert.doesNotMatch(guide, /fresh_state\.risk_profile|harness_core\.risk_profile|risk_profile_no_build/);
+});
+
 test('trace join CLI fails strict mode on gaps', () => {
   withTempRoot((root) => {
     const routeLedger = path.join(root, 'route-ledger.jsonl');
@@ -609,6 +620,28 @@ test('trace join CLI fails strict mode on gaps', () => {
     assert.equal(result.status, 1);
     assert.match(result.stdout, /Status: gaps found/);
     assert.match(result.stdout, /missing join keys: 1/);
+  });
+});
+
+test('trace join CLI prints safe prompt guide without reading runtime evidence', () => {
+  withTempRoot((root) => {
+    const missingRouteLedger = path.join(root, 'missing-route-ledger.jsonl');
+    const result = spawnSync(process.execPath, [
+      '-r',
+      'ts-node/register',
+      path.join(__dirname, '..', 'ops', 'controlProofTraceJoin.ts'),
+      '--safe-prompts',
+      '--natural-route-ledger',
+      missingRouteLedger
+    ], {
+      cwd: path.join(__dirname, '..'),
+      encoding: 'utf8'
+    });
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /SparkRecursive_bot live trace safe prompts/);
+    assert.match(result.stdout, /Do not repair anything\. Just tell me whether a repair is needed right now, using fresh state\./);
+    assert.doesNotMatch(result.stdout, /Route ledger state|Status: gaps found|fresh_state\.read_only_repair_status/);
   });
 });
 

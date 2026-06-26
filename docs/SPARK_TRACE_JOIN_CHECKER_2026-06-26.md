@@ -46,6 +46,14 @@ npm run control:proof:live-trace
 
 This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4 --min-no-action-rows 4`. It fails when the route ledger has fewer than four clean joined route rows, when those rows are stale, or when those rows do not also prove four clean no-action/read-only turns from the safe prompt set. The checker proves the safe prompt set through redacted route/action signatures, not raw prompt text.
 
+To print only the safe recapture prompts without reading runtime evidence, use:
+
+```bash
+npm run control:proof:live-trace:prompts
+```
+
+The prompt guide keeps route/action expectations out of the Telegram copy blocks. Use it when the live gate says the safe rows are missing or stale, then rerun the live gate after Spark replies.
+
 The live report separates the route-ledger state from the join result:
 
 - `missing`: the expected route ledger file is absent.

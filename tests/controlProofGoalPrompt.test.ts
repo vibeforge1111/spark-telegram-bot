@@ -156,11 +156,13 @@ test('package exposes one-command reliability proof battery', () => {
   };
   const script = packageJson.scripts?.['control:proof:reliability'] ?? '';
   const liveTraceScript = packageJson.scripts?.['control:proof:live-trace'] ?? '';
+  const liveTracePromptsScript = packageJson.scripts?.['control:proof:live-trace:prompts'] ?? '';
 
   assert.match(script, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(script, /npm run control:proof:live-trace/);
   assert.match(liveTraceScript, /--min-route-rows 4/);
   assert.match(liveTraceScript, /--min-no-action-rows 4/);
+  assert.match(liveTracePromptsScript, /--safe-prompts/);
   assert.match(script, /npm run control:proof:source-inventory/);
   assert.match(script, /npm run control:proof:render-firewall/);
   assert.match(script, /npm run control:proof:capsules -- --strict/);

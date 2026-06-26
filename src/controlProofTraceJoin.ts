@@ -272,6 +272,27 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
   return `${lines.join('\n')}\n`;
 }
 
+export function formatLiveTraceSafePromptGuide(): string {
+  return [
+    'SparkRecursive_bot live trace safe prompts',
+    '',
+    'Copy each block into SparkRecursive_bot private chat. These prompts are read-only/no-action checks for the live trace-join gate.',
+    '',
+    ...LIVE_TRACE_JOIN_SAFE_PROMPTS.flatMap((prompt, index) => [
+      `${index + 1}.`,
+      '```text',
+      prompt,
+      '```',
+      ''
+    ]),
+    'After Spark replies to all four, rerun:',
+    '',
+    '```bash',
+    'npm run control:proof:live-trace',
+    '```'
+  ].join('\n');
+}
+
 function classifyRouteLedgerState(
   read: JsonlReadResult,
   routeRecordCount: number

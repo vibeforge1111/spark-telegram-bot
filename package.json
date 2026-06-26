@@ -25,6 +25,7 @@
     "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",
     "control:proof:trace-join": "ts-node ops/controlProofTraceJoin.ts",
     "control:proof:live-trace": "ts-node ops/controlProofTraceJoin.ts --strict --require-live-evidence --min-route-rows 4 --min-no-action-rows 4",
+    "control:proof:live-trace:prompts": "ts-node ops/controlProofTraceJoin.ts --safe-prompts",
     "control:proof:source-inventory": "ts-node ops/controlProofSourceInventory.ts --strict",
     "control:proof:capsules": "ts-node ops/controlProofCapsuleCoverage.ts",
     "control:proof:evals": "ts-node ops/controlProofReliabilityEvalCoverage.ts",

@@ -1,6 +1,7 @@
 import {
   auditControlProofTraceJoins,
-  formatControlProofTraceJoinReport
+  formatControlProofTraceJoinReport,
+  formatLiveTraceSafePromptGuide
 } from '../src/controlProofTraceJoin';
 
 function argValue(args: string[], name: string): string | null {
@@ -22,6 +23,7 @@ function usage(): string {
     '  npx ts-node ops/controlProofTraceJoin.ts --strict',
     '  npx ts-node ops/controlProofTraceJoin.ts --sample 100',
     '  npx ts-node ops/controlProofTraceJoin.ts --strict --require-live-evidence --min-route-rows 4 --min-no-action-rows 4',
+    '  npx ts-node ops/controlProofTraceJoin.ts --safe-prompts',
     '  npx ts-node ops/controlProofTraceJoin.ts --natural-route-ledger /path/routes.jsonl',
     '',
     'Checks user intent -> route decision -> action/no-action -> reply joins using redacted request, trace, and proof refs.'
@@ -32,6 +34,10 @@ function main(): void {
   const args = process.argv.slice(2);
   if (hasFlag(args, 'help')) {
     console.log(usage());
+    return;
+  }
+  if (hasFlag(args, 'safe-prompts')) {
+    console.log(formatLiveTraceSafePromptGuide());
     return;
   }
   const sampleRaw = argValue(args, 'sample');
