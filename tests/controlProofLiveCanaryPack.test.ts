@@ -549,6 +549,23 @@ test('runtime evidence refresh backfills canonical canary source refs', () => {
   ]);
 });
 
+test('observation summary uses canonical source refs over stale packet refs', () => {
+  const template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-streaming-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template.cases[0].sourceRefs = [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'old-streaming-contract', relationship: 'coverage_for' }
+  ];
+
+  const summary = summarizeControlProofCanaryObservations(template, {
+    now: '2026-06-24T00:00:00.000Z'
+  });
+
+  assert.deepEqual(summary.cases[0].sourceRefs, [
+    { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
+  ]);
+});
+
 test('observation summary rejects duplicate canary rows', () => {
   const template = buildControlProofCanaryObservationTemplate([
     CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!,

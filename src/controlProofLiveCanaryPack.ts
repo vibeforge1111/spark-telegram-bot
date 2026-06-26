@@ -1241,12 +1241,17 @@ export function withControlProofCanaryRuntimeEvidence(
 function normalizeControlProofCanaryObservationCase(
   entry: ControlProofCanaryObservationCase
 ): ControlProofCanaryObservationCase {
-  const canonical = CONTROL_PROOF_LIVE_CANARY_CASES.find((canary) => canary.id === entry.id);
-  if (!canonical?.sourceRefs?.length) return entry;
+  const sourceRefs = canonicalSourceRefsForCanary(entry.id);
+  if (!sourceRefs) return entry;
   return {
     ...entry,
-    sourceRefs: canonical.sourceRefs
+    sourceRefs
   };
+}
+
+function canonicalSourceRefsForCanary(id: string): ControlProofCanarySourceRef[] | undefined {
+  const canonical = CONTROL_PROOF_LIVE_CANARY_CASES.find((canary) => canary.id === id);
+  return canonical?.sourceRefs?.length ? canonical.sourceRefs : undefined;
 }
 
 export function recordControlProofCanaryObservation(
@@ -3068,7 +3073,7 @@ export function summarizeControlProofCanaryObservations(
     seenCaseIds.add(entry.id);
     if (!verdictValues.has(entry.observed.verdict)) throw new Error(`Invalid verdict for ${entry.id}: ${entry.observed.verdict}`);
     verdictCounts[entry.observed.verdict] += 1;
-    const sourceRefs = entry.sourceRefs?.length ? entry.sourceRefs : undefined;
+    const sourceRefs = canonicalSourceRefsForCanary(entry.id) || (entry.sourceRefs?.length ? entry.sourceRefs : undefined);
     return {
       id: entry.id,
       verdict: entry.observed.verdict,
