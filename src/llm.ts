@@ -508,7 +508,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
       });
       return /CHAT_OK/i.test(content)
         ? { ok: true, detail: 'completion ok' }
-        : { ok: false, detail: 'unexpected completion' };
+        : { ok: false, detail: `unexpected completion: ${truncatePingPreview(content)}` };
     } catch (err: any) {
       return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
     }
@@ -541,7 +541,7 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
         '';
       return /CHAT_OK/i.test(content)
         ? { ok: true, detail: 'completion ok' }
-        : { ok: false, detail: 'unexpected completion' };
+        : { ok: false, detail: `unexpected completion: ${truncatePingPreview(content)}` };
     } catch (err: any) {
       return { ok: false, detail: err.response?.data?.error?.message || err.code || err.message || 'request failed' };
     }
@@ -572,10 +572,18 @@ export async function pingChatProvider(timeoutMs: number = 12000): Promise<ChatP
     );
     return /CHAT_OK/i.test(res.data.response || '')
       ? { ok: true, detail: 'completion ok' }
-      : { ok: false, detail: 'unexpected completion' };
+      : { ok: false, detail: `unexpected completion: ${truncatePingPreview(res.data.response || '')}` };
   } catch (err: any) {
     return { ok: false, detail: err.code || err.message || 'request failed' };
   }
+}
+
+function truncatePingPreview(content: string): string {
+  const flattened = (content || '').replace(/\s+/g, ' ').trim();
+  if (!flattened) {
+    return '<empty>';
+  }
+  return flattened.length > 120 ? `${flattened.slice(0, 117)}...` : flattened;
 }
 
 async function codexChat(prompt: string): Promise<string> {
