@@ -92,6 +92,11 @@ Move
 That shape is allowed only when the user asked for status, raw details, or a
 scan-friendly queue.
 
+Styling does not change the shape. In a natural follow-up, `**Mission**`,
+`Provider - Codex`, `> Status:`, and similar decorated rows still count as a
+report-card surface. Rewrite them as one or two human sentences unless the turn
+is a status, diagnose, proof, queue, picker, or raw-detail surface.
+
 ## Emoji Ergonomics
 
 Use emoji as an affordance, not decoration.

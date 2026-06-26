@@ -871,6 +871,16 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(roboticReply.readyForRelease, false);
   assert.deepEqual(roboticReply.cases[0].missingCaptures, ['observed_reply_robotic_shape']);
 
+  template.cases[0].observed.reply = '**Mission**\n• Token Launch Dashboard\n\nProvider - Codex\n\n> Status:\n• running';
+  const decoratedRoboticReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(decoratedRoboticReply.readyForRelease, false);
+  assert.deepEqual(decoratedRoboticReply.cases[0].missingCaptures, ['observed_reply_robotic_shape']);
+
+  template.cases[0].observed.reply = 'Mission Control is open, and Codex is still on the latest job.';
+  const naturalMissionControlReply = summarizeControlProofCanaryObservations(template);
+  assert.equal(naturalMissionControlReply.readyForRelease, true);
+  assert.deepEqual(naturalMissionControlReply.cases[0].missingCaptures, []);
+
   template.cases[0].observed.reply = 'That turn was blocked by tool_not_allowed_by_policy in /Users/example/private.';
   const leakyReply = summarizeControlProofCanaryObservations(template);
   assert.equal(leakyReply.readyForRelease, false);

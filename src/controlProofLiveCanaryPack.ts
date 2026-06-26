@@ -3053,7 +3053,22 @@ function isNaturalReplyShape(replyShape: ControlProofCanaryCase['expectedReplySh
 }
 
 function hasRoboticSurfaceHeading(value: string): boolean {
-  return /(?:^|\n)\s*(?:Mission|Provider|Move|Status)\s*:?\s*(?:\n|$)/i.test(value);
+  return value
+    .split(/\r?\n/)
+    .some((line) => isRoboticSurfaceHeadingLine(line));
+}
+
+function isRoboticSurfaceHeadingLine(line: string): boolean {
+  const normalized = line
+    .trim()
+    .replace(/^>\s*/, '')
+    .replace(/^[*-]\s+/, '')
+    .replace(/^(?:#{1,6})\s+/, '')
+    .replace(/^[`*_~]+/, '')
+    .replace(/[`*_~]+$/, '')
+    .trim();
+  return /^(?:Mission|Provider|Move|Status)\s*(?::|[-–—])(?:\s+\S.*)?$/i.test(normalized) ||
+    /^(?:Mission|Provider|Move|Status)\s*$/i.test(normalized);
 }
 
 function userConfirmationCaptureIssues(value: string | null | undefined): string[] {
