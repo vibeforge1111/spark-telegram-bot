@@ -178,8 +178,8 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.match(summaryMd, /Gate scope: full release pack/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, ['canary_case_failures']);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -256,8 +256,8 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_caveats', 'release_handoffs'],
-    'saved release-ready packet must explain publish blockers without marking the release gate not ready'
+    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
+    'saved packet must preserve release-not-ready proof-panel recapture blockers alongside publish caveats'
   );
   assert.ok(
     summaryJson.summary.releaseHandoffDetails.every((entry: {
@@ -306,8 +306,8 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.match(summaryMd, /Gate scope: selected-case gate/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, ['canary_case_failures']);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
@@ -315,7 +315,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
   assert.equal(summaryJson.coverage.releasePackComplete, false);
-  assert.equal(summaryJson.summary.readyForRelease, true);
+  assert.equal(summaryJson.summary.readyForRelease, false);
   assert.equal(summaryJson.summary.readyForPublish, false);
   assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
   assert.equal((runGuide.match(/--summary-json-out/g) || []).length, observations.cases.length);
@@ -348,8 +348,8 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_caveats', 'release_handoffs'],
-    'safe-first release-ready packet must explain publish blockers without marking the release gate not ready'
+    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
+    'safe-first packet must preserve release-not-ready proof-panel recapture blockers alongside publish caveats'
   );
   assert.ok(
     summaryJson.summary.releaseHandoffDetails.every((entry: {
@@ -957,9 +957,16 @@ test('observation summary requires pass verdicts and all requested capture evide
   const malformedProofPanel = summarizeControlProofCanaryObservations(template);
   assert.equal(malformedProofPanel.readyForRelease, false);
   assert.deepEqual(malformedProofPanel.cases[0].missingCaptures, [
+    'proof_panel_actionable_status',
     'proof_panel_audit_status',
+    'proof_panel_fresh_strict_status',
+    'proof_panel_gap_posture',
     'proof_panel_legacy_gap_status'
   ]);
+  assert.match(
+    formatControlProofCanaryObservationSummary(malformedProofPanel),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('legacy proof gaps: 3', 'legacy proof gaps: 2');
   template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL;
@@ -2614,6 +2621,20 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     publishCaveatPacket.evidence.controlProofAuditSummary =
       summarizeControlProofAuditRuntimeEvidence(publishCaveatPacket.evidence.controlProofAudit);
     publishCaveatPacket.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${publishCaveatPacket.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":[],"builder_trace_current_health":{"status":"current_clean","window":"24h","row_count":100,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":100,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+    publishCaveatPacket.cases = publishCaveatPacket.cases.map((entry: { observed?: { proofPanel?: string | null } }) => ({
+      ...entry,
+      observed: {
+        ...entry.observed,
+        proofPanel: entry.observed?.proofPanel
+          ? [
+            String(entry.observed.proofPanel),
+            'Audit actionable: clean',
+            'Audit fresh-strict: clean',
+            'Audit posture: backed legacy gaps only; no blocking or latest proof gaps'
+          ].join('\n')
+          : entry.observed?.proofPanel
+      }
+    }));
     const publishCanary = publishCaveatPacket.cases.find((entry: { id: string }) => entry.id === 'cp-publish-001');
     if (publishCanary) {
       publishCanary.observed = {

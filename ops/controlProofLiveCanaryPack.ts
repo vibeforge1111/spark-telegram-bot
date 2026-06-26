@@ -7,6 +7,7 @@ import {
   formatControlProofCanaryCoverage,
   formatControlProofCanaryCopyPaste,
   formatControlProofCanaryLiveRunGuide,
+  isProofPanelRecaptureIssue,
   recordControlProofCanaryObservation,
   selectControlProofCanaryCases,
   summarizeControlProofAuditRuntimeEvidence,
@@ -692,7 +693,7 @@ function main(): void {
     );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases
-        .filter((entry) => entry.missingCaptures.includes('proof_panel_legacy_gap_stale'))
+        .filter((entry) => entry.missingCaptures.some(isProofPanelRecaptureIssue))
         .map((entry) => entry.id);
       if (staleProofCaseIds.length === 0) {
         console.log('No stale proof-panel recaptures found.');

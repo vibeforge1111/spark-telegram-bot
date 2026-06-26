@@ -81,6 +81,15 @@ export interface ControlProofCanarySelection {
 
 export type ControlProofCanaryVerdict = 'pass' | 'fail' | 'blocked' | 'needs-retest' | 'untested';
 
+export const PROOF_PANEL_RECAPTURE_ISSUES = [
+  'proof_panel_actionable_status',
+  'proof_panel_audit_status',
+  'proof_panel_fresh_strict_status',
+  'proof_panel_gap_posture',
+  'proof_panel_legacy_gap_status',
+  'proof_panel_legacy_gap_stale'
+] as const;
+
 export interface ControlProofCanaryObservationTemplate {
   target: string;
   generatedAt: string;
@@ -3215,6 +3224,10 @@ function proofPanelCaptureIssues(
   return issues;
 }
 
+export function isProofPanelRecaptureIssue(issue: string): boolean {
+  return (PROOF_PANEL_RECAPTURE_ISSUES as readonly string[]).includes(issue);
+}
+
 function runtimeLegacyProofGapCount(observations: ControlProofCanaryObservationTemplate): number | null {
   const text = String(observations.evidence?.controlProofAudit || '');
   const match = text.match(/(?:^|\n)-?\s*legacy proof gaps:\s*(\d+)(?:\n|$)/i);
@@ -3422,7 +3435,7 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
       lines.push('');
     }
     const staleProofPanelCaseIds = attention
-      .filter((entry) => entry.missingCaptures.includes('proof_panel_legacy_gap_stale'))
+      .filter((entry) => entry.missingCaptures.some(isProofPanelRecaptureIssue))
       .map((entry) => entry.id);
     if (staleProofPanelCaseIds.length > 0) {
       lines.push('Recapture hint:');
