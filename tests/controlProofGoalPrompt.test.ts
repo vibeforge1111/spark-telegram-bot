@@ -43,6 +43,8 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /Gate scope: full release pack/);
   assert.match(plan, /Publish gate: not ready/);
   assert.match(plan, /do not turn release-ready behavior proof into a publish or registry claim/);
+  assert.match(plan, /ref-only evidence as joined when a redacted proof ref is present/);
+  assert.match(plan, /trace-only rows stay under `Evidence trace-only` and must not be counted as `Evidence joined`/);
 });
 
 test('natural-language refurbishment keeps promotion proof-first', () => {
