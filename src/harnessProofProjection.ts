@@ -58,6 +58,8 @@ export interface HarnessProofAuditSummary {
   missingTraceJoinPlaneLabels: string[];
   missingProofCapsulePlanes: number;
   missingProofCapsulePlaneLabels: string[];
+  incompleteLegacyGapBackingPlanes: number;
+  incompleteLegacyGapBackingPlaneLabels: string[];
   rawRefLeakPlanes: number;
   rawRefLeakPlaneLabels: string[];
   roboticFailureReplyPlanes: number;
@@ -175,6 +177,8 @@ function summarizeCurrentAudit(
     missingTraceJoinPlaneLabels: result.gapPlanes.missingTraceJoin.map(displayNameForEvidencePlane),
     missingProofCapsulePlanes: result.gapCounts.missingProofCapsule,
     missingProofCapsulePlaneLabels: result.gapPlanes.missingProofCapsule.map(displayNameForEvidencePlane),
+    incompleteLegacyGapBackingPlanes: result.gapCounts.incompleteLegacyProofGapBacking,
+    incompleteLegacyGapBackingPlaneLabels: result.gapPlanes.incompleteLegacyProofGapBacking.map(displayNameForEvidencePlane),
     rawRefLeakPlanes: result.gapCounts.rawRefLeak,
     rawRefLeakPlaneLabels: result.gapPlanes.rawRefLeak.map(displayNameForEvidencePlane),
     roboticFailureReplyPlanes: result.gapCounts.roboticFailureReply,
@@ -195,6 +199,7 @@ function renderAuditSummary(audit: HarnessProofAuditSummary): string {
     blockingGapDetail('missing evidence', audit.missingEvidencePlaneLabels),
     blockingGapDetail('missing trace joins', audit.missingTraceJoinPlaneLabels),
     blockingGapDetail('missing proof capsules', audit.missingProofCapsulePlaneLabels),
+    blockingGapDetail('incomplete legacy gap backing', audit.incompleteLegacyGapBackingPlaneLabels),
     blockingGapDetail('raw ref leaks', audit.rawRefLeakPlaneLabels),
     blockingGapDetail('robotic failure reasons', audit.roboticFailureReplyPlaneLabels),
     blockingGapDetail('stack-like leaks', audit.stackLikeLeakPlaneLabels)

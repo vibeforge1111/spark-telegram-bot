@@ -347,6 +347,64 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
   });
 });
 
+test('names incomplete legacy backing as a blocking proof-panel plane', () => {
+  withTempSparkHome((sparkHome) => {
+    const traceRef = 'trace:sha256:legacybacking';
+    const latest = proofCapsule('turn:latest');
+    const finalAnswerPath = path.join(sparkHome, 'final-answer.jsonl');
+    const spawnerPath = path.join(sparkHome, 'spawner.jsonl');
+    writeJsonl(finalAnswerPath, [
+      {
+        request_ref: 'request:sha256:latest',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
+      }
+    ]);
+    writeJsonl(spawnerPath, [
+      {
+        request_ref: 'request:sha256:legacy',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_status: 'missing_harness_authority',
+        proof_storage: 'legacy_gap_capsule',
+        proof_capsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: latest.turnRef
+        }
+      },
+      {
+        request_ref: 'request:sha256:latest-clean',
+        trace_ref: traceRef,
+        harness_proof_ref: latest.turnRef,
+        proof_capsule: latest
+      }
+    ]);
+
+    const projection = projectHarnessProof({
+      sparkHome,
+      proofRef: latest.turnRef,
+      traceRef,
+      evidenceFiles: [
+        { label: 'telegram_final_answer', filePath: finalAnswerPath, kind: 'jsonl' },
+        { label: 'spawner_prd_trace', filePath: spawnerPath, kind: 'jsonl' }
+      ]
+    });
+
+    assert.equal(projection.ok, true);
+    assert.equal(projection.audit?.actionableStatus, 'repair required');
+    assert.equal(projection.audit?.blockingOk, false);
+    assert.equal(projection.audit?.freshStrictOk, false);
+    assert.equal(projection.audit?.incompleteLegacyGapBackingPlanes, 1);
+    assert.deepEqual(projection.audit?.incompleteLegacyGapBackingPlaneLabels, ['Spawner trace']);
+    assert.match(projection.panel, /Audit actionable: repair required/);
+    assert.match(projection.panel, /Audit blocking: gaps found/);
+    assert.match(projection.panel, /Audit fresh-strict: not ready/);
+    assert.match(projection.panel, /Blocking gap planes: incomplete legacy gap backing: Spawner trace/);
+    assert.doesNotMatch(projection.panel, /legacybacking|request:sha256:legacy/);
+  });
+});
+
 test('reports a missing proof ref without exposing evidence files', () => {
   withTempSparkHome((sparkHome) => {
     const projection = projectHarnessProof({
