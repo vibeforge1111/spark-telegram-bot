@@ -19,6 +19,7 @@ export type BuildLane = 'fast_direct' | 'direct' | 'advanced_prd';
 
 function defaultWorkspaceRoot(): string {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return process.env.SPARK_PROJECT_ROOT.trim();
+  if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return process.env.SPARK_WORKSPACE_ROOT.trim();
   if (process.platform === 'win32') {
     const home = process.env.USERPROFILE || 'C:\\Users\\USER';
     return `${home.replace(/[\\/]$/, '')}\\Desktop`;
@@ -37,6 +38,7 @@ function normalizePathForPlatform(value: string): string {
 
 function workspaceRootsFor(candidate: string): string[] {
   if (process.env.SPARK_PROJECT_ROOT?.trim()) return [process.env.SPARK_PROJECT_ROOT.trim()];
+  if (process.env.SPARK_WORKSPACE_ROOT?.trim()) return [process.env.SPARK_WORKSPACE_ROOT.trim()];
   if (/^[A-Z]:[\\/]/i.test(candidate)) return ['C:\\Users\\USER\\Desktop'];
   return [defaultWorkspaceRoot()];
 }
