@@ -329,3 +329,15 @@ The observation parser now enforces the same boundary when it imports filled JSO
 - The generated packet still writes the standard boundary, so old NL observations remain breadth evidence even when every selected case passes.
 
 This closes the source-edge proof gap where a hand-edited observation file could try to promote an old NL run into release evidence by changing metadata instead of moving the case into `control:proof:canaries`.
+
+## 2026-06-26 Builder Contract Join Recheck
+
+Builder now exposes the same boundary at the source catalog edge through `ops/natural-language-live-commands.json` as `harness_core_contract`.
+
+Required join:
+
+- Builder catalog contract: `claim_scope=legacy_route_shape`, `release_gate=none`, `simulation_cases_are_release_proof=false`, `promotion_target=control_proof_canary`.
+- Telegram legacy NL packets and templates: `claim_scope=legacy_breadth`, `release_gate=none`, `promotion_target=control_proof_canary`.
+- Control-proof canaries: only promoted or derived representatives can support release claims, and only after authority, mutation class, side effects, proof join, trace join, reply shape, screenshot/user confirmation, and pass criteria are filled in.
+
+Treat those names as one proof boundary across repos. The wording differs slightly because Builder is describing the route-shape matrix and Telegram is describing legacy breadth evidence packets, but both mean the same thing: old natural-language cases are source material and drift coverage, not Harness Core release proof.
