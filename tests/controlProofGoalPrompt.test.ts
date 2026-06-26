@@ -303,6 +303,7 @@ test('proof capsule coverage doc records action-capable policy boundary', () => 
   assert.match(doc, /joined_capsule/);
   assert.match(doc, /explicit_no_action/);
   assert.match(doc, /Duplicate proof paths are treated as drift/);
+  assert.match(doc, /An extra policy is also drift/);
   assert.match(doc, /control:proof:trace-join/);
 });
 

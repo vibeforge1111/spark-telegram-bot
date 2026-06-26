@@ -30,6 +30,8 @@ npm run control:proof:capsules -- --json
 
 Each action-capable inventory plane must have one policy, not zero and not many. Duplicate proof paths are treated as drift because they make later trace joins ambiguous.
 
+Retired or non-action planes must not keep proof policies. An extra policy is also drift because it can make old routes look like active proof authority.
+
 ## Boundary
 
 This checker does not replace the trace continuity audit or trace-join checker:

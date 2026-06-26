@@ -43,6 +43,38 @@ test('coverage checker reports missing policy gaps', () => {
   assert.ok(result.gaps.some((gap) => gap.planeId === 'legacy-plane:telegram-action-authority' && gap.reason === 'missing_policy'));
 });
 
+test('coverage checker reports ambiguous duplicate policy gaps', () => {
+  const duplicate = ACTION_PROOF_CAPSULE_POLICIES.find((policy) => policy.planeId === 'legacy-plane:telegram-action-authority');
+  assert.ok(duplicate);
+  const result = checkProofCapsuleCoverage({
+    repoRoot: process.cwd(),
+    policies: [...ACTION_PROOF_CAPSULE_POLICIES, { ...duplicate }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.planeId === 'legacy-plane:telegram-action-authority' && gap.reason === 'ambiguous_policy'));
+});
+
+test('coverage checker reports extra policy gaps', () => {
+  const result = checkProofCapsuleCoverage({
+    repoRoot: process.cwd(),
+    policies: [
+      ...ACTION_PROOF_CAPSULE_POLICIES,
+      {
+        planeId: 'legacy-plane:retired-action-route',
+        proofPath: {
+          kind: 'joined_capsule',
+          summary: 'Retired route should not have an active proof policy.'
+        },
+        requiredSourceMarkers: []
+      }
+    ]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.planeId === 'legacy-plane:retired-action-route' && gap.reason === 'extra_policy'));
+});
+
 test('coverage checker reports source marker gaps', () => {
   const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
     policy.planeId === 'legacy-plane:telegram-action-authority'
