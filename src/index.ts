@@ -5336,6 +5336,8 @@ bot.start(async (ctx) => {
       '/docker_doctor - Check Docker sandbox readiness without changing the computer',
       '/docker_smoke confirm - Run the no-secret Docker sandbox smoke',
       '/access 5 - Approve Level 5 setup from Telegram',
+      '/level5_setup - Direct alias to enable Level 5 access',
+      '/level5_disable - Direct alias to disable Level 5 access',
       '/mission <status|pause|resume|kill> <missionId> - Control a mission'
     );
   }
