@@ -30,16 +30,14 @@ Release handoffs:
 - spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.
 
 Attention summary:
-- proof_panel_actionable_status: 23 cases
-- proof_panel_fresh_strict_status: 23 cases
-- proof_panel_gap_posture: 23 cases
+- proof_panel_actionable_status: 21 cases
+- proof_panel_fresh_strict_status: 21 cases
+- proof_panel_gap_posture: 21 cases
 
 Recapture hint:
-- Refresh /proof panel captures for: cp-noaction-001, cp-noaction-002, cp-noaction-003, cp-noaction-004, cp-authority-001, cp-authority-002, cp-proof-002, cp-builder-002, cp-memory-001, cp-memory-002, cp-access-001, cp-access-002, cp-model-001, cp-model-002, cp-web-001, cp-web-002, cp-spawner-001, cp-spawner-002, cp-mission-001, cp-media-001, cp-media-002, cp-voice-001, cp-audio-001
+- Refresh /proof panel captures for: cp-noaction-003, cp-noaction-004, cp-authority-001, cp-authority-002, cp-proof-002, cp-builder-002, cp-memory-001, cp-memory-002, cp-access-001, cp-access-002, cp-model-001, cp-model-002, cp-web-001, cp-web-002, cp-spawner-001, cp-spawner-002, cp-mission-001, cp-media-001, cp-media-002, cp-voice-001, cp-audio-001
 
 Cases needing attention:
-- cp-noaction-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
-- cp-noaction-002: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
 - cp-noaction-003: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
 - cp-noaction-004: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
 - cp-authority-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
