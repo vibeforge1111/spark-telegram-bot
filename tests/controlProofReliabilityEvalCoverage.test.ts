@@ -39,6 +39,14 @@ test('reliability eval requirements name the ladder categories', () => {
     'stale_memory_conflicts',
     'streaming_rich_messages'
   ]);
+  assert.equal(
+    RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.requiredCaptures?.includes('observedReply')),
+    true
+  );
+  assert.equal(
+    RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.requiredCaptures?.includes('sideEffects')),
+    true
+  );
 });
 
 test('coverage checker reports missing canary cases', () => {
@@ -60,4 +68,21 @@ test('coverage checker reports prompt and route drift', () => {
   assert.equal(result.ok, false);
   assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'prompt_mismatch'));
   assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'route_mismatch'));
+});
+
+test('coverage checker reports capture drift at the route boundary', () => {
+  const cases = CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => (
+    entry.id === 'cp-noaction-002'
+      ? { ...entry, capture: { ...entry.capture, proofPanel: false } }
+      : entry
+  ));
+  const result = checkReliabilityEvalCoverage({ cases });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) =>
+    gap.requirementId === 'just_explain' &&
+    gap.caseId === 'cp-noaction-002' &&
+    gap.reason === 'capture_mismatch'
+  ));
+  assert.match(formatReliabilityEvalCoverageReport(result), /capture_mismatch/);
 });

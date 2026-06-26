@@ -31,6 +31,8 @@ npm run control:proof:evals -- --json
 
 ## Boundary
 
-This is a coverage gate, not a new feature gate. It does not create new UI, media handling, or streaming behavior. It proves that the named reliability categories are represented by current Harness-shaped canary cases with expected prompts and routes.
+This is a coverage gate, not a new feature gate. It does not create new UI, media handling, or streaming behavior. It proves that the named reliability categories are represented by current Harness-shaped canary cases with expected prompts, routes, and capture requirements.
 
-If a canary prompt, category, or route is changed, this checker should fail until the replacement still proves the same old-edge boundary.
+The gate also checks the capture shape needed to prove the route boundary: observed reply, side-effect evidence, proof-panel capture where applicable, screenshot for visual/media/publish surfaces, and user confirmation.
+
+If a canary prompt, category, route, or required capture is changed, this checker should fail until the replacement still proves the same old-edge boundary.

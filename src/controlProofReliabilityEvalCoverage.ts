@@ -6,12 +6,13 @@ export interface ReliabilityEvalRequirement {
   requiredCaseIds: string[];
   promptPattern?: RegExp;
   routePattern?: RegExp;
+  requiredCaptures?: Array<keyof ControlProofCanaryCase['capture']>;
 }
 
 export interface ReliabilityEvalCoverageGap {
   requirementId: string;
   caseId?: string;
-  reason: 'missing_case' | 'prompt_mismatch' | 'route_mismatch';
+  reason: 'missing_case' | 'prompt_mismatch' | 'route_mismatch' | 'capture_mismatch';
   detail: string;
 }
 
@@ -28,56 +29,64 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     label: '`do not run` and equivalent no-execution boundaries',
     requiredCaseIds: ['cp-noaction-001', 'cp-noaction-004'],
     promptPattern: /\bdo not (?:start|repair)|do not run|do not.*anything/i,
-    routePattern: /plain_chat|fresh_state/
+    routePattern: /plain_chat|fresh_state/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
     id: 'just_explain',
     label: '`just explain` without mission launch',
     requiredCaseIds: ['cp-noaction-002'],
     promptPattern: /just explain/i,
-    routePattern: /plain_chat/
+    routePattern: /plain_chat/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
     id: 'build_mission_mentions',
     label: 'build/mission wording without accidental execution',
     requiredCaseIds: ['cp-noaction-001', 'cp-spawner-001'],
     promptPattern: /\bbuild|mission\b/i,
-    routePattern: /plain_chat|spawner_build\.ideation_boundary/
+    routePattern: /plain_chat|spawner_build\.ideation_boundary/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
     id: 'images',
     label: 'image/media text remains evidence-only unless authorized',
     requiredCaseIds: ['cp-media-001', 'cp-media-002'],
     promptPattern: /image|photo/i,
-    routePattern: /media\.image/
+    routePattern: /media\.image/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'screenshot', 'userConfirmation']
   },
   {
     id: 'audio',
     label: 'audio and voice evidence boundaries',
     requiredCaseIds: ['cp-audio-001', 'cp-voice-001'],
     promptPattern: /audio|voice/i,
-    routePattern: /media\.(?:audio|voice)/
+    routePattern: /media\.(?:audio|voice)/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'screenshot', 'userConfirmation']
   },
   {
     id: 'stale_memory_conflicts',
     label: 'fresh runtime truth wins over stale memory',
     requiredCaseIds: ['cp-authority-001', 'cp-memory-001'],
     promptPattern: /memory/i,
-    routePattern: /fresh_state|memory/
+    routePattern: /fresh_state|memory/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
     id: 'streaming_rich_messages',
     label: 'streaming and rich-message runtime proof',
     requiredCaseIds: ['cp-streaming-001', 'cp-streaming-002'],
     promptPattern: /streaming|rich-message|rich/i,
-    routePattern: /streaming\.status|rich_message/
+    routePattern: /streaming\.status|rich_message/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'screenshot', 'userConfirmation']
   },
   {
     id: 'publish_handoffs',
     label: 'release-ready versus publish-not-ready handoff shape',
     requiredCaseIds: ['cp-publish-001'],
     promptPattern: /registry|release|publish/i,
-    routePattern: /registry_drift/
+    routePattern: /registry_drift/,
+    requiredCaptures: ['observedReply', 'sideEffects', 'screenshot', 'userConfirmation']
   }
 ];
 
@@ -108,6 +117,16 @@ export function checkReliabilityEvalCoverage(input: {
       }
       if (requirement.routePattern && !requirement.routePattern.test(entry.expectedRoute)) {
         gaps.push({ requirementId: requirement.id, caseId, reason: 'route_mismatch', detail: `Expected route ${entry.expectedRoute} no longer covers ${requirement.label}.` });
+      }
+      for (const capture of requirement.requiredCaptures || []) {
+        if (!entry.capture[capture]) {
+          gaps.push({
+            requirementId: requirement.id,
+            caseId,
+            reason: 'capture_mismatch',
+            detail: `Canary case no longer requires ${capture} capture for ${requirement.label}.`
+          });
+        }
       }
     }
   }
