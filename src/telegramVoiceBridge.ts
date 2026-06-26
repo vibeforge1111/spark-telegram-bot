@@ -23,6 +23,10 @@ function mediaExtension(mimeType: string): string {
   return '.audio';
 }
 
+function humanSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MiB` : `${(bytes / 1024).toFixed(1)} KiB`;
+}
+
 async function responseBuffer(response: Response): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer());
 }
@@ -62,12 +66,12 @@ export async function buildVoiceBridgeUpdate(
     }
     const contentLength = Number.parseInt(response.headers.get('content-length') || '', 10);
     if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-      throw new Error(`Telegram voice file is too large (${contentLength} bytes).`);
+      throw new Error(`Telegram voice file is too large (${humanSize(contentLength)}, max ${humanSize(maxBytes)} — adjust SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES to raise the cap).`);
     }
 
     const audioBuffer = await responseBuffer(response);
     if (audioBuffer.length > maxBytes) {
-      throw new Error(`Telegram voice file is too large (${audioBuffer.length} bytes).`);
+      throw new Error(`Telegram voice file is too large (${humanSize(audioBuffer.length)}, max ${humanSize(maxBytes)} — adjust SPARK_TELEGRAM_VOICE_DOWNLOAD_MAX_BYTES to raise the cap).`);
     }
 
     const mimeType = String(media.mime_type || response.headers.get('content-type') || (voice ? 'audio/ogg' : 'application/octet-stream'));
