@@ -47,6 +47,14 @@ export interface TelegramLiveChatTelemetrySnapshot {
   lastUpdatedAt: string | null;
 }
 
+export const TELEGRAM_STREAMING_DEFAULTS = {
+  chatStreaming: true,
+  draftMethod: 'rich' as TelegramDraftTransport,
+  richMessages: true,
+  fullReplyPreview: true,
+  draftIntervalMs: 500
+};
+
 const TELEGRAM_DRAFT_TEXT_LIMIT = 3500;
 const FULL_REPLY_DRAFT_PREVIEW_MIN_CHARS = 40;
 const DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES = [
@@ -87,10 +95,12 @@ const liveChatTelemetry: TelegramLiveChatTelemetrySnapshot = {
 };
 
 export function telegramDraftStreamingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.SPARK_TELEGRAM_CHAT_STREAMING === undefined) return TELEGRAM_STREAMING_DEFAULTS.chatStreaming;
   return env.SPARK_TELEGRAM_CHAT_STREAMING !== '0';
 }
 
 export function telegramDraftTransport(env: NodeJS.ProcessEnv = process.env): TelegramDraftTransport {
+  if (env.SPARK_TELEGRAM_DRAFT_METHOD === undefined) return TELEGRAM_STREAMING_DEFAULTS.draftMethod;
   return env.SPARK_TELEGRAM_DRAFT_METHOD === 'legacy' ? 'legacy' : 'rich';
 }
 
@@ -99,6 +109,7 @@ export function telegramRichDraftsEnabled(env: NodeJS.ProcessEnv = process.env):
 }
 
 export function telegramRichMessagesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.SPARK_TELEGRAM_RICH_MESSAGES === undefined) return TELEGRAM_STREAMING_DEFAULTS.richMessages;
   return env.SPARK_TELEGRAM_RICH_MESSAGES !== '0';
 }
 
@@ -129,8 +140,8 @@ export function createTelegramDraftId(): number {
 }
 
 export function telegramDraftIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
-  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || 500);
-  if (!Number.isFinite(parsed)) return 500;
+  const parsed = Number(env.SPARK_TELEGRAM_DRAFT_INTERVAL_MS || TELEGRAM_STREAMING_DEFAULTS.draftIntervalMs);
+  if (!Number.isFinite(parsed)) return TELEGRAM_STREAMING_DEFAULTS.draftIntervalMs;
   return Math.max(0, parsed);
 }
 
@@ -167,7 +178,10 @@ export function buildTelegramDraftPreviewTexts(text: string): string[] {
 
 export function telegramFullReplyDraftPreviewAllowed(input: TelegramDraftPreviewPolicyInput = {}): boolean {
   const env = input.env || process.env;
-  if (env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === '0') return false;
+  const previewEnabled = env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES === undefined
+    ? TELEGRAM_STREAMING_DEFAULTS.fullReplyPreview
+    : env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES !== '0';
+  if (!previewEnabled) return false;
   const route = String(input.route || '').trim().toLowerCase().replace(/_/g, '.');
   if (!route) return true;
   return !DRAFT_PREVIEW_BLOCKED_ROUTE_PREFIXES.some((prefix) => route === prefix || route.startsWith(`${prefix}.`));
@@ -365,7 +379,7 @@ export function renderTelegramStreamingConfigStatus(env: NodeJS.ProcessEnv = pro
   const enabled = telegramDraftStreamingEnabled(env);
   const interval = telegramDraftIntervalMs(env);
   const transport = telegramDraftTransport(env);
-  const previewFullReplies = env.SPARK_TELEGRAM_DRAFT_PREVIEW_FULL_REPLIES !== '0';
+  const previewFullReplies = telegramFullReplyDraftPreviewAllowed({ env });
   return [
     'Telegram live chat',
     `Profile: ${telegramStreamingProfileLabel(env)}`,

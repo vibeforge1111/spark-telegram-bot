@@ -9,6 +9,7 @@ import {
   renderTelegramStreamingConfigStatus,
   sendTelegramRichMessage,
   sendTelegramDraftUpdate,
+  TELEGRAM_STREAMING_DEFAULTS,
   telegramDraftsSupportedForContext,
   telegramDraftStreamingEnabled,
   telegramDraftTransport,
@@ -32,6 +33,13 @@ async function test(name: string, fn: AsyncTest): Promise<void> {
 
 async function run(): Promise<void> {
   await test('draft streaming and rich messages default on', () => {
+    assert.deepEqual(TELEGRAM_STREAMING_DEFAULTS, {
+      chatStreaming: true,
+      draftMethod: 'rich',
+      richMessages: true,
+      fullReplyPreview: true,
+      draftIntervalMs: 500
+    });
     assert.equal(telegramDraftStreamingEnabled({}), true);
     assert.equal(telegramDraftStreamingEnabled({ SPARK_TELEGRAM_CHAT_STREAMING: '0' }), false);
     assert.equal(telegramDraftStreamingEnabled({ SPARK_TELEGRAM_CHAT_STREAMING: '1' }), true);
@@ -40,6 +48,7 @@ async function run(): Promise<void> {
     assert.equal(telegramRichDraftsEnabled({ SPARK_TELEGRAM_DRAFT_METHOD: 'legacy' }), false);
     assert.equal(telegramRichMessagesEnabled({}), true);
     assert.equal(telegramRichMessagesEnabled({ SPARK_TELEGRAM_RICH_MESSAGES: '0' }), false);
+    assert.equal(telegramFullReplyDraftPreviewAllowed({}), true);
   });
 
   await test('draft streaming only enables for private chats', () => {
@@ -132,7 +141,6 @@ async function run(): Promise<void> {
   await test('renders compact Telegram streaming status', () => {
     const status = renderTelegramStreamingConfigStatus({
       SPARK_TELEGRAM_PROFILE: 'primary',
-      SPARK_TELEGRAM_DRAFT_INTERVAL_MS: '700',
     });
 
     assert.match(status, /Profile: primary/);
@@ -140,7 +148,7 @@ async function run(): Promise<void> {
     assert.match(status, /Rich messages: on/);
     assert.match(status, /Draft transport: rich/);
     assert.match(status, /Full-reply preview: on/);
-    assert.match(status, /Draft interval: 700ms/);
+    assert.match(status, /Draft interval: 500ms/);
     assert.match(status, /Process telemetry: no rich\/draft delivery attempt observed since start/);
     assert.match(status, /Transport proof: configured only until a final or draft delivery is observed/);
     assert.match(status, /Private chats only/);
