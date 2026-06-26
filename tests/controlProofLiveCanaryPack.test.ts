@@ -39,6 +39,7 @@ function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string
   'exit=0',
   `Generated: ${generatedAt}`,
   'Blocking status: clean',
+  'Fresh-strict status: clean',
   'Gap posture: backed legacy gaps only; no blocking or latest proof gaps',
   '- telegram_final_answer: 100/100 sampled | latest_gap no',
   '- telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no',
@@ -749,6 +750,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
   assert.equal(summary.controlProofAuditDetails?.blockingStatus, 'clean');
+  assert.equal(summary.controlProofAuditDetails?.freshStrictOk, true);
   assert.equal(summary.controlProofAuditDetails?.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
   assert.equal(summary.controlProofAuditDetails?.gapCounts.legacy_proof_gaps, 3);
   assert.deepEqual(summary.controlProofAuditDetails?.gapPlanes.legacy_proof_gaps, [
@@ -1359,6 +1361,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     {
       source: 'control_proof_audit',
       blockingStatus: 'clean',
+      freshStrictOk: false,
       gapPosture: 'backed legacy gaps only; no blocking or latest proof gaps',
       legacyGapBackingDetails: incompleteLegacyGapBacking.controlProofAuditDetails?.legacyGapBackingDetails,
       gapFamilies: {
@@ -1437,7 +1440,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
 
   template.evidence.controlProofAuditSummary = {
     ...cleanAuditSummary,
-    gapPosture: 'blocking gaps require repair'
+    freshStrictOk: false
   };
   const mismatchedAuditSummary = summarizeControlProofCanaryObservations(template);
   assert.equal(mismatchedAuditSummary.readyForRelease, false);
@@ -3175,6 +3178,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
       '  echo "Status: gaps found"',
       '  echo "Blocking status: clean"',
+      '  echo "Fresh-strict status: clean"',
       '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
       '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
       '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
@@ -3298,6 +3302,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshed.stdout, /Refreshed control-proof runtime evidence/);
     const refreshedObserved = JSON.parse(readFileSync(refreshedPath, 'utf8'));
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
+    assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapCounts.latest_proof_gaps, 0);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails.length, 3);
@@ -3338,7 +3344,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const refreshedBundleSummaryJson = JSON.parse(readFileSync(bundleSummaryJsonPath, 'utf8'));
     const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
     assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
     assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.freshStrictOk, true);
     assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails.length, 3);
     assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails[0].repairSource, 'route_confidence_legacy_repair');
     assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);

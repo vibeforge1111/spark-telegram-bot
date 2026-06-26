@@ -200,6 +200,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     '',
     result.ok ? 'Status: clean' : 'Status: gaps found',
     result.blockingOk ? 'Blocking status: clean' : 'Blocking status: blocking gaps found',
+    result.freshStrictOk ? 'Fresh-strict status: clean' : 'Fresh-strict status: not ready',
     `Gap posture: ${result.gapPosture}`,
     '',
     'Planes:'

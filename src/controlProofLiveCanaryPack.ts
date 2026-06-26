@@ -268,6 +268,7 @@ export interface ControlProofAuditDetails {
   generatedAt: string | null;
   status: string | null;
   blockingStatus: string | null;
+  freshStrictOk: boolean | null;
   gapPosture: string | null;
   gapCounts: Record<string, number>;
   gapPlanes: Record<string, string[]>;
@@ -280,6 +281,7 @@ export interface ControlProofAuditRuntimeSummary {
   generatedAt: string | null;
   status: string | null;
   blockingStatus: string | null;
+  freshStrictOk: boolean | null;
   gapPosture: string | null;
   gapCounts: Record<string, number>;
   gapPlanes: Record<string, string[]>;
@@ -1439,6 +1441,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
   const blockingStatus = lineValue(value, 'Blocking status');
   const gapPosture = lineValue(value, 'Gap posture');
   const gapCounts = controlProofAuditGapCounts(value);
+  const freshStrictOk = controlProofAuditFreshStrictOk(value, gapCounts);
   const gapPlanes = controlProofAuditGapPlanes(value);
   const legacyGapBackingDetails = controlProofAuditLegacyGapBackingDetails(value);
   const planes = value
@@ -1451,6 +1454,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
     generatedAt,
     status,
     blockingStatus,
+    freshStrictOk,
     gapPosture,
     gapCounts,
     gapPlanes,
@@ -1469,6 +1473,7 @@ export function summarizeControlProofAuditRuntimeEvidence(
     generatedAt: details.generatedAt,
     status: details.status,
     blockingStatus: details.blockingStatus,
+    freshStrictOk: details.freshStrictOk,
     gapPosture: details.gapPosture,
     gapCounts: details.gapCounts,
     gapPlanes: details.gapPlanes,
@@ -1489,6 +1494,7 @@ function controlProofAuditRuntimeSummaryKey(value: ControlProofAuditRuntimeSumma
     generatedAt: value.generatedAt,
     status: value.status,
     blockingStatus: value.blockingStatus,
+    freshStrictOk: value.freshStrictOk,
     gapPosture: value.gapPosture,
     gapCounts: sortedNumberRecord(value.gapCounts),
     gapPlanes: sortedStringArrayRecord(value.gapPlanes),
@@ -1546,6 +1552,26 @@ function lineValue(text: string, label: string): string | null {
 function safeAuditDisplayToken(value: unknown): string | null {
   const text = String(value || '').trim();
   return text && /^[A-Za-z0-9 ._:/;+-]+$/.test(text) ? text : null;
+}
+
+function controlProofAuditFreshStrictOk(text: string, gapCounts: Record<string, number>): boolean | null {
+  if (
+    gapCounts.missing_evidence > 0 ||
+    gapCounts.missing_trace_joins > 0 ||
+    gapCounts.missing_proof_capsules > 0 ||
+    gapCounts.incomplete_legacy_gap_backing > 0 ||
+    gapCounts.latest_proof_gaps > 0 ||
+    gapCounts.raw_ref_leaks > 0 ||
+    gapCounts.robotic_failure_reasons > 0 ||
+    gapCounts.stack_like_leaks > 0
+  ) {
+    return false;
+  }
+  const status = lineValue(text, 'Fresh-strict status');
+  if (!status) return null;
+  if (/^clean\b/i.test(status)) return true;
+  if (/^(not ready|blocking|dirty|failed)\b/i.test(status)) return false;
+  return null;
 }
 
 function controlProofAuditGapCounts(text: string): Record<string, number> {
@@ -2515,6 +2541,7 @@ function controlProofAuditBlockingGapDetails(
   return {
     source: 'control_proof_audit',
     blockingStatus: auditDetails.blockingStatus,
+    freshStrictOk: auditDetails.freshStrictOk,
     gapPosture: auditDetails.gapPosture,
     legacyGapBackingDetails: JSON.parse(JSON.stringify(auditDetails.legacyGapBackingDetails)),
     gapFamilies
