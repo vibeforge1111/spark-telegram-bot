@@ -19,6 +19,7 @@ const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-
 const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
 const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md');
 const RENDER_FIREWALL_PATH = resolve(ROOT, 'docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md');
+const TRACE_JOIN_CHECKER_PATH = resolve(ROOT, 'docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -52,7 +53,9 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md/);
   assert.match(index, /SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md/);
+  assert.match(index, /SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md/);
   assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
+  assert.match(index, /Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md`/);
   assert.match(index, /Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
@@ -107,10 +110,11 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`outputs\/live-canary-full\/\*` \| active/);
   assert.match(inventory, /`outputs\/live-canary-safe-first\/\*` \| active/);
   assert.match(inventory, /`docs\/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
   assert.match(inventory, /None in this pass/);
   assert.match(inventory, /Keep the render firewall covered by tests/);
-  assert.match(inventory, /user intent -> route decision -> action\/no-action -> reply/);
+  assert.match(inventory, /Keep the end-to-end trace join checker covered/);
 });
 
 test('render firewall doc records ordinary and inspect boundaries', () => {
@@ -125,6 +129,19 @@ test('render firewall doc records ordinary and inspect boundaries', () => {
   assert.match(doc, /Inspect replies may keep proof and trace refs when useful/);
   assert.match(doc, /ctx\.reply/);
   assert.match(doc, /trace join checker: user intent -> route decision -> action\/no-action -> reply/);
+});
+
+test('trace join checker doc records route-to-reply proof boundary', () => {
+  const doc = readFileSync(TRACE_JOIN_CHECKER_PATH, 'utf8');
+
+  assert.match(doc, /user intent -> route decision -> action\/no-action -> reply/);
+  assert.match(doc, /separate from the per-plane trace continuity audit/);
+  assert.match(doc, /spark\.nlp\.route_execution\.v1/);
+  assert.match(doc, /npm run control:proof:trace-join -- --strict/);
+  assert.match(doc, /request and trace join keys/);
+  assert.match(doc, /proof join when a Harness proof ref is present/);
+  assert.match(doc, /An empty route sample is not clean proof/);
+  assert.match(doc, /Do not backfill them unless the backing evidence proves the exact request, trace, proof, action\/no-action, and reply join/);
 });
 
 test('reliability ladder goal prompt sequences enforcement before expansion', () => {

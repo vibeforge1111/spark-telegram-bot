@@ -23,6 +23,7 @@
     "nl:verdict": "ts-node ops/liveNlVerdictReport.ts",
     "nl:replay": "ts-node ops/naturalRouteReplay.ts",
     "control:proof:audit": "ts-node ops/controlProofTraceAudit.ts",
+    "control:proof:trace-join": "ts-node ops/controlProofTraceJoin.ts",
     "control:proof:panel": "ts-node ops/harnessProofPanel.ts",
     "control:proof:canaries": "ts-node ops/controlProofLiveCanaryPack.ts",
     "control:proof:repair:legacy": "ts-node ops/repairLegacyTraceProofGaps.ts",

@@ -56,15 +56,19 @@ Read these in order:
    - Active Telegram render firewall implementation note.
    - Source for ordinary-vs-inspect redaction behavior.
 
-12. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+12. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
+   - Active trace join checker implementation note.
+   - Source for `user intent -> route decision -> action/no-action -> reply` verification.
+
+13. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-13. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+14. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-14. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+15. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
@@ -107,6 +111,7 @@ Each implementation slice should update docs in the same commit or an adjacent c
 
 - Proof capsule changes update `SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`.
 - Trace audit commands update `SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`.
+- Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`.
 - Telegram copy rules update `TELEGRAM_COMPOSITION_STANDARD.md`.
 - Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`.
 - Streaming or Rich Message behavior updates `LIVE_CHAT_STREAMING_DESIGN.md`.

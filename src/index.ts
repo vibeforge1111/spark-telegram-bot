@@ -1846,6 +1846,7 @@ function recordNaturalRouteExecution(
   executedAction: string
 ): void {
   if (!decision || !shouldWriteNaturalRouteLedger()) return;
+  const traceContext = getTurnOutboundTraceContext(ctx);
   const record = createNaturalRouteExecutionRecord({
     decision,
     profile: activeTelegramProfile(),
@@ -1855,7 +1856,10 @@ function recordNaturalRouteExecution(
     admin: conversation.isAdmin(ctx.from),
     executedRoute,
     executedOwner,
-    executedAction
+    executedAction,
+    requestId: traceContext?.requestId,
+    traceRef: traceContext?.traceRef,
+    proofRef: traceContext?.proofCapsule?.turnRef || traceContext?.proofRef
   });
   void appendNaturalRouteExecutionRecord(record).catch((error) => {
     console.warn('[NaturalRoute] execution ledger write failed:', error);

@@ -38,6 +38,9 @@ async function run(): Promise<void> {
       executedRoute: 'spawner.build',
       executedOwner: 'spawner-ui',
       executedAction: 'spawner.build',
+      requestId: 'turn:sha256:abcdef1234567890',
+      traceRef: 'trace:telegram-run:abcdef1234567890',
+      proofRef: 'turn:sha256:fedcba9876543210',
       now: new Date('2026-05-09T00:00:00.000Z')
     });
     const serialized = JSON.stringify(record);
@@ -46,12 +49,32 @@ async function run(): Promise<void> {
     assert.equal(record.outcome, 'matched');
     assert.equal(record.shadow_route, 'spawner.build');
     assert.equal(record.executed_route, 'spawner.build');
+    assert.equal(record.request_id, 'turn:sha256:abcdef1234567890');
+    assert.equal(record.trace_ref, 'trace:telegram-run:abcdef1234567890');
+    assert.equal(record.harness_proof_ref, 'turn:sha256:fedcba9876543210');
     assert.equal(record.profile, 'spark_agi');
     assert.match(record.user_id, /^user_[a-f0-9]{16}$/);
     assert.match(record.chat_id, /^chat_[a-f0-9]{16}$/);
     assert.doesNotMatch(serialized, /tiny timer app|spark-timer|Desktop/i);
     assert.doesNotMatch(serialized, /8319079055/);
     assert.equal(Object.prototype.hasOwnProperty.call(record, 'payload'), false);
+  });
+
+  await test('drops unsafe path-like join refs from route execution records', () => {
+    const decision = decideNaturalRoute('tell me the current Spark state');
+    const record = createNaturalRouteExecutionRecord({
+      decision,
+      executedRoute: 'plain_chat',
+      executedOwner: 'spark-telegram-bot',
+      executedAction: 'answer',
+      requestId: '/Users/example/private.json',
+      traceRef: 'C:\\Users\\example\\trace.json',
+      proofRef: 'turn:sha256:abcdef1234567890'
+    });
+
+    assert.equal(Object.prototype.hasOwnProperty.call(record, 'request_id'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(record, 'trace_ref'), false);
+    assert.equal(record.harness_proof_ref, 'turn:sha256:abcdef1234567890');
   });
 
   await test('detects shadow and execution mismatches in ledger summaries', () => {
@@ -82,9 +105,14 @@ async function run(): Promise<void> {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'spark-natural-route-ledger-'));
     const filePath = path.join(dir, 'route-ledger.jsonl');
     try {
-      assert.equal(shouldWriteNaturalRouteLedger({} as NodeJS.ProcessEnv), false);
+      assert.equal(shouldWriteNaturalRouteLedger({} as NodeJS.ProcessEnv), true);
+      assert.equal(shouldWriteNaturalRouteLedger({ SPARK_NATURAL_ROUTE_LEDGER: '0' } as NodeJS.ProcessEnv), false);
       assert.equal(shouldWriteNaturalRouteLedger({ SPARK_NATURAL_ROUTE_LEDGER: '1' } as NodeJS.ProcessEnv), true);
       assert.equal(naturalRouteLedgerPath({ SPARK_NATURAL_ROUTE_LEDGER_PATH: filePath } as NodeJS.ProcessEnv), filePath);
+      assert.equal(
+        naturalRouteLedgerPath({ SPARK_HOME: dir } as NodeJS.ProcessEnv),
+        path.join(dir, 'state', 'spark-telegram-bot', 'natural-route-execution.jsonl')
+      );
 
       const decision = decideNaturalRoute('search your wiki for Telegram route mistakes');
       const record = createNaturalRouteExecutionRecord({
