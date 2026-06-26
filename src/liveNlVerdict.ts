@@ -708,12 +708,26 @@ export function parseLiveNlObservationFile(value: unknown): LiveNlObservationFil
   const rawCases = record.cases;
   if (!Array.isArray(rawCases)) throw new Error('Live NL observation file needs a cases array.');
   const session = objectField(record, 'session', 'required_session_evidence') || undefined;
+  const claimScope = stringField(record, 'claimScope') || stringField(record, 'claim_scope') || 'legacy_breadth';
+  const authorityClaimBoundary = stringField(record, 'authorityClaimBoundary') ||
+    stringField(record, 'authority_claim_boundary') ||
+    LIVE_NL_AUTHORITY_CLAIM_BOUNDARY;
+  if (claimScope !== 'legacy_breadth') {
+    throw new Error(`Live NL observation file claim scope must be legacy_breadth, not ${claimScope}.`);
+  }
+  if (
+    !/claim_scope=legacy_breadth\b/.test(authorityClaimBoundary) ||
+    !/release_gate=none\b/.test(authorityClaimBoundary) ||
+    !/not Harness Core release proof/i.test(authorityClaimBoundary)
+  ) {
+    throw new Error('Live NL observation file authority boundary must preserve claim_scope=legacy_breadth, release_gate=none, and not Harness Core release proof.');
+  }
   return {
     generatedAt: stringField(record, 'generatedAt') || stringField(record, 'generated_at') || undefined,
     runId: stringField(record, 'runId') || stringField(record, 'run_id') || undefined,
     title: stringField(record, 'title') || undefined,
-    claimScope: stringField(record, 'claimScope') as LiveNlClaimScope || stringField(record, 'claim_scope') as LiveNlClaimScope || undefined,
-    authorityClaimBoundary: stringField(record, 'authorityClaimBoundary') || stringField(record, 'authority_claim_boundary') || undefined,
+    claimScope,
+    authorityClaimBoundary,
     session: session as LiveNlObservationFile['session'],
     cases: rawCases.map(parseCaseObservation)
   };

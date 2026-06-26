@@ -319,3 +319,13 @@ The blank `nl:verdict -- --observation-template` JSON now carries the same machi
 - The template must not be used to authorize high-agency actions.
 
 This closes the pre-fill proof gap where a detached observation template could be copied around without the release-proof warning that appears on the final evidence packet.
+
+## 2026-06-26 Observation Parser Boundary Recheck
+
+The observation parser now enforces the same boundary when it imports filled JSON:
+
+- Missing boundary metadata is normalized to `claimScope=legacy_breadth` and the standard `release_gate=none` authority warning.
+- Any observation file that claims a non-legacy scope or release-proof gate is rejected before a packet can be built.
+- The generated packet still writes the standard boundary, so old NL observations remain breadth evidence even when every selected case passes.
+
+This closes the source-edge proof gap where a hand-edited observation file could try to promote an old NL run into release evidence by changing metadata instead of moving the case into `control:proof:canaries`.

@@ -452,6 +452,8 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
       }
     ]
   });
+  assert.equal(observations.claimScope, 'legacy_breadth');
+  assert.equal(observations.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
   const packet = buildObservedLiveNlEvidencePacket(cases, observations, {
     catalog: 'fixture-live-catalog.json',
     includeRisky: true,
@@ -485,6 +487,32 @@ test('observed live QA packet imports replies, side effects, evidence refs, and 
   assert.equal(wikiCase.retest_required, true);
   assert.equal(wikiCase.issue, 'Missed read-only wiki inventory route.');
   assert.deepEqual(wikiCase.evidence_refs.traces, ['trace:wiki-001']);
+});
+
+test('live NL observation parser preserves the legacy breadth boundary', () => {
+  assert.throws(
+    () => parseLiveNlObservationFile({
+      claimScope: 'release_proof',
+      authorityClaimBoundary: LIVE_NL_AUTHORITY_CLAIM_BOUNDARY,
+      cases: [{ id: 'safe-001', verdict: 'pass' }]
+    }),
+    /claim scope must be legacy_breadth/
+  );
+
+  assert.throws(
+    () => parseLiveNlObservationFile({
+      claimScope: 'legacy_breadth',
+      authorityClaimBoundary: 'claim_scope=legacy_breadth; release_gate=control_proof_canary',
+      cases: [{ id: 'safe-001', verdict: 'pass' }]
+    }),
+    /authority boundary must preserve claim_scope=legacy_breadth, release_gate=none/
+  );
+
+  const parsed = parseLiveNlObservationFile({
+    cases: [{ id: 'safe-001', verdict: 'pass' }]
+  });
+  assert.equal(parsed.claimScope, 'legacy_breadth');
+  assert.equal(parsed.authorityClaimBoundary, LIVE_NL_AUTHORITY_CLAIM_BOUNDARY);
 });
 
 test('observed live QA packet rejects unknown observation case ids', () => {
