@@ -1535,6 +1535,41 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=1; rows_read=522; capsules_added=1; parse_errors=0',
+    '- spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const dirtyLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.equal(dirtyLegacyRepairDryRun.readyForRelease, false);
+  assert.deepEqual(dirtyLegacyRepairDryRun.invalidPacketEvidence, ['legacy_repair_dry_run']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(dirtyLegacyRepairDryRun),
+    /Packet evidence invalid: legacy_repair_dry_run/
+  );
+
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const incompleteLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.equal(incompleteLegacyRepairDryRun.readyForRelease, false);
+  assert.deepEqual(incompleteLegacyRepairDryRun.invalidPacketEvidence, ['legacy_repair_dry_run']);
+
+  template.evidence.notes = [
+    'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    'Legacy repair dry-run:',
+    '- telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0',
+    '- builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0',
+    '- spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0'
+  ].join('\n');
+  const cleanLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
+  assert.ok(!cleanLegacyRepairDryRun.invalidPacketEvidence.includes('legacy_repair_dry_run'));
+
   const cleanAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!;
   template.evidence.controlProofAuditSummary = {
     ...cleanAuditSummary,

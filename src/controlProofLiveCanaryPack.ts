@@ -1497,6 +1497,7 @@ function packetEvidenceReason(
   if (key === 'packet_generated_at') return 'packet generated timestamp is invalid, future-dated, or older than runtime evidence';
   if (key === 'source_snapshot') return 'source files changed after runtime evidence was collected';
   if (key === 'runtime_evidence_notes') return 'runtime evidence notes contain raw internal details';
+  if (key === 'legacy_repair_dry_run') return 'legacy proof-gap repair dry-runs are missing, incomplete, or would still change current rows';
   if (key === 'spark_os_compile') return 'spark os compile proof is dirty, incomplete, failed, or timestamp-mismatched';
   if (key === 'control_proof_audit') return 'control-proof audit is dirty, incomplete, failed, or timestamp-mismatched';
   if (key === 'control_proof_audit_summary') return 'control-proof audit summary does not match the audit transcript';
@@ -3085,8 +3086,23 @@ function invalidPacketEvidence(
       summarizeControlProofAuditRuntimeEvidence(evidence.controlProofAudit)
     )
   ) invalid.push('control_proof_audit_summary');
-  if (String(evidence.notes || '').trim() && canaryFreeTextLeaksRawInternals(String(evidence.notes))) invalid.push('runtime_evidence_notes');
+  const notes = String(evidence.notes || '').trim();
+  if (notes && canaryFreeTextLeaksRawInternals(notes)) invalid.push('runtime_evidence_notes');
+  if (notes && /Legacy repair dry-run:/i.test(notes) && !hasCleanLegacyRepairDryRunNotes(notes)) {
+    invalid.push('legacy_repair_dry_run');
+  }
   return invalid;
+}
+
+function hasCleanLegacyRepairDryRunNotes(value: string): boolean {
+  const expectedPlanes = ['telegram_route_confidence', 'builder_gateway', 'spawner_prd_trace'];
+  return expectedPlanes.every((plane) => {
+    const pattern = new RegExp(
+      `${plane}:\\s*changed_rows=0;\\s*rows_read=\\d+;\\s*capsules_added=0;\\s*parse_errors=0`,
+      'i'
+    );
+    return pattern.test(value);
+  });
 }
 
 function missingCapturesForCase(
