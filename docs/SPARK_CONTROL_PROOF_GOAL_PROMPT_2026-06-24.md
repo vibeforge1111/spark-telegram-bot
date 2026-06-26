@@ -20,7 +20,7 @@ Posture:
 
 Current baseline:
 - Fresh-strict audit is blocking-clean: no missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, or stack-like leaks.
-- `Status: gaps found` is acceptable only when paired with `Blocking status: clean` and `Gap posture: backed legacy gaps only; no blocking or latest proof gaps`.
+- `Status: gaps found` is acceptable only when paired with `Actionable status: clean`, `Blocking status: clean`, and `Gap posture: backed legacy gaps only; no blocking or latest proof gaps`.
 - Remaining proof gaps are backed historical legacy rows in route-confidence, Builder gateway, and Spawner trace planes. Keep them visible; do not relabel them as fresh Harness authority.
 - Full canary evidence lives in `outputs/live-canary-full/live-canary-summary.md/.json`. Release-ready and publish-ready are separate claims.
 - Current publish blockers are owner handoffs, not Telegram behavior failures: repo drift must name owner and `behind=N`; local runtime artifacts must name owners; Builder historical debt must name unresolved family count and latest unresolved event.

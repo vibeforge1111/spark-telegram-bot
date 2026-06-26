@@ -267,6 +267,7 @@ export interface ControlProofAuditLegacyGapBackingDetail {
 export interface ControlProofAuditDetails {
   generatedAt: string | null;
   status: string | null;
+  actionableStatus: string | null;
   blockingStatus: string | null;
   freshStrictOk: boolean | null;
   gapPosture: string | null;
@@ -280,6 +281,7 @@ export interface ControlProofAuditDetails {
 export interface ControlProofAuditRuntimeSummary {
   generatedAt: string | null;
   status: string | null;
+  actionableStatus: string | null;
   blockingStatus: string | null;
   freshStrictOk: boolean | null;
   gapPosture: string | null;
@@ -1451,6 +1453,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
   if (!value) return null;
   const generatedAt = lineValue(value, 'Generated');
   const status = lineValue(value, 'Status');
+  const actionableStatus = lineValue(value, 'Actionable status');
   const blockingStatus = lineValue(value, 'Blocking status');
   const gapPosture = lineValue(value, 'Gap posture');
   const gapCounts = controlProofAuditGapCounts(value);
@@ -1466,6 +1469,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
   return {
     generatedAt,
     status,
+    actionableStatus,
     blockingStatus,
     freshStrictOk,
     gapPosture,
@@ -1485,6 +1489,7 @@ export function summarizeControlProofAuditRuntimeEvidence(
   return {
     generatedAt: details.generatedAt,
     status: details.status,
+    actionableStatus: details.actionableStatus,
     blockingStatus: details.blockingStatus,
     freshStrictOk: details.freshStrictOk,
     gapPosture: details.gapPosture,
@@ -1506,6 +1511,7 @@ function controlProofAuditRuntimeSummaryKey(value: ControlProofAuditRuntimeSumma
   return JSON.stringify({
     generatedAt: value.generatedAt,
     status: value.status,
+    actionableStatus: value.actionableStatus,
     blockingStatus: value.blockingStatus,
     freshStrictOk: value.freshStrictOk,
     gapPosture: value.gapPosture,
@@ -2556,6 +2562,7 @@ function controlProofAuditBlockingGapDetails(
   if (Object.keys(gapFamilies).length === 0) return null;
   return {
     source: 'control_proof_audit',
+    actionableStatus: auditDetails.actionableStatus,
     blockingStatus: auditDetails.blockingStatus,
     freshStrictOk: auditDetails.freshStrictOk,
     gapPosture: auditDetails.gapPosture,

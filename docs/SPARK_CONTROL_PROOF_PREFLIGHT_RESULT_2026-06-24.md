@@ -172,6 +172,11 @@ Update after audit gap-posture clarity on 2026-06-25 17:56 +04:
 - Commits through `0126183` added the fresh-strict audit header line `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` and refreshed the full SparkRecursive_bot canary evidence packet from a clean tree.
 - This is report clarity only: gates still depend on the structured counters and `Blocking status`. Current audit output remains blocking-clean while preserving visible historical legacy gaps in `telegram_route_confidence`, `builder_gateway`, and `spawner_prd_trace`.
 
+Update after actionable audit status hardening on 2026-06-26:
+
+- The audit header now includes `Actionable status: clean` when backed legacy gaps remain visible but blocking and fresh-strict gates are clean.
+- Canary packets preserve that field in `evidence.controlProofAuditSummary`, so release evidence can join the human transcript to machine-readable readiness without reinterpreting `Status: gaps found`.
+
 Update after Builder trace caveat count hardening on 2026-06-25:
 
 - Spark CLI commit `6707e29` exposes Builder high-severity lifecycle counts in `spark os compile --json`: total historical high-severity rows, unresolved high-severity families, and current unresolved high-severity families.

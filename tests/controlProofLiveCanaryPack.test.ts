@@ -771,6 +771,7 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(summary.verdictCounts.pass, 1);
   assert.deepEqual(summary.missingPacketEvidence, []);
   assert.deepEqual(summary.cases[0].missingCaptures, []);
+  assert.equal(summary.controlProofAuditDetails?.actionableStatus, 'clean');
   assert.equal(summary.controlProofAuditDetails?.blockingStatus, 'clean');
   assert.equal(summary.controlProofAuditDetails?.freshStrictOk, true);
   assert.equal(summary.controlProofAuditDetails?.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
@@ -1407,6 +1408,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     incompleteLegacyGapBacking.gateDecisionDetails.release.blockerDetails.control_proof_audit_blocking_gaps,
     {
       source: 'control_proof_audit',
+      actionableStatus: 'clean',
       blockingStatus: 'clean',
       freshStrictOk: false,
       gapPosture: 'backed legacy gaps only; no blocking or latest proof gaps',
@@ -3225,6 +3227,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  while [ "$i" -lt 80 ]; do echo "audit detail line $i before summary"; i=$((i + 1)); done',
       "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
       '  echo "Status: gaps found"',
+      '  echo "Actionable status: clean"',
       '  echo "Blocking status: clean"',
       '  echo "Fresh-strict status: clean"',
       '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
