@@ -92,6 +92,8 @@ test('streaming design preserves the measured rich-message proof shape', () => {
   assert.match(design, /TELEGRAM_STREAMING_DEFAULTS/);
   assert.match(design, /source-owned default policy/);
   assert.match(design, /profile env files persist runtime choices/);
+  assert.match(design, /Builder-native JSONL streaming remains gated by the proof-first rule/);
+  assert.match(design, /measured control-proof or trace-join gap being closed/);
 });
 
 test('repo carries a readability ergonomics and vibe rubric', () => {
