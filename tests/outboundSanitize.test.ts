@@ -8,6 +8,7 @@ import {
   TELEGRAM_SAFE_MESSAGE_LIMIT,
   stripMarkdownEmphasis
 } from '../src/outboundSanitize';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from '../src/legacyPromptRefs';
 
 function test(name: string, fn: () => void): void {
   try {
@@ -108,6 +109,21 @@ test('firewalls legacy source titles and old runbook names from ordinary replies
   assert.doesNotMatch(cleaned, /SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26\.md/i);
   assert.doesNotMatch(cleaned, /codex-handoffs/i);
   assert.match(cleaned, /legacy source evidence/);
+});
+
+test('firewalls every prompt-surface blocked legacy ref from ordinary replies', () => {
+  for (const ref of LEGACY_PROMPT_SURFACE_BLOCKED_REFS) {
+    for (const pattern of ref.patterns) {
+      const cleaned = sanitizeOutbound(`Ordinary reply mentioned ${pattern} as current context.`);
+
+      assert.equal(
+        cleaned.toLowerCase().includes(pattern.toLowerCase()),
+        false,
+        `${ref.id} pattern ${pattern} leaked through ordinary Telegram render`
+      );
+      assert.match(cleaned, /legacy source evidence/);
+    }
+  }
 });
 
 test('allows inspect surfaces to keep proof refs while still hiding paths and stack traces', () => {
