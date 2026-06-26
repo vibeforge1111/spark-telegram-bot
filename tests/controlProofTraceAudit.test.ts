@@ -234,8 +234,10 @@ test('counts explicit missing Harness proof markers without treating them as pro
     assert.equal(plane.proofGapRefPresent, 0);
     assert.equal(plane.proofGapBackingIncomplete, 1);
     assert.equal(plane.proofGapBacking, 'missing');
+    assert.equal(plane.sourceProofGapMarked, 1);
     assert.equal(plane.proofCapsuleMissing, 1);
     assert.equal(result.gapCounts.missingProofCapsule, 1);
+    assert.equal(result.gapCounts.sourceProofGap, 1);
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 1);
     assert.equal(result.ok, false);
@@ -282,9 +284,11 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.proofGapBackingIncomplete, 0);
     assert.equal(plane.proofGapBacking, 'complete');
+    assert.equal(plane.sourceProofGapMarked, 0);
     assert.equal(plane.latestProofGapMarked, true);
     assert.equal(plane.proofCapsuleMissing, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.gapCounts.sourceProofGap, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 0);
     assert.equal(result.gapCounts.latestProofGap, 1);
@@ -308,6 +312,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.equal(result.gapPosture, 'non-blocking gaps visible');
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
+    assert.match(formatControlProofTraceAuditReport(result), /source_gap 0/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule_valid 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_ref 1/);
@@ -357,7 +362,9 @@ test('blocks legacy proof gaps when backing capsule is not a downgrade capsule',
     assert.equal(plane.proofGapBackingIncomplete, 1);
     assert.equal(plane.proofGapCapsuleValid, 0);
     assert.equal(plane.proofGapBacking, 'invalid');
+    assert.equal(plane.sourceProofGapMarked, 0);
     assert.equal(result.gapCounts.missingProofCapsule, 0);
+    assert.equal(result.gapCounts.sourceProofGap, 0);
     assert.equal(result.gapCounts.incompleteLegacyProofGapBacking, 1);
     assert.equal(result.blockingOk, false);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule_valid 0/);
@@ -383,7 +390,7 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
         traceRef: 'trace-old',
         harnessProofRef: 'turn:sha256:abcdef1234567890',
         proofStatus: 'missing_harness_authority',
-        proofStorage: 'source_gap_capsule',
+        proofStorage: 'legacy_gap_capsule',
         proofCapsule: legacyGapCapsule()
       },
       {
@@ -410,8 +417,10 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(plane.proofGapRefPresent, 1);
     assert.equal(plane.proofGapBackingIncomplete, 0);
     assert.equal(plane.proofGapBacking, 'complete');
+    assert.equal(plane.sourceProofGapMarked, 0);
     assert.equal(plane.latestProofGapMarked, false);
     assert.equal(plane.latestRecordAt, '2026-06-24T12:05:00.000Z');
+    assert.equal(result.gapCounts.sourceProofGap, 0);
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
@@ -436,6 +445,62 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.match(report, /legacy proof gaps: builder_gateway \(backing complete; latest gaps 0; release blocking no\)/);
     assert.match(report, /builder_gateway: backing complete \| source builder_gateway_trace_legacy_repair \| latest_gap no \| release_blocking no/);
     assert.match(report, /repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json/);
+  });
+});
+
+test('blocks producer-written source proof gaps even after a later clean row', () => {
+  withTempSparkHome((sparkHome) => {
+    const evidenceFiles = [
+      {
+        label: 'builder_gateway',
+        filePath: path.join(sparkHome, 'gateway-trace.jsonl'),
+        kind: 'jsonl' as const
+      }
+    ];
+    writeJsonl(evidenceFiles[0].filePath, [
+      {
+        timestamp: '2026-06-24T12:00:00.000Z',
+        requestId: 'req-source-gap',
+        traceRef: 'trace-source-gap',
+        harnessProofRef: 'turn:sha256:abcdef1234567890',
+        proofStatus: 'missing_harness_authority',
+        proofStorage: 'source_gap_capsule',
+        proofCapsule: legacyGapCapsule()
+      },
+      {
+        timestamp: '2026-06-24T12:05:00.000Z',
+        requestId: 'req-new',
+        traceRef: 'trace-new',
+        harnessProofRef: 'turn:sha256:fedcba9876543210',
+        proofCapsule: {
+          schema: 'spark.harness_proof.v1',
+          turnRef: 'turn:sha256:fedcba9876543210'
+        }
+      }
+    ]);
+
+    const result = auditControlProofTraceContinuity({
+      sparkHome,
+      evidenceFiles,
+      generatedAt: '2026-06-24T00:00:00.000Z'
+    });
+    const plane = result.planes[0];
+    assert.equal(plane.proofGapMarked, 1);
+    assert.equal(plane.sourceProofGapMarked, 1);
+    assert.equal(plane.proofGapBackingIncomplete, 1);
+    assert.equal(plane.proofGapBacking, 'complete');
+    assert.equal(plane.latestProofGapMarked, false);
+    assert.equal(result.gapCounts.sourceProofGap, 1);
+    assert.equal(result.gapCounts.legacyProofGap, 1);
+    assert.equal(result.gapCounts.latestProofGap, 0);
+    assert.equal(result.blockingOk, false);
+    assert.equal(result.freshStrictOk, false);
+    assert.equal(result.gapPosture, 'blocking gaps require repair');
+    assert.deepEqual(result.gapPlanes.sourceProofGap, ['builder_gateway']);
+    const report = formatControlProofTraceAuditReport(result);
+    assert.match(report, /source proof gaps: 1/);
+    assert.match(report, /source proof gaps: builder_gateway/);
+    assert.match(report, /Blocking status: blocking gaps found/);
   });
 });
 
@@ -598,6 +663,7 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
         traceRef: 'trace-old',
         harnessProofRef: 'turn:sha256:abcdef1234567890',
         proofStatus: 'missing_harness_authority',
+        proofStorage: 'legacy_gap_capsule',
         proofCapsule: legacyGapCapsule()
       },
       {

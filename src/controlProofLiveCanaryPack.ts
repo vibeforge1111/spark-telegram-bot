@@ -1572,6 +1572,7 @@ function controlProofAuditFreshStrictOk(text: string, gapCounts: Record<string, 
     gapCounts.missing_evidence > 0 ||
     gapCounts.missing_trace_joins > 0 ||
     gapCounts.missing_proof_capsules > 0 ||
+    gapCounts.source_proof_gaps > 0 ||
     gapCounts.incomplete_legacy_gap_backing > 0 ||
     gapCounts.latest_proof_gaps > 0 ||
     gapCounts.raw_ref_leaks > 0 ||
@@ -1593,6 +1594,7 @@ function controlProofAuditGapCounts(text: string): Record<string, number> {
     missing_evidence: 'missing evidence',
     missing_trace_joins: 'missing trace joins',
     missing_proof_capsules: 'missing proof capsules',
+    source_proof_gaps: 'source proof gaps',
     legacy_proof_gaps: 'legacy proof gaps',
     incomplete_legacy_gap_backing: 'incomplete legacy gap backing',
     latest_proof_gaps: 'latest proof gaps',
@@ -1615,6 +1617,7 @@ function controlProofAuditGapPlanes(text: string): Record<string, string[]> {
     missing_evidence: 'missing evidence',
     missing_trace_joins: 'missing trace joins',
     missing_proof_capsules: 'missing proof capsules',
+    source_proof_gaps: 'source proof gaps',
     legacy_proof_gaps: 'legacy proof gaps',
     incomplete_legacy_gap_backing: 'incomplete legacy gap backing',
     latest_proof_gaps: 'latest proof gaps',
