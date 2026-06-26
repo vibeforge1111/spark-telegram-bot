@@ -37,6 +37,8 @@ export interface CapabilityEvidenceGap {
     | 'missing_capture'
     | 'category_mismatch'
     | 'overlapping_policy_case'
+    | 'duplicate_capability_key'
+    | 'duplicate_policy_case'
     | 'missing_publish_handoff';
   detail: string;
 }
@@ -207,6 +209,27 @@ function casesHaveCompletePassingEvidence(
   });
 }
 
+function duplicateCaseGaps(
+  policy: CapabilityEvidencePolicy,
+  caseIds: string[],
+  kind: 'success' | 'failure'
+): CapabilityEvidenceGap[] {
+  const counts = new Map<string, number>();
+  for (const caseId of caseIds) {
+    counts.set(caseId, (counts.get(caseId) ?? 0) + 1);
+  }
+
+  return [...counts.entries()].flatMap(([caseId, count]) => {
+    if (count <= 1) return [];
+    return [{
+      capabilityKey: policy.capabilityKey,
+      caseId,
+      reason: 'duplicate_policy_case' as const,
+      detail: `Capability policy lists ${caseId} ${count} times in ${kind} evidence; repeated cases do not add capability proof.`
+    }];
+  });
+}
+
 export function checkCapabilityEvidence(input: {
   repoRoot?: string;
   observationPath?: string;
@@ -238,8 +261,16 @@ export function checkCapabilityEvidence(input: {
   const policies = input.policies || CAPABILITY_EVIDENCE_POLICIES;
   const gaps: CapabilityEvidenceGap[] = [];
   const records: CapabilityEvidenceRecord[] = [];
+  const policyKeyCounts = new Map<string, number>();
 
   for (const policy of policies) {
+    policyKeyCounts.set(policy.capabilityKey, (policyKeyCounts.get(policy.capabilityKey) ?? 0) + 1);
+  }
+
+  for (const policy of policies) {
+    gaps.push(...duplicateCaseGaps(policy, policy.successCaseIds, 'success'));
+    gaps.push(...duplicateCaseGaps(policy, policy.failureOrBoundaryCaseIds, 'failure'));
+
     const overlappingCaseIds = policy.successCaseIds.filter((caseId) => policy.failureOrBoundaryCaseIds.includes(caseId));
     for (const caseId of overlappingCaseIds) {
       gaps.push({
@@ -290,6 +321,15 @@ export function checkCapabilityEvidence(input: {
         : null,
       lastFailureOrBoundaryCaseIds: [...policy.failureOrBoundaryCaseIds],
       publishHandoffEvidence: hasPublishHandoffEvidence
+    });
+  }
+
+  for (const [capabilityKey, count] of policyKeyCounts) {
+    if (count <= 1) continue;
+    gaps.push({
+      capabilityKey,
+      reason: 'duplicate_capability_key',
+      detail: `Capability policy key appears ${count} times; capability keys must be unique.`
     });
   }
 

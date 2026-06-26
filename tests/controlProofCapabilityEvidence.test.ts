@@ -135,6 +135,45 @@ test('capability evidence rejects using one case as both success and boundary pr
   assert.match(formatCapabilityEvidenceReport(result), /overlapping_policy_case/);
 });
 
+test('capability evidence rejects duplicate capability keys', () => {
+  const template = passingTemplate();
+  const policy = CAPABILITY_EVIDENCE_POLICIES.find((entry) => entry.capabilityKey === 'builder_gateway');
+  assert.ok(policy);
+  const result = checkCapabilityEvidence({
+    observations: template,
+    policies: [policy, { ...policy }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.capabilityKey === 'builder_gateway' &&
+    gap.reason === 'duplicate_capability_key'
+  )));
+  assert.match(formatCapabilityEvidenceReport(result), /duplicate_capability_key/);
+});
+
+test('capability evidence rejects repeated case ids inside one policy evidence side', () => {
+  const template = passingTemplate();
+  const result = checkCapabilityEvidence({
+    observations: template,
+    policies: [{
+      capabilityKey: 'duplicate_case_test',
+      label: 'Duplicate case test',
+      categories: ['builder'],
+      successCaseIds: ['cp-builder-001', 'cp-builder-001'],
+      failureOrBoundaryCaseIds: ['cp-builder-002']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.capabilityKey === 'duplicate_case_test' &&
+    gap.caseId === 'cp-builder-001' &&
+    gap.reason === 'duplicate_policy_case'
+  )));
+  assert.match(formatCapabilityEvidenceReport(result), /duplicate_policy_case/);
+});
+
 test('capability evidence rejects cases from unrelated canary categories', () => {
   const template = passingTemplate();
   const result = checkCapabilityEvidence({
