@@ -143,6 +143,7 @@ test('summarizes trace joins and raw-ref gaps without printing raw rows', () => 
     assert.deepEqual(result.gapPlanes.rawRefLeak, ['telegram_final_answer', 'builder_gateway']);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, false);
+    assert.equal(result.gapPosture, 'blocking gaps require repair');
 
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /telegram_final_answer/);
@@ -193,6 +194,7 @@ test('treats explicit non-execution continuity as proof not applicable', () => {
     assert.equal(result.gapCounts.legacyProofGap, 0);
     assert.equal(result.ok, true);
     assert.equal(result.blockingOk, true);
+    assert.equal(result.gapPosture, 'clean');
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /Gap posture: clean/);
     assert.match(report, /proof_n\/a 1/);
@@ -290,6 +292,7 @@ test('counts legacy gap proof capsules as proof coverage and keeps the gap visib
     assert.deepEqual(result.gapPlanes.latestProofGap, ['telegram_route_confidence']);
     assert.equal(result.ok, false);
     assert.equal(result.blockingOk, true);
+    assert.equal(result.gapPosture, 'non-blocking gaps visible');
     assert.match(formatControlProofTraceAuditReport(result), /proof 1\/1/);
     assert.match(formatControlProofTraceAuditReport(result), /proof_gap 1/);
     assert.match(formatControlProofTraceAuditReport(result), /gap_capsule 1/);
@@ -397,10 +400,43 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.equal(result.gapCounts.legacyProofGap, 1);
     assert.equal(result.gapCounts.latestProofGap, 0);
     assert.deepEqual(result.gapPlanes.latestProofGap, []);
+    assert.equal(result.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
     assert.match(report, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(report, /latest proof gaps: 0/);
+  });
+});
+
+test('CLI JSON includes machine-readable gap posture', () => {
+  withTempSparkHome((sparkHome) => {
+    for (const file of defaultControlProofEvidenceFiles(sparkHome)) {
+      const row = {
+        request_ref: 'request:sha256:nonexecution',
+        trace_ref: 'trace:sha256:nonexecution',
+        proof_status: 'not_execution_proof'
+      };
+      if (file.kind === 'jsonl') {
+        writeJsonl(file.filePath, [row]);
+      } else {
+        writeJson(file.filePath, row);
+      }
+    }
+
+    const jsonAudit = spawnSync(
+      process.execPath,
+      [
+        path.resolve(__dirname, '../node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofTraceAudit.ts',
+        '--spark-home',
+        sparkHome,
+        '--json'
+      ],
+      { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
+    );
+    assert.equal(jsonAudit.status, 0, jsonAudit.stderr);
+    const parsed = JSON.parse(jsonAudit.stdout) as { gapPosture?: string };
+    assert.equal(parsed.gapPosture, 'clean');
   });
 });
 

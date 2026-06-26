@@ -448,6 +448,8 @@ Use audit `--fresh-strict` when checking the current release-blocking state dire
 
 The audit header now includes `Gap posture` to prevent `Status: gaps found` from being misread as a current blocker. Treat `Gap posture: backed legacy gaps only; no blocking or latest proof gaps` as the readable summary of the counters, not a replacement for them; release evidence still depends on `Blocking status: clean`, zero latest proof gaps, and complete legacy-gap backing.
 
+The audit JSON result also carries `gapPosture` with the same value as the human report. Downstream gates should read that field directly instead of re-inferring the posture from `ok`, `blockingOk`, and legacy-gap counters when they need a compact machine-readable summary.
+
 Machine-readable summary details are part of the proof contract, not decoration. `outputs/live-canary-full/live-canary-summary.json` must keep release and publish claims traceable without requiring a human to parse prose lines:
 
 - `releaseCaveatDetails.repo_release_blocks.blocked_release_repos` lists each blocked owner with sanitized `repo`, `risk_class`, `reason`, `behind`, and `next_safe_action` fields when compile evidence provides them.

@@ -60,9 +60,16 @@ export interface ControlProofGapCounts {
   stackLikeLeak: number;
 }
 
+export type ControlProofGapPosture =
+  | 'clean'
+  | 'blocking gaps require repair'
+  | 'backed legacy gaps only; no blocking or latest proof gaps'
+  | 'non-blocking gaps visible';
+
 export interface ControlProofTraceAuditResult {
   ok: boolean;
   blockingOk: boolean;
+  gapPosture: ControlProofGapPosture;
   generatedAt: string;
   sampleSize: number;
   sparkHome: string;
@@ -152,9 +159,11 @@ export function auditControlProofTraceContinuity(options: ControlProofTraceAudit
   const gapPlanes = summarizeGapPlanes(planes);
   const ok = Object.values(gapCounts).every((count) => count === 0);
   const blockingOk = releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
+  const gapPosture = summarizeGapPosture(ok, blockingOk, gapCounts);
   return {
     ok,
     blockingOk,
+    gapPosture,
     generatedAt: options.generatedAt || new Date().toISOString(),
     sampleSize,
     sparkHome,
@@ -173,7 +182,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     '',
     result.ok ? 'Status: clean' : 'Status: gaps found',
     result.blockingOk ? 'Blocking status: clean' : 'Blocking status: blocking gaps found',
-    `Gap posture: ${formatGapPosture(result)}`,
+    `Gap posture: ${result.gapPosture}`,
     '',
     'Planes:'
   ];
@@ -224,18 +233,22 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
   return `${lines.join('\n')}\n`;
 }
 
-function formatGapPosture(result: ControlProofTraceAuditResult): string {
-  if (result.ok) {
+function summarizeGapPosture(
+  ok: boolean,
+  blockingOk: boolean,
+  gapCounts: ControlProofGapCounts
+): ControlProofGapPosture {
+  if (ok) {
     return 'clean';
   }
-  if (!result.blockingOk) {
+  if (!blockingOk) {
     return 'blocking gaps require repair';
   }
   const onlyBackedLegacyGaps =
-    result.gapCounts.legacyProofGap > 0 &&
-    result.gapCounts.incompleteLegacyProofGapBacking === 0 &&
-    result.gapCounts.latestProofGap === 0 &&
-    releaseBlockingGapCounts(result.gapCounts).every((count) => count === 0);
+    gapCounts.legacyProofGap > 0 &&
+    gapCounts.incompleteLegacyProofGapBacking === 0 &&
+    gapCounts.latestProofGap === 0 &&
+    releaseBlockingGapCounts(gapCounts).every((count) => count === 0);
   if (onlyBackedLegacyGaps) {
     return 'backed legacy gaps only; no blocking or latest proof gaps';
   }
