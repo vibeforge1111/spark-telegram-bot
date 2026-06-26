@@ -287,6 +287,11 @@ async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
   };
 }
 
+function lastUpdatedMs(entry: BoardEntry): number {
+  const parsed = Date.parse(entry.lastUpdated || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
   const entries = [
     ...board.running,
@@ -296,7 +301,7 @@ function latestBoardEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.cancelled,
     ...board.created
   ];
-  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  entries.sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
   return entries[0] || null;
 }
 
@@ -307,7 +312,7 @@ function latestFailureEntry(board: BoardSnapshot): BoardEntry | null {
     ...board.completed,
     ...board.created
   ];
-  entries.sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+  entries.sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
   return entries.find((entry) => entry.status === 'failed' || entry.lastEventType === 'mission_failed') || null;
 }
 
@@ -2059,7 +2064,7 @@ export const spawner = {
     try {
       const board = await fetchBoardSnapshot();
       const completed = [...board.completed]
-        .sort((a, b) => Date.parse(b.lastUpdated || '') - Date.parse(a.lastUpdated || ''));
+        .sort((a, b) => lastUpdatedMs(b) - lastUpdatedMs(a));
       const shippedCandidates = completed.filter((entry) => !isOperationalProbeMission(entry));
       const latest = shippedCandidates.find((entry) => projectOpenLinkForEntry(entry)) || shippedCandidates[0];
       if (!latest) {
