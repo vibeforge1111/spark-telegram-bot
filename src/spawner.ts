@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { randomUUID } from 'node:crypto';
 import { telegramRelayIdentityFromEnv } from './relayIdentity';
 import { spawnerAxiosOptions } from './spawnerAuth';
 import { resolveProjectPreviewBaseUrl, resolveSpawnerPublicUrl, resolveSpawnerUiUrl } from './spawnerUrl';
@@ -250,12 +251,14 @@ export async function postLocalServiceWithRetry<T = any>(
   body: unknown,
   timeoutMs = DEFAULT_LOCAL_SERVICE_TIMEOUT_MS
 ): Promise<{ data: T }> {
+  const idempotencyKey = randomUUID();
+  const headers = { 'X-Idempotency-Key': idempotencyKey };
   try {
-    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+    return await axios.post(url, body, spawnerAxiosOptions(timeoutMs, { headers }));
   } catch (err: any) {
     if (!isRetryableLocalServiceError(err)) throw err;
     try {
-      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs));
+      return await axios.post(url, body, spawnerAxiosOptions(timeoutMs, { headers }));
     } catch (retryErr: any) {
       const original = err?.message || 'local service request failed';
       const retry = retryErr?.message || 'retry failed';
