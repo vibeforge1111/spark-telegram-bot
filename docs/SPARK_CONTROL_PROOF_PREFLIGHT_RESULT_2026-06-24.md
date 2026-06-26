@@ -186,6 +186,8 @@ Update after proof-panel readiness projection on 2026-06-26:
 
 Current-state supersession, 2026-06-26: the checked safe-first packet has since been recaptured/refreshed and is selected-case ready. Treat this section as historical sequence, not the current next slice. Current safe-first proof says `Gate scope: selected-case gate` and `Release-check scope: selected cases only; not a full release claim`; use it for focused streaming/rich/proof confidence only, not complete release readiness.
 
+Current-state supersession after goal prompt renewal, 2026-06-26: commit `18f8c57` renewed the checked goal prompt around the new Harness Core while keeping the under-4,000-character handoff gate. Commits `a367572` and `2be2af2` refreshed the checked full and safe-first canary runtime evidence from that committed source state. The full packet reports runtime evidence collected at `2026-06-26T15:30:35.932Z`, `Gate scope: full release pack`, `Release gate: ready`, and `Publish gate: not ready`; the safe-first packet reports runtime evidence collected at `2026-06-26T15:31:57.642Z` and remains selected-case proof only. Continue from those checked packets plus `npm run control:proof:audit -- --sample 100 --fresh-strict`, not from older timestamps in this history.
+
 Update after Builder trace caveat count hardening on 2026-06-25:
 
 - Spark CLI commit `6707e29` exposes Builder high-severity lifecycle counts in `spark os compile --json`: total historical high-severity rows, unresolved high-severity families, and current unresolved high-severity families.

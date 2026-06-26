@@ -95,5 +95,10 @@ test('preflight result marks stale safe-first recapture advice as superseded', (
   assert.match(result, /checked safe-first packet has since been recaptured\/refreshed and is selected-case ready/);
   assert.match(result, /The safe-first packet is selected-case ready only; it is not a complete release claim until the full release pack is run/);
   assert.match(result, /Release-check scope: selected cases only; not a full release claim/);
+  assert.match(result, /Current-state supersession after goal prompt renewal, 2026-06-26/);
+  assert.match(result, /commit `18f8c57` renewed the checked goal prompt/);
+  assert.match(result, /runtime evidence collected at `2026-06-26T15:30:35\.932Z`/);
+  assert.match(result, /`Gate scope: full release pack`, `Release gate: ready`, and `Publish gate: not ready`/);
+  assert.match(result, /runtime evidence collected at `2026-06-26T15:31:57\.642Z` and remains selected-case proof only/);
   assert.match(result, /Continue from the full canary packet plus `npm run control:proof:audit -- --sample 100 --fresh-strict`/);
 });
