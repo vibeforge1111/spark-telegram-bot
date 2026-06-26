@@ -16,6 +16,7 @@ import { message } from 'telegraf/filters';
 import {
   conversation,
   isPendingTaskRecoveryQuestion,
+  parseTelegramUserIds,
   renderPendingTaskRecoveryReply
 } from './conversation';
 import { renderChoiceContextAcknowledgement, renderConversationFrameContext, type ConversationFrame } from './conversationFrame';
@@ -607,6 +608,22 @@ if (!process.env.BOT_TOKEN && !TELEGRAM_SMOKE_MODE) {
   console.error('ERROR: BOT_TOKEN not set in .env');
   console.error('Get one from @BotFather on Telegram');
   process.exit(1);
+}
+
+// Surface a one-line startup warning when ADMIN_TELEGRAM_IDS is set
+// but parses to zero valid IDs. parseTelegramUserIds silently drops
+// non-numeric tokens (e.g. an unresolved `@username`, a trailing comma,
+// or a typo like `123,abc` → just []), so the bot otherwise starts
+// cleanly and the operator only notices when every admin command
+// replies "Admin only. Add your Telegram ID to ADMIN_TELEGRAM_IDS first."
+if (!TELEGRAM_SMOKE_MODE) {
+  const adminRaw = (process.env.ADMIN_TELEGRAM_IDS || '').trim();
+  if (adminRaw && parseTelegramUserIds(adminRaw).length === 0) {
+    console.warn(
+      '[Telegram] ADMIN_TELEGRAM_IDS is set but parsed to zero valid IDs — ' +
+        'send /myid in your bot chat and paste the numeric ID into .env (comma-separated for multiple admins).'
+    );
+  }
 }
 
 const botToken = process.env.BOT_TOKEN || '0:telegram-smoke-token';
