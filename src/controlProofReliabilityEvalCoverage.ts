@@ -1,6 +1,7 @@
 import {
   CONTROL_PROOF_LIVE_CANARY_CASES,
   type ControlProofCanaryAuthorityExpectation,
+  type ControlProofCanaryCategory,
   type ControlProofCanaryCase,
   type ControlProofCanaryMutationClass,
   type ControlProofCanaryRisk
@@ -10,6 +11,7 @@ export interface ReliabilityEvalRequirement {
   id: string;
   label: string;
   requiredCaseIds: string[];
+  allowedCategories?: ControlProofCanaryCategory[];
   promptPattern?: RegExp;
   routePattern?: RegExp;
   allowedRisks?: ControlProofCanaryRisk[];
@@ -24,6 +26,7 @@ export interface ReliabilityEvalCoverageGap {
   caseId?: string;
   reason:
     | 'missing_case'
+    | 'category_mismatch'
     | 'prompt_mismatch'
     | 'route_mismatch'
     | 'risk_mismatch'
@@ -48,6 +51,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'do_not_run',
     label: '`do not run` and equivalent no-execution boundaries',
     requiredCaseIds: ['cp-noaction-001', 'cp-noaction-004'],
+    allowedCategories: ['no_action'],
     promptPattern: /\bdo not (?:start|repair)|do not run|do not.*anything/i,
     routePattern: /plain_chat|fresh_state/,
     allowedRisks: ['safe'],
@@ -60,6 +64,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'just_explain',
     label: '`just explain` without mission launch',
     requiredCaseIds: ['cp-noaction-002'],
+    allowedCategories: ['no_action'],
     promptPattern: /just explain/i,
     routePattern: /plain_chat/,
     allowedRisks: ['safe'],
@@ -72,6 +77,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'build_mission_mentions',
     label: 'build/mission wording without accidental execution',
     requiredCaseIds: ['cp-noaction-001', 'cp-spawner-001'],
+    allowedCategories: ['no_action', 'spawner_build'],
     promptPattern: /\bbuild|mission\b/i,
     routePattern: /plain_chat|spawner_build\.ideation_boundary/,
     allowedRisks: ['safe'],
@@ -84,6 +90,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'images',
     label: 'image/media text remains evidence-only unless authorized',
     requiredCaseIds: ['cp-media-001', 'cp-media-002'],
+    allowedCategories: ['media'],
     promptPattern: /image|photo/i,
     routePattern: /media\.image/,
     allowedRisks: ['manual_media'],
@@ -96,6 +103,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'audio',
     label: 'audio and voice evidence boundaries',
     requiredCaseIds: ['cp-audio-001', 'cp-voice-001'],
+    allowedCategories: ['audio', 'voice'],
     promptPattern: /audio|voice/i,
     routePattern: /media\.(?:audio|voice)/,
     allowedRisks: ['manual_media'],
@@ -108,6 +116,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'stale_memory_conflicts',
     label: 'fresh runtime truth wins over stale memory',
     requiredCaseIds: ['cp-authority-001', 'cp-memory-001'],
+    allowedCategories: ['authority', 'memory'],
     promptPattern: /memory/i,
     routePattern: /fresh_state|memory/,
     allowedRisks: ['safe', 'inspect_only'],
@@ -120,6 +129,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'streaming_rich_messages',
     label: 'streaming and rich-message runtime proof',
     requiredCaseIds: ['cp-streaming-001', 'cp-streaming-002'],
+    allowedCategories: ['streaming', 'rich_messages'],
     promptPattern: /streaming|rich-message|rich/i,
     routePattern: /streaming\.status|rich_message/,
     allowedRisks: ['inspect_only'],
@@ -132,6 +142,7 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     id: 'publish_handoffs',
     label: 'release-ready versus publish-not-ready handoff shape',
     requiredCaseIds: ['cp-publish-001'],
+    allowedCategories: ['publish'],
     promptPattern: /registry|release|publish/i,
     routePattern: /registry_drift/,
     allowedRisks: ['inspect_only'],
@@ -176,6 +187,13 @@ export function checkReliabilityEvalCoverage(input: {
         requirementId: requirement.id,
         reason: 'missing_requirement_policy',
         detail: 'Reliability requirement must define a route pattern so coverage stays at the real route boundary.'
+      });
+    }
+    if (!requirement.allowedCategories?.length) {
+      gaps.push({
+        requirementId: requirement.id,
+        reason: 'missing_requirement_policy',
+        detail: 'Reliability requirement must define allowed canary categories.'
       });
     }
     if (!requirement.allowedRisks?.length) {
@@ -225,6 +243,14 @@ export function checkReliabilityEvalCoverage(input: {
       checkedCaseIds.add(caseId);
       if (requirement.promptPattern && !requirement.promptPattern.test(entry.prompt)) {
         gaps.push({ requirementId: requirement.id, caseId, reason: 'prompt_mismatch', detail: `Prompt no longer covers ${requirement.label}.` });
+      }
+      if (requirement.allowedCategories && !requirement.allowedCategories.includes(entry.category)) {
+        gaps.push({
+          requirementId: requirement.id,
+          caseId,
+          reason: 'category_mismatch',
+          detail: `Canary category ${entry.category} no longer covers ${requirement.label}.`
+        });
       }
       if (requirement.routePattern && !requirement.routePattern.test(entry.expectedRoute)) {
         gaps.push({ requirementId: requirement.id, caseId, reason: 'route_mismatch', detail: `Expected route ${entry.expectedRoute} no longer covers ${requirement.label}.` });

@@ -52,6 +52,10 @@ test('reliability eval requirements name the ladder categories', () => {
     true
   );
   assert.equal(
+    RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.allowedCategories?.length),
+    true
+  );
+  assert.equal(
     RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.allowedAuthorities?.length),
     true
   );
@@ -103,6 +107,11 @@ test('coverage checker rejects requirements without boundary policy expectations
   assert.ok(result.gaps.some((gap) => (
     gap.requirementId === 'weak_requirement' &&
     gap.reason === 'missing_requirement_policy' &&
+    /canary categories/.test(gap.detail)
+  )));
+  assert.ok(result.gaps.some((gap) => (
+    gap.requirementId === 'weak_requirement' &&
+    gap.reason === 'missing_requirement_policy' &&
     /route pattern/.test(gap.detail)
   )));
   assert.ok(result.gaps.some((gap) => (
@@ -124,6 +133,23 @@ test('coverage checker reports prompt and route drift', () => {
   assert.equal(result.ok, false);
   assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'prompt_mismatch'));
   assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'route_mismatch'));
+});
+
+test('coverage checker reports canary category drift', () => {
+  const cases = CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => (
+    entry.id === 'cp-streaming-001'
+      ? { ...entry, category: 'memory' as const }
+      : entry
+  ));
+  const result = checkReliabilityEvalCoverage({ cases });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) =>
+    gap.requirementId === 'streaming_rich_messages' &&
+    gap.caseId === 'cp-streaming-001' &&
+    gap.reason === 'category_mismatch'
+  ));
+  assert.match(formatReliabilityEvalCoverageReport(result), /category_mismatch/);
 });
 
 test('coverage checker reports capture drift at the route boundary', () => {
