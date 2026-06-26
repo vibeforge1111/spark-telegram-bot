@@ -48,13 +48,15 @@ Expected local checks for this slice:
 
 The aggregate reliability battery also includes this gate through `npm run control:proof:reliability`.
 
-## Remaining Reliability Work
+## Downstream Gates
 
-This closes the ordinary-render leak boundary. It does not complete the full reliability ladder.
+This closes the ordinary-render leak boundary. It is now one gate inside the full reliability battery, not the next-task list by itself.
 
-Next measured gaps:
+Keep it aligned with the other active gates:
 
 - trace join checker: user intent -> route decision -> action/no-action -> reply
-- action-capable route proof capsule coverage
-- capability last-success and last-failure evidence
-- weekly surface eval for human feel after proof/control gaps are reduced
+- proof capsule coverage: every action-capable route has exactly one declared proof path or explicit no-action proof
+- capability evidence: current canary packet supplies last-success and last-failure/boundary evidence
+- surface eval: ordinary replies can fail when they are logically correct but robotic
+
+If one of those gates fails, fix the measured gate directly. Do not treat this render-firewall note as permission to expand UI, media, rich composition, or feature scope.

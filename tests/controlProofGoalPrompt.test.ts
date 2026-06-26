@@ -277,6 +277,12 @@ test('render firewall doc records ordinary and inspect boundaries', () => {
   assert.match(doc, /Inspect replies may keep proof and trace refs when useful/);
   assert.match(doc, /ctx\.reply/);
   assert.match(doc, /trace join checker: user intent -> route decision -> action\/no-action -> reply/);
+  assert.match(doc, /proof capsule coverage: every action-capable route has exactly one declared proof path or explicit no-action proof/);
+  assert.match(doc, /capability evidence: current canary packet supplies last-success and last-failure\/boundary evidence/);
+  assert.match(doc, /surface eval: ordinary replies can fail when they are logically correct but robotic/);
+  assert.match(doc, /Do not treat this render-firewall note as permission to expand UI, media, rich composition, or feature scope/);
+  assert.doesNotMatch(doc, /Next measured gaps/);
+  assert.doesNotMatch(doc, /weekly surface eval for human feel after proof\/control gaps are reduced/);
   assert.match(doc, /npm run control:proof:render-firewall/);
   assert.match(doc, /npm run control:proof:reliability/);
 });
@@ -292,6 +298,8 @@ test('trace join checker doc records route-to-reply proof boundary', () => {
   assert.match(doc, /proof join when a Harness proof ref is present/);
   assert.match(doc, /An empty route sample is not clean proof/);
   assert.match(doc, /Do not backfill them unless the backing evidence proves the exact request, trace, proof, action\/no-action, and reply join/);
+  assert.match(doc, /keep `npm run control:proof:capsules -- --strict` in the same reliability battery/);
+  assert.doesNotMatch(doc, /remains the next proof-capsule coverage slice/);
 });
 
 test('proof capsule coverage doc records action-capable policy boundary', () => {

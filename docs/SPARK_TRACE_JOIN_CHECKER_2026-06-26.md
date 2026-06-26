@@ -96,4 +96,4 @@ Legacy route rows that predate join refs should remain visible as gaps when insp
 
 ## Relationship To The Ladder
 
-This closes the first enforceable piece of reliability ladder step 4. It does not by itself prove every action-capable route has exactly one proof capsule; that remains the next proof-capsule coverage slice.
+This closes the route-to-reply proof boundary for reliability ladder step 4. It does not replace proof-capsule coverage; keep `npm run control:proof:capsules -- --strict` in the same reliability battery so action-capable routes still prove exactly one appropriate proof path or explicit no-action evidence.
