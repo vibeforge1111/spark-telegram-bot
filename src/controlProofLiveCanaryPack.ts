@@ -1456,7 +1456,40 @@ function controlProofAuditRuntimeSummaryMatches(
   expected: ControlProofAuditRuntimeSummary | null
 ): boolean {
   if (!expected) return false;
-  return JSON.stringify(actual) === JSON.stringify(expected);
+  return controlProofAuditRuntimeSummaryKey(actual) === controlProofAuditRuntimeSummaryKey(expected);
+}
+
+function controlProofAuditRuntimeSummaryKey(value: ControlProofAuditRuntimeSummary): string {
+  return JSON.stringify({
+    generatedAt: value.generatedAt,
+    status: value.status,
+    blockingStatus: value.blockingStatus,
+    gapPosture: value.gapPosture,
+    gapCounts: sortedNumberRecord(value.gapCounts),
+    gapPlanes: sortedStringArrayRecord(value.gapPlanes)
+  });
+}
+
+function sortedNumberRecord(value: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
+}
+
+function sortedStringArrayRecord(value: Record<string, string[]>): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, entries]) => [
+        key,
+        Array.isArray(entries)
+          ? entries.filter((entry) => typeof entry === 'string').sort()
+          : []
+      ] as [string, string[]])
+      .filter(([, entries]) => entries.length > 0)
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
 }
 
 function lineValue(text: string, label: string): string | null {

@@ -1204,8 +1204,20 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(reasonCodePlaneAudit.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  const cleanAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!;
   template.evidence.controlProofAuditSummary = {
-    ...summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!,
+    ...cleanAuditSummary,
+    gapCounts: Object.fromEntries(Object.entries(cleanAuditSummary.gapCounts).reverse()),
+    gapPlanes: {
+      legacy_proof_gaps: [...cleanAuditSummary.gapPlanes.legacy_proof_gaps].reverse()
+    }
+  };
+  const reorderedAuditSummary = summarizeControlProofCanaryObservations(template);
+  assert.equal(reorderedAuditSummary.readyForRelease, true);
+  assert.deepEqual(reorderedAuditSummary.invalidPacketEvidence, []);
+
+  template.evidence.controlProofAuditSummary = {
+    ...cleanAuditSummary,
     gapPosture: 'blocking gaps require repair'
   };
   const mismatchedAuditSummary = summarizeControlProofCanaryObservations(template);
