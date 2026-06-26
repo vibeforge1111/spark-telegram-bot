@@ -5,7 +5,7 @@ Runtime evidence collected: 2026-06-26T07:24:36.964Z
 Runtime evidence expires: 2026-06-26T08:24:36.964Z (1h window)
 Cases: 4
 Gate scope: selected-case gate
-Release gate: not ready
+Release gate: ready
 Publish gate: not ready
 Structured gate details: summary JSON `summary.gateDecisionDetails`
 
@@ -15,6 +15,8 @@ Verdicts:
 - blocked: 0
 - needs-retest: 0
 - untested: 0
+
+Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
 - builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
@@ -29,14 +31,4 @@ Release handoffs:
 - spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.
 - spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.
 
-Attention summary:
-- proof_panel_actionable_status: 2 cases
-- proof_panel_fresh_strict_status: 2 cases
-- proof_panel_gap_posture: 2 cases
-
-Recapture hint:
-- Refresh /proof panel captures for: cp-builder-001, cp-proof-001
-
-Cases needing attention:
-- cp-builder-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
-- cp-proof-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
+All selected canaries passed with required captures present.

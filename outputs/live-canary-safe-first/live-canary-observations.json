@@ -114,7 +114,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Route confidence is Spark's check that this fresh turn clearly authorizes the right move: act, ask, explain, or refuse.",
+        "reply": "Route confidence is Spark’s proof that this turn clearly authorizes the right path: act, ask, explain, or refuse.",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -123,14 +123,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "No mission, file, memory, network, access, provider, or media mutation observed; read-only explanation turn."
+          "notes": "No mission start or mutation observed; Telegram replied with a one-sentence read-only explanation."
         },
-        "proofJoin": "Telegram proof joined the plain_conversation read-only route with a natural reply and no mission start.",
-        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:dbf4060fa2acebc1 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
+        "proofJoin": "Live /proof joined the plain_conversation Telegram outbound proof capsule and showed Audit actionable, Audit fresh-strict, and Audit posture after rebuilding dist and restarting Spark Live.",
+        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:330fd9bb8a935db5 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit actionable: clean Audit blocking: clean Audit fresh-strict: clean Audit posture: backed legacy gaps only; no blocking or latest proof gaps Blocking gap planes: none Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "screenshot:sha256:7e398c6c0ebc66f686dfa24d8aef777b0efd8f304823550385e14acd461f7b6d"
+          "screenshot:sha256:a04a72ea8160b0dd3f58dfb691092a96a23fa4a68977df78fa2679b86c02ffd2"
         ],
-        "userConfirmation": "Verified in SparkRecursive_bot via Telegram screenshot: route-confidence reply and fresh /proof panel rendered for the live bot.",
+        "userConfirmation": "Observed in SparkRecursive_bot via Telegram screenshot after Spark Live restart.",
         "notes": null
       }
     },
@@ -161,7 +161,7 @@
       },
       "observed": {
         "verdict": "pass",
-        "reply": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:dbf4060fa2acebc1 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
+        "reply": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:330fd9bb8a935db5 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit actionable: clean Audit blocking: clean Audit fresh-strict: clean Audit posture: backed legacy gaps only; no blocking or latest proof gaps Blocking gap planes: none Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "sideEffects": {
           "filesChanged": false,
           "memoryWritten": false,
@@ -170,14 +170,14 @@
           "accessChanged": false,
           "providerChanged": false,
           "mediaHandled": false,
-          "notes": "No action or mutation observed; this was a read-only Harness proof inspection."
+          "notes": "No new action or mutation observed; Telegram only returned proof inspection text."
         },
-        "proofJoin": "Proof panel showed joined and missing planes for the read-only Telegram turn without launching new work.",
-        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:dbf4060fa2acebc1 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit blocking: clean Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
+        "proofJoin": "Live proof.inspect response and follow-up /proof joined the Telegram outbound proof capsule and showed Audit actionable, Audit fresh-strict, and Audit posture after rebuilding dist and restarting Spark Live.",
+        "proofPanel": "Harness Proof Intent: plain_conversation Authority: downgraded by spark.turn_intent.v1 Governor: read_only, verified Execution: completed Reply: delivered as natural Trace joins: telegram joined Gaps: none Proof ref: turn:sha256:330fd9bb8a935db5 Plane: telegram_outbound Evidence joined: Telegram outbound Evidence proof refs: Telegram outbound Evidence proof capsules: Telegram outbound Evidence trace-only: none Evidence proof gaps: none Evidence non-execution: none Evidence missing: Telegram final, Route confidence, Builder gateway, Spawner trace Audit actionable: clean Audit blocking: clean Audit fresh-strict: clean Audit posture: backed legacy gaps only; no blocking or latest proof gaps Blocking gap planes: none Legacy proof gaps visible: 3 (Route confidence, Builder gateway, Spawner trace) Latest proof gaps: none",
         "screenshotRefs": [
-          "screenshot:sha256:8e60f25c2af30f072baaea65779d16ad3a0a1ec5dd69f9a6f5b115de30b98232"
+          "screenshot:sha256:d5d3021ba397c305089ce69143b112dcf6a76022411c15667446965432f92d4e"
         ],
-        "userConfirmation": "Verified in SparkRecursive_bot via Telegram screenshot: read-only Harness proof panel rendered with latest proof gaps none.",
+        "userConfirmation": "Observed in SparkRecursive_bot via Telegram screenshot with proof panel rendered once.",
         "notes": null
       }
     },
