@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T06:51:32.519Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T06:51:32.519Z",
+    "generatedAt": "2026-06-26T06:57:07.197Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T06:57:07.197Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T07:51:32.519Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T07:57:07.197Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -13,18 +13,46 @@
       "needs-retest": 0,
       "untested": 0
     },
-    "readyForRelease": true,
+    "readyForRelease": false,
     "readyForPublish": false,
-    "releaseBlockers": [],
+    "releaseBlockers": [
+      "canary_case_failures"
+    ],
     "publishBlockers": [
+      "release_gate_not_ready",
       "release_caveats",
       "release_handoffs"
     ],
     "gateDecisionDetails": {
       "release": {
-        "ready": true,
-        "blockers": [],
-        "blockerDetails": {},
+        "ready": false,
+        "blockers": [
+          "canary_case_failures"
+        ],
+        "blockerDetails": {
+          "canary_case_failures": {
+            "cases": [
+              {
+                "id": "cp-builder-001",
+                "verdict": "pass",
+                "missingCaptures": [
+                  "proof_panel_actionable_status",
+                  "proof_panel_fresh_strict_status",
+                  "proof_panel_gap_posture"
+                ]
+              },
+              {
+                "id": "cp-proof-001",
+                "verdict": "pass",
+                "missingCaptures": [
+                  "proof_panel_actionable_status",
+                  "proof_panel_fresh_strict_status",
+                  "proof_panel_gap_posture"
+                ]
+              }
+            ]
+          }
+        },
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
           "repo_release_blocks | blocked_release_count=4 | critical_repo_count=3",
@@ -320,15 +348,65 @@
           "invalid": [],
           "stale": []
         },
-        "failingCases": []
+        "failingCases": [
+          {
+            "id": "cp-builder-001",
+            "verdict": "pass",
+            "missingCaptures": [
+              "proof_panel_actionable_status",
+              "proof_panel_fresh_strict_status",
+              "proof_panel_gap_posture"
+            ]
+          },
+          {
+            "id": "cp-proof-001",
+            "verdict": "pass",
+            "missingCaptures": [
+              "proof_panel_actionable_status",
+              "proof_panel_fresh_strict_status",
+              "proof_panel_gap_posture"
+            ]
+          }
+        ]
       },
       "publish": {
         "ready": false,
         "blockers": [
+          "release_gate_not_ready",
           "release_caveats",
           "release_handoffs"
         ],
         "blockerDetails": {
+          "release_gate_not_ready": {
+            "releaseReady": false,
+            "releaseBlockers": [
+              "canary_case_failures"
+            ],
+            "releaseBlockerDetails": {
+              "canary_case_failures": {
+                "cases": [
+                  {
+                    "id": "cp-builder-001",
+                    "verdict": "pass",
+                    "missingCaptures": [
+                      "proof_panel_actionable_status",
+                      "proof_panel_fresh_strict_status",
+                      "proof_panel_gap_posture"
+                    ]
+                  },
+                  {
+                    "id": "cp-proof-001",
+                    "verdict": "pass",
+                    "missingCaptures": [
+                      "proof_panel_actionable_status",
+                      "proof_panel_fresh_strict_status",
+                      "proof_panel_gap_posture"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
           "release_caveats": {
             "caveatCount": 3,
             "caveatFamilies": [
@@ -923,7 +1001,26 @@
           "invalid": [],
           "stale": []
         },
-        "failingCases": []
+        "failingCases": [
+          {
+            "id": "cp-builder-001",
+            "verdict": "pass",
+            "missingCaptures": [
+              "proof_panel_actionable_status",
+              "proof_panel_fresh_strict_status",
+              "proof_panel_gap_posture"
+            ]
+          },
+          {
+            "id": "cp-proof-001",
+            "verdict": "pass",
+            "missingCaptures": [
+              "proof_panel_actionable_status",
+              "proof_panel_fresh_strict_status",
+              "proof_panel_gap_posture"
+            ]
+          }
+        ]
       }
     },
     "releaseCaveats": [
@@ -1013,7 +1110,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T06:51:30.743Z",
+      "generatedAt": "2026-06-26T06:57:05.318Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1158,7 +1255,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7556,
+          "totalRows": 7567,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1551,10 +1648,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T06:51:32.519Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T06:51:32.519Z",
+      "generatedAt": "2026-06-26T06:57:07.197Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T06:57:07.197Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T07:51:32.519Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T07:57:07.197Z",
       "missing": [],
       "invalid": [],
       "stale": []
@@ -1574,7 +1671,11 @@
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
         "expectedReplyShape": "natural",
-        "missingCaptures": []
+        "missingCaptures": [
+          "proof_panel_actionable_status",
+          "proof_panel_fresh_strict_status",
+          "proof_panel_gap_posture"
+        ]
       },
       {
         "id": "cp-proof-001",
@@ -1583,7 +1684,11 @@
         "expectedAuthority": "read_only_allowed",
         "expectedMutationClass": "read_only",
         "expectedReplyShape": "proof_panel",
-        "missingCaptures": []
+        "missingCaptures": [
+          "proof_panel_actionable_status",
+          "proof_panel_fresh_strict_status",
+          "proof_panel_gap_posture"
+        ]
       },
       {
         "id": "cp-streaming-001",
