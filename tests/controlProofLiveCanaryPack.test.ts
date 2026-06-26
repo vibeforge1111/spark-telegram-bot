@@ -1353,6 +1353,19 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(missingBlockingStatus.readyForRelease, false);
   assert.deepEqual(missingBlockingStatus.invalidPacketEvidence, ['control_proof_audit']);
 
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace('Actionable status: clean\n', '');
+  const missingActionableStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(missingActionableStatus.readyForRelease, false);
+  assert.deepEqual(missingActionableStatus.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    'Actionable status: clean',
+    'Actionable status: repair required'
+  );
+  const blockingActionableStatus = summarizeControlProofCanaryObservations(template);
+  assert.equal(blockingActionableStatus.readyForRelease, false);
+  assert.deepEqual(blockingActionableStatus.invalidPacketEvidence, ['control_proof_audit']);
+
   template.evidence.controlProofAudit = [
     'missing evidence: 0',
     'missing trace joins: 0',
@@ -3371,6 +3384,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapCounts.latest_proof_gaps, 0);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails.length, 3);
@@ -3412,8 +3426,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
     assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
+    assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
     assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.freshStrictOk, true);
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.actionableStatus, 'clean');
     assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails.length, 3);
     assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails[0].repairSource, 'route_confidence_legacy_repair');
     assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);
