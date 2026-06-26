@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export type SourceInventoryStatus = 'active' | 'read-only evidence' | 'archive candidate' | 'delete candidate';
@@ -61,6 +61,16 @@ function entryMatchesSource(entry: SourceInventoryEntry, source: string): boolea
   return entry.source.endsWith('/*') && source.startsWith(entry.source.slice(0, -1));
 }
 
+function sourceExists(repoRoot: string, source: string): boolean {
+  if (source.includes('*')) {
+    if (!source.endsWith('/*')) return false;
+    const dir = resolve(repoRoot, source.slice(0, -2));
+    if (!existsSync(dir)) return false;
+    return readdirSync(dir).length > 0;
+  }
+  return existsSync(resolve(repoRoot, source));
+}
+
 export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
@@ -89,6 +99,12 @@ export function checkSourceInventory(options: {
       gaps.push({
         code: 'missing_boundary',
         message: `${entry.source} is missing a fresh-turn boundary on line ${entry.line}.`
+      });
+    }
+    if (!sourceExists(options.repoRoot, entry.source)) {
+      gaps.push({
+        code: 'missing_source',
+        message: `${entry.source} is classified in the source inventory but does not exist.`
       });
     }
   }

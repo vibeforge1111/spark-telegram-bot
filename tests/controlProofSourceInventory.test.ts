@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -44,6 +44,8 @@ test('fails when a canonical doc is not classified in the inventory', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');
   const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
   writeFileSync(inventoryPath, [
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
@@ -61,10 +63,52 @@ test('fails when a canonical doc is not classified in the inventory', () => {
   assert.match(formatSourceInventoryReport(result), /docs\/missing\.md is listed in the docs index/);
 });
 
+test('fails when a classified source path does not exist', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/missing.md` | read-only evidence | Historical source. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.gaps.map((gap) => gap.code), ['missing_source']);
+  assert.match(formatSourceInventoryReport(result), /docs\/missing\.md is classified/);
+});
+
+test('accepts wildcard source rows only when the directory has entries', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'outputs/live-canary-full'), { recursive: true });
+  writeFileSync(join(dir, 'outputs/live-canary-full/summary.md'), 'ok');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `outputs/live-canary-full/*` | active | Current packet. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath });
+
+  assert.equal(result.ok, true);
+});
+
 test('accepts read-only evidence plus archive candidate as a historical duplicate', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');
   const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
   writeFileSync(inventoryPath, [
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
