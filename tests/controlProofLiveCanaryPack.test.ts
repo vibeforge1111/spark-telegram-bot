@@ -1410,12 +1410,28 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.deepEqual(hiddenLegacyGapPlanes.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    /\nLegacy gap backing:\n[\s\S]+$/,
+    ''
+  );
+  const hiddenLegacyBackingDetails = summarizeControlProofCanaryObservations(template);
+  assert.equal(hiddenLegacyBackingDetails.readyForRelease, false);
+  assert.deepEqual(hiddenLegacyBackingDetails.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
     '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
     '- legacy proof gaps: telegram_route_confidence, builder_gateway'
   );
   const mismatchedLegacyGapPlaneCount = summarizeControlProofCanaryObservations(template);
   assert.equal(mismatchedLegacyGapPlaneCount.readyForRelease, false);
   assert.deepEqual(mismatchedLegacyGapPlaneCount.invalidPacketEvidence, ['control_proof_audit']);
+
+  template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT.replace(
+    'builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62',
+    'builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 61'
+  );
+  const mismatchedLegacyBackingMarkedCount = summarizeControlProofCanaryObservations(template);
+  assert.equal(mismatchedLegacyBackingMarkedCount.readyForRelease, false);
+  assert.deepEqual(mismatchedLegacyBackingMarkedCount.invalidPacketEvidence, ['control_proof_audit']);
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT
     .replaceAll(' | gap_capsule_valid 97', '')

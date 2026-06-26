@@ -2926,7 +2926,8 @@ function legacyProofGapsAreInspectable(value: string): boolean {
   return /Gap planes:/i.test(value) &&
     /legacy proof gaps:\s*[a-z_]/i.test(value) &&
     planes.length === gapCount &&
-    legacyProofGapPlanesHaveValidCapsules(value);
+    legacyProofGapPlanesHaveValidCapsules(value) &&
+    legacyProofGapPlanesHaveCompleteBackingDetails(value, planes);
 }
 
 function legacyProofGapPlanesHaveValidCapsules(value: string): boolean {
@@ -2956,6 +2957,24 @@ function legacyProofGapPlaneLabels(value: string): string[] {
     .split(',')
     .map((entry) => safeGapPlaneToken(entry))
     .filter((entry): entry is string => Boolean(entry));
+}
+
+function legacyProofGapPlanesHaveCompleteBackingDetails(value: string, planes: string[]): boolean {
+  const backingDetails = controlProofAuditLegacyGapBackingDetails(value);
+  if (backingDetails.length < planes.length) return false;
+  return planes.every((plane) => {
+    const row = auditPlaneRow(value, plane);
+    const detail = backingDetails.find((entry) => entry.plane === plane);
+    if (!row || !detail) return false;
+    const proofGap = numericAuditField(row, 'proof_gap');
+    return detail.backing === 'complete' &&
+      detail.latestGap === false &&
+      detail.releaseBlocking === false &&
+      detail.proofGapMarked === proofGap &&
+      detail.incompleteBacking === 0 &&
+      Boolean(detail.repairSource) &&
+      Boolean(detail.repairCommand);
+  });
 }
 
 function nonExecutionEvidencePlanesAreClassified(value: string): boolean {
