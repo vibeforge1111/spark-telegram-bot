@@ -177,6 +177,13 @@ Update after actionable audit status hardening on 2026-06-26:
 - The audit header now includes `Actionable status: clean` when backed legacy gaps remain visible but blocking and fresh-strict gates are clean.
 - Canary packets preserve that field in `evidence.controlProofAuditSummary`, so release evidence can join the human transcript to machine-readable readiness without reinterpreting `Status: gaps found`. Treat missing or non-clean `Actionable status` as an evidence-quality gap even when `Blocking status` looks clean.
 
+Update after proof-panel readiness projection on 2026-06-26:
+
+- `/proof` panels and `control:proof:panel` now expose `Audit actionable`, `Audit blocking`, `Audit fresh-strict`, `Audit posture`, and `Blocking gap planes`. Current source/runtime audit is still clean for actionable, blocking, and fresh-strict status, with only backed legacy gaps visible.
+- Any live canary capture whose proof panel predates those readiness lines is stale release evidence, even if the case verdict is `pass`. Do not treat those older screenshots or proof-panel text as release-ready proof.
+- The focused safe-first recapture guide is `outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md`. It currently narrows the next live SparkRecursive_bot step to `cp-builder-001` and `cp-proof-001`, because those two recorded panels are missing `proof_panel_actionable_status`, `proof_panel_fresh_strict_status`, and `proof_panel_gap_posture`.
+- This is a live-capture recapture gap, not a source/runtime proof gap. Refresh the real Telegram `/proof` captures, record the observed reply/screenshot/proof panel/user confirmation, then rerun the selected-case release gate before making broader publish or feature claims.
+
 Update after Builder trace caveat count hardening on 2026-06-25:
 
 - Spark CLI commit `6707e29` exposes Builder high-severity lifecycle counts in `spark os compile --json`: total historical high-severity rows, unresolved high-severity families, and current unresolved high-severity families.
@@ -266,9 +273,9 @@ It reports request id coverage, trace ref coverage, proof capsule coverage, raw 
 
 ## Recommended Next Slice
 
-Resolve or explicitly hand off the remaining publish blockers without weakening the release gate.
+Refresh the stale safe-first SparkRecursive_bot `/proof` captures before publish cleanup or feature expansion.
 
-Reason: current SparkRecursive_bot canary evidence is release-ready, fresh-strict audit is blocking-clean, and live proof joins are represented in the full canary packet. Publish remains not ready because four owner repos are behind upstream, two installed runtimes are explicitly classified as local runtime test artifacts, and Builder has one unresolved historical high-severity integrity family. The next durable move is to reduce one of those measured publish handoffs at its owner boundary, or document why it remains intentionally deferred.
+Reason: current fresh-strict audit is blocking-clean and `spark os compile --json` reports `ok=true`, but the selected safe-first canary release gate is not ready because two live `/proof` captures predate the new proof-panel readiness lines. Run `outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md` against SparkRecursive_bot for `cp-builder-001` and `cp-proof-001`, record the real captures, and rerun `npm run control:proof:canaries -- --observations outputs/live-canary-safe-first/live-canary-observations.json --release-check`. Publish blockers remain owner handoffs after that; they should not distract from the measured proof-panel recapture gap.
 
 ## Gate To Start Goal Prompt
 
