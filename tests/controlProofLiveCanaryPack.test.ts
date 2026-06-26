@@ -306,8 +306,8 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.match(summaryMd, /Gate scope: selected-case gate/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, ['canary_case_failures']);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
@@ -315,8 +315,10 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
   assert.equal(summaryJson.coverage.releasePackComplete, false);
-  assert.equal(summaryJson.summary.readyForRelease, false);
+  assert.equal(summaryJson.summary.readyForRelease, true);
   assert.equal(summaryJson.summary.readyForPublish, false);
+  assert.match(summaryMd, /All selected canaries passed with required captures present/);
+  assert.doesNotMatch(summaryMd, /Recapture hint:/);
   assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
   assert.equal((runGuide.match(/--summary-json-out/g) || []).length, observations.cases.length);
   assert.match(readme, /Current summary JSON:/);
@@ -348,8 +350,8 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
-    'safe-first packet must preserve release-not-ready proof-panel recapture blockers alongside publish caveats'
+    ['release_caveats', 'release_handoffs'],
+    'safe-first packet must preserve publish caveats after proof-panel recaptures pass'
   );
   assert.ok(
     summaryJson.summary.releaseHandoffDetails.every((entry: {
