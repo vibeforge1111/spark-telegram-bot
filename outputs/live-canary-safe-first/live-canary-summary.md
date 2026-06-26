@@ -2,7 +2,7 @@
 
 Generated: 2026-06-26T16:22:23.076Z
 Runtime evidence collected: 2026-06-26T16:22:23.076Z
-Runtime evidence expires: 2026-06-26T17:22:23.076Z (1h window)
+Runtime evidence expires: 2026-06-27T16:22:23.076Z (24h window)
 Cases: 4
 Gate scope: selected-case gate
 Release gate: ready
