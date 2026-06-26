@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T16:18:42.753Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T16:18:42.753Z",
+    "generatedAt": "2026-06-26T16:20:48.833Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T16:20:48.833Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T17:18:42.753Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T17:20:48.833Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -27,8 +27,8 @@
         "blockerDetails": {},
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-          "repo_release_blocks | blocked_release_count=6 | critical_repo_count=3",
-          "duplicate_truth_drift | classifications=canonical_runtime_dirty:1,local_runtime_test_artifact:1 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
+          "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
+          "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
         "caveatDetails": {
           "builder_trace_health": {
@@ -53,7 +53,7 @@
           "repo_release_blocks": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "blocked_release_count": 6,
+            "blocked_release_count": 5,
             "critical_repo_count": 3,
             "blocked_release_repos": [
               {
@@ -84,15 +84,6 @@
                 "behind": 61
               },
               {
-                "repo": "spark-telegram-bot",
-                "releaseBlocking": false,
-                "publishBlocking": true,
-                "risk_class": "critical",
-                "reason": "dirty worktree",
-                "next_safe_action": "curate local changes before merge or release",
-                "behind": 0
-              },
-              {
                 "repo": "spark-world-editor",
                 "releaseBlocking": false,
                 "publishBlocking": true,
@@ -115,18 +106,15 @@
           "duplicate_truths": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "label": "duplicate_truth_drift",
+            "label": "local_runtime_test_artifacts",
             "classification_counts": {
-              "canonical_runtime_dirty": 1,
-              "local_runtime_test_artifact": 1
+              "local_runtime_test_artifact": 2
             },
             "duplicate_truth_count": 2,
-            "critical_duplicate_truth_count": 1,
+            "critical_duplicate_truth_count": 0,
             "owner_sets": {
-              "canonical_runtime_dirty": [
-                "spark-telegram-bot"
-              ],
               "local_runtime_test_artifact": [
+                "spark-telegram-bot",
                 "spawner-ui"
               ]
             }
@@ -134,7 +122,7 @@
         },
         "caveatFamilies": [
           "builder_trace_health",
-          "duplicate_truth_drift",
+          "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
         "handoffDetails": {
@@ -174,15 +162,6 @@
               "behind": 61
             },
             {
-              "repo": "spark-telegram-bot",
-              "releaseBlocking": false,
-              "publishBlocking": true,
-              "risk_class": "critical",
-              "reason": "dirty worktree",
-              "next_safe_action": "curate local changes before merge or release",
-              "behind": 0
-            },
-            {
               "repo": "spark-world-editor",
               "releaseBlocking": false,
               "publishBlocking": true,
@@ -204,8 +183,9 @@
           "local_runtime_test_artifacts": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "count": 1,
+            "count": 2,
             "owners": [
+              "spark-telegram-bot",
               "spawner-ui"
             ]
           },
@@ -284,26 +264,6 @@
             "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
-            "owner": "spark-telegram-bot",
-            "status": "publish_blocked",
-            "family": "repo_release_blocks",
-            "releaseBlocking": false,
-            "publishBlocking": true,
-            "reason": "dirty worktree",
-            "behind": 0,
-            "nextSafeAction": "curate local changes before merge or release",
-            "familyDetails": {
-              "repo": "spark-telegram-bot",
-              "releaseBlocking": false,
-              "publishBlocking": true,
-              "risk_class": "critical",
-              "reason": "dirty worktree",
-              "next_safe_action": "curate local changes before merge or release",
-              "behind": 0
-            },
-            "line": "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
-          },
-          {
             "owner": "spark-world-editor",
             "status": "publish_blocked",
             "family": "repo_release_blocks",
@@ -351,16 +311,17 @@
             "publishBlocking": true,
             "reason": null,
             "behind": null,
-            "nextSafeAction": "Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
             "familyDetails": {
               "releaseBlocking": false,
               "publishBlocking": true,
-              "count": 1,
+              "count": 2,
               "owners": [
+                "spark-telegram-bot",
                 "spawner-ui"
               ]
             },
-            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
           },
           {
             "owner": "spark-intelligence-builder",
@@ -384,18 +345,6 @@
               "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
             },
             "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
-          },
-          {
-            "owner": "spark-telegram-bot",
-            "status": "critical",
-            "family": "canonical_runtime_dirty",
-            "releaseBlocking": false,
-            "publishBlocking": true,
-            "reason": null,
-            "behind": null,
-            "nextSafeAction": "Commit or port the minimum live-proof changes into the owner repo and release line.",
-            "familyDetails": null,
-            "line": "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
           }
         ],
         "handoffFamilies": [
@@ -403,7 +352,7 @@
           "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
-        "handoffCount": 9,
+        "handoffCount": 7,
         "packetEvidence": {
           "missing": [],
           "invalid": [],
@@ -422,7 +371,7 @@
             "caveatCount": 3,
             "caveatFamilies": [
               "builder_trace_health",
-              "duplicate_truth_drift",
+              "local_runtime_test_artifacts",
               "repo_release_blocks"
             ],
             "caveatDetails": {
@@ -448,7 +397,7 @@
               "repo_release_blocks": {
                 "releaseBlocking": false,
                 "publishBlocking": true,
-                "blocked_release_count": 6,
+                "blocked_release_count": 5,
                 "critical_repo_count": 3,
                 "blocked_release_repos": [
                   {
@@ -479,15 +428,6 @@
                     "behind": 61
                   },
                   {
-                    "repo": "spark-telegram-bot",
-                    "releaseBlocking": false,
-                    "publishBlocking": true,
-                    "risk_class": "critical",
-                    "reason": "dirty worktree",
-                    "next_safe_action": "curate local changes before merge or release",
-                    "behind": 0
-                  },
-                  {
                     "repo": "spark-world-editor",
                     "releaseBlocking": false,
                     "publishBlocking": true,
@@ -510,18 +450,15 @@
               "duplicate_truths": {
                 "releaseBlocking": false,
                 "publishBlocking": true,
-                "label": "duplicate_truth_drift",
+                "label": "local_runtime_test_artifacts",
                 "classification_counts": {
-                  "canonical_runtime_dirty": 1,
-                  "local_runtime_test_artifact": 1
+                  "local_runtime_test_artifact": 2
                 },
                 "duplicate_truth_count": 2,
-                "critical_duplicate_truth_count": 1,
+                "critical_duplicate_truth_count": 0,
                 "owner_sets": {
-                  "canonical_runtime_dirty": [
-                    "spark-telegram-bot"
-                  ],
                   "local_runtime_test_artifact": [
+                    "spark-telegram-bot",
                     "spawner-ui"
                   ]
                 }
@@ -529,7 +466,7 @@
             }
           },
           "release_handoffs": {
-            "handoffCount": 9,
+            "handoffCount": 7,
             "handoffFamilies": [
               "builder_trace_health",
               "local_runtime_test_artifacts",
@@ -572,15 +509,6 @@
                   "behind": 61
                 },
                 {
-                  "repo": "spark-telegram-bot",
-                  "releaseBlocking": false,
-                  "publishBlocking": true,
-                  "risk_class": "critical",
-                  "reason": "dirty worktree",
-                  "next_safe_action": "curate local changes before merge or release",
-                  "behind": 0
-                },
-                {
                   "repo": "spark-world-editor",
                   "releaseBlocking": false,
                   "publishBlocking": true,
@@ -602,8 +530,9 @@
               "local_runtime_test_artifacts": {
                 "releaseBlocking": false,
                 "publishBlocking": true,
-                "count": 1,
+                "count": 2,
                 "owners": [
+                  "spark-telegram-bot",
                   "spawner-ui"
                 ]
               },
@@ -682,26 +611,6 @@
                 "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
               },
               {
-                "owner": "spark-telegram-bot",
-                "status": "publish_blocked",
-                "family": "repo_release_blocks",
-                "releaseBlocking": false,
-                "publishBlocking": true,
-                "reason": "dirty worktree",
-                "behind": 0,
-                "nextSafeAction": "curate local changes before merge or release",
-                "familyDetails": {
-                  "repo": "spark-telegram-bot",
-                  "releaseBlocking": false,
-                  "publishBlocking": true,
-                  "risk_class": "critical",
-                  "reason": "dirty worktree",
-                  "next_safe_action": "curate local changes before merge or release",
-                  "behind": 0
-                },
-                "line": "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
-              },
-              {
                 "owner": "spark-world-editor",
                 "status": "publish_blocked",
                 "family": "repo_release_blocks",
@@ -749,16 +658,17 @@
                 "publishBlocking": true,
                 "reason": null,
                 "behind": null,
-                "nextSafeAction": "Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+                "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
                 "familyDetails": {
                   "releaseBlocking": false,
                   "publishBlocking": true,
-                  "count": 1,
+                  "count": 2,
                   "owners": [
+                    "spark-telegram-bot",
                     "spawner-ui"
                   ]
                 },
-                "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+                "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
               },
               {
                 "owner": "spark-intelligence-builder",
@@ -782,37 +692,23 @@
                   "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
                 },
                 "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
-              },
-              {
-                "owner": "spark-telegram-bot",
-                "status": "critical",
-                "family": "canonical_runtime_dirty",
-                "releaseBlocking": false,
-                "publishBlocking": true,
-                "reason": null,
-                "behind": null,
-                "nextSafeAction": "Commit or port the minimum live-proof changes into the owner repo and release line.",
-                "familyDetails": null,
-                "line": "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
               }
             ],
             "handoffs": [
               "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
               "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
               "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
-              "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
               "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
               "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
-              "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
-              "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
-              "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
+              "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+              "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
             ]
           }
         },
         "caveats": [
           "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-          "repo_release_blocks | blocked_release_count=6 | critical_repo_count=3",
-          "duplicate_truth_drift | classifications=canonical_runtime_dirty:1,local_runtime_test_artifact:1 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
+          "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
+          "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
         ],
         "caveatDetails": {
           "builder_trace_health": {
@@ -837,7 +733,7 @@
           "repo_release_blocks": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "blocked_release_count": 6,
+            "blocked_release_count": 5,
             "critical_repo_count": 3,
             "blocked_release_repos": [
               {
@@ -868,15 +764,6 @@
                 "behind": 61
               },
               {
-                "repo": "spark-telegram-bot",
-                "releaseBlocking": false,
-                "publishBlocking": true,
-                "risk_class": "critical",
-                "reason": "dirty worktree",
-                "next_safe_action": "curate local changes before merge or release",
-                "behind": 0
-              },
-              {
                 "repo": "spark-world-editor",
                 "releaseBlocking": false,
                 "publishBlocking": true,
@@ -899,18 +786,15 @@
           "duplicate_truths": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "label": "duplicate_truth_drift",
+            "label": "local_runtime_test_artifacts",
             "classification_counts": {
-              "canonical_runtime_dirty": 1,
-              "local_runtime_test_artifact": 1
+              "local_runtime_test_artifact": 2
             },
             "duplicate_truth_count": 2,
-            "critical_duplicate_truth_count": 1,
+            "critical_duplicate_truth_count": 0,
             "owner_sets": {
-              "canonical_runtime_dirty": [
-                "spark-telegram-bot"
-              ],
               "local_runtime_test_artifact": [
+                "spark-telegram-bot",
                 "spawner-ui"
               ]
             }
@@ -918,7 +802,7 @@
         },
         "caveatFamilies": [
           "builder_trace_health",
-          "duplicate_truth_drift",
+          "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
         "handoffDetails": {
@@ -958,15 +842,6 @@
               "behind": 61
             },
             {
-              "repo": "spark-telegram-bot",
-              "releaseBlocking": false,
-              "publishBlocking": true,
-              "risk_class": "critical",
-              "reason": "dirty worktree",
-              "next_safe_action": "curate local changes before merge or release",
-              "behind": 0
-            },
-            {
               "repo": "spark-world-editor",
               "releaseBlocking": false,
               "publishBlocking": true,
@@ -988,8 +863,9 @@
           "local_runtime_test_artifacts": {
             "releaseBlocking": false,
             "publishBlocking": true,
-            "count": 1,
+            "count": 2,
             "owners": [
+              "spark-telegram-bot",
               "spawner-ui"
             ]
           },
@@ -1068,26 +944,6 @@
             "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
           },
           {
-            "owner": "spark-telegram-bot",
-            "status": "publish_blocked",
-            "family": "repo_release_blocks",
-            "releaseBlocking": false,
-            "publishBlocking": true,
-            "reason": "dirty worktree",
-            "behind": 0,
-            "nextSafeAction": "curate local changes before merge or release",
-            "familyDetails": {
-              "repo": "spark-telegram-bot",
-              "releaseBlocking": false,
-              "publishBlocking": true,
-              "risk_class": "critical",
-              "reason": "dirty worktree",
-              "next_safe_action": "curate local changes before merge or release",
-              "behind": 0
-            },
-            "line": "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
-          },
-          {
             "owner": "spark-world-editor",
             "status": "publish_blocked",
             "family": "repo_release_blocks",
@@ -1135,16 +991,17 @@
             "publishBlocking": true,
             "reason": null,
             "behind": null,
-            "nextSafeAction": "Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+            "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
             "familyDetails": {
               "releaseBlocking": false,
               "publishBlocking": true,
-              "count": 1,
+              "count": 2,
               "owners": [
+                "spark-telegram-bot",
                 "spawner-ui"
               ]
             },
-            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+            "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
           },
           {
             "owner": "spark-intelligence-builder",
@@ -1168,18 +1025,6 @@
               "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
             },
             "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
-          },
-          {
-            "owner": "spark-telegram-bot",
-            "status": "critical",
-            "family": "canonical_runtime_dirty",
-            "releaseBlocking": false,
-            "publishBlocking": true,
-            "reason": null,
-            "behind": null,
-            "nextSafeAction": "Commit or port the minimum live-proof changes into the owner repo and release line.",
-            "familyDetails": null,
-            "line": "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
           }
         ],
         "handoffFamilies": [
@@ -1187,7 +1032,7 @@
           "local_runtime_test_artifacts",
           "repo_release_blocks"
         ],
-        "handoffCount": 9,
+        "handoffCount": 7,
         "packetEvidence": {
           "missing": [],
           "invalid": [],
@@ -1198,8 +1043,8 @@
     },
     "releaseCaveats": [
       "builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0",
-      "repo_release_blocks | blocked_release_count=6 | critical_repo_count=3",
-      "duplicate_truth_drift | classifications=canonical_runtime_dirty:1,local_runtime_test_artifact:1 | duplicate_truth_count=2 | critical_duplicate_truth_count=1"
+      "repo_release_blocks | blocked_release_count=5 | critical_repo_count=3",
+      "local_runtime_test_artifacts | classifications=local_runtime_test_artifact:2 | duplicate_truth_count=2 | critical_duplicate_truth_count=0"
     ],
     "releaseCaveatDetails": {
       "builder_trace_health": {
@@ -1224,7 +1069,7 @@
       "repo_release_blocks": {
         "releaseBlocking": false,
         "publishBlocking": true,
-        "blocked_release_count": 6,
+        "blocked_release_count": 5,
         "critical_repo_count": 3,
         "blocked_release_repos": [
           {
@@ -1255,15 +1100,6 @@
             "behind": 61
           },
           {
-            "repo": "spark-telegram-bot",
-            "releaseBlocking": false,
-            "publishBlocking": true,
-            "risk_class": "critical",
-            "reason": "dirty worktree",
-            "next_safe_action": "curate local changes before merge or release",
-            "behind": 0
-          },
-          {
             "repo": "spark-world-editor",
             "releaseBlocking": false,
             "publishBlocking": true,
@@ -1286,25 +1122,22 @@
       "duplicate_truths": {
         "releaseBlocking": false,
         "publishBlocking": true,
-        "label": "duplicate_truth_drift",
+        "label": "local_runtime_test_artifacts",
         "classification_counts": {
-          "canonical_runtime_dirty": 1,
-          "local_runtime_test_artifact": 1
+          "local_runtime_test_artifact": 2
         },
         "duplicate_truth_count": 2,
-        "critical_duplicate_truth_count": 1,
+        "critical_duplicate_truth_count": 0,
         "owner_sets": {
-          "canonical_runtime_dirty": [
-            "spark-telegram-bot"
-          ],
           "local_runtime_test_artifact": [
+            "spark-telegram-bot",
             "spawner-ui"
           ]
         }
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T16:18:40.653Z",
+      "generatedAt": "2026-06-26T16:20:46.977Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1664,12 +1497,10 @@
       "domain-chip-memory: publish_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release",
       "spark-intelligence-builder: publish_blocked repo_release_blocks; reason: behind upstream; behind=12; next safe action: pull or merge upstream before release",
       "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release",
-      "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
       "spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release",
       "spawner-ui: publish_blocked repo_release_blocks; reason: behind upstream; behind=29; next safe action: pull or merge upstream before release",
-      "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
-      "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff.",
-      "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
+      "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+      "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
     ],
     "releaseHandoffDetails": [
       {
@@ -1733,26 +1564,6 @@
         "line": "spark-researcher: publish_blocked repo_release_blocks; reason: behind upstream; behind=61; next safe action: pull or merge upstream before release"
       },
       {
-        "owner": "spark-telegram-bot",
-        "status": "publish_blocked",
-        "family": "repo_release_blocks",
-        "releaseBlocking": false,
-        "publishBlocking": true,
-        "reason": "dirty worktree",
-        "behind": 0,
-        "nextSafeAction": "curate local changes before merge or release",
-        "familyDetails": {
-          "repo": "spark-telegram-bot",
-          "releaseBlocking": false,
-          "publishBlocking": true,
-          "risk_class": "critical",
-          "reason": "dirty worktree",
-          "next_safe_action": "curate local changes before merge or release",
-          "behind": 0
-        },
-        "line": "spark-telegram-bot: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release"
-      },
-      {
         "owner": "spark-world-editor",
         "status": "publish_blocked",
         "family": "repo_release_blocks",
@@ -1800,16 +1611,17 @@
         "publishBlocking": true,
         "reason": null,
         "behind": null,
-        "nextSafeAction": "Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
+        "nextSafeAction": "Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims.",
         "familyDetails": {
           "releaseBlocking": false,
           "publishBlocking": true,
-          "count": 1,
+          "count": 2,
           "owners": [
+            "spark-telegram-bot",
             "spawner-ui"
           ]
         },
-        "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 1 installed source (spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
+        "line": "spark-installer-registry: warning local_runtime_test_artifacts; next safe action: Keep 2 installed sources (spark-telegram-bot, spawner-ui) for local SparkRecursive proof only, then port/push owner commits and update registry or release metadata before publish claims."
       },
       {
         "owner": "spark-intelligence-builder",
@@ -1833,18 +1645,6 @@
           "latest_unresolved_high_severity_event_created_at": "2026-06-02T09:03:25Z"
         },
         "line": "spark-intelligence-builder: warning builder_trace_health; next safe action: Audit 1 unresolved historical high-severity Builder integrity family; latest unresolved event 2026-06-02T09:03:25Z, then append an owner-approved lifecycle resolution or keep it as an explicit publish handoff."
-      },
-      {
-        "owner": "spark-telegram-bot",
-        "status": "critical",
-        "family": "canonical_runtime_dirty",
-        "releaseBlocking": false,
-        "publishBlocking": true,
-        "reason": null,
-        "behind": null,
-        "nextSafeAction": "Commit or port the minimum live-proof changes into the owner repo and release line.",
-        "familyDetails": null,
-        "line": "spark-telegram-bot: critical canonical_runtime_dirty; next safe action: Commit or port the minimum live-proof changes into the owner repo and release line."
       }
     ],
     "publishHandoffs": {
@@ -1884,15 +1684,6 @@
           "behind": 61
         },
         {
-          "repo": "spark-telegram-bot",
-          "releaseBlocking": false,
-          "publishBlocking": true,
-          "risk_class": "critical",
-          "reason": "dirty worktree",
-          "next_safe_action": "curate local changes before merge or release",
-          "behind": 0
-        },
-        {
           "repo": "spark-world-editor",
           "releaseBlocking": false,
           "publishBlocking": true,
@@ -1914,8 +1705,9 @@
       "local_runtime_test_artifacts": {
         "releaseBlocking": false,
         "publishBlocking": true,
-        "count": 1,
+        "count": 2,
         "owners": [
+          "spark-telegram-bot",
           "spawner-ui"
         ]
       },
@@ -1936,10 +1728,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T16:18:42.753Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T16:18:42.753Z",
+      "generatedAt": "2026-06-26T16:20:48.833Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T16:20:48.833Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T17:18:42.753Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T17:20:48.833Z",
       "missing": [],
       "invalid": [],
       "stale": []
