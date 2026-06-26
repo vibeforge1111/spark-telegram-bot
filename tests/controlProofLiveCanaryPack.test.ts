@@ -173,6 +173,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
       expectedRoute?: unknown;
       expectedAuthority?: unknown;
       expectedMutationClass?: unknown;
+      expectedReplyShape?: unknown;
       sourceRefs?: unknown;
       observed?: unknown;
       prompt?: unknown;
@@ -180,6 +181,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
       typeof entry.expectedRoute === 'string' &&
       typeof entry.expectedAuthority === 'string' &&
       typeof entry.expectedMutationClass === 'string' &&
+      typeof entry.expectedReplyShape === 'string' &&
       (entry.sourceRefs === undefined || Array.isArray(entry.sourceRefs)) &&
       entry.observed === undefined &&
       entry.prompt === undefined
@@ -193,12 +195,22 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
     ],
     'saved summary must preserve streaming canary source refs'
   );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.expectedReplyShape,
+    'compact_card',
+    'saved summary must preserve streaming status reply-shape expectation'
+  );
   assert.deepEqual(
     summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
     [
       { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'rich-message-delivery-proof', relationship: 'coverage_for' }
     ],
     'saved summary must preserve rich-message canary source refs'
+  );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.expectedReplyShape,
+    'natural',
+    'saved summary must preserve rich-message reply-shape expectation'
   );
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
@@ -272,6 +284,11 @@ test('checked-in safe-first canary summary JSON matches the selected observation
     ],
     'safe-first summary must preserve streaming source refs'
   );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-001')?.expectedReplyShape,
+    'compact_card',
+    'safe-first summary must preserve streaming status reply-shape expectation'
+  );
   assert.deepEqual(
     summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.sourceRefs,
     [
@@ -279,11 +296,17 @@ test('checked-in safe-first canary summary JSON matches the selected observation
     ],
     'safe-first summary must preserve rich-message source refs'
   );
+  assert.equal(
+    summaryJson.summary.cases.find((entry: { id: string }) => entry.id === 'cp-streaming-002')?.expectedReplyShape,
+    'natural',
+    'safe-first summary must preserve rich-message reply-shape expectation'
+  );
   assert.ok(
     summaryJson.summary.cases.every((entry: {
       expectedRoute?: unknown;
       expectedAuthority?: unknown;
       expectedMutationClass?: unknown;
+      expectedReplyShape?: unknown;
       observed?: unknown;
       prompt?: unknown;
       proofPanel?: unknown;
@@ -292,6 +315,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
       typeof entry.expectedRoute === 'string' &&
       typeof entry.expectedAuthority === 'string' &&
       typeof entry.expectedMutationClass === 'string' &&
+      typeof entry.expectedReplyShape === 'string' &&
       entry.observed === undefined &&
       entry.prompt === undefined &&
       entry.proofPanel === undefined &&

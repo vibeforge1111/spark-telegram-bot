@@ -153,6 +153,7 @@ export interface ControlProofCanaryObservationCaseSummary {
   expectedRoute: string;
   expectedAuthority: ControlProofCanaryAuthorityExpectation;
   expectedMutationClass: ControlProofCanaryMutationClass;
+  expectedReplyShape: ControlProofCanaryCase['expectedReplyShape'];
   missingCaptures: string[];
 }
 
@@ -3083,6 +3084,7 @@ export function summarizeControlProofCanaryObservations(
       expectedRoute: entry.expected.route,
       expectedAuthority: entry.expected.authority,
       expectedMutationClass: entry.expected.mutationClass,
+      expectedReplyShape: entry.expected.replyShape,
       missingCaptures: missingCapturesForCase(entry, { runtimeLegacyProofGapCount: legacyGapCount })
     };
   });
