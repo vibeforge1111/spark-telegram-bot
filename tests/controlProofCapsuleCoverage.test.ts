@@ -124,6 +124,28 @@ test('coverage checker rejects no-action-only policy on execution routes', () =>
   )));
 });
 
+test('coverage checker rejects weak proof-path summaries', () => {
+  const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
+    policy.planeId === 'legacy-plane:telegram-action-authority'
+      ? {
+          ...policy,
+          proofPath: {
+            ...policy.proofPath,
+            summary: 'This route is covered.'
+          }
+        }
+      : policy
+  ));
+  const result = checkProofCapsuleCoverage({ repoRoot: process.cwd(), policies });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.planeId === 'legacy-plane:telegram-action-authority' &&
+    gap.reason === 'weak_policy_summary'
+  )));
+  assert.match(formatProofCapsuleCoverageReport(result), /weak_policy_summary/);
+});
+
 test('coverage checker allows explicit no-action policy for pending-state followups', () => {
   const result = checkProofCapsuleCoverage({ repoRoot: process.cwd() });
 

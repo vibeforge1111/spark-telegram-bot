@@ -34,6 +34,8 @@ Each policy must also name at least one source marker. A policy without source m
 
 Policy kind must also match the inventory risk. Execution-capable routes must use `direct_capsule` or `joined_capsule`; `explicit_no_action` is reserved for pending/no-action planes that cannot claim execution proof by themselves.
 
+Policy summaries are checked too. A `direct_capsule` summary must say the route records, emits, or attaches capsule/reply-proof evidence; a `joined_capsule` summary must say the route joins, inherits, preserves, or uses a downstream proof chain; and an `explicit_no_action` summary must say it is no-action/evidence-only and gated by fresh authority. Vague summaries are treated as proof gaps because they let future readers mistake a declaration for a real proof path.
+
 Retired or non-action planes must not keep proof policies. An extra policy is also drift because it can make old routes look like active proof authority.
 
 ## Boundary

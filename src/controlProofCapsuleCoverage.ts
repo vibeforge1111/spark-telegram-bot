@@ -21,6 +21,7 @@ export interface ProofCapsuleCoverageGap {
     | 'extra_policy'
     | 'ambiguous_policy'
     | 'missing_marker_policy'
+    | 'weak_policy_summary'
     | 'missing_source'
     | 'missing_marker'
     | 'incompatible_policy_kind';
@@ -63,7 +64,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
     planeId: 'legacy-plane:telegram-media-authority',
     proofPath: {
       kind: 'joined_capsule',
-      summary: 'Media inputs convert into Telegram action authority, then Builder/Telegram delivery emits the capsule.'
+      summary: 'Media inputs join Telegram action authority, then downstream Builder/Telegram delivery emits the proof capsule.'
     },
     requiredSourceMarkers: ['buildTelegramMediaActionEnvelope', 'authorizeTelegramActionFromEnvelope']
   },
@@ -95,7 +96,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
     planeId: 'legacy-plane:telegram-memory-wiki-bridge',
     proofPath: {
       kind: 'direct_capsule',
-      summary: 'Memory and wiki mutations go through top-level Telegram authority and delivery proof capsules.'
+      summary: 'Memory and wiki mutations record top-level Telegram authority and attach delivery proof capsules.'
     },
     requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'memory.write']
   },
@@ -111,7 +112,7 @@ export const ACTION_PROOF_CAPSULE_POLICIES: ProofCapsuleCoveragePolicy[] = [
     planeId: 'legacy-plane:telegram-recursive-sparkqa-startup',
     proofPath: {
       kind: 'direct_capsule',
-      summary: 'Recursive, Spark QA, startup, and self-improvement routes record execution ledgers before replies.'
+      summary: 'Recursive, Spark QA, startup, and self-improvement routes record execution ledgers and attach reply proof capsules before replies.'
     },
     requiredSourceMarkers: ['recordTelegramHarnessCoreExecution', 'recursive']
   },
@@ -149,6 +150,21 @@ function proofPathKindIsCompatible(
   return explicitNoActionAllowedForPlane(plane);
 }
 
+function proofPathSummaryIsStrong(policy: ProofCapsuleCoveragePolicy): boolean {
+  const summary = policy.proofPath.summary.trim();
+  if (!summary) return false;
+  if (policy.proofPath.kind === 'direct_capsule') {
+    return /\b(?:attach(?:es)?|emit(?:s)?|create(?:s)?|record(?:s)?)\b/i.test(summary) &&
+      /\b(?:capsule|reply proof|delivery proof|proof capsule)\b/i.test(summary);
+  }
+  if (policy.proofPath.kind === 'joined_capsule') {
+    return /\b(?:join(?:s|ed)?|downstream|single|inherit(?:s)?|preserve(?:s)?)\b/i.test(summary) &&
+      /\b(?:proof|capsule|proof chain)\b/i.test(summary);
+  }
+  return /\b(?:no[-\s]?action|not[-\s]?started|blocked|skipped|evidence only)\b/i.test(summary) &&
+    /\bfresh\b/i.test(summary);
+}
+
 function readPlaneSource(repoRoot: string, plane: LegacyAuthorityPlaneV1): string | null {
   const sourcePath = plane.source_ref.path_or_uri;
   if (!sourcePath || /^https?:\/\//i.test(sourcePath)) return null;
@@ -183,6 +199,13 @@ export function checkProofCapsuleCoverage(input: {
         planeId: plane.plane_id,
         reason: 'incompatible_policy_kind',
         detail: `${matches[0].proofPath.kind} is only valid for pending/no-action planes; execution-capable routes must emit or join a proof capsule.`
+      });
+    }
+    if (!proofPathSummaryIsStrong(matches[0])) {
+      gaps.push({
+        planeId: plane.plane_id,
+        reason: 'weak_policy_summary',
+        detail: 'Proof-capsule policy summary must say whether the route emits/attaches a capsule, joins a downstream proof chain, or proves explicit no-action.'
       });
     }
     if (matches[0].requiredSourceMarkers.length === 0) {
