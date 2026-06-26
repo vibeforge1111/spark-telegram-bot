@@ -201,6 +201,11 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `Sample size: ${result.sampleSize}`,
     '',
     result.ok ? 'Status: clean' : 'Status: gaps found',
+    result.freshStrictOk
+      ? 'Actionable status: clean'
+      : result.blockingOk
+        ? 'Actionable status: non-blocking gaps visible'
+        : 'Actionable status: repair required',
     result.blockingOk ? 'Blocking status: clean' : 'Blocking status: blocking gaps found',
     result.freshStrictOk ? 'Fresh-strict status: clean' : 'Fresh-strict status: not ready',
     `Gap posture: ${result.gapPosture}`,

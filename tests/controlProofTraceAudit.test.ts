@@ -440,6 +440,8 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     ]);
     const report = formatControlProofTraceAuditReport(result);
     assert.match(report, /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
+    assert.match(report, /Status: gaps found/);
+    assert.match(report, /Actionable status: clean/);
     assert.match(report, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(report, /latest proof gaps: 0/);
     assert.match(report, /legacy proof gaps: builder_gateway \(backing complete; latest gaps 0; release blocking no\)/);
@@ -618,6 +620,7 @@ test('blocking strict CLI allows visible legacy proof gaps but strict still fail
     );
     assert.equal(blockingStrict.status, 0, blockingStrict.stderr);
     assert.match(blockingStrict.stdout, /Status: gaps found/);
+    assert.match(blockingStrict.stdout, /Actionable status: non-blocking gaps visible/);
     assert.match(blockingStrict.stdout, /Blocking status: clean/);
     assert.match(blockingStrict.stdout, /legacy proof gaps: 1/);
     assert.match(blockingStrict.stdout, /latest proof gaps: 1/);
@@ -688,6 +691,8 @@ test('fresh strict CLI fails on blocking gaps and latest producer proof gaps', (
       { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' }
     );
     assert.equal(freshStrictClean.status, 0, freshStrictClean.stderr);
+    assert.match(freshStrictClean.stdout, /Status: gaps found/);
+    assert.match(freshStrictClean.stdout, /Actionable status: clean/);
     assert.match(freshStrictClean.stdout, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(freshStrictClean.stdout, /legacy proof gaps: 1/);
     assert.match(freshStrictClean.stdout, /latest proof gaps: 0/);

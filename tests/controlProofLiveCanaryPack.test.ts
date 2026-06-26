@@ -38,6 +38,7 @@ function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string
   '$ npm run control:proof:audit -- --sample 100 --fresh-strict',
   'exit=0',
   `Generated: ${generatedAt}`,
+  'Actionable status: clean',
   'Blocking status: clean',
   'Fresh-strict status: clean',
   'Gap posture: backed legacy gaps only; no blocking or latest proof gaps',
