@@ -48,6 +48,24 @@ test('surface eval ignores proof panels but checks natural replies', () => {
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-builder-001' && issue.code === 'report_card_voice'));
 });
 
+test('surface eval fails unknown unchecked reply shapes instead of treating them as inspect surfaces', () => {
+  const packet = fullPacket();
+  const entry = packet.cases.find((item) => item.id === 'cp-builder-001');
+  assert.ok(entry);
+  entry.expected.replyShape = 'experimental_card' as typeof entry.expected.replyShape;
+  entry.observed.reply = 'This would otherwise be skipped.';
+
+  const result = checkSurfaceEval({ observations: packet });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.cases.find((item) => item.caseId === 'cp-builder-001')?.checked === false);
+  assert.ok(result.issues.some((issue) =>
+    issue.caseId === 'cp-builder-001' &&
+    issue.code === 'unexpected_unchecked_reply_shape'
+  ));
+  assert.match(formatSurfaceEvalReport(result), /unexpected_unchecked_reply_shape/);
+});
+
 test('surface eval catches raw internals and generic chatbot voice', () => {
   const packet = fullPacket();
   const entry = packet.cases.find((item) => item.id === 'cp-memory-001');

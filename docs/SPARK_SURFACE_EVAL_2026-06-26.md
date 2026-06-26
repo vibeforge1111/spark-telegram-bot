@@ -17,7 +17,7 @@ Use `--observations <path>` to inspect another canary packet and `--json` for au
 
 ## Boundary
 
-The gate checks observed replies for natural, compact-card, media, and clarification surfaces. It skips proof panels because `/proof` is intentionally an inspect surface.
+The gate checks observed replies for natural, compact-card, media, and clarification surfaces. It skips proof panels because `/proof` is intentionally an inspect surface. Any other unchecked reply shape is a gap, not an inspect skip.
 
 The gate fails:
 
@@ -28,6 +28,7 @@ The gate fails:
 - ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings
 - bold Markdown, dash-family punctuation, emoji spam, or oversized paragraph dumps
 - proof-panel and canary-summary status rows leaking into natural surfaces, such as `Blocking gap planes`, `Legacy proof gaps visible`, `Gate scope`, `Release gate`, or `Publish gate`
+- new or unknown reply shapes that are not explicitly checked and are not proof-panel inspect surfaces
 
 ## Use
 

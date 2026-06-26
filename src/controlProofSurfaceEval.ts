@@ -17,7 +17,8 @@ export type SurfaceEvalIssueCode =
   | 'emoji_spam'
   | 'paragraph_too_long'
   | 'proof_panel_on_natural_surface'
-  | 'legacy_source_reference';
+  | 'legacy_source_reference'
+  | 'unexpected_unchecked_reply_shape';
 
 export interface SurfaceEvalIssue {
   caseId: string;
@@ -42,6 +43,7 @@ export interface SurfaceEvalResult {
 }
 
 const CHECKED_REPLY_SHAPES = new Set(['natural', 'compact_card', 'media_reply', 'clarification']);
+const INSPECT_REPLY_SHAPES = new Set(['proof_panel']);
 const MAX_PARAGRAPH_WORDS = 70;
 const STATUS_ICON_PATTERN = /✅|⚠️|🟢|🟡|🔴|⚪|🛠️|✨/gu;
 
@@ -170,6 +172,13 @@ export function checkSurfaceEval(input: {
     const replyShape = entry.expected.replyShape;
     if (!CHECKED_REPLY_SHAPES.has(replyShape)) {
       skippedCases += 1;
+      if (!INSPECT_REPLY_SHAPES.has(replyShape)) {
+        issues.push({
+          caseId: entry.id,
+          code: 'unexpected_unchecked_reply_shape',
+          detail: `Reply shape "${replyShape}" is not checked by surface eval and is not an inspect-only shape.`
+        });
+      }
       cases.push({ caseId: entry.id, replyShape, checked: false, issueCodes: [] });
       continue;
     }
