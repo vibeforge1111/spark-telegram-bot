@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   summarizeControlProofCanaryObservations,
+  type ControlProofCanaryCategory,
   type ControlProofCanaryObservationTemplate,
   type ControlProofCanaryObservationSummary
 } from './controlProofLiveCanaryPack';
@@ -9,6 +10,7 @@ import {
 export interface CapabilityEvidencePolicy {
   capabilityKey: string;
   label: string;
+  categories: ControlProofCanaryCategory[];
   successCaseIds: string[];
   failureOrBoundaryCaseIds: string[];
   requiresPublishHandoff?: boolean;
@@ -33,6 +35,7 @@ export interface CapabilityEvidenceGap {
     | 'missing_case'
     | 'case_not_passed'
     | 'missing_capture'
+    | 'category_mismatch'
     | 'overlapping_policy_case'
     | 'missing_publish_handoff';
   detail: string;
@@ -51,78 +54,91 @@ export const CAPABILITY_EVIDENCE_POLICIES: CapabilityEvidencePolicy[] = [
   {
     capabilityKey: 'telegram_no_action_boundary',
     label: 'Telegram no-action and route-hijack boundary',
+    categories: ['no_action'],
     successCaseIds: ['cp-noaction-001', 'cp-noaction-004'],
     failureOrBoundaryCaseIds: ['cp-noaction-002', 'cp-noaction-003']
   },
   {
     capabilityKey: 'fresh_authority_status',
     label: 'Fresh runtime and authority status',
+    categories: ['authority', 'no_action'],
     successCaseIds: ['cp-authority-001', 'cp-authority-002'],
     failureOrBoundaryCaseIds: ['cp-noaction-004']
   },
   {
     capabilityKey: 'proof_panel',
     label: 'Harness proof panel',
+    categories: ['proof'],
     successCaseIds: ['cp-proof-001'],
     failureOrBoundaryCaseIds: ['cp-proof-002']
   },
   {
     capabilityKey: 'builder_gateway',
     label: 'Builder gateway and memory diagnostic boundary',
+    categories: ['builder'],
     successCaseIds: ['cp-builder-001'],
     failureOrBoundaryCaseIds: ['cp-builder-002']
   },
   {
     capabilityKey: 'streaming_rich_messages',
     label: 'Telegram streaming and Rich Messages',
+    categories: ['streaming', 'rich_messages'],
     successCaseIds: ['cp-streaming-002'],
     failureOrBoundaryCaseIds: ['cp-streaming-001']
   },
   {
     capabilityKey: 'memory',
     label: 'Memory recall and Memory Doctor',
+    categories: ['memory'],
     successCaseIds: ['cp-memory-001'],
     failureOrBoundaryCaseIds: ['cp-memory-002']
   },
   {
     capabilityKey: 'access',
     label: 'Access state and runner capability',
+    categories: ['access'],
     successCaseIds: ['cp-access-001'],
     failureOrBoundaryCaseIds: ['cp-access-002']
   },
   {
     capabilityKey: 'model_switch',
     label: 'Model and mission-provider switching',
+    categories: ['model_switch'],
     successCaseIds: ['cp-model-002'],
     failureOrBoundaryCaseIds: ['cp-model-001']
   },
   {
     capabilityKey: 'web_research',
     label: 'External research boundary',
+    categories: ['web_research'],
     successCaseIds: ['cp-web-002'],
     failureOrBoundaryCaseIds: ['cp-web-001']
   },
   {
     capabilityKey: 'spawner_build',
     label: 'Spawner build route',
+    categories: ['spawner_build'],
     successCaseIds: ['cp-spawner-002'],
     failureOrBoundaryCaseIds: ['cp-spawner-001']
   },
   {
     capabilityKey: 'mission_launch',
     label: 'Mission launch and no-edit probe route',
+    categories: ['mission', 'no_action'],
     successCaseIds: ['cp-mission-001'],
     failureOrBoundaryCaseIds: ['cp-noaction-001', 'cp-noaction-002']
   },
   {
     capabilityKey: 'media_voice_audio',
     label: 'Image, voice, and audio media boundary',
+    categories: ['media', 'voice', 'audio'],
     successCaseIds: ['cp-media-002', 'cp-voice-001', 'cp-audio-001'],
     failureOrBoundaryCaseIds: ['cp-media-001']
   },
   {
     capabilityKey: 'publish_registry',
     label: 'Publish and registry drift boundary',
+    categories: ['publish'],
     successCaseIds: ['cp-publish-001'],
     failureOrBoundaryCaseIds: [],
     requiresPublishHandoff: true
@@ -162,6 +178,14 @@ function checkCaseIds(
     if (!entry) {
       gaps.push({ capabilityKey: policy.capabilityKey, caseId, reason: 'missing_case', detail: 'Required canary evidence case is missing.' });
       continue;
+    }
+    if (!policy.categories.includes(entry.category)) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        caseId,
+        reason: 'category_mismatch',
+        detail: `Required canary evidence case category is ${entry.category}; expected one of ${policy.categories.join(', ')}.`
+      });
     }
     if (entry.verdict !== 'pass') {
       gaps.push({ capabilityKey: policy.capabilityKey, caseId, reason: 'case_not_passed', detail: `Required canary evidence case verdict is ${entry.verdict}.` });

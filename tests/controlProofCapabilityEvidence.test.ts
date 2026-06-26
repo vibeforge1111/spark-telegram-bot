@@ -120,6 +120,7 @@ test('capability evidence rejects using one case as both success and boundary pr
     policies: [{
       capabilityKey: 'overlap_test',
       label: 'Overlap test',
+      categories: ['streaming'],
       successCaseIds: ['cp-streaming-001'],
       failureOrBoundaryCaseIds: ['cp-streaming-001']
     }]
@@ -132,4 +133,26 @@ test('capability evidence rejects using one case as both success and boundary pr
     gap.reason === 'overlapping_policy_case'
   )));
   assert.match(formatCapabilityEvidenceReport(result), /overlapping_policy_case/);
+});
+
+test('capability evidence rejects cases from unrelated canary categories', () => {
+  const template = passingTemplate();
+  const result = checkCapabilityEvidence({
+    observations: template,
+    policies: [{
+      capabilityKey: 'category_join_test',
+      label: 'Category join test',
+      categories: ['streaming'],
+      successCaseIds: ['cp-memory-001'],
+      failureOrBoundaryCaseIds: ['cp-streaming-001']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.capabilityKey === 'category_join_test' &&
+    gap.caseId === 'cp-memory-001' &&
+    gap.reason === 'category_mismatch'
+  )));
+  assert.match(formatCapabilityEvidenceReport(result), /category_mismatch/);
 });

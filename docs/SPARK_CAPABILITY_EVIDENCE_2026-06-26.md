@@ -21,9 +21,12 @@ Use `--observations <path>` to inspect a non-default packet and `--json` for aut
 
 For each capability policy, the gate requires:
 
+- category joins: every referenced canary case must belong to one of the policy's allowed canary categories
 - `last-success`: one or more passing canary cases with all required captures present
 - `last-failure/boundary`: one or more passing boundary cases that prove refusal, no-action, fallback, or constrained behavior
 - publish evidence: for registry/publish capability, a visible publish-not-ready handoff instead of a hidden release claim
+
+Category joins keep a capability from borrowing a valid but unrelated passing case. For example, streaming/rich-message reliability must draw from `streaming` or `rich_messages` cases, not a memory or publish case that happened to pass.
 
 The same canary case cannot satisfy both `last-success` and `last-failure/boundary` for one capability. If a capability needs both a positive proof and a constrained-behavior proof, split them across distinct cases so the evidence does not double-count one observation.
 

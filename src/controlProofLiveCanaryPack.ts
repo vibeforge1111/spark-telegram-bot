@@ -164,6 +164,7 @@ export interface ControlProofCanaryObservationCase {
 
 export interface ControlProofCanaryObservationCaseSummary {
   id: string;
+  category: ControlProofCanaryCategory;
   verdict: ControlProofCanaryVerdict;
   sourceRefs?: ControlProofCanarySourceRef[];
   expectedRoute: string;
@@ -3609,6 +3610,7 @@ export function summarizeControlProofCanaryObservations(
     const sourceRefs = canonical?.sourceRefs?.length ? canonical.sourceRefs : (entry.sourceRefs?.length ? entry.sourceRefs : undefined);
     return {
       id: entry.id,
+      category: canonical?.category || entry.category,
       verdict: entry.observed.verdict,
       ...(sourceRefs ? { sourceRefs } : {}),
       expectedRoute: canonical?.expectedRoute || entry.expected.route,

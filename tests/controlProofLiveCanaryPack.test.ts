@@ -743,6 +743,7 @@ test('observation summary uses canonical source refs and expectations over stale
   assert.deepEqual(summary.cases[0].sourceRefs, [
     { catalog: 'docs/LIVE_CHAT_STREAMING_DESIGN.md', caseId: 'streaming-status-defaults', relationship: 'coverage_for' }
   ]);
+  assert.equal(summary.cases[0].category, 'streaming');
   assert.equal(summary.cases[0].expectedRoute, 'streaming.status');
   assert.equal(summary.cases[0].expectedReplyShape, 'compact_card');
 });
