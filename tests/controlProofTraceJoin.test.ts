@@ -150,6 +150,44 @@ test('reports missing join keys and reply/proof joins without raw ids', () => {
   });
 });
 
+test('requires request and trace refs to join on the same reply evidence row', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    writeJsonl(routeLedger, [routeRow()]);
+    writeJsonl(finalAnswer, [
+      {
+        request_id: 'turn:joined',
+        trace_ref: 'trace:other',
+        harness_proof_ref: 'turn:sha256:abcdef1234567890',
+        proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+      },
+      {
+        request_id: 'turn:other',
+        trace_ref: 'trace:joined'
+      }
+    ]);
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.rows[0].requestIdPresent, true);
+    assert.equal(result.rows[0].traceRefPresent, true);
+    assert.equal(result.rows[0].replyJoined, false);
+    assert.equal(result.rows[0].proofJoined, true);
+    assert.deepEqual(result.rows[0].gaps, ['missing_reply_join']);
+    assert.equal(result.missingReplyJoinRows, 1);
+  });
+});
+
 test('reports route mismatches and missing action evidence', () => {
   withTempRoot((root) => {
     const routeLedger = path.join(root, 'route-ledger.jsonl');
