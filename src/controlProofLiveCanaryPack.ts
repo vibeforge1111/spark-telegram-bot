@@ -3027,7 +3027,8 @@ function hasStreamingStatusProofShape(value: string): boolean {
     /\bRich messages:\s*on\b/i.test(value) &&
     /\bDraft transport:\s*rich\b/i.test(value) &&
     /\bFull-reply preview:\s*on\b/i.test(value) &&
-    /\bProcess telemetry:/i.test(value);
+    /\bProcess telemetry:/i.test(value) &&
+    /\bTransport proof:\s*(?:configured only|observed in this bot process)/i.test(value);
 }
 
 function hasRichMessageProofShape(value: string): boolean {

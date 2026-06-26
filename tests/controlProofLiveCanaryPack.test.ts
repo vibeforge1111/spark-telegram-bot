@@ -1213,6 +1213,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     'Telegram live chat Profile: primary Status: on Rich messages: on Draft transport: rich Full-reply preview: on Draft interval: 500ms',
     '',
     'Process telemetry: no rich/draft delivery attempt observed since start.',
+    'Transport proof: configured only until a final or draft delivery is observed.',
     '',
     'Private chats only.'
   ].join('\n');
