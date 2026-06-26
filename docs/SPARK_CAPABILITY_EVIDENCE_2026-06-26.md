@@ -25,6 +25,8 @@ For each capability policy, the gate requires:
 - `last-failure/boundary`: one or more passing boundary cases that prove refusal, no-action, fallback, or constrained behavior
 - publish evidence: for registry/publish capability, a visible publish-not-ready handoff instead of a hidden release claim
 
+The same canary case cannot satisfy both `last-success` and `last-failure/boundary` for one capability. If a capability needs both a positive proof and a constrained-behavior proof, split them across distinct cases so the evidence does not double-count one observation.
+
 Evidence timestamps are withheld when a required case is merely marked `pass` but still has missing captures. A capability record may only show `last-success` or `last-failure/boundary` when the relevant cases are both passing and capture-complete.
 
 The gate does not turn selected-case proof into full release proof. It reads the full canary observations by default and keeps publish readiness separate from release-ready behavior proof.

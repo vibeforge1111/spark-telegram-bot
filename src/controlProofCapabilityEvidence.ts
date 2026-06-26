@@ -33,6 +33,7 @@ export interface CapabilityEvidenceGap {
     | 'missing_case'
     | 'case_not_passed'
     | 'missing_capture'
+    | 'overlapping_policy_case'
     | 'missing_publish_handoff';
   detail: string;
 }
@@ -74,7 +75,7 @@ export const CAPABILITY_EVIDENCE_POLICIES: CapabilityEvidencePolicy[] = [
   {
     capabilityKey: 'streaming_rich_messages',
     label: 'Telegram streaming and Rich Messages',
-    successCaseIds: ['cp-streaming-001', 'cp-streaming-002'],
+    successCaseIds: ['cp-streaming-002'],
     failureOrBoundaryCaseIds: ['cp-streaming-001']
   },
   {
@@ -215,6 +216,16 @@ export function checkCapabilityEvidence(input: {
   const records: CapabilityEvidenceRecord[] = [];
 
   for (const policy of policies) {
+    const overlappingCaseIds = policy.successCaseIds.filter((caseId) => policy.failureOrBoundaryCaseIds.includes(caseId));
+    for (const caseId of overlappingCaseIds) {
+      gaps.push({
+        capabilityKey: policy.capabilityKey,
+        caseId,
+        reason: 'overlapping_policy_case',
+        detail: 'Capability policy cannot use the same canary case as both last-success and last-failure/boundary evidence.'
+      });
+    }
+
     gaps.push(...checkCaseIds(policy, policy.successCaseIds, byId, 'success'));
     if (policy.failureOrBoundaryCaseIds.length > 0) {
       gaps.push(...checkCaseIds(policy, policy.failureOrBoundaryCaseIds, byId, 'failure'));

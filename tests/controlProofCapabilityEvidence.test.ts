@@ -112,3 +112,24 @@ test('publish capability requires publish-not-ready handoff evidence', () => {
   assert.equal(result.ok, false);
   assert.ok(result.gaps.some((gap) => gap.capabilityKey === 'publish_registry' && gap.reason === 'missing_publish_handoff'));
 });
+
+test('capability evidence rejects using one case as both success and boundary proof', () => {
+  const template = passingTemplate();
+  const result = checkCapabilityEvidence({
+    observations: template,
+    policies: [{
+      capabilityKey: 'overlap_test',
+      label: 'Overlap test',
+      successCaseIds: ['cp-streaming-001'],
+      failureOrBoundaryCaseIds: ['cp-streaming-001']
+    }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.capabilityKey === 'overlap_test' &&
+    gap.caseId === 'cp-streaming-001' &&
+    gap.reason === 'overlapping_policy_case'
+  )));
+  assert.match(formatCapabilityEvidenceReport(result), /overlapping_policy_case/);
+});
