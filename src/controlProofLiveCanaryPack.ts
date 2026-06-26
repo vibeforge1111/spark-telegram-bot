@@ -301,6 +301,14 @@ export interface ControlProofAuditRuntimeSummary {
   legacyGapBackingDetails?: ControlProofAuditLegacyGapBackingDetail[];
 }
 
+export interface ControlProofLegacyRepairDryRunDetail {
+  plane: string;
+  changedRows: number;
+  rowsRead: number;
+  capsulesAdded: number;
+  parseErrors: number;
+}
+
 export interface ControlProofReleaseHandoffDetail {
   owner: string;
   status: string;
@@ -330,6 +338,7 @@ export interface ControlProofCanaryObservationSummary {
   releaseCaveats: string[];
   releaseCaveatDetails: Record<string, unknown> | null;
   controlProofAuditDetails: ControlProofAuditDetails | null;
+  legacyRepairDryRunDetails: ControlProofLegacyRepairDryRunDetail[];
   releaseHandoffs: string[];
   releaseHandoffDetails: ControlProofReleaseHandoffDetail[];
   publishHandoffs: Record<string, unknown> | null;
@@ -3100,21 +3109,39 @@ function invalidPacketEvidence(
   ) invalid.push('control_proof_audit_summary');
   const notes = String(evidence.notes || '').trim();
   if (notes && canaryFreeTextLeaksRawInternals(notes)) invalid.push('runtime_evidence_notes');
-  if (notes && /Legacy repair dry-run:/i.test(notes) && !hasCleanLegacyRepairDryRunNotes(notes)) {
+  if (notes && /Legacy repair dry-run:/i.test(notes) && !hasCleanLegacyRepairDryRunDetails(legacyRepairDryRunDetails(notes))) {
     invalid.push('legacy_repair_dry_run');
   }
   return invalid;
 }
 
-function hasCleanLegacyRepairDryRunNotes(value: string): boolean {
+function legacyRepairDryRunDetails(value: string | null | undefined): ControlProofLegacyRepairDryRunDetail[] {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  const details: ControlProofLegacyRepairDryRunDetail[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*-?\s*(telegram_route_confidence|builder_gateway|spawner_prd_trace):\s*changed_rows=(\d+);\s*rows_read=(\d+);\s*capsules_added=(\d+);\s*parse_errors=(\d+)\s*$/i);
+    if (!match) continue;
+    details.push({
+      plane: match[1].toLowerCase(),
+      changedRows: Number(match[2]),
+      rowsRead: Number(match[3]),
+      capsulesAdded: Number(match[4]),
+      parseErrors: Number(match[5])
+    });
+  }
+  return details.sort((a, b) => a.plane.localeCompare(b.plane));
+}
+
+function hasCleanLegacyRepairDryRunDetails(details: ControlProofLegacyRepairDryRunDetail[]): boolean {
   const expectedPlanes = ['telegram_route_confidence', 'builder_gateway', 'spawner_prd_trace'];
-  return expectedPlanes.every((plane) => {
-    const pattern = new RegExp(
-      `${plane}:\\s*changed_rows=0;\\s*rows_read=\\d+;\\s*capsules_added=0;\\s*parse_errors=0`,
-      'i'
-    );
-    return pattern.test(value);
-  });
+  return expectedPlanes.every((plane) => details.some((entry) =>
+    entry.plane === plane &&
+    entry.changedRows === 0 &&
+    entry.rowsRead > 0 &&
+    entry.capsulesAdded === 0 &&
+    entry.parseErrors === 0
+  ));
 }
 
 function missingCapturesForCase(
@@ -3473,6 +3500,7 @@ export function summarizeControlProofCanaryObservations(
   const releaseCaveats = sparkOsCompileReleaseCaveats(observations.evidence?.sparkOsCompile);
   const releaseCaveatDetails = sparkOsCompileReleaseCaveatDetails(observations.evidence?.sparkOsCompile);
   const auditDetails = controlProofAuditDetails(observations.evidence?.controlProofAudit);
+  const repairDryRunDetails = legacyRepairDryRunDetails(observations.evidence?.notes);
   const releaseBlockers = sparkOsCompileReleaseBlockers(observations.evidence?.sparkOsCompile);
   const publishHandoffs = sparkOsCompilePublishHandoffs(observations.evidence?.sparkOsCompile);
   const releaseHandoffs = Array.from(new Set([
@@ -3514,6 +3542,7 @@ export function summarizeControlProofCanaryObservations(
     releaseCaveats,
     releaseCaveatDetails,
     controlProofAuditDetails: auditDetails,
+    legacyRepairDryRunDetails: repairDryRunDetails,
     releaseHandoffs,
     releaseHandoffDetails,
     publishHandoffs,

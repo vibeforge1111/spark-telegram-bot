@@ -838,6 +838,7 @@ test('observation summary requires pass verdicts and all requested capture evide
       repairCommand: 'npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json'
     }
   ]);
+  assert.deepEqual(summary.legacyRepairDryRunDetails, []);
   assert.deepEqual(
     summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planes.map((entry) => ({
       label: entry.label,
@@ -1580,6 +1581,29 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   ].join('\n');
   const cleanLegacyRepairDryRun = summarizeControlProofCanaryObservations(template);
   assert.ok(!cleanLegacyRepairDryRun.invalidPacketEvidence.includes('legacy_repair_dry_run'));
+  assert.deepEqual(cleanLegacyRepairDryRun.legacyRepairDryRunDetails, [
+    {
+      plane: 'builder_gateway',
+      changedRows: 0,
+      rowsRead: 522,
+      capsulesAdded: 0,
+      parseErrors: 0
+    },
+    {
+      plane: 'spawner_prd_trace',
+      changedRows: 0,
+      rowsRead: 495,
+      capsulesAdded: 0,
+      parseErrors: 0
+    },
+    {
+      plane: 'telegram_route_confidence',
+      changedRows: 0,
+      rowsRead: 145,
+      capsulesAdded: 0,
+      parseErrors: 0
+    }
+  ]);
 
   const cleanAuditSummary = summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT)!;
   template.evidence.controlProofAuditSummary = {
@@ -3258,6 +3282,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /freshStrictOk/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /gapPosture/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /controlProofAuditDetails\.legacyGapBackingDetails/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /legacyRepairDryRunDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /releaseBlocking=false/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /matching `proofGapMarked` and plane `proofGap` counts/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Legacy gap backing/);
