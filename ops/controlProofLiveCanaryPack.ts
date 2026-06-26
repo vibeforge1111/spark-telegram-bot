@@ -78,9 +78,13 @@ function serializeControlProofCanarySummaryJson(
   coverage: ReturnType<typeof summarizeControlProofCanaryCoverage>
 ): string {
   return `${JSON.stringify({
-    summary,
+    summary: {
+      ...summary,
+      gateScope: coverage.releasePackComplete ? 'full_release_pack' : 'selected_case_gate'
+    },
     coverage: {
       ...coverage,
+      gateScope: coverage.releasePackComplete ? 'full_release_pack' : 'selected_case_gate',
       categoryCounts: Object.fromEntries(coverage.categoryCounts),
       riskCounts: Object.fromEntries(coverage.riskCounts),
       mutationCounts: Object.fromEntries(coverage.mutationCounts),

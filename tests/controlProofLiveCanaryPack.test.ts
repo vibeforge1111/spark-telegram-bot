@@ -164,6 +164,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.equal(summaryJson.summary.gateScope, 'full_release_pack');
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
   assert.deepEqual(summaryJson.summary.releaseBlockers, []);
@@ -217,6 +218,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
     'saved summary must preserve rich-message reply-shape expectation'
   );
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.gateScope, 'full_release_pack');
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
   assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
   assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
@@ -287,6 +289,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.summary.runtimeEvidenceExpiresAt, summary.runtimeEvidenceExpiresAt);
   assert.equal(summaryJson.summary.readyForRelease, summary.readyForRelease);
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
+  assert.equal(summaryJson.summary.gateScope, 'selected_case_gate');
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
   assert.deepEqual(summaryJson.summary.releaseBlockers, []);
@@ -296,6 +299,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
   assert.deepEqual(summaryJson.summary.cases, summary.cases);
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
+  assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
   assert.equal(summaryJson.coverage.releasePackComplete, false);
   assert.equal(summaryJson.summary.readyForRelease, true);
   assert.equal(summaryJson.summary.readyForPublish, false);
