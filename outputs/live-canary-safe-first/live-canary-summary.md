@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T14:51:02.091Z
-Runtime evidence collected: 2026-06-26T14:51:02.091Z
-Runtime evidence expires: 2026-06-26T15:51:02.091Z (1h window)
+Generated: 2026-06-26T15:03:04.147Z
+Runtime evidence collected: 2026-06-26T15:03:04.147Z
+Runtime evidence expires: 2026-06-26T16:03:04.147Z (1h window)
 Cases: 4
 Gate scope: selected-case gate
 Release gate: ready
