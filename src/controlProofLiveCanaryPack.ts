@@ -2428,7 +2428,7 @@ function publishHandoffLinesFromCompileSummary(parsed: Record<string, unknown>):
     const nextSafeAction = String(entry.next_safe_action || '').trim();
     const behind = numberOrNull(entry.behind);
     const details = [
-      `${repo}: release_blocked repo_release_blocks`,
+      `${repo}: publish_blocked repo_release_blocks`,
       ...(reason && /^[A-Za-z0-9 ._/-]+$/.test(reason) ? [`reason: ${reason}`] : []),
       ...(behind !== null && behind >= 0 ? [`behind=${behind}`] : []),
       ...(nextSafeAction && /^[A-Za-z0-9 ._/-]+$/.test(nextSafeAction) ? [`next safe action: ${nextSafeAction}`] : [])
@@ -2645,7 +2645,7 @@ function handoffSectionLines(text: string, marker: string): string[] {
 function releaseBlockHandoffLines(text: string): string[] {
   return handoffSectionLines(text, 'Repo release-block handoff:')
     .filter((line) =>
-      /^[a-z0-9_.-]+:\s+release_blocked(?:\s+repo_release_blocks)?(?:;\s+reason:\s+.+)?(?:;\s+behind=\d+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
+      /^[a-z0-9_.-]+:\s+(?:release_blocked|publish_blocked)(?:\s+repo_release_blocks)?(?:;\s+reason:\s+.+)?(?:;\s+behind=\d+)?(?:;\s+next safe action:\s+.+)?$/i.test(line)
     )
     .map(canonicalReleaseBlockHandoffLine);
 }
@@ -2658,7 +2658,9 @@ function duplicateTruthHandoffLines(text: string): string[] {
 }
 
 function canonicalReleaseBlockHandoffLine(line: string): string {
-  return line.replace(/^([a-z0-9_.-]+:\s+release_blocked)(?=;)/i, '$1 repo_release_blocks');
+  return line
+    .replace(/^([a-z0-9_.-]+):\s+release_blocked/i, '$1: publish_blocked')
+    .replace(/^([a-z0-9_.-]+:\s+publish_blocked)(?=;)/i, '$1 repo_release_blocks');
 }
 
 function legacyProofGapsAreInspectable(value: string): boolean {
