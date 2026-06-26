@@ -81,6 +81,30 @@ test('fails when a canonical doc is not classified in the inventory', () => {
   assert.match(formatSourceInventoryReport(result), /docs\/missing\.md is listed in the docs index/);
 });
 
+test('fails when an active inventory doc is missing from the canonical docs index', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/indexed.md'), 'indexed');
+  writeFileSync(join(dir, 'docs/unindexed-active.md'), 'unindexed');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/indexed.md` | active | Current source. |',
+    '| `docs/unindexed-active.md` | active | Current source without routing. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, [
+    '1. `docs/indexed.md`'
+  ].join('\n'));
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gaps.some((gap) => gap.code === 'active_doc_missing_from_docs_index'), true);
+  assert.match(formatSourceInventoryReport(result), /docs\/unindexed-active\.md is marked active/);
+});
+
 test('fails when a prompt-surface blocked legacy source is not classified', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');

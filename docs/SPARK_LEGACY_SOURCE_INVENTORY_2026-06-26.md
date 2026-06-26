@@ -15,6 +15,8 @@ Legacy material must not reach prompts, Telegram replies, UI summaries, canary r
 
 The strict inventory checker also joins this document to the legacy prompt-surface blocklist. Any repo-local source blocked from prompt/UI summaries must have an inventory row here before `npm run control:proof:source-inventory` can pass.
 
+Any concrete Markdown doc under `docs/` marked `active` here must also be listed in `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`, so current docs remain reachable through the canonical control map.
+
 Active canary evidence folders must also contain the core packet files before they can count as current proof: `live-canary-observations.json`, `live-canary-summary.md`, and `live-canary-summary.json`.
 
 - `active`: current source of rules, proof, or release gates.

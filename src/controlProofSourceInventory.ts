@@ -153,6 +153,16 @@ export function checkSourceInventory(options: {
     }
   }
 
+  for (const entry of entries) {
+    const activeConcreteDoc = entry.status === 'active' && /^docs\/.+\.md$/.test(entry.source);
+    if (activeConcreteDoc && !canonicalDocs.includes(entry.source)) {
+      gaps.push({
+        code: 'active_doc_missing_from_docs_index',
+        message: `${entry.source} is marked active in the source inventory but is not listed in the canonical docs index.`
+      });
+    }
+  }
+
   for (const source of legacyPromptBlockedSources) {
     if (!entries.some((entry) => entryMatchesSource(entry, source))) {
       gaps.push({

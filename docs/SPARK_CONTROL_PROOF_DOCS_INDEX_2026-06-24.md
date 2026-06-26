@@ -13,95 +13,99 @@ Entry condition: reduce proof gaps and trace-join gaps before expanding UI, medi
 
 Read these in order:
 
-1. `docs/TURNINTENT_HARNESS_RULESET.md`
+1. `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`
+   - Canonical documentation router and stale-doc rule.
+   - Start here, then follow the ordered current control-proof map.
+
+2. `docs/TURNINTENT_HARNESS_RULESET.md`
    - Permanent Spark-wide authority rules.
    - Source for no-action boundaries, high-agency action classes, and release gates.
 
-2. `docs/SPARK_HARNESS_CONTRACT.md`
+3. `docs/SPARK_HARNESS_CONTRACT.md`
    - Telegram's role in the shared Harness contract.
    - Source for repo boundaries and next-slice acceptance.
 
-3. `docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`
+4. `docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md`
    - Full work plan: proof panel, trace continuity, Telegram surface repair, media inputs, live canaries.
 
-4. `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
+5. `docs/SPARK_CONTROL_PROOF_PREFLIGHT_AUDIT_2026-06-24.md`
    - Read-only audit to run before using the goal prompt.
    - Source for evidence locations and gap classes.
 
-5. `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md`
+6. `docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md`
    - Latest captured read-only baseline.
    - Source for the first implementation slice and current gap register.
 
-6. `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
+7. `docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md`
    - Compact under-4,000-character execution prompt.
    - Original Harness Core refurbishment prompt. Use as historical/current baseline context, then run the newer reliability ladder prompt for the active control program.
 
-7. `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+8. `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
    - Audit of the older `nl:live` and Genesis natural-language suites.
    - Source for the decision to keep them as broad regression catalogs, not the new control-proof release gate.
 
-8. `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`
+9. `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`
    - Source-boundary inventory for legacy plans, catalogs, runbooks, and evidence.
    - Source for classifying material as active, read-only evidence, archive candidate, or delete candidate.
 
-9. `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md`
+10. `docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md`
    - Current organized reliability workplan.
    - Source for baseline status, active task order, and done definition.
 
-10. `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md`
+11. `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27.md`
    - Current under-4,000-character writable-lane prompt.
    - Source for the active proof-first goal after the 2026-06-27 reliability battery.
 
-11. `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md`
+12. `docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md`
    - Previous under-4,000-character writable-lane prompt.
    - Previous active proof-first goal, including the rule to reduce proof gaps and trace-join gaps before expanding UI, media support, or new features.
 
-12. `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md`
+13. `docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md`
    - Previous compact reliability ladder prompt.
    - Historical baseline for render firewall, trace join checker, legacy prompt removal, capability evidence, and surface eval sequencing.
    - Prefer the 2026-06-27 reliability control goal prompt for active lanes.
 
-13. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
+14. `docs/TELEGRAM_COMPOSITION_STANDARD.md`
    - Human surface rules for Telegram.
    - Source for repairing policy-shaped replies.
 
-14. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
+15. `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
    - Active Telegram render firewall implementation note.
    - Source for ordinary-vs-inspect redaction behavior.
 
-15. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
+16. `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
    - Active trace join checker implementation note.
    - Source for `user intent -> route decision -> action/no-action -> reply` verification.
 
-16. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
+17. `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
    - Active proof-capsule coverage implementation note.
    - Source for action-capable authority plane proof path policy.
 
-17. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
+18. `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
    - Active reliability eval coverage implementation note.
    - Source for old-edge eval coverage categories.
 
-18. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
+19. `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
    - Active legacy prompt/UI summary surface gate.
    - Source for keeping read-only legacy plans out of ordinary prompt and human summary surfaces unless explicitly inspected.
 
-19. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
+20. `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
    - Active capability last-success and last-failure/boundary evidence gate.
    - Source for capability reliability claims from full canary evidence rather than registry visibility.
 
-20. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
+21. `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
    - Active human-feel surface eval gate.
    - Source for failing logically correct but robotic ordinary replies.
 
-21. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
+22. `docs/LIVE_CHAT_STREAMING_DESIGN.md`
    - Streaming and Rich Message architecture.
    - Source for keeping Telegram drafts presentation-only.
 
-22. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
+23. `docs/QA_OPERATOR_TELEGRAM_RECURSION.md`
    - Recursive/QA Operator Telegram behavior.
    - Source for SparkRecursive_bot-specific canaries.
 
-23. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
+24. `docs/VOICE_RUNTIME_ARCHITECTURE.md`
    - Voice path context.
    - Source for voice trace continuity.
 
