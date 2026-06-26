@@ -118,7 +118,10 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
     assert.match(projection.panel, /Evidence missing: .*Builder gateway/);
     assert.match(projection.panel, /Evidence missing: .*Spawner trace/);
+    assert.match(projection.panel, /Audit actionable: repair required/);
     assert.match(projection.panel, /Audit blocking: gaps found/);
+    assert.match(projection.panel, /Audit fresh-strict: not ready/);
+    assert.match(projection.panel, /Audit posture: blocking gaps require repair/);
     assert.match(projection.panel, /Blocking gap planes: .*missing evidence: Telegram outbound, Route confidence, System trace index, Memory movement, Voice surface, Voice runtime/);
     assert.match(projection.panel, /Blocking gap planes: .*missing trace joins: Telegram final/);
     assert.match(projection.panel, /Blocking gap planes: .*missing proof capsules: Builder gateway, Spawner trace/);
@@ -126,7 +129,10 @@ test('renders the latest redacted Harness Proof panel without raw trace rows', (
     assert.match(projection.panel, /Blocking gap planes: .*robotic failure reasons: Builder gateway/);
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'builder_gateway')?.status, 'missing');
     assert.equal(projection.evidenceJoins?.find((join) => join.plane === 'spawner_prd_trace')?.status, 'missing');
+    assert.equal(projection.audit?.actionableStatus, 'repair required');
     assert.equal(projection.audit?.blockingOk, false);
+    assert.equal(projection.audit?.freshStrictOk, false);
+    assert.equal(projection.audit?.gapPosture, 'blocking gaps require repair');
     assert.deepEqual(projection.audit?.missingEvidencePlaneLabels, ['Telegram outbound', 'Route confidence', 'System trace index', 'Memory movement', 'Voice surface', 'Voice runtime']);
     assert.deepEqual(projection.audit?.missingTraceJoinPlaneLabels, ['Telegram final']);
     assert.deepEqual(projection.audit?.missingProofCapsulePlaneLabels, ['Builder gateway', 'Spawner trace']);
@@ -268,7 +274,9 @@ test('marks future Builder and Spawner rows joined when they carry a redacted pr
     assert.match(projection.panel, /Evidence proof refs: .*Builder gateway/);
     assert.match(projection.panel, /Evidence proof refs: .*Spawner trace/);
     assert.match(projection.panel, /Evidence proof capsules: Telegram final/);
+    assert.match(projection.panel, /Audit actionable: repair required/);
     assert.match(projection.panel, /Audit blocking: gaps found/);
+    assert.match(projection.panel, /Audit fresh-strict: not ready/);
     assert.doesNotMatch(projection.panel, /raw-request|\/Users\/example/);
   });
 });
@@ -316,12 +324,18 @@ test('shows clean blocking audit while keeping legacy proof gaps visible', () =>
     });
 
     assert.equal(projection.ok, true);
+    assert.equal(projection.audit?.actionableStatus, 'clean');
     assert.equal(projection.audit?.blockingOk, true);
+    assert.equal(projection.audit?.freshStrictOk, true);
+    assert.equal(projection.audit?.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(projection.audit?.legacyProofGapPlanes, 1);
     assert.deepEqual(projection.audit?.legacyProofGapPlaneLabels, ['Spawner trace']);
     assert.equal(projection.audit?.latestProofGapPlanes, 0);
     assert.deepEqual(projection.audit?.latestProofGapPlaneLabels, []);
+    assert.match(projection.panel, /Audit actionable: clean/);
     assert.match(projection.panel, /Audit blocking: clean/);
+    assert.match(projection.panel, /Audit fresh-strict: clean/);
+    assert.match(projection.panel, /Audit posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(projection.panel, /Blocking gap planes: none/);
     assert.match(projection.panel, /Legacy proof gaps visible: 1 \(Spawner trace\)/);
     assert.match(projection.panel, /Latest proof gaps: none/);

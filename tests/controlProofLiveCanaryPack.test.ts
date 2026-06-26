@@ -114,7 +114,10 @@ const CLEAN_PROOF_PANEL = [
   'Governor: allow, verified',
   'Execution: not_started',
   'Reply: delivered as natural',
+  'Audit actionable: clean',
   'Audit blocking: clean',
+  'Audit fresh-strict: clean',
+  'Audit posture: backed legacy gaps only; no blocking or latest proof gaps',
   'Legacy proof gaps visible: 3'
 ].join('\n');
 const STABLE_SCREENSHOT_REF = 'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7';

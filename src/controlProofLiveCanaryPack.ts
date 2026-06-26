@@ -3194,7 +3194,14 @@ function proofPanelCaptureIssues(
   const text = String(value || '');
   const issues: string[] = [];
   if (!/Harness Proof/i.test(text)) issues.push('proof_panel_shape');
+  if (!/Audit actionable:\s*(?:clean|non-blocking gaps visible|repair required)/i.test(text)) {
+    issues.push('proof_panel_actionable_status');
+  }
   if (!/Audit blocking:\s*(?:clean|gaps found)/i.test(text)) issues.push('proof_panel_audit_status');
+  if (!/Audit fresh-strict:\s*(?:clean|not ready)/i.test(text)) issues.push('proof_panel_fresh_strict_status');
+  if (!/Audit posture:\s*(?:clean|blocking gaps require repair|backed legacy gaps only; no blocking or latest proof gaps|non-blocking gaps visible)/i.test(text)) {
+    issues.push('proof_panel_gap_posture');
+  }
   const legacyGapMatch = text.match(/Legacy proof gaps visible:\s*(\d+)/i);
   if (!legacyGapMatch) {
     issues.push('proof_panel_legacy_gap_status');

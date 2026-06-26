@@ -578,7 +578,7 @@ Then send one photo with a caption.
 6. Make Telegram producers supply Builder proof refs on the action-capable paths that need them. Source now attaches redacted Builder proof refs to text, image, and voice Builder gateway handoffs while keeping the full capsule on Telegram delivery/audit context.
 7. Show ref-only trace evidence honestly. The proof panel now reports joined evidence planes even when the matching proof capsule is missing.
 8. Carry redacted request/trace/proof refs into future Telegram voice runtime state rows without storing raw audio or transcript bodies.
-9. Include audit blocking status in the redacted proof panel. `/proof` and `control:proof:panel` now show `Audit blocking` plus `Blocking gap planes`, so clean panels say `none` and dirty panels name the affected evidence planes by gap class while keeping legacy proof-gap capsules visible.
+9. Include audit readiness status in the redacted proof panel. `/proof` and `control:proof:panel` now show `Audit actionable`, `Audit blocking`, `Audit fresh-strict`, `Audit posture`, and `Blocking gap planes`, so clean panels say `none` for blocking planes and dirty panels name the affected evidence planes by gap class while keeping legacy proof-gap capsules visible.
 10. Prove the Builder join with a fresh SparkRecursive_bot canary row after runtime sync.
 11. Repair Telegram failure language using fixtures from recent bad replies.
 12. Add media envelope fixtures and photo normalization. Initial `spark.media_turn.v1` helper and Telegram handoff attachment added for image and voice/audio updates; Builder acceptance added in `spark-intelligence-builder` commit `35cd451`; blocked media replies now carry redacted proof capsules from `src/telegramDeliveryProof.ts`.

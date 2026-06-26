@@ -44,7 +44,10 @@ export interface HarnessProofProjection {
 }
 
 export interface HarnessProofAuditSummary {
+  actionableStatus: 'clean' | 'non-blocking gaps visible' | 'repair required';
   blockingOk: boolean;
+  freshStrictOk: boolean;
+  gapPosture: string;
   legacyProofGapPlanes: number;
   legacyProofGapPlaneLabels: string[];
   latestProofGapPlanes: number;
@@ -152,7 +155,14 @@ function summarizeCurrentAudit(
 ): HarnessProofAuditSummary {
   const result = auditControlProofTraceContinuity({ sparkHome, evidenceFiles });
   return {
+    actionableStatus: result.freshStrictOk
+      ? 'clean'
+      : result.blockingOk
+        ? 'non-blocking gaps visible'
+        : 'repair required',
     blockingOk: result.blockingOk,
+    freshStrictOk: result.freshStrictOk,
+    gapPosture: result.gapPosture,
     legacyProofGapPlanes: result.gapCounts.legacyProofGap,
     legacyProofGapPlaneLabels: result.gapPlanes.legacyProofGap.map(displayNameForEvidencePlane),
     latestProofGapPlanes: result.planes.filter((plane) => !plane.missing && plane.latestProofGapMarked).length,
@@ -190,7 +200,10 @@ function renderAuditSummary(audit: HarnessProofAuditSummary): string {
     blockingGapDetail('stack-like leaks', audit.stackLikeLeakPlaneLabels)
   ].filter(Boolean);
   return [
+    `Audit actionable: ${audit.actionableStatus}`,
     `Audit blocking: ${audit.blockingOk ? 'clean' : 'gaps found'}`,
+    `Audit fresh-strict: ${audit.freshStrictOk ? 'clean' : 'not ready'}`,
+    `Audit posture: ${audit.gapPosture}`,
     `Blocking gap planes: ${blockingGapDetails.length ? blockingGapDetails.join('; ') : 'none'}`,
     `Legacy proof gaps visible: ${audit.legacyProofGapPlanes}${legacyGapDetail}`,
     `Latest proof gaps: ${latestGapDetail}`

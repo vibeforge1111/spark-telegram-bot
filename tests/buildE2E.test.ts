@@ -1315,7 +1315,7 @@ async function run(): Promise<void> {
 
 		assert.match(replies[0] || '', /Harness Proof/);
 		assert.match(replies[0] || '', /Authority: allowed/);
-		assert.match(replies[0] || '', /Proof ref: turn:sha256:[\s\S]*Audit blocking:[\s\S]*Legacy proof gaps visible:/);
+		assert.match(replies[0] || '', /Proof ref: turn:sha256:[\s\S]*Audit actionable:[\s\S]*Audit blocking:[\s\S]*Audit fresh-strict:[\s\S]*Legacy proof gaps visible:/);
 		assert.doesNotMatch(replies.join('\n'), /raw-request-proof-command|trace:raw-proof-command|tool_not_allowed_by_policy|\/Users\/example/);
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.route, 'proof.inspect');
 		assert.deepEqual(replyExtras[0]?.__sparkTraceContext?.command, 'proof');
@@ -1332,7 +1332,7 @@ async function run(): Promise<void> {
 
 		assert.match(traceReplies[0] || '', /Harness Proof/);
 		assert.match(traceReplies[0] || '', /Authority: allowed/);
-		assert.match(traceReplies[0] || '', /Trace ref: trace:sha256:[\s\S]*Audit blocking:/);
+		assert.match(traceReplies[0] || '', /Trace ref: trace:sha256:[\s\S]*Audit actionable:[\s\S]*Audit blocking:/);
 		assert.doesNotMatch(traceReplies.join('\n'), /raw-request-proof-command|trace:raw-proof-command|tool_not_allowed_by_policy|\/Users\/example/);
 		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.route, 'proof.inspect');
 		assert.deepEqual(traceReplyExtras[0]?.__sparkTraceContext?.replyKind, 'proof_panel');
