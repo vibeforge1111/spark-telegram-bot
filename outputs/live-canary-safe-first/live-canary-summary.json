@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T06:57:07.197Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T06:57:07.197Z",
+    "generatedAt": "2026-06-26T07:06:56.208Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T07:06:56.208Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T07:57:07.197Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T08:06:56.208Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -1110,7 +1110,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T06:57:05.318Z",
+      "generatedAt": "2026-06-26T07:06:54.339Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1255,7 +1255,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7567,
+          "totalRows": 7578,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1648,10 +1648,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T06:57:07.197Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T06:57:07.197Z",
+      "generatedAt": "2026-06-26T07:06:56.208Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T07:06:56.208Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T07:57:07.197Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T08:06:56.208Z",
       "missing": [],
       "invalid": [],
       "stale": []

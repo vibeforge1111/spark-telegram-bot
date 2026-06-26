@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T06:57:07.197Z
-Runtime evidence collected: 2026-06-26T06:57:07.197Z
-Runtime evidence expires: 2026-06-26T07:57:07.197Z (1h window)
+Generated: 2026-06-26T07:06:56.208Z
+Runtime evidence collected: 2026-06-26T07:06:56.208Z
+Runtime evidence expires: 2026-06-26T08:06:56.208Z (1h window)
 Cases: 4
 Gate scope: selected-case gate
 Release gate: not ready
@@ -33,6 +33,9 @@ Attention summary:
 - proof_panel_actionable_status: 2 cases
 - proof_panel_fresh_strict_status: 2 cases
 - proof_panel_gap_posture: 2 cases
+
+Recapture hint:
+- Refresh /proof panel captures for: cp-builder-001, cp-proof-001
 
 Cases needing attention:
 - cp-builder-001: pass; missing proof_panel_actionable_status, proof_panel_fresh_strict_status, proof_panel_gap_posture
