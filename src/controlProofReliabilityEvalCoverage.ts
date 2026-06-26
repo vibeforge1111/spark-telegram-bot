@@ -1,4 +1,10 @@
-import { CONTROL_PROOF_LIVE_CANARY_CASES, type ControlProofCanaryCase } from './controlProofLiveCanaryPack';
+import {
+  CONTROL_PROOF_LIVE_CANARY_CASES,
+  type ControlProofCanaryAuthorityExpectation,
+  type ControlProofCanaryCase,
+  type ControlProofCanaryMutationClass,
+  type ControlProofCanaryRisk
+} from './controlProofLiveCanaryPack';
 
 export interface ReliabilityEvalRequirement {
   id: string;
@@ -6,13 +12,25 @@ export interface ReliabilityEvalRequirement {
   requiredCaseIds: string[];
   promptPattern?: RegExp;
   routePattern?: RegExp;
+  allowedRisks?: ControlProofCanaryRisk[];
+  allowedAuthorities?: ControlProofCanaryAuthorityExpectation[];
+  allowedMutationClasses?: ControlProofCanaryMutationClass[];
+  allowedReplyShapes?: Array<ControlProofCanaryCase['expectedReplyShape']>;
   requiredCaptures?: Array<keyof ControlProofCanaryCase['capture']>;
 }
 
 export interface ReliabilityEvalCoverageGap {
   requirementId: string;
   caseId?: string;
-  reason: 'missing_case' | 'prompt_mismatch' | 'route_mismatch' | 'capture_mismatch';
+  reason:
+    | 'missing_case'
+    | 'prompt_mismatch'
+    | 'route_mismatch'
+    | 'risk_mismatch'
+    | 'authority_mismatch'
+    | 'mutation_mismatch'
+    | 'reply_shape_mismatch'
+    | 'capture_mismatch';
   detail: string;
 }
 
@@ -30,6 +48,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-noaction-001', 'cp-noaction-004'],
     promptPattern: /\bdo not (?:start|repair)|do not run|do not.*anything/i,
     routePattern: /plain_chat|fresh_state/,
+    allowedRisks: ['safe'],
+    allowedAuthorities: ['chat_only'],
+    allowedMutationClasses: ['none'],
+    allowedReplyShapes: ['natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
@@ -38,6 +60,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-noaction-002'],
     promptPattern: /just explain/i,
     routePattern: /plain_chat/,
+    allowedRisks: ['safe'],
+    allowedAuthorities: ['chat_only'],
+    allowedMutationClasses: ['none'],
+    allowedReplyShapes: ['natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
@@ -46,6 +72,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-noaction-001', 'cp-spawner-001'],
     promptPattern: /\bbuild|mission\b/i,
     routePattern: /plain_chat|spawner_build\.ideation_boundary/,
+    allowedRisks: ['safe'],
+    allowedAuthorities: ['chat_only'],
+    allowedMutationClasses: ['none'],
+    allowedReplyShapes: ['natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
@@ -54,6 +84,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-media-001', 'cp-media-002'],
     promptPattern: /image|photo/i,
     routePattern: /media\.image/,
+    allowedRisks: ['manual_media'],
+    allowedAuthorities: ['media_evidence_only'],
+    allowedMutationClasses: ['media_read'],
+    allowedReplyShapes: ['natural', 'media_reply'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'screenshot', 'userConfirmation']
   },
   {
@@ -62,6 +96,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-audio-001', 'cp-voice-001'],
     promptPattern: /audio|voice/i,
     routePattern: /media\.(?:audio|voice)/,
+    allowedRisks: ['manual_media'],
+    allowedAuthorities: ['media_evidence_only'],
+    allowedMutationClasses: ['media_read'],
+    allowedReplyShapes: ['media_reply'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'screenshot', 'userConfirmation']
   },
   {
@@ -70,6 +108,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-authority-001', 'cp-memory-001'],
     promptPattern: /memory/i,
     routePattern: /fresh_state|memory/,
+    allowedRisks: ['safe', 'inspect_only'],
+    allowedAuthorities: ['read_only_allowed'],
+    allowedMutationClasses: ['read_only'],
+    allowedReplyShapes: ['natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'proofPanel', 'userConfirmation']
   },
   {
@@ -78,6 +120,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-streaming-001', 'cp-streaming-002'],
     promptPattern: /streaming|rich-message|rich/i,
     routePattern: /streaming\.status|rich_message/,
+    allowedRisks: ['inspect_only'],
+    allowedAuthorities: ['read_only_allowed'],
+    allowedMutationClasses: ['read_only'],
+    allowedReplyShapes: ['compact_card', 'natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'screenshot', 'userConfirmation']
   },
   {
@@ -86,6 +132,10 @@ export const RELIABILITY_EVAL_REQUIREMENTS: ReliabilityEvalRequirement[] = [
     requiredCaseIds: ['cp-publish-001'],
     promptPattern: /registry|release|publish/i,
     routePattern: /registry_drift/,
+    allowedRisks: ['inspect_only'],
+    allowedAuthorities: ['read_only_allowed'],
+    allowedMutationClasses: ['read_only'],
+    allowedReplyShapes: ['natural'],
     requiredCaptures: ['observedReply', 'sideEffects', 'screenshot', 'userConfirmation']
   }
 ];
@@ -117,6 +167,38 @@ export function checkReliabilityEvalCoverage(input: {
       }
       if (requirement.routePattern && !requirement.routePattern.test(entry.expectedRoute)) {
         gaps.push({ requirementId: requirement.id, caseId, reason: 'route_mismatch', detail: `Expected route ${entry.expectedRoute} no longer covers ${requirement.label}.` });
+      }
+      if (requirement.allowedRisks && !requirement.allowedRisks.includes(entry.risk)) {
+        gaps.push({
+          requirementId: requirement.id,
+          caseId,
+          reason: 'risk_mismatch',
+          detail: `Risk ${entry.risk} no longer covers ${requirement.label}.`
+        });
+      }
+      if (requirement.allowedAuthorities && !requirement.allowedAuthorities.includes(entry.expectedAuthority)) {
+        gaps.push({
+          requirementId: requirement.id,
+          caseId,
+          reason: 'authority_mismatch',
+          detail: `Authority ${entry.expectedAuthority} no longer covers ${requirement.label}.`
+        });
+      }
+      if (requirement.allowedMutationClasses && !requirement.allowedMutationClasses.includes(entry.expectedMutationClass)) {
+        gaps.push({
+          requirementId: requirement.id,
+          caseId,
+          reason: 'mutation_mismatch',
+          detail: `Mutation class ${entry.expectedMutationClass} no longer covers ${requirement.label}.`
+        });
+      }
+      if (requirement.allowedReplyShapes && !requirement.allowedReplyShapes.includes(entry.expectedReplyShape)) {
+        gaps.push({
+          requirementId: requirement.id,
+          caseId,
+          reason: 'reply_shape_mismatch',
+          detail: `Reply shape ${entry.expectedReplyShape} no longer covers ${requirement.label}.`
+        });
       }
       for (const capture of requirement.requiredCaptures || []) {
         if (!entry.capture[capture]) {

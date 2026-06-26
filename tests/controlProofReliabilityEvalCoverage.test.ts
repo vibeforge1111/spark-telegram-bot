@@ -47,6 +47,14 @@ test('reliability eval requirements name the ladder categories', () => {
     RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.requiredCaptures?.includes('sideEffects')),
     true
   );
+  assert.equal(
+    RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.allowedMutationClasses?.length),
+    true
+  );
+  assert.equal(
+    RELIABILITY_EVAL_REQUIREMENTS.every((requirement) => requirement.allowedAuthorities?.length),
+    true
+  );
 });
 
 test('coverage checker reports missing canary cases', () => {
@@ -85,4 +93,42 @@ test('coverage checker reports capture drift at the route boundary', () => {
     gap.reason === 'capture_mismatch'
   ));
   assert.match(formatReliabilityEvalCoverageReport(result), /capture_mismatch/);
+});
+
+test('coverage checker reports authority and mutation drift for no-action cases', () => {
+  const cases = CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => (
+    entry.id === 'cp-noaction-001'
+      ? {
+          ...entry,
+          risk: 'intentional_action' as const,
+          expectedAuthority: 'confirmation_required_or_allowed' as const,
+          expectedMutationClass: 'launches_mission' as const,
+          expectedReplyShape: 'compact_card' as const
+        }
+      : entry
+  ));
+  const result = checkReliabilityEvalCoverage({ cases });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'do_not_run' && gap.reason === 'risk_mismatch'));
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'do_not_run' && gap.reason === 'authority_mismatch'));
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'do_not_run' && gap.reason === 'mutation_mismatch'));
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'do_not_run' && gap.reason === 'reply_shape_mismatch'));
+});
+
+test('coverage checker reports publish handoff mutation drift', () => {
+  const cases = CONTROL_PROOF_LIVE_CANARY_CASES.map((entry) => (
+    entry.id === 'cp-publish-001'
+      ? {
+          ...entry,
+          expectedMutationClass: 'writes_files' as const,
+          expectedAuthority: 'confirmation_required_or_allowed' as const
+        }
+      : entry
+  ));
+  const result = checkReliabilityEvalCoverage({ cases });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'mutation_mismatch'));
+  assert.ok(result.gaps.some((gap) => gap.requirementId === 'publish_handoffs' && gap.reason === 'authority_mismatch'));
 });

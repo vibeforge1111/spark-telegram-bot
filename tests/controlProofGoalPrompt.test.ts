@@ -329,8 +329,9 @@ test('reliability eval coverage doc records old-edge eval categories', () => {
   assert.match(doc, /stale memory conflicts/);
   assert.match(doc, /streaming\/rich messages/);
   assert.match(doc, /publish handoffs/);
-  assert.match(doc, /expected prompts, routes, and capture requirements/);
+  assert.match(doc, /expected prompts, routes, authority expectations, mutation classes, reply shapes, risk levels, and capture requirements/);
   assert.match(doc, /observed reply, side-effect evidence, proof-panel capture where applicable, screenshot for visual\/media\/publish surfaces, and user confirmation/);
+  assert.match(doc, /No-action and publish-handoff categories must remain non-mutating\/read-only/);
   assert.match(doc, /npm run control:proof:evals -- --strict/);
 });
 
