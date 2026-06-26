@@ -23,6 +23,7 @@ const TRACE_JOIN_CHECKER_PATH = resolve(ROOT, 'docs/SPARK_TRACE_JOIN_CHECKER_202
 const PROOF_CAPSULE_COVERAGE_PATH = resolve(ROOT, 'docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md');
 const RELIABILITY_EVAL_COVERAGE_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md');
 const LEGACY_PROMPT_SURFACE_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md');
+const CAPABILITY_EVIDENCE_PATH = resolve(ROOT, 'docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md');
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
@@ -60,11 +61,13 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md/);
   assert.match(index, /SPARK_LEGACY_PROMPT_SURFACE_2026-06-26\.md/);
+  assert.match(index, /SPARK_CAPABILITY_EVIDENCE_2026-06-26\.md/);
   assert.match(index, /Legacy source status changes update `SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md`/);
   assert.match(index, /Trace join checker behavior updates `SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md`/);
   assert.match(index, /Proof capsule coverage behavior updates `SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md`/);
   assert.match(index, /Reliability eval coverage behavior updates `SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md`/);
   assert.match(index, /Legacy prompt\/UI summary surface behavior updates `SPARK_LEGACY_PROMPT_SURFACE_2026-06-26\.md`/);
+  assert.match(index, /Capability evidence behavior updates `SPARK_CAPABILITY_EVIDENCE_2026-06-26\.md`/);
   assert.match(index, /Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
 });
@@ -123,6 +126,7 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /`docs\/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26\.md` \| active/);
+  assert.match(inventory, /`docs\/SPARK_CAPABILITY_EVIDENCE_2026-06-26\.md` \| active/);
   assert.match(inventory, /`docs\/LAUNCH_CONVERSATION_QA_2026-05-08\.md` \| archive candidate/);
   assert.match(inventory, /None in this pass/);
   assert.match(inventory, /Keep the render firewall covered by tests/);
@@ -130,6 +134,7 @@ test('legacy source inventory classifies old plans before fresh-turn use', () =>
   assert.match(inventory, /Keep proof-capsule coverage checked/);
   assert.match(inventory, /Keep reliability eval coverage checked/);
   assert.match(inventory, /Keep the legacy prompt surface gate covered/);
+  assert.match(inventory, /Keep capability evidence checked/);
 });
 
 test('render firewall doc records ordinary and inspect boundaries', () => {
@@ -191,6 +196,16 @@ test('legacy prompt surface doc records prompt and summary boundary', () => {
   assert.match(doc, /human canary summary markdown/);
   assert.match(doc, /does not scan docs, tests, ops scripts, or raw JSON evidence packets/);
   assert.match(doc, /Do not silence the failure by renaming old evidence as current authority/);
+});
+
+test('capability evidence doc records last-success and boundary proof', () => {
+  const doc = readFileSync(CAPABILITY_EVIDENCE_PATH, 'utf8');
+
+  assert.match(doc, /npm run control:proof:capabilities -- --strict/);
+  assert.match(doc, /last-success/);
+  assert.match(doc, /last-failure\/boundary/);
+  assert.match(doc, /full SparkRecursive_bot control-proof canary packet/);
+  assert.match(doc, /Do not fix this by claiming registry visibility/);
 });
 
 test('reliability ladder goal prompt sequences enforcement before expansion', () => {
