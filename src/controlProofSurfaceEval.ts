@@ -6,6 +6,7 @@ import type { ControlProofCanaryObservationTemplate } from './controlProofLiveCa
 export type SurfaceEvalIssueCode =
   | 'missing_reply'
   | 'raw_reason_code'
+  | 'raw_platform_id'
   | 'raw_proof_ref'
   | 'raw_trace_ref'
   | 'local_path'
@@ -62,6 +63,11 @@ const ISSUE_RULES: Array<{ code: SurfaceEvalIssueCode; pattern: RegExp; detail: 
     code: 'raw_trace_ref',
     pattern: /\b(?:trace:(?:sha256:)?[a-z0-9][a-z0-9_.:-]{7,}|trace_id|request_id|traceRef|trace_ref)\b/i,
     detail: 'Raw trace or request reference is visible outside an inspect surface.'
+  },
+  {
+    code: 'raw_platform_id',
+    pattern: /\b(?:chat_id|user_id|message_id|file_id|media_group_id|callback_query_id|inline_message_id)\b(?:\s*[:=]\s*)?(?:["']?[A-Za-z0-9_:-]{3,}["']?)?/i,
+    detail: 'Raw Telegram platform id is visible outside an inspect surface.'
   },
   {
     code: 'local_path',

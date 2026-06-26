@@ -38,6 +38,7 @@ export type TelegramRenderFirewallIssueCode =
   | 'stack_trace'
   | 'provider_internal'
   | 'raw_reason_code'
+  | 'raw_platform_id'
   | 'raw_proof_ref'
   | 'raw_trace_ref'
   | 'hidden_context'
@@ -117,6 +118,12 @@ const ORDINARY_ONLY_REDACT_RULES: TelegramRenderFirewallRule[] = [
     pattern: /\b(?:trace:(?:sha256:)?[a-z0-9][a-z0-9_.:-]{7,}|trace_id|request_id|requestId|traceRef|trace_ref)\b/gi,
     replacement: 'trace detail',
     message: 'Keep raw trace references behind inspect surfaces.'
+  },
+  {
+    code: 'raw_platform_id',
+    pattern: /\b(?:chat_id|user_id|message_id|file_id|media_group_id|callback_query_id|inline_message_id)\b(?:\s*[:=]\s*)?(?:["']?[A-Za-z0-9_:-]{3,}["']?)?/gi,
+    replacement: 'platform id detail',
+    message: 'Keep raw Telegram platform ids behind inspect surfaces.'
   },
   {
     code: 'hidden_context',

@@ -70,7 +70,7 @@ test('surface eval catches raw internals and generic chatbot voice', () => {
   const packet = fullPacket();
   const entry = packet.cases.find((item) => item.id === 'cp-memory-001');
   assert.ok(entry);
-  entry.observed.reply = 'Certainly! Here is the answer. Blocked by tool_not_allowed_by_policy with trace:telegram:abcdef1234567890.';
+  entry.observed.reply = 'Certainly! Here is the answer. Blocked by tool_not_allowed_by_policy with trace:telegram:abcdef1234567890 and chat_id=123456.';
 
   const result = checkSurfaceEval({ observations: packet });
 
@@ -78,6 +78,7 @@ test('surface eval catches raw internals and generic chatbot voice', () => {
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-memory-001' && issue.code === 'generic_chatbot_voice'));
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-memory-001' && issue.code === 'raw_reason_code'));
   assert.ok(result.issues.some((issue) => issue.caseId === 'cp-memory-001' && issue.code === 'raw_trace_ref'));
+  assert.ok(result.issues.some((issue) => issue.caseId === 'cp-memory-001' && issue.code === 'raw_platform_id'));
 });
 
 test('surface eval catches legacy source references in observed replies', () => {

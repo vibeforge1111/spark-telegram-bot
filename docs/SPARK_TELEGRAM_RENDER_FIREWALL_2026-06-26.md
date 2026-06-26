@@ -5,7 +5,7 @@ Status: active implementation note
 
 ## Purpose
 
-The render firewall is the Telegram delivery boundary for ordinary replies. It keeps hidden context, raw proof or trace details, local paths, stack traces, provider secret keys, legacy source names, and raw Harness policy reason codes out of the chat surface.
+The render firewall is the Telegram delivery boundary for ordinary replies. It keeps hidden context, raw proof or trace details, raw Telegram platform ids, local paths, stack traces, provider secret keys, legacy source names, and raw Harness policy reason codes out of the chat surface.
 
 This is not a copy-style rule. It is an enforcement layer in `src/outboundSanitize.ts`, applied before Telegram final delivery, rich message delivery, and draft preview text.
 
@@ -19,12 +19,13 @@ Ordinary replies redact:
 - raw reason codes such as `tool_not_allowed_by_policy`
 - raw proof refs such as `turn:sha256:...`
 - raw trace refs such as `trace:...`
+- raw Telegram platform ids such as `chat_id`, `user_id`, `message_id`, and `file_id`
 - hidden context keys such as `context_packet`
 - legacy source filenames and old doc names
 - local file paths and stack traces
 - provider credential key names
 
-Inspect replies may keep proof and trace refs when useful, but still hide local paths, stack traces, and provider credential key names.
+Inspect replies may keep proof and trace refs when useful, and may also keep platform ids on explicit raw-detail surfaces, but still hide local paths, stack traces, and provider credential key names.
 
 ## Wiring
 

@@ -22,7 +22,7 @@ The gate checks observed replies for natural, compact-card, media, and clarifica
 The gate fails:
 
 - missing observed replies
-- raw Harness reason codes, proof refs, trace refs, local paths, or stack traces
+- raw Harness reason codes, proof refs, trace refs, Telegram platform ids, local paths, or stack traces
 - legacy plan, catalog, runbook, or handoff names/titles in observed replies
 - generic chatbot phrases
 - ordinary replies that collapse into `Mission`, `Provider`, `Move`, or similar report-card headings

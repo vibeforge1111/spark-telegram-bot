@@ -84,6 +84,7 @@ test('firewalls raw control internals from ordinary Telegram replies', () => {
   const cleaned = sanitizeOutbound([
     'Blocked by route_not_selected_by_turn_envelope from harness_core:owner_mismatch.',
     'Proof ref: turn:sha256:abcdef1234567890 and trace:telegram-run:abcdef1234567890.',
+    'Telegram ids: chat_id=123456 user_id=456789 message_id=42 file_id=abcDEF123.',
     'Read docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md and context_packet.',
     'Path: /Users/example/private/source.ts',
     '    at run (/Users/example/private/source.ts:12:3)'
@@ -91,10 +92,12 @@ test('firewalls raw control internals from ordinary Telegram replies', () => {
 
   assert.doesNotMatch(cleaned, /route_not_selected_by_turn_envelope|harness_core|owner_mismatch/);
   assert.doesNotMatch(cleaned, /turn:sha256|trace:telegram-run|context_packet/);
+  assert.doesNotMatch(cleaned, /chat_id|user_id|message_id|file_id|123456|456789|abcDEF123/);
   assert.doesNotMatch(cleaned, /SPARK_LEGACY_SOURCE_INVENTORY|\/Users\/example|source\.ts:12:3/);
   assert.match(cleaned, /internal policy reason/);
   assert.match(cleaned, /proof detail/);
   assert.match(cleaned, /trace detail/);
+  assert.match(cleaned, /platform id detail/);
   assert.match(cleaned, /legacy source evidence/);
   assert.match(cleaned, /\[stack trace hidden\]/);
 });
@@ -130,6 +133,7 @@ test('allows inspect surfaces to keep proof refs while still hiding paths and st
   const text = [
     'Proof ref: turn:sha256:abcdef1234567890',
     'Trace ref: trace:telegram-run:abcdef1234567890',
+    'Telegram ids: chat_id=123456 user_id=456789 message_id=42 file_id=abcDEF123',
     'Path: /Users/example/private/source.ts',
     '    at inspect (/Users/example/private/source.ts:12:3)'
   ].join('\n');
@@ -139,6 +143,8 @@ test('allows inspect surfaces to keep proof refs while still hiding paths and st
   assert.deepEqual(issues.map((issue) => issue.code).sort(), ['local_path', 'stack_trace']);
   assert.match(cleaned, /turn:sha256:abcdef1234567890/);
   assert.match(cleaned, /trace:telegram-run:abcdef1234567890/);
+  assert.match(cleaned, /chat_id=123456/);
+  assert.match(cleaned, /file_id=abcDEF123/);
   assert.doesNotMatch(cleaned, /\/Users\/example|source\.ts:12:3/);
   assert.match(cleaned, /\[stack trace hidden\]/);
 });
