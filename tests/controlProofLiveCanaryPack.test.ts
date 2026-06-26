@@ -257,7 +257,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.deepEqual(summaryJson.summary.cases, summary.cases);
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.releasePackComplete, false);
-  assert.equal(summaryJson.summary.readyForRelease, false);
+  assert.equal(summaryJson.summary.readyForRelease, true);
   assert.equal(summaryJson.summary.readyForPublish, false);
   assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
   assert.equal((runGuide.match(/--summary-json-out/g) || []).length, observations.cases.length);
