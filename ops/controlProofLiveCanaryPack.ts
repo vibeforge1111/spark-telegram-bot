@@ -224,6 +224,24 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
       command: 'npm',
       args: ['run', 'control:proof:audit', '--', '--sample', '100', '--fresh-strict'],
       timeoutMs: 60_000
+    },
+    {
+      label: 'route_confidence_legacy_repair_dry_run',
+      command: 'npm',
+      args: ['run', 'control:proof:repair:route-confidence', '--', '--dry-run', '--json'],
+      timeoutMs: 60_000
+    },
+    {
+      label: 'builder_gateway_legacy_repair_dry_run',
+      command: 'npm',
+      args: ['run', 'control:proof:repair:legacy', '--', '--plane', 'builder_gateway', '--dry-run', '--json'],
+      timeoutMs: 60_000
+    },
+    {
+      label: 'spawner_prd_trace_legacy_repair_dry_run',
+      command: 'npm',
+      args: ['run', 'control:proof:repair:legacy', '--', '--plane', 'spawner_prd_trace', '--dry-run', '--json'],
+      timeoutMs: 60_000
     }
   ]);
 }
@@ -248,8 +266,10 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
   const sparkOsCompileStdout = rawStdoutByLabel.get('spark_os_compile') || '';
   const releaseBlockHandoff = releaseBlockHandoffFromSparkOsCompile(sparkOsCompileStdout);
   const duplicateTruthHandoff = duplicateTruthHandoffFromSparkOsCompile(sparkOsCompileStdout);
+  const legacyRepairDryRun = legacyRepairDryRunNotes(rawStdoutByLabel);
   const notes = [
     'Collected locally by control-proof canary CLI. Refresh after Spark restarts or proof-audit changes.',
+    legacyRepairDryRun,
     releaseBlockHandoff,
     duplicateTruthHandoff
   ].filter(Boolean).join('\n');
@@ -263,6 +283,50 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
     controlProofAuditSummary: summarizeControlProofAuditRuntimeEvidence(byLabel.get('control_proof_audit') || null),
     notes
   };
+}
+
+function legacyRepairDryRunNotes(rawStdoutByLabel: Map<string, string>): string | null {
+  const rows = [
+    legacyRepairDryRunLine(
+      'telegram_route_confidence',
+      rawStdoutByLabel.get('route_confidence_legacy_repair_dry_run') || ''
+    ),
+    legacyRepairDryRunLine(
+      'builder_gateway',
+      rawStdoutByLabel.get('builder_gateway_legacy_repair_dry_run') || ''
+    ),
+    legacyRepairDryRunLine(
+      'spawner_prd_trace',
+      rawStdoutByLabel.get('spawner_prd_trace_legacy_repair_dry_run') || ''
+    )
+  ].filter((line): line is string => Boolean(line));
+  return rows.length ? ['Legacy repair dry-run:', ...rows.map((line) => `- ${line}`)].join('\n') : null;
+}
+
+function legacyRepairDryRunLine(plane: string, stdout: string): string | null {
+  const parsed = parseLastJsonObject(stdout);
+  if (!parsed) return null;
+  const changedRows = safeNonNegativeInteger(parsed.changedRows);
+  const rowsRead = safeNonNegativeInteger(parsed.rowsRead);
+  const parseErrors = safeNonNegativeInteger(parsed.parseErrors);
+  const additions = safeNonNegativeInteger(parsed.legacyGapCapsulesAdded);
+  if (changedRows === null || rowsRead === null || parseErrors === null || additions === null) return null;
+  return `${plane}: changed_rows=${changedRows}; rows_read=${rowsRead}; capsules_added=${additions}; parse_errors=${parseErrors}`;
+}
+
+function parseLastJsonObject(stdout: string): Record<string, unknown> | null {
+  const text = String(stdout || '').trim();
+  const start = text.lastIndexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function repoBoardFromSparkOsCompile(stdout: string): Record<string, unknown> | null {

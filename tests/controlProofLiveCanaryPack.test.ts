@@ -3204,6 +3204,18 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"',
       '  exit 0',
       'fi',
+      'if [ "$1 $2" = "run control:proof:repair:route-confidence" ]; then',
+      '  cat <<JSON',
+      '{"dryRun":true,"rowsRead":145,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}',
+      'JSON',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:repair:legacy" ]; then',
+      '  case " $* " in',
+      '    *" --plane builder_gateway "*) echo \'{"plane":"builder_gateway","dryRun":true,"rowsRead":522,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '    *" --plane spawner_prd_trace "*) echo \'{"plane":"spawner_prd_trace","dryRun":true,"rowsRead":495,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '  esac',
+      'fi',
       'echo "unexpected npm args: $*" >&2',
       'exit 1'
     ].join('\n'), 'utf8');
@@ -3257,6 +3269,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.sparkLiveStatus, /primary@<redacted-port> pid=<redacted-pid>/);
     assert.match(observed.evidence.sparkLiveStatus, /Board: <local-url>\/kanban/);
     assert.match(observed.evidence.notes, /Refresh after Spark restarts or proof-audit changes/);
+    assert.match(observed.evidence.notes, /Legacy repair dry-run:/);
+    assert.match(observed.evidence.notes, /telegram_route_confidence: changed_rows=0; rows_read=145; capsules_added=0; parse_errors=0/);
+    assert.match(observed.evidence.notes, /builder_gateway: changed_rows=0; rows_read=522; capsules_added=0; parse_errors=0/);
+    assert.match(observed.evidence.notes, /spawner_prd_trace: changed_rows=0; rows_read=495; capsules_added=0; parse_errors=0/);
     assert.match(observed.evidence.notes, /Repo release-block handoff:/);
     assert.match(observed.evidence.notes, /domain-chip-memory: release_blocked repo_release_blocks; reason: behind upstream; behind=6; next safe action: pull or merge upstream before release/);
     assert.doesNotMatch(observed.evidence.notes, /spark-world-editor: release_blocked/);
