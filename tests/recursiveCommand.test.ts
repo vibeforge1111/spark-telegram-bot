@@ -78,7 +78,8 @@ async function main(): Promise<void> {
     assert.notEqual(wrapperEnd, -1);
     const wrapperBlock = source.slice(wrapperStart, wrapperEnd);
     assert.match(wrapperBlock, /telegramDraftStreamAlreadyStarted\(ctx\)/);
-    assert.match(wrapperBlock, /replayTelegramDraftPreview\(ctx,\s*ctx\.telegram as any,\s*chunk\)/);
+    assert.match(wrapperBlock, /sanitizeAndSplitTelegramText\(text,\s*undefined,\s*\{\s*surface: telegramRenderSurfaceForTraceContext\(traceContext\)\s*\}\)/);
+    assert.match(wrapperBlock, /replayTelegramDraftPreview\(ctx,\s*ctx\.telegram as any,\s*chunk,\s*process\.env,\s*\{\s*route: traceContext\?\.route\s*\}\)/);
     assert.match(wrapperBlock, /sendTelegramRichMessage\(ctx\.telegram as any,\s*ctx\.chat\?\.id,\s*chunk,\s*cleanExtra\)/);
   });
 
