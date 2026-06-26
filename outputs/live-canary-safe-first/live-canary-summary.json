@@ -3,8 +3,8 @@
     "target": "SparkRecursive_bot",
     "generatedAt": "2026-06-26T15:43:41.452Z",
     "runtimeEvidenceCollectedAt": "2026-06-26T15:43:41.452Z",
-    "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T16:43:41.452Z",
+    "runtimeEvidenceMaxAgeHours": 24,
+    "runtimeEvidenceExpiresAt": "2026-06-27T15:43:41.452Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -1730,8 +1730,8 @@
     "packetEvidenceDetails": {
       "generatedAt": "2026-06-26T15:43:41.452Z",
       "runtimeEvidenceCollectedAt": "2026-06-26T15:43:41.452Z",
-      "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T16:43:41.452Z",
+      "runtimeEvidenceMaxAgeHours": 24,
+      "runtimeEvidenceExpiresAt": "2026-06-27T15:43:41.452Z",
       "missing": [],
       "invalid": [],
       "stale": []
