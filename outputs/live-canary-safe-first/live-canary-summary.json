@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T19:12:46.584Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T19:12:46.584Z",
+    "generatedAt": "2026-06-26T19:18:32.373Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T19:18:32.373Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T20:12:46.584Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T20:18:32.373Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -39,9 +39,9 @@
                 "key": "live_trace_join",
                 "state": "invalid",
                 "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-                "generatedAt": "2026-06-26T19:12:46.584Z",
-                "runtimeEvidenceCollectedAt": "2026-06-26T19:12:46.584Z",
-                "runtimeEvidenceExpiresAt": "2026-06-26T20:12:46.584Z"
+                "generatedAt": "2026-06-26T19:18:32.373Z",
+                "runtimeEvidenceCollectedAt": "2026-06-26T19:18:32.373Z",
+                "runtimeEvidenceExpiresAt": "2026-06-26T20:18:32.373Z"
               }
             ]
           }
@@ -368,9 +368,9 @@
                     "key": "live_trace_join",
                     "state": "invalid",
                     "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-                    "generatedAt": "2026-06-26T19:12:46.584Z",
-                    "runtimeEvidenceCollectedAt": "2026-06-26T19:12:46.584Z",
-                    "runtimeEvidenceExpiresAt": "2026-06-26T20:12:46.584Z"
+                    "generatedAt": "2026-06-26T19:18:32.373Z",
+                    "runtimeEvidenceCollectedAt": "2026-06-26T19:18:32.373Z",
+                    "runtimeEvidenceExpiresAt": "2026-06-26T20:18:32.373Z"
                   }
                 ]
               }
@@ -1062,7 +1062,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T19:12:37.849Z",
+      "generatedAt": "2026-06-26T19:18:23.660Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1207,7 +1207,7 @@
         {
           "label": "telegram_final_answer",
           "sampledRows": 100,
-          "totalRows": 7874,
+          "totalRows": 7885,
           "requestPresent": 100,
           "tracePresent": 100,
           "proofPresent": 100,
@@ -1625,19 +1625,19 @@
     ],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T19:12:46.584Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T19:12:46.584Z",
+      "generatedAt": "2026-06-26T19:18:32.373Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T19:18:32.373Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T20:12:46.584Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T20:18:32.373Z",
       "missing": [],
       "invalid": [
         {
           "key": "live_trace_join",
           "state": "invalid",
           "reason": "live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows",
-          "generatedAt": "2026-06-26T19:12:46.584Z",
-          "runtimeEvidenceCollectedAt": "2026-06-26T19:12:46.584Z",
-          "runtimeEvidenceExpiresAt": "2026-06-26T20:12:46.584Z"
+          "generatedAt": "2026-06-26T19:18:32.373Z",
+          "runtimeEvidenceCollectedAt": "2026-06-26T19:18:32.373Z",
+          "runtimeEvidenceExpiresAt": "2026-06-26T20:18:32.373Z"
         }
       ],
       "stale": []

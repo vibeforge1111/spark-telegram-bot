@@ -209,6 +209,10 @@ test('live evidence mode requires enough joined route rows', () => {
     assert.equal(result.insufficientLiveRouteRows, true);
     assert.match(report, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
     assert.match(report, /capture real SparkRecursive_bot Telegram text turns/);
+    assert.match(report, /Safe SparkRecursive_bot prompts:/);
+    assert.match(report, /1\. I am mentioning build and mission, but do not start anything/);
+    assert.match(report, /4\. If memory says Spawner is down but spark live status says it is up, which source wins\?/);
+    assert.match(report, /After Spark replies to all four, rerun: npm run control:proof:live-trace/);
   });
 });
 
@@ -282,5 +286,7 @@ test('trace join CLI fails live evidence mode when route rows are below the mini
 
     assert.equal(result.status, 1);
     assert.match(result.stdout, /Live route proof: not ready \(1\/4 minimum joined rows\)/);
+    assert.match(result.stdout, /Safe SparkRecursive_bot prompts:/);
+    assert.match(result.stdout, /After Spark replies to all four, rerun: npm run control:proof:live-trace/);
   });
 });
