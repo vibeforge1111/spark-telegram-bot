@@ -19,6 +19,7 @@ export interface ControlProofTraceJoinOptions {
   requireLiveEvidence?: boolean;
   minRouteRows?: number;
   minNoActionRows?: number;
+  maxLiveEvidenceAgeMs?: number;
   generatedAt?: string;
 }
 
@@ -35,6 +36,7 @@ export interface ControlProofTraceJoinRow {
   proofJoined: boolean;
   actionOrNoActionEvidence: boolean;
   noActionEvidence: boolean;
+  staleLiveEvidence: boolean;
   gaps: string[];
 }
 
@@ -61,8 +63,10 @@ export interface ControlProofTraceJoinSummary {
   liveEvidenceReady: boolean;
   insufficientLiveRouteRows: boolean;
   insufficientNoActionRows: boolean;
+  maxLiveEvidenceAgeMs: number;
   joinedRows: number;
   noActionEvidenceRows: number;
+  staleRouteRows: number;
   gapRows: number;
   missingJoinKeyRows: number;
   missingReplyJoinRows: number;
@@ -77,6 +81,8 @@ type RefIndex = {
   traceRefs: Set<string>;
   proofRefs: Set<string>;
 };
+
+const DEFAULT_MAX_LIVE_EVIDENCE_AGE_MS = 4 * 60 * 60 * 1000;
 
 export function defaultSparkHome(): string {
   return process.env.SPARK_HOME?.trim() || path.join(os.homedir(), '.spark');
@@ -101,6 +107,8 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const minNoActionRows = Math.max(0, Math.trunc(
     options.minNoActionRows ?? (liveEvidenceRequired ? minRouteRows : 0)
   ));
+  const maxLiveEvidenceAgeMs = Math.max(1, Math.trunc(options.maxLiveEvidenceAgeMs || DEFAULT_MAX_LIVE_EVIDENCE_AGE_MS));
+  const generatedAt = options.generatedAt || new Date().toISOString();
   const routeRead = readJsonl(routeLedgerPath);
   const finalRead = readJsonl(finalAnswerAudit);
   const outboundRead = readJsonl(outboundAudit);
@@ -109,7 +117,11 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const evidenceIndex = mergeRefIndexes(finalIndex, outboundIndex);
   const routeRecords = routeRead.records.filter(isNaturalRouteExecutionRecord);
   const sampled = routeRecords.slice(-sampleSize);
-  const rows = sampled.map((record) => summarizeRouteJoin(record, evidenceIndex));
+  const rows = sampled.map((record) => summarizeRouteJoin(record, evidenceIndex, {
+    liveEvidenceRequired,
+    generatedAt,
+    maxLiveEvidenceAgeMs
+  }));
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
   const noActionEvidenceRows = rows.filter((row) => row.noActionEvidence).length;
   const insufficientNoActionRows = liveEvidenceRequired && noActionEvidenceRows < minNoActionRows;
@@ -126,7 +138,7 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
       gapRows === 0 &&
       !insufficientLiveRouteRows &&
       !insufficientNoActionRows,
-    generatedAt: options.generatedAt || new Date().toISOString(),
+    generatedAt,
     sparkHome,
     naturalRouteLedger: routeLedgerPath,
     finalAnswerAudit,
@@ -147,8 +159,10 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     liveEvidenceReady,
     insufficientLiveRouteRows,
     insufficientNoActionRows,
+    maxLiveEvidenceAgeMs,
     joinedRows: rows.length - gapRows,
     noActionEvidenceRows,
+    staleRouteRows: rows.filter((row) => row.gaps.includes('stale_live_route_evidence')).length,
     gapRows,
     missingJoinKeyRows: rows.filter((row) => row.gaps.includes('missing_join_keys')).length,
     missingReplyJoinRows: rows.filter((row) => row.gaps.includes('missing_reply_join')).length,
@@ -194,7 +208,8 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `- missing reply joins: ${summary.missingReplyJoinRows}`,
     `- missing proof joins: ${summary.missingProofJoinRows}`,
     `- missing action/no-action evidence: ${summary.missingActionEvidenceRows}`,
-    `- route mismatches: ${summary.routeMismatchRows}`
+    `- route mismatches: ${summary.routeMismatchRows}`,
+    `- stale live route evidence: ${summary.staleRouteRows}`
   ];
   const gapRows = summary.rows.filter((row) => row.gaps.length > 0);
   if (gapRows.length > 0) {
@@ -247,7 +262,11 @@ function liveTraceCaptureGuideLines(): string[] {
   ];
 }
 
-function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex): ControlProofTraceJoinRow {
+function summarizeRouteJoin(
+  record: NaturalRouteExecutionRecord,
+  index: RefIndex,
+  options: { liveEvidenceRequired: boolean; generatedAt: string; maxLiveEvidenceAgeMs: number }
+): ControlProofTraceJoinRow {
   const requestId = stringField(record, 'request_id');
   const traceRef = stringField(record, 'trace_ref');
   const proofRef = stringField(record, 'harness_proof_ref');
@@ -261,12 +280,18 @@ function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex
   const actionOrNoActionEvidence = Boolean(record.executed_action && record.delivery && record.delivery !== 'unknown');
   const noActionEvidence = actionOrNoActionEvidence && isNoActionRouteEvidence(record);
   const routeMatched = record.outcome !== 'mismatch';
+  const staleLiveEvidence = options.liveEvidenceRequired && isStaleLiveRouteEvidence(
+    record.recorded_at,
+    options.generatedAt,
+    options.maxLiveEvidenceAgeMs
+  );
   const gaps: string[] = [];
   if (!hasJoinKeys) gaps.push('missing_join_keys');
   if (!replyJoined) gaps.push('missing_reply_join');
   if (!proofJoined) gaps.push('missing_proof_join');
   if (!actionOrNoActionEvidence) gaps.push('missing_action_or_no_action_evidence');
   if (!routeMatched) gaps.push('route_mismatch');
+  if (staleLiveEvidence) gaps.push('stale_live_route_evidence');
   return {
     recordedAt: record.recorded_at || '',
     shadowRoute: record.shadow_route || 'unknown',
@@ -280,8 +305,16 @@ function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex
     proofJoined,
     actionOrNoActionEvidence,
     noActionEvidence,
+    staleLiveEvidence,
     gaps
   };
+}
+
+function isStaleLiveRouteEvidence(recordedAt: string, generatedAt: string, maxAgeMs: number): boolean {
+  const recorded = Date.parse(recordedAt);
+  const generated = Date.parse(generatedAt);
+  if (!Number.isFinite(recorded) || !Number.isFinite(generated)) return true;
+  return generated - recorded > maxAgeMs || recorded - generated > 60_000;
 }
 
 function isNoActionRouteEvidence(record: NaturalRouteExecutionRecord): boolean {

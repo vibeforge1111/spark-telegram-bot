@@ -49,6 +49,11 @@ function main(): void {
   if (minNoActionRowsRaw && (!Number.isFinite(minNoActionRows) || Number(minNoActionRows) < 0)) {
     throw new Error(`Invalid --min-no-action-rows value: ${minNoActionRowsRaw}`);
   }
+  const maxLiveAgeMinutesRaw = argValue(args, 'max-live-age-minutes');
+  const maxLiveAgeMinutes = maxLiveAgeMinutesRaw ? Number(maxLiveAgeMinutesRaw) : undefined;
+  if (maxLiveAgeMinutesRaw && (!Number.isFinite(maxLiveAgeMinutes) || Number(maxLiveAgeMinutes) <= 0)) {
+    throw new Error(`Invalid --max-live-age-minutes value: ${maxLiveAgeMinutesRaw}`);
+  }
   const result = auditControlProofTraceJoins({
     sparkHome: argValue(args, 'spark-home') || undefined,
     naturalRouteLedger: argValue(args, 'natural-route-ledger') || undefined,
@@ -57,7 +62,8 @@ function main(): void {
     sampleSize: sampleSize ? Math.trunc(sampleSize) : undefined,
     requireLiveEvidence: hasFlag(args, 'require-live-evidence'),
     minRouteRows: minRouteRows ? Math.trunc(minRouteRows) : undefined,
-    minNoActionRows: minNoActionRows !== undefined ? Math.trunc(minNoActionRows) : undefined
+    minNoActionRows: minNoActionRows !== undefined ? Math.trunc(minNoActionRows) : undefined,
+    maxLiveEvidenceAgeMs: maxLiveAgeMinutes ? Math.trunc(maxLiveAgeMinutes * 60 * 1000) : undefined
   });
   if (hasFlag(args, 'json')) {
     console.log(JSON.stringify(result, null, 2));

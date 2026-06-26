@@ -300,6 +300,8 @@ test('trace join checker doc records route-to-reply proof boundary', () => {
   assert.match(doc, /request and trace join keys/);
   assert.match(doc, /proof join when a Harness proof ref is present/);
   assert.match(doc, /An empty route sample is not clean proof/);
+  assert.match(doc, /default live evidence freshness window is four hours/);
+  assert.match(doc, /no stale live route evidence when `--require-live-evidence` is active/);
   assert.match(doc, /Do not backfill them unless the backing evidence proves the exact request, trace, proof, action\/no-action, and reply join/);
   assert.match(doc, /keep `npm run control:proof:capsules -- --strict` in the same reliability battery/);
   assert.doesNotMatch(doc, /remains the next proof-capsule coverage slice/);

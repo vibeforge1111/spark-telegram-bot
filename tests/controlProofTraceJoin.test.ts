@@ -88,6 +88,7 @@ test('joins natural route decisions to reply and proof evidence', () => {
     assert.equal(result.rows[0].replyJoined, true);
     assert.equal(result.rows[0].proofJoined, true);
     assert.equal(result.rows[0].noActionEvidence, true);
+    assert.equal(result.rows[0].staleLiveEvidence, false);
     assert.match(formatControlProofTraceJoinReport(result), /Status: clean/);
   });
 });
@@ -153,6 +154,41 @@ test('reports route mismatches and missing action evidence', () => {
     assert.equal(result.routeMismatchRows, 1);
     assert.equal(result.missingActionEvidenceRows, 1);
     assert.deepEqual(result.rows[0].gaps, ['missing_action_or_no_action_evidence', 'route_mismatch']);
+  });
+});
+
+test('live evidence mode rejects stale joined route rows', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    writeJsonl(routeLedger, [routeRow({ recorded_at: '2026-06-26T00:00:00.000Z' })]);
+    writeJsonl(finalAnswer, [{
+      request_id: 'turn:joined',
+      trace_ref: 'trace:joined',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890',
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+    }]);
+    writeJsonl(outbound, []);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 1,
+      minNoActionRows: 1,
+      maxLiveEvidenceAgeMs: 60 * 60 * 1000,
+      generatedAt: '2026-06-26T02:30:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.staleRouteRows, 1);
+    assert.equal(result.rows[0].staleLiveEvidence, true);
+    assert.deepEqual(result.rows[0].gaps, ['stale_live_route_evidence']);
+    assert.match(report, /stale live route evidence: 1/);
   });
 });
 

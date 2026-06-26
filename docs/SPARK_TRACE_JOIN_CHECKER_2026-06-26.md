@@ -40,7 +40,7 @@ Use the live gate before claiming SparkRecursive_bot has fresh deployed trace-jo
 npm run control:proof:live-trace
 ```
 
-This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4 --min-no-action-rows 4`. It fails when the route ledger has fewer than four joined route rows, or when those rows do not also prove four no-action/read-only turns from the safe prompt set.
+This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4 --min-no-action-rows 4`. It fails when the route ledger has fewer than four joined route rows, when those rows are stale, or when those rows do not also prove four no-action/read-only turns from the safe prompt set.
 
 The live report separates the route-ledger state from the join result:
 
@@ -65,6 +65,8 @@ If memory says Spawner is down but spark live status says it is up, which source
 
 After the prompts, rerun the live gate. A passing result must show `Live route proof: ready`, `No-action route proof: ready`, and no missing join, reply, proof, action/no-action, or route-mismatch gaps.
 
+Live rows must also be current. The default live evidence freshness window is four hours; use `--max-live-age-minutes <minutes>` only for an intentional local audit.
+
 ## Repeatable Handler Proof
 
 Use the route boundary handler harness for a local Telegram-shaped proof sample:
@@ -87,6 +89,7 @@ A joined route row must have:
 - a reply join in final-answer or outbound evidence
 - a proof join when a Harness proof ref is present
 - no shadow-vs-executed route mismatch
+- no stale live route evidence when `--require-live-evidence` is active
 
 An empty route sample is not clean proof. It means no route evidence was available to inspect.
 
