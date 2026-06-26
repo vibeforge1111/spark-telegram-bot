@@ -36,6 +36,19 @@ Current open handoffs:
 - Historical Builder trace-health lifecycle resolution listed in the full canary summary.
 - Local runtime test artifact handoff listed in the full canary summary.
 
+## Current Proof Battery
+
+Run this battery before claiming the current reliability phase remains behavior-release ready:
+
+```bash
+npm run control:proof:audit -- --sample 100 --fresh-strict
+npm run control:proof:live-trace
+npm run control:proof:evals -- --strict
+npm run control:proof:surface -- --strict
+```
+
+The battery must stay clean for missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks, live route joins, old-edge eval coverage, and ordinary-reply surface quality. Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete, latest gaps are zero, and release blocking is no.
+
 ## Active Task Order
 
 1. Reduce proof gaps and trace-join gaps.

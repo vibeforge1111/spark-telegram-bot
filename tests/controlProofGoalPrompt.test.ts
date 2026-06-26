@@ -103,6 +103,13 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Full behavior proof is release-ready/);
   assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
   assert.match(workplan, /Current open handoffs:/);
+  assert.match(workplan, /Current Proof Battery/);
+  assert.match(workplan, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
+  assert.match(workplan, /npm run control:proof:live-trace/);
+  assert.match(workplan, /npm run control:proof:evals -- --strict/);
+  assert.match(workplan, /npm run control:proof:surface -- --strict/);
+  assert.match(workplan, /missing evidence, trace joins, proof capsules, incomplete legacy backing, latest proof gaps, raw leaks, robotic reasons, stack-like leaks/);
+  assert.match(workplan, /Backed historical legacy gaps may remain visible only when the fresh-strict audit says the backing is complete/);
   assert.match(workplan, /Active Task Order/);
   assert.match(workplan, /Reduce proof gaps and trace-join gaps/);
   assert.match(workplan, /Lock hidden-source boundaries/);
