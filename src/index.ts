@@ -2879,6 +2879,8 @@ export function buildFinalAnswerGateSuppressionRecord(
 ): Record<string, unknown> {
   const requestId = String(input.requestId || '').trim();
   const traceRef = sanitizeFinalAnswerTraceRef(input.traceRef || input.proofCapsule?.turnRef);
+  const seed = finalAnswerSuppressionSeed(input, now);
+  const proofFields = proofAuditFields(input.proofCapsule, input.proofRef);
   return {
     ts: now.toISOString(),
     event: 'final_answer_checked',
@@ -2892,12 +2894,29 @@ export function buildFinalAnswerGateSuppressionRecord(
     builder_bridge_mode: input.builderBridgeMode || '',
     builder_reply_length: input.builderReply.length,
     builder_reply_preview: previewAuditText(sanitizeAuditPreviewText(input.builderReply), 180),
-    ...(requestId ? { request_id: requestId } : {}),
-    ...(traceRef ? { trace_ref: traceRef } : {}),
-    ...proofAuditFields(input.proofCapsule, input.proofRef),
+    ...(requestId ? { request_id: requestId } : { request_ref: redactedProofRef('request', seed) }),
+    ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedProofRef('trace', seed) }),
+    ...(Object.keys(proofFields).length > 0 ? proofFields : {
+      proof_status: 'not_execution_proof',
+      proof_storage: 'not_applicable'
+    }),
     fallback_route: input.fallbackRoute,
     latest_intent_preserved: true
   };
+}
+
+function finalAnswerSuppressionSeed(input: FinalAnswerGateSuppressionInput, now: Date): string {
+  return JSON.stringify({
+    event: 'final_answer_checked',
+    outcome: 'suppressed_builder_reply',
+    ts: now.toISOString(),
+    chat_ref: chatRef(input.chatId),
+    user_ref: userRef(input.userId),
+    suppression_reason: input.suppressionReason,
+    builder_routing_decision: input.builderRoutingDecision,
+    builder_bridge_mode: input.builderBridgeMode,
+    builder_reply_length: input.builderReply.length
+  });
 }
 
 function sanitizeFinalAnswerTraceRef(value: unknown): string {
@@ -2928,24 +2947,97 @@ function recordCommandReplyDelivery(input: {
   proofRef?: string | null;
 }): void {
   const auditPath = finalAnswerGateAuditPath();
-  const requestId = typeof input.requestId === 'string' && input.requestId.trim() ? input.requestId.trim() : null;
-  const traceRef = typeof input.traceRef === 'string' && input.traceRef.trim() ? input.traceRef.trim() : null;
-  const record = {
-    ts: new Date().toISOString(),
-    event: 'telegram_command_reply',
-    outcome: 'command_reply_delivered',
-    privacy: 'metadata_only',
-    command: input.command,
-    reply_kind: input.replyKind,
-    ...(requestId ? { request_id: requestId } : {}),
-    ...(traceRef ? { trace_ref: traceRef } : {}),
-    ...proofAuditFields(input.proofCapsule, input.proofRef)
-  };
+  const record = buildCommandReplyDeliveryRecord(input);
   mkdir(path.dirname(auditPath), { recursive: true })
     .then(() => appendFile(auditPath, `${JSON.stringify(record)}\n`, 'utf-8'))
     .catch((error) => {
       console.warn('[FinalAnswerGate] failed to write command reply audit:', error);
     });
+}
+
+export function buildCommandReplyDeliveryRecord(input: {
+  command: string;
+  replyKind: string;
+  requestId?: string | null;
+  traceRef?: string | null;
+  proofCapsule?: HarnessProofCapsuleV1;
+  proofRef?: string | null;
+}, now = new Date()): Record<string, unknown> {
+  const requestId = typeof input.requestId === 'string' && input.requestId.trim() ? input.requestId.trim() : null;
+  const traceRef = typeof input.traceRef === 'string' && input.traceRef.trim() ? input.traceRef.trim() : null;
+  const seed = JSON.stringify({
+    event: 'telegram_command_reply',
+    outcome: 'command_reply_delivered',
+    ts: now.toISOString(),
+    command: input.command,
+    reply_kind: input.replyKind
+  });
+  const proofFields = proofAuditFields(
+    input.proofCapsule || (!input.proofRef ? buildCommandReplyFallbackProofCapsule(input.command, input.replyKind, traceRef || requestId || seed) : undefined),
+    input.proofRef
+  );
+  const record = {
+    ts: now.toISOString(),
+    event: 'telegram_command_reply',
+    outcome: 'command_reply_delivered',
+    privacy: 'metadata_only',
+    command: input.command,
+    reply_kind: input.replyKind,
+    ...(requestId ? { request_id: requestId } : { request_ref: redactedProofRef('request', seed) }),
+    ...(traceRef ? { trace_ref: traceRef } : { trace_ref: redactedProofRef('trace', seed) }),
+    ...proofFields
+  };
+  return record;
+}
+
+function buildCommandReplyFallbackProofCapsule(
+  command: string,
+  replyKind: string,
+  turnRef: string
+): HarnessProofCapsuleV1 {
+  const route = replyKind === 'build_ack'
+    ? 'spawner.build'
+    : replyKind === 'mission_ack'
+      ? 'spawner.run'
+      : `telegram.${command || 'command'}`;
+  return buildHarnessProofCapsule({
+    turnRef,
+    route,
+    owner: route.startsWith('spawner.') ? 'spawner-ui' : 'spark-telegram-bot',
+    intent: {
+      kind: route,
+      confidence: 'contextual',
+      noExecution: false
+    },
+    authority: {
+      decision: 'allowed',
+      contract: 'spark.turn_intent.v1',
+      riskTier: route.startsWith('spawner.') ? 'execute' : 'read',
+      reasonSummary: 'Telegram command acknowledgement recorded delivery proof at the final-answer boundary.'
+    },
+    governor: {
+      decision: 'read_only',
+      verified: true
+    },
+    execution: {
+      status: route.startsWith('spawner.') ? 'started' : 'completed',
+      tool: route.startsWith('spawner.') ? 'spawner.run' : (command || 'telegram.command'),
+      mutationClass: route.startsWith('spawner.') ? 'launches_mission' : 'read_only'
+    },
+    reply: {
+      delivered: true,
+      shape: 'natural',
+      rawReasonsHidden: true
+    },
+    joins: {
+      telegram: 'joined',
+      spawner: route.startsWith('spawner.') ? 'joined' : 'not_applicable',
+      builder: 'not_applicable',
+      provider: 'not_applicable',
+      memory: 'not_applicable',
+      voice: 'not_applicable'
+    }
+  });
 }
 
 const TELEGRAM_DRAFT_STREAM_STARTED = Symbol.for('spark.telegram.draftStreamStarted');
