@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T02:25:05.056Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T02:25:05.056Z",
+    "generatedAt": "2026-06-26T02:33:42.123Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T02:33:42.123Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T03:25:05.056Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T03:33:42.123Z",
     "totalCases": 28,
     "verdictCounts": {
       "pass": 28,
@@ -1013,7 +1013,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T02:25:05.041Z",
+      "generatedAt": "2026-06-26T02:33:42.095Z",
       "status": "gaps found",
       "blockingStatus": "clean",
       "gapPosture": "backed legacy gaps only; no blocking or latest proof gaps",
@@ -1116,6 +1116,41 @@
           "completeBackingPlaneCount": 3
         }
       },
+      "legacyGapBackingDetails": [
+        {
+          "plane": "telegram_route_confidence",
+          "backing": "complete",
+          "repairSource": "route_confidence_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 97,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-24T23:04:43.263Z",
+          "repairCommand": "npm run control:proof:repair:route-confidence -- --dry-run --json"
+        },
+        {
+          "plane": "builder_gateway",
+          "backing": "complete",
+          "repairSource": "builder_gateway_trace_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 55,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-25T23:47:10+00:00",
+          "repairCommand": "npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"
+        },
+        {
+          "plane": "spawner_prd_trace",
+          "backing": "complete",
+          "repairSource": "spawner_prd_trace_legacy_repair",
+          "latestGap": false,
+          "releaseBlocking": false,
+          "proofGapMarked": 94,
+          "incompleteBacking": 0,
+          "latestRecordAt": "2026-06-24T23:04:43.878Z",
+          "repairCommand": "npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"
+        }
+      ],
       "planes": [
         {
           "label": "telegram_final_answer",
@@ -1513,10 +1548,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T02:25:05.056Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T02:25:05.056Z",
+      "generatedAt": "2026-06-26T02:33:42.123Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T02:33:42.123Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T03:25:05.056Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T03:33:42.123Z",
       "missing": [],
       "invalid": [],
       "stale": []
