@@ -252,6 +252,18 @@ export interface ControlProofAuditGapFamilyDetail {
   completeBackingPlaneCount: number;
 }
 
+export interface ControlProofAuditLegacyGapBackingDetail {
+  plane: string;
+  backing: 'complete' | 'incomplete' | 'none' | 'partial' | 'invalid' | 'missing' | 'n/a' | null;
+  repairSource: string | null;
+  latestGap: boolean | null;
+  releaseBlocking: boolean | null;
+  proofGapMarked: number | null;
+  incompleteBacking: number | null;
+  latestRecordAt: string | null;
+  repairCommand: string | null;
+}
+
 export interface ControlProofAuditDetails {
   generatedAt: string | null;
   status: string | null;
@@ -260,6 +272,7 @@ export interface ControlProofAuditDetails {
   gapCounts: Record<string, number>;
   gapPlanes: Record<string, string[]>;
   gapDetails: Record<string, ControlProofAuditGapFamilyDetail>;
+  legacyGapBackingDetails: ControlProofAuditLegacyGapBackingDetail[];
   planes: ControlProofAuditPlaneDetail[];
 }
 
@@ -270,6 +283,7 @@ export interface ControlProofAuditRuntimeSummary {
   gapPosture: string | null;
   gapCounts: Record<string, number>;
   gapPlanes: Record<string, string[]>;
+  legacyGapBackingDetails?: ControlProofAuditLegacyGapBackingDetail[];
 }
 
 export interface ControlProofReleaseHandoffDetail {
@@ -1426,6 +1440,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
   const gapPosture = lineValue(value, 'Gap posture');
   const gapCounts = controlProofAuditGapCounts(value);
   const gapPlanes = controlProofAuditGapPlanes(value);
+  const legacyGapBackingDetails = controlProofAuditLegacyGapBackingDetails(value);
   const planes = value
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -1440,6 +1455,7 @@ function controlProofAuditDetails(text: string | null | undefined): ControlProof
     gapCounts,
     gapPlanes,
     gapDetails: controlProofAuditGapDetails(gapCounts, gapPlanes, planes),
+    legacyGapBackingDetails,
     planes
   };
 }
@@ -1455,7 +1471,8 @@ export function summarizeControlProofAuditRuntimeEvidence(
     blockingStatus: details.blockingStatus,
     gapPosture: details.gapPosture,
     gapCounts: details.gapCounts,
-    gapPlanes: details.gapPlanes
+    gapPlanes: details.gapPlanes,
+    legacyGapBackingDetails: details.legacyGapBackingDetails
   };
 }
 
@@ -1474,8 +1491,28 @@ function controlProofAuditRuntimeSummaryKey(value: ControlProofAuditRuntimeSumma
     blockingStatus: value.blockingStatus,
     gapPosture: value.gapPosture,
     gapCounts: sortedNumberRecord(value.gapCounts),
-    gapPlanes: sortedStringArrayRecord(value.gapPlanes)
+    gapPlanes: sortedStringArrayRecord(value.gapPlanes),
+    legacyGapBackingDetails: sortedLegacyGapBackingDetails(value.legacyGapBackingDetails || [])
   });
+}
+
+function sortedLegacyGapBackingDetails(
+  value: ControlProofAuditLegacyGapBackingDetail[]
+): ControlProofAuditLegacyGapBackingDetail[] {
+  return [...value]
+    .filter((entry) => typeof entry.plane === 'string' && entry.plane.length > 0)
+    .sort((a, b) => a.plane.localeCompare(b.plane))
+    .map((entry) => ({
+      plane: entry.plane,
+      backing: entry.backing,
+      repairSource: entry.repairSource,
+      latestGap: entry.latestGap,
+      releaseBlocking: entry.releaseBlocking,
+      proofGapMarked: entry.proofGapMarked,
+      incompleteBacking: entry.incompleteBacking,
+      latestRecordAt: entry.latestRecordAt,
+      repairCommand: entry.repairCommand
+    }));
 }
 
 function sortedNumberRecord(value: Record<string, number>): Record<string, number> {
@@ -1557,6 +1594,69 @@ function controlProofAuditGapPlanes(text: string): Record<string, string[]> {
     if (entries.length > 0) planes[key] = entries;
   }
   return planes;
+}
+
+function controlProofAuditLegacyGapBackingDetails(text: string): ControlProofAuditLegacyGapBackingDetail[] {
+  const section = text.match(/(?:^|\n)Legacy gap backing:\s*\n([\s\S]+?)(?:\n\n|$)/i)?.[1] || '';
+  if (!section.trim()) return [];
+  return section
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map(controlProofAuditLegacyGapBackingDetail)
+    .filter((entry): entry is ControlProofAuditLegacyGapBackingDetail => Boolean(entry));
+}
+
+function controlProofAuditLegacyGapBackingDetail(line: string): ControlProofAuditLegacyGapBackingDetail | null {
+  const match = line.match(/^-\s*([a-z0-9_]+):\s+backing\s+([a-z0-9_/-]+)(.*)$/i);
+  if (!match) return null;
+  const tail = match[3] || '';
+  const repairCommand = tail.match(/\|\s*repair\s+(.+)$/i)?.[1]?.trim() || null;
+  return {
+    plane: match[1],
+    backing: safeLegacyGapBacking(match[2]),
+    repairSource: safeLegacyGapTextField(tail, 'source'),
+    latestGap: yesNoField(tail, 'latest_gap'),
+    releaseBlocking: yesNoField(tail, 'release_blocking'),
+    proofGapMarked: numberField(tail, 'marked'),
+    incompleteBacking: numberField(tail, 'incomplete'),
+    latestRecordAt: latestRecordAtField(tail),
+    repairCommand: repairCommand && safeAuditText(repairCommand) ? repairCommand : null
+  };
+}
+
+function safeLegacyGapBacking(value: string): ControlProofAuditLegacyGapBackingDetail['backing'] {
+  return /^(complete|incomplete|none|partial|invalid|missing|n\/a)$/i.test(value)
+    ? value.toLowerCase() as ControlProofAuditLegacyGapBackingDetail['backing']
+    : null;
+}
+
+function safeLegacyGapTextField(text: string, key: string): string | null {
+  const match = text.match(new RegExp(`\\|\\s*${key}\\s+([^|]+)`, 'i'));
+  return match ? safeAuditText(match[1].trim()) : null;
+}
+
+function yesNoField(text: string, key: string): boolean | null {
+  const match = text.match(new RegExp(`\\|\\s*${key}\\s+(yes|no)\\b`, 'i'));
+  if (!match) return null;
+  return /^yes$/i.test(match[1]);
+}
+
+function numberField(text: string, key: string): number | null {
+  const match = text.match(new RegExp(`\\|\\s*${key}\\s+(\\d+)\\b`, 'i'));
+  return match ? Number(match[1]) : null;
+}
+
+function latestRecordAtField(text: string): string | null {
+  const match = text.match(/\|\s*latest\s+([^|]+?)(?:\s*\||$)/i);
+  if (!match) return null;
+  const value = match[1].trim();
+  if (/^unknown$/i.test(value)) return null;
+  return safeAuditText(value);
+}
+
+function safeAuditText(value: string): string | null {
+  const text = String(value || '').trim();
+  return text && /^[A-Za-z0-9 ._:/;+=|@-]+$/.test(text) ? text : null;
 }
 
 function controlProofAuditGapDetails(

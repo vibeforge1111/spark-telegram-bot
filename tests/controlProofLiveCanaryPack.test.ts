@@ -57,7 +57,11 @@ function cleanControlProofAudit(generatedAt = TEST_RUNTIME_COLLECTED_AT): string
   'robotic failure reasons: 0',
   'stack-like leaks: 0',
   'Gap planes:',
-  '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace'
+  '- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace',
+  'Legacy gap backing:',
+  '- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json',
+  '- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json',
+  '- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json'
 ].join('\n');
 }
 const CLEAN_CONTROL_PROOF_AUDIT = cleanControlProofAudit();
@@ -669,6 +673,35 @@ test('control-proof audit parser preserves legacy gap planes with summary suffix
     'builder_gateway',
     'spawner_prd_trace'
   ]);
+  assert.deepEqual(summary?.legacyGapBackingDetails?.map((entry) => ({
+    plane: entry.plane,
+    backing: entry.backing,
+    repairSource: entry.repairSource,
+    latestGap: entry.latestGap,
+    releaseBlocking: entry.releaseBlocking
+  })), [
+    {
+      plane: 'telegram_route_confidence',
+      backing: 'complete',
+      repairSource: 'route_confidence_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    },
+    {
+      plane: 'builder_gateway',
+      backing: 'complete',
+      repairSource: 'builder_gateway_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    },
+    {
+      plane: 'spawner_prd_trace',
+      backing: 'complete',
+      repairSource: 'spawner_prd_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false
+    }
+  ]);
 });
 
 test('observation summary requires pass verdicts and all requested capture evidence', () => {
@@ -735,6 +768,41 @@ test('observation summary requires pass verdicts and all requested capture evide
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.latestGapPlaneCount, 0);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.incompleteBackingPlaneCount, 0);
   assert.equal(summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.completeBackingPlaneCount, 3);
+  assert.deepEqual(summary.controlProofAuditDetails?.legacyGapBackingDetails, [
+    {
+      plane: 'telegram_route_confidence',
+      backing: 'complete',
+      repairSource: 'route_confidence_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 97,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-24T23:04:43.263Z',
+      repairCommand: 'npm run control:proof:repair:route-confidence -- --dry-run --json'
+    },
+    {
+      plane: 'builder_gateway',
+      backing: 'complete',
+      repairSource: 'builder_gateway_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 62,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-25T23:47:10+00:00',
+      repairCommand: 'npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json'
+    },
+    {
+      plane: 'spawner_prd_trace',
+      backing: 'complete',
+      repairSource: 'spawner_prd_trace_legacy_repair',
+      latestGap: false,
+      releaseBlocking: false,
+      proofGapMarked: 94,
+      incompleteBacking: 0,
+      latestRecordAt: '2026-06-24T23:04:43.878Z',
+      repairCommand: 'npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json'
+    }
+  ]);
   assert.deepEqual(
     summary.controlProofAuditDetails?.gapDetails.legacy_proof_gaps?.planes.map((entry) => ({
       label: entry.label,
@@ -3122,6 +3190,10 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
       '  echo "- stack-like leaks: 0"',
       '  echo "Gap planes:"',
       '  echo "- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace"',
+      '  echo "Legacy gap backing:"',
+      '  echo "- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json"',
+      '  echo "- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"',
+      '  echo "- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"',
       '  exit 0',
       'fi',
       'echo "unexpected npm args: $*" >&2',
@@ -3158,6 +3230,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.controlProofAudit, /incomplete legacy gap backing: 0/);
     assert.match(observed.evidence.controlProofAudit, /Gap planes:/);
     assert.match(observed.evidence.controlProofAudit, /legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace/);
+    assert.match(observed.evidence.controlProofAudit, /Legacy gap backing:/);
+    assert.match(observed.evidence.controlProofAudit, /builder_gateway_trace_legacy_repair/);
     assert.doesNotMatch(observed.evidence.controlProofAudit, /\n\.\.\.\n/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
@@ -3222,6 +3296,9 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapCounts.latest_proof_gaps, 0);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails.length, 3);
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails[1].repairSource, 'builder_gateway_trace_legacy_repair');
+    assert.equal(refreshedObserved.evidence.controlProofAuditSummary.legacyGapBackingDetails[1].releaseBlocking, false);
     assert.match(refreshedObserved.evidence.sparkOsCompile, /"ok": true/);
     assert.doesNotMatch(refreshedObserved.evidence.controlProofAudit, /old audit/);
     assert.equal(refreshedObserved.generatedAt, refreshedObserved.evidence.collectedAt);
@@ -3258,6 +3335,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     const refreshedBundleObserved = JSON.parse(readFileSync(bundleObservationsPath, 'utf8'));
     assert.equal(refreshedBundleObserved.generatedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails.length, 3);
+    assert.equal(refreshedBundleSummaryJson.summary.controlProofAuditDetails.legacyGapBackingDetails[0].repairSource, 'route_confidence_legacy_repair');
     assert.equal(refreshedBundleSummaryJson.summary.generatedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceCollectedAt, refreshedBundleObserved.evidence.collectedAt);
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
