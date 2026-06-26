@@ -42,8 +42,11 @@ Regression coverage lives in `tests/outboundSanitize.test.ts`.
 Expected local checks for this slice:
 
 1. `npm test -- --run tests/outboundSanitize.test.ts`
-2. `npm run build`
-3. `npm run control:proof:audit -- --sample 100 --fresh-strict`
+2. `npm run control:proof:render-firewall`
+3. `npm run build`
+4. `npm run control:proof:audit -- --sample 100 --fresh-strict`
+
+The aggregate reliability battery also includes this gate through `npm run control:proof:reliability`.
 
 ## Remaining Reliability Work
 
