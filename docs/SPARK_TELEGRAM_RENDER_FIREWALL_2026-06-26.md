@@ -35,6 +35,8 @@ Central wrappers in `src/index.ts` infer the surface from outbound trace context
 
 This means `ctx.reply`, `bot.telegram.sendMessage`, rich final messages, and draft previews share the same default protection.
 
+Legacy source redaction uses the same blocked refs as the legacy prompt/UI summary surface gate. If a historical prompt source is blocked from fresh prompts, its path and human-readable title are also blocked from ordinary Telegram replies unless the user explicitly inspects history.
+
 ## Verification
 
 Regression coverage lives in `tests/outboundSanitize.test.ts`.

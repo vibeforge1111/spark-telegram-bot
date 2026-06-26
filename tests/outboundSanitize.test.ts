@@ -98,6 +98,18 @@ test('firewalls raw control internals from ordinary Telegram replies', () => {
   assert.match(cleaned, /\[stack trace hidden\]/);
 });
 
+test('firewalls legacy source titles and old runbook names from ordinary replies', () => {
+  const cleaned = sanitizeOutbound([
+    'Use the Genesis live Telegram 100 benchmark as the source.',
+    'Compare it with SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md and codex-handoffs/old-note.md.'
+  ].join('\n'));
+
+  assert.doesNotMatch(cleaned, /Genesis live Telegram 100 benchmark/i);
+  assert.doesNotMatch(cleaned, /SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26\.md/i);
+  assert.doesNotMatch(cleaned, /codex-handoffs/i);
+  assert.match(cleaned, /legacy source evidence/);
+});
+
 test('allows inspect surfaces to keep proof refs while still hiding paths and stack traces', () => {
   const text = [
     'Proof ref: turn:sha256:abcdef1234567890',

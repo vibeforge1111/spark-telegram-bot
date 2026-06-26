@@ -10,6 +10,7 @@
  */
 
 import { redactText } from './redaction';
+import { LEGACY_PROMPT_SURFACE_BLOCKED_REFS } from './legacyPromptRefs';
 
 const EM_DASH_FAMILY = [
   '\u2014', // em dash
@@ -57,6 +58,23 @@ type TelegramRenderFirewallRule = {
   replacement: string | ((substring: string, ...args: string[]) => string);
   message: string;
 };
+
+const LEGACY_SOURCE_FALLBACK_PATTERNS = [
+  String.raw`\bdocs\/[A-Z0-9_/-]*(?:LEGACY|NATURAL|HARNESS|CONTROL|SOURCE)[A-Z0-9_./-]*\b`,
+  "\\bcodex-handoffs\\/[^\\s\"'`<>)]*"
+];
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function legacySourcePattern(): RegExp {
+  const patterns = LEGACY_PROMPT_SURFACE_BLOCKED_REFS
+    .flatMap((ref) => ref.patterns)
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp);
+  return new RegExp([...patterns, ...LEGACY_SOURCE_FALLBACK_PATTERNS].join('|'), 'gi');
+}
 
 const ALWAYS_REDACT_RULES: TelegramRenderFirewallRule[] = [
   {
@@ -108,7 +126,7 @@ const ORDINARY_ONLY_REDACT_RULES: TelegramRenderFirewallRule[] = [
   },
   {
     code: 'legacy_source',
-    pattern: /\b(?:ops\/natural-language-live-commands\.json|codex-handoffs\/[^\s"'`<>)]*|docs\/[A-Z0-9_/-]*(?:LEGACY|NATURAL|HARNESS|CONTROL|SOURCE)[A-Z0-9_./-]*)\b/gi,
+    pattern: legacySourcePattern(),
     replacement: 'legacy source evidence',
     message: 'Keep legacy source names out of ordinary replies unless inspected.'
   }
