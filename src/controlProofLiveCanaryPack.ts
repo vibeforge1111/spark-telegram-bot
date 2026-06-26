@@ -86,6 +86,7 @@ export const PROOF_PANEL_RECAPTURE_ISSUES = [
   'proof_panel_audit_status',
   'proof_panel_fresh_strict_status',
   'proof_panel_gap_posture',
+  'proof_panel_capsule_gap_status',
   'proof_panel_trace_only_joined',
   'proof_panel_legacy_gap_status',
   'proof_panel_legacy_gap_stale'
@@ -1392,7 +1393,8 @@ function isProofPanelAuditLineRepairIssue(issue: string): boolean {
   return issue === 'proof_panel_actionable_status' ||
     issue === 'proof_panel_audit_status' ||
     issue === 'proof_panel_fresh_strict_status' ||
-    issue === 'proof_panel_gap_posture';
+    issue === 'proof_panel_gap_posture' ||
+    issue === 'proof_panel_capsule_gap_status';
 }
 
 function appendProofPanelAuditStatusLines(
@@ -1406,6 +1408,8 @@ function appendProofPanelAuditStatusLines(
     `Audit fresh-strict: ${auditSummary.freshStrictOk ? 'clean' : 'not ready'}`,
     `Audit posture: ${auditSummary.gapPosture}`
   ];
+  const capsuleGapLine = deriveProofPanelCapsuleGapLine(lines.join('\n'));
+  if (capsuleGapLine) statusLines.unshift(capsuleGapLine);
   for (const statusLine of statusLines) {
     const label = statusLine.split(':', 1)[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const index = lines.findIndex((line) => new RegExp(`^${label}:`, 'i').test(line.trim()));
@@ -1416,6 +1420,14 @@ function appendProofPanelAuditStatusLines(
     }
   }
   return `${lines.join('\n')}\n`;
+}
+
+function deriveProofPanelCapsuleGapLine(proofPanel: string): string | null {
+  if (/^Evidence capsule gaps:/im.test(proofPanel)) return null;
+  const proofRefs = proofPanelEvidenceListEntries(proofPanel, 'Evidence proof refs');
+  const proofCapsules = new Set(proofPanelEvidenceListEntries(proofPanel, 'Evidence proof capsules').map((entry) => entry.toLowerCase()));
+  const capsuleGaps = proofRefs.filter((entry) => !proofCapsules.has(entry.toLowerCase()));
+  return `Evidence capsule gaps: ${capsuleGaps.length ? capsuleGaps.join(', ') : 'none'}`;
 }
 
 function textOrNull(value: string | null | undefined): string | null {
@@ -3326,6 +3338,9 @@ function proofPanelCaptureIssues(
   if (!/Audit posture:\s*(?:clean|blocking gaps require repair|backed legacy gaps only; no blocking or latest proof gaps|non-blocking gaps visible)/i.test(text)) {
     issues.push('proof_panel_gap_posture');
   }
+  if (!/Evidence capsule gaps:\s*(?:none|[A-Za-z][^\n]*)/i.test(text)) {
+    issues.push('proof_panel_capsule_gap_status');
+  }
   const legacyGapMatch = text.match(/Legacy proof gaps visible:\s*(\d+)/i);
   if (!legacyGapMatch) {
     issues.push('proof_panel_legacy_gap_status');
@@ -3365,17 +3380,19 @@ function proofPanelCountsTraceOnlyAsJoined(value: string): boolean {
 }
 
 function proofPanelEvidenceList(value: string, label: string): Set<string> {
+  return new Set(proofPanelEvidenceListEntries(value, label).map((entry) => entry.toLowerCase()));
+}
+
+function proofPanelEvidenceListEntries(value: string, label: string): string[] {
   const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = value.match(new RegExp(`(?:^|\\n)${escapedLabel}:\\s*([^\\n]+)`, 'i'));
-  if (!match) return new Set();
+  if (!match) return [];
   const raw = match[1].trim();
-  if (!raw || /^none$/i.test(raw)) return new Set();
-  return new Set(
-    raw
-      .split(/\s*,\s*/)
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean)
-  );
+  if (!raw || /^none$/i.test(raw)) return [];
+  return raw
+    .split(/\s*,\s*/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function hasCapturedText(value: string | null | undefined): boolean {

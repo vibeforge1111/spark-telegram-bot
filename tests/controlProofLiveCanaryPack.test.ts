@@ -119,6 +119,7 @@ const CLEAN_PROOF_PANEL = [
   'Audit blocking: clean',
   'Audit fresh-strict: clean',
   'Audit posture: backed legacy gaps only; no blocking or latest proof gaps',
+  'Evidence capsule gaps: none',
   'Legacy proof gaps visible: 3'
 ].join('\n');
 const STABLE_SCREENSHOT_REF = 'screenshot:sha256:45b02d5985721f4374ca537d39ed9bcd60b481a7aef860cb3682cd422ad610b7';
@@ -967,6 +968,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     'proof_panel_audit_status',
     'proof_panel_fresh_strict_status',
     'proof_panel_gap_posture',
+    'proof_panel_capsule_gap_status',
     'proof_panel_legacy_gap_status'
   ]);
   assert.match(
@@ -989,6 +991,15 @@ test('observation summary requires pass verdicts and all requested capture evide
   );
 
   template.evidence.controlProofAudit = CLEAN_CONTROL_PROOF_AUDIT;
+  template.cases[0].observed.proofPanel = CLEAN_PROOF_PANEL.replace('\nEvidence capsule gaps: none', '');
+  const staleProofPanelSchema = summarizeControlProofCanaryObservations(template);
+  assert.equal(staleProofPanelSchema.readyForRelease, false);
+  assert.deepEqual(staleProofPanelSchema.cases[0].missingCaptures, ['proof_panel_capsule_gap_status']);
+  assert.match(
+    formatControlProofCanaryObservationSummary(staleProofPanelSchema),
+    /Recapture hint:\n- Refresh \/proof panel captures for: cp-builder-001/
+  );
+
   template.cases[0].observed.proofPanel = `${CLEAN_PROOF_PANEL}\ntool_not_allowed_by_policy /Users/example/private`;
   const leakyProofPanel = summarizeControlProofCanaryObservations(template);
   assert.equal(leakyProofPanel.readyForRelease, false);
@@ -2558,7 +2569,8 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
   assert.deepEqual(summarizeControlProofCanaryObservations(template).cases[0].missingCaptures, [
     'proof_panel_actionable_status',
     'proof_panel_fresh_strict_status',
-    'proof_panel_gap_posture'
+    'proof_panel_gap_posture',
+    'proof_panel_capsule_gap_status'
   ]);
 
   const result = repairStaleProofPanelAuditLines(template);
@@ -2566,6 +2578,7 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit actionable: clean/);
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit fresh-strict: clean/);
   assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit posture: backed legacy gaps only; no blocking or latest proof gaps/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Evidence capsule gaps: none/);
   assert.deepEqual(summarizeControlProofCanaryObservations(result.observations).cases[0].missingCaptures, []);
 });
 
