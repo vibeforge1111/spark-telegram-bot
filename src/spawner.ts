@@ -1923,7 +1923,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1945,7 +1945,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1959,7 +1959,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -1981,7 +1981,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -2006,7 +2006,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -2028,7 +2028,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -2050,7 +2050,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   },
@@ -2113,7 +2113,7 @@ export const spawner = {
     } catch (err: any) {
       return {
         success: false,
-        message: err.response?.data?.error || err.message
+        message: err?.response?.data?.error || err?.message
       };
     }
   }
