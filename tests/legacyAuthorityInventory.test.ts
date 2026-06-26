@@ -19,7 +19,7 @@ function hasHighAgencyRisk(risk: LegacyAuthorityRisk): boolean {
   return Object.values(risk).some(Boolean);
 }
 
-test('Telegram legacy authority inventory is release-ready under the Harness Core contract', () => {
+test('Telegram legacy authority inventory is promotion-ready under the Harness Core contract', () => {
   const inventory = buildTelegramLegacyAuthorityInventory();
 
   assert.equal(inventory.schema_version, 'legacy-authority-inventory-v1');
@@ -27,6 +27,7 @@ test('Telegram legacy authority inventory is release-ready under the Harness Cor
   assert.deepEqual(inventory.scope.surfaces, ['telegram']);
   assert.equal(inventory.release_gate.zero_high_agency_legacy_local_gates, true);
   assert.equal(inventory.release_gate.ready_for_readiness_promotion, true);
+  assert.ok('ready_for_readiness_promotion' in inventory.release_gate);
   assert.equal(inventory.summary.release_blocker_count, 0);
   assert.deepEqual(inventory.release_gate.blockers, []);
   assert.ok(inventory.summary.plane_count >= 18);
