@@ -1,11 +1,11 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T19:36:08.104Z
-Runtime evidence collected: 2026-06-26T19:36:08.104Z
-Runtime evidence expires: 2026-06-26T20:36:08.104Z (1h window)
+Generated: 2026-06-26T19:45:28.832Z
+Runtime evidence collected: 2026-06-26T19:45:28.832Z
+Runtime evidence expires: 2026-06-26T20:45:28.832Z (1h window)
 Cases: 28
 Gate scope: full release pack
-Release gate: not ready
+Release gate: ready
 Publish gate: not ready
 Structured gate details: summary JSON `summary.gateDecisionDetails`
 
@@ -16,9 +16,7 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Packet evidence invalid: live_trace_join
-
-- live_trace_join: live Telegram trace-join proof is dirty, incomplete, failed, or missing the minimum joined route rows
+Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
 
 Release caveats:
 - builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0
