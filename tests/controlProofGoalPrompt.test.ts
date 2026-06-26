@@ -121,6 +121,8 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Current proof state:/);
   assert.match(workplan, /Current writable-lane prompt: `docs\/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-27\.md`/);
   assert.match(workplan, /Full behavior proof is release-ready/);
+  assert.match(workplan, /Selected-case packets are focused evidence only/);
+  assert.match(workplan, /use the full release packet for release or publish handoff authority/);
   assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
   assert.match(workplan, /On 2026-06-27, `npm run control:proof:reliability`, `npx ts-node tests\/controlProofLiveCanaryPack\.test\.ts`, `npx ts-node tests\/controlProofGoalPrompt\.test\.ts`, and `npm run build` passed locally/);
   assert.match(workplan, /Current open handoffs:/);

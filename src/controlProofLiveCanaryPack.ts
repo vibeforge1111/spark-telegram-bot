@@ -3692,9 +3692,8 @@ export function summarizeControlProofCanaryObservations(
 }
 
 export function formatControlProofCanaryObservationSummary(summary: ControlProofCanaryObservationSummary): string {
-  const gateScope = summary.totalCases === CONTROL_PROOF_LIVE_CANARY_CASES.length
-    ? 'full release pack'
-    : 'selected-case gate';
+  const isFullReleasePack = summary.totalCases === CONTROL_PROOF_LIVE_CANARY_CASES.length;
+  const gateScope = isFullReleasePack ? 'full release pack' : 'selected-case gate';
   const lines = [
     `# ${summary.target} Control-Proof Canary Evidence Summary`,
     '',
@@ -3711,6 +3710,12 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     ...CONTROL_PROOF_CANARY_VERDICTS.map((verdict) => `- ${verdict}: ${summary.verdictCounts[verdict]}`),
     ''
   ];
+  if (!isFullReleasePack) {
+    lines.push(
+      'Selected-case note: this packet proves only the selected cases; use the full release pack for release or publish handoff authority.',
+      ''
+    );
+  }
   if (summary.missingPacketEvidence.length > 0) {
     lines.push(`Packet evidence missing: ${summary.missingPacketEvidence.join(', ')}`, '');
     lines.push(...formatPacketEvidenceDetailLines(summary.packetEvidenceDetails.missing), '');
@@ -3729,7 +3734,12 @@ export function formatControlProofCanaryObservationSummary(summary: ControlProof
     }
   }
   if (summary.readyForRelease && (summary.releaseCaveats.length > 0 || summary.releaseHandoffs.length > 0)) {
-    lines.push('Release note: ready with caveats; complete the listed handoffs before publish/registry claims.', '');
+    lines.push(
+      isFullReleasePack
+        ? 'Release note: ready with caveats; complete the listed handoffs before publish/registry claims.'
+        : 'Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish/registry claims.',
+      ''
+    );
   }
   if (summary.releaseCaveats.length > 0) {
     lines.push('Release caveats:');

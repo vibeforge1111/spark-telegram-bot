@@ -1,8 +1,8 @@
 # SparkRecursive_bot Control-Proof Canary Evidence Summary
 
-Generated: 2026-06-26T20:19:20.159Z
-Runtime evidence collected: 2026-06-26T20:19:20.159Z
-Runtime evidence expires: 2026-06-26T21:19:20.159Z (1h window)
+Generated: 2026-06-26T20:23:24.388Z
+Runtime evidence collected: 2026-06-26T20:23:24.388Z
+Runtime evidence expires: 2026-06-26T21:23:24.388Z (1h window)
 Cases: 4
 Gate scope: selected-case gate
 Release gate: ready
@@ -16,7 +16,9 @@ Verdicts:
 - needs-retest: 0
 - untested: 0
 
-Release note: ready with caveats; complete the listed handoffs before publish/registry claims.
+Selected-case note: this packet proves only the selected cases; use the full release pack for release or publish handoff authority.
+
+Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish/registry claims.
 
 Release caveats:
 - builder_trace_health | flags=historical_open_high_severity_events | trace_status=current_clean | window=1h | missing_trace_refs=0 | 1h_missing_trace_refs=0 | historical_missing_trace_refs=0 | high_severity_open_events=46 | unresolved_high_severity_events=1 | current_unresolved_high_severity_events=0 | unresolved_high_severity_source_groups=1 | latest_unresolved_high_severity_event=2026-06-02T09:03:25Z | latest_missing_source_groups=0 | latest_clean_historical_window_groups=0

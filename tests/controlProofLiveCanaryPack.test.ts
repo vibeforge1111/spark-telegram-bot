@@ -352,6 +352,15 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.summary.readyForPublish, summary.readyForPublish);
   assert.equal(summaryJson.summary.gateScope, 'selected_case_gate');
   assert.match(summaryMd, /Gate scope: selected-case gate/);
+  assert.match(
+    summaryMd,
+    /Selected-case note: this packet proves only the selected cases; use the full release pack for release or publish handoff authority\./
+  );
+  assert.match(
+    summaryMd,
+    /Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish\/registry claims\./
+  );
+  assert.doesNotMatch(summaryMd, /Release note: ready with caveats; complete the listed handoffs before publish\/registry claims\./);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
   assert.deepEqual(summaryJson.summary.invalidPacketEvidence, summary.invalidPacketEvidence);
@@ -1829,7 +1838,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   );
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
-    /Release note: ready with caveats; complete the listed handoffs before publish\/registry claims\./
+    /Selected-case note: selected cases are ready with caveats; complete handoffs from the full release packet before publish\/registry claims\./
   );
   assert.match(
     formatControlProofCanaryObservationSummary(compileDriftVisibleButClean),
