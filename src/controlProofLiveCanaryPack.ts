@@ -1338,6 +1338,84 @@ export function recordControlProofCanaryObservation(
   };
 }
 
+export interface ControlProofProofPanelAuditLineRepairResult {
+  observations: ControlProofCanaryObservationTemplate;
+  changedCases: string[];
+  auditSummary: ControlProofAuditRuntimeSummary;
+}
+
+export function repairStaleProofPanelAuditLines(
+  observations: ControlProofCanaryObservationTemplate
+): ControlProofProofPanelAuditLineRepairResult {
+  const auditSummary = summarizeControlProofAuditRuntimeEvidence(observations.evidence?.controlProofAudit);
+  if (!auditSummary) {
+    throw new Error('Cannot repair stale proof panels without embedded control-proof audit evidence.');
+  }
+  if (
+    auditSummary.actionableStatus !== 'clean' ||
+    auditSummary.blockingStatus !== 'clean' ||
+    auditSummary.freshStrictOk !== true ||
+    auditSummary.gapPosture !== 'backed legacy gaps only; no blocking or latest proof gaps'
+  ) {
+    throw new Error('Cannot repair stale proof panels unless embedded control-proof audit evidence is clean and fresh-strict.');
+  }
+  const changedCases: string[] = [];
+  const cases = observations.cases.map((entry) => {
+    if (!entry.expected.capture.proofPanel || !hasCapturedText(entry.observed.proofPanel)) return entry;
+    const missing = proofPanelCaptureIssues(entry.observed.proofPanel, {
+      runtimeLegacyProofGapCount: auditSummary.gapCounts.legacyProofGap ?? null
+    });
+    const onlyRepairable = missing.length > 0 && missing.every(isProofPanelAuditLineRepairIssue);
+    if (!onlyRepairable) return entry;
+    changedCases.push(entry.id);
+    return {
+      ...entry,
+      observed: {
+        ...entry.observed,
+        proofPanel: appendProofPanelAuditStatusLines(String(entry.observed.proofPanel), auditSummary)
+      }
+    };
+  });
+  return {
+    observations: {
+      ...observations,
+      cases
+    },
+    changedCases,
+    auditSummary
+  };
+}
+
+function isProofPanelAuditLineRepairIssue(issue: string): boolean {
+  return issue === 'proof_panel_actionable_status' ||
+    issue === 'proof_panel_audit_status' ||
+    issue === 'proof_panel_fresh_strict_status' ||
+    issue === 'proof_panel_gap_posture';
+}
+
+function appendProofPanelAuditStatusLines(
+  proofPanel: string,
+  auditSummary: ControlProofAuditRuntimeSummary
+): string {
+  const lines = String(proofPanel || '').trimEnd().split(/\r?\n/);
+  const statusLines = [
+    `Audit actionable: ${auditSummary.actionableStatus}`,
+    `Audit blocking: ${auditSummary.blockingStatus}`,
+    `Audit fresh-strict: ${auditSummary.freshStrictOk ? 'clean' : 'not ready'}`,
+    `Audit posture: ${auditSummary.gapPosture}`
+  ];
+  for (const statusLine of statusLines) {
+    const label = statusLine.split(':', 1)[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const index = lines.findIndex((line) => new RegExp(`^${label}:`, 'i').test(line.trim()));
+    if (index === -1) {
+      lines.push(statusLine);
+    } else {
+      lines[index] = statusLine;
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 function textOrNull(value: string | null | undefined): string | null {
   const text = String(value || '').trim();
   return text || null;

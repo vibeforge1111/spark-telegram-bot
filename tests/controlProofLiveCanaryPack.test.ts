@@ -13,6 +13,7 @@ import {
   formatControlProofCanaryCopyPaste,
   formatControlProofCanaryLiveRunGuide,
   recordControlProofCanaryObservation,
+  repairStaleProofPanelAuditLines,
   selectControlProofCanaryCases,
   summarizeControlProofAuditRuntimeEvidence,
   summarizeControlProofCanaryCoverage,
@@ -2441,6 +2442,62 @@ test('observation recorder updates one case while preserving packet evidence', (
   });
   assert.deepEqual(partiallyUpdated.cases[0].observed.screenshotRefs, [STABLE_SCREENSHOT_REF]);
   assert.equal(partiallyUpdated.cases[0].observed.notes, 'Retested after runtime sync.');
+});
+
+test('proof-panel audit-line repair refreshes stale readiness fields from embedded audit evidence', () => {
+  let template = buildControlProofCanaryObservationTemplate([
+    CONTROL_PROOF_LIVE_CANARY_CASES.find((entry) => entry.id === 'cp-builder-001')!
+  ], { generatedAt: '2026-06-24T00:00:00.000Z' });
+  template = withControlProofCanaryRuntimeEvidence(template, {
+    sparkLiveStatus: CLEAN_SPARK_LIVE_STATUS,
+    providerStatus: CLEAN_PROVIDER_STATUS,
+    runtimeSync: CLEAN_RUNTIME_SYNC,
+    sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
+    controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
+    notes: null
+  });
+  template.cases[0].observed = {
+    ...template.cases[0].observed,
+    verdict: 'pass',
+    reply: 'Builder stayed read-only.',
+    sideEffects: {
+      ...template.cases[0].observed.sideEffects,
+      filesChanged: false,
+      memoryWritten: false,
+      missionStarted: false,
+      externalNetworkCalled: false,
+      accessChanged: false,
+      providerChanged: false,
+      mediaHandled: false,
+      notes: 'No mutation observed.'
+    },
+    proofJoin: 'Builder proof joined.',
+    proofPanel: [
+      'Harness Proof',
+      'Intent: builder_gateway.plain_chat',
+      'Authority: allowed by spark.turn_intent.v1',
+      'Governor: allow, verified',
+      'Execution: not_started',
+      'Reply: delivered as natural',
+      'Audit blocking: clean',
+      'Legacy proof gaps visible: 3'
+    ].join('\n'),
+    screenshotRefs: [STABLE_SCREENSHOT_REF],
+    userConfirmation: 'Confirmed in SparkRecursive_bot.'
+  };
+
+  assert.deepEqual(summarizeControlProofCanaryObservations(template).cases[0].missingCaptures, [
+    'proof_panel_actionable_status',
+    'proof_panel_fresh_strict_status',
+    'proof_panel_gap_posture'
+  ]);
+
+  const result = repairStaleProofPanelAuditLines(template);
+  assert.deepEqual(result.changedCases, ['cp-builder-001']);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit actionable: clean/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit fresh-strict: clean/);
+  assert.match(String(result.observations.cases[0].observed.proofPanel), /Audit posture: backed legacy gaps only; no blocking or latest proof gaps/);
+  assert.deepEqual(summarizeControlProofCanaryObservations(result.observations).cases[0].missingCaptures, []);
 });
 
 test('control-proof canary CLI lists and exports selected cases', () => {

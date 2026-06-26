@@ -9,6 +9,7 @@ import {
   formatControlProofCanaryLiveRunGuide,
   isProofPanelRecaptureIssue,
   recordControlProofCanaryObservation,
+  repairStaleProofPanelAuditLines,
   selectControlProofCanaryCases,
   summarizeControlProofAuditRuntimeEvidence,
   summarizeControlProofCanaryCoverage,
@@ -63,6 +64,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --publish-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --repair-stale-proof-panels',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-file /tmp/case.png --user-confirmation "confirmed"',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --summary-out outputs/live-canary-summary.md --summary-json-out outputs/live-canary-summary.json',
     '  npm run control:proof:canaries -- --case cp-builder-001 --checklist',
@@ -682,6 +684,7 @@ function main(): void {
     const releaseCheck = hasFlag(args, 'release-check');
     const publishCheck = hasFlag(args, 'publish-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
+    const repairStaleProofPanels = hasFlag(args, 'repair-stale-proof-panels');
     const inferredSummaryPaths = inferredBundleSummaryPaths(observationsPath);
     if (inferredSummaryPaths) {
       summaryOutPath ||= inferredSummaryPaths.summaryPath;
@@ -699,7 +702,17 @@ function main(): void {
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Recorded control-proof observation for ${recordCaseId}: ${outputPath}`);
     }
-    const strictFreshSummary = releaseCheck || publishCheck || refreshRuntimeEvidence || Boolean(recordCaseId);
+    if (repairStaleProofPanels) {
+      const result = repairStaleProofPanelAuditLines(observations);
+      observations = result.observations;
+      const outputPath = outPath || observationsPath;
+      writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
+      console.log([
+        `Repaired stale proof-panel audit lines: ${outputPath}`,
+        `Changed cases: ${result.changedCases.length ? result.changedCases.join(', ') : 'none'}`
+      ].join('\n'));
+    }
+    const strictFreshSummary = releaseCheck || publishCheck || refreshRuntimeEvidence || Boolean(recordCaseId) || repairStaleProofPanels;
     const summary = summarizeControlProofCanaryObservations(
       observations,
       strictFreshSummary ? { maxRuntimeEvidenceAgeHours: 1 } : {}
