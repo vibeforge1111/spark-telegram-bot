@@ -133,18 +133,42 @@ test('accepts wildcard source rows only when the directory has entries', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');
   const docsIndexPath = join(dir, 'index.md');
-  mkdirSync(join(dir, 'outputs/live-canary-full'), { recursive: true });
-  writeFileSync(join(dir, 'outputs/live-canary-full/summary.md'), 'ok');
+  mkdirSync(join(dir, 'docs/codex-handoffs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/codex-handoffs/handoff.md'), 'ok');
   writeFileSync(inventoryPath, [
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
-    '| `outputs/live-canary-full/*` | active | Current packet. |'
+    '| `docs/codex-handoffs/*` | archive candidate | Historical context only. |'
   ].join('\n'));
   writeFileSync(docsIndexPath, '');
 
   const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, true);
+});
+
+test('requires active canary evidence folders to contain core packet files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'outputs/live-canary-full'), { recursive: true });
+  writeFileSync(join(dir, 'outputs/live-canary-full/live-canary-summary.md'), 'summary');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `outputs/live-canary-full/*` | active | Current full proof packet. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.gaps.map((gap) => gap.code), [
+    'missing_required_evidence_file',
+    'missing_required_evidence_file'
+  ]);
+  assert.match(formatSourceInventoryReport(result), /missing live-canary-observations\.json/);
+  assert.match(formatSourceInventoryReport(result), /missing live-canary-summary\.json/);
 });
 
 test('accepts read-only evidence plus archive candidate as a historical duplicate', () => {

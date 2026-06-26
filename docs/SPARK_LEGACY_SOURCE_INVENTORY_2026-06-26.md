@@ -15,6 +15,8 @@ Legacy material must not reach prompts, Telegram replies, UI summaries, canary r
 
 The strict inventory checker also joins this document to the legacy prompt-surface blocklist. Any repo-local source blocked from prompt/UI summaries must have an inventory row here before `npm run control:proof:source-inventory` can pass.
 
+Active canary evidence folders must also contain the core packet files before they can count as current proof: `live-canary-observations.json`, `live-canary-summary.md`, and `live-canary-summary.json`.
+
 - `active`: current source of rules, proof, or release gates.
 - `read-only evidence`: useful for history, regression breadth, or promotion decisions; not authority by itself.
 - `archive candidate`: keep for now, but only as historical context after current rules are extracted or linked.
@@ -50,8 +52,8 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `docs/QA_OPERATOR_TELEGRAM_RECURSION.md` | active | Recursive/QA Operator Telegram behavior source. |
 | `docs/VOICE_RUNTIME_ARCHITECTURE.md` | active | Voice evidence boundary source; voice evidence remains non-execution unless a future proof gap changes that. |
 | `ops/controlProofLiveCanaryPack.ts` | active | Harness-shaped canary release gate implementation. |
-| `outputs/live-canary-full/*` | active | Current full SparkRecursive_bot behavior proof packet. |
-| `outputs/live-canary-safe-first/*` | active | Selected-case proof only; not a full release claim. |
+| `outputs/live-canary-full/*` | active | Current full SparkRecursive_bot behavior proof packet; requires observations JSON plus Markdown and JSON summaries. |
+| `outputs/live-canary-safe-first/*` | active | Selected-case proof only; not a full release claim; requires observations JSON plus Markdown and JSON summaries. |
 
 ## Read-Only Evidence And Promotion Sources
 

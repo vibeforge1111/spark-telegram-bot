@@ -85,6 +85,16 @@ function sourceExists(repoRoot: string, source: string): boolean {
   return existsSync(resolve(repoRoot, source));
 }
 
+function requiredEvidenceFilesForSource(source: string, status: string): string[] {
+  if (status !== 'active') return [];
+  if (source !== 'outputs/live-canary-full/*' && source !== 'outputs/live-canary-safe-first/*') return [];
+  return [
+    'live-canary-observations.json',
+    'live-canary-summary.md',
+    'live-canary-summary.json'
+  ];
+}
+
 export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
@@ -122,6 +132,15 @@ export function checkSourceInventory(options: {
         code: 'missing_source',
         message: `${entry.source} is classified in the source inventory but does not exist.`
       });
+    }
+    for (const file of requiredEvidenceFilesForSource(entry.source, entry.status)) {
+      const dir = entry.source.slice(0, -2);
+      if (!existsSync(resolve(options.repoRoot, dir, file))) {
+        gaps.push({
+          code: 'missing_required_evidence_file',
+          message: `${entry.source} is classified as active canary evidence but is missing ${file}.`
+        });
+      }
     }
   }
 
