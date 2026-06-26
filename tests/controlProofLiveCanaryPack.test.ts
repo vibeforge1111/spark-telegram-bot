@@ -462,6 +462,11 @@ test('control-proof canaries carry Harness-shaped expectations and capture field
     assert.ok(entry.expectedSideEffect, `${entry.id} missing expectedSideEffect`);
     assert.ok(entry.expectedProofJoin, `${entry.id} missing expectedProofJoin`);
     assert.ok(entry.passCriteria.length > 0, `${entry.id} missing pass criteria`);
+    assert.equal(
+      new Set(entry.passCriteria.map((criteria) => criteria.trim().toLowerCase())).size,
+      entry.passCriteria.length,
+      `${entry.id} has duplicate pass criteria`
+    );
     assert.equal(entry.capture.observedReply, true, `${entry.id} must capture observed reply`);
     assert.equal(typeof entry.capture.sideEffects, 'boolean');
     assert.equal(typeof entry.capture.proofPanel, 'boolean');

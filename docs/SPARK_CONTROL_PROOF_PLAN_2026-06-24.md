@@ -410,6 +410,8 @@ The older `npm run nl:live` catalogs remain useful as broad behavior regression 
 
 Use the old catalogs as source material and periodic drift sweeps. The control-proof canary pack should be smaller and stricter: authority decision, mutation class, proof join, side effects, reply shape, screenshot/user confirmation, and pass criteria are first-class fields.
 
+Each canary's pass criteria must be unique. Repeating one criterion does not create another proof requirement and must fail the canary pack test.
+
 Repeatable command:
 
 ```bash
