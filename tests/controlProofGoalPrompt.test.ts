@@ -30,6 +30,7 @@ const SURFACE_EVAL_PATH = resolve(ROOT, 'docs/SPARK_SURFACE_EVAL_2026-06-26.md')
 const NL_AUDIT_PATH = resolve(ROOT, 'docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md');
 const NL_PLAN_PATH = resolve(ROOT, 'ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md');
 const PREFLIGHT_RESULT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PREFLIGHT_RESULT_2026-06-24.md');
+const PACKAGE_JSON_PATH = resolve(ROOT, 'package.json');
 
 test('control-proof goal prompt stays under the handoff limit', () => {
   const prompt = readFileSync(PROMPT_PATH, 'utf8');
@@ -104,6 +105,8 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Live trace-join proof is ready when `npm run control:proof:live-trace` shows four or more real SparkRecursive_bot Telegram rows/);
   assert.match(workplan, /Current open handoffs:/);
   assert.match(workplan, /Current Proof Battery/);
+  assert.match(workplan, /npm run control:proof:reliability/);
+  assert.match(workplan, /Expanded form:/);
   assert.match(workplan, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
   assert.match(workplan, /npm run control:proof:live-trace/);
   assert.match(workplan, /npm run control:proof:evals -- --strict/);
@@ -116,6 +119,18 @@ test('active reliability control workplan records status and task order', () => 
   assert.match(workplan, /Require proof capsules on action-capable routes/);
   assert.match(workplan, /Expand evals only where they close measured gaps/);
   assert.match(workplan, /Refresh evidence and docs after each slice/);
+});
+
+test('package exposes one-command reliability proof battery', () => {
+  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf8')) as {
+    scripts?: Record<string, string>;
+  };
+  const script = packageJson.scripts?.['control:proof:reliability'] ?? '';
+
+  assert.match(script, /npm run control:proof:audit -- --sample 100 --fresh-strict/);
+  assert.match(script, /npm run control:proof:live-trace/);
+  assert.match(script, /npm run control:proof:evals -- --strict/);
+  assert.match(script, /npm run control:proof:surface -- --strict/);
 });
 
 test('control-proof plan documents current proof repair and release boundaries', () => {

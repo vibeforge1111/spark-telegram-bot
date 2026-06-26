@@ -41,6 +41,12 @@ Current open handoffs:
 Run this battery before claiming the current reliability phase remains behavior-release ready:
 
 ```bash
+npm run control:proof:reliability
+```
+
+Expanded form:
+
+```bash
 npm run control:proof:audit -- --sample 100 --fresh-strict
 npm run control:proof:live-trace
 npm run control:proof:evals -- --strict
