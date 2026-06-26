@@ -87,6 +87,22 @@ test('coverage checker reports source marker gaps', () => {
   assert.ok(result.gaps.some((gap) => gap.planeId === 'legacy-plane:telegram-action-authority' && gap.reason === 'missing_marker'));
 });
 
+test('coverage checker rejects markerless proof policies', () => {
+  const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
+    policy.planeId === 'legacy-plane:telegram-action-authority'
+      ? { ...policy, requiredSourceMarkers: [] }
+      : policy
+  ));
+  const result = checkProofCapsuleCoverage({ repoRoot: process.cwd(), policies });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.planeId === 'legacy-plane:telegram-action-authority' &&
+    gap.reason === 'missing_marker_policy'
+  )));
+  assert.match(formatProofCapsuleCoverageReport(result), /missing_marker_policy/);
+});
+
 test('coverage checker rejects no-action-only policy on execution routes', () => {
   const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
     policy.planeId === 'legacy-plane:telegram-action-authority'

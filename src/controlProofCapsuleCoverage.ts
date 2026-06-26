@@ -20,6 +20,7 @@ export interface ProofCapsuleCoverageGap {
     | 'missing_policy'
     | 'extra_policy'
     | 'ambiguous_policy'
+    | 'missing_marker_policy'
     | 'missing_source'
     | 'missing_marker'
     | 'incompatible_policy_kind';
@@ -182,6 +183,13 @@ export function checkProofCapsuleCoverage(input: {
         planeId: plane.plane_id,
         reason: 'incompatible_policy_kind',
         detail: `${matches[0].proofPath.kind} is only valid for pending/no-action planes; execution-capable routes must emit or join a proof capsule.`
+      });
+    }
+    if (matches[0].requiredSourceMarkers.length === 0) {
+      gaps.push({
+        planeId: plane.plane_id,
+        reason: 'missing_marker_policy',
+        detail: 'Proof-capsule policy must name at least one source marker so coverage stays source-backed.'
       });
     }
 

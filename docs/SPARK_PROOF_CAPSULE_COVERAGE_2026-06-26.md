@@ -30,6 +30,8 @@ npm run control:proof:capsules -- --json
 
 Each action-capable inventory plane must have one policy, not zero and not many. Duplicate proof paths are treated as drift because they make later trace joins ambiguous.
 
+Each policy must also name at least one source marker. A policy without source markers is not source-backed proof; it is only a declaration and must fail the gate.
+
 Policy kind must also match the inventory risk. Execution-capable routes must use `direct_capsule` or `joined_capsule`; `explicit_no_action` is reserved for pending/no-action planes that cannot claim execution proof by themselves.
 
 Retired or non-action planes must not keep proof policies. An extra policy is also drift because it can make old routes look like active proof authority.
