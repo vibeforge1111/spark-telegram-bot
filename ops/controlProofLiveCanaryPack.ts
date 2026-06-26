@@ -714,6 +714,21 @@ function main(): void {
     }
     if (refreshRuntimeEvidence) {
       observations = withControlProofCanaryRuntimeEvidence(observations, collectRuntimeEvidence());
+      const refreshedSummary = summarizeControlProofCanaryObservations(
+        observations,
+        { maxRuntimeEvidenceAgeHours: 1 }
+      );
+      if (refreshedSummary.missingPacketEvidence.length > 0 || refreshedSummary.invalidPacketEvidence.length > 0) {
+        console.error([
+          'Refused to write refreshed control-proof runtime evidence because packet evidence is not release-safe.',
+          `Missing packet evidence: ${refreshedSummary.missingPacketEvidence.length ? refreshedSummary.missingPacketEvidence.join(', ') : 'none'}`,
+          `Invalid packet evidence: ${refreshedSummary.invalidPacketEvidence.length ? refreshedSummary.invalidPacketEvidence.join(', ') : 'none'}`,
+          'Recapture the required live/runtime evidence, then rerun --refresh-runtime-evidence.'
+        ].join('\n'));
+        console.log(formatControlProofCanaryObservationSummary(refreshedSummary).trimEnd());
+        process.exitCode = 1;
+        return;
+      }
       const outputPath = outPath || observationsPath;
       writeFileSync(outputPath, `${JSON.stringify(observations, null, 2)}\n`, 'utf8');
       console.log(`Refreshed control-proof runtime evidence: ${outputPath}`);

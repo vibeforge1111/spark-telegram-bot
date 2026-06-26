@@ -3904,6 +3904,89 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.equal(refreshedBundleSummaryJson.summary.runtimeEvidenceMaxAgeHours, 1);
     assert.equal(refreshedBundleSummaryJson.coverage.totalCases, 1);
 
+    writeFileSync(npmPath, [
+      '#!/bin/sh',
+      'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:live-trace" ]; then',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo "Status: gaps found"',
+      '  echo "Joined rows: 0"',
+      '  echo "Gap rows: 4"',
+      '  echo "Live route proof: not ready (0/4 minimum joined rows)"',
+      '  echo "No-action route proof: not ready (0/4 minimum no-action rows)"',
+      '  echo "Safe prompt proof: not ready (0/4 required safe prompts)"',
+      '  echo "Gap counts:"',
+      '  echo "- stale live route evidence: 4"',
+      '  exit 1',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:audit" ]; then',
+      '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
+      "  echo \"Generated: $(date -u +\"%Y-%m-%dT%H:%M:%S.000Z\")\"",
+      '  echo "Status: gaps found"',
+      '  echo "Actionable status: clean"',
+      '  echo "Blocking status: clean"',
+      '  echo "Fresh-strict status: clean"',
+      '  echo "Gap posture: backed legacy gaps only; no blocking or latest proof gaps"',
+      '  echo "telegram_route_confidence: 100/100 sampled | proof_gap 97 | gap_capsule 97 | gap_capsule_valid 97 | gap_ref 97 | gap_backing complete | latest_gap no"',
+      '  echo "builder_gateway: 100/100 sampled | proof_gap 62 | gap_capsule 62 | gap_capsule_valid 62 | gap_ref 62 | gap_backing complete | latest_gap no"',
+      '  echo "spawner_prd_trace: 100/100 sampled | proof_gap 94 | gap_capsule 94 | gap_capsule_valid 94 | gap_ref 94 | gap_backing complete | latest_gap no"',
+      '  echo "Gap counts:"',
+      '  echo "- missing evidence: 0"',
+      '  echo "- missing trace joins: 0"',
+      '  echo "- missing proof capsules: 0"',
+      '  echo "- legacy proof gaps: 3"',
+      '  echo "- incomplete legacy gap backing: 0"',
+      '  echo "- latest proof gaps: 0"',
+      '  echo "- raw ref leaks: 0"',
+      '  echo "- robotic failure reasons: 0"',
+      '  echo "- stack-like leaks: 0"',
+      '  echo "Gap planes:"',
+      '  echo "- legacy proof gaps: telegram_route_confidence, builder_gateway, spawner_prd_trace"',
+      '  echo "Legacy gap backing:"',
+      '  echo "- telegram_route_confidence: backing complete | source route_confidence_legacy_repair | latest_gap no | release_blocking no | marked 97 | incomplete 0 | latest 2026-06-24T23:04:43.263Z | repair npm run control:proof:repair:route-confidence -- --dry-run --json"',
+      '  echo "- builder_gateway: backing complete | source builder_gateway_trace_legacy_repair | latest_gap no | release_blocking no | marked 62 | incomplete 0 | latest 2026-06-25T23:47:10+00:00 | repair npm run control:proof:repair:legacy -- --plane builder_gateway --dry-run --json"',
+      '  echo "- spawner_prd_trace: backing complete | source spawner_prd_trace_legacy_repair | latest_gap no | release_blocking no | marked 94 | incomplete 0 | latest 2026-06-24T23:04:43.878Z | repair npm run control:proof:repair:legacy -- --plane spawner_prd_trace --dry-run --json"',
+      '  exit 0',
+      'fi',
+      'if [ "$1 $2" = "run control:proof:repair:route-confidence" ]; then echo \'{"dryRun":true,"rowsRead":145,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:repair:legacy" ]; then',
+      '  case " $* " in',
+      '    *" --plane builder_gateway "*) echo \'{"plane":"builder_gateway","dryRun":true,"rowsRead":522,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '    *" --plane spawner_prd_trace "*) echo \'{"plane":"spawner_prd_trace","dryRun":true,"rowsRead":495,"parseErrors":0,"legacyGapCapsulesAdded":0,"changedRows":0}\'; exit 0 ;;',
+      '  esac',
+      'fi',
+      'echo "unexpected npm args: $*" >&2',
+      'exit 1'
+    ].join('\n'), 'utf8');
+    chmodSync(npmPath, 0o755);
+
+    writeFileSync(bundleObservationsPath, JSON.stringify(staleObservations, null, 2), 'utf8');
+    writeFileSync(bundleSummaryPath, 'preserve checked markdown summary', 'utf8');
+    writeFileSync(bundleSummaryJsonPath, '{"preserve":true}\n', 'utf8');
+    const refusedBundleRefresh = spawnSync(
+      process.execPath,
+      [
+        resolve(ROOT, 'node_modules/ts-node/dist/bin.js'),
+        'ops/controlProofLiveCanaryPack.ts',
+        '--observations',
+        bundleObservationsPath,
+        '--refresh-runtime-evidence'
+      ],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${binRoot}:${process.env.PATH || ''}` }
+      }
+    );
+    assert.equal(refusedBundleRefresh.status, 1);
+    assert.match(refusedBundleRefresh.stderr, /Refused to write refreshed control-proof runtime evidence/);
+    assert.match(refusedBundleRefresh.stderr, /Invalid packet evidence: live_trace_join/);
+    assert.match(refusedBundleRefresh.stdout, /Packet evidence invalid: live_trace_join/);
+    assert.match(readFileSync(bundleObservationsPath, 'utf8'), /old audit without current gap plane details/);
+    assert.match(readFileSync(bundleSummaryPath, 'utf8'), /preserve checked markdown summary/);
+    assert.match(readFileSync(bundleSummaryJsonPath, 'utf8'), /"preserve":true/);
+
     observed.cases[0].observed = {
       ...observed.cases[0].observed,
       verdict: 'pass',
