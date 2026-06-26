@@ -174,7 +174,53 @@ test('treats empty route evidence as not proven', () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.noRouteEvidence, true);
+    assert.equal(result.routeLedgerExists, true);
+    assert.equal(result.routeLedgerState, 'empty');
     assert.match(formatControlProofTraceJoinReport(result), /No route evidence sampled/);
+    assert.match(formatControlProofTraceJoinReport(result), /Route ledger state: empty/);
+    assert.match(formatControlProofTraceJoinReport(result), /route ledger file exists but has no rows/);
+  });
+});
+
+test('diagnoses missing route ledger separately from reply proof audits', () => {
+  withTempRoot((root) => {
+    const routeLedger = path.join(root, 'missing-route-ledger.jsonl');
+    const finalAnswer = path.join(root, 'final-answer.jsonl');
+    const outbound = path.join(root, 'outbound.jsonl');
+    writeJsonl(finalAnswer, [{
+      request_id: 'turn:joined',
+      trace_ref: 'trace:joined',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890',
+      proof_capsule: { schema: 'spark.harness_proof.v1', turnRef: 'turn:sha256:abcdef1234567890' }
+    }]);
+    writeJsonl(outbound, [{
+      request_id: 'turn:joined',
+      trace_ref: 'trace:joined',
+      harness_proof_ref: 'turn:sha256:abcdef1234567890'
+    }]);
+
+    const result = auditControlProofTraceJoins({
+      sparkHome: root,
+      naturalRouteLedger: routeLedger,
+      finalAnswerAudit: finalAnswer,
+      outboundAudit: outbound,
+      requireLiveEvidence: true,
+      minRouteRows: 4,
+      generatedAt: '2026-06-26T00:00:00.000Z'
+    });
+    const report = formatControlProofTraceJoinReport(result);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.routeLedgerExists, false);
+    assert.equal(result.routeLedgerBytes, 0);
+    assert.equal(result.routeLedgerState, 'missing');
+    assert.equal(result.finalAnswerAuditRows, 1);
+    assert.equal(result.outboundAuditRows, 1);
+    assert.match(report, /Route ledger state: missing \(file missing\)/);
+    assert.match(report, /Evidence audits: final answers 1 rows, outbound 1 rows/);
+    assert.match(report, /route ledger file is missing at the expected Spark state path/);
+    assert.match(report, /Telegram reply\/proof audit rows exist, so this is specifically a route-ledger capture gap/);
+    assert.match(report, /verify the live relay is running the current built source/);
   });
 });
 

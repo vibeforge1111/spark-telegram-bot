@@ -43,6 +43,12 @@ export interface ControlProofTraceJoinSummary {
   naturalRouteLedger: string;
   finalAnswerAudit: string;
   outboundAudit: string;
+  routeLedgerExists: boolean;
+  routeLedgerBytes: number;
+  routeLedgerState: 'missing' | 'empty' | 'invalid' | 'ready';
+  finalAnswerAuditRows: number;
+  outboundAuditRows: number;
+  currentEnvLedgerDisabled: boolean;
   totalRouteRows: number;
   sampledRouteRows: number;
   parseErrors: number;
@@ -88,8 +94,10 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const minRouteRows = Math.max(1, Math.trunc(options.minRouteRows || 1));
   const liveEvidenceRequired = Boolean(options.requireLiveEvidence);
   const routeRead = readJsonl(routeLedgerPath);
-  const finalIndex = indexEvidenceRefs(readJsonl(finalAnswerAudit).records);
-  const outboundIndex = indexEvidenceRefs(readJsonl(outboundAudit).records);
+  const finalRead = readJsonl(finalAnswerAudit);
+  const outboundRead = readJsonl(outboundAudit);
+  const finalIndex = indexEvidenceRefs(finalRead.records);
+  const outboundIndex = indexEvidenceRefs(outboundRead.records);
   const evidenceIndex = mergeRefIndexes(finalIndex, outboundIndex);
   const routeRecords = routeRead.records.filter(isNaturalRouteExecutionRecord);
   const sampled = routeRecords.slice(-sampleSize);
@@ -97,6 +105,7 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
   const gapRows = rows.filter((row) => row.gaps.length > 0).length;
   const liveEvidenceReady = sampled.length >= minRouteRows && gapRows === 0 && routeRead.parseErrors === 0;
   const insufficientLiveRouteRows = liveEvidenceRequired && sampled.length < minRouteRows;
+  const routeLedgerState = classifyRouteLedgerState(routeRead, routeRecords.length);
 
   return {
     ok: routeRead.parseErrors === 0 && sampled.length > 0 && gapRows === 0 && !insufficientLiveRouteRows,
@@ -105,6 +114,12 @@ export function auditControlProofTraceJoins(options: ControlProofTraceJoinOption
     naturalRouteLedger: routeLedgerPath,
     finalAnswerAudit,
     outboundAudit,
+    routeLedgerExists: routeRead.exists,
+    routeLedgerBytes: routeRead.bytes,
+    routeLedgerState,
+    finalAnswerAuditRows: finalRead.totalRows,
+    outboundAuditRows: outboundRead.totalRows,
+    currentEnvLedgerDisabled: process.env.SPARK_NATURAL_ROUTE_LEDGER === '0',
     totalRouteRows: routeRecords.length,
     sampledRouteRows: sampled.length,
     parseErrors: routeRead.parseErrors,
@@ -139,13 +154,15 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     `Generated: ${summary.generatedAt}`,
     `Spark home: ${redactPath(summary.sparkHome)}`,
     `Route ledger: ${redactPath(summary.naturalRouteLedger)}`,
+    `Route ledger state: ${summary.routeLedgerState} (${summary.routeLedgerExists ? `${summary.routeLedgerBytes} bytes` : 'file missing'})`,
     `Route rows: ${summary.sampledRouteRows}/${summary.totalRouteRows} sampled`,
+    `Evidence audits: final answers ${summary.finalAnswerAuditRows} rows, outbound ${summary.outboundAuditRows} rows`,
     '',
     summary.ok ? 'Status: clean' : 'Status: gaps found',
     `Joined rows: ${summary.joinedRows}`,
     `Gap rows: ${summary.gapRows}`,
     `Parse errors: ${summary.parseErrors}`,
-    ...(summary.noRouteEvidence ? ['No route evidence sampled; run a Telegram text turn with the route ledger enabled before claiming trace-join proof.'] : []),
+    ...(summary.noRouteEvidence ? liveRouteLedgerDiagnosisLines(summary) : []),
     ...(summary.liveEvidenceRequired ? [
       `Live route proof: ${summary.liveEvidenceReady ? 'ready' : 'not ready'} (${summary.sampledRouteRows}/${summary.minRouteRows} minimum joined rows)`,
       ...(summary.liveEvidenceReady ? [] : liveTraceCaptureGuideLines())
@@ -166,6 +183,38 @@ export function formatControlProofTraceJoinReport(summary: ControlProofTraceJoin
     }
   }
   return `${lines.join('\n')}\n`;
+}
+
+function classifyRouteLedgerState(
+  read: JsonlReadResult,
+  routeRecordCount: number
+): ControlProofTraceJoinSummary['routeLedgerState'] {
+  if (!read.exists) return 'missing';
+  if (read.totalRows === 0) return 'empty';
+  if (read.parseErrors > 0 || routeRecordCount === 0) return 'invalid';
+  return 'ready';
+}
+
+function liveRouteLedgerDiagnosisLines(summary: ControlProofTraceJoinSummary): string[] {
+  const lines = [
+    'No route evidence sampled; run a Telegram text turn with the route ledger enabled before claiming trace-join proof.',
+    'Route ledger diagnosis:'
+  ];
+  if (summary.routeLedgerState === 'missing') {
+    lines.push('- route ledger file is missing at the expected Spark state path');
+  } else if (summary.routeLedgerState === 'empty') {
+    lines.push('- route ledger file exists but has no rows');
+  } else if (summary.routeLedgerState === 'invalid') {
+    lines.push('- route ledger file exists but has no valid natural-route rows');
+  }
+  if (summary.finalAnswerAuditRows > 0 || summary.outboundAuditRows > 0) {
+    lines.push('- Telegram reply/proof audit rows exist, so this is specifically a route-ledger capture gap');
+  }
+  if (summary.currentEnvLedgerDisabled) {
+    lines.push('- current checker environment has SPARK_NATURAL_ROUTE_LEDGER=0; live runtime must not use that setting for proof capture');
+  }
+  lines.push('- verify the live relay is running the current built source, then send the safe prompts below');
+  return lines;
 }
 
 function liveTraceCaptureGuideLines(): string[] {
@@ -212,8 +261,17 @@ function summarizeRouteJoin(record: NaturalRouteExecutionRecord, index: RefIndex
   };
 }
 
-function readJsonl(filePath: string): { records: unknown[]; totalRows: number; parseErrors: number } {
-  if (!fs.existsSync(filePath)) return { records: [], totalRows: 0, parseErrors: 0 };
+interface JsonlReadResult {
+  records: unknown[];
+  totalRows: number;
+  parseErrors: number;
+  exists: boolean;
+  bytes: number;
+}
+
+function readJsonl(filePath: string): JsonlReadResult {
+  if (!fs.existsSync(filePath)) return { records: [], totalRows: 0, parseErrors: 0, exists: false, bytes: 0 };
+  const stat = fs.statSync(filePath);
   const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).filter(Boolean);
   const records: unknown[] = [];
   let parseErrors = 0;
@@ -224,7 +282,7 @@ function readJsonl(filePath: string): { records: unknown[]; totalRows: number; p
       parseErrors += 1;
     }
   }
-  return { records, totalRows: lines.length, parseErrors };
+  return { records, totalRows: lines.length, parseErrors, exists: true, bytes: stat.size };
 }
 
 function indexEvidenceRefs(records: unknown[]): RefIndex {

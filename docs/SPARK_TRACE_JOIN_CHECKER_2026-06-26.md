@@ -42,6 +42,15 @@ npm run control:proof:live-trace
 
 This is shorthand for strict trace-join checking with `--require-live-evidence --min-route-rows 4`. It fails when the route ledger has fewer than four joined route rows, even if the rows that exist are individually clean.
 
+The live report separates the route-ledger state from the join result:
+
+- `missing`: the expected route ledger file is absent.
+- `empty`: the ledger exists but has no rows.
+- `invalid`: the ledger exists but has parse errors or no valid `spark.nlp.route_execution.v1` rows.
+- `ready`: the ledger has valid natural-route rows.
+
+When route rows are absent while final-answer or outbound Telegram proof audit rows exist, treat it as a route-ledger capture gap. First verify the live relay is running the current built source and that the live runtime did not disable `SPARK_NATURAL_ROUTE_LEDGER`, then send the safe SparkRecursive_bot prompts and rerun the live gate.
+
 Safe Telegram prompts for the four live rows:
 
 ```text
