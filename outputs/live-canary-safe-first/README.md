@@ -11,6 +11,7 @@ This folder is the live Telegram release packet. It starts not ready until each 
 - Coverage: outputs/live-canary-safe-first/live-canary-coverage.md
 - Current summary: outputs/live-canary-safe-first/live-canary-summary.md
 - Current summary JSON: outputs/live-canary-safe-first/live-canary-summary.json
+- Focused proof recapture guide: outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md
 
 ## Run Order
 
@@ -26,6 +27,14 @@ npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first
 This selected-case gate is ready when every case in this bundle passed with required captures present and top-level runtime evidence is clean. It is not the full release gate until the complete canary pack is run.
 
 `--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.
+
+If the summary prints `Recapture hint` for stale `/proof` panel captures, generate the focused guide instead of rerunning unrelated cases first:
+
+```bash
+npm run control:proof:canaries -- --observations 'outputs/live-canary-safe-first/live-canary-observations.json' --stale-proof-run-guide --out 'outputs/live-canary-safe-first/live-canary-proof-recapture-guide.md'
+```
+
+The focused guide includes only cases whose recorded proof panel is missing required readiness fields, such as `Audit actionable`, `Audit fresh-strict`, or `Audit posture`; its generated record commands refresh the current summary files.
 
 The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.
 

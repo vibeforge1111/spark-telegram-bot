@@ -501,6 +501,7 @@ function writeReleaseBundle(
   const coveragePath = join(outDir, 'live-canary-coverage.md');
   const summaryPath = join(outDir, 'live-canary-summary.md');
   const summaryJsonPath = join(outDir, 'live-canary-summary.json');
+  const proofRecaptureGuidePath = join(outDir, 'live-canary-proof-recapture-guide.md');
   const readmePath = join(outDir, 'README.md');
   const template = buildControlProofCanaryObservationTemplate(cases);
   const observations = collectEvidence
@@ -524,6 +525,7 @@ function writeReleaseBundle(
     coveragePath,
     summaryPath,
     summaryJsonPath,
+    proofRecaptureGuidePath,
     fullReleasePack: coverage.releasePackComplete
   }), 'utf8');
 
@@ -549,11 +551,13 @@ function formatReleaseBundleReadme(paths: {
   coveragePath: string;
   summaryPath: string;
   summaryJsonPath: string;
+  proofRecaptureGuidePath: string;
   fullReleasePack: boolean;
 }): string {
   const checkFlag = paths.fullReleasePack ? '--release-check' : '--strict';
   const checkName = paths.fullReleasePack ? 'release check' : 'selected-case strict check';
   const publishCheckCommand = `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --publish-check`;
+  const proofRecaptureCommand = `npm run control:proof:canaries -- --observations '${paths.observationsPath.replace(/'/g, `'\\''`)}' --stale-proof-run-guide --out '${paths.proofRecaptureGuidePath.replace(/'/g, `'\\''`)}'`;
   const readinessRule = paths.fullReleasePack
     ? 'The release gate is ready only when the release check reports every selected case as pass with required captures present, required category coverage is complete, and the full release pack is present.'
     : 'This selected-case gate is ready when every case in this bundle passed with required captures present and top-level runtime evidence is clean. It is not the full release gate until the complete canary pack is run.';
@@ -571,6 +575,7 @@ function formatReleaseBundleReadme(paths: {
     `- Coverage: ${paths.coveragePath}`,
     `- Current summary: ${paths.summaryPath}`,
     `- Current summary JSON: ${paths.summaryJsonPath}`,
+    `- Focused proof recapture guide: ${paths.proofRecaptureGuidePath}`,
     '',
     '## Run Order',
     '',
@@ -594,6 +599,14 @@ function formatReleaseBundleReadme(paths: {
     readinessRule,
     '',
     '`--release-check` treats runtime evidence older than one hour as stale. Refresh runtime evidence immediately before making a release or publish claim.',
+    '',
+    'If the summary prints `Recapture hint` for stale `/proof` panel captures, generate the focused guide instead of rerunning unrelated cases first:',
+    '',
+    '```bash',
+    proofRecaptureCommand,
+    '```',
+    '',
+    'The focused guide includes only cases whose recorded proof panel is missing required readiness fields, such as `Audit actionable`, `Audit fresh-strict`, or `Audit posture`; its generated record commands refresh the current summary files.',
     '',
     'The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.',
     '',

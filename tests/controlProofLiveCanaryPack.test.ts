@@ -3083,6 +3083,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     const bundledSummaryJsonPath = resolve(bundleDir, 'live-canary-summary.json');
     const bundledReadmePath = resolve(bundleDir, 'README.md');
     const bundledCoveragePath = resolve(bundleDir, 'live-canary-coverage.md');
+    const bundledProofRecaptureGuidePath = resolve(bundleDir, 'live-canary-proof-recapture-guide.md');
     assert.equal(JSON.parse(readFileSync(bundledObservationsPath, 'utf8')).cases[0].id, 'cp-builder-001');
     assert.match(releaseBundle.stdout, /README:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Control-Proof Live Canary Bundle/);
@@ -3125,6 +3126,12 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --strict`));
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Coverage:/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /Current summary JSON:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Focused proof recapture guide:/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), new RegExp(escapeRegExp(bundledProofRecaptureGuidePath)));
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /--stale-proof-run-guide --out/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit actionable/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit fresh-strict/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Audit posture/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--observations '${escapeRegExp(bundledObservationsPath)}' --record-case cp-builder-001`));
     assert.match(readFileSync(bundledGuidePath, 'utf8'), /--record-case cp-builder-001[\s\S]*--no-other-side-effects/);
     assert.match(readFileSync(bundledGuidePath, 'utf8'), new RegExp(`--summary-out '${escapeRegExp(bundledSummaryPath)}'`));
