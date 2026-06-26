@@ -73,7 +73,8 @@ function usage(): string {
     '  npm run control:proof:canaries -- --category streaming --list',
     '  npm run control:proof:canaries -- --include-actions --checklist',
     '',
-    'Default selection excludes intentional live actions. Explicit --case/--cases can select them.'
+    'Default selection excludes intentional live actions. Explicit --case/--cases can select them.',
+    '--summary-frozen-at-collected is for checked fixture regeneration only; do not use it for live release claims or to bypass --refresh-runtime-evidence.'
   ].join('\n');
 }
 

@@ -2637,6 +2637,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
 
   assert.equal(help.status, 0, help.stderr);
   assert.match(help.stdout, /--summary-frozen-at-collected/);
+  assert.match(help.stdout, /checked fixture regeneration only; do not use it for live release claims or to bypass --refresh-runtime-evidence/);
 
   const list = spawnSync(
     process.execPath,
