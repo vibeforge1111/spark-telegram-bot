@@ -1709,6 +1709,15 @@ test('observation summary rejects dirty runtime evidence even when packet fields
   assert.equal(dirtyRuntimeCompile.readyForRelease, false);
   assert.deepEqual(dirtyRuntimeCompile.invalidPacketEvidence, ['spark_os_compile']);
 
+  template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":1,"blocked_release_count":1,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":1,"broad_dirty_repo_count":1},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"publish_handoffs":{"schema_version":"spark.publish_handoffs.summary.v0","family_count":1,"families":["repo_release_blocks"],"blocked_release_repos":[{"repo":"spark-world-editor","risk_class":"high","reason":"dirty worktree","next_safe_action":"curate local changes before merge or release","behind":0}]},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+  const handedOffDirtyRuntimeCompile = summarizeControlProofCanaryObservations(template);
+  assert.equal(handedOffDirtyRuntimeCompile.readyForRelease, true);
+  assert.equal(handedOffDirtyRuntimeCompile.readyForPublish, false);
+  assert.deepEqual(handedOffDirtyRuntimeCompile.invalidPacketEvidence, []);
+  assert.deepEqual(handedOffDirtyRuntimeCompile.releaseHandoffs, [
+    'spark-world-editor: publish_blocked repo_release_blocks; reason: dirty worktree; behind=0; next safe action: curate local changes before merge or release'
+  ]);
+
   template.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${template.evidence.collectedAt}","ok":true,"gaps":0,"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":0,"critical_duplicate_truth_count":0},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":0}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
   const publishCleanCompile = summarizeControlProofCanaryObservations(template);
   assert.equal(publishCleanCompile.readyForRelease, true);

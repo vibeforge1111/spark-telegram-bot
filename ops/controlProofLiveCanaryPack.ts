@@ -63,6 +63,7 @@ function usage(): string {
     '  npm run control:proof:canaries -- --observations outputs/live-canary/live-canary-observations.json --refresh-runtime-evidence',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --release-check',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --publish-check',
+    '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --summary-frozen-at-collected',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --stale-proof-run-guide',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --repair-stale-proof-panels',
     '  npm run control:proof:canaries -- --observations outputs/live-canaries.json --record-case cp-builder-001 --verdict pass --reply-file /tmp/reply.txt --mission-started false --no-other-side-effects --proof-join "Builder joined" --proof-panel "Harness Proof" --screenshot-file /tmp/case.png --user-confirmation "confirmed"',
@@ -687,6 +688,7 @@ function main(): void {
     const publishCheck = hasFlag(args, 'publish-check');
     const refreshRuntimeEvidence = hasFlag(args, 'refresh-runtime-evidence');
     const repairStaleProofPanels = hasFlag(args, 'repair-stale-proof-panels');
+    const summaryFrozenAtCollected = hasFlag(args, 'summary-frozen-at-collected');
     const inferredSummaryPaths = inferredBundleSummaryPaths(observationsPath);
     if (inferredSummaryPaths) {
       summaryOutPath ||= inferredSummaryPaths.summaryPath;
@@ -714,10 +716,13 @@ function main(): void {
         `Changed cases: ${result.changedCases.length ? result.changedCases.join(', ') : 'none'}`
       ].join('\n'));
     }
-    const strictFreshSummary = releaseCheck || publishCheck || refreshRuntimeEvidence || Boolean(recordCaseId) || repairStaleProofPanels;
+    const strictFreshSummary = releaseCheck || publishCheck || refreshRuntimeEvidence || Boolean(recordCaseId) || repairStaleProofPanels || summaryFrozenAtCollected;
     const summary = summarizeControlProofCanaryObservations(
       observations,
-      strictFreshSummary ? { maxRuntimeEvidenceAgeHours: 1 } : {}
+      {
+        ...(strictFreshSummary ? { maxRuntimeEvidenceAgeHours: 1 } : {}),
+        ...(summaryFrozenAtCollected ? { now: observations.evidence?.collectedAt } : {})
+      }
     );
     if (hasFlag(args, 'stale-proof-run-guide')) {
       const staleProofCaseIds = summary.cases

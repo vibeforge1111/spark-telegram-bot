@@ -2065,11 +2065,12 @@ function hasCleanSparkOsCompile(value: string): boolean {
   const repoBoard = parsed.repo_board && typeof parsed.repo_board === 'object' && !Array.isArray(parsed.repo_board)
     ? parsed.repo_board as Record<string, unknown>
     : null;
-  if (!repoBoard || Number(repoBoard.dirty_repo_count) !== 0) return false;
+  if (!repoBoard) return false;
   const gate = parsed.gate && typeof parsed.gate === 'object' && !Array.isArray(parsed.gate)
     ? parsed.gate as Record<string, unknown>
     : null;
-  if (!gate || Number(gate.dirty_repo_count) !== 0 || Number(gate.broad_dirty_repo_count) !== 0) return false;
+  if (!gate) return false;
+  if (!compileDirtyStateIsCleanOrHandedOff(parsed, repoBoard, gate)) return false;
   const privacy = parsed.privacy && typeof parsed.privacy === 'object' && !Array.isArray(parsed.privacy)
     ? parsed.privacy as Record<string, unknown>
     : null;
@@ -2082,6 +2083,34 @@ function hasCleanSparkOsCompile(value: string): boolean {
   ];
   if (!privacy || requiredPrivacyFlags.some((key) => privacy[key] !== false)) return false;
   return true;
+}
+
+function compileDirtyStateIsCleanOrHandedOff(
+  parsed: Record<string, unknown>,
+  repoBoard: Record<string, unknown>,
+  gate: Record<string, unknown>
+): boolean {
+  const repoDirty = Number(repoBoard.dirty_repo_count);
+  const gateDirty = Number(gate.dirty_repo_count);
+  const gateBroadDirty = Number(gate.broad_dirty_repo_count);
+  if ([repoDirty, gateDirty, gateBroadDirty].some((value) => !Number.isFinite(value) || value < 0)) return false;
+  if (repoDirty === 0 && gateDirty === 0 && gateBroadDirty === 0) return true;
+  if (repoDirty !== gateDirty || repoDirty !== gateBroadDirty) return false;
+  const publishHandoffs = parsed.publish_handoffs && typeof parsed.publish_handoffs === 'object' && !Array.isArray(parsed.publish_handoffs)
+    ? parsed.publish_handoffs as Record<string, unknown>
+    : null;
+  const blockedRepos = publishHandoffs && Array.isArray(publishHandoffs.blocked_release_repos)
+    ? publishHandoffs.blocked_release_repos
+    : [];
+  const dirtyRepoHandoffs = blockedRepos.filter((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const row = entry as Record<string, unknown>;
+    return /^[a-z0-9_.-]+$/i.test(String(row.repo || '')) &&
+      String(row.reason || '').trim() === 'dirty worktree' &&
+      String(row.next_safe_action || '').trim().length > 0 &&
+      !proofPanelLeaksRawInternals(String(row.next_safe_action || ''));
+  });
+  return dirtyRepoHandoffs.length >= repoDirty;
 }
 
 function sparkOsCompileReleaseCaveats(value: string | null | undefined): string[] {
