@@ -405,6 +405,7 @@ test('distinguishes historical legacy proof gaps from the latest clean producer 
     assert.match(report, /builder_gateway: .*proof_gap 1 .* gap_capsule 1 .* gap_capsule_valid 1 .* gap_ref 1 .* gap_backing complete .* latest_gap no/);
     assert.match(report, /Gap posture: backed legacy gaps only; no blocking or latest proof gaps/);
     assert.match(report, /latest proof gaps: 0/);
+    assert.match(report, /legacy proof gaps: builder_gateway \(backing complete; latest gaps 0; release blocking no\)/);
   });
 });
 

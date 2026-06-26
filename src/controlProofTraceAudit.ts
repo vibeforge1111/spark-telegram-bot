@@ -226,7 +226,7 @@ export function formatControlProofTraceAuditReport(result: ControlProofTraceAudi
     `- robotic failure reasons: ${result.gapCounts.roboticFailureReply}`,
     `- stack-like leaks: ${result.gapCounts.stackLikeLeak}`
   );
-  const gapDetails = formatGapPlaneDetails(result.gapPlanes);
+  const gapDetails = formatGapPlaneDetails(result);
   if (gapDetails.length > 0) {
     lines.push('', 'Gap planes:', ...gapDetails);
   }
@@ -490,10 +490,26 @@ function summarizeGapPlanes(planes: ControlProofTracePlaneSummary[]): Record<key
   };
 }
 
-function formatGapPlaneDetails(gapPlanes: Record<keyof ControlProofGapCounts, string[]>): string[] {
-  return (Object.entries(gapPlanes) as Array<[keyof ControlProofGapCounts, string[]]>)
+function formatGapPlaneDetails(result: ControlProofTraceAuditResult): string[] {
+  return (Object.entries(result.gapPlanes) as Array<[keyof ControlProofGapCounts, string[]]>)
     .filter(([, planes]) => planes.length > 0)
-    .map(([key, planes]) => `- ${gapCountLabel(key)}: ${planes.join(', ')}`);
+    .map(([key, planes]) => `- ${gapCountLabel(key)}: ${planes.join(', ')}${gapPlaneDecisionSuffix(key, result)}`);
+}
+
+function gapPlaneDecisionSuffix(key: keyof ControlProofGapCounts, result: ControlProofTraceAuditResult): string {
+  if (key !== 'legacyProofGap') return '';
+  const legacyGapPlanes = result.planes.filter((plane) => !plane.missing && plane.proofGapMarked > 0);
+  const latestGapPlaneCount = legacyGapPlanes.filter((plane) => plane.latestProofGapMarked).length;
+  const incompleteBackingPlaneCount = legacyGapPlanes.filter((plane) => plane.proofGapBackingIncomplete > 0).length;
+  const completeBackingPlaneCount = legacyGapPlanes.filter((plane) => plane.proofGapBacking === 'complete').length;
+  const backingStatus =
+    incompleteBackingPlaneCount > 0
+      ? 'incomplete'
+      : completeBackingPlaneCount === legacyGapPlanes.length && legacyGapPlanes.length > 0
+        ? 'complete'
+        : 'none';
+  const releaseBlocking = latestGapPlaneCount > 0 || incompleteBackingPlaneCount > 0;
+  return ` (backing ${backingStatus}; latest gaps ${latestGapPlaneCount}; release blocking ${releaseBlocking ? 'yes' : 'no'})`;
 }
 
 function gapCountLabel(key: keyof ControlProofGapCounts): string {
