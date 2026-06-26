@@ -5306,7 +5306,13 @@ bot.start(async (ctx) => {
     '/forget <text> - Ask me to forget a saved detail',
     '',
     'Spark Intelligence:',
-    '/spark - System status'
+    '/spark - System status',
+    '/resonance - Show current resonance state',
+    '/insights - Recent cognitive insights',
+    '/lessons - Recent surprise lessons',
+    '/process - Process any queued events',
+    '/reflect - Trigger a deep reflection pass',
+    '/voice - Voice onboarding and status'
   ];
 
   if (conversation.isAdmin(user)) {
