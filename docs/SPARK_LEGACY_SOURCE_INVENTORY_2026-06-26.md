@@ -53,7 +53,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `ops/natural-language-live-commands.json` | read-only evidence | Broad legacy Telegram NL catalog; source material only until promoted into canaries. |
 | `ops/genesis-live-telegram-100.json` | read-only evidence | Historical breadth benchmark and periodic drift sweep, not everyday release proof. |
 | `ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md` | read-only evidence | Live prompt-card workflow and old matrix history; `nl:live` alone is not control-proof readiness. |
-| `ops/routeBoundaryHandlerHarness.ts` | read-only evidence | Fast deterministic route-boundary helper; it strips live Telegram streaming/rich rendering. |
+| `ops/routeBoundaryHandlerHarness.ts` | read-only evidence | Fast Telegram-shaped route-boundary and trace-join helper; it proves handler joins but still does not prove live Bot API delivery, streaming, or rich rendering. |
 | `ops/liveNlCommandSuite.ts` | read-only evidence | Legacy NL runner and Harness map helper; not release proof. |
 | `ops/liveNlVerdictReport.ts` | read-only evidence | Legacy evidence exporter with `claim_scope=legacy_breadth`, `release_gate=none`. |
 | `ops/naturalRouteReplay.ts` | read-only evidence | Route replay helper for breadth and drift; not a release gate. |

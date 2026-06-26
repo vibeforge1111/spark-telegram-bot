@@ -70,6 +70,12 @@ test('route boundary handler harness keeps guarded prompts on intended routes', 
 
   const report = readFileSync(reportPath, 'utf8');
   assert.match(report, /Summary: 4\/4 cases passed\./);
+  assert.match(report, /Trace join:/);
+  assert.match(report, /Status: clean/);
+  assert.match(report, /Route rows: 4\/4 sampled/);
+  assert.match(report, /Joined rows: 4/);
+  assert.match(report, /missing reply joins: 0/);
+  assert.match(report, /missing proof joins: 0/);
   assert.match(report, /Actual route: agent_doctrine\.global_blocked/);
   assert.match(report, /Actual route: conversation\.ideation/);
   assert.doesNotMatch(report, /BOT_TOKEN|TELEGRAM_BOT_TOKEN|sk-[A-Za-z0-9]/i);

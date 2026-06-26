@@ -32,6 +32,18 @@ npm run control:proof:trace-join -- --sample 100
 npm run control:proof:trace-join -- --json
 ```
 
+## Repeatable Handler Proof
+
+Use the route boundary handler harness for a local Telegram-shaped proof sample:
+
+```bash
+npx ts-node ops/routeBoundaryHandlerHarness.ts --cases guard-006,guard-007,build-004,domain-chip-003
+```
+
+The harness now writes the natural route ledger and metadata-only outbound audit into the same temporary state directory, then embeds the trace join checker result in its report. A clean harness report must show joined route rows, zero missing reply joins, and zero missing proof joins.
+
+This is handler-level proof. It runs the real text handler with Telegram-shaped update objects, but it does not call Telegram `getUpdates`, start bot polling, or prove Bot API delivery. Live Telegram proof is still required before claiming the deployed bot has produced fresh live route rows.
+
 ## Clean Result
 
 A joined route row must have:
