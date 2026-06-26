@@ -17,6 +17,8 @@ The strict inventory checker also joins this document to the legacy prompt-surfa
 
 Any concrete Markdown doc under `docs/` marked `active` here must also be listed in `docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md`, so current docs remain reachable through the canonical control map.
 
+If the docs index lists a non-active doc, that index entry must visibly mark it as historical, previous, read-only, superseded, or non-authoritative. Context can stay reachable, but stale docs must not look like fresh-turn control authority.
+
 Active canary evidence folders must also contain the core packet files before they can count as current proof: `live-canary-observations.json`, `live-canary-summary.md`, and `live-canary-summary.json`.
 
 Inventory boundaries must explain the status-specific control rule. Read-only evidence rows must say how they can be used as evidence, history, breadth, classification, or promotion material; archive candidates must say archive/extraction/no-prompt behavior; delete candidates must say owner-reviewed removal meaning.

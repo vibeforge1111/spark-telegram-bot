@@ -58,6 +58,30 @@ export function parseCanonicalDocs(markdown: string): string[] {
   return [...docs].sort();
 }
 
+function parseCanonicalDocNotes(markdown: string): Map<string, string> {
+  const notes = new Map<string, string>();
+  let currentDoc: string | null = null;
+  let currentLines: string[] = [];
+
+  function flush(): void {
+    if (!currentDoc) return;
+    notes.set(currentDoc, currentLines.join('\n'));
+  }
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const match = line.match(/^\d+\.\s+`([^`]+)`/);
+    if (match) {
+      flush();
+      currentDoc = match[1].trim();
+      currentLines = [line];
+      continue;
+    }
+    if (currentDoc) currentLines.push(line);
+  }
+  flush();
+  return notes;
+}
+
 export function deriveLegacyPromptBlockedSources(blockedRefs = LEGACY_PROMPT_SURFACE_BLOCKED_REFS): string[] {
   const sources = new Set<string>();
   for (const ref of blockedRefs) {
@@ -116,6 +140,10 @@ function hasStatusSpecificBoundary(entry: SourceInventoryEntry): boolean {
   return false;
 }
 
+function hasNonActiveCanonicalBoundary(note: string): boolean {
+  return /\b(?:read-only|historical|previous|older|superseded|prefer the|not (?:the )?(?:active|current|release|publish|authority)|not control-proof readiness|not the new control-proof release gate)\b/i.test(note);
+}
+
 export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
@@ -128,6 +156,7 @@ export function checkSourceInventory(options: {
   const docsIndex = readFileSync(docsIndexPath, 'utf8');
   const entries = parseSourceInventory(inventory);
   const canonicalDocs = parseCanonicalDocs(docsIndex);
+  const canonicalDocNotes = parseCanonicalDocNotes(docsIndex);
   const legacyPromptBlockedSources = options.legacyPromptBlockedSources ?? deriveLegacyPromptBlockedSources();
   const gaps: SourceInventoryGap[] = [];
 
@@ -182,6 +211,20 @@ export function checkSourceInventory(options: {
       gaps.push({
         code: 'missing_canonical_doc_classification',
         message: `${doc} is listed in the docs index but not classified in the legacy source inventory.`
+      });
+    }
+  }
+
+  for (const doc of canonicalDocs) {
+    const matchingEntries = entries.filter((entry) => entryMatchesSource(entry, doc));
+    if (matchingEntries.length === 0) continue;
+    const statuses = new Set(matchingEntries.map((entry) => entry.status));
+    if (statuses.has('active')) continue;
+    const note = canonicalDocNotes.get(doc) || '';
+    if (!hasNonActiveCanonicalBoundary(note)) {
+      gaps.push({
+        code: 'non_active_doc_missing_index_boundary',
+        message: `${doc} is listed in the canonical docs index as ${[...statuses].sort().join(', ')} but the index entry does not mark it historical, previous, read-only, superseded, or non-authoritative.`
       });
     }
   }

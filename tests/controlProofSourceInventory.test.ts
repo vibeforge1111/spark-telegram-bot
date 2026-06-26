@@ -105,6 +105,60 @@ test('fails when an active inventory doc is missing from the canonical docs inde
   assert.match(formatSourceInventoryReport(result), /docs\/unindexed-active\.md is marked active/);
 });
 
+test('fails when a non-active doc is indexed without a stale-authority boundary', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/current.md` | active | Current source. |',
+    '| `docs/history.md` | read-only evidence | Not fresh-turn authority; historical source. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, [
+    '1. `docs/current.md`',
+    '   - Current source.',
+    '',
+    '2. `docs/history.md`',
+    '   - Useful source.'
+  ].join('\n'));
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.code === 'non_active_doc_missing_index_boundary'));
+  assert.match(formatSourceInventoryReport(result), /does not mark it historical, previous, read-only, superseded, or non-authoritative/);
+});
+
+test('allows non-active docs in the index when their entry marks the stale boundary', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/current.md'), 'current');
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/current.md` | active | Current source. |',
+    '| `docs/history.md` | read-only evidence | Not fresh-turn authority; historical source. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, [
+    '1. `docs/current.md`',
+    '   - Current source.',
+    '',
+    '2. `docs/history.md`',
+    '   - Previous baseline; read-only historical context.'
+  ].join('\n'));
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, true);
+});
+
 test('fails when a prompt-surface blocked legacy source is not classified', () => {
   const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
   const inventoryPath = join(dir, 'inventory.md');
