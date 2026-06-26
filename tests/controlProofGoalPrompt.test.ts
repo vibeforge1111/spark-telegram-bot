@@ -17,6 +17,8 @@ const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-
 const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 const DOCS_INDEX_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_DOCS_INDEX_2026-06-24.md');
 const LEGACY_SOURCE_INVENTORY_PATH = resolve(ROOT, 'docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md');
+const RELIABILITY_CONTROL_WORKPLAN_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26.md');
+const RELIABILITY_CONTROL_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26.md');
 const RELIABILITY_GOAL_PROMPT_PATH = resolve(ROOT, 'docs/SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26.md');
 const RENDER_FIREWALL_PATH = resolve(ROOT, 'docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md');
 const TRACE_JOIN_CHECKER_PATH = resolve(ROOT, 'docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md');
@@ -56,7 +58,10 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /reduce proof gaps and trace-join gaps before expanding UI, media support, or new visible features/);
   assert.match(index, /directly closes a measured control-proof gap/);
   assert.match(index, /SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26\.md/);
+  assert.match(index, /SPARK_RELIABILITY_CONTROL_WORKPLAN_2026-06-26\.md/);
+  assert.match(index, /SPARK_RELIABILITY_CONTROL_GOAL_PROMPT_2026-06-26\.md/);
   assert.match(index, /SPARK_RELIABILITY_LADDER_GOAL_PROMPT_2026-06-26\.md/);
+  assert.match(index, /Prefer the newer reliability control goal prompt for active lanes/);
   assert.match(index, /SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md/);
   assert.match(index, /SPARK_TRACE_JOIN_CHECKER_2026-06-26\.md/);
   assert.match(index, /SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26\.md/);
@@ -73,6 +78,33 @@ test('docs index routes future work through the proof-first entry condition', ()
   assert.match(index, /Surface eval behavior updates `SPARK_SURFACE_EVAL_2026-06-26\.md`/);
   assert.match(index, /Telegram render-firewall behavior updates `SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26\.md`/);
   assert.match(index, /Legacy plans, catalogs, runbooks, and handoffs are classified before they influence a fresh turn/);
+});
+
+test('active reliability control goal prompt stays compact and proof-first', () => {
+  const promptDoc = readFileSync(RELIABILITY_CONTROL_GOAL_PROMPT_PATH, 'utf8');
+  const prompt = promptDoc.match(/```text\n([\s\S]*?)\n```/)?.[1] ?? '';
+
+  assert.ok(prompt.length > 0, 'active reliability control goal prompt block missing');
+  assert.ok(prompt.length < 4000, `active reliability prompt is ${prompt.length} chars; must stay under 4000`);
+  assert.match(prompt, /First reduce proof gaps and trace-join gaps\./);
+  assert.match(prompt, /Do not expand UI, media support, or new features unless they directly close a measured control-proof gap\./);
+  assert.match(prompt, /Current live gap: `npm run control:proof:live-trace` still needs real SparkRecursive_bot Telegram text turns/);
+  assert.match(prompt, /Natural-language suite: keep the old NL catalog as fast breadth coverage and promotion source material/);
+  assert.match(prompt, /Do not widen media, UI, or composition scope until proof gaps and trace joins are reduced/);
+  assert.match(prompt, /Canary evidence distinguishes scoped release readiness from publish readiness/);
+});
+
+test('active reliability control workplan records status and task order', () => {
+  const workplan = readFileSync(RELIABILITY_CONTROL_WORKPLAN_PATH, 'utf8');
+
+  assert.match(workplan, /Current blocker:/);
+  assert.match(workplan, /Live trace-join proof still needs real SparkRecursive_bot Telegram text turns/);
+  assert.match(workplan, /Active Task Order/);
+  assert.match(workplan, /Reduce proof gaps and trace-join gaps/);
+  assert.match(workplan, /Lock hidden-source boundaries/);
+  assert.match(workplan, /Require proof capsules on action-capable routes/);
+  assert.match(workplan, /Expand evals only where they close measured gaps/);
+  assert.match(workplan, /Refresh evidence and docs after each slice/);
 });
 
 test('control-proof plan documents current proof repair and release boundaries', () => {

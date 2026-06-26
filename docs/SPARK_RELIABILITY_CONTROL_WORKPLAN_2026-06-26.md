@@ -1,0 +1,69 @@
+# Spark Reliability Control Workplan
+
+Date: 2026-06-26
+Status: active control program
+
+## Purpose
+
+This doc keeps the reliability work organized while the active goal prompt stays compact enough to paste into a writable Codex lane.
+
+The current rule is proof first: reduce proof gaps, trace-join gaps, and hidden-source influence before expanding UI, media support, rich composition, or other new features.
+
+## Current Baseline
+
+Already built or documented:
+
+- Legacy source inventory: `docs/SPARK_LEGACY_SOURCE_INVENTORY_2026-06-26.md`
+- Render firewall: `docs/SPARK_TELEGRAM_RENDER_FIREWALL_2026-06-26.md`
+- Trace join checker: `docs/SPARK_TRACE_JOIN_CHECKER_2026-06-26.md`
+- Proof capsule coverage: `docs/SPARK_PROOF_CAPSULE_COVERAGE_2026-06-26.md`
+- Reliability eval coverage: `docs/SPARK_RELIABILITY_EVAL_COVERAGE_2026-06-26.md`
+- Legacy prompt surface gate: `docs/SPARK_LEGACY_PROMPT_SURFACE_2026-06-26.md`
+- Capability evidence: `docs/SPARK_CAPABILITY_EVIDENCE_2026-06-26.md`
+- Surface eval: `docs/SPARK_SURFACE_EVAL_2026-06-26.md`
+- Natural-language suite audit: `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md`
+- Current canary evidence: `outputs/live-canary-full/live-canary-summary.md`
+
+Current blocker:
+
+- Live trace-join proof still needs real SparkRecursive_bot Telegram text turns joined from user intent through route decision, action/no-action, and reply/proof evidence. Empty route samples are not release proof.
+
+## Active Task Order
+
+1. Reduce proof gaps and trace-join gaps.
+   - Prove the live route ledger is present, current, and joined.
+   - Make missing live rows explain whether the ledger is absent, disabled, stale, or simply uncaptured.
+   - Keep `npm run control:proof:live-trace` as the strict proof gate for this slice.
+
+2. Lock hidden-source boundaries.
+   - Keep legacy plans classified as active, read-only evidence, archive candidate, or delete candidate.
+   - Keep old plans out of ordinary prompts and UI summaries unless explicitly inspected.
+   - Preserve backed historical gaps as history, not fresh Harness authority.
+
+3. Require proof capsules on action-capable routes.
+   - Every action-capable path must emit or join one proof capsule.
+   - No-action turns must explicitly prove no action happened.
+   - Action without proof stays a release blocker.
+
+4. Expand evals only where they close measured gaps.
+   - Keep `do not run`, `just explain`, build/mission mentions, stale memory conflicts, images, audio, streaming/rich messages, and publish handoffs represented.
+   - Do not add broad UI/media/composition work unless the missing eval or proof join is named first.
+
+5. Refresh evidence and docs after each slice.
+   - Update the relevant doc in the same commit or an adjacent commit.
+   - Refresh live canary packets when source, tests, or docs alter release evidence.
+   - Commit small, reviewable steps.
+
+## Documentation Rule
+
+When new behavior lands, update the active implementation doc and this workplan if the task order or baseline changes. Do not let old Spark docs silently define the current system; mark historical material as historical instead of rewriting it into current authority.
+
+## Done For This Phase
+
+This phase is done only when:
+
+- Fresh live route rows join user intent, route decision, action/no-action, and reply/proof evidence.
+- Hidden context cannot reach ordinary Telegram replies.
+- Action-capable routes have proof capsules or explicit no-action proof.
+- Legacy sources are classified and kept out of fresh prompts unless inspected.
+- The canary packet says the scoped release gate is ready, with publish readiness kept separate.
