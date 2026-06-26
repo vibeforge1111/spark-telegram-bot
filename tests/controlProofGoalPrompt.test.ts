@@ -61,6 +61,7 @@ test('control-proof plan documents current proof repair and release boundaries',
   assert.match(plan, /trace-only rows stay under `Evidence trace-only` and must not be counted as `Evidence joined`/);
   assert.match(plan, /matching `Legacy gap backing` detail row with complete backing/);
   assert.match(plan, /proof panels must name `incomplete legacy gap backing` in `Blocking gap planes`/);
+  assert.match(plan, /packet evidence is invalid under `legacy_repair_dry_run`/);
 });
 
 test('natural-language refurbishment keeps promotion proof-first', () => {
