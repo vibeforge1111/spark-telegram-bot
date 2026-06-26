@@ -4,7 +4,8 @@ export type CreatorMissionVerdict =
   | 'prototype'
   | 'ready_for_baseline'
   | 'ready_for_swarm_packet'
-  | 'blocked';
+  | 'blocked'
+  | 'unknown';
 
 export type CreatorMissionStageStatus =
   | 'prototype'
@@ -62,7 +63,7 @@ export function validateCreatorMissionStatusForTelegram(value: unknown): Creator
   }
 
   const canonical = requireRecord(packet.canonical, 'creator mission canonical');
-  requireAllowed(canonical.verdict, ['prototype', 'ready_for_baseline', 'ready_for_swarm_packet', 'blocked'], 'verdict');
+  requireAllowed(canonical.verdict, ['prototype', 'ready_for_baseline', 'ready_for_swarm_packet', 'blocked', 'unknown'], 'verdict');
   requireAllowed(canonical.stage_status, ['prototype', 'ready_for_baseline', 'review_required', 'blocked', 'unknown'], 'stage status');
   requireAllowed(canonical.evidence_tier, ['local_only', 'candidate_review', 'transfer_supported'], 'evidence tier');
 
