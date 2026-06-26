@@ -1199,7 +1199,10 @@ test('streaming canaries require runtime status and rich-message proof shape', (
   template.cases[1].observed.userConfirmation = 'Verified in SparkRecursive_bot via Telegram without duplicate preview or final artifact.';
   const roboticRichMessageProof = summarizeControlProofCanaryObservations(template);
   assert.equal(roboticRichMessageProof.readyForRelease, false);
-  assert.deepEqual(roboticRichMessageProof.cases[1].missingCaptures, ['observed_reply_robotic_shape']);
+  assert.deepEqual(roboticRichMessageProof.cases[1].missingCaptures, [
+    'observed_reply_robotic_shape',
+    'observed_reply_rich_message_shape'
+  ]);
 
   template.cases[0].observed.reply = [
     'Spark Recursive',
