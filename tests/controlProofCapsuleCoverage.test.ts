@@ -103,6 +103,28 @@ test('coverage checker rejects markerless proof policies', () => {
   assert.match(formatProofCapsuleCoverageReport(result), /missing_marker_policy/);
 });
 
+test('coverage checker rejects duplicate source markers', () => {
+  const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
+    policy.planeId === 'legacy-plane:telegram-action-authority'
+      ? {
+          ...policy,
+          requiredSourceMarkers: [
+            'recordHarnessCoreAuthorizationLedger',
+            'recordHarnessCoreAuthorizationLedger'
+          ]
+        }
+      : policy
+  ));
+  const result = checkProofCapsuleCoverage({ repoRoot: process.cwd(), policies });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => (
+    gap.planeId === 'legacy-plane:telegram-action-authority' &&
+    gap.reason === 'duplicate_marker_policy'
+  )));
+  assert.match(formatProofCapsuleCoverageReport(result), /duplicate_marker_policy/);
+});
+
 test('coverage checker rejects generic source markers', () => {
   const policies = ACTION_PROOF_CAPSULE_POLICIES.map((policy) => (
     policy.planeId === 'legacy-plane:telegram-schedule-access-operator'

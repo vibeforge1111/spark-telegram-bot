@@ -21,6 +21,7 @@ export interface ProofCapsuleCoverageGap {
     | 'extra_policy'
     | 'ambiguous_policy'
     | 'missing_marker_policy'
+    | 'duplicate_marker_policy'
     | 'weak_source_marker_policy'
     | 'weak_policy_summary'
     | 'missing_source'
@@ -233,6 +234,18 @@ export function checkProofCapsuleCoverage(input: {
         planeId: plane.plane_id,
         reason: 'missing_marker_policy',
         detail: 'Proof-capsule policy must name at least one source marker so coverage stays source-backed.'
+      });
+    }
+    const markerCounts = new Map<string, number>();
+    for (const marker of matches[0].requiredSourceMarkers) {
+      markerCounts.set(marker, (markerCounts.get(marker) ?? 0) + 1);
+    }
+    for (const [marker, count] of markerCounts) {
+      if (count <= 1) continue;
+      gaps.push({
+        planeId: plane.plane_id,
+        reason: 'duplicate_marker_policy',
+        detail: `Proof-capsule policy marker ${marker} is listed ${count} times; repeated markers do not add source-backed coverage.`
       });
     }
     for (const marker of matches[0].requiredSourceMarkers) {

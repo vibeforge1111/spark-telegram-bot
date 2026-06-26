@@ -32,6 +32,8 @@ Each action-capable inventory plane must have one policy, not zero and not many.
 
 Each policy must also name at least one source marker. A policy without source markers is not source-backed proof; it is only a declaration and must fail the gate.
 
+Source marker lists must be unique. Repeating the same marker does not add another proof source, and the gate treats it as coverage drift rather than broader proof.
+
 Source markers must be specific enough to prove the path being claimed. Broad words like `metadata`, `pending`, `schedule`, `recursive`, `proof`, or `trace` are not enough by themselves; use concrete function names, route names, ledger/authority calls, envelope builders, proof refs, or proof capsule markers.
 
 Policy kind must also match the inventory risk. Execution-capable routes must use `direct_capsule` or `joined_capsule`; `explicit_no_action` is reserved for pending/no-action planes that cannot claim execution proof by themselves.
