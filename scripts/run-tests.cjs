@@ -49,6 +49,7 @@ const tests = [
   'tests/outboundTraceRepair.test.ts',
   'tests/routeConfidenceTraceRepair.test.ts',
   'tests/legacyTraceProofRepair.test.ts',
+  'tests/controlProofGoalPrompt.test.ts',
   'tests/controlProofLiveCanaryPack.test.ts',
   'tests/runtimeFreshness.test.ts',
   'tests/runtimeSyncCompatibility.test.ts',
