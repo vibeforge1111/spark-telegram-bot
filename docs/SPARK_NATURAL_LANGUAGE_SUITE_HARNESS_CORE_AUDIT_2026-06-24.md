@@ -110,6 +110,7 @@ The map derives:
 - Harness authority expectation.
 - Harness mutation class.
 - Recommended use: keep as legacy breadth, promote after refurbishment, or run only with intentional action confirmation.
+- Promotion gap: `none` for legacy breadth, or `name measured control-proof or trace-join gap before promotion` for cases that must not move forward until the proof gap is explicit.
 - Whether proof and visual/user-confirmation capture are required if promoted.
 
 This is deliberately a map, not a release gate. A mapped case is still missing live proof joins, side-effect capture, reply-shape expectations, and Telegram visual confirmation until it is copied into `control:proof:canaries` or an equivalent Harness-shaped canary.
@@ -286,7 +287,7 @@ Result:
 
 The decision still holds after the trace-backlog proof wording slice.
 
-The promotion helper now prints capture requirements beside each mapped case. This closes a proof usability gap: an operator can see that old prompts promoted into Harness-shaped canaries need `observed_reply`, `side_effects`, `proof_panel`, and `screenshot_or_user_confirmation` instead of reading a plain "proof yes" cell as release-ready evidence.
+The promotion helper now prints capture requirements and a `Promotion gap` requirement beside each mapped case. This closes a proof usability gap: an operator can see that old prompts promoted into Harness-shaped canaries need `observed_reply`, `side_effects`, `proof_panel`, and `screenshot_or_user_confirmation`, and also must name the measured control-proof or trace-join gap they close, instead of reading a plain "proof yes" cell as release-ready evidence.
 
 Commands checked:
 
@@ -299,6 +300,7 @@ Result:
 
 - Keep using the map as a promotion helper, not a release gate.
 - Treat the new capture column as the minimum evidence list before any old NL prompt can support a control-proof release claim.
+- Treat the `Promotion gap` column as the proof-first stop sign: if it says a measured gap must be named, do not promote the case for polish, UI expansion, media breadth, or composition upgrades alone.
 
 ## 2026-06-26 Evidence Boundary Recheck
 

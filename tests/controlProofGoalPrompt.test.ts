@@ -53,6 +53,8 @@ test('natural-language refurbishment keeps promotion proof-first', () => {
   assert.match(audit, /Builder catalog contract: `claim_scope=legacy_route_shape`, `release_gate=none`/);
   assert.match(audit, /Telegram legacy NL packets and templates: `claim_scope=legacy_breadth`, `release_gate=none`/);
   assert.match(audit, /Promotion remains proof-first\./);
+  assert.match(audit, /Promotion gap: `none` for legacy breadth, or `name measured control-proof or trace-join gap before promotion`/);
   assert.match(audit, /Do not use an old NL prompt to justify expanded UI, media handling, or new composition features unless the mapped case directly closes a measured control-proof or trace-join gap\./);
+  assert.match(audit, /Treat the `Promotion gap` column as the proof-first stop sign/);
   assert.match(audit, /keep it as legacy breadth or archive it until a proof gap names the missing authority, side effect, trace join, proof join, reply shape, or live Telegram evidence\./);
 });
