@@ -1,10 +1,10 @@
 {
   "summary": {
     "target": "SparkRecursive_bot",
-    "generatedAt": "2026-06-26T22:23:14.931Z",
-    "runtimeEvidenceCollectedAt": "2026-06-26T22:23:14.931Z",
+    "generatedAt": "2026-06-26T22:38:20.457Z",
+    "runtimeEvidenceCollectedAt": "2026-06-26T22:38:20.457Z",
     "runtimeEvidenceMaxAgeHours": 1,
-    "runtimeEvidenceExpiresAt": "2026-06-26T23:23:14.931Z",
+    "runtimeEvidenceExpiresAt": "2026-06-26T23:38:20.457Z",
     "totalCases": 4,
     "verdictCounts": {
       "pass": 4,
@@ -1055,7 +1055,7 @@
       }
     },
     "controlProofAuditDetails": {
-      "generatedAt": "2026-06-26T22:23:06.536Z",
+      "generatedAt": "2026-06-26T22:38:12.640Z",
       "status": "gaps found",
       "actionableStatus": "clean",
       "blockingStatus": "clean",
@@ -1630,10 +1630,10 @@
     "invalidPacketEvidence": [],
     "stalePacketEvidence": [],
     "packetEvidenceDetails": {
-      "generatedAt": "2026-06-26T22:23:14.931Z",
-      "runtimeEvidenceCollectedAt": "2026-06-26T22:23:14.931Z",
+      "generatedAt": "2026-06-26T22:38:20.457Z",
+      "runtimeEvidenceCollectedAt": "2026-06-26T22:38:20.457Z",
       "runtimeEvidenceMaxAgeHours": 1,
-      "runtimeEvidenceExpiresAt": "2026-06-26T23:23:14.931Z",
+      "runtimeEvidenceExpiresAt": "2026-06-26T23:38:20.457Z",
       "missing": [],
       "invalid": [],
       "stale": []
@@ -1641,6 +1641,7 @@
     "cases": [
       {
         "id": "cp-builder-001",
+        "category": "builder",
         "verdict": "pass",
         "sourceRefs": [
           {
@@ -1657,6 +1658,7 @@
       },
       {
         "id": "cp-proof-001",
+        "category": "proof",
         "verdict": "pass",
         "expectedRoute": "proof.inspect",
         "expectedAuthority": "read_only_allowed",
@@ -1666,6 +1668,7 @@
       },
       {
         "id": "cp-streaming-001",
+        "category": "streaming",
         "verdict": "pass",
         "sourceRefs": [
           {
@@ -1682,6 +1685,7 @@
       },
       {
         "id": "cp-streaming-002",
+        "category": "rich_messages",
         "verdict": "pass",
         "sourceRefs": [
           {
