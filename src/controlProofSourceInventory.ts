@@ -100,6 +100,22 @@ function hasHistoricalAuthorityGuard(entry: SourceInventoryEntry): boolean {
   return /\b(?:not (?:fresh-turn authority|authority|release proof|a release gate|everyday release proof|action authority|the active prompt|control-proof readiness|sparkrecursive release|publish proof|live Bot API delivery)|source material only|(?:historical|style) context only|use only|only until|only when|not load into prompts|superseded by|current authority is|outrank|claim_scope=legacy_breadth|release_gate=none)\b/i.test(entry.boundary);
 }
 
+function hasStatusSpecificBoundary(entry: SourceInventoryEntry): boolean {
+  if (entry.status === 'active') {
+    return /\b(?:current|active|authority|source|gate|proof|rules?|behavior|contract|router|inventory|packet|prompt|workplan|standard)\b/i.test(entry.boundary);
+  }
+  if (entry.status === 'read-only evidence') {
+    return /\b(?:read-only|evidence|source material|historical|history|promotion|promoted|breadth|drift|proves|helper|current authority is|superseded by|claim_scope=legacy_breadth|release_gate=none|style context only|supports classification)\b/i.test(entry.boundary);
+  }
+  if (entry.status === 'archive candidate') {
+    return /\b(?:archive|historical context|do not load into prompts|owner review|extract(?:ed|ion)|move to)\b/i.test(entry.boundary);
+  }
+  if (entry.status === 'delete candidate') {
+    return /\b(?:delete|remove|owner[- ]reviewed|owner review|duplicated|unsafe|misleading|no remaining audit value)\b/i.test(entry.boundary);
+  }
+  return false;
+}
+
 export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
@@ -136,6 +152,12 @@ export function checkSourceInventory(options: {
       gaps.push({
         code: 'missing_historical_authority_guard',
         message: `${entry.source} is ${entry.status} but its boundary does not explicitly say it is not fresh-turn authority.`
+      });
+    }
+    if (!hasStatusSpecificBoundary(entry)) {
+      gaps.push({
+        code: 'missing_status_specific_boundary',
+        message: `${entry.source} is ${entry.status} but its boundary does not explain the status-specific control rule.`
       });
     }
     if (!sourceExists(options.repoRoot, entry.source)) {

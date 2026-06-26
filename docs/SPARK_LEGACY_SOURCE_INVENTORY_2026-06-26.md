@@ -19,6 +19,8 @@ Any concrete Markdown doc under `docs/` marked `active` here must also be listed
 
 Active canary evidence folders must also contain the core packet files before they can count as current proof: `live-canary-observations.json`, `live-canary-summary.md`, and `live-canary-summary.json`.
 
+Inventory boundaries must explain the status-specific control rule. Read-only evidence rows must say how they can be used as evidence, history, breadth, classification, or promotion material; archive candidates must say archive/extraction/no-prompt behavior; delete candidates must say owner-reviewed removal meaning.
+
 - `active`: current source of rules, proof, or release gates.
 - `read-only evidence`: useful for history, regression breadth, or promotion decisions; not authority by itself.
 - `archive candidate`: keep for now, but only as historical context after current rules are extracted or linked.
@@ -69,12 +71,12 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `ops/liveNlCommandSuite.ts` | read-only evidence | Legacy NL runner and Harness map helper; not release proof. |
 | `ops/liveNlVerdictReport.ts` | read-only evidence | Legacy evidence exporter with `claim_scope=legacy_breadth`, `release_gate=none`. |
 | `ops/naturalRouteReplay.ts` | read-only evidence | Route replay helper for breadth and drift; not a release gate. |
-| `ops/CONTEXT_WINDOW_LIVE_TEST_PLAN.md` | read-only evidence | Context-window regression plan; promote cases only when they close a named proof or trace gap. |
+| `ops/CONTEXT_WINDOW_LIVE_TEST_PLAN.md` | read-only evidence | Context-window regression plan and promotion source; promote cases only when they close a named proof or trace gap. |
 | `ops/realtime-conversation-smoke.json` | read-only evidence | Conversation smoke source material; not release proof until promoted or covered by active tests. |
 | `ops/capability-natural-language-matrix.json` | read-only evidence | Capability/NL separation matrix; supports classification, not action authority. |
 | `docs/TURNINTENT_AGENTS_ADOPTION.md` | read-only evidence | Adoption history; current authority is `TURNINTENT_HARNESS_RULESET.md`. |
 | `docs/LAUNCH_CONVERSATION_QA_2026-05-08.md` | read-only evidence | Launch-day conversation QA history; useful style context only. |
-| `docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md` | read-only evidence | Spark QA demo runbook; not SparkRecursive release or publish proof. |
+| `docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md` | read-only evidence | Historical Spark QA demo evidence; not SparkRecursive release or publish proof. |
 | `docs/codex-handoffs/2026-05-05-spark-memory-launch-runtime-handoff.md` | read-only evidence | Historical handoff; fresh runtime state and Harness Core outrank it. |
 | `docs/codex-handoffs/2026-05-09-natural-language-intelligence-handoff.md` | read-only evidence | Historical NL intelligence handoff; use only through current Harness mapping. |
 

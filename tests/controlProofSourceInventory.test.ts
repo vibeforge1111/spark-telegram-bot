@@ -182,13 +182,52 @@ test('accepts wildcard source rows only when the directory has entries', () => {
   writeFileSync(inventoryPath, [
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
-    '| `docs/codex-handoffs/*` | archive candidate | Historical context only. |'
+    '| `docs/codex-handoffs/*` | archive candidate | Not fresh-turn authority; archive after extracting useful history. |'
   ].join('\n'));
   writeFileSync(docsIndexPath, '');
 
   const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
 
   assert.equal(result.ok, true);
+});
+
+test('fails when source status has only a vague boundary', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/history.md` | archive candidate | Not fresh-turn authority; maybe useful later. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.code === 'missing_status_specific_boundary'));
+  assert.match(formatSourceInventoryReport(result), /status-specific control rule/);
+});
+
+test('requires delete candidates to prove owner-reviewed removal meaning', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/unsafe.md'), 'unsafe');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/unsafe.md` | delete candidate | Not fresh-turn authority; historical source. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((gap) => gap.code === 'missing_status_specific_boundary'));
 });
 
 test('requires active canary evidence folders to contain core packet files', () => {
