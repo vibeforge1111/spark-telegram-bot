@@ -604,7 +604,7 @@ function formatReleaseBundleReadme(paths: {
     '',
     'The JSON summary also carries `packetEvidenceDetails` beside the compatibility arrays `missingPacketEvidence`, `invalidPacketEvidence`, and `stalePacketEvidence`. Automation should use the structured detail objects for proof-gap reasons, timestamps, and freshness windows instead of parsing the markdown lines.',
     '',
-    'The JSON summary `cases` array carries safe Harness metadata for each canary: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, optional sanitized `sourceRefs`, verdict, and missing capture names. It intentionally omits raw Telegram prompts, observed replies, proof-panel bodies, screenshots, and user confirmations; read the observation packet only when reviewed live evidence is needed.',
+    'The JSON summary `cases` array carries safe Harness metadata for each canary: `expectedRoute`, `expectedAuthority`, `expectedMutationClass`, `expectedReplyShape`, optional sanitized `sourceRefs`, verdict, and missing capture names. It intentionally omits raw Telegram prompts, observed replies, proof-panel bodies, screenshots, and user confirmations; read the observation packet only when reviewed live evidence is needed.',
     '',
     'The JSON summary carries `controlProofAuditDetails.legacyGapBackingDetails` from the fresh-strict trace audit. Automation should use it to verify each visible historical proof-gap plane has complete backing, no latest gap, `releaseBlocking=false`, and a safe repair source/command instead of scraping the `Legacy gap backing` prose.',
     '',
