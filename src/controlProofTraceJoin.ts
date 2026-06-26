@@ -108,6 +108,7 @@ type RefIndex = {
   traceRefs: Set<string>;
   proofRefs: Set<string>;
   requestTracePairs: Set<string>;
+  requestTraceProofTriples: Set<string>;
 };
 
 const DEFAULT_MAX_LIVE_EVIDENCE_AGE_MS = 4 * 60 * 60 * 1000;
@@ -332,7 +333,11 @@ function summarizeRouteJoin(
   const proofRef = stringField(record, 'harness_proof_ref');
   const hasJoinKeys = Boolean(requestId && traceRef);
   const replyJoined = hasJoinKeys && index.requestTracePairs.has(joinPairKey(requestId, traceRef));
-  const proofJoined = Boolean(proofRef && index.proofRefs.has(proofRef));
+  const proofJoined = Boolean(
+    proofRef &&
+    hasJoinKeys &&
+    index.requestTraceProofTriples.has(joinTripleKey(requestId, traceRef, proofRef))
+  );
   const actionOrNoActionEvidence = Boolean(record.executed_action && record.delivery && record.delivery !== 'unknown');
   const noActionEvidence = actionOrNoActionEvidence && isNoActionRouteEvidence(record);
   const routeMatched = record.outcome !== 'mismatch';
@@ -411,7 +416,13 @@ function readJsonl(filePath: string): JsonlReadResult {
 }
 
 function indexEvidenceRefs(records: unknown[]): RefIndex {
-  const index: RefIndex = { requestIds: new Set(), traceRefs: new Set(), proofRefs: new Set(), requestTracePairs: new Set() };
+  const index: RefIndex = {
+    requestIds: new Set(),
+    traceRefs: new Set(),
+    proofRefs: new Set(),
+    requestTracePairs: new Set(),
+    requestTraceProofTriples: new Set()
+  };
   for (const record of records) {
     const requestId = stringField(record, 'request_id') || stringField(record, 'requestId') || stringField(record, 'request_ref');
     const traceRef = stringField(record, 'trace_ref') || stringField(record, 'traceRef') || stringField(record, 'trace_id');
@@ -424,17 +435,31 @@ function indexEvidenceRefs(records: unknown[]): RefIndex {
       ? objectField(row.proof_capsule) || objectField(row.proofCapsule) || objectField(row.harness_proof) || objectField(row.harnessProof)
       : null;
     addRef(index.proofRefs, stringField(capsule, 'turnRef'));
+    addJoinTriple(
+      index.requestTraceProofTriples,
+      requestId,
+      traceRef,
+      stringField(record, 'harness_proof_ref') || stringField(record, 'harnessProofRef')
+    );
+    addJoinTriple(index.requestTraceProofTriples, requestId, traceRef, stringField(capsule, 'turnRef'));
   }
   return index;
 }
 
 function mergeRefIndexes(...indexes: RefIndex[]): RefIndex {
-  const merged: RefIndex = { requestIds: new Set(), traceRefs: new Set(), proofRefs: new Set(), requestTracePairs: new Set() };
+  const merged: RefIndex = {
+    requestIds: new Set(),
+    traceRefs: new Set(),
+    proofRefs: new Set(),
+    requestTracePairs: new Set(),
+    requestTraceProofTriples: new Set()
+  };
   for (const index of indexes) {
     for (const value of index.requestIds) merged.requestIds.add(value);
     for (const value of index.traceRefs) merged.traceRefs.add(value);
     for (const value of index.proofRefs) merged.proofRefs.add(value);
     for (const value of index.requestTracePairs) merged.requestTracePairs.add(value);
+    for (const value of index.requestTraceProofTriples) merged.requestTraceProofTriples.add(value);
   }
   return merged;
 }
@@ -449,10 +474,21 @@ function addJoinPair(set: Set<string>, requestId: string, traceRef: string): voi
   if (key) set.add(key);
 }
 
+function addJoinTriple(set: Set<string>, requestId: string, traceRef: string, proofRef: string): void {
+  const key = joinTripleKey(requestId, traceRef, proofRef);
+  if (key) set.add(key);
+}
+
 function joinPairKey(requestId: string, traceRef: string): string {
   const request = requestId.trim();
   const trace = traceRef.trim();
   return request && trace ? `${request}\u0000${trace}` : '';
+}
+
+function joinTripleKey(requestId: string, traceRef: string, proofRef: string): string {
+  const pair = joinPairKey(requestId, traceRef);
+  const proof = proofRef.trim();
+  return pair && proof ? `${pair}\u0000${proof}` : '';
 }
 
 function stringField(record: unknown, key: string): string {

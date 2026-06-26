@@ -13,6 +13,8 @@ It is separate from the per-plane trace continuity audit. The continuity audit p
 
 Reply joins are row-correlated. A route row is not considered joined merely because its request id appears in one evidence row and its trace ref appears somewhere else; the delivered reply evidence must carry the same request and trace pair together. This prevents copied, stale, or partial refs from masking a broken turn chain.
 
+Proof joins are row-correlated too. A route row is not considered proof-joined merely because its proof ref appears somewhere in the audits; the proof ref must appear on evidence that also carries the same request and trace pair.
+
 ## Sources
 
 - Natural route ledger: `spark.nlp.route_execution.v1`
@@ -89,7 +91,7 @@ A joined route row must have:
 - action or no-action delivery evidence
 - request and trace join keys, joined as the same pair on reply evidence
 - a reply join in final-answer or outbound evidence
-- a proof join when a Harness proof ref is present
+- a proof join on the same request/trace/proof evidence row when a Harness proof ref is present
 - no shadow-vs-executed route mismatch
 - no stale live route evidence when `--require-live-evidence` is active
 

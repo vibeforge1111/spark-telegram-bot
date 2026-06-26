@@ -298,7 +298,8 @@ test('trace join checker doc records route-to-reply proof boundary', () => {
   assert.match(doc, /spark\.nlp\.route_execution\.v1/);
   assert.match(doc, /npm run control:proof:trace-join -- --strict/);
   assert.match(doc, /request and trace join keys/);
-  assert.match(doc, /proof join when a Harness proof ref is present/);
+  assert.match(doc, /Proof joins are row-correlated too/);
+  assert.match(doc, /proof join on the same request\/trace\/proof evidence row when a Harness proof ref is present/);
   assert.match(doc, /An empty route sample is not clean proof/);
   assert.match(doc, /default live evidence freshness window is four hours/);
   assert.match(doc, /no stale live route evidence when `--require-live-evidence` is active/);
