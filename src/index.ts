@@ -10214,8 +10214,8 @@ export async function handleTextMessage(ctx: any): Promise<void> {
         builderRoutingDecision: builderReply.routingDecision,
         builderBridgeMode: builderReply.bridgeMode,
         builderReply: builderReply.responseText,
-        requestId: builderReply.requestId,
-        traceRef: builderReply.traceRef,
+        requestId: builderReply.requestId || turnIntentEnvelope.turnId,
+        traceRef: builderReply.traceRef || turnIntentEnvelope.traceId,
         proofCapsule: buildBuilderGatewayProofCapsule({
           envelope: turnIntentEnvelope,
           builderReply,
