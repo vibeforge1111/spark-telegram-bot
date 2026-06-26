@@ -3305,6 +3305,8 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /duplicate-truth drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /registry_pin_drift/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /local_runtime_test_artifacts/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /Unhanded dirty runtime compile evidence/);
+    assert.match(readFileSync(bundledReadmePath, 'utf8'), /dirty owner repos are acceptable only when they are surfaced as sanitized `repo_release_blocks` handoffs/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /packetEvidenceDetails/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /proof-gap reasons, timestamps, and freshness windows/);
     assert.match(readFileSync(bundledReadmePath, 'utf8'), /summary `cases` array carries safe Harness metadata/);

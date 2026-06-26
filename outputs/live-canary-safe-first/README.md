@@ -38,7 +38,7 @@ The focused guide includes only cases whose recorded proof panel is missing requ
 
 The summaries print both `Runtime evidence collected` and `Runtime evidence expires`; the expiry timestamp is the freshness deadline for release claims.
 
-If `spark os compile --json` is otherwise clean but reports repo release blocks or duplicate-truth drift, the summary stays selected-case proof accurate and prints the drift under `Release caveats`. Treat these as publish/registry handoff items, not as hidden Telegram proof. Dirty runtime compile evidence still makes the packet not ready.
+If `spark os compile --json` is otherwise clean but reports repo release blocks or duplicate-truth drift, the summary stays selected-case proof accurate and prints the drift under `Release caveats`. Treat these as publish/registry handoff items, not as hidden Telegram proof. Unhanded dirty runtime compile evidence still makes the packet not ready; dirty owner repos are acceptable only when they are surfaced as sanitized `repo_release_blocks` handoffs.
 
 When caveats or handoffs exist, the human summary prints the owner repo and next safe action so the Telegram canary gate cannot be mistaken for publish/registry completion.
 
