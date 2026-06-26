@@ -14,6 +14,7 @@ function test(name: string, fn: () => void): void {
 
 const ROOT = resolve(__dirname, '..');
 const PROMPT_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_GOAL_PROMPT_2026-06-24.md');
+const PLAN_PATH = resolve(ROOT, 'docs/SPARK_CONTROL_PROOF_PLAN_2026-06-24.md');
 
 test('control-proof goal prompt stays under the handoff limit', () => {
   const prompt = readFileSync(PROMPT_PATH, 'utf8');
@@ -29,4 +30,16 @@ test('control-proof goal prompt preserves proof-first operating constraints', ()
   assert.match(prompt, /Treat every issue as proof first, implementation second, publishing last\./);
   assert.match(prompt, /Do not push, merge, publish, or open\/update PRs unless explicitly asked and the local proof gate is satisfied\./);
   assert.match(prompt, /Refresh evidence only from a clean\/source-committed state\./);
+});
+
+test('control-proof plan documents current proof repair and release boundaries', () => {
+  const plan = readFileSync(PLAN_PATH, 'utf8');
+
+  assert.match(plan, /control:proof:repair:final-answer/);
+  assert.match(plan, /--repair-stale-proof-panels/);
+  assert.match(plan, /clean embedded fresh-strict audit evidence/);
+  assert.match(plan, /Release gate: ready/);
+  assert.match(plan, /Gate scope: full release pack/);
+  assert.match(plan, /Publish gate: not ready/);
+  assert.match(plan, /do not turn release-ready behavior proof into a publish or registry claim/);
 });

@@ -179,8 +179,9 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.match(summaryMd, /Gate scope: full release pack/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, ['canary_case_failures']);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
+  assert.equal(summaryJson.summary.readyForRelease, true);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -257,8 +258,8 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
-    'saved packet must preserve release-not-ready proof-panel recapture blockers alongside publish caveats'
+    ['release_caveats', 'release_handoffs'],
+    'saved packet must keep publish blocked by caveats and handoffs after release proof is ready'
   );
   assert.ok(
     summaryJson.summary.releaseHandoffDetails.every((entry: {
