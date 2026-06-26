@@ -142,7 +142,7 @@ test('fails when a classified source path does not exist', () => {
   writeFileSync(inventoryPath, [
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
-    '| `docs/missing.md` | read-only evidence | Historical source. |'
+    '| `docs/missing.md` | read-only evidence | Not fresh-turn authority; historical source. |'
   ].join('\n'));
   writeFileSync(docsIndexPath, '');
 
@@ -151,6 +151,26 @@ test('fails when a classified source path does not exist', () => {
   assert.equal(result.ok, false);
   assert.deepEqual(result.gaps.map((gap) => gap.code), ['missing_source']);
   assert.match(formatSourceInventoryReport(result), /docs\/missing\.md is classified/);
+});
+
+test('fails when historical rows do not explicitly deny fresh-turn authority', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'spark-source-inventory-'));
+  const inventoryPath = join(dir, 'inventory.md');
+  const docsIndexPath = join(dir, 'index.md');
+  mkdirSync(join(dir, 'docs'), { recursive: true });
+  writeFileSync(join(dir, 'docs/history.md'), 'history');
+  writeFileSync(inventoryPath, [
+    '| Source | Status | Fresh-turn boundary |',
+    '| --- | --- | --- |',
+    '| `docs/history.md` | read-only evidence | Useful historical context. |'
+  ].join('\n'));
+  writeFileSync(docsIndexPath, '');
+
+  const result = checkSourceInventory({ repoRoot: dir, inventoryPath, docsIndexPath, legacyPromptBlockedSources: [] });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.gaps.some((gap) => gap.code === 'missing_historical_authority_guard'), true);
+  assert.match(formatSourceInventoryReport(result), /does not explicitly say it is not fresh-turn authority/);
 });
 
 test('accepts wildcard source rows only when the directory has entries', () => {
@@ -206,8 +226,8 @@ test('accepts read-only evidence plus archive candidate as a historical duplicat
     '| Source | Status | Fresh-turn boundary |',
     '| --- | --- | --- |',
     '| `docs/current.md` | active | Current source. |',
-    '| `docs/history.md` | read-only evidence | Historical source. |',
-    '| `docs/history.md` | archive candidate | Archive after extraction. |'
+    '| `docs/history.md` | read-only evidence | Not fresh-turn authority; historical source. |',
+    '| `docs/history.md` | archive candidate | Not fresh-turn authority; archive after extraction. |'
   ].join('\n'));
   writeFileSync(docsIndexPath, [
     '1. `docs/current.md`'

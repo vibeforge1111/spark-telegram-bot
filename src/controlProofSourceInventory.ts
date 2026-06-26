@@ -95,6 +95,11 @@ function requiredEvidenceFilesForSource(source: string, status: string): string[
   ];
 }
 
+function hasHistoricalAuthorityGuard(entry: SourceInventoryEntry): boolean {
+  if (entry.status === 'active') return true;
+  return /\b(?:not (?:fresh-turn authority|authority|release proof|a release gate|everyday release proof|action authority|the active prompt|control-proof readiness|sparkrecursive release|publish proof|live Bot API delivery)|source material only|(?:historical|style) context only|use only|only until|only when|not load into prompts|superseded by|current authority is|outrank|claim_scope=legacy_breadth|release_gate=none)\b/i.test(entry.boundary);
+}
+
 export function checkSourceInventory(options: {
   repoRoot: string;
   inventoryPath?: string;
@@ -125,6 +130,12 @@ export function checkSourceInventory(options: {
       gaps.push({
         code: 'missing_boundary',
         message: `${entry.source} is missing a fresh-turn boundary on line ${entry.line}.`
+      });
+    }
+    if (!hasHistoricalAuthorityGuard(entry)) {
+      gaps.push({
+        code: 'missing_historical_authority_guard',
+        message: `${entry.source} is ${entry.status} but its boundary does not explicitly say it is not fresh-turn authority.`
       });
     }
     if (!sourceExists(options.repoRoot, entry.source)) {

@@ -65,7 +65,7 @@ No repo-local source is marked `delete candidate` in this first pass.
 | `ops/genesis-live-telegram-100.json` | read-only evidence | Historical breadth benchmark and periodic drift sweep, not everyday release proof. |
 | `ops/NATURAL_LANGUAGE_LIVE_TEST_PLAN.md` | read-only evidence | Live prompt-card workflow and old matrix history; `nl:live` alone is not control-proof readiness. |
 | `docs/SPARK_NATURAL_LANGUAGE_SUITE_HARNESS_CORE_AUDIT_2026-06-24.md` | read-only evidence | Audit of older natural-language suites; promotion source only until a named proof or trace gap promotes a case. |
-| `ops/routeBoundaryHandlerHarness.ts` | read-only evidence | Fast Telegram-shaped route-boundary and trace-join helper; it proves handler joins but still does not prove live Bot API delivery, streaming, or rich rendering. |
+| `ops/routeBoundaryHandlerHarness.ts` | read-only evidence | Not fresh-turn authority; fast Telegram-shaped route-boundary and trace-join helper proves handler joins but still does not prove live Bot API delivery, streaming, or rich rendering. |
 | `ops/liveNlCommandSuite.ts` | read-only evidence | Legacy NL runner and Harness map helper; not release proof. |
 | `ops/liveNlVerdictReport.ts` | read-only evidence | Legacy evidence exporter with `claim_scope=legacy_breadth`, `release_gate=none`. |
 | `ops/naturalRouteReplay.ts` | read-only evidence | Route replay helper for breadth and drift; not a release gate. |
@@ -82,8 +82,8 @@ No repo-local source is marked `delete candidate` in this first pass.
 
 | Source | Status | Fresh-turn boundary |
 | --- | --- | --- |
-| `docs/LAUNCH_CONVERSATION_QA_2026-05-08.md` | archive candidate | Archive once still-useful style invariants are fully represented in active composition docs/tests. |
-| `docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md` | archive candidate | Archive or move to Spark QA docs when no longer needed by Telegram control-proof work. |
+| `docs/LAUNCH_CONVERSATION_QA_2026-05-08.md` | archive candidate | Not fresh-turn authority; archive once still-useful style invariants are fully represented in active composition docs/tests. |
+| `docs/SPARK_QA_STARTUP_BENCH_SHOWCASE_RUNBOOK_2026-05-26.md` | archive candidate | Not fresh-turn authority; archive or move to Spark QA docs when no longer needed by Telegram control-proof work. |
 | `docs/codex-handoffs/*` | archive candidate | Keep as historical context; do not load into prompts unless explicitly inspecting history. |
 
 ## Delete Candidates
