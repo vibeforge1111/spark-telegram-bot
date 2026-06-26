@@ -239,6 +239,12 @@ function collectRuntimeEvidence(): ReturnType<typeof collectRuntimeEvidenceFromC
       timeoutMs: 60_000
     },
     {
+      label: 'live_trace_join',
+      command: 'npm',
+      args: ['run', 'control:proof:live-trace'],
+      timeoutMs: 60_000
+    },
+    {
       label: 'route_confidence_legacy_repair_dry_run',
       command: 'npm',
       args: ['run', 'control:proof:repair:route-confidence', '--', '--dry-run', '--json'],
@@ -294,6 +300,7 @@ function collectRuntimeEvidenceFromCommands(commands: RuntimeEvidenceCommand[]) 
     sparkOsCompile: byLabel.get('spark_os_compile') || null,
     controlProofAudit: byLabel.get('control_proof_audit') || null,
     routeBoundaryTraceJoin: byLabel.get('route_boundary_trace_join') || null,
+    liveTraceJoin: byLabel.get('live_trace_join') || null,
     controlProofAuditSummary: summarizeControlProofAuditRuntimeEvidence(byLabel.get('control_proof_audit') || null),
     notes
   };
@@ -469,7 +476,7 @@ function summarizeCommandResult(
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, redactLongToken)
     .replace(/\s+\n/g, '\n')
     .trim();
-  const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' || label === 'route_boundary_trace_join' ? 24_000 : 2400;
+  const maxOutputLength = label === 'control_proof_audit' || label === 'spark_os_compile' || label === 'route_boundary_trace_join' || label === 'live_trace_join' ? 24_000 : 2400;
   const snippet = output.length > maxOutputLength
     ? `${output.slice(0, 1200)}\n...\n${output.slice(-1200)}`
     : output;

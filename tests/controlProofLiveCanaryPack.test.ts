@@ -90,6 +90,25 @@ const CLEAN_ROUTE_BOUNDARY_TRACE_JOIN = [
   '- missing action/no-action evidence: 0',
   '- route mismatches: 0'
 ].join('\n');
+const CLEAN_LIVE_TRACE_JOIN = [
+  '$ npm run control:proof:live-trace',
+  'exit=0',
+  'Control-proof trace join checker',
+  'Route rows: 4/4 sampled',
+  '',
+  'Status: clean',
+  'Joined rows: 4',
+  'Gap rows: 0',
+  'Parse errors: 0',
+  'Live route proof: ready (4/4 minimum joined rows)',
+  '',
+  'Gap counts:',
+  '- missing join keys: 0',
+  '- missing reply joins: 0',
+  '- missing proof joins: 0',
+  '- missing action/no-action evidence: 0',
+  '- route mismatches: 0'
+].join('\n');
 function cleanSparkOsCompile(generatedAt = TEST_RUNTIME_COLLECTED_AT): string {
   return [
   '$ spark os compile --json',
@@ -203,9 +222,11 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.match(summaryMd, /Gate scope: full release pack/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.equal(summaryJson.summary.readyForRelease, true);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
+  assert.equal(summaryJson.summary.readyForRelease, false);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, ['invalid_packet_evidence']);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
+  assert.match(summaryMd, /Packet evidence invalid: live_trace_join/);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.equal(summaryJson.summary.totalCases, summary.totalCases);
   assert.deepEqual(summaryJson.summary.verdictCounts, summary.verdictCounts);
@@ -259,7 +280,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   assert.equal(summaryJson.coverage.coverageComplete, coverage.coverageComplete);
   assert.equal(summaryJson.coverage.releasePackComplete, coverage.releasePackComplete);
   assert.deepEqual(summaryJson.summary.missingPacketEvidence, []);
-  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, []);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
   assert.deepEqual(summaryJson.summary.stalePacketEvidence, []);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
@@ -282,7 +303,7 @@ test('checked-in full canary summary JSON matches the observation packet', () =>
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_caveats', 'release_handoffs'],
+    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
     'saved packet must keep publish blocked by caveats and handoffs after release proof is ready'
   );
   assert.ok(
@@ -332,8 +353,9 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.match(summaryMd, /Gate scope: selected-case gate/);
   assert.deepEqual(summaryJson.summary.releaseBlockers, summary.gateDecisionDetails.release.blockers);
   assert.deepEqual(summaryJson.summary.publishBlockers, summary.gateDecisionDetails.publish.blockers);
-  assert.deepEqual(summaryJson.summary.releaseBlockers, []);
-  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.releaseBlockers, ['invalid_packet_evidence']);
+  assert.deepEqual(summaryJson.summary.publishBlockers, ['release_gate_not_ready', 'release_caveats', 'release_handoffs']);
+  assert.deepEqual(summaryJson.summary.invalidPacketEvidence, ['live_trace_join']);
   assert.deepEqual(summaryJson.summary.gateDecisionDetails, summary.gateDecisionDetails);
   assert.deepEqual(summaryJson.summary.packetEvidenceDetails, summary.packetEvidenceDetails);
   assert.deepEqual(summaryJson.summary.controlProofAuditDetails, summary.controlProofAuditDetails);
@@ -341,8 +363,9 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   assert.equal(summaryJson.coverage.totalCases, coverage.totalCases);
   assert.equal(summaryJson.coverage.gateScope, 'selected_case_gate');
   assert.equal(summaryJson.coverage.releasePackComplete, false);
-  assert.equal(summaryJson.summary.readyForRelease, true);
+  assert.equal(summaryJson.summary.readyForRelease, false);
   assert.equal(summaryJson.summary.readyForPublish, false);
+  assert.match(summaryMd, /Packet evidence invalid: live_trace_join/);
   assert.match(summaryMd, /All selected canaries passed with required captures present/);
   assert.doesNotMatch(summaryMd, /Recapture hint:/);
   assert.equal((runGuide.match(/--record-case/g) || []).length, observations.cases.length);
@@ -376,7 +399,7 @@ test('checked-in safe-first canary summary JSON matches the selected observation
   );
   assert.deepEqual(
     summaryJson.summary.gateDecisionDetails.publish.blockers,
-    ['release_caveats', 'release_handoffs'],
+    ['release_gate_not_ready', 'release_caveats', 'release_handoffs'],
     'safe-first packet must preserve publish caveats after proof-panel recaptures pass'
   );
   assert.ok(
@@ -671,6 +694,7 @@ test('runtime evidence refresh backfills canonical canary source refs and expect
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
 
@@ -775,6 +799,7 @@ test('observation summary requires pass verdicts and all requested capture evide
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   assert.deepEqual(template.evidence.controlProofAuditSummary, summarizeControlProofAuditRuntimeEvidence(CLEAN_CONTROL_PROOF_AUDIT));
@@ -1172,6 +1197,7 @@ test('observation summary rejects unrelated mutations on action cases', () => {
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1221,6 +1247,7 @@ test('streaming canaries require runtime status and rich-message proof shape', (
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1315,6 +1342,7 @@ test('publish canary requires release-ready versus publish-not-ready handoff sha
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -1380,6 +1408,7 @@ test('observation summary rejects dirty runtime evidence even when packet fields
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -2516,6 +2545,7 @@ test('observation summary rejects unfilled run-guide placeholders as missing cap
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -2557,6 +2587,7 @@ test('observation recorder updates one case while preserving packet evidence', (
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: 'Collected locally.'
   });
 
@@ -2605,6 +2636,7 @@ test('proof-panel audit-line repair refreshes stale readiness fields from embedd
     sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
     controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
     notes: null
   });
   template.cases[0].observed = {
@@ -2853,6 +2885,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
     publishCaveatPacket.evidence.controlProofAuditSummary =
       summarizeControlProofAuditRuntimeEvidence(publishCaveatPacket.evidence.controlProofAudit);
     publishCaveatPacket.evidence.sparkOsCompile = `$ spark os compile --json\nexit=0\n{"generated_at":"${publishCaveatPacket.evidence.collectedAt}","ok":true,"gaps":0,"builder_trace_health_flags":[],"builder_trace_current_health":{"status":"current_clean","window":"24h","row_count":100,"missing_trace_ref_count":0,"historical_missing_trace_ref_count":0,"total_missing_trace_ref_count":0,"missing_trace_ref_ratio":0},"builder_trace_recent_windows":[{"window":"1h","row_count":0,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0},{"window":"24h","row_count":100,"missing_trace_ref_count":0,"missing_trace_ref_ratio":0}],"repo_board":{"dirty_repo_count":0,"blocked_release_count":0,"critical_repo_count":0,"duplicate_truth_count":2,"critical_duplicate_truth_count":1},"gate":{"dirty_repo_count":0,"broad_dirty_repo_count":0},"duplicate_truths":{"classification_counts":{"runtime_ahead_of_registry_pin":2}},"privacy":{"raw_secret_values_read":false,"raw_logs_read":false,"raw_conversation_content_read":false,"raw_memory_evidence_read":false,"sqlite_row_contents_read":false}}`;
+    publishCaveatPacket.evidence.liveTraceJoin = CLEAN_LIVE_TRACE_JOIN;
     publishCaveatPacket.cases = publishCaveatPacket.cases.map((entry: { observed?: { proofPanel?: string | null } }) => ({
       ...entry,
       observed: {
@@ -3094,6 +3127,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
       sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
       controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
       routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
       notes: null
     };
     const observationsPath = resolve(tempRoot, 'observations.json');
@@ -3249,6 +3283,7 @@ test('control-proof canary CLI lists and exports selected cases', () => {
         sparkOsCompile: CLEAN_SPARK_OS_COMPILE,
         controlProofAudit: CLEAN_CONTROL_PROOF_AUDIT,
     routeBoundaryTraceJoin: CLEAN_ROUTE_BOUNDARY_TRACE_JOIN,
+    liveTraceJoin: CLEAN_LIVE_TRACE_JOIN,
         notes: null
       }
     );
@@ -3536,6 +3571,24 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     writeFileSync(npmPath, [
       '#!/bin/sh',
       'if [ "$1 $2" = "run sync:check" ]; then echo "[check] runtime in sync."; exit 0; fi',
+      'if [ "$1 $2" = "run control:proof:live-trace" ]; then',
+      '  echo "Control-proof trace join checker"',
+      '  echo "Route rows: 4/4 sampled"',
+      '  echo ""',
+      '  echo "Status: clean"',
+      '  echo "Joined rows: 4"',
+      '  echo "Gap rows: 0"',
+      '  echo "Parse errors: 0"',
+      '  echo "Live route proof: ready (4/4 minimum joined rows)"',
+      '  echo ""',
+      '  echo "Gap counts:"',
+      '  echo "- missing join keys: 0"',
+      '  echo "- missing reply joins: 0"',
+      '  echo "- missing proof joins: 0"',
+      '  echo "- missing action/no-action evidence: 0"',
+      '  echo "- route mismatches: 0"',
+      '  exit 0',
+      'fi',
       'if [ "$1 $2" = "run control:proof:audit" ]; then',
       '  case " $* " in *" --fresh-strict "*) ;; *) echo "missing --fresh-strict" >&2; exit 1;; esac',
       '  i=0',
@@ -3653,6 +3706,8 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(observed.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
     assert.match(observed.evidence.routeBoundaryTraceJoin, /missing proof joins: 0/);
     assert.doesNotMatch(observed.evidence.routeBoundaryTraceJoin, /\/tmp\/spark-route-boundary-handler/);
+    assert.match(observed.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
+    assert.match(observed.evidence.liveTraceJoin, /missing proof joins: 0/);
     assert.match(observed.evidence.sparkOsCompile, /"ok": true/);
     assert.match(observed.evidence.sparkOsCompile, /"gaps": 0/);
     assert.match(observed.evidence.sparkOsCompile, /historical_open_high_severity_events/);
@@ -3720,6 +3775,7 @@ test('runtime evidence collection keeps the audit tail needed for strict validat
     assert.match(refreshedObserved.evidence.controlProofAudit, /Blocking status: clean/);
     assert.match(refreshedObserved.evidence.controlProofAudit, /Fresh-strict status: clean/);
     assert.match(refreshedObserved.evidence.routeBoundaryTraceJoin, /Route rows: 4\/4 sampled/);
+    assert.match(refreshedObserved.evidence.liveTraceJoin, /Live route proof: ready \(4\/4 minimum joined rows\)/);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.freshStrictOk, true);
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.actionableStatus, 'clean');
     assert.equal(refreshedObserved.evidence.controlProofAuditSummary.gapPosture, 'backed legacy gaps only; no blocking or latest proof gaps');
